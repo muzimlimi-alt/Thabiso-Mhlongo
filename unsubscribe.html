@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unsubscribe | Thabiso Mhlongo</title>
+    <link rel="icon" href="images/icon.png" type="image/gif" sizes="16x16">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0a0a0a;
+            --surface-color: #141414;
+            --accent-color: #D4AF37;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Outfit', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            max-width: 500px;
+            width: 90%;
+            padding: 50px 40px;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+            animation: fadeIn 0.8s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .banner {
+            width: 100%;
+            max-width: 250px;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-family: 'Cormorant Garamond', serif;
+            font-weight: 300;
+            font-size: 28px;
+            letter-spacing: 2px;
+            margin-bottom: 20px;
+            color: var(--accent-color);
+        }
+
+        p {
+            font-size: 15px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            margin-bottom: 40px;
+        }
+
+        .btn-unsubscribe {
+            display: inline-block;
+            background: var(--accent-color);
+            color: #000;
+            text-decoration: none;
+            padding: 14px 40px;
+            font-weight: 500;
+            font-size: 14px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-unsubscribe:hover {
+            background: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+
+        .status-message {
+            display: none;
+            margin-top: 20px;
+            font-size: 14px;
+        }
+
+        .success { color: var(--accent-color); }
+        .error { color: #ff4d4d; }
+
+        .footer-link {
+            display: block;
+            margin-top: 40px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 12px;
+            opacity: 0.6;
+            transition: opacity 0.3s;
+        }
+
+        .footer-link:hover {
+            opacity: 1;
+        }
+
+        .loading-dots:after {
+            content: ' .';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { color: rgba(0,0,0,0); text-shadow: .5em 0 0 rgba(0,0,0,0), 1em 0 0 rgba(0,0,0,0); }
+            40% { color: var(--accent-color); text-shadow: .5em 0 0 rgba(0,0,0,0), 1em 0 0 rgba(0,0,0,0); }
+            60% { text-shadow: .5em 0 0 var(--accent-color), 1em 0 0 rgba(0,0,0,0); }
+            80%, 100% { text-shadow: .5em 0 0 var(--accent-color), 1em 0 0 var(--accent-color); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- We use the same brand banner for visual continuity -->
+        <img src="images/banner_3_contemplation.png" alt="Thabiso Mhlongo" class="banner">
+        
+        <div id="initial-view">
+            <h1>Subscription Update</h1>
+            <p id="msg-display">Are you sure you want to unsubscribe your email from receiving further updates from Thabiso Mhlongo?</p>
+            <button id="unsub-btn" class="btn-unsubscribe" onclick="handleUnsubscribe()">Confirm Unsubscribe</button>
+        </div>
+
+        <div id="status-view" class="status-message">
+            <p id="status-text"></p>
+            <a href="index.html" class="footer-link">Return to Official Website</a>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const email = urlParams.get('email');
+
+        if (!token || !email) {
+            document.getElementById('msg-display').innerText = "Invalid unsubscription link. Please check your email or contact support if you continue to have issues.";
+            document.getElementById('unsub-btn').style.display = 'none';
+        }
+
+        async function handleUnsubscribe() {
+            const btn = document.getElementById('unsub-btn');
+            const initialView = document.getElementById('initial-view');
+            const statusView = document.getElementById('status-view');
+            const statusText = document.getElementById('status-text');
+
+            btn.disabled = true;
+            btn.innerHTML = 'Processing<span class="loading-dots"></span>';
+
+            try {
+                const response = await fetch('/api/public/newsletter/unsubscribe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, email })
+                });
+
+                const data = await response.json();
+
+                initialView.style.display = 'none';
+                statusView.style.display = 'block';
+
+                if (data.success) {
+                    statusText.innerHTML = `<span class="success">You have been successfully unsubscribed.</span><br><br>We're sorry to see you go, but you're welcome back anytime.`;
+                } else {
+                    statusText.innerHTML = `<span class="error">${data.message || 'An error occurred.'}</span><br><br>Please try again later or reply directly to our email.`;
+                }
+            } catch (err) {
+                initialView.style.display = 'none';
+                statusView.style.display = 'block';
+                statusText.innerHTML = `<span class="error">Network error.</span><br><br>Please check your connection and try again.`;
+            }
+        }
+    </script>
+</body>
+</html>

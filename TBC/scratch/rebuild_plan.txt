@@ -1,0 +1,4 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- ... (Existing content up to line 1500) ... -->
+<!-- I'll use replace_file_content instead as writing the whole file is risky without full read -->

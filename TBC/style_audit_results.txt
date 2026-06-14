@@ -1,0 +1,275 @@
+Auditing inline styles from line 3218 to 6800...
+
+[dashboardAdmin] L3323: <div class="db-stat-icon"><i class="fa-solid fa-triangle-exclamation" style="color:#FFA726;"></i></div>
+[bookingsAdmin] L4128: <span class="atl-pill-dot" style="background:#D4AF37"></span>
+[bookingsAdmin] L4132: <span class="atl-pill-dot" style="background:#D4AF37"></span>
+[bookingsAdmin] L4136: <span class="atl-pill-dot" style="background:#E8C14B"></span>
+[bookingsAdmin] L4140: <span class="atl-pill-dot" style="background:#60a5fa"></span>
+[bookingsAdmin] L4144: <span class="atl-pill-dot" style="background:#34d399"></span>
+[bookingsAdmin] L4148: <span class="atl-pill-dot" style="background:#4ade80"></span>
+[bookingsAdmin] L4152: <span class="atl-pill-dot" style="background:#949494"></span>
+[bookingsAdmin] L4156: <span class="atl-pill-dot" style="background:#f87171"></span>
+[calendarAdmin] L4239: <div class="calendar-legend" style="margin-top: 25px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 8px; border: 1px solid #333; display: flex; gap: 20px; flex-wrap: wrap;">
+[calendarAdmin] L4254: <p style="font-size:10px;color:rgba(255,255,255,0.4);margin:4px 0 0;">Click a day to block out time</p>
+[calendarAdmin] L4257: <div class="month-year" id="miniMonthYearDisplay" style="color: var(--atl-amber); font-weight: 600;">Loading...</div>
+[calendarAdmin] L4279: <li style="color: #666; padding: 20px; text-align: center;">Loading upcoming events...</li>
+[financeAdmin] L4318: <div id="finStat-TotalRevenue" style="font-size: 28px; font-weight: bold; color: var(--atl-ink); margin: 10px 0;">R 0.00</div>
+[financeAdmin] L4325: <div id="finStat-Outstanding" style="font-size: 28px; font-weight: bold; color: var(--atl-ink); margin: 10px 0;">R 0.00</div>
+[financeAdmin] L4332: <div id="finStat-Pending" style="font-size: 28px; font-weight: bold; color: var(--atl-ink); margin: 10px 0;">R 0.00</div>
+[financeAdmin] L4341: <div style="background: rgba(212,175,55,0.08); border: 1px solid rgba(212,175,55,0.3); padding: 16px 20px; border-radius: 10px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+[financeAdmin] L4343: <div style="color: var(--atl-amber); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px;"><i class="fa-solid fa-chart-line" style="margin-right:6px;"></i>Net Profit (This Month)</div>
+[financeAdmin] L4344: <div id="finStat-NetProfit" style="font-size:26px; font-weight:800; color: var(--atl-ink); margin-top:6px;">R 0.00</div>
+[financeAdmin] L4346: <div style="font-size:12px; color:#666; text-align:right;">
+[financeAdmin] L4360: <ul class="nav nav-tabs" role="tablist" style="border-bottom-color: #333;">
+[financeAdmin] L4363: <li role="presentation"><a href="#finExpenses" aria-controls="finExpenses" role="tab" data-toggle="tab"><i class="fa-solid fa-receipt" style="margin-right:5px; color:#ef5350;"></i>Expenses</a></li>
+[financeAdmin] L4364: <li role="presentation"><a href="#finReconciliation" aria-controls="finReconciliation" role="tab" data-toggle="tab"><i class="fa-solid fa-scale-balanced" style="margin-right:5px; color: var(--atl-amber);"></i>Reconciliation</a></li>
+[financeAdmin] L4365: <li role="presentation"><a href="#finReminders" aria-controls="finReminders" role="tab" data-toggle="tab" onclick="loadRemindersLog()"><i class="fa-solid fa-bell" style="margin-right:5px; color:#9C27B0;"></i>Reminders</a></li>
+[financeAdmin] L4371: <table class="table" style="color: #eee; border-color: #333;">
+[financeAdmin] L4373: <tr style="color: var(--atl-amber);">
+[financeAdmin] L4390: <label style="color: var(--atl-muted); font-size:12px; margin:0;">Filter:</label>
+[financeAdmin] L4391: <select id="invoiceStatusFilter" class="form-control" style="width:auto; display:inline-block; background: var(--atl-card); color: var(--atl-ink); border-color:#333; font-size:13px;" onchange="applyInvoiceFilter()">
+[financeAdmin] L4397: <table class="table" style="color: #eee; border-color: #333;">
+[financeAdmin] L4399: <tr style="color: var(--atl-amber);">
+[financeAdmin] L4419: <label style="color: var(--atl-muted); font-size:12px; margin:0;">Filter:</label>
+[financeAdmin] L4420: <select id="expenseCategoryFilter" class="form-control" style="width:auto; display:inline-block; background: var(--atl-card); color: var(--atl-ink); border-color:#333; font-size:13px;" onchange="loadExpensesTab()">
+[financeAdmin] L4432: <input type="date" id="expenseDateFrom" class="form-control" style="width:auto; display:inline-block; background: var(--atl-card); color: var(--atl-ink); border-color:#333; font-size:13px;" onchange="loadExpensesTab()" placeholder="From">
+[financeAdmin] L4433: <input type="date" id="expenseDateTo" class="form-control" style="width:auto; display:inline-block; background: var(--atl-card); color: var(--atl-ink); border-color:#333; font-size:13px;" onchange="loadExpensesTab()" placeholder="To">
+[financeAdmin] L4442: <table class="table" style="color:#eee; border-color:#333;">
+[financeAdmin] L4444: <tr style="color: var(--atl-amber);">
+[financeAdmin] L4458: <div id="expensesGrandTotal" style="text-align:right; font-size:14px; color: var(--atl-amber); font-weight:700; padding-top:8px; border-top:1px solid #333; margin-top:4px;"></div>
+[financeAdmin] L4465: <label style="color: var(--atl-muted); font-size:12px; margin:0;">Filter:</label>
+[financeAdmin] L4466: <select id="reconWarnFilter" class="form-control" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color:#333;font-size:13px;" onchange="loadReconciliation()">
+[financeAdmin] L4478: <div id="reconSummary" style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px; padding:14px 18px; background:rgba(212,175,55,0.07); border:1px solid rgba(212,175,55,0.2); border-radius:8px;"></div>
+[financeAdmin] L4481: <table class="table" id="reconTable" style="color:#eee; border-color:#333;">
+[financeAdmin] L4483: <tr style="color: var(--atl-amber); font-size:12px;">
+[financeAdmin] L4502: <div id="reconGrandTotal" style="text-align:right; font-size:14px; color: var(--atl-amber); font-weight:700; padding-top:8px; border-top:1px solid #333; margin-top:4px;"></div>
+[financeAdmin] L4508: <div style="color: var(--atl-muted); font-size:12px;">Automated payment reminder emails sent to clients.</div>
+[financeAdmin] L4512: <table class="table" style="color:#eee; border-color:#333; font-size:13px;">
+[financeAdmin] L4514: <tr style="color: var(--atl-amber);">
+[financeAdmin] L4540: <div class="modal-content" style="background: var(--atl-card);border:1px solid #333;border-radius:10px;color: var(--atl-ink-dim);">
+[financeAdmin] L4541: <div class="modal-header" style="background: var(--atl-paper);border-bottom:1px solid #333;border-radius:10px 10px 0 0;padding:16px 20px;">
+[financeAdmin] L4542: <button type="button" class="close" data-dismiss="modal" style="color:#aaa;opacity:1;font-size:22px;">&times;</button>
+[financeAdmin] L4543: <h4 class="modal-title" id="blockOutModalLabel" style="color: var(--atl-amber);font-size:15px;font-weight:700;">
+[financeAdmin] L4550: <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color: var(--atl-muted);margin-bottom:5px;display:block;">Date</label>
+[financeAdmin] L4551: <input type="date" id="boDate" class="form-control" style="background: var(--atl-paper);border:1px solid #444;color: var(--atl-ink);border-radius:6px;">
+[financeAdmin] L4555: <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color: var(--atl-muted);margin-bottom:5px;display:block;">Category</label>
+[financeAdmin] L4556: <select id="boCategory" class="form-control" style="background: var(--atl-paper);border:1px solid #444;color: var(--atl-ink);border-radius:6px;">
+[financeAdmin] L4573: <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color: var(--atl-muted);margin-bottom:5px;display:block;">Start Time</label>
+[financeAdmin] L4574: <input type="time" id="boTime" class="form-control" value="09:00" style="background: var(--atl-paper);border:1px solid #444;color: var(--atl-ink);border-radius:6px;">
+[financeAdmin] L4577: <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color: var(--atl-muted);margin-bottom:5px;display:block;">Duration</label>
+[financeAdmin] L4578: <select id="boDuration" class="form-control" style="background: var(--atl-paper);border:1px solid #444;color: var(--atl-ink);border-radius:6px;">
+[financeAdmin] L4590: <button type="button" id="btnBoAddCategory" style="background:none;border:1px dashed #555;color: var(--atl-muted);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;border-radius:6px;padding:6px 12px;width:100%;cursor:pointer;transition:border-color 0.2s,color 0.2s;">
+[financeAdmin] L4595: <input type="text" id="boNewCategoryName" class="form-control" placeholder="Category name" style="flex:1;background: var(--atl-paper);border:1px solid #444;color: var(--atl-ink);border-radius:6px;height:36px;">
+[financeAdmin] L4596: <input type="color" id="boNewCategoryColor" value="#9C27B0" title="Pick a colour" style="width:36px;height:36px;border-radius:6px;border:1px solid #555;cursor:pointer;padding:2px;background: var(--atl-paper);">
+[financeAdmin] L4597: <button type="button" id="btnBoSaveCategory" style="background:#D4AF37;color:#000;font-weight:700;font-size:12px;border:none;border-radius:6px;padding:0 14px;height:36px;cursor:pointer;white-space:nowrap;">Add</button>
+[financeAdmin] L4602: <div class="modal-footer" style="background: var(--atl-paper);border-top:1px solid #333;border-radius:0 0 10px 10px;padding:12px 20px;display:flex;justify-content:flex-end;gap:10px;">
+[financeAdmin] L4616: <div class="modal-header" style="background-color: #222; color: var(--atl-amber); border-top-left-radius: 6px; border-top-right-radius: 6px;">
+[financeAdmin] L4617: <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--atl-ink); opacity: 1;"><span aria-hidden="true">&times;</span></button>
+[financeAdmin] L4621: <div class="modal-body" style="background: var(--atl-paper);padding:20px;color:#aaa;font-size:13px;">
+[financeAdmin] L4659: <div class="modal-content" style="background: var(--atl-paper);border: 1px solid var(--atl-line);border-radius:10px;overflow:hidden;">
+[financeAdmin] L4660: <div class="modal-header" style="background:#0d0d0d;border-bottom: 1px solid var(--atl-line);padding:16px 20px;">
+[financeAdmin] L4661: <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--atl-ink);opacity:.7;font-size:20px;"><span aria-hidden="true">&times;</span></button>
+[financeAdmin] L4662: <h4 class="modal-title" id="biModalLabel" style="color:#64B5F6;font-weight:700;font-size:16px;">
+[financeAdmin] L4667: <div class="modal-body" style="background: var(--atl-paper);color:#ddd;padding:24px;">
+[financeAdmin] L4670: <div class="col-md-6" style="border-right:1px solid #222;padding-right:24px;">
+[financeAdmin] L4671: <h6 style="color:#64B5F6;text-transform:uppercase;font-size:11px;letter-spacing:1.5px;margin-bottom:12px;">Client Info</h6>
+[financeAdmin] L4673: <tr><td style="padding:5px 0;color: var(--atl-muted);width:130px;">Name</td><td style="padding:5px 0;color: var(--atl-ink);font-weight:600;" id="bi-name"></td></tr>
+[financeAdmin] L4674: <tr><td style="padding:5px 0;color: var(--atl-muted);">Company</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-company"></td></tr>
+[financeAdmin] L4675: <tr><td style="padding:5px 0;color: var(--atl-muted);">Email</td><td style="padding:5px 0;"><a id="bi-email" href="#" style="color: var(--atl-amber);"></a></td></tr>
+[financeAdmin] L4676: <tr><td style="padding:5px 0;color: var(--atl-muted);">Phone</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-cell"></td></tr>
+[financeAdmin] L4678: <h6 style="color:#64B5F6;text-transform:uppercase;font-size:11px;letter-spacing:1.5px;margin-bottom:12px;">Event Details</h6>
+[financeAdmin] L4680: <tr><td style="padding:5px 0;color: var(--atl-muted);width:130px;">Event Name</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-event-name"></td></tr>
+[financeAdmin] L4681: <tr><td style="padding:5px 0;color: var(--atl-muted);">Date &amp; Time</td><td style="padding:5px 0;"><span id="bi-date" style="color:#f0ad4e;font-weight:bold;"></span> <span id="bi-start-time" style="color: var(--atl-ink);"></span></td></tr>
+[financeAdmin] L4682: <tr><td style="padding:5px 0;color: var(--atl-muted);">Perf. Slot</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-slot"></td></tr>
+[financeAdmin] L4683: <tr><td style="padding:5px 0;color: var(--atl-muted);">Duration</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-duration"></td></tr>
+[financeAdmin] L4684: <tr><td style="padding:5px 0;color: var(--atl-muted);">Location</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-location"></td></tr>
+[financeAdmin] L4685: <tr><td style="padding:5px 0;color: var(--atl-muted);">Address</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-address"></td></tr>
+[financeAdmin] L4686: <tr><td style="padding:5px 0;color: var(--atl-muted);">Event Type</td><td style="padding:5px 0;"><span id="bi-type" style="background:#D4AF37;color:#111;font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;"></span></td></tr>
+[financeAdmin] L4687: <tr><td style="padding:5px 0;color: var(--atl-muted);">Venue Type</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-venue-type"></td></tr>
+[financeAdmin] L4692: <h6 style="color:#64B5F6;text-transform:uppercase;font-size:11px;letter-spacing:1.5px;margin-bottom:12px;">Audience &amp; Logistics</h6>
+[financeAdmin] L4694: <tr><td style="padding:5px 0;color: var(--atl-muted);width:130px;">Audience Size</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-audience"></td></tr>
+[financeAdmin] L4695: <tr><td style="padding:5px 0;color: var(--atl-muted);">Demographic</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-demographic"></td></tr>
+[financeAdmin] L4696: <tr><td style="padding:5px 0;color: var(--atl-muted);">Budget Range</td><td style="padding:5px 0;color:#5cb85c;font-weight:bold;" id="bi-budget"></td></tr>
+[financeAdmin] L4697: <tr><td style="padding:5px 0;color: var(--atl-muted);">Travel Provided</td><td style="padding:5px 0;" id="bi-travel"></td></tr>
+[financeAdmin] L4699: <div id="bi-venue-notes" style="display:none;background:rgba(212,175,55,.06);border:1px solid rgba(212,175,55,.2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;"></div>
+[financeAdmin] L4700: <h6 style="color:#64B5F6;text-transform:uppercase;font-size:11px;letter-spacing:1.5px;margin-bottom:8px;">Client Notes</h6>
+[financeAdmin] L4701: <div id="bi-message" style="background: var(--atl-card);border:1px solid #333;border-radius:6px;padding:12px;font-size:13px;color: var(--atl-ink-dim);white-space:pre-wrap;max-height:200px;overflow-y:auto;"></div>
+[financeAdmin] L4705: <div class="modal-footer" style="background:#0d0d0d;border-top: 1px solid var(--atl-line);padding:12px 20px;">
+[financeAdmin] L4717: <div class="modal-content" style="background: var(--atl-paper);border: 1px solid var(--atl-line);border-radius:10px;overflow:hidden;">
+[financeAdmin] L4718: <div class="modal-header" style="background:#0d0d0d;border-bottom: 1px solid var(--atl-line);padding:16px 20px;">
+[financeAdmin] L4719: <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--atl-ink);opacity:.7;font-size:20px;"><span aria-hidden="true">&times;</span></button>
+[financeAdmin] L4720: <h4 class="modal-title" id="bfModalLabel" style="color: var(--atl-amber);font-weight:700;font-size:16px;">
+[financeAdmin] L4725: <div class="modal-body" style="background: var(--atl-paper);color:#ddd;padding:24px;">
+[financeAdmin] L4727: <div style="background: var(--atl-card);border: 1px solid var(--atl-line);border-radius:10px;padding:16px;margin-bottom:20px;">
+[financeAdmin] L4729: <span style="font-size:12px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:1px;">Payment Status</span>
+[financeAdmin] L4733: <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:12px;text-align:center;">
+[financeAdmin] L4734: <div style="font-size:11px;color: var(--atl-muted);margin-bottom:4px;">Quoted Amount</div>
+[financeAdmin] L4735: <div id="bf-total" style="font-size:16px;color: var(--atl-ink);font-weight:700;"></div>
+[financeAdmin] L4737: <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:12px;text-align:center;">
+[financeAdmin] L4738: <div style="font-size:11px;color: var(--atl-muted);margin-bottom:4px;">Paid to Date</div>
+[financeAdmin] L4739: <div id="bf-paid" style="font-size:16px;color:#4CAF50;font-weight:700;"></div>
+[financeAdmin] L4741: <div style="background:rgba(0,0,0,.2);border-radius:8px;padding:12px;text-align:center;">
+[financeAdmin] L4742: <div style="font-size:11px;color: var(--atl-amber);margin-bottom:4px;">Balance Due</div>
+[financeAdmin] L4743: <div id="bf-outstanding" style="font-size:16px;color:#ff9800;font-weight:700;"></div>
+[financeAdmin] L4746: <div style="font-size:11px;color:#555;" id="bf-last-payment"></div>
+[financeAdmin] L4749: <div id="bf-pl-card" style="background:rgba(212,175,55,.06);border:1px solid rgba(212,175,55,.2);border-radius:10px;padding:16px;margin-bottom:20px;">
+[financeAdmin] L4750: <i class="fa-solid fa-spinner fa-spin" style="color: var(--atl-muted);"></i> Loading P&amp;L&hellip;
+[financeAdmin] L4760: <button type="button" id="bf-btn-expense" class="btn" style="font-size:12px;background:rgba(239,83,80,.15);color:#ef5350;border:1px solid rgba(239,83,80,.3);border-radius:6px;">
+[financeAdmin] L4765: <div id="bf-doc-links" style="font-size:12px;color:#666;"></div>
+[financeAdmin] L4767: <div class="modal-footer" style="background:#0d0d0d;border-top: 1px solid var(--atl-line);padding:12px 20px;">
+[financeAdmin] L4779: <div class="modal-content" style="background: var(--atl-paper);border: 1px solid var(--atl-line);border-radius:10px;overflow:hidden;">
+[financeAdmin] L4780: <div class="modal-header" style="background:#0d0d0d;border-bottom: 1px solid var(--atl-line);padding:16px 20px;">
+[financeAdmin] L4781: <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: var(--atl-ink);opacity:.7;font-size:20px;"><span aria-hidden="true">&times;</span></button>
+[financeAdmin] L4782: <h4 class="modal-title" id="beModalLabel" style="color:#66BB6A;font-weight:700;font-size:16px;">
+[financeAdmin] L4787: <div class="modal-body" style="background: var(--atl-paper);color:#ddd;padding:24px;">
+[financeAdmin] L4789: <div style="background: var(--atl-card);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color: var(--atl-muted);">
+[financeAdmin] L4790: <i class="fa-solid fa-paper-plane" style="margin-right:6px;color:#66BB6A;"></i>
+[financeAdmin] L4791: To: <span id="be-to" style="color: var(--atl-amber);"></span>
+[financeAdmin] L4794: <select id="be-template" class="form-control" style="background: var(--atl-card);border:1px solid #333;color: var(--atl-ink);border-radius:6px;flex:1;">
+[financeAdmin] L4803: <label style="color: var(--atl-muted);font-size:12px;margin-bottom:4px;display:block;">Subject</label>
+[financeAdmin] L4804: <input type="text" id="be-subject" class="form-control" style="background: var(--atl-card);border:1px solid #333;color: var(--atl-ink);border-radius:6px;">
+[financeAdmin] L4807: <label style="color: var(--atl-muted);font-size:12px;margin-bottom:4px;display:block;">Message</label>
+[financeAdmin] L4808: <div id="be-quill-container" style="background: var(--atl-card);border-radius:6px;border:1px solid #333;min-height:200px;"></div>
+[financeAdmin] L4812: <div class="modal-footer" style="background:#0d0d0d;border-top: 1px solid var(--atl-line);padding:12px 20px;display:flex;justify-content:space-between;align-items:center;">
+[financeAdmin] L4814: <button type="button" id="be-send-btn" class="btn" style="background:linear-gradient(135deg,#66BB6A,#388E3C);color: var(--atl-ink);border:none;border-radius:6px;font-weight:600;padding:8px 20px;">
+[servicesAdmin] L4838: <h4 id="serviceFormTitle" style="margin-bottom:16px; color: var(--atl-amber);">New Service</h4>
+[servicesAdmin] L4843: <label>Name <span style="color:#f44;">*</span></label>
+[servicesAdmin] L4867: <label id="svcPriceLabel">Price (R) <span style="color:#f44;">*</span></label>
+[servicesAdmin] L4993: <div id="svcAdvancedPanel" style="display:none;border-top:1px solid rgba(255,255,255,0.06);padding-top:14px;margin-bottom:14px;">
+[servicesAdmin] L4997: <label style="font-size:11px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:0.5px;">Financial Category</label>
+[servicesAdmin] L5009: <label style="font-size:11px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:0.5px;">Marketing Segment</label>
+[servicesAdmin] L5021: <label style="font-size:11px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:0.5px;">Item Category (SAP)</label>
+[servicesAdmin] L5027: <label style="font-size:11px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:0.5px;">Fulfillment Type</label>
+[servicesAdmin] L5039: <label style="font-size:11px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:0.5px;">Tax Category</label>
+[servicesAdmin] L5050: <label style="font-size:11px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:0.5px;">Revenue GL Code</label>
+[servicesAdmin] L5056: <label style="font-size:11px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:0.5px;">Crew Required</label>
+[servicesAdmin] L5062: <label style="font-size:11px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:0.5px;">Legacy Code</label>
+[servicesAdmin] L5070: <label style="font-size:11px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:0.5px;">Archived</label>
+[servicesAdmin] L5081: <table class="table" style="color: var(--atl-ink-dim);">
+[servicesAdmin] L5082: <thead><tr style="color: var(--atl-muted); font-size:11px; text-transform:uppercase; letter-spacing:0.5px;">
+[servicesAdmin] L5086: <tr><td colspan="7" class="text-center" style="padding:30px; color:#555;">Loading...</td></tr>
+[policiesAdmin] L5129: <hr style="border-color:#333; margin:20px 0;">
+[policiesAdmin] L5130: <h5 style="color: var(--atl-amber); margin-bottom:4px;"><i class="fa-solid fa-bell" style="margin-right:8px;"></i>Payment Reminder Timings</h5>
+[homeAdmin] L5192: <small style="color:#555; font-size:12px; margin-top:6px; display:block;">Images resized automatically (max 1200px).</small>
+[homeAdmin] L5195: <hr style="flex:1; border:0; border-top:1px solid #252525;">
+[homeAdmin] L5196: <span style="color:#555; font-size:11px; font-weight:700; letter-spacing:1px;">OR</span>
+[homeAdmin] L5197: <hr style="flex:1; border:0; border-top:1px solid #252525;">
+[aboutAdmin] L5275: <small id="aboutVideoWarning" style="display:none; color:#ef5350; font-size:12px; margin-top:4px;">Videos are not supported here. Please upload an image.</small>
+[aboutAdmin] L5278: <hr style="flex:1; border:0; border-top:1px solid #252525;">
+[aboutAdmin] L5279: <span style="color:#555; font-size:11px; font-weight:700; letter-spacing:1px;">OR</span>
+[aboutAdmin] L5280: <hr style="flex:1; border:0; border-top:1px solid #252525;">
+[aboutAdmin] L5318: <div class="live-preview-box" style="padding:20px; border:1px solid #252525; border-radius:8px; background:#0d0d0d; min-height:350px;">
+[aboutAdmin] L5321: <img id="previewAboutImg" class="img-responsive about-img" src="images/image-slider-1.jpg" alt="Preview" style="max-width:100%; height:auto; border-radius:5px; box-shadow:0 4px 8px rgba(0,0,0,0.4);">
+[aboutAdmin] L5323: <div class="col-sm-7" style="color: var(--atl-ink-dim);">
+[careerAdmin] L5393: <input type="file" id="careerFile" accept="image/*" style="color: var(--atl-ink-dim); font-size:13px;">
+[careerAdmin] L5394: <small id="careerVideoWarning" style="display:none; color:#ef5350; font-size:12px; margin-top:4px;">Videos cannot be uploaded directly. Please use the Web URL field below.</small>
+[careerAdmin] L5395: <small style="color:#555; font-size:12px; margin-top:4px; display:block;">Will scale automatically. Huge files are perfectly fine!</small>
+[careerAdmin] L5398: <hr style="flex:1; border:0; border-top:1px solid #252525;">
+[careerAdmin] L5399: <span style="color:#555; font-size:11px; font-weight:700; letter-spacing:1px;">OR</span>
+[careerAdmin] L5400: <hr style="flex:1; border:0; border-top:1px solid #252525;">
+[galleryAdmin] L5469: <small id="videoWarning" style="display:none; color:#ef5350; font-size:12px; margin-top:4px;">Videos cannot be uploaded directly. Please use the Web URL field below.</small>
+[galleryAdmin] L5472: <hr style="flex:1; border:0; border-top:1px solid #252525;">
+[galleryAdmin] L5473: <span style="color:#555; font-size:11px; font-weight:700; letter-spacing:1px;">OR</span>
+[galleryAdmin] L5474: <hr style="flex:1; border:0; border-top:1px solid #252525;">
+[socialAdmin] L5600: <div id="iconPreviewDisplay" style="font-size:40px; margin:8px 0; color: var(--atl-amber); text-shadow:0 0 12px rgba(212,175,55,0.4); min-height:50px;"></div>
+[socialAdmin] L5641: <div id="fbTokenGenerator" style="display:none; background:rgba(212,175,55,0.05); border:1px solid rgba(212,175,55,0.15); border-radius:8px; padding:16px; margin-bottom:16px;">
+[socialAdmin] L5642: <p style="margin-top:0; font-size:13px; color:#aaa;"><strong style="color: var(--atl-amber);">Generate Facebook Access Token:</strong> Enter your Meta App ID and App Secret to generate an access token. <a href="https://developers.facebook.com/apps" target="_blank" style="color: var(--atl-amber);">Create an App Here</a>.</p>
+[eventsAdmin] L5815: <div id="eventsLinkedBookingBadge" style="display:none; margin-bottom: 20px; padding: 12px; background: rgba(212, 175, 55, 0.1); border: 1px solid #D4AF37; border-radius: 4px;">
+[eventsAdmin] L5816: <span style="color: var(--atl-amber); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;"><i class="fa-solid fa-link"></i> Promoted from Booking</span>
+[eventsAdmin] L5817: <div style="margin-top: 5px; font-size: 13px; color: var(--atl-ink);">This event is linked to a private booking. <a href="#" id="eventsLinkedBookingLink" style="color: var(--atl-amber); text-decoration: underline;">View Booking</a></div>
+[eventsAdmin] L5821: <input type="checkbox" id="eventsGcalSync" checked style="accent-color: var(--atl-amber);width:15px;height:15px;cursor:pointer;">
+[eventsAdmin] L5822: <label for="eventsGcalSync" style="margin:0;cursor:pointer;font-size:12px;color:#aaa;display:flex;align-items:center;gap:6px;">
+[eventsAdmin] L5823: <i class="fa-brands fa-google" style="color: var(--atl-amber);font-size:11px;"></i>
+[eventsAdmin] L5828: <div id="eventsGcalLinkBadge" style="display:none;margin-bottom:14px;padding:8px 12px;background:rgba(66,133,244,0.08);border:1px solid rgba(66,133,244,0.25);border-radius:6px;font-size:12px;color:#8ab4f8;">
+[eventsAdmin] L5830: Synced to Google Calendar &mdash; <a id="eventsGcalLink" href="#" target="_blank" style="color:#8ab4f8;text-decoration:underline;">View Event</a>
+[contactAdmin] L5911: <small style="color:#555; font-size:12px; margin-top:4px; display:block;">Visitor messages will be dispatched to this address.</small>
+[newsletterAdmin] L6012: <div data-toggle="collapse" data-target="#collapseNewsletterForm" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 10px 14px; border-radius: 8px; border: 1px solid #252525; margin-bottom: 15px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+[newsletterAdmin] L6013: <span style="font-size:13.5px; font-weight:600; color: var(--atl-ink-dim); display:flex; align-items:center; gap:8px;"><i class="fa fa-bars" style="color:#555;"></i> Compose Newsletter</span>
+[newsletterAdmin] L6014: <i class="fa fa-chevron-down" style="color:#555; font-size:12px;"></i>
+[newsletterAdmin] L6024: <div id="err-newsletterSubject" style="display:none;font-size:12px;color:#ef5350;margin-top:4px;"></div>
+[newsletterAdmin] L6032: <div id="err-newsletterContent" style="display:none;font-size:12px;color:#ef5350;margin-top:4px;"></div>
+[newsletterAdmin] L6036: <label class="um-label">Attachments <span style="color:#555;font-size:11px;font-weight:300;">(optional)</span></label>
+[newsletterAdmin] L6039: <input type="file" id="newsletterAttachments" multiple style="width:100%;height:38px;padding:0 12px 0 36px;background:rgba(244,239,228,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:2px;color: var(--atl-ink-dim);font-size:13px;cursor:pointer;line-height:38px;">
+[newsletterAdmin] L6055: <button type="button" id="draftDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="position: absolute; right: 4px; top: 4px; color: #ef5350; border: none; background: transparent; display: none;" title="Delete selected draft">
+[newsletterAdmin] L6060: <div id="draftStatus" style="margin-top: 8px; font-size: 12px; color: var(--atl-muted);"></div>
+[newsletterAdmin] L6066: <span class="checkbox-label" style="color: #aaa; font-size: 13px;">Schedule for later</span>
+[newsletterAdmin] L6098: <div data-toggle="collapse" data-target="#collapseCampaigns" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(255,255,255,0.04);border-radius:8px;border:1px solid #252525;" class="collapsed">
+[newsletterAdmin] L6099: <span style="font-size:13.5px;font-weight:600;color: var(--atl-ink-dim);display:flex;align-items:center;gap:8px;">
+[newsletterAdmin] L6100: <i class="fa-solid fa-list" style="color:#555;"></i> Campaigns
+[newsletterAdmin] L6102: <i class="fa fa-chevron-down" style="color:#555;font-size:12px;"></i>
+[newsletterAdmin] L6106: <div id="campaignsBulkBar" style="display:none;margin-bottom:10px;padding:10px 14px;background: var(--atl-card);border: 1px solid var(--atl-line);border-radius:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+[newsletterAdmin] L6107: <span id="campaignsBulkCount" style="color: var(--atl-amber);font-weight:600;font-size:13px;">0 selected</span>
+[newsletterAdmin] L6108: <button id="campaignsBulkDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(244,67,54,0.1);color:#F44336;border-color:rgba(244,67,54,0.3);">
+[newsletterAdmin] L6125: <div style="background:rgba(255,255,255,0.03);border:1px solid #252525;border-radius:8px;overflow:hidden;">
+[newsletterAdmin] L6126: <table style="width:100%;border-collapse:collapse;color:#eee;">
+[newsletterAdmin] L6128: <tr style="border-bottom:1px solid #252525;">
+[newsletterAdmin] L6129: <th style="padding:10px 8px;border:none;color:#777;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;width:36px;">
+[newsletterAdmin] L6130: <input type="checkbox" id="selectAllCampaigns" style="accent-color: var(--atl-amber);cursor:pointer;" title="Select all">
+[newsletterAdmin] L6132: <th style="padding:10px 8px;border:none;color:#777;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Subject</th>
+[newsletterAdmin] L6133: <th style="padding:10px 8px;border:none;color:#777;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">Status</th>
+[newsletterAdmin] L6134: <th style="padding:10px 8px;border:none;color:#777;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;white-space:nowrap;">Date</th>
+[newsletterAdmin] L6135: <th style="padding:10px 8px;border:none;color:#777;font-size:12px;text-transform:uppercase;letter-spacing:0.5px;font-weight:600;text-align:right;">Actions</th>
+[newsletterAdmin] L6139: <tr><td colspan="5" style="padding:20px;text-align:center;color:#555;font-size:13px;">Loading...</td></tr>
+[newsletterAdmin] L6146: <span id="campaignsPageInfo" style="font-size:12px;color:#666;">—</span>
+[newsletterAdmin] L6170: <div data-toggle="collapse" data-target="#collapseSubscribersList" style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 10px 14px; border-radius: 8px; border: 1px solid #252525; margin-bottom: 15px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.08)'" onmouseout="this.style.background='rgba(255,255,255,0.04)'">
+[newsletterAdmin] L6171: <span style="font-size:13.5px; font-weight:600; color: var(--atl-ink-dim); display:flex; align-items:center; gap:8px;"><i class="fa fa-bars" style="color:#555;"></i> Manage Subscribers</span>
+[newsletterAdmin] L6172: <i class="fa fa-chevron-down" style="color:#555; font-size:12px;"></i>
+[newsletterAdmin] L6190: <div id="subscriberBulkBar" style="display:none; margin-bottom:12px; padding:10px 14px; background: var(--atl-card); border: 1px solid var(--atl-line); border-radius:8px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+[newsletterAdmin] L6191: <span id="bulkSelectedCount" style="color: var(--atl-amber); font-weight:600; font-size:13px;">0 selected</span>
+[newsletterAdmin] L6193: <button id="bulkSetActiveBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(76,175,80,0.1); color:#4CAF50; border-color:rgba(76,175,80,0.3);">Set Active</button>
+[newsletterAdmin] L6194: <button id="bulkSetInactiveBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(255,152,0,0.1); color:#FF9800; border-color:rgba(255,152,0,0.3);">Set Inactive</button>
+[newsletterAdmin] L6195: <button id="bulkDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(244,67,54,0.1); color:#F44336; border-color:rgba(244,67,54,0.3);">Delete</button>
+[newsletterAdmin] L6196: <button id="bulkExportSelectedBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(212,175,55,0.1); color: var(--atl-amber); border-color:rgba(212,175,55,0.3);"><i class="fa-solid fa-file-csv"></i> Export Selected</button>
+[newsletterAdmin] L6200: <div style="background: rgba(255,255,255,0.03); border: 1px solid #252525; border-radius: 10px; padding: 15px; max-height: 500px; overflow-y: auto;">
+[newsletterAdmin] L6201: <h4 style="margin-top: 0; font-size: 13px; color: #777; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; border-bottom: 1px solid #252525; padding-bottom: 10px; margin-bottom: 15px;">
+[newsletterAdmin] L6202: <span id="subscriberCount" style="font-size: 22px; color: var(--atl-amber); font-weight: 700; text-transform: none; letter-spacing: 0;">0</span> Total Subscribers
+[newsletterAdmin] L6205: <table class="table mt-3" style="color: #eee; background-color: transparent; width: 100%;">
+[newsletterAdmin] L6207: <tr style="border-bottom: 1px solid #252525;">
+[newsletterAdmin] L6208: <th style="border:none; color:#777; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; width:40px;">
+[newsletterAdmin] L6209: <input type="checkbox" id="selectAllSubscribers" title="Select All" style="accent-color: var(--atl-amber); cursor:pointer;">
+[newsletterAdmin] L6211: <th style="border: none; color:#777; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Email</th>
+[newsletterAdmin] L6212: <th style="border: none; color:#777; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Date</th>
+[newsletterAdmin] L6213: <th style="border: none; color:#777; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Status</th>
+[newsletterAdmin] L6214: <th style="border: none; color:#777; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; text-align: right;">Actions</th>
+[preferencesAdmin] L6294: <h5 style="color: var(--atl-amber); margin:16px 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:0.8px;">PayFast</h5>
+[preferencesAdmin] L6311: <h5 style="color: var(--atl-amber); margin:16px 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:0.8px;">Email (SMTP)</h5>
+[preferencesAdmin] L6331: <h5 style="color: var(--atl-amber); margin:16px 0 10px; font-size:13px; text-transform:uppercase; letter-spacing:0.8px;">Notifications</h5>
+[preferencesAdmin] L6335: <label>Notifications Email <small style="color: var(--atl-muted);font-weight:400;text-transform:none;letter-spacing:0;">(receives new booking alerts)</small></label>
+[preferencesAdmin] L6352: <h2><i class="fa-solid fa-clock" style="color: var(--atl-amber);margin-right:8px;"></i>Booking Schedule</h2>
+[preferencesAdmin] L6356: <table class="table" style="font-size:13px;color: var(--atl-ink-dim);">
+[preferencesAdmin] L6358: <tr style="color: var(--atl-muted);">
+[preferencesAdmin] L6371: <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.6px;color: var(--atl-muted);">Buffer Between Bookings (minutes)</label>
+[preferencesAdmin] L6372: <input type="number" id="whGapMinutes" class="form-control" min="0" max="240" step="5" value="30" style="background: var(--atl-paper);border:1px solid #444;color: var(--atl-ink);border-radius:6px;max-width:120px;">
+[emailLogsAdmin] L6591: <div class="um-logs-controls" style="display:flex; flex-wrap:wrap; gap:15px; margin: 20px 0; background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
+[emailLogsAdmin] L6593: <i class="fa-solid fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color: var(--atl-amber); opacity:0.6;"></i>
+[emailLogsAdmin] L6620: <table class="table" style="color: #eee; background: transparent; border-collapse: separate; border-spacing: 0 8px; width: 100%;">
+[emailLogsAdmin] L6622: <tr style="border-bottom: 2px solid #333;">
+[emailLogsAdmin] L6623: <th style="border:none; padding: 12px; color: var(--atl-amber); cursor:pointer;" onclick="toggleLogSort('sent_at')">
+[emailLogsAdmin] L6626: <th style="border:none; padding: 12px; color: var(--atl-amber); cursor:pointer;" onclick="toggleLogSort('recipient_email')">
+[emailLogsAdmin] L6629: <th style="border:none; padding: 12px; color: var(--atl-amber); cursor:pointer;" onclick="toggleLogSort('subject')">
+[emailLogsAdmin] L6632: <th style="border:none; padding: 12px; color: var(--atl-amber); cursor:pointer;" onclick="toggleLogSort('trigger_event')">
+[emailLogsAdmin] L6635: <th style="border:none; padding: 12px; color: var(--atl-amber); cursor:pointer;" onclick="toggleLogSort('status')">
+[emailLogsAdmin] L6655: <div id="logPaginationContainer" style="margin-top: 25px; display:flex; justify-content:space-between; align-items:center; border-top: 1px solid rgba(255,255,255,0.05); padding-top:20px;">
+[emailLogsAdmin] L6656: <div id="logStats" style="font-size:13px; color: var(--atl-muted);">
+[securityAdmin] L6690: <div style="display:flex; justify-content:space-between; align-items:center; background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.2); padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+[securityAdmin] L6691: <span style="font-size: 13px; color: #eee;">Database Sync</span>
+[securityAdmin] L6692: <span style="color: #4CAF50; font-size: 11px; font-weight: bold; background: rgba(76,175,80,0.1); padding: 2px 8px; border-radius: 10px;">OPERATIONAL</span>
+[securityAdmin] L6694: <div style="display:flex; justify-content:space-between; align-items:center; background: rgba(76,175,80,0.1); border: 1px solid rgba(76,175,80,0.2); padding: 12px; border-radius: 8px; margin-bottom: 10px;">
+[securityAdmin] L6695: <span style="font-size: 13px; color: #eee;">SSL/TLS Encryption</span>
+[securityAdmin] L6696: <span style="color: #4CAF50; font-size: 11px; font-weight: bold; background: rgba(76,175,80,0.1); padding: 2px 8px; border-radius: 10px;">ENFORCED</span>
+[securityAdmin] L6698: <div style="display:flex; justify-content:space-between; align-items:center; background: rgba(255,152,0,0.1); border: 1px solid rgba(255,152,0,0.2); padding: 12px; border-radius: 8px;">
+[securityAdmin] L6699: <span style="font-size: 13px; color: #eee;">Session Expiry</span>
+[securityAdmin] L6700: <span id="sessionTimerBadge" style="color: #FF9800; font-size: 11px; font-weight: bold; background: rgba(255,152,0,0.1); padding: 2px 8px; border-radius: 10px;">MONITORING</span>
+[securityAdmin] L6704: <div style="margin-top: 25px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.05);">
+[securityAdmin] L6706: <div id="recentLoginsList" style="margin-top: 10px; font-size: 12px; color: var(--atl-muted);">
+[securityAdmin] L6720: <select id="auditTableFilter" class="form-control" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color:#333;font-size:12px;">
+[securityAdmin] L6724: <input type="date" id="auditDateFrom" class="form-control" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color:#333;font-size:12px;" placeholder="From">
+[securityAdmin] L6725: <input type="date" id="auditDateTo" class="form-control" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color:#333;font-size:12px;" placeholder="To">
+[securityAdmin] L6729: <table class="table" style="color: #eee; background: transparent; width: 100%;">
+[securityAdmin] L6731: <tr style="color: var(--atl-amber); border-bottom: 1px solid #333;">
+[securityAdmin] L6750: <div class="um-section-card" style="border-left:3px solid #c0392b;">
+[securityAdmin] L6751: <h4 class="um-section-label" style="color:#e74c3c;"><i class="fa-solid fa-user-slash" style="margin-right:8px;"></i>POPIA Data Erasure</h4>
+[securityAdmin] L6755: <label style="font-size:12px;color:#aaa;display:block;margin-bottom:6px;">Client Email Address to Anonymize</label>
+[securityAdmin] L6757: <input type="email" id="gdprDeleteEmail" class="form-control" placeholder="client@example.com" style="background: var(--atl-card);color: var(--atl-ink);border-color:#333;font-size:13px;flex:1;">
+[securityAdmin] L6758: <button id="btnGdprDelete" class="um-btn" style="background:#c0392b;color: var(--atl-ink);border:none;padding:8px 18px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;">
+[securityAdmin] L6763: <div class="col-md-6" style="font-size:12px;color:#666;padding-top:6px;">

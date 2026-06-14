@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error | Thabiso Mhlongo</title>
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            background-color: #0a0a0a;
+            color: #f5f5f5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 24px;
+            font-family: 'Outfit', 'Helvetica Neue', sans-serif;
+            overflow-x: hidden;
+        }
+
+        /* Subtle grid pattern */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(212,175,55,0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(212,175,55,0.03) 1px, transparent 1px);
+            background-size: 48px 48px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .err-container {
+            position: relative;
+            z-index: 1;
+            max-width: 620px;
+            width: 100%;
+            text-align: center;
+            padding: 56px 48px;
+            background: rgba(255,255,255,0.025);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 6px;
+            box-shadow: 0 24px 64px rgba(0,0,0,0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            animation: fadeUp 0.55s cubic-bezier(0.16,1,0.3,1) both;
+        }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px) scale(0.97); }
+            to   { opacity: 1; transform: translateY(0)    scale(1); }
+        }
+
+        .err-icon {
+            font-size: 3.5rem;
+            color: #2a2a2a;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .err-code {
+            font-family: 'Cormorant Garamond', 'Georgia', serif;
+            font-size: clamp(5rem, 15vw, 8rem);
+            font-weight: 700;
+            line-height: 1;
+            color: #D4AF37;
+            text-shadow: 0 0 40px rgba(212,175,55,0.2);
+            margin: 0 0 8px;
+            letter-spacing: -0.02em;
+        }
+
+        .err-title {
+            font-family: 'Cormorant Garamond', 'Georgia', serif;
+            font-size: clamp(1.4rem, 4vw, 2rem);
+            font-weight: 500;
+            color: #f5f5f5;
+            margin: 0 0 16px;
+            letter-spacing: 0.01em;
+        }
+
+        .err-divider {
+            width: 48px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+            margin: 0 auto 20px;
+        }
+
+        .err-message {
+            font-size: 0.975rem;
+            color: #a0a0a0;
+            line-height: 1.7;
+            max-width: 460px;
+            margin: 0 auto 36px;
+        }
+
+        .err-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .err-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 26px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+            border: 1px solid transparent;
+        }
+        .err-btn:focus-visible {
+            outline: 2px solid #D4AF37;
+            outline-offset: 3px;
+        }
+
+        .err-btn--primary {
+            background: #D4AF37;
+            color: #000;
+            border-color: #D4AF37;
+        }
+        .err-btn--primary:hover {
+            background: #E8C14B;
+            color: #000;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(212,175,55,0.25);
+        }
+
+        .err-btn--secondary {
+            background: transparent;
+            color: #f5f5f5;
+            border-color: rgba(255,255,255,0.15);
+        }
+        .err-btn--secondary:hover {
+            background: rgba(255,255,255,0.06);
+            border-color: rgba(255,255,255,0.3);
+            transform: translateY(-2px);
+        }
+
+        .err-brand {
+            margin-top: 40px;
+            font-size: 0.75rem;
+            color: #3a3a3a;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 480px) {
+            .err-container { padding: 40px 24px; }
+            .err-actions { flex-direction: column; align-items: stretch; }
+            .err-btn { justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <div class="err-container" id="errContainer">
+        <!-- Populated by JS -->
+    </div>
+
+    <script>
+        (function () {
+            var params  = new URLSearchParams(window.location.search);
+            var code    = parseInt(params.get('code'), 10) || 0;
+            var referer = document.referrer || '';
+
+            var configs = {
+                400: {
+                    icon:    'fa-solid fa-triangle-exclamation',
+                    title:   'Bad Request',
+                    message: 'The server could not process this request. Please check your input and try again. If the problem persists, contact us for assistance.'
+                },
+                401: {
+                    icon:    'fa-solid fa-lock',
+                    title:   'Unauthorised',
+                    message: 'You need to sign in before you can access this page. Please log in with your credentials and try again.',
+                    extra:   '<a href="/admin.html" class="err-btn err-btn--primary"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>Sign In</a>'
+                },
+                403: {
+                    icon:    'fa-solid fa-ban',
+                    title:   'Access Forbidden',
+                    message: "You don’t have permission to view this resource. If you believe this is an error, please contact the site administrator.",
+                    extra:   '<a href="mailto:info@thabisomhlongo.com" class="err-btn err-btn--secondary"><i class="fa-solid fa-envelope" aria-hidden="true"></i>Contact Admin</a>'
+                },
+                404: {
+                    icon:    'fa-solid fa-microphone-slash',
+                    title:   'Page Not Found',
+                    message: "The page you’re looking for has left the building. It may have been moved, renamed, or permanently removed from the setlist."
+                },
+                500: {
+                    icon:    'fa-solid fa-server',
+                    title:   'Server Error',
+                    message: 'Something went wrong backstage. Our team has been notified and is working on a fix. Please try again in a few moments.'
+                }
+            };
+
+            var cfg = configs[code] || {
+                icon:    'fa-solid fa-circle-exclamation',
+                title:   'Something Went Wrong',
+                message: 'An unexpected error occurred. Please go back and try again, or return to the home page.'
+            };
+
+            var backBtn = referer
+                ? '<button class="err-btn err-btn--secondary" onclick="history.back()" type="button"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Go Back</button>'
+                : '';
+
+            document.getElementById('errContainer').innerHTML = [
+                '<i class="err-icon ' + cfg.icon + '" aria-hidden="true"></i>',
+                code ? '<p class="err-code" aria-label="Error ' + code + '">' + code + '</p>' : '',
+                '<h1 class="err-title">' + cfg.title + '</h1>',
+                '<div class="err-divider" aria-hidden="true"></div>',
+                '<p class="err-message">' + cfg.message + '</p>',
+                '<div class="err-actions">',
+                    backBtn,
+                    '<a href="/" class="err-btn err-btn--primary"><i class="fa-solid fa-house" aria-hidden="true"></i>Return Home</a>',
+                    (cfg.extra || ''),
+                '</div>',
+                '<p class="err-brand">Thabiso Mhlongo &mdash; Official</p>'
+            ].join('');
+        })();
+    </script>
+</body>
+</html>
