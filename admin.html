@@ -3207,6 +3207,37 @@
             font-size: 10px !important;
             color: var(--atl-muted-dim) !important;
         }
+        /* Inbox: bulk select, bulk bar, pagination */
+        .inq-selectall { accent-color: var(--atl-amber); cursor: pointer; width: 15px; height: 15px; }
+        .inq-row-check {
+            accent-color: var(--atl-amber);
+            cursor: pointer;
+            width: 15px;
+            height: 15px;
+            margin: 2px 4px 0 0;
+            flex: 0 0 auto;
+            align-self: flex-start;
+        }
+        .inq-bulk-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--atl-card);
+            border-bottom: 1px solid var(--atl-line);
+        }
+        .inq-bulk-count { color: var(--atl-amber); font-weight: 600; font-size: 12px; }
+        .inq-bulk-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+        .inq-pagination {
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 12px;
+            border-top: 1px solid var(--atl-line);
+        }
+        .inq-page-info { font-size: 12px; color: var(--atl-muted-dim); }
 
         /* ── USER MANAGEMENT SECTION ── */
         .um-tabs { border-bottom: 1px solid var(--atl-line); }
@@ -5307,11 +5338,15 @@
                     <main class="inq-list-panel" aria-label="Message list">
                         <div class="inq-list-toolbar">
                             <div class="inq-list-toolbar-left">
+                                <input type="checkbox" id="inqSelectAll" class="inq-selectall" title="Select all on this page" aria-label="Select all messages on this page">
                                 <span class="inq-folder-title" id="inqFolderTitle">All Messages</span>
                             </div>
                             <div class="inq-list-toolbar-right">
                                 <button class="inq-tool-btn" id="inqRefreshBtn" title="Refresh inbox" aria-label="Refresh inbox">
                                     <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
+                                </button>
+                                <button class="inq-tool-btn" id="inqAboutBtn" title="About this inbox" aria-label="About this inbox">
+                                    <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
                                 </button>
                                 <select class="inq-sort-select" id="inqSortSelect" aria-label="Sort messages">
                                     <option value="newest">Newest First</option>
@@ -5320,12 +5355,25 @@
                                 </select>
                             </div>
                         </div>
+                        <div id="inqBulkBar" class="inq-bulk-bar" style="display:none;">
+                            <span id="inqBulkCount" class="inq-bulk-count">0 selected</span>
+                            <div class="inq-bulk-actions">
+                                <button id="inqBulkReadBtn" class="um-btn um-btn--ghost um-btn--sm"><i class="fa-solid fa-envelope-open" aria-hidden="true"></i> Mark Read</button>
+                                <button id="inqBulkArchiveBtn" class="um-btn um-btn--ghost um-btn--sm"><i class="fa-solid fa-box-archive" aria-hidden="true"></i> Archive</button>
+                                <button id="inqBulkDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="color:var(--atl-clay);border-color:rgba(248,113,113,0.3);"><i class="fa-solid fa-trash" aria-hidden="true"></i> Delete</button>
+                            </div>
+                        </div>
                         <div class="inq-list-body" id="inqListBody" role="list" aria-live="polite">
                             <!-- Messages rendered here by JS -->
                             <div class="inq-empty-state">
                                 <i class="fa-solid fa-rotate fa-spin" aria-hidden="true"></i>
                                 <p>Loading messages...</p>
                             </div>
+                        </div>
+                        <div id="inqPagination" class="inq-pagination" style="display:none;">
+                            <button id="inqPrevBtn" class="um-btn um-btn--ghost um-btn--sm"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i> Prev</button>
+                            <span id="inqPageInfo" class="inq-page-info">—</span>
+                            <button id="inqNextBtn" class="um-btn um-btn--ghost um-btn--sm">Next <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
                         </div>
                     </main>
 
@@ -7832,11 +7880,17 @@
                                 </form>
 
                                 <!-- Search and Filter -->
-                                <div style="margin-bottom: 15px;">
-                                    <div class="um-input-wrap">
+                                <div style="margin-bottom: 15px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                                    <div class="um-input-wrap" style="flex:1; min-width:180px;">
                                         <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
-                                        <input type="text" id="subscriberSearch" class="um-input" placeholder="Search by email..." />
+                                        <input type="text" id="subscriberSearch" class="um-input" placeholder="Search loaded page by email..." />
                                     </div>
+                                    <select id="subscriberSortSelect" class="um-input" style="width:auto; min-width:150px;" aria-label="Sort subscribers">
+                                        <option value="newest">Newest First</option>
+                                        <option value="oldest">Oldest First</option>
+                                        <option value="email_asc">Email A–Z</option>
+                                        <option value="status">By Status</option>
+                                    </select>
                                 </div>
                                 <div id="subscriberBulkBar" style="display:none; margin-bottom:12px; padding:10px 14px; background: var(--atl-card); border: 1px solid var(--atl-line); border-radius:8px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
                                     <span id="bulkSelectedCount" style="color: var(--atl-amber); font-weight:600; font-size:13px;">0 selected</span>
@@ -7871,6 +7925,13 @@
                                     </table>
 
                                     <div id="subscriberListEmpty" class="text-muted text-center" style="font-size: 12px; padding: 20px 0; display: none;">No subscribers found.</div>
+
+                                    <!-- Pagination -->
+                                    <div id="subscribersPagination" style="display:none; margin-top:12px; align-items:center; justify-content:space-between; gap:8px;">
+                                        <button id="subscribersPrevBtn" class="um-btn um-btn--ghost um-btn--sm"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+                                        <span id="subscribersPageInfo" style="font-size:12px;color:var(--atl-muted-dim);">—</span>
+                                        <button id="subscribersNextBtn" class="um-btn um-btn--ghost um-btn--sm">Next <i class="fa-solid fa-chevron-right"></i></button>
+                                    </div>
                                 </div>
                                 </div>
                             </div>
@@ -8674,6 +8735,47 @@
         </div><!-- /.tab-content -->
         </main><!-- /.tm-admin-main -->
     </div><!-- /.tm-admin-wrapper -->
+
+    <!-- Inbox "About" modal — opened via showAtelierModal('#inqAboutModal') from the inbox toolbar -->
+    <div class="modal fade" id="inqAboutModal" tabindex="-1" role="dialog" aria-labelledby="inqAboutModalTitle" aria-hidden="true" style="display:none;">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title" id="inqAboutModalTitle">About the Inbox</h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <p class="um-section-desc">The Inbox is where every message a visitor sends through the website's contact and enquiry forms arrives for you to read, reply to, and organise.</p>
+
+                    <h5 class="um-section-label" style="font-size:13px; margin-top:18px;">What this section does</h5>
+                    <p class="um-section-desc">Each enquiry from the public site is collected here with the sender's name, email and message. You can read a message, reply to it by email, and file it by status — <strong style="color:var(--atl-ink);">Unread</strong>, <strong style="color:var(--atl-ink);">Read</strong>, <strong style="color:var(--atl-ink);">Replied</strong> or <strong style="color:var(--atl-ink);">Archived</strong> — so nothing slips through the cracks.</p>
+
+                    <h5 class="um-section-label" style="font-size:13px; margin-top:18px;">Available controls</h5>
+                    <ul class="um-security-tips" style="list-style:none; padding-left:0;">
+                        <li><i class="fa-solid fa-folder" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Folders</strong> — filter the list by status; each folder shows a live count.</li>
+                        <li><i class="fa-solid fa-magnifying-glass" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Search</strong> — find messages by sender name, email, subject or message text.</li>
+                        <li><i class="fa-solid fa-arrow-down-wide-short" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Sort</strong> — order by newest, oldest or sender name.</li>
+                        <li><i class="fa-solid fa-square-check" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Select</strong> — tick individual messages, or use <em>select all</em> to act on a whole page at once.</li>
+                        <li><i class="fa-solid fa-layer-group" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Bulk actions</strong> — mark several Read, Archive them, or delete them together.</li>
+                        <li><i class="fa-solid fa-reply" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Reply</strong> — respond to a message by email without leaving this page.</li>
+                    </ul>
+
+                    <h5 class="um-section-label" style="font-size:13px; margin-top:18px;">Typical workflow</h5>
+                    <ol style="color:var(--atl-muted); font-size:13px; line-height:1.7;">
+                        <li>Open the <strong style="color:var(--atl-ink);">Unread</strong> folder to see new messages.</li>
+                        <li>Click a message to read it — it is marked Read automatically.</li>
+                        <li>Reply by email, then <strong style="color:var(--atl-ink);">Archive</strong> it to keep the inbox tidy.</li>
+                        <li>Use the checkboxes to Archive or delete several finished messages at once.</li>
+                    </ol>
+
+                    <div class="um-security-tips" style="margin-top:18px;">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Deleting a message is permanent and only available to administrators. Archive instead if you may need it later.</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
     <script src="js/bootstrap.min.js"></script>
@@ -11614,9 +11716,12 @@
         // INQUIRIES — EMAIL CLIENT
         // ===========================
 
-        let allInquiriesCache = [];
+        let allInquiriesCache = [];   // holds the CURRENT PAGE of inquiries (server-paginated)
         let currentInqFilter = 'all';
         let currentInqId = null;
+        let inqPage = 1;
+        let inqCounts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0 };
+        let inqSearchDebounce = null;
 
         // ---- Helpers ----
         function inqIsToday(d) {
@@ -11640,61 +11745,77 @@
             return { unread: 'Unread', read: 'Read', replied: 'Replied', archived: 'Archived' }[status] || status;
         }
 
-        // ---- Data Loading ----
-        async function loadInquiries() {
+        // ---- Data Loading (server-side paginated/filtered/sorted) ----
+        async function loadInquiries(resetPage) {
+            if (resetPage) inqPage = 1;
             $('#inqListBody').html('<div class="inq-empty-state"><i class="fa-solid fa-rotate fa-spin" aria-hidden="true"></i><p>Loading...</p></div>');
+            const sort = $('#inqSortSelect').val() || 'newest';
+            const search = $('#inqSearchInput').val() || '';
             let data;
             try {
-                data = await apiCall('/api/admin/inquiries');
+                data = await apiCall('/api/admin/inquiries?page=' + inqPage + '&limit=50&status=' + encodeURIComponent(currentInqFilter) + '&sort=' + encodeURIComponent(sort) + '&search=' + encodeURIComponent(search));
             } catch (e) {
                 $('#inqListBody').html('<div class="inq-empty-state"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><p>Failed to load messages.</p></div>');
+                window.notificationService.showError('Could not load messages — please check your connection and try again.');
+                $('#inqPagination').hide();
                 return;
             }
-            if (!Array.isArray(data)) {
+            if (!data || !data.success || !Array.isArray(data.inquiries)) {
                 $('#inqListBody').html('<div class="inq-empty-state"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><p>Failed to load messages.</p></div>');
+                window.notificationService.showError('Could not load messages — please try again.');
+                $('#inqPagination').hide();
                 return;
             }
-            allInquiriesCache = data;
-            inqUpdateCounts();
+            allInquiriesCache = data.inquiries;
+            // If a deletion emptied the current page (but earlier pages still have rows), step back.
+            if (allInquiriesCache.length === 0 && inqPage > 1 && (data.total || 0) > 0) {
+                inqPage--;
+                return loadInquiries();
+            }
+            renderInqCounts(data.counts);
             renderInqList();
+            inqUpdatePagination(data.total || 0, data.pages || 1);
+            updateInqBulkBar();
         }
 
-        // ---- Folder Counts ----
-        function inqUpdateCounts() {
-            const d = allInquiriesCache;
-            const total = d.length;
-            const unread = d.filter(x => x.status === 'unread').length;
-            const read   = d.filter(x => x.status === 'read').length;
-            const replied = d.filter(x => x.status === 'replied').length;
-            const archived = d.filter(x => x.status === 'archived').length;
-            $('#inqCount-all').text(total > 0 ? total : '');
-            $('#inqCount-unread').text(unread > 0 ? unread : '');
-            $('#inqCount-read').text(read > 0 ? read : '');
-            $('#inqCount-replied').text(replied > 0 ? replied : '');
-            $('#inqCount-archived').text(archived > 0 ? archived : '');
+        // Optimistic global-count adjustment for a single-item status change (avoids a full re-fetch).
+        function inqAdjustCounts(oldStatus, newStatus) {
+            if (oldStatus && inqCounts[oldStatus] != null) inqCounts[oldStatus] = Math.max(0, inqCounts[oldStatus] - 1);
+            if (newStatus && inqCounts[newStatus] != null) inqCounts[newStatus] = (inqCounts[newStatus] || 0) + 1;
+            renderInqCounts();
+        }
+
+        // ---- Folder Counts (from server-provided global totals) ----
+        function renderInqCounts(counts) {
+            if (counts && typeof counts === 'object') inqCounts = counts;
+            $('#inqCount-all').text(inqCounts.all > 0 ? inqCounts.all : '');
+            $('#inqCount-unread').text(inqCounts.unread > 0 ? inqCounts.unread : '');
+            $('#inqCount-read').text(inqCounts.read > 0 ? inqCounts.read : '');
+            $('#inqCount-replied').text(inqCounts.replied > 0 ? inqCounts.replied : '');
+            $('#inqCount-archived').text(inqCounts.archived > 0 ? inqCounts.archived : '');
+        }
+
+        // ---- Pagination control ----
+        function inqUpdatePagination(total, pages) {
+            if (total <= 0) { $('#inqPagination').hide(); return; }
+            const from = (inqPage - 1) * 50 + 1;
+            const to = Math.min(inqPage * 50, total);
+            $('#inqPageInfo').text(from + '–' + to + ' of ' + total);
+            $('#inqPrevBtn').prop('disabled', inqPage <= 1);
+            $('#inqNextBtn').prop('disabled', inqPage >= pages);
+            $('#inqPagination').css('display', 'flex');
         }
 
         // ---- Render Message List ----
+        // Server already applied folder/search/sort + pagination, so this is a pure renderer
+        // of the current page (allInquiriesCache).
         function renderInqList() {
-            const searchTerm = ($('#inqSearchInput').val() || '').toLowerCase().trim();
-            const sort = $('#inqSortSelect').val() || 'newest';
-
-            let data = allInquiriesCache.filter(row => {
-                if (currentInqFilter !== 'all' && row.status !== currentInqFilter) return false;
-                if (searchTerm) {
-                    const haystack = (row.sender_name + ' ' + row.sender_email + ' ' + (row.subject || '') + ' ' + (row.message_body || '')).toLowerCase();
-                    return haystack.includes(searchTerm);
-                }
-                return true;
-            });
-
-            if (sort === 'oldest') data = [...data].reverse();
-            else if (sort === 'name') data = [...data].sort((a, b) => (a.sender_name || '').localeCompare(b.sender_name || ''));
+            const data = allInquiriesCache;
 
             const $body = $('#inqListBody');
             $body.empty();
 
-            if (data.length === 0) {
+            if (!data || data.length === 0) {
                 $body.html('<div class="inq-empty-state"><i class="fa-regular fa-envelope-open" aria-hidden="true"></i><p>No messages found.</p></div>');
                 return;
             }
@@ -11712,6 +11833,7 @@
 
                 $body.append(`
 <div class="inq-row ${unreadClass} ${isActive}" data-id="${row.inquiry_id}" role="button" tabindex="0" aria-label="Message from ${escapedName}: ${escapedSubject}">
+    <input type="checkbox" class="inq-row-check" data-id="${row.inquiry_id}" aria-label="Select message from ${escapedName}">
     <div class="inq-row-avatar" aria-hidden="true">${initial}</div>
     <div class="inq-row-main">
         <div class="inq-row-top">
@@ -11778,7 +11900,7 @@
                 apiCall('/api/admin/inquiries/' + id + '/status', 'PUT', { status: 'read' }).then(res => {
                     if (res && res.success) {
                         inquiry.status = 'read';
-                        inqUpdateCounts();
+                        inqAdjustCounts('unread', 'read');
                         $(`.inq-row[data-id="${id}"]`).removeClass('inq-row--unread');
                         $('#inqReadStatusBadge')
                             .text('Read')
@@ -11815,13 +11937,19 @@
 
         // ---- Event Bindings ----
 
-        // Open message on row click
-        $(document).on('click', '.inq-row', function() {
+        // Open message on row click (ignore clicks on the row's select checkbox)
+        $(document).on('click', '.inq-row', function(e) {
+            if ($(e.target).is('.inq-row-check')) return;
             openInquiry($(this).data('id'));
         });
         $(document).on('keydown', '.inq-row', function(e) {
+            if ($(e.target).is('.inq-row-check')) return;
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInquiry($(this).data('id')); }
         });
+
+        // Row checkbox: select without opening the message
+        $(document).on('click', '.inq-row-check', function(e) { e.stopPropagation(); });
+        $(document).on('change', '.inq-row-check', updateInqBulkBar);
 
         // Refresh
         $('#inqRefreshBtn').on('click', function() {
@@ -11846,13 +11974,79 @@
             $('.inq-folder').removeClass('active').removeAttr('aria-current');
             $(this).addClass('active').attr('aria-current', 'page');
             $('#inqFolderTitle').text($(this).find('span').first().text().trim());
+            $('#inqSelectAll').prop('checked', false).prop('indeterminate', false);
             inqCloseDetail();
-            renderInqList();
+            loadInquiries(true);
         });
 
-        // Search + Sort
-        $('#inqSearchInput').on('input', renderInqList);
-        $('#inqSortSelect').on('change', renderInqList);
+        // Search (debounced) + Sort — both re-fetch server-side from page 1
+        $('#inqSearchInput').on('input', function() {
+            clearTimeout(inqSearchDebounce);
+            inqSearchDebounce = setTimeout(function() { loadInquiries(true); }, 300);
+        });
+        $('#inqSortSelect').on('change', function() { loadInquiries(true); });
+
+        // Pagination
+        $('#inqPrevBtn').on('click', function() { if (inqPage > 1) { inqPage--; loadInquiries(); } });
+        $('#inqNextBtn').on('click', function() { inqPage++; loadInquiries(); });
+
+        // About modal
+        $('#inqAboutBtn').on('click', function() { showAtelierModal('#inqAboutModal'); });
+
+        // ---- Bulk select + actions ----
+        function getSelectedInqIds() {
+            return $('.inq-row-check:checked').map(function() { return $(this).data('id'); }).get();
+        }
+
+        function updateInqBulkBar() {
+            const $checks = $('.inq-row-check');
+            const checked = $checks.filter(':checked').length;
+            const total = $checks.length;
+            if (checked > 0) {
+                $('#inqBulkCount').text(checked + ' selected');
+                $('#inqBulkBar').css('display', 'flex');
+            } else {
+                $('#inqBulkBar').hide();
+            }
+            const $all = $('#inqSelectAll');
+            $all.prop('indeterminate', checked > 0 && checked < total);
+            $all.prop('checked', total > 0 && checked === total);
+        }
+
+        $('#inqSelectAll').on('change', function() {
+            $('.inq-row-check').prop('checked', this.checked);
+            updateInqBulkBar();
+        });
+
+        async function inqBulkStatus(status) {
+            const ids = getSelectedInqIds();
+            if (!ids.length) return;
+            try {
+                const res = await apiCall('/api/admin/inquiries/bulk-status', 'PUT', { ids: ids, status: status });
+                if (res && res.success) {
+                    window.notificationService.showSuccess(res.message || (ids.length + ' message(s) updated.'));
+                    $('#inqSelectAll').prop('checked', false).prop('indeterminate', false);
+                    loadInquiries();
+                }
+            } catch (e) {}
+        }
+
+        $('#inqBulkReadBtn').on('click', function() { inqBulkStatus('read'); });
+        $('#inqBulkArchiveBtn').on('click', function() { inqBulkStatus('archived'); });
+        $('#inqBulkDeleteBtn').on('click', async function() {
+            const ids = getSelectedInqIds();
+            if (!ids.length) return;
+            if (!(await window.notificationService.showConfirm({ message: 'Delete ' + ids.length + ' message(s) permanently? This cannot be undone.', isDestructive: true }))) return;
+            try {
+                const res = await apiCall('/api/admin/inquiries/bulk-delete', 'POST', { ids: ids });
+                if (res && res.success) {
+                    window.notificationService.showSuccess(res.message || (ids.length + ' message(s) deleted.'));
+                    $('#inqSelectAll').prop('checked', false).prop('indeterminate', false);
+                    if (currentInqId && ids.map(String).includes(String(currentInqId))) inqCloseDetail();
+                    loadInquiries();
+                }
+            } catch (e) {}
+        });
 
         // Reply strip toggle
         $('#inqReadReplyBtn').on('click', function() { $('#inqReplyStrip').slideToggle(200); });
@@ -11868,10 +12062,9 @@
                 const res = await apiCall('/api/admin/inquiries/' + currentInqId + '/status', 'PUT', { status: newStatus });
                 if (res && res.success) {
                     inquiry.status = newStatus;
-                    inqUpdateCounts();
-                    renderInqList();
                     $('#inqReadStatusBadge').text(inqStatusLabel(newStatus)).attr('class', 'inq-read-status-badge inq-badge ' + inqStatusBadgeClass(newStatus));
                     if (newStatus === 'archived') { inqCloseDetail(); }
+                    loadInquiries();
                 }
             } catch (e) {}
         });
@@ -11886,11 +12079,8 @@
                 const res = await apiCall('/api/admin/inquiries/' + currentInqId + '/status', 'PUT', { status: newStatus });
                 if (res && res.success) {
                     inquiry.status = newStatus;
-                    inqUpdateCounts();
-                    renderInqList();
                     $('#inqReadStatusBadge').text(inqStatusLabel(newStatus)).attr('class', 'inq-read-status-badge inq-badge ' + inqStatusBadgeClass(newStatus));
-                    if (newStatus === 'unread') $(`.inq-row[data-id="${currentInqId}"]`).addClass('inq-row--unread');
-                    else $(`.inq-row[data-id="${currentInqId}"]`).removeClass('inq-row--unread');
+                    loadInquiries();
                 }
             } catch (e) {}
         });
@@ -11901,10 +12091,8 @@
             if (!(await window.notificationService.showConfirm({ message: 'Delete this message permanently? This cannot be undone.', isDestructive: true }))) return;
             try {
                 await apiCall('/api/admin/inquiries/' + currentInqId, 'DELETE');
-                allInquiriesCache = allInquiriesCache.filter(i => i.inquiry_id != currentInqId);
-                inqUpdateCounts();
                 inqCloseDetail();
-                renderInqList();
+                loadInquiries();
             } catch (e) {}
         });
 
@@ -11922,8 +12110,7 @@
                 if (res && res.success) {
                     const inquiry = allInquiriesCache.find(i => i.inquiry_id == currentInqId);
                     if (inquiry) inquiry.status = 'replied';
-                    inqUpdateCounts();
-                    renderInqList();
+                    loadInquiries();
                     $('#inqReadStatusBadge').text('Replied').attr('class', 'inq-read-status-badge inq-badge inq-badge--replied');
                     window.notificationService.showSuccess('Reply sent. The sender has been notified by email.');
                     setTimeout(() => { $('#inqReplyStrip').slideUp(200); }, 3000);
@@ -15606,12 +15793,11 @@
                 var d = new Date(sub.subscribed_at);
                 
                 var isActive = sub.status === 'active';
-                var statusHtml = isActive 
-                    ? '<span class="label label-success">Active</span>' 
-                    : '<span class="label label-default">Inactive</span>';
-                
+                var statusHtml = isActive
+                    ? '<span class="atl-badge atl-badge--confirmed">Active</span>'
+                    : '<span class="atl-badge atl-badge--unpaid">Inactive</span>';
+
                 var toggleAction = isActive ? '<i class="fa-solid fa-ban"></i>' : '<i class="fa-solid fa-check"></i>';
-                var toggleClass = isActive ? 'btn-warning' : 'btn-success';
                 var toggleTitle = isActive ? 'Deactivate' : 'Activate';
 
                 var html = `
@@ -15627,7 +15813,7 @@
                         </td>
                         <td style="vertical-align: middle; border: none;">${statusHtml}</td>
                         <td style="vertical-align: middle; border: none; text-align: right; white-space: nowrap;">
-                            <button class="btn btn-sm ${toggleClass} toggle-subscriber-btn" data-id="${sub.subscriber_id}" data-current-status="${sub.status}" title="${toggleTitle}">
+                            <button class="atl-btn atl-btn--ghost toggle-subscriber-btn" data-id="${sub.subscriber_id}" data-current-status="${sub.status}" title="${toggleTitle}">
                                 ${toggleAction}
                             </button>
                             <button class="atl-btn atl-btn--danger delete-subscriber-btn" data-id="${sub.subscriber_id}" title="Delete">
@@ -16196,7 +16382,7 @@
 
         // Stubs kept for any remaining internal callsites
         function loadScheduledList() { loadCampaigns(); }
-        function loadSentCampaigns() {}
+        // (D10) Removed empty loadSentCampaigns() stub — superseded by loadCampaigns()/the unified endpoint, no callers.
 
         // ── Unified Campaigns ──
         let campaignsPage = 1, campaignsStatus = 'all', campaignsSort = 'date_desc', campaignsSearch = '', campaignsData = [];

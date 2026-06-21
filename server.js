@@ -5745,9 +5745,32 @@ app.get('/api/admin/email-logs', requireAdmin, (req, res) => {
 
 // Get all subscribers
 app.get('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
-    db.all("SELECT * FROM newsletter_subscribers ORDER BY subscribed_at DESC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
+    const validSorts = ['newest', 'oldest', 'email_asc', 'status'];
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    // Honour a client-supplied limit (capped) so the "Export All" path can request the full list.
+    const limit = Math.min(Math.max(1, parseInt(req.query.limit) || 50), 100000);
+    const offset = (page - 1) * limit;
+    const sortBy = validSorts.includes(req.query.sort) ? req.query.sort : 'newest';
+    const search = (req.query.search || '').trim();
+
+    const orderClause = sortBy === 'oldest' ? 'subscribed_at ASC' :
+                        sortBy === 'email_asc' ? 'LOWER(email) ASC' :
+                        sortBy === 'status' ? "status ASC, subscribed_at DESC" :
+                        'subscribed_at DESC';
+
+    const conditions = [];
+    const qp = [];
+    if (search) { conditions.push("LOWER(email) LIKE LOWER(?)"); qp.push(`%${search}%`); }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    db.get(`SELECT COUNT(*) AS total FROM newsletter_subscribers ${whereClause}`, qp, (err, countRow) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        db.all(`SELECT * FROM newsletter_subscribers ${whereClause} ORDER BY ${orderClause} LIMIT ? OFFSET ?`,
+            [...qp, limit, offset], (err2, rows) => {
+            if (err2) return res.status(500).json({ success: false, message: err2.message });
+            const total = countRow.total;
+            res.json({ success: true, subscribers: rows, total, page, pages: Math.ceil(total / limit) });
+        });
     });
 });
 
@@ -5777,14 +5800,8 @@ app.post('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
     });
 });
 
-// Delete a subscriber manually
-app.delete('/api/admin/newsletter/subscribers/:id', requireAdmin, (req, res) => {
-    const { id } = req.params;
-    db.run("DELETE FROM newsletter_subscribers WHERE subscriber_id = ?", [id], function(err) {
-        if (err) return res.status(500).json({ success: false, message: err.message });
-        res.json({ success: true, message: 'Subscriber removed successfully' });
-    });
-});
+// (D9) Removed duplicate DELETE /api/admin/newsletter/subscribers/:id — the canonical copy
+// with the 404-on-no-change guard lives below ("Delete subscriber permanently").
 
 // Toggle subscriber status (Active/Inactive)
 app.put('/api/admin/newsletter/subscribers/:id/status', requireAdmin, (req, res) => {
@@ -10902,12 +10919,8 @@ app.get('/api/admin/subscribers', requireAdmin, (req, res) => {
         res.json(rows);
     });
 });
-app.get('/api/admin/campaigns', requireAdmin, (req, res) => {
-    db.all("SELECT * FROM newsletter_campaigns ORDER BY sent_at DESC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
+// (D11) Removed legacy GET /api/admin/campaigns — superseded by GET /api/admin/campaigns/unified
+// (the only campaigns-list route the frontend calls). The POST /api/admin/campaigns send route is unaffected.
 app.delete('/api/admin/campaigns/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM newsletter_campaigns WHERE id = ?", [req.params.id], function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
@@ -11001,9 +11014,48 @@ app.post('/api/admin/campaigns/bulk-delete', requireAdmin, requireRole(['adminis
 
 // --- Inquiries ---
 app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
-    db.all("SELECT * FROM inquiries ORDER BY submitted_at DESC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
+    const validStatuses = ['all', 'unread', 'read', 'replied', 'archived'];
+    const validSorts = ['newest', 'oldest', 'name'];
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 50;
+    const offset = (page - 1) * limit;
+    const statusFilter = validStatuses.includes(req.query.status) ? req.query.status : 'all';
+    const sortBy = validSorts.includes(req.query.sort) ? req.query.sort : 'newest';
+    const search = (req.query.search || '').trim();
+
+    const orderClause = sortBy === 'oldest' ? 'submitted_at ASC' :
+                        sortBy === 'name' ? "LOWER(COALESCE(sender_name,'')) ASC" :
+                        'submitted_at DESC';
+
+    const conditions = [];
+    const qp = [];
+    if (statusFilter !== 'all') { conditions.push("status = ?"); qp.push(statusFilter); }
+    if (search) {
+        conditions.push("(LOWER(sender_name) LIKE LOWER(?) OR LOWER(sender_email) LIKE LOWER(?) OR LOWER(COALESCE(subject,'')) LIKE LOWER(?) OR LOWER(COALESCE(message_body,'')) LIKE LOWER(?))");
+        const term = `%${search}%`;
+        qp.push(term, term, term, term);
+    }
+    const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const countSql = `SELECT COUNT(*) AS total FROM inquiries ${whereClause}`;
+    const dataSql  = `SELECT * FROM inquiries ${whereClause} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+
+    // Folder badge counts are global totals (independent of current filter/search).
+    db.all("SELECT status, COUNT(*) AS c FROM inquiries GROUP BY status", [], (errC, countRows) => {
+        if (errC) return res.status(500).json({ success: false, message: errC.message });
+        const counts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0 };
+        (countRows || []).forEach(r => {
+            if (counts.hasOwnProperty(r.status)) counts[r.status] = r.c;
+            counts.all += r.c;
+        });
+        db.get(countSql, qp, (err, countRow) => {
+            if (err) return res.status(500).json({ success: false, message: err.message });
+            db.all(dataSql, [...qp, limit, offset], (err2, rows) => {
+                if (err2) return res.status(500).json({ success: false, message: err2.message });
+                const total = countRow.total;
+                res.json({ success: true, inquiries: rows, counts, total, page, pages: Math.ceil(total / limit) });
+            });
+        });
     });
 });
 
@@ -11012,6 +11064,43 @@ app.put('/api/admin/inquiries/:id/status', requireAdmin, (req, res) => {
     db.run("UPDATE inquiries SET status = ? WHERE inquiry_id = ?", [status, req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });
+    });
+});
+
+app.put('/api/admin/inquiries/bulk-status', requireAdmin, (req, res) => {
+    const { ids, status } = req.body;
+    const validStatuses = ['read', 'unread', 'replied', 'archived'];
+    if (!Array.isArray(ids) || !ids.length) {
+        return res.status(400).json({ success: false, message: 'No messages specified.' });
+    }
+    if (!validStatuses.includes(status)) {
+        return res.status(400).json({ success: false, message: 'Invalid status.' });
+    }
+    const cleanIds = ids.map(x => parseInt(x)).filter(x => !isNaN(x));
+    if (!cleanIds.length) {
+        return res.status(400).json({ success: false, message: 'No valid message IDs.' });
+    }
+    const ph = cleanIds.map(() => '?').join(',');
+    db.run(`UPDATE inquiries SET status = ? WHERE inquiry_id IN (${ph})`, [status, ...cleanIds], function(err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        const label = status.charAt(0).toUpperCase() + status.slice(1);
+        res.json({ success: true, message: `${this.changes} message(s) marked as ${label}` });
+    });
+});
+
+app.post('/api/admin/inquiries/bulk-delete', requireAdmin, requireRole(['administrator']), (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || !ids.length) {
+        return res.status(400).json({ success: false, message: 'No messages specified.' });
+    }
+    const cleanIds = ids.map(x => parseInt(x)).filter(x => !isNaN(x));
+    if (!cleanIds.length) {
+        return res.status(400).json({ success: false, message: 'No valid message IDs.' });
+    }
+    const ph = cleanIds.map(() => '?').join(',');
+    db.run(`DELETE FROM inquiries WHERE inquiry_id IN (${ph})`, cleanIds, function(err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: `${this.changes} message(s) deleted` });
     });
 });
 
