@@ -15742,47 +15742,70 @@
 
 
         // --- Subscribers ---
-        let subscribersData = [];
+        let subscribersData = [];      // current page only (server-paginated)
+        let subscribersPage = 1;
+        let subscribersSort = 'newest';
 
-        async function renderSubscribersList() {
+        async function renderSubscribersList(resetPage) {
+            if (resetPage) subscribersPage = 1;
             var $tbody = $('#subscriberListBody');
             var $count = $('#subscriberCount');
             var $empty = $('#subscriberListEmpty');
             var $table = $tbody.closest('table');
-            
+
             $tbody.empty();
-            
+
             try {
-                const data = await apiCall('/api/admin/newsletter/subscribers');
-                
-                if (data.error || !Array.isArray(data)) {
+                const data = await apiCall('/api/admin/newsletter/subscribers?page=' + subscribersPage + '&limit=50&sort=' + encodeURIComponent(subscribersSort));
+
+                if (!data || !data.success || !Array.isArray(data.subscribers)) {
                     $count.text('0');
                     $table.hide();
+                    $('#subscribersPagination').hide();
                     window.notificationService.showError('Could not load subscribers — please refresh and try again.');
                     $empty.html('Could not load subscribers.').show();
                     subscribersData = [];
                     return;
                 }
-                
-                subscribersData = data;
-                window.subscribersData = data;
-                $count.text(data.length);
-                
-                if (data.length === 0) {
+
+                // If a deletion emptied the current page (but earlier pages still have rows), step back.
+                if (data.subscribers.length === 0 && subscribersPage > 1 && (data.total || 0) > 0) {
+                    subscribersPage--;
+                    return renderSubscribersList();
+                }
+
+                subscribersData = data.subscribers;
+                window.subscribersData = data.subscribers;
+                $count.text(data.total);
+
+                if (data.total === 0) {
                     $table.hide();
+                    $('#subscribersPagination').hide();
                     $empty.html('No subscribers found.').show();
                     return;
                 }
-                
+
                 $table.show();
                 $empty.hide();
-                injectSubscribers(data);
+                injectSubscribers(data.subscribers);
+                subUpdatePagination(data.total || 0, data.pages || 1);
             } catch (err) {
                   $count.text('0');
                   $table.hide();
+                  $('#subscribersPagination').hide();
                   window.notificationService.showError('Unexpected error loading subscribers.');
                   $empty.html('An error occurred. Please refresh.').show();
             }
+        }
+
+        function subUpdatePagination(total, pages) {
+            if (total <= 0) { $('#subscribersPagination').hide(); return; }
+            const from = (subscribersPage - 1) * 50 + 1;
+            const to = Math.min(subscribersPage * 50, total);
+            $('#subscribersPageInfo').text(from + '–' + to + ' of ' + total);
+            $('#subscribersPrevBtn').prop('disabled', subscribersPage <= 1);
+            $('#subscribersNextBtn').prop('disabled', subscribersPage >= pages);
+            $('#subscribersPagination').css('display', 'flex');
         }
 
         function injectSubscribers(dataArray) {
@@ -15826,7 +15849,7 @@
             });
         }
         
-        // Subscriber Search/Filter
+        // Subscriber Search/Filter — client-side, scoped to the currently loaded page
         $('#subscriberSearch').on('input', function() {
             var searchTerm = $(this).val().toLowerCase();
             $('#subscriberListBody tr').each(function() {
@@ -15838,6 +15861,16 @@
                 }
             });
         });
+
+        // Sort (server-side, resets to page 1)
+        $('#subscriberSortSelect').on('change', function() {
+            subscribersSort = $(this).val();
+            renderSubscribersList(true);
+        });
+
+        // Pagination
+        $('#subscribersPrevBtn').on('click', function() { if (subscribersPage > 1) { subscribersPage--; renderSubscribersList(); } });
+        $('#subscribersNextBtn').on('click', function() { subscribersPage++; renderSubscribersList(); });
 
         // Toggle select all
         $('#selectAllSubscribers').on('change', function() {
@@ -16074,9 +16107,21 @@
             document.body.removeChild(link);
         }
 
-        // Modify the existing export button to use this function
-        $('#exportSubscribersBtn').off('click').on('click', function() {
-            exportSubscribersCSV();
+        // Export ALL subscribers — fetch the full list (not just the loaded page) before building the CSV.
+        $('#exportSubscribersBtn').off('click').on('click', async function() {
+            const $btn = $(this);
+            const original = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Exporting…');
+            try {
+                const data = await apiCall('/api/admin/newsletter/subscribers?page=1&limit=100000&sort=newest');
+                const list = (data && data.success && Array.isArray(data.subscribers)) ? data.subscribers : [];
+                if (!list.length) { window.notificationService.showWarning('No subscribers to export.'); return; }
+                exportSubscribersCSV(list);
+            } catch (e) {
+                window.notificationService.showError('Could not export subscribers. Please try again.');
+            } finally {
+                $btn.prop('disabled', false).html(original);
+            }
         });
 
         // Add Subscriber manually
@@ -16630,11 +16675,11 @@
                 socialAdmin:       { endpoint: '/api/admin/social_links',            handler: arr => arr.filter(s => s.is_active).length },
                 eventsAdmin:       { endpoint: '/api/admin/events',                  handler: arr => arr.filter(e => e.event_status === 'upcoming').length },
                 contactAdmin:      { endpoint: '/api/public/contact_info',           handler: obj => (obj && obj.email) ? 'Configured' : '—' },
-                inquiriesAdmin:    { endpoint: '/api/admin/inquiries',               handler: arr => arr.filter(i => i.status === 'unread').length },
+                inquiriesAdmin:    { endpoint: '/api/admin/inquiries',               handler: d => (d && d.counts) ? d.counts.unread : 0 },
                 bookingsAdmin:     { endpoint: '/api/admin/bookings/full',           handler: arr => arr.filter(b => b.status === 'PENDING').length },
                 calendarAdmin:     { endpoint: '/api/admin/calendar/events',         handler: arr => arr.filter(ev => ev.start && new Date(ev.start) > new Date()).length },
                 financeAdmin:      { endpoint: '/api/admin/financials/stats',        handler: res => res.stats ? 'R ' + (res.stats.revenue / 1000).toFixed(0) + 'k' : '—' },
-                newsletterAdmin:   { endpoint: '/api/admin/newsletter/subscribers',  handler: arr => arr.filter(s => s.status === 'active').length },
+                newsletterAdmin:   { endpoint: '/api/admin/newsletter/subscribers?limit=100000', handler: d => (d && Array.isArray(d.subscribers)) ? d.subscribers.filter(s => s.status === 'active').length : 0 },
                 servicesAdmin:     { endpoint: '/api/admin/services',                handler: arr => arr.filter(s => s.is_active !== 0).length },
                 policiesAdmin:     { endpoint: '/api/admin/policies',                handler: obj => (obj && obj.policies && Object.keys(obj.policies).length) ? 'Active' : '—' },
                 emailLogsAdmin:    { endpoint: '/api/admin/email-logs?limit=1',      handler: res => res.total || 0 },
