@@ -4,119 +4,165 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Unsubscribe | Thabiso Mhlongo</title>
-    <link rel="icon" href="images/icon.png" type="image/gif" sizes="16x16">
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;500&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet">
+    <link rel="icon" href="images/icon/logo5.png" type="image/png" sizes="16x16">
+    
+    <!-- Core Stylesheets matching index.html theme -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/redesign.css">
+    <link rel="stylesheet" href="css/notifications.css">
+    
     <style>
-        :root {
-            --bg-color: #0a0a0a;
-            --surface-color: #141414;
-            --accent-color: #D4AF37;
-            --text-primary: #ffffff;
-            --text-secondary: #b0b0b0;
-            --border-color: rgba(255, 255, 255, 0.1);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            background-color: var(--bg-color);
-            color: var(--text-primary);
-            font-family: 'Outfit', sans-serif;
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            overflow: hidden;
+            margin: 0;
+            background-color: var(--bg-page) !important;
+            color: var(--text-primary) !important;
+            font-family: var(--f-body), sans-serif;
+            position: relative;
         }
 
-        .container {
-            max-width: 500px;
+        /* Ambient glowing background circles matching index.html premium feel */
+        .ambient-glow {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, var(--y-glow) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.25;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .unsub-container {
+            max-width: 480px;
             width: 90%;
-            padding: 50px 40px;
-            background: var(--surface-color);
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
+            padding: 40px 30px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-low);
+            border-radius: var(--r, 8px);
             text-align: center;
             position: relative;
-            box-shadow: 0 30px 60px rgba(0,0,0,0.5);
-            animation: fadeIn 0.8s ease-out;
+            z-index: 2;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            animation: fadeIn unsubSlideUp 0.8s ease-out;
         }
 
-        @keyframes fadeIn {
+        @keyframes unsubSlideUp {
             from { opacity: 0; transform: translateY(20px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
         .banner {
             width: 100%;
-            max-width: 250px;
-            margin-bottom: 30px;
+            max-width: 220px;
+            margin: 0 auto 30px;
+            border-radius: var(--r-sm, 4px);
+            border: 1px solid var(--border-low);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
         }
 
         h1 {
-            font-family: 'Cormorant Garamond', serif;
+            font-family: var(--f-display), serif;
             font-weight: 300;
-            font-size: 28px;
-            letter-spacing: 2px;
+            font-size: 26px;
+            letter-spacing: 1px;
             margin-bottom: 20px;
-            color: var(--accent-color);
+            color: var(--y-base);
+        }
+        
+        h1 em {
+            font-style: italic;
+            color: var(--y-hover);
         }
 
         p {
-            font-size: 15px;
+            font-family: var(--f-body), sans-serif;
+            font-size: 14px;
             line-height: 1.6;
             color: var(--text-secondary);
-            margin-bottom: 40px;
+            margin-bottom: 30px;
         }
 
-        .btn-unsubscribe {
+        /* Custom buttons styled exactly like the gold buttons in index.html */
+        .btn-unsub-confirm {
             display: inline-block;
-            background: var(--accent-color);
-            color: #000;
-            text-decoration: none;
+            background: var(--y-base);
+            color: var(--text-inverse) !important;
+            border: 1px solid var(--y-base);
             padding: 14px 40px;
-            font-weight: 500;
-            font-size: 14px;
-            letter-spacing: 1px;
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: 0.15em;
             text-transform: uppercase;
-            border: none;
+            border-radius: var(--r-pill, 100px);
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all var(--t, 0.3s) var(--ease, ease);
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.2);
+            font-family: var(--f-body), sans-serif;
         }
 
-        .btn-unsubscribe:hover {
-            background: #fff;
+        .btn-unsub-confirm:hover,
+        .btn-unsub-confirm:focus {
+            background: var(--y-hover);
+            border-color: var(--y-hover);
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+            box-shadow: 0 8px 25px var(--y-glow);
+            outline: none;
+        }
+        
+        .btn-unsub-confirm:active {
+            transform: translateY(0);
         }
 
         .status-message {
             display: none;
-            margin-top: 20px;
-            font-size: 14px;
+            margin-top: 10px;
+            animation: fadeIn 0.5s ease-out;
         }
 
-        .success { color: var(--accent-color); }
-        .error { color: #ff4d4d; }
-
-        .footer-link {
-            display: block;
-            margin-top: 40px;
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 12px;
-            opacity: 0.6;
-            transition: opacity 0.3s;
+        .success-text {
+            color: var(--y-base);
+            font-weight: 500;
         }
 
-        .footer-link:hover {
-            opacity: 1;
+        .error-text {
+            color: var(--error);
+            font-weight: 500;
         }
 
+        .footer-link-btn {
+            display: inline-block;
+            margin-top: 25px;
+            background: transparent;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border-default);
+            padding: 10px 24px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            border-radius: var(--r-pill, 100px);
+            text-decoration: none !important;
+            transition: all var(--t, 0.3s) var(--ease, ease);
+        }
+
+        .footer-link-btn:hover,
+        .footer-link-btn:focus {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+        }
+
+        /* Loading dot animations */
         .loading-dots:after {
             content: ' .';
             animation: dots 1.5s steps(5, end) infinite;
@@ -124,26 +170,29 @@
 
         @keyframes dots {
             0%, 20% { color: rgba(0,0,0,0); text-shadow: .5em 0 0 rgba(0,0,0,0), 1em 0 0 rgba(0,0,0,0); }
-            40% { color: var(--accent-color); text-shadow: .5em 0 0 rgba(0,0,0,0), 1em 0 0 rgba(0,0,0,0); }
-            60% { text-shadow: .5em 0 0 var(--accent-color), 1em 0 0 rgba(0,0,0,0); }
-            80%, 100% { text-shadow: .5em 0 0 var(--accent-color), 1em 0 0 var(--accent-color); }
+            40% { color: var(--text-inverse); text-shadow: .5em 0 0 rgba(0,0,0,0), 1em 0 0 rgba(0,0,0,0); }
+            60% { text-shadow: .5em 0 0 var(--text-inverse), 1em 0 0 rgba(0,0,0,0); }
+            80%, 100% { text-shadow: .5em 0 0 var(--text-inverse), 1em 0 0 var(--text-inverse); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- We use the same brand banner for visual continuity -->
-        <img src="images/banner_3_contemplation.png" alt="Thabiso Mhlongo" class="banner">
+    <!-- Background Glow -->
+    <div class="ambient-glow"></div>
+
+    <div class="unsub-container">
+        <!-- Brand banner with correct directory path and premium border shadow -->
+        <img src="images/banner/banner_3_contemplation.png" alt="Thabiso Mhlongo" class="banner">
         
         <div id="initial-view">
-            <h1>Subscription Update</h1>
+            <h1>Subscription <em>Update</em></h1>
             <p id="msg-display">Are you sure you want to unsubscribe your email from receiving further updates from Thabiso Mhlongo?</p>
-            <button id="unsub-btn" class="btn-unsubscribe" onclick="handleUnsubscribe()">Confirm Unsubscribe</button>
+            <button id="unsub-btn" class="btn-unsub-confirm" onclick="handleUnsubscribe()">Confirm Unsubscribe</button>
         </div>
 
         <div id="status-view" class="status-message">
             <p id="status-text"></p>
-            <a href="index.html" class="footer-link">Return to Official Website</a>
+            <a href="index.html" class="footer-link-btn">Return to Official Website</a>
         </div>
     </div>
 
@@ -179,14 +228,14 @@
                 statusView.style.display = 'block';
 
                 if (data.success) {
-                    statusText.innerHTML = `<span class="success">You have been successfully unsubscribed.</span><br><br>We're sorry to see you go, but you're welcome back anytime.`;
+                    statusText.innerHTML = `<span class="success-text">You have been successfully unsubscribed.</span><br><br>We're sorry to see you go, but you're welcome back anytime.`;
                 } else {
-                    statusText.innerHTML = `<span class="error">${data.message || 'An error occurred.'}</span><br><br>Please try again later or reply directly to our email.`;
+                    statusText.innerHTML = `<span class="error-text">${data.message || 'An error occurred.'}</span><br><br>Please try again later or reply directly to our email.`;
                 }
             } catch (err) {
                 initialView.style.display = 'none';
                 statusView.style.display = 'block';
-                statusText.innerHTML = `<span class="error">Network error.</span><br><br>Please check your connection and try again.`;
+                statusText.innerHTML = `<span class="error-text">Network error.</span><br><br>Please check your connection and try again.`;
             }
         }
     </script>
