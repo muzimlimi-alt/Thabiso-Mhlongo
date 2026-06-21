@@ -58,7 +58,7 @@ db.all("SELECT setting_key, setting_value FROM settings", [], (err, rows) => {
             payfast_passphrase: 'PAYFAST_PASSPHRASE', payfast_url: 'PAYFAST_URL',
             smtp_host: 'SMTP_HOST', smtp_port: 'SMTP_PORT', smtp_user: 'SMTP_USER',
             smtp_pass: 'SMTP_PASS', smtp_from: 'SMTP_FROM',
-            email_banner: 'EMAIL_BANNER', doc_logo: 'DOC_LOGO'
+            email_banner: 'EMAIL_BANNER'
         };
         rows.forEach(r => {
             const key = r.setting_key;
@@ -126,7 +126,7 @@ const trackRateLimiter = rateLimit ? rateLimit({
 }) : (req, res, next) => next();
 
 // Strict limiter for state-mutating public endpoints (accept-quote, cancel) — email-only auth
-const mutateRateLimiter = rateLimit ? rateLimit({
+const mutateRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
     windowMs: 15 * 60 * 1000, // 15 mins
     max: 5,
     standardHeaders: true,
@@ -141,6 +141,16 @@ const adminRateLimiter = rateLimit ? rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: 'Too many requests. Please slow down.' }
+}) : (req, res, next) => next();
+
+// P3-13: Tighter limiter for admin login — 5 attempts per 10 minutes per IP (brute-force protection)
+const adminLoginRateLimiter = rateLimit ? rateLimit({
+    windowMs: 10 * 60 * 1000, // 10 minutes
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    skipSuccessfulRequests: true,
+    message: { success: false, message: 'Too many login attempts. Please wait 10 minutes before trying again.' }
 }) : (req, res, next) => next();
 
 // Tight limiter for the email-lookup endpoint — reduces enumeration risk
@@ -276,7 +286,7 @@ const deepEscapeBody = (obj) => {
     });
 };
 app.use((req, res, next) => {
-    if (req.body) deepEscapeBody(req.body);
+    if (req.body && req.path !== '/api/admin/about-me') deepEscapeBody(req.body);
     next();
 });
 
@@ -836,6 +846,94 @@ async function syncCalendarHolds() {
     }
 }
 
+async function processNotificationQueue() {
+    // Process up to 10 pending notifications
+    db.all(
+        `SELECT * FROM notifications 
+         WHERE status = 'pending' AND channel = 'email' 
+         AND (scheduled_at IS NULL OR scheduled_at <= datetime('now'))
+         LIMIT 10`,
+        [],
+        async (err, rows) => {
+            if (err) {
+                console.error('[Notification Queue] Error fetching pending emails:', err.message);
+                return;
+            }
+            if (!rows || rows.length === 0) return;
+
+            const { sendEmailDirectly } = require('./js/emailService');
+
+            for (const row of rows) {
+                // Update status immediately to prevent double sending
+                await new Promise((resVal) => {
+                    db.run(
+                        "UPDATE notifications SET status = 'sending', sent_at = CURRENT_TIMESTAMP WHERE id = ?",
+                        [row.id],
+                        () => resVal()
+                    );
+                });
+
+                let emailDetails = {};
+                try {
+                    emailDetails = JSON.parse(row.body || '{}');
+                } catch (e) {
+                    console.error(`[Notification Queue] Failed to parse body for notification #${row.id}:`, e.message);
+                    db.run("UPDATE notifications SET status = 'failed', error_message = ? WHERE id = ?", ['JSON_PARSE_ERROR: ' + e.message, row.id]);
+                    continue;
+                }
+
+                // Map attachment paths to standard nodemailer attachments array
+                const attachments = [];
+                if (row.attachment_paths) {
+                    try {
+                        const paths = JSON.parse(row.attachment_paths);
+                        paths.forEach(p => {
+                            if (typeof p === 'string') {
+                                const pathModule = require('path');
+                                const resolvedPath = pathModule.isAbsolute(p) ? p : pathModule.join(__dirname, p);
+                                const filename = pathModule.basename(p);
+                                attachments.push({ filename, path: resolvedPath });
+                            }
+                        });
+                    } catch(e) {
+                        console.error(`[Notification Queue] Failed to parse attachments for #${row.id}:`, e.message);
+                    }
+                }
+
+                try {
+                    const result = await sendEmailDirectly({
+                        to: row.recipient_email,
+                        subject: row.subject,
+                        htmlContent: emailDetails.htmlContent,
+                        plainTextAlternative: emailDetails.plainTextAlternative,
+                        attachments: attachments,
+                        fromName: row.recipient_name || emailDetails.fromName || "Thabiso Mhlongo Management",
+                        replyTo: emailDetails.replyTo,
+                        skipBrandAttachments: emailDetails.skipBrandAttachments,
+                        titleOverride: emailDetails.titleOverride,
+                        trigger_event: emailDetails.trigger_event || 'Notification Queue Dispatch'
+                    });
+
+                    if (result.success) {
+                        db.run("UPDATE notifications SET status = 'sent' WHERE id = ?", [row.id]);
+                        console.log(`✓ [Notification Queue] Successfully sent email #${row.id} to ${row.recipient_email}`);
+                    } else {
+                        throw new Error(result.error || 'SMTP_SEND_FAILED');
+                    }
+                } catch (sendErr) {
+                    console.error(`❌ [Notification Queue] Failed to send email #${row.id} to ${row.recipient_email}:`, sendErr.message);
+                    const newRetryCount = (row.retry_count || 0) + 1;
+                    const nextStatus = newRetryCount >= 3 ? 'failed' : 'pending';
+                    db.run(
+                        "UPDATE notifications SET status = ?, retry_count = ?, error_message = ? WHERE id = ?",
+                        [nextStatus, newRetryCount, sendErr.message.substring(0, 255), row.id]
+                    );
+                }
+            }
+        }
+    );
+}
+
 async function syncEventToCalendar(eventId) {
     return new Promise((resolve) => {
         db.get("SELECT * FROM events WHERE event_id = ?", [eventId], async (err, ev) => {
@@ -895,6 +993,14 @@ function getNotificationEmail() {
     });
 }
 
+// P2-3: Returns the active VAT rate from tax_rates table (falls back to 0.15 / 15%).
+function getVatRate() {
+    return new Promise(resolve => {
+        db.get("SELECT rate FROM tax_rates WHERE tax_type = 'VAT' AND is_active = 1 ORDER BY id DESC LIMIT 1",
+            [], (err, row) => resolve((!err && row) ? parseFloat(row.rate) : 0.15));
+    });
+}
+
 /**
  * Generates an invoice for a booking, saves to DB and sends email.
  * @param {number|string} bookingId
@@ -922,34 +1028,72 @@ async function generateInvoice(bookingId) {
             }
 
             // Auto-void any existing non-paid, non-void invoices before generating a new one (prevent duplicates)
-            db.run("UPDATE invoices SET status='void', void_reason='superseded', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('void','paid')", [bookingId]);
-            db.get("SELECT id, file_path FROM invoices WHERE booking_id = ? AND status = 'paid' LIMIT 1", [bookingId], async (e, inv) => {
+            db.run("UPDATE invoices SET status='VOID', void_reason='superseded', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [bookingId]);
+            db.get("SELECT id, file_path FROM invoices WHERE booking_id = ? AND status = 'PAID' LIMIT 1", [bookingId], async (e, inv) => {
                 if (inv) return resolve({ success: true, message: 'Invoice already paid — no regeneration needed.', invoice_id: inv.id, pdfUrl: `/docs/invoices/${inv.file_path}` });
 
                 try {
-                    // Parse quote details for line items
-                    let quoteData = {};
-                    try { quoteData = JSON.parse(booking.quote_details || '{}'); } catch(ex) {}
+                    const vatRate = await getVatRate();
 
-                    if (!quoteData.items || !Array.isArray(quoteData.items) || quoteData.items.length === 0) {
-                        console.warn(`[Invoice Warning] Booking #${bookingId}: no structured quote_details — using fallback line item. Admin should review.`);
-                    }
-
-                    const subtotal = quoteData.subtotal || parseFloat((booking.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
-                    const tax = quoteData.vat || (subtotal * 0.15);
-                    const total = quoteData.finalTotal || (subtotal + tax);
-                    const invNumber = `INV-${moment().format('YYYY')}-${bookingId.toString().padStart(4, '0')}`;
+                    // P3-10: Prefer quote_line_items from active quotations row over legacy quote_details JSON
+                    const activeQuote = await new Promise(resolve => {
+                        db.get(
+                            `SELECT * FROM quotations WHERE booking_id = ? AND archived = 0 AND status NOT IN ('void','archived')
+                             ORDER BY version DESC LIMIT 1`,
+                            [bookingId], (qErr, qRow) => resolve(qErr ? null : qRow)
+                        );
+                    });
 
                     let items = [];
-                    if (quoteData.items && Array.isArray(quoteData.items)) {
-                        items = quoteData.items;
+                    let quoteData = {};
+
+                    if (activeQuote) {
+                        const qLines = await new Promise(resolve => {
+                            db.all("SELECT * FROM quote_line_items WHERE quotation_id = ? ORDER BY id ASC",
+                                [activeQuote.id], (liErr, rows) => resolve(liErr ? [] : (rows || [])));
+                        });
+                        if (qLines.length > 0) {
+                            items = qLines.map(li => ({
+                                description: li.description,
+                                quantity: parseFloat(li.quantity) || 1,
+                                unit_price: parseFloat(li.unit_price) || 0,
+                                service_id: li.service_id
+                            }));
+                        }
+                        quoteData = {
+                            apply_vat: !!activeQuote.apply_vat,
+                            discount: parseFloat(activeQuote.discount) || 0,
+                            items
+                        };
                     } else {
+                        // Legacy fallback: parse booking.quote_details JSON
+                        try { quoteData = JSON.parse(booking.quote_details || '{}'); } catch(ex) {}
+                        if (quoteData.items && Array.isArray(quoteData.items)) items = quoteData.items;
+                    }
+
+                    if (items.length === 0) {
+                        console.warn(`[Invoice Warning] Booking #${bookingId}: no line items from quotations or quote_details — using fallback.`);
+                    }
+
+                    const rawSubtotal = items.length > 0
+                        ? items.reduce((s, i) => s + (parseFloat(i.unit_price) || 0) * (parseFloat(i.quantity) || 1), 0)
+                        : (quoteData.subtotal || parseFloat((booking.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0);
+                    const discount = parseFloat(quoteData.discount) || 0;
+                    const vatable = Math.max(0, rawSubtotal - discount);
+                    const subtotal = rawSubtotal;
+                    const applyVat = !!quoteData.apply_vat;
+                    const tax = applyVat ? (quoteData.vat || (vatable * vatRate)) : 0;
+                    const total = vatable + tax;
+
+                    if (items.length === 0) {
                         items = [{ description: 'Performance Booking Service', quantity: 1, unit_price: subtotal }];
                     }
 
+                    const invNumber = `INV-${moment().format('YYYY')}-${bookingId.toString().padStart(4, '0')}`;
+
                     // Enrich booking with VAT flag and discount from quote
-                    booking.apply_vat = !!quoteData.apply_vat;
-                    booking.discount = quoteData.discount || 0;
+                    booking.apply_vat = applyVat;
+                    booking.discount = discount;
 
                     // Generate PDF
                     const pdfFileName = `${invNumber}-${moment().format('YYYYMMDDHHmmss')}.pdf`;
@@ -957,7 +1101,14 @@ async function generateInvoice(bookingId) {
                     if (!fs.existsSync(invoicesDir)) fs.mkdirSync(invoicesDir, { recursive: true });
                     const pdfPath = path.join(invoicesDir, pdfFileName);
 
-                    const pdfResult = await pdfService.generateDocument('Invoice', booking, items, pdfPath);
+                    const paymentSchedules = await new Promise(resolve => {
+                        db.all(
+                            "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
+                            [bookingId],
+                            (e, rows) => resolve(e ? [] : (rows || []))
+                        );
+                    });
+                    const pdfResult = await pdfService.generateDocument('Invoice', booking, items, pdfPath, paymentSchedules);
 
                     // Create Invoice Record
                     db.run("BEGIN TRANSACTION", (tErr) => {
@@ -1060,6 +1211,48 @@ app.get('/api/public/available-slots', async (req, res) => {
 // BACKGROUND TASKS
 // ==========================================
 
+async function checkStuckNotifications() {
+    db.get(
+        `SELECT COUNT(*) AS count FROM notifications 
+         WHERE status IN ('pending', 'sending') 
+         AND datetime(created_at, '+10 minutes') < datetime('now')`,
+        [],
+        async (err, row) => {
+            if (err) {
+                console.error('[Background Clerk] Error checking stuck notifications:', err.message);
+                return;
+            }
+            if (row && row.count > 0) {
+                const count = row.count;
+                db.all(
+                    `SELECT id, recipient_email, subject, status, created_at FROM notifications 
+                     WHERE status IN ('pending', 'sending') 
+                     AND datetime(created_at, '+10 minutes') < datetime('now') 
+                     ORDER BY created_at DESC LIMIT 5`,
+                    [],
+                    async (err2, details) => {
+                        const notifEmail = await getNotificationEmail();
+                        const { sendEmailDirectly } = require('./js/emailService');
+                        const list = (details || []).map(d => `<li>#${d.id}: To ${d.recipient_email} (${d.status}) - Created at: ${d.created_at}</li>`).join('');
+                        const body = `<p>There are <strong>${count}</strong> notification(s) stuck in the queue for more than 10 minutes.</p>
+                                      <p>This may indicate that the background queue processor is down, experiencing high latency, or has crashed.</p>
+                                      <ul>${list}</ul>`;
+                        
+                        await sendEmailDirectly({
+                            to: notifEmail,
+                            subject: `⚠️ Alert: ${count} Stuck Notification(s) in Queue`,
+                            htmlContent: body,
+                            titleOverride: 'Stuck Notification Alert',
+                            trigger_event: 'System: Stuck Notification Alert',
+                            skipBrandAttachments: true
+                        }).catch(sendErr => console.error('[Background Clerk] Failed to send stuck notifications alert:', sendErr.message));
+                    }
+                );
+            }
+        }
+    );
+}
+
 /**
  * Periodically cleans up expired holds and pending bookings
  */
@@ -1070,6 +1263,15 @@ function startBackgroundClerk() {
     setInterval(syncCalendarHolds, 15 * 60 * 1000);
     // Also run it immediately on start
     syncCalendarHolds();
+
+    // Sweep and process asynchronous email queue every 20 seconds
+    setInterval(processNotificationQueue, 20 * 1000);
+    processNotificationQueue();
+
+    // Check for stuck email notifications every 10 minutes
+    setInterval(checkStuckNotifications, 10 * 60 * 1000);
+    // Run once on startup after 30 seconds
+    setTimeout(checkStuckNotifications, 30 * 1000);
 
     setInterval(() => {
       try {
@@ -1316,11 +1518,43 @@ const requireAdmin = [
                     return res.status(403).json({ success: false, message: 'Password change required.', must_change_password: true });
                 }
             }
-            return next();
+            // Re-check suspension on every request so a suspension takes effect immediately,
+            // not just on the next login. One extra indexed lookup per admin request (accepted cost).
+            db.get("SELECT is_active FROM admins WHERE id = ?", [req.session.adminId], (err, row) => {
+                if (err) return res.status(500).json({ success: false, message: 'Database error.' });
+                if (!row || row.is_active === 0) {
+                    return req.session.destroy(() => {
+                        res.status(403).json({ success: false, message: 'This account has been suspended. Contact an administrator.' });
+                    });
+                }
+                return next();
+            });
+            return;
         }
         return res.status(401).json({ success: false, message: 'Unauthorized. Please log in.' });
     }
 ];
+
+// Middleware to enforce role restrictions (RBAC)
+const requireRole = (allowedRoles) => {
+    return (req, res, next) => {
+        const userRole = req.session.role || 'assistant';
+        if (allowedRoles.includes(userRole)) {
+            return next();
+        }
+        return res.status(403).json({ success: false, message: 'Forbidden: Insufficient permissions.' });
+    };
+};
+
+// Admin role constants + last-administrator guard helper (shared by /api/admin/users CRUD)
+const VALID_ADMIN_ROLES = ['administrator', 'manager', 'assistant'];
+
+function countOtherActiveAdministrators(excludeUserId, callback) {
+    db.get(
+        "SELECT COUNT(*) AS count FROM admins WHERE role = 'administrator' AND is_active = 1 AND id != ?",
+        [excludeUserId], callback
+    );
+}
 
 // ════════════════════════════════════════════════════════════════════════════
 // ANALYTICS — first-party visitor tracking + dashboard endpoints
@@ -1684,27 +1918,33 @@ schedule.scheduleJob('6 0 * * *', function () {
     );
 });
 
-// Admin Login Route
-app.post('/api/admin/login', (req, res) => {
-    const { username, password, remember_me } = req.body;
+// Admin Login Route — P3-13: protected by tight brute-force rate limiter (5 attempts / 10 min)
+app.post('/api/admin/login', adminLoginRateLimiter, (req, res) => {
+    const { email, password, remember_me } = req.body;
 
-    if (!username || !password) {
-        return res.status(400).json({ success: false, message: 'Username and password are required.' });
+    if (!email || !password) {
+        return res.status(400).json({ success: false, message: 'Email and password are required.' });
     }
+    const normalizedEmail = String(email).trim().toLowerCase();
 
-    db.get("SELECT * FROM admins WHERE username = ?", [username], (err, row) => {
+    db.get("SELECT * FROM admins WHERE email = ?", [normalizedEmail], (err, row) => {
         if (err) return res.status(500).json({ success: false, message: 'Database error' });
         if (!row) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
         bcrypt.compare(password, row.password_hash, (err, isMatch) => {
             if (err) return res.status(500).json({ success: false, message: 'Error checking password' });
             if (isMatch) {
+                if (row.is_active === 0) {
+                    return res.status(403).json({ success: false, message: 'This account has been suspended. Contact an administrator.' });
+                }
                 req.session.adminId = row.id;
                 req.session.username = row.username;
+                req.session.role = row.role || 'manager';
                 req.session.must_change_password = row.must_change_password ? true : false;
                 // Remember me: 30-day persistent cookie; otherwise session-only (expires on browser close)
                 req.session.cookie.maxAge = remember_me ? 1000 * 60 * 60 * 24 * 30 : null;
-                return res.json({ success: true, message: 'Login successful', must_change_password: row.must_change_password ? true : false });
+                db.run("UPDATE admins SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", [row.id], () => {});
+                return res.json({ success: true, message: 'Login successful', role: row.role || 'manager', must_change_password: row.must_change_password ? true : false });
             } else {
                 return res.status(401).json({ success: false, message: 'Invalid credentials' });
             }
@@ -1743,30 +1983,79 @@ app.post('/api/admin/logout', (req, res) => {
 app.get('/api/admin/session', (req, res) => {
     if (req.session && req.session.adminId) {
         // Try ID first
-        db.get("SELECT id, username, email, created_at FROM admins WHERE id = ?", [req.session.adminId], (err, row) => {
+        db.get("SELECT id, username, email, full_name, phone, role, is_active, last_login_at, created_at FROM admins WHERE id = ?", [req.session.adminId], (err, row) => {
             if (!err && row) {
-                return res.json({ success: true, id: row.id, username: row.username, email: row.email || '', created_at: row.created_at });
+                req.session.role = row.role || 'manager'; // sync in session
+                return res.json({ success: true, id: row.id, username: row.username, email: row.email || '', full_name: row.full_name || '', phone: row.phone || '', role: row.role || 'manager', is_active: row.is_active, last_login_at: row.last_login_at, created_at: row.created_at });
             }
             // Fallback to username if ID failed but username exists in session
             if (req.session.username) {
-                db.get("SELECT id, username, email, created_at FROM admins WHERE username = ?", [req.session.username], (err2, row2) => {
+                db.get("SELECT id, username, email, full_name, phone, role, is_active, last_login_at, created_at FROM admins WHERE username = ?", [req.session.username], (err2, row2) => {
                     if (!err2 && row2) {
                         // Refresh session ID while we're at it
                         req.session.adminId = row2.id;
-                        return res.json({ success: true, id: row2.id, username: row2.username, email: row2.email || '', created_at: row2.created_at });
+                        req.session.role = row2.role || 'manager';
+                        return res.json({ success: true, id: row2.id, username: row2.username, email: row2.email || '', full_name: row2.full_name || '', phone: row2.phone || '', role: row2.role || 'manager', is_active: row2.is_active, last_login_at: row2.last_login_at, created_at: row2.created_at });
                     }
-                    return res.json({ success: true, id: req.session.adminId, username: req.session.username || '' });
+                    return res.json({ success: true, id: req.session.adminId, username: req.session.username || '', role: req.session.role || 'manager' });
                 });
             } else {
-                return res.json({ success: true, id: req.session.adminId, username: req.session.username || '' });
+                return res.json({ success: true, id: req.session.adminId, username: req.session.username || '', role: req.session.role || 'manager' });
             }
         });
-        return;
+    } else {
+        return res.status(401).json({ success: false, message: 'Not logged in.' });
     }
-    return res.status(401).json({ success: false });
 });
 
 
+
+// Generate a set-password token and queue a branded invitation email for a new/pending admin user.
+// Reuses the password_reset_tokens table + sendEmail pipeline. callback receives the sendEmail result.
+function createAndSendInvite(user, expiresHours, callback) {
+    callback = callback || function () {};
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    bcrypt.hash(rawToken, 10, (err, hash) => {
+        if (err) { console.error('Invite token hash error:', err); return callback({ success: false, error: err.message }); }
+        const expiresAt = new Date(Date.now() + (expiresHours || 72) * 3600000).toISOString();
+        db.run(
+            "INSERT INTO password_reset_tokens (admin_id, token_hash, expires_at) VALUES (?, ?, ?)",
+            [user.id, hash, expiresAt],
+            function (insertErr) {
+                if (insertErr) { console.error('Invite token store error:', insertErr); return callback({ success: false, error: insertErr.message }); }
+
+                const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+                const inviteLink = `${baseUrl}/reset-password.html?token=${rawToken}&email=${encodeURIComponent(user.email)}&welcome=1`;
+                const roleLabel = (user.role || 'manager').charAt(0).toUpperCase() + (user.role || 'manager').slice(1);
+                const greetName = (user.full_name && String(user.full_name).trim()) ? user.full_name : 'there';
+
+                const emailBody = `
+                    <p>Hello <strong>${greetName}</strong>,</p>
+                    <p>You've been added as a <strong>${roleLabel}</strong> to the Thabiso Mhlongo management dashboard.</p>
+                    <p>To activate your account, set your password using the secure link below. This link will safely expire in ${expiresHours || 72} hours.</p>
+                    <div style="text-align: center; margin: 35px 0;">
+                        <a href="${inviteLink}" class="btn-luxe">Set Your Password</a>
+                    </div>
+                    <p>Your sign-in email is <strong>${user.email}</strong>.</p>
+                    <p class="text-muted" style="font-size: 12px; margin-top: 30px;">
+                        If you weren't expecting this invitation, you can safely ignore this automated message.
+                    </p>
+                `;
+
+                sendEmail({
+                    to: user.email,
+                    subject: "You're invited to the Thabiso Mhlongo Management Dashboard",
+                    htmlContent: emailBody,
+                    titleOverride: 'Management Dashboard',
+                    trigger_event: 'Admin: User Invitation'
+                }).then(result => {
+                    if (!result.success) console.error('Email Service Error sending invite email:', result.error);
+                    callback(result);
+                }).catch(e => { console.error('Panic in sendEmail (Invite):', e); callback({ success: false, error: String(e) }); });
+            }
+        );
+    });
+}
 
 // Admin Forgot Password
 app.post('/api/admin/forgot-password', (req, res) => {
@@ -1900,7 +2189,7 @@ app.post('/api/admin/reset-password', (req, res) => {
                                 }
 
                                 db.run(
-                                    "UPDATE admins SET password_hash = ? WHERE id = ?",
+                                    "UPDATE admins SET password_hash = ?, must_change_password = 0 WHERE id = ?",
                                     [newHash, admin.id],
                                     function(updateErr) {
                                         if (updateErr) {
@@ -2087,7 +2376,7 @@ async function sendBookingUnderReviewEmail(booking) {
     const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
     const emailBody = `
         <p>Hi <strong>${name}</strong>,</p>
-        <p>Great news — your booking request for <strong style="color:#ffffff;">${event_type}</strong> on <strong style="color:#ffffff;">${date}</strong> is now being actively reviewed by our management team.</p>
+        <p>Great news — your booking request for <strong style="color:#ffffff;">${event_name}</strong> on <strong style="color:#ffffff;">${date}</strong> is now being actively reviewed by our management team.</p>
         <p style="color:#b0b0b0;">We are confirming availability, reviewing your event details, and preparing a tailored quotation. You can expect to hear from us shortly.</p>
         <p style="margin:20px 0;">
             <a href="${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}" style="display:inline-block;padding:12px 24px;background:#D4AF37;color:#000;text-decoration:none;font-weight:bold;border-radius:4px;">Track Your Booking</a>
@@ -2167,11 +2456,12 @@ async function sendQuoteEmail(booking, amount, pdfPath, pdfFileName, items = [])
             vatable = Math.max(0, subtotal - discount);
         }
         
+        const vatRate = await getVatRate();
         if (applyVat) {
-            const vat = vatable * 0.15;
+            const vat = vatable * vatRate;
             const total = vatable + vat;
             itemsHtml += `<tr>
-                <td style="padding:4px 0;">VAT (15%)</td>
+                <td style="padding:4px 0;">VAT (${(vatRate * 100).toFixed(0)}%)</td>
                 <td></td>
                 <td style="padding:4px 0; text-align:right;">R ${vat.toFixed(2)}</td>
             </tr>`;
@@ -2227,7 +2517,7 @@ async function sendAdminQuoteSentNotification(booking, amount) {
         <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#1a1a1a;">
             <tr><td style="padding:10px 16px;color:#888;font-size:13px;width:40%;">Client</td><td style="padding:10px 16px;color:#fff;font-size:13px;">${name}</td></tr>
             <tr><td style="padding:10px 16px;color:#888;font-size:13px;">Client Email</td><td style="padding:10px 16px;color:#fff;font-size:13px;">${email}</td></tr>
-            <tr><td style="padding:10px 16px;color:#888;font-size:13px;">Event</td><td style="padding:10px 16px;color:#fff;font-size:13px;">${event_type} &bull; ${date}</td></tr>
+            <tr><td style="padding:10px 16px;color:#888;font-size:13px;">Event</td><td style="padding:10px 16px;color:#fff;font-size:13px;">${event_name} &bull; ${date}</td></tr>
             <tr><td style="padding:10px 16px;color:#888;font-size:13px;">Quote Amount</td><td style="padding:10px 16px;color:#D4AF37;font-size:14px;font-weight:600;">${amount || booking.quote_amount}</td></tr>
         </table>
         <p style="color:#b0b0b0;font-size:13px;">The client has been emailed their quote PDF and a direct link to accept it. Log in to the Admin Dashboard to track the response.</p>
@@ -2243,7 +2533,7 @@ async function sendAdminQuoteSentNotification(booking, amount) {
 
 async function sendInvoiceEmail(booking, invoicePdfPath) {
     const { id, name, email, event_name, event_type, date } = booking;
-    
+
     let attachments = [];
     if (invoicePdfPath && fs.existsSync(invoicePdfPath)) {
         attachments.push({
@@ -2253,10 +2543,43 @@ async function sendInvoiceEmail(booking, invoicePdfPath) {
         });
     }
 
+    const schedules = await new Promise(resolve => {
+        db.all(
+            "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
+            [id],
+            (err, rows) => resolve(err ? [] : (rows || []))
+        );
+    });
+
+    const scheduleTableRows = schedules.length > 0
+        ? schedules.map(s => `
+            <tr>
+                <td style="padding:8px 12px;border-bottom:1px solid #333;color:#ccc;">${s.description}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #333;color:#ccc;">${s.due_date}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #333;color:#D4AF37;font-weight:600;">R ${parseFloat(s.expected_amount).toFixed(2)}</td>
+            </tr>`).join('')
+        : `<tr><td colspan="3" style="padding:8px 12px;color:#888;text-align:center;">Payment details are in the attached invoice PDF.</td></tr>`;
+
+    const paymentScheduleHtml = `
+        <div style="margin:20px 0;">
+            <h3 style="color:#D4AF37;font-size:14px;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Payment Schedule</h3>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#111;border:1px solid #333;border-radius:4px;">
+                <thead>
+                    <tr style="background:#1a1a1a;">
+                        <th style="padding:8px 12px;text-align:left;color:#D4AF37;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Description</th>
+                        <th style="padding:8px 12px;text-align:left;color:#D4AF37;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Due Date</th>
+                        <th style="padding:8px 12px;text-align:left;color:#D4AF37;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>${scheduleTableRows}</tbody>
+            </table>
+        </div>`;
+
     const emailBody = `
         <p>Hi <strong>${name}</strong>,</p>
         <p>Your formal invoice is ready for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong>.</p>
-        <p>Please find the attached PDF for payment details and the final service breakdown.</p>
+        <p>Please find the attached PDF for the full service breakdown.</p>
+        ${paymentScheduleHtml}
         <p><strong>Terms & Policies:</strong><br/>
         ${booking.terms || 'Standard cancellation policy applies.'}</p>
         <p>Payment can be made via the secure link sent in our previous communications or via bank transfer using the details in the invoice.</p>
@@ -2358,13 +2681,16 @@ async function sendOverdueInvoiceEmail(booking, invoice) {
     return result.success;
 }
 
-async function sendQuoteAcceptedEmail(booking) {
+// Gap 2 (Phase 2): accepts an options object { invoiceGenerated: bool } so that the email subject
+// and title are honest — if invoice generation failed during acceptance, we don't claim it succeeded.
+async function sendQuoteAcceptedEmail(booking, options = {}) {
+    const { invoiceGenerated = true } = options;
     const { id, name, email, event_name, event_type, date } = booking;
 
     // Fetch payment schedule to include in the confirmation email
     const schedules = await new Promise((resolve) => {
         db.all(
-            "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? ORDER BY due_date ASC",
+            "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
             [id],
             (err, rows) => resolve(err ? [] : (rows || []))
         );
@@ -2413,10 +2739,11 @@ async function sendQuoteAcceptedEmail(booking) {
 
     const result = await sendEmail({
         to: email,
-        subject: `Invoice Issued – Booking #${id}`,
+        // Gap 2: Subject and title reflect whether the invoice was actually generated (honest messaging).
+        subject: invoiceGenerated ? `Invoice Issued – Booking #${id}` : `Quote Accepted – Booking #${id}`,
         htmlContent: emailBody,
         attachments: icsAttachments,
-        titleOverride: 'Invoice Sent – Awaiting Payment',
+        titleOverride: invoiceGenerated ? 'Invoice Sent – Awaiting Payment' : 'Quote Accepted – Awaiting Payment',
         trigger_event: 'Booking: Quote Accepted Receipt'
     });
 
@@ -2578,6 +2905,18 @@ async function sendBookingConfirmedEmail(booking) {
     return result.success;
 }
 
+// P3-7: Resend the paid invoice PDF as a payment receipt when booking becomes fully PAID.
+async function sendPaidReceiptEmail(booking) {
+    const inv = await new Promise(resolve => {
+        db.get("SELECT file_path, invoice_number FROM invoices WHERE booking_id = ? AND status = 'PAID' ORDER BY id DESC LIMIT 1",
+            [booking.id], (e, row) => resolve(e ? null : row));
+    });
+    if (!inv || !inv.file_path) return;
+    const pdfPath = path.join(__dirname, 'docs', 'invoices', inv.file_path);
+    if (!fs.existsSync(pdfPath)) return;
+    await sendInvoiceEmail(booking, pdfPath);
+}
+
 async function sendBookingCompletedEmail(booking) {
     const { id, name, email, event_name, event_type, date, event_location,
             total_amount, amount_paid, quote_amount } = booking;
@@ -2592,7 +2931,7 @@ async function sendBookingCompletedEmail(booking) {
 
     // Fetch VAT from the latest non-voided invoice, then fall back to the latest quotation
     const vatRow = await new Promise(resolve => {
-        db.get(`SELECT tax_amount FROM invoices WHERE booking_id = ? AND status != 'void' ORDER BY id DESC LIMIT 1`,
+        db.get(`SELECT tax_amount FROM invoices WHERE booking_id = ? AND UPPER(status) != 'VOID' ORDER BY id DESC LIMIT 1`,
             [id], (e, row) => {
                 if (!e && row) return resolve(row);
                 db.get(`SELECT tax_amount FROM quotations WHERE booking_id = ? AND status != 'void' ORDER BY id DESC LIMIT 1`,
@@ -3114,8 +3453,8 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                         event_name, date, event_start_time, performance_slot, performance_duration,
                         event_location, venue_address, city, country, venue_type,
                         event_type, audience_size, audience_demographic, budget_range, travel_accommodation, message, status,
-                        client_id, venue_id, quote_amount, total_amount, amount_outstanding, payment_status, popia_consent, consent_timestamp, vat_number, venue_place_id, quote_expiry_date, policy_version, source, referrer
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "NEW", ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?)`,
+                        client_id, venue_id, quote_amount, total_amount, amount_outstanding, payment_status, popia_consent, consent_timestamp, vat_number, venue_place_id, quote_expiry_date, policy_version, source, referrer, consent_source
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "NEW", ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, 'public_form')`,
                 [
                     name, company || null, email, cell,
                     event_name || null, event_date, event_start_time || null, performance_slot || null, performance_duration || null,
@@ -3134,43 +3473,70 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                     const bookingId = this.lastID;
                     db.run("COMMIT");
 
-                    // POPIA consent audit — immutable record of when/where consent was given
-                    db.run(
-                        `INSERT INTO consent_audit (booking_id, ip_address, user_agent) VALUES (?, ?, ?)`,
-                        [bookingId, req.ip || null, req.headers['user-agent'] || null]
-                    );
+                    try {
+                        // POPIA consent audit — immutable record of when/where consent was given
+                        await new Promise((resolve, reject) => {
+                            db.run(
+                                `INSERT INTO consent_audit (booking_id, ip_address, user_agent, policy_version, consent_source) VALUES (?, ?, ?, ?, 'public_form')`,
+                                [bookingId, req.ip || null, req.headers['user-agent'] || null, policy_version || 'v2.2'],
+                                (err2) => { if (err2) reject(err2); else resolve(); }
+                            );
+                        });
 
-                    // Audit trail for booking creation (trigger only fires on UPDATE, not INSERT)
-                    db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by) VALUES ('bookings', ?, 'CREATE', ?, 'public')`,
-                        [bookingId, JSON.stringify({ name: req.body.name, email: req.body.email, date: event_date, status: 'NEW' })]);
+                        // Audit trail for booking creation (trigger only fires on UPDATE, not INSERT)
+                        await new Promise((resolve, reject) => {
+                            db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by) VALUES ('bookings', ?, 'CREATE', ?, 'public')`,
+                                [bookingId, JSON.stringify({ name: req.body.name, email: req.body.email, date: event_date, status: 'NEW' })],
+                                (err2) => { if (err2) reject(err2); else resolve(); }
+                            );
+                        });
 
-                    // X3: Parse performance_slot OR event_start_time + duration → always populate performance_end_time
-                    if (performance_slot) {
-                        const slotM = performance_slot.match(/(\d{1,2}:\d{2})\s*[–\-]\s*(\d{1,2}:\d{2})/);
-                        if (slotM) {
-                            db.run("UPDATE bookings SET performance_start_time = ?, performance_end_time = ? WHERE id = ?",
-                                [slotM[1], slotM[2], bookingId]);
+                        // X3: Parse performance_slot OR event_start_time + duration → always populate performance_end_time
+                        if (performance_slot) {
+                            const slotM = performance_slot.match(/(\d{1,2}:\d{2})\s*[–\-]\s*(\d{1,2}:\d{2})/);
+                            if (slotM) {
+                                await new Promise((resolve, reject) => {
+                                    db.run("UPDATE bookings SET performance_start_time = ?, performance_end_time = ? WHERE id = ?",
+                                        [slotM[1], slotM[2], bookingId],
+                                        (err2) => { if (err2) reject(err2); else resolve(); }
+                                    );
+                                });
+                            } else if (event_start_time) {
+                                const calcEnd = addMinutesToTime(event_start_time, durationMins);
+                                await new Promise((resolve, reject) => {
+                                    db.run("UPDATE bookings SET performance_end_time = ? WHERE id = ?", [calcEnd, bookingId],
+                                        (err2) => { if (err2) reject(err2); else resolve(); }
+                                    );
+                                });
+                            }
                         } else if (event_start_time) {
                             const calcEnd = addMinutesToTime(event_start_time, durationMins);
-                            db.run("UPDATE bookings SET performance_end_time = ? WHERE id = ?", [calcEnd, bookingId]);
+                            await new Promise((resolve, reject) => {
+                                db.run("UPDATE bookings SET performance_end_time = ? WHERE id = ?", [calcEnd, bookingId],
+                                    (err2) => { if (err2) reject(err2); else resolve(); }
+                                );
+                            });
                         }
-                    } else if (event_start_time) {
-                        const calcEnd = addMinutesToTime(event_start_time, durationMins);
-                        db.run("UPDATE bookings SET performance_end_time = ? WHERE id = ?", [calcEnd, bookingId]);
+
+                        // 5. INSERT BOOKING SERVICES (Relational)
+                        for (const srv of selectedServices) {
+                            await new Promise((resolve, reject) => {
+                                db.run("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
+                                    [bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price],
+                                    (err2) => { if (err2) reject(err2); else resolve(); }
+                                );
+                            });
+                            const legacyQty = srv.quantity_minutes;
+                            await new Promise((resolve, reject) => {
+                                db.run("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
+                                    [bookingId, srv.service_id, srv.name, legacyQty, srv.unit_price],
+                                    (err2) => { if (err2) reject(err2); else resolve(); }
+                                );
+                            });
+                        }
+                    } catch (dbErr) {
+                        console.error("[Booking] Async DB inserts failed:", dbErr.message);
                     }
-
-                    // 5. INSERT BOOKING SERVICES (Relational)
-                    const stmtSvc = db.prepare("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)");
-                    const stmtBli = db.prepare("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)");
-
-                    selectedServices.forEach(srv => {
-                        stmtSvc.run([bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price], (e) => { if (e) console.error('Booking Service Error:', e); });
-                        const legacyQty = srv.quantity_minutes;
-                        stmtBli.run([bookingId, srv.service_id, srv.name, legacyQty, srv.unit_price], (e) => { if (e) console.error('Line Item Error:', e); });
-                    });
-
-                    stmtSvc.finalize();
-                    stmtBli.finalize();
 
                     // 6. SYNC TO GOOGLE CALENDAR (Asynchronously/Non-blocking)
                     syncBookingToCalendar(bookingId).catch(calErr => {
@@ -3281,66 +3647,89 @@ app.post('/api/public/bookings/:id/pay', ipRateLimiter, (req, res) => {
                 console.log(`[DEBUG] Pay failed: already paid`);
                 return res.status(400).json({ success: false, message: 'This booking has already been fully paid.' });
             }
-            if (payStatus === 'DEPOSIT_PAID' && payment_type === 'DEPOSIT') {
-                console.log(`[DEBUG] Pay failed: deposit already paid`);
-                return res.status(400).json({ success: false, message: 'A deposit has already been paid. You can only pay the remaining balance.' });
+            // P2-14: Deposit can only be paid from UNPAID state. DEPOSIT_PAID, PARTIALLY_PAID etc.
+            // should proceed to balance/full payment only — not re-pay the deposit.
+            if (payment_type === 'DEPOSIT' && payStatus !== 'UNPAID') {
+                console.log(`[DEBUG] Pay failed: deposit attempted when payStatus=${payStatus}`);
+                return res.status(400).json({ success: false, message: payStatus === 'DEPOSIT_PAID'
+                    ? 'A deposit has already been paid. You can only pay the remaining balance.'
+                    : `Deposit payment is not available for a booking with status ${payStatus}.` });
             }
 
-            // Server-side amount calculation — never trust frontend values
-            let amt = 0;
+            // Server-side amount calculation — query payment_schedules for milestone-aware amounts
+            let baseAmt = 0;
             if (row.quote_amount) {
-                amt = parseFloat(row.quote_amount.replace(/[^0-9.]/g, ''));
+                baseAmt = parseFloat(row.quote_amount.replace(/[^0-9.]/g, ''));
             }
-            if (isNaN(amt) || amt <= 0) {
+            if (isNaN(baseAmt) || baseAmt <= 0) {
                 console.log(`[DEBUG] Pay failed: invalid amount ${row.quote_amount}`);
                 return res.status(400).json({ success: false, message: 'Invalid quote amount. Please contact management.' });
             }
-            
-            if (payment_type === 'DEPOSIT') {
-                amt = amt / 2;
-            } else if (payStatus === 'DEPOSIT_PAID') {
-                // Paying remainder after deposit
-                amt = amt / 2;
-            }
 
-            // Derive the public base URL so PayFast's ITN callback always reaches this server.
-            // Set BASE_URL in .env for production (e.g. https://thabisomhlongo.com).
-            // When tunnelling locally (ngrok / cloudflared) the forwarded host header is used automatically.
-            const proto = req.get('x-forwarded-proto') || req.protocol;
-            const host  = req.get('x-forwarded-host')  || req.get('host');
-            const baseUrl = (process.env.BASE_URL || `${proto}://${host}`).replace(/\/$/, '');
-            
-            const isPortal = req.body.return_path === 'portal';
-            const clientName = row.name || 'Client';
-            
-            const pfData = {
-                merchant_id: process.env.PAYFAST_MERCHANT_ID || '10000100',
-                merchant_key: process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a',
-                return_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success` : `${baseUrl}/?track=${row.id}&payment=success`,
-                cancel_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel`  : `${baseUrl}/?track=${row.id}&payment=cancel`,
-                notify_url: `${baseUrl}/api/payment/webhook/payfast`,
-                name_first: (clientName.split(' ')[0] || '').substring(0, 100),
-                name_last: (clientName.split(' ').slice(1).join(' ') || '').substring(0, 100),
-                email_address: row.email,
-                m_payment_id: `${row.id}_${payment_type}`,
-                amount: amt.toFixed(2),
-                item_name: `Booking ${row.id} - ${row.event_name || row.event_type || 'Event'} - ${payment_type === 'DEPOSIT' ? 'Deposit 50%' : payStatus === 'DEPOSIT_PAID' ? 'Balance' : 'Full Payment'}`.substring(0, 100).replace(/[^a-zA-Z0-9.\- ]/g, '').replace(/\s+/g, ' ')
-            };
-            
-            // Remove empty or null values to ensure signature matches submitted form data
-            Object.keys(pfData).forEach(key => {
-                if (pfData[key] === '' || pfData[key] === null || pfData[key] === undefined) {
-                    delete pfData[key];
+            db.all(
+                "SELECT description, expected_amount FROM payment_schedules WHERE booking_id = ? AND status != 'paid' AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
+                [row.id],
+                (schedErr, schedules) => {
+                try {
+                    let amt = baseAmt;
+                    let milestoneDesc = 'Full Payment';
+
+                    if (!schedErr && schedules && schedules.length > 0) {
+                        if (payment_type === 'DEPOSIT') {
+                            amt = parseFloat(schedules[0].expected_amount);
+                            milestoneDesc = schedules[0].description;
+                        } else if (payStatus === 'DEPOSIT_PAID') {
+                            amt = schedules.reduce((sum, s) => sum + parseFloat(s.expected_amount), 0);
+                            milestoneDesc = 'Balance Payment';
+                        }
+                    } else {
+                        if (payment_type === 'DEPOSIT') { amt = baseAmt / 2; milestoneDesc = 'Deposit'; }
+                        else if (payStatus === 'DEPOSIT_PAID') { amt = baseAmt / 2; milestoneDesc = 'Balance'; }
+                    }
+
+                    // Derive the public base URL so PayFast's ITN callback always reaches this server.
+                    // Set BASE_URL in .env for production (e.g. https://thabisomhlongo.com).
+                    // When tunnelling locally (ngrok / cloudflared) the forwarded host header is used automatically.
+                    const proto = req.get('x-forwarded-proto') || req.protocol;
+                    const host  = req.get('x-forwarded-host')  || req.get('host');
+                    const baseUrl = (process.env.BASE_URL || `${proto}://${host}`).replace(/\/$/, '');
+
+                    const isPortal = req.body.return_path === 'portal';
+                    const clientName = row.name || 'Client';
+
+                    const pfData = {
+                        merchant_id: process.env.PAYFAST_MERCHANT_ID || '10000100',
+                        merchant_key: process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a',
+                        return_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success` : `${baseUrl}/?track=${row.id}&payment=success`,
+                        cancel_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel`  : `${baseUrl}/?track=${row.id}&payment=cancel`,
+                        notify_url: `${baseUrl}/api/payment/webhook/payfast`,
+                        name_first: (clientName.split(' ')[0] || '').substring(0, 100),
+                        name_last: (clientName.split(' ').slice(1).join(' ') || '').substring(0, 100),
+                        email_address: row.email,
+                        m_payment_id: `${row.id}_${payment_type}`,
+                        amount: amt.toFixed(2),
+                        item_name: `Booking ${row.id} - ${row.event_name || row.event_type || 'Event'} - ${milestoneDesc}`.substring(0, 100).replace(/[^a-zA-Z0-9.\- ]/g, '').replace(/\s+/g, ' ')
+                    };
+
+                    // Remove empty or null values to ensure signature matches submitted form data
+                    Object.keys(pfData).forEach(key => {
+                        if (pfData[key] === '' || pfData[key] === null || pfData[key] === undefined) {
+                            delete pfData[key];
+                        }
+                    });
+
+                    const passphrase = process.env.PAYFAST_PASSPHRASE || null;
+                    pfData.signature = generatePayFastSignature(pfData, passphrase);
+
+                    const pfHost = process.env.PAYFAST_URL || 'https://sandbox.payfast.co.za/eng/process';
+
+                    console.log(`[PayFast] Payment initiated: Booking #${row.id}, Type: ${payment_type}, Amount: R${amt.toFixed(2)}`);
+                    res.json({ success: true, pfData: pfData, pfHost: pfHost });
+                } catch (ex) {
+                    console.error("Pay Route Error:", ex);
+                    res.status(500).json({ success: false, message: 'Internal server error.' });
                 }
             });
-            
-            const passphrase = process.env.PAYFAST_PASSPHRASE || null;
-            pfData.signature = generatePayFastSignature(pfData, passphrase);
-            
-            const pfHost = process.env.PAYFAST_URL || 'https://sandbox.payfast.co.za/eng/process';
-            
-            console.log(`[PayFast] Payment initiated: Booking #${row.id}, Type: ${payment_type}, Amount: R${amt.toFixed(2)}`);
-            res.json({ success: true, pfData: pfData, pfHost: pfHost });
         } catch (ex) {
             console.error("Pay Route Error:", ex);
             res.status(500).json({ success: false, message: 'Internal server error.' });
@@ -3376,6 +3765,17 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
         // ── 0. Log & detect environment ──
         logPaymentEvent(bookingId, 'ITN_RECEIVED', pfData, false);
         const isSandbox = (process.env.PAYFAST_URL || '').includes('sandbox');
+
+        // P3-15: Timestamp replay protection — reject ITNs older than 30 minutes in production.
+        if (!isSandbox && pfData.timestamp) {
+            const itnTime = new Date(pfData.timestamp);
+            const ageMins = (Date.now() - itnTime.getTime()) / 60000;
+            if (isNaN(itnTime.getTime()) || ageMins > 30) {
+                console.error(`[PayFast ITN] STALE TIMESTAMP for booking #${bookingId}: timestamp=${pfData.timestamp}, age=${ageMins.toFixed(1)}m — rejecting as possible replay.`);
+                logPaymentEvent(bookingId, 'FAILED_STALE_TIMESTAMP', pfData, false);
+                return;
+            }
+        }
 
         // ── A. Signature Validation ──
         const passphrase = process.env.PAYFAST_PASSPHRASE || null;
@@ -3481,10 +3881,13 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
         }
 
         // Idempotency guard: check BEFORE inserting the transaction record.
-        // Using pf_payment_id when available; falling back to a deterministic synthetic key.
-        // NOTE: this check must run before logPaymentEvent('VERIFIED_OK') because that call
-        // inserts a transactions row — querying after the insert would always find it and
-        // incorrectly treat every first-time ITN as a duplicate, preventing the booking update.
+        // In production, require pf_payment_id — synthetic keys based on amount+status can collide
+        // on PayFast retries with rounding differences, creating duplicate transactions.
+        if (!pfData.pf_payment_id && !isSandbox) {
+            console.error(`[PayFast ITN] Missing pf_payment_id for booking #${bookingId} in production — rejecting to prevent synthetic-key dedup collision.`);
+            logPaymentEvent(bookingId, 'FAILED_NO_PAYMENT_ID', pfData, false);
+            return; // res already sent with 200 at top; return stops processing
+        }
         const itnRef = pfData.pf_payment_id || `synthetic-${bookingId}-${pfData.amount_gross}-${pfData.payment_status}`;
         const alreadyProcessed = await new Promise(resolve => {
             db.get("SELECT id FROM transactions WHERE reference = ? AND booking_id = ? AND source = 'payfast'",
@@ -3513,7 +3916,23 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
         // ══════════════════════════════════════════
         if (pfData.payment_status === 'COMPLETE') {
             const itnAmount = parseFloat(pfData.amount_gross) || 0;
-            const currentTotal = parseFloat(booking.total_amount) || parseFloat((booking.quote_amount||'0').replace(/[^0-9.]/g, '')) || parseFloat(booking.quote_amount) || 0;
+            const currentTotal = parseFloat(booking.total_amount) || parseFloat((booking.quote_amount||'0').replace(/[^0-9.]/g, '')) || 0;
+            // P2-13: If we still can't resolve a total, reject the ITN — overpayment guard cannot function without it.
+            if (currentTotal === 0) {
+                console.error(`[PayFast ITN] REJECTED: booking #${bookingId} has no resolvable total_amount. Cannot apply payment safely.`);
+                logPaymentEvent(bookingId, 'FAILED_NO_TOTAL', pfData, true);
+                getNotificationEmail().then(notifEmail => {
+                    if (!notifEmail) return;
+                    sendEmail({
+                        to: notifEmail,
+                        subject: `PayFast ITN Rejected – Missing Total – Booking #${bookingId}`,
+                        htmlContent: `<p>A PayFast ITN for booking <strong>#${bookingId}</strong> (R${itnAmount.toFixed(2)}) was <strong>rejected</strong> because the booking has no total_amount set. Set the booking total and replay the transaction manually.</p>`,
+                        titleOverride: 'ITN Rejected – Missing Total',
+                        trigger_event: 'Admin: ITN No Total'
+                    });
+                }).catch(e => console.error('[ITN] Admin alert failed:', e.message));
+                return;
+            }
             const currentPaid = parseFloat(booking.amount_paid) || 0;
             const newAmountPaid = currentPaid + itnAmount;
             const newOutstanding = Math.max(0, currentTotal - newAmountPaid);
@@ -3541,11 +3960,12 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
                 :                                     'PARTIALLY_PAID';
             
             db.run(
-                `UPDATE bookings SET 
-                    payment_status = ?, status = 'CONFIRMED', 
+                `UPDATE bookings SET
+                    payment_status = ?,
+                    status = CASE WHEN status IN ('ACCEPTED','CONFIRMED') THEN 'CONFIRMED' ELSE status END,
                     total_amount = ?, amount_paid = ?, amount_outstanding = ?,
                     payment_reference = ?, payment_signature = ?, payment_raw_data = ?, payment_method = ?,
-                    confirmed_at = CURRENT_TIMESTAMP, last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP 
+                    confirmed_at = CURRENT_TIMESTAMP, last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP
                 WHERE id = ?`,
                 [
                     newPaymentStatus, currentTotal, newAmountPaid, newOutstanding,
@@ -3571,10 +3991,28 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
                                 if (newPaymentStatus === 'PAID') {
                                     sendBookingConfirmedEmail(updatedRow).catch(e => console.error('Confirmed email after payment failed:', e.message));
                                     db.run(
-                                        `UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')`,
+                                        `UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')`,
                                         [bookingId],
-                                        (invErr) => { if (invErr) console.error(`[Invoices] Status sync failed for booking #${bookingId}:`, invErr.message); }
+                                        (invErr) => {
+                                            if (invErr) { console.error(`[Invoices] Status sync failed for booking #${bookingId}:`, invErr.message); return; }
+                                            // P3-7: Send paid invoice as receipt
+                                            sendPaidReceiptEmail(updatedRow).catch(e => console.error('Paid receipt email (ITN) failed:', e.message));
+                                        }
                                     );
+                                    // Auto-create events row when fully paid (booking is now CONFIRMED)
+                                    if (!updatedRow.event_id) {
+                                        const evDatetime = updatedRow.date + (updatedRow.event_start_time ? ' ' + updatedRow.event_start_time : ' 00:00:00');
+                                        db.run(
+                                            `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
+                                             VALUES (?, ?, ?, ?, ?, 'upcoming', 'system')`,
+                                            [updatedRow.event_name || updatedRow.event_type || 'Booking Event', evDatetime,
+                                             updatedRow.event_location || null, updatedRow.venue_id || null, bookingId],
+                                            function(evErr) {
+                                                if (evErr) { console.error('[Auto-Event] PayFast: Insert failed for booking #' + bookingId + ':', evErr.message); return; }
+                                                db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [this.lastID, bookingId]);
+                                            }
+                                        );
+                                    }
                                 }
                                 // Mark payment schedule items as paid based on total amount now credited
                                 alignMilestonePayments(bookingId, newAmountPaid, (psErr) => {
@@ -3729,8 +4167,8 @@ app.get('/api/bookings/:id/payment-logs', (req, res) => {
 });
 
 // Admin: manually record a payment when the PayFast ITN was not received
-app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, async (req, res) => {
-    const { payment_status, amount_paid } = req.body;
+app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+    const { payment_status, amount_paid, force } = req.body;
     const valid = ['UNPAID', 'DEPOSIT_PAID', 'PARTIALLY_PAID', 'PAID', 'FAILED'];
     if (!valid.includes(payment_status)) {
         return res.status(400).json({ success: false, message: 'Invalid payment_status.' });
@@ -3741,6 +4179,36 @@ app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, async (req, res)
             return res.status(400).json({ success: false, message: `Cannot record payment on a ${row.status} booking.` });
         }
 
+        // P2-5: Warn if a PayFast transaction was recorded for this booking within the last 2 hours —
+        // recording a manual payment on top may create a duplicate credit.
+        if (!force) {
+            db.get(
+                `SELECT id, amount, created_at FROM transactions
+                 WHERE booking_id = ? AND source = 'payfast' AND status = 'completed'
+                   AND created_at >= datetime('now', '-2 hours')
+                 ORDER BY created_at DESC LIMIT 1`,
+                [req.params.id],
+                (txErr, recentTx) => {
+                    if (!txErr && recentTx) {
+                        return res.status(409).json({
+                            success: false,
+                            duplicate_warning: true,
+                            message: `A PayFast payment of R${parseFloat(recentTx.amount).toFixed(2)} was already recorded for this booking within the last 2 hours (at ${recentTx.created_at}). Recording a manual payment now may double-credit this booking. Send { force: true } to proceed anyway.`
+                        });
+                    }
+                    // No recent PayFast tx — fall through to same-callback logic below
+                    processManualPayment(req, res, row);
+                }
+            );
+            return;
+        }
+        processManualPayment(req, res, row);
+    });
+});
+
+function processManualPayment(req, res, row) {
+    const { payment_status, amount_paid } = req.body;
+
         const total = parseFloat(row.total_amount) ||
                       parseFloat((row.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
         const paid  = Math.max(0, parseFloat(amount_paid) || 0);
@@ -3750,10 +4218,20 @@ app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, async (req, res)
         const existingPaid = parseFloat(row.amount_paid) || 0;
         const delta = paid - existingPaid;
         if (paid < existingPaid) {
-            console.warn(`[Manual Payment] Booking #${req.params.id}: amount_paid reduced from R${existingPaid.toFixed(2)} to R${paid.toFixed(2)} by admin.`);
+            // P2-4: Reducing amount_paid without a refund record creates ledger drift.
+            // Force the admin to use the dedicated refund endpoint instead.
+            return res.status(400).json({
+                success: false,
+                message: `Cannot reduce the recorded payment from R${existingPaid.toFixed(2)} to R${paid.toFixed(2)} via this form. Use the Refund endpoint to record a refund and update the ledger — this creates a proper audit trail and transaction record.`
+            });
         }
         const outstanding = Math.max(0, total - paid);
-        const newStatus = payment_status === 'PAID' ? 'CONFIRMED' : row.status;
+        // Any real payment on an ACCEPTED/CONFIRMED booking → CONFIRMED (mirrors PayFast ITN behaviour).
+        // Full PAID on a not-yet-accepted booking → ACCEPTED (so quote-acceptance step isn't skipped).
+        const isActualPayment = ['DEPOSIT_PAID', 'PARTIALLY_PAID', 'PAID'].includes(payment_status);
+        const newStatus = (isActualPayment && ['ACCEPTED', 'CONFIRMED'].includes(row.status))
+            ? 'CONFIRMED'
+            : (payment_status === 'PAID' ? 'ACCEPTED' : row.status);
 
         db.run(
             `UPDATE bookings SET
@@ -3788,6 +4266,23 @@ app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, async (req, res)
                     [req.params.id, JSON.stringify({ amount_paid: paid, payment_status, amount_outstanding: outstanding }), req.session.adminId || 'admin'],
                     (aErr) => { if (aErr) console.error('[Audit] Manual payment log failed:', aErr.message); });
 
+                // Auto-create events row when manual payment results in CONFIRMED (mirrors PayFast ITN behaviour)
+                if (newStatus === 'CONFIRMED') {
+                    db.get("SELECT event_id, date, event_start_time, event_name, event_type, event_location, venue_id FROM bookings WHERE id = ?", [req.params.id], (evSelErr, bRow) => {
+                        if (evSelErr || !bRow || bRow.event_id) return;
+                        const evDatetime = bRow.date + (bRow.event_start_time ? ' ' + bRow.event_start_time : ' 00:00:00');
+                        db.run(
+                            `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
+                             VALUES (?, ?, ?, ?, ?, 'upcoming', 'system')`,
+                            [bRow.event_name || bRow.event_type || 'Booking Event', evDatetime, bRow.event_location || null, bRow.venue_id || null, req.params.id],
+                            function(evErr) {
+                                if (evErr) { console.error('[Auto-Event] ManualPayment: Insert failed for booking #' + req.params.id + ':', evErr.message); return; }
+                                db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [this.lastID, req.params.id]);
+                            }
+                        );
+                    });
+                }
+
                 (async () => {
                     await syncBookingToCalendar(req.params.id);
                     sendPaymentReceivedEmail(row, paid, outstanding, payment_status).catch(e => console.error('Manual payment email failed:', e));
@@ -3800,17 +4295,40 @@ app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, async (req, res)
                         sendDepositBalanceDueEmail(row, outstanding).catch(e => console.error('Deposit balance-due email failed:', e.message));
                     }
                     if (payment_status === 'PAID') {
-                        db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (e, updated) => {
-                            if (!e && updated) sendBookingConfirmedEmail(updated).catch(e => console.error('Confirmed email after manual payment failed:', e.message));
-                        });
+                        const markPaidAndNotify = () => {
+                            db.run("UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [req.params.id]);
+                            db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (e, updated) => {
+                                if (!e && updated) {
+                                    sendBookingConfirmedEmail(updated).catch(e => console.error('Confirmed email after manual payment failed:', e.message));
+                                    setTimeout(() => sendPaidReceiptEmail(updated).catch(e => console.error('Paid receipt email (manual) failed:', e.message)), 600);
+                                }
+                            });
+                        };
+                        // Ensure an invoice exists before sending the receipt — manual bookings that
+                        // skipped quote acceptance have no invoice yet, so generate one on the spot.
+                        db.get(
+                            "SELECT id FROM invoices WHERE booking_id = ? AND UPPER(status) NOT IN ('VOID') ORDER BY id DESC LIMIT 1",
+                            [req.params.id],
+                            (invCheckErr, existingInv) => {
+                                if (!existingInv) {
+                                    generateInvoice(req.params.id)
+                                        .then(markPaidAndNotify)
+                                        .catch(genErr => {
+                                            console.error('[ManualPayment] Invoice auto-generation failed:', genErr.message);
+                                            markPaidAndNotify();
+                                        });
+                                } else {
+                                    markPaidAndNotify();
+                                }
+                            }
+                        );
                     }
                 })();
 
                 res.json({ success: true, message: `Payment recorded for booking #${req.params.id}.` });
             }
         );
-    });
-});
+}
 
 app.get('/payment/success', (req, res) => {
     const bookingId = req.query.booking_id || '';
@@ -3883,18 +4401,21 @@ app.post('/api/public/compliance/request-forget', ipRateLimiter, (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ success: false, message: 'Email required.' });
 
-    // In a real-world app, we would send a confirmation email first.
-    // Here we perform the anonymization directly for demonstration.
-    const anonymize = (table, emailCol) => {
+    // Whitelist prevents SQL injection if this function is ever called with untrusted input.
+    const ANONYMIZE_TARGETS = [
+        { table: 'bookings',   emailCol: 'email', extraFields: "name = '[FORGOTTEN]', cell = '000000000', company = NULL" },
+        { table: 'inquiries',  emailCol: 'email', extraFields: "name = '[FORGOTTEN]', cell = '000000000', company = NULL" },
+    ];
+    const anonymize = ({ table, emailCol, extraFields }) => {
         return new Promise((resolve) => {
-            db.run(`UPDATE ${table} SET ${emailCol} = 'deleted@po-pia.com', name = '[FORGOTTEN]', cell = '000000000', company = NULL WHERE LOWER(${emailCol}) = LOWER(?)`, [email], () => resolve());
+            db.run(
+                `UPDATE ${table} SET ${emailCol} = 'deleted@po-pia.com', ${extraFields} WHERE LOWER(${emailCol}) = LOWER(?)`,
+                [email], () => resolve()
+            );
         });
     };
 
-    Promise.all([
-        anonymize('bookings', 'email'),
-        anonymize('inquiries', 'email')
-    ]).then(() => {
+    Promise.all(ANONYMIZE_TARGETS.map(anonymize)).then(() => {
         db.run("DELETE FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)", [email]);
         res.json({ success: true, message: 'Your personal data has been queued for anonymization and newsletter removal according to POPIA.' });
     });
@@ -3969,7 +4490,7 @@ app.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, (req
         
         // Include latest invoice if exists
         db.get("SELECT file_path, invoice_number, status FROM invoices WHERE booking_id = ? AND status != 'VOID' ORDER BY created_at DESC LIMIT 1", [row.id], (e, inv) => {
-            db.all("SELECT description, due_date, expected_amount, status, updated_at FROM payment_schedules WHERE booking_id = ? ORDER BY due_date ASC", [row.id], (e2, schedule) => {
+            db.all("SELECT description, due_date, expected_amount, status, updated_at FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC", [row.id], (e2, schedule) => {
                 db.all(`SELECT s.name AS service_name, s.pricing_model, bs.quantity_minutes, bs.unit_price,
                                (bs.unit_price * bs.quantity_minutes) AS line_total
                         FROM booking_services bs
@@ -4010,6 +4531,9 @@ app.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, (req
 });
 
 // Accept quote (public) — client formally accepts a sent quote
+// SECURITY NOTE (Gap 1 — accepted risk): Auth is email-match only. No OTP/token second factor is
+// required. This is an intentional decision documented in the Phase 2 audit. If the risk profile
+// changes, add a signed acceptance token embedded in the quote email.
 app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimiter, async (req, res) => {
     const { email, terms_agreed, vat_number } = req.body;
     if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
@@ -4022,6 +4546,7 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
         if (row.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
             return res.status(401).json({ success: false, message: 'Email does not match our records.' });
         }
+        // Gap 4 (Phase 2): 'RESPONDED' was a legacy status retired in Phase 2 — only 'QUOTED' is valid here.
         if (row.status !== 'QUOTED') {
             return res.status(400).json({ success: false, message: `Cannot accept quote – current status is ${row.status}.` });
         }
@@ -4040,20 +4565,24 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
             async function(upErr) {
                 if (upErr) return res.status(500).json({ success: false, error: upErr.message });
 
-                // Auto-create payment schedule (50% deposit + 50% balance)
+                // P3-3: Audit log for quote acceptance
+                db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+                        VALUES ('bookings', ?, 'QUOTE_ACCEPTED', ?, ?, CURRENT_TIMESTAMP)`,
+                    [req.params.id, JSON.stringify({ accepted_by: email, ip: clientIp, amount: row.quote_amount }), email],
+                    (aErr) => { if (aErr) console.error('[Audit] Quote acceptance log failed:', aErr.message); });
+
+                // Auto-create 50/50 payment schedule only if no custom milestones have been configured
                 const totalAmount = parseFloat(row.quote_amount) || parseFloat(row.total_amount) || 0;
                 if (totalAmount > 0) {
-                    const depositAmount = Math.round((totalAmount * 0.5) * 100) / 100;
-                    const balanceAmount = Math.round((totalAmount - depositAmount) * 100) / 100;
-
-                    const depositDue = moment().add(7, 'days').format('YYYY-MM-DD');
-                    const eventDate = row.date || row.event_date;
-                    const balanceDue = eventDate
-                        ? moment(eventDate).subtract(2, 'days').format('YYYY-MM-DD')
-                        : moment().add(30, 'days').format('YYYY-MM-DD');
-
-                    // Clear any old schedules before re-creating
-                    db.run("DELETE FROM payment_schedules WHERE booking_id = ?", [req.params.id], () => {
+                    db.get("SELECT COUNT(*) AS cnt FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')", [req.params.id], (cErr, cRow) => {
+                        if (!cErr && cRow && cRow.cnt > 0) return; // admin-configured milestones exist — preserve them
+                        const depositAmount = Math.round((totalAmount * 0.5) * 100) / 100;
+                        const balanceAmount = Math.round((totalAmount - depositAmount) * 100) / 100;
+                        const depositDue = moment().add(7, 'days').format('YYYY-MM-DD');
+                        const eventDate = row.date || row.event_date;
+                        const balanceDue = eventDate
+                            ? moment(eventDate).subtract(2, 'days').format('YYYY-MM-DD')
+                            : moment().add(30, 'days').format('YYYY-MM-DD');
                         db.run(
                             "INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
                             [req.params.id, '50% Deposit', depositDue, depositAmount],
@@ -4070,21 +4599,29 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
                 // Sync to Google Calendar (Update status on Hold)
                 await syncBookingToCalendar(req.params.id);
 
-                // Generate invoice FIRST so the PDF exists before the acceptance email is sent
+                // Gap 2 (Phase 2): Track whether invoice generation succeeds so we can give an honest
+                // client-facing message. The acceptance is NOT rolled back if invoice fails — the booking
+                // is accepted; only the invoice email promise changes.
+                let invoiceGenerated = false;
                 try {
                     await generateInvoice(req.params.id);
+                    invoiceGenerated = true;
                 } catch(invErr) {
-                    console.error("Auto-Invoice Error during acceptance:", invErr);
+                    console.error('[Invoice] Auto-generation failed during acceptance (booking #' + req.params.id + '):', invErr);
                 }
 
                 // Slight delay to let payment schedules be inserted before email query runs
                 await new Promise(resolve => setTimeout(resolve, 300));
 
-                await sendQuoteAcceptedEmail({ ...row, status: 'ACCEPTED' });
+                await sendQuoteAcceptedEmail({ ...row, status: 'ACCEPTED' }, { invoiceGenerated });
                 sendAdminQuoteAcceptedNotification({ ...row, status: 'ACCEPTED' })
                     .catch(e => console.error('Admin quote-accepted notification failed:', e.message));
 
-                res.json({ success: true, message: 'Quote accepted successfully. Your invoice has been generated and emailed to you.', newStatus: 'ACCEPTED' });
+                // Gap 2: Conditionally tell the client about the invoice based on whether it was generated.
+                const acceptMsg = invoiceGenerated
+                    ? 'Quote accepted successfully. Your invoice has been generated and emailed to you.'
+                    : 'Quote accepted successfully. Our team will be in touch shortly with your invoice details.';
+                res.json({ success: true, message: acceptMsg, newStatus: 'ACCEPTED', invoice_generated: invoiceGenerated });
             }
         );
     });
@@ -4106,6 +4643,7 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
         if (row.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
             return res.status(401).json({ success: false, message: 'Email does not match our records.' });
         }
+        // Gap 4 (Phase 2): 'RESPONDED' was a legacy status retired in Phase 2 — only 'QUOTED' is valid.
         if (row.status !== 'QUOTED') {
             return res.status(400).json({ success: false, message: 'Quote revision requests can only be made on bookings in QUOTED status.' });
         }
@@ -4427,34 +4965,44 @@ app.get('/api/public/availability/month', ipRateLimiter, (req, res) => {
     );
 });
 
-// Helper to calculate refund based on policy
+// P3-8: Helper to calculate refund based on policy.
+// Reads thresholds from policyStr JSON ({tiers:[{days_min,retention_pct,label},...]} sorted desc).
+// Falls back to hardcoded 30/14/0-day tiers if no valid policy is provided.
 const calculateCancellationRefund = (booking, policyStr) => {
     const totalPaid = parseFloat(booking.amount_paid || 0);
     const totalFee = parseFloat(booking.total_amount || booking.amount_paid || 0);
-    
+
     if (!booking.date) return { rule: "No event date set", retention: totalPaid, refund: 0, totalPaid, daysUntilEvent: null };
-    
+
     const eventDate = new Date(booking.date);
     const now = new Date();
     const daysUntilEvent = Math.ceil((eventDate - now) / (1000 * 60 * 60 * 24));
-    
-    let retention = 0;
-    let rule = "Unknown";
-    
-    if (daysUntilEvent >= 30) {
-        retention = totalFee * 0.10;
-        rule = "30+ days (10% admin fee retained)";
-    } else if (daysUntilEvent >= 14 && daysUntilEvent <= 29) {
-        retention = totalFee * 0.50;
-        rule = "14-29 days (50% fee retained)";
-    } else {
-        retention = totalFee;
-        rule = "< 14 days (100% fee retained, non-refundable)";
+
+    // Parse policy tiers from DB value, or use built-in defaults
+    let tiers = null;
+    if (policyStr) {
+        try {
+            const parsed = JSON.parse(policyStr);
+            if (Array.isArray(parsed.tiers) && parsed.tiers.length > 0) tiers = parsed.tiers;
+        } catch (_) {}
     }
-    
+    if (!tiers) {
+        tiers = [
+            { days_min: 30, retention_pct: 0.10, label: "30+ days (10% admin fee retained)" },
+            { days_min: 14, retention_pct: 0.50, label: "14-29 days (50% fee retained)" },
+            { days_min:  0, retention_pct: 1.00, label: "< 14 days (100% fee retained, non-refundable)" }
+        ];
+    }
+    // Tiers must be sorted descending by days_min
+    const sorted = [...tiers].sort((a, b) => b.days_min - a.days_min);
+    const tier = sorted.find(t => daysUntilEvent >= t.days_min) || sorted[sorted.length - 1];
+
+    const retention = totalFee * (parseFloat(tier.retention_pct) || 0);
+    const rule = tier.label || `${tier.days_min}+ days (${(tier.retention_pct * 100).toFixed(0)}% retained)`;
+
     const actualRetention = Math.min(retention, totalPaid);
     const refundDue = Math.max(0, totalPaid - actualRetention);
-    
+
     return { rule, retention: actualRetention, refund: refundDue, totalPaid, daysUntilEvent };
 };
 
@@ -4586,7 +5134,7 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
             const policyRule      = isForceMajeure ? 'Force Majeure — Full Refund Granted' : calc.rule;
 
             db.run("BEGIN TRANSACTION", () => {
-                db.run("UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [bookingId], (upErr) => {
+                db.run("UPDATE bookings SET status = 'CANCELLED', payment_status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [bookingId], (upErr) => {
                     if (upErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: upErr.message }));
 
                     db.run(`INSERT INTO cancellations (booking_id, cancelled_by, reason, total_paid_to_date, refund_due, retention_amount, notes, admin_id, refund_status)
@@ -4602,10 +5150,20 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
                             if (insErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: insErr.message }));
 
                             db.run("COMMIT", async () => {
+                                // Audit log
+                                db.run(
+                                    `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
+                                     VALUES ('bookings', ?, 'CANCEL', ?, ?, ?, CURRENT_TIMESTAMP)`,
+                                    [bookingId,
+                                     JSON.stringify({ status: booking.status, payment_status: booking.payment_status }),
+                                     JSON.stringify({ status: 'CANCELLED', cancelled_by: cancelledBy, reason: reason || null, refund_due: refundDue, retention: retentionAmount, policy_rule: policyRule }),
+                                     req.session.adminId || 'admin'],
+                                    (aErr) => { if (aErr) console.error('[Audit] Cancellation log failed:', aErr.message); }
+                                );
                                 // Release date holds
                                 db.run("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [bookingId]);
                                 // Cascade: void open invoices so admin stops chasing payment
-                                db.run("UPDATE invoices SET status='void', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('void','paid')", [bookingId],
+                                db.run("UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [bookingId],
                                     (err) => { if (err) console.error('[Cancel] Invoice void failed:', err.message); });
                                 // Cascade: cancel pending payment schedule items
                                 db.run("UPDATE payment_schedules SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status='pending'", [bookingId],
@@ -4613,6 +5171,12 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
                                 // Cascade: delink events so they don't appear as booking-linked
                                 db.run("UPDATE events SET booking_id=NULL WHERE booking_id=?", [bookingId],
                                     (err) => { if (err) console.error('[Cancel] Event delink failed:', err.message); });
+                                // Remove Google Calendar event so date shows as available
+                                if (booking.google_event_id) {
+                                    deleteGoogleEvent(booking.google_event_id).catch(calErr => {
+                                        console.error(`[Cancel] Google Calendar event removal failed for booking #${bookingId}:`, calErr.message);
+                                    });
+                                }
                                 booking.name = booking.client_name || booking.name;
                                 booking.email = booking.client_email || booking.email;
                                 // SC-3: Pass policy rule + timing so client knows what was applied
@@ -4639,8 +5203,26 @@ app.post('/api/admin/bookings/:id/complete', requireAdmin, (req, res) => {
         if (booking.status !== 'CONFIRMED') {
             return res.status(400).json({ success: false, message: `Only CONFIRMED bookings can be marked complete (current: ${booking.status}).` });
         }
+        const outstanding = parseFloat(booking.amount_outstanding) || 0;
+        const force = req.body && req.body.force === true;
+        if (outstanding > 0 && !force) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot complete: outstanding balance of R${outstanding.toFixed(2)} remains. Settle payment first, or pass force:true to override.`,
+                amount_outstanding: outstanding
+            });
+        }
         db.run("UPDATE bookings SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP WHERE id = ?", [bookingId], async function(upErr) {
             if (upErr) return res.status(500).json({ success: false, error: upErr.message });
+            db.run(
+                `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
+                 VALUES ('bookings', ?, 'COMPLETE', ?, ?, ?, CURRENT_TIMESTAMP)`,
+                [bookingId,
+                 JSON.stringify({ status: booking.status }),
+                 JSON.stringify({ status: 'COMPLETED', forced: force || false }),
+                 req.session.adminId || 'admin'],
+                (aErr) => { if (aErr) console.error('[Audit] Completion log failed:', aErr.message); }
+            );
             booking.name  = booking.client_name  || booking.name;
             booking.email = booking.client_email || booking.email;
             sendBookingCompletedEmail(booking).catch(e => console.error('Completed email failed:', e.message));
@@ -4668,48 +5250,59 @@ app.put('/api/admin/bookings/:id/refund', requireAdmin, (req, res) => {
     if (amt < 0) {
         return res.status(400).json({ success: false, message: 'Refund amount cannot be negative.' });
     }
+    if (amt > 0 && (!refund_reference || !refund_reference.trim())) {
+        return res.status(400).json({ success: false, message: 'A payment reference (bank transaction ID or PayFast reference) is required when recording a refund. Process the bank/PayFast transfer first, then record the reference here.' });
+    }
 
     db.get("SELECT * FROM cancellations WHERE booking_id = ?", [bookingId], (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'No cancellation record found for this booking.' });
-        
+
         // Validation: Can't refund more than what was paid
         if (amt > row.total_paid_to_date) {
             return res.status(400).json({ success: false, message: `Refund amount (R${amt.toFixed(2)}) exceeds total paid (R${row.total_paid_to_date.toFixed(2)}).` });
         }
 
         db.run(
-            `UPDATE cancellations SET refund_status = 'refunded', refund_amount = ?, refund_reference = ?, refund_notes = ?, refunded_at = CURRENT_TIMESTAMP WHERE booking_id = ?`,
+            `UPDATE cancellations SET refund_status = 'processed', refund_amount = ?, refund_reference = ?, refund_notes = ?, refunded_at = CURRENT_TIMESTAMP WHERE booking_id = ?`,
             [amt, refund_reference || null, notes || null, bookingId],
             function(upErr) {
                 if (upErr) return res.status(500).json({ success: false, error: upErr.message });
 
-                // Update Bookings Ledger
-                db.run(`UPDATE bookings SET
-                    amount_paid = MAX(0, COALESCE(amount_paid, 0) - ?),
-                    amount_outstanding = MIN(COALESCE(total_amount, 0), COALESCE(amount_outstanding, 0) + ?)
-                    WHERE id = ?`, [amt, amt, bookingId], function(bErr) {
-                    
-                    // Log Financial Transaction for history
-                    db.run(`INSERT INTO transactions (booking_id, amount, transaction_date, payment_method, reference, transaction_type, status, notes, source)
-                            VALUES (?, ?, DATE('now'), 'bank_transfer', ?, 'refund', 'completed', ?, 'admin_refund')`,
-                        [bookingId, amt, refund_reference || null, notes || `Refund for cancellation of Booking #${bookingId}`],
-                        function(tErr) {
-                            if (tErr) console.error('[Refund] Transaction log failed:', tErr.message);
+                // P2-11: Record refund transaction first, then recalculate amount_paid from
+                // SUM(transactions) to avoid ledger drift from arithmetic operations.
+                db.run(`INSERT INTO transactions (booking_id, amount, transaction_date, payment_method, reference, transaction_type, status, notes, source)
+                        VALUES (?, ?, DATE('now'), 'bank_transfer', ?, 'refund', 'completed', ?, 'admin_refund')`,
+                    [bookingId, amt, refund_reference || null, notes || `Refund for cancellation of Booking #${bookingId}`],
+                    function(tErr) {
+                        if (tErr) console.error('[Refund] Transaction log failed:', tErr.message);
+
+                        db.run(`UPDATE bookings SET
+                            amount_paid = MAX(0, (
+                                SELECT COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)
+                                FROM transactions t WHERE t.booking_id = bookings.id
+                                  AND t.is_duplicate = 0 AND (t.status = 'completed' OR t.status IS NULL)
+                            )),
+                            amount_outstanding = MAX(0, COALESCE(total_amount, 0) - MAX(0, (
+                                SELECT COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)
+                                FROM transactions t WHERE t.booking_id = bookings.id
+                                  AND t.is_duplicate = 0 AND (t.status = 'completed' OR t.status IS NULL)
+                            )))
+                            WHERE id = ?`, [bookingId], function(bErr) {
+                            if (bErr) console.error('[Refund] Ledger recalculation failed:', bErr.message);
+
+                            db.run(`INSERT OR IGNORE INTO audit_log (table_name, record_id, action, new_values) VALUES ('cancellations', ?, 'REFUND_ISSUED', ?)`,
+                                [bookingId, JSON.stringify({ refund_amount: amt, refund_reference })]);
+
+                            db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (bErr2, bRow) => {
+                                if (!bErr2 && bRow) {
+                                    sendRefundProcessedEmail(bRow, amt, refund_reference)
+                                        .catch(e => console.error('[Refund] Client email failed:', e.message));
+                                }
+                            });
+
+                            res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.` });
                         });
-
-                    db.run(`INSERT OR IGNORE INTO audit_log (table_name, record_id, action, new_values) VALUES ('cancellations', ?, 'REFUND_ISSUED', ?)`,
-                        [bookingId, JSON.stringify({ refund_amount: amt, refund_reference })]);
-
-                    // Notify client
-                    db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (bErr2, bRow) => {
-                        if (!bErr2 && bRow) {
-                            sendRefundProcessedEmail(bRow, amt, refund_reference)
-                                .catch(e => console.error('[Refund] Client email failed:', e.message));
-                        }
                     });
-
-                    res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.` });
-                });
             }
         );
     });
@@ -4759,32 +5352,42 @@ app.post('/api/admin/bookings/:id/contract', requireAdmin, (req, res, next) => {
     const bookingId = req.params.id;
     const pdfUrl = req.file.filename;
     const templateVersion = (req.body.template_version || '1.0').substring(0, 20);
-    const uploadedBy = req.session?.adminUser?.username || 'admin';
+    const uploadedBy = req.session.username || 'system';
 
-    db.run(
-        `INSERT INTO contracts (booking_id, template_version, pdf_url, status, uploaded_by, updated_at)
-         VALUES (?, ?, ?, 'draft', ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(booking_id) DO UPDATE SET
-            pdf_url = excluded.pdf_url,
-            template_version = excluded.template_version,
-            status = 'draft',
-            uploaded_by = excluded.uploaded_by,
-            is_frozen = 0,
-            updated_at = CURRENT_TIMESTAMP`,
-        [bookingId, templateVersion, pdfUrl, uploadedBy], function(err) {
-            if (err) return res.status(500).json({ success: false, message: err.message });
-
-            // Audit log
-            db.run(
-                `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json)
-                 VALUES ('contracts', ?, 'UPLOAD', ?, ?)`,
-                ['contracts', bookingId, 'UPLOAD', uploadedBy, JSON.stringify({ file: pdfUrl, status: 'draft' })],
-                () => {}
-            );
-
-            res.json({ success: true, message: 'Contract uploaded successfully.', filename: pdfUrl, uploaded_by: uploadedBy });
+    db.get("SELECT status, is_frozen, signed_by, signed_date FROM contracts WHERE booking_id = ?", [bookingId], (selErr, existing) => {
+        if (existing && (existing.status === 'signed' || existing.is_frozen === 1)) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot overwrite: this contract was already signed by "${existing.signed_by}" on ${existing.signed_date}. You cannot replace a signed contract — create a separate amendment instead.`
+            });
         }
-    );
+
+        const previousStatus = existing ? existing.status : null;
+
+        db.run(
+            `INSERT INTO contracts (booking_id, template_version, pdf_url, status, uploaded_by, updated_at)
+             VALUES (?, ?, ?, 'draft', ?, CURRENT_TIMESTAMP)
+             ON CONFLICT(booking_id) DO UPDATE SET
+                pdf_url = excluded.pdf_url,
+                template_version = excluded.template_version,
+                status = 'draft',
+                uploaded_by = excluded.uploaded_by,
+                is_frozen = 0,
+                updated_at = CURRENT_TIMESTAMP`,
+            [bookingId, templateVersion, pdfUrl, uploadedBy], function(err) {
+                if (err) return res.status(500).json({ success: false, message: err.message });
+
+                db.run(
+                    `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json)
+                     VALUES ('contracts', ?, 'UPLOAD', ?, ?)`,
+                    [bookingId, uploadedBy, JSON.stringify({ file: pdfUrl, status: 'draft', previous_status: previousStatus })],
+                    () => {}
+                );
+
+                res.json({ success: true, message: 'Contract uploaded successfully.', filename: pdfUrl, uploaded_by: uploadedBy });
+            }
+        );
+    });
 });
 
 // PUT — mark a contract as signed
@@ -4792,7 +5395,7 @@ app.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => {
     const bookingId = req.params.id;
     const signatoryName = (req.body.signatory_name || '').trim().substring(0, 120);
     const signedDate = (req.body.signed_date || new Date().toISOString().split('T')[0]);
-    const signedBy = req.session?.adminUser?.username || 'admin';
+    const signedBy = req.session.username || 'system';
 
     if (!signatoryName) {
         return res.status(400).json({ success: false, message: 'Signatory name is required to mark as signed.' });
@@ -5789,110 +6392,332 @@ app.post('/api/admin/migrate', requireAdmin, async (req, res) => {
 });
 
 // --- Users (Admins) ---
-app.get('/api/admin/users', requireAdmin, (req, res) => {
-    db.all("SELECT id, username, email, created_at FROM admins ORDER BY created_at DESC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+app.get('/api/admin/users', requireAdmin, requireRole(['administrator']), (req, res) => {
+    db.all(`SELECT 
+                a.id, 
+                a.username, 
+                a.email, 
+                a.full_name, 
+                a.phone, 
+                a.role, 
+                a.is_active,
+                a.must_change_password,
+                a.last_login_at,
+                a.created_at,
+                a.created_by,
+                a.created_on,
+                a.modified_by,
+                a.modified_on,
+                creator.email AS creator_email,
+                creator.full_name AS creator_name,
+                modifier.email AS modifier_email,
+                modifier.full_name AS modifier_name
+            FROM admins a
+            LEFT JOIN admins creator ON a.created_by = creator.id
+            LEFT JOIN admins modifier ON a.modified_by = modifier.id
+            ORDER BY a.created_at DESC`, [], (err, rows) => {
+        if (err) { console.error('list users failed:', err); return res.status(500).json({ success: false, message: 'Could not load users. Please try again.' }); }
         res.json(rows);
     });
 });
-app.post('/api/admin/users', requireAdmin, (req, res) => {
-    const { username, email, password } = req.body;
-    if (!username || !email || !password) {
-        return res.status(400).json({ success: false, message: 'Username, email, and password are required.' });
+app.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (req, res) => {
+    const { email, full_name, phone, role } = req.body;
+    if (!email) {
+        return res.status(400).json({ success: false, message: 'Email is required.' });
     }
-    bcrypt.hash(password, 10, (err, hash) => {
-        if (err) return res.status(500).json({ success: false, message: 'Error hashing password' });
-        
-        db.run("INSERT INTO admins (username, email, password_hash) VALUES (?, ?, ?)", 
-            [username, email, hash], function(err) {
-            if (err) {
-                 if (err.message.includes('UNIQUE')) {
-                     return res.status(400).json({ success: false, message: 'Username already exists.' });
-                 }
-                 return res.status(500).json({ success: false, error: err.message });
+    if (!full_name || !String(full_name).trim()) {
+        return res.status(400).json({ success: false, message: 'Full name is required.' });
+    }
+    if (!phone || !String(phone).trim()) {
+        return res.status(400).json({ success: false, message: 'Phone number is required.' });
+    }
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        return res.status(400).json({ success: false, message: 'Enter a valid email address.' });
+    }
+    const targetRole = VALID_ADMIN_ROLES.includes(role) ? role : 'manager';
+    const cleanName = (full_name || '').trim() || null;
+    const cleanPhone = (phone || '').trim() || null;
+
+    // No admin-set password: the new user sets their own via the invitation link.
+    // Insert an unusable random password so the row is well-formed but nobody can sign in until they accept the invite.
+    const placeholderPassword = crypto.randomBytes(24).toString('hex');
+    bcrypt.hash(placeholderPassword, 10, (err, hash) => {
+        if (err) return res.status(500).json({ success: false, message: 'Error preparing the account.' });
+
+        db.run(
+            "INSERT INTO admins (username, email, password_hash, role, full_name, phone, is_active, must_change_password, created_by, created_on) VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?, CURRENT_TIMESTAMP)",
+            [normalizedEmail, normalizedEmail, hash, targetRole, cleanName, cleanPhone, req.session.adminId],
+            function (err) {
+                if (err) {
+                    if (err.message.includes('UNIQUE')) {
+                        return res.status(400).json({ success: false, message: 'An account with that email already exists.' });
+                    }
+                    console.error('create user failed:', err);
+                    return res.status(500).json({ success: false, message: 'Could not create the user. Please try again.' });
+                }
+                const newId = this.lastID;
+                // Queue the invitation email so the user can set their password.
+                createAndSendInvite({ id: newId, email: normalizedEmail, full_name: cleanName, role: targetRole }, 72, function (mail) {
+                    const emailSent = !!(mail && mail.success);
+                    res.json({
+                        success: true,
+                        id: newId,
+                        email_sent: emailSent,
+                        message: emailSent
+                            ? 'User created and invitation sent.'
+                            : 'User created, but the invitation email could not be sent. Use "Resend invite".'
+                    });
+                });
             }
-            res.json({ success: true, id: this.lastID, message: 'User created successfully.' });
-        });
+        );
     });
 });
-app.put('/api/admin/users/:id', requireAdmin, (req, res) => {
-    const { username, email, password, currentPassword } = req.body;
-    const userId = req.params.id;
 
-    if (!username || !email) {
-        return res.status(400).json({ success: false, message: 'Username and email are required.' });
-    }
-
-    if (password && password.trim() !== '') {
-        if (!currentPassword) {
-            return res.status(400).json({ success: false, message: 'Current password is required to set a new password.' });
-        }
-        db.get("SELECT password_hash FROM admins WHERE id = ?", [userId], (err, row) => {
-            if (err || !row) return res.status(404).json({ success: false, message: 'User not found.' });
-            bcrypt.compare(currentPassword, row.password_hash, (err, isMatch) => {
-                if (err) return res.status(500).json({ success: false, message: 'Error verifying password.' });
-                if (!isMatch) return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
-                bcrypt.hash(password, 10, (err, hash) => {
-                    if (err) return res.status(500).json({ success: false, message: 'Error hashing password' });
-                    db.run("UPDATE admins SET username = ?, email = ?, password_hash = ?, must_change_password = 0 WHERE id = ?",
-                        [username, email, hash, userId], function(err) {
-                        if (err) return res.status(500).json({ success: false, error: err.message });
-                        res.json({ success: true, message: 'User updated successfully (including password).' });
-                    });
+// Resend the set-password invitation to an existing (typically pending) user.
+app.post('/api/admin/users/:id/resend-invite', requireAdmin, requireRole(['administrator']), (req, res) => {
+    const userId = parseInt(req.params.id, 10);
+    db.get("SELECT id, email, full_name, role FROM admins WHERE id = ?", [userId], (err, user) => {
+        if (err || !user) return res.status(404).json({ success: false, message: 'User not found.' });
+        // Invalidate any outstanding tokens, then issue a fresh one.
+        db.run("DELETE FROM password_reset_tokens WHERE admin_id = ?", [userId], () => {
+            createAndSendInvite(user, 72, function (mail) {
+                const emailSent = !!(mail && mail.success);
+                res.json({
+                    success: true,
+                    email_sent: emailSent,
+                    message: emailSent ? 'Invitation re-sent to ' + user.email + '.' : 'Could not send the invitation email. Please try again.'
                 });
             });
         });
-    } else {
-        // Update without changing password
-        db.run("UPDATE admins SET username = ?, email = ? WHERE id = ?",
-            [username, email, userId], function(err) {
-            if (err) return res.status(500).json({ success: false, error: err.message });
-            res.json({ success: true, message: 'User updated successfully.' });
-        });
-    }
+    });
 });
-app.delete('/api/admin/users/:id', requireAdmin, (req, res) => {
-    const targetUserId = req.params.id;
+app.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+    const { email, password, currentPassword, full_name, phone, role, is_active } = req.body;
+    const userId = parseInt(req.params.id, 10);
+    const isEditingSelf = userId === req.session.adminId;
+
+    if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+        return res.status(400).json({ success: false, message: 'Enter a valid email address.' });
+    }
+
+    db.get("SELECT role, is_active, full_name, phone FROM admins WHERE id = ?", [userId], (selErr, existing) => {
+        if (selErr || !existing) return res.status(404).json({ success: false, message: 'User not found.' });
+        const hasKey = (k) => Object.prototype.hasOwnProperty.call(req.body, k);
+
+        // Full name + phone are mandatory when supplied by a form edit. Inline role/status
+        // toggles and password-only updates omit these keys and must keep working.
+        if (hasKey('full_name') && !String(full_name || '').trim()) {
+            return res.status(400).json({ success: false, message: 'Full name is required.' });
+        }
+        if (hasKey('phone') && !String(phone || '').trim()) {
+            return res.status(400).json({ success: false, message: 'Phone number is required.' });
+        }
+
+        // Default role/status to the existing values when not explicitly provided, so a bare
+        // profile/password save never demotes or deactivates the account.
+        const targetRole = VALID_ADMIN_ROLES.includes(role) ? role : existing.role;
+        const targetIsActive = (is_active === undefined || is_active === null)
+            ? existing.is_active
+            : ((is_active === false || is_active === 0) ? 0 : 1);
+
+        // Last-administrator guard: never let the system reach zero active administrators.
+        const wasActiveAdmin = existing.role === 'administrator' && existing.is_active !== 0;
+        const willStopBeingActiveAdmin = targetRole !== 'administrator' || targetIsActive === 0;
+
+        if (wasActiveAdmin && willStopBeingActiveAdmin) {
+            countOtherActiveAdministrators(userId, (cntErr, cntRow) => {
+                const otherAdmins = cntErr ? 1 : cntRow.count;
+                if (otherAdmins === 0) {
+                    return res.status(403).json({ success: false, message: 'Cannot remove the last remaining administrator account.' });
+                }
+                applyUpdate();
+            });
+        } else {
+            applyUpdate();
+        }
+
+        function applyUpdate() {
+            const fields = {
+                username: normalizedEmail,
+                email: normalizedEmail,
+                // Only overwrite full_name/phone when the client actually sent the key,
+                // so a bare password change doesn't wipe them.
+                full_name: hasKey('full_name') ? ((full_name || '').trim() || null) : existing.full_name,
+                phone: hasKey('phone') ? ((phone || '').trim() || null) : existing.phone,
+                role: targetRole,
+                is_active: targetIsActive
+            };
+
+            if (password && password.trim() !== '') {
+                if (isEditingSelf) {
+                    if (!currentPassword) {
+                        return res.status(400).json({ success: false, message: 'Current password is required to set a new password.' });
+                    }
+                    return db.get("SELECT password_hash FROM admins WHERE id = ?", [userId], (err, row) => {
+                        if (err || !row) return res.status(404).json({ success: false, message: 'User not found.' });
+                        bcrypt.compare(currentPassword, row.password_hash, (err, isMatch) => {
+                            if (err) return res.status(500).json({ success: false, message: 'Error verifying password.' });
+                            if (!isMatch) return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+                            hashAndSave(fields, password);
+                        });
+                    });
+                }
+                // Administrator resetting another user's password — no currentPassword needed.
+                return hashAndSave(fields, password);
+            }
+            saveFields(fields, null);
+        }
+
+        function hashAndSave(fields, newPassword) {
+            bcrypt.hash(newPassword, 10, (err, hash) => {
+                if (err) return res.status(500).json({ success: false, message: 'Error hashing password' });
+                saveFields(fields, hash);
+            });
+        }
+
+        function saveFields(fields, passwordHash) {
+            const setPwd = passwordHash ? ", password_hash = ?, must_change_password = 0" : "";
+            const params = [fields.username, fields.email, fields.full_name, fields.phone, fields.role, fields.is_active, req.session.adminId];
+            if (passwordHash) params.push(passwordHash);
+            params.push(userId);
+
+            db.run(
+                `UPDATE admins SET username = ?, email = ?, full_name = ?, phone = ?, role = ?, is_active = ?, modified_by = ?, modified_on = CURRENT_TIMESTAMP${setPwd} WHERE id = ?`,
+                params,
+                function (err) {
+                    if (err) {
+                        if (err.message.includes('UNIQUE')) {
+                            return res.status(400).json({ success: false, message: 'An account with that email already exists.' });
+                        }
+                        console.error('update user failed:', err);
+                        return res.status(500).json({ success: false, message: 'Could not update the user. Please try again.' });
+                    }
+                    res.json({ success: true, message: 'User updated successfully.' });
+                }
+            );
+        }
+    });
+});
+app.delete('/api/admin/users/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+    const targetUserId = parseInt(req.params.id, 10);
     const currentUserId = req.session.adminId; // prevent self-deletion
 
-    if (parseInt(targetUserId) === parseInt(currentUserId)) {
+    if (targetUserId === currentUserId) {
          return res.status(403).json({ success: false, message: 'You cannot delete your own account while logged in.' });
     }
 
-    db.run("DELETE FROM admins WHERE id = ?", targetUserId, function(err) {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        res.json({ success: true, message: 'User deleted.' });
+    db.get("SELECT role, is_active FROM admins WHERE id = ?", [targetUserId], (selErr, existing) => {
+        if (selErr || !existing) return res.status(404).json({ success: false, message: 'User not found.' });
+        const isActiveAdmin = existing.role === 'administrator' && existing.is_active !== 0;
+
+        const proceed = () => {
+            db.run("DELETE FROM admins WHERE id = ?", targetUserId, function (err) {
+                if (err) { console.error('delete user failed:', err); return res.status(500).json({ success: false, message: 'Could not delete the user. Please try again.' }); }
+                res.json({ success: true, message: 'User deleted.' });
+            });
+        };
+
+        if (!isActiveAdmin) return proceed();
+        countOtherActiveAdministrators(targetUserId, (cntErr, cntRow) => {
+            if (!cntErr && cntRow.count === 0) {
+                return res.status(403).json({ success: false, message: 'Cannot delete the last remaining administrator account.' });
+            }
+            proceed();
+        });
     });
 });
 
 
 
 // --- Audit Log Retrieval ---
+// P3-16: Pass ?include_financial=true to merge financial_audit_log entries into the response.
 app.get('/api/admin/audit_log', requireAdmin, (req, res) => {
     const limit = parseInt(req.query.limit) || 100;
-    const offset = parseInt(req.query.offset) || 0;
+    const page = req.query.page ? parseInt(req.query.page) : null;
+    const offset = page ? (page - 1) * limit : (parseInt(req.query.offset) || 0);
     const table = req.query.table || null;
     const dateFrom = req.query.date_from || null;
     const dateTo = req.query.date_to || null;
+    const search = req.query.search || '';
+    const sort = req.query.sort || 'change_timestamp';
+    const order = req.query.order || 'DESC';
+    const includeFinancial = req.query.include_financial === 'true';
 
     let conditions = [];
     let params = [];
     if (table) { conditions.push("table_name = ?"); params.push(table); }
     if (dateFrom) { conditions.push("date(change_timestamp) >= ?"); params.push(dateFrom); }
     if (dateTo) { conditions.push("date(change_timestamp) <= ?"); params.push(dateTo); }
+    if (search) { conditions.push("(table_name LIKE ? OR action LIKE ? OR changed_by LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+    const whereString = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
 
-    let query = "SELECT * FROM audit_log" + (conditions.length ? " WHERE " + conditions.join(" AND ") : "");
-    query += " ORDER BY change_timestamp DESC LIMIT ? OFFSET ?";
-    params.push(limit, offset);
+    const allowedSortCols = ['change_timestamp', 'table_name', 'action'];
+    const safeSort = allowedSortCols.includes(sort) ? sort : 'change_timestamp';
+    const safeOrder = String(order).toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-    db.all(query, params, (err, rows) => {
-        if (err) return res.status(500).json({ success: false, message: err.message });
-        res.json({ success: true, logs: rows });
+    const dataQuery = "SELECT * FROM audit_log" + whereString + " ORDER BY " + safeSort + " " + safeOrder + " LIMIT ? OFFSET ?";
+    const dataParams = params.concat([limit, offset]);
+
+    db.all(dataQuery, dataParams, (err, rows) => {
+        if (err) { console.error('audit_log query failed:', err); return res.status(500).json({ success: false, message: 'Could not load the audit trail. Please try again.' }); }
+        if (!includeFinancial) {
+            db.get("SELECT COUNT(*) AS total FROM audit_log" + whereString, params, (cErr, cRow) => {
+                const total = cErr ? (rows || []).length : (parseInt(cRow && cRow.total) || 0);
+                return res.json({ success: true, logs: rows || [], total: total, page: page || 1, totalPages: Math.ceil(total / limit) || 1 });
+            });
+            return;
+        }
+
+        // Merge financial_audit_log rows — normalise to same shape as audit_log
+        let finConditions = [];
+        let finParams = [];
+        if (dateFrom) { finConditions.push("date(timestamp) >= ?"); finParams.push(dateFrom); }
+        if (dateTo)   { finConditions.push("date(timestamp) <= ?"); finParams.push(dateTo); }
+        const finQuery = `SELECT id, event_type AS action, entity_type AS table_name, entity_id AS record_id,
+                                  NULL AS old_values, notes AS new_values, changed_by, timestamp AS change_timestamp,
+                                  amount, 'financial' AS log_source
+                          FROM financial_audit_log` +
+            (finConditions.length ? ' WHERE ' + finConditions.join(' AND ') : '') +
+            ' ORDER BY timestamp DESC LIMIT 500';
+
+        db.all(finQuery, finParams, (fErr, finRows) => {
+            const auditRows = (rows || []).map(r => ({ ...r, log_source: 'audit' }));
+            const merged = [...auditRows, ...(fErr ? [] : (finRows || []))]
+                .sort((a, b) => new Date(b.change_timestamp) - new Date(a.change_timestamp))
+                .slice(0, limit);
+            res.json({ success: true, logs: merged, financial_log_error: fErr ? fErr.message : null });
+        });
     });
 });
 
+// P3-16: Dedicated financial_audit_log endpoint (separate from main audit_log)
+app.get('/api/admin/financial_audit_log', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+    const dateFrom = req.query.date_from || null;
+    const dateTo   = req.query.date_to   || null;
+
+    let conditions = [];
+    let params = [];
+    if (dateFrom) { conditions.push("date(timestamp) >= ?"); params.push(dateFrom); }
+    if (dateTo)   { conditions.push("date(timestamp) <= ?"); params.push(dateTo); }
+    params.push(limit, offset);
+
+    db.all(
+        `SELECT * FROM financial_audit_log${conditions.length ? ' WHERE ' + conditions.join(' AND ') : ''} ORDER BY timestamp DESC LIMIT ? OFFSET ?`,
+        params,
+        (err, rows) => {
+            if (err) return res.status(500).json({ success: false, error: err.message });
+            res.json({ success: true, logs: rows || [] });
+        }
+    );
+});
+
 // --- Financial CSV Export ---
-app.get('/api/admin/finance/export', exportRateLimiter, requireAdmin, (req, res) => {
+app.get('/api/admin/finance/export', exportRateLimiter, requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const query = `
         SELECT 
             b.id AS booking_id, 
@@ -6005,7 +6830,7 @@ app.post('/api/admin/services', requireAdmin, (req, res) => {
         function(err) {
             if (err) return res.status(500).json({ error: err.message });
             
-            const adminUser = req.session?.adminUser?.username || 'admin';
+            const adminUser = req.session.username || 'system';
             db.run(
                 `INSERT INTO audit_log (table_name, record_id, action, changed_by, new_values)
                  VALUES ('services', ?, 'CREATE', ?, ?)`,
@@ -6079,7 +6904,7 @@ app.put('/api/admin/services/:id', requireAdmin, (req, res) => {
             if (err) return res.status(500).json({ error: err.message });
             if (this.changes === 0) return res.status(404).json({ error: 'Service not found.' });
             
-            const adminUser = req.session?.adminUser?.username || 'admin';
+            const adminUser = req.session.username || 'system';
             db.run(
                 `INSERT INTO audit_log (table_name, record_id, action, changed_by, new_values)
                  VALUES ('services', ?, 'UPDATE', ?, ?)`,
@@ -6112,7 +6937,7 @@ app.get('/api/admin/services/:id/usage', requireAdmin, (req, res) => {
 });
 app.delete('/api/admin/services/:id', requireAdmin, (req, res) => {
     const force = req.query.force === '1';
-    const adminUser = req.session?.adminUser?.username || 'admin';
+    const adminUser = req.session.username || 'system';
     if (!force) {
         db.run("UPDATE services SET is_deleted=1 WHERE id=?", [req.params.id], function(err) {
             if (err) return res.status(500).json({ error: err.message });
@@ -6185,7 +7010,7 @@ app.put('/api/admin/policies', requireAdmin, (req, res) => {
 // --- Settings ---
 app.get('/api/admin/settings', requireAdmin, (req, res) => {
     db.all("SELECT setting_key, setting_value FROM settings", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) { console.error('load settings failed:', err); return res.status(500).json({ success: false, message: 'Could not load settings. Please try again.' }); }
         const obj = {};
         (rows || []).forEach(r => { obj[r.setting_key] = r.setting_value; });
         // Merge env-only keys so the frontend can read them (read-only exposure)
@@ -6201,7 +7026,7 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
         payfast_passphrase: 'PAYFAST_PASSPHRASE', payfast_url: 'PAYFAST_URL',
         smtp_host: 'SMTP_HOST', smtp_port: 'SMTP_PORT', smtp_user: 'SMTP_USER',
         smtp_pass: 'SMTP_PASS', smtp_from: 'SMTP_FROM',
-        email_banner: 'EMAIL_BANNER', doc_logo: 'DOC_LOGO'
+        email_banner: 'EMAIL_BANNER'
     };
     const keys = Object.keys(settings);
     let pending = keys.length;
@@ -6214,18 +7039,18 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
         }
         db.run("INSERT OR REPLACE INTO settings (setting_key, setting_value, updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
             [key, val], (err) => {
-                if (err && !failed) { failed = true; return res.status(500).json({ error: err.message }); }
+                if (err && !failed) { failed = true; console.error('save settings failed:', err); return res.status(500).json({ success: false, message: 'Could not save settings. Please try again.' }); }
                 if (--pending === 0 && !failed) res.json({ success: true });
             });
     });
 });
 
 // ─── Branding ───────────────────────────────────────────────────────────────
-app.put('/api/admin/branding', requireAdmin, (req, res) => {
+app.put('/api/admin/branding', requireAdmin, requireRole(['administrator']), (req, res) => {
     const { settings } = req.body;
     if (!settings || typeof settings !== 'object')
         return res.status(400).json({ error: 'settings object required.' });
-    const envMap = { email_banner: 'EMAIL_BANNER', doc_logo: 'DOC_LOGO' };
+    const envMap = { email_banner: 'EMAIL_BANNER' };
     const keys = Object.keys(settings);
     let pending = keys.length;
     if (pending === 0) return res.json({ success: true });
@@ -6237,7 +7062,7 @@ app.put('/api/admin/branding', requireAdmin, (req, res) => {
             "INSERT OR REPLACE INTO settings (setting_key, setting_value, updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
             [key, val],
             (err) => {
-                if (err && !failed) { failed = true; return res.status(500).json({ error: err.message }); }
+                if (err && !failed) { failed = true; console.error('save branding failed:', err); return res.status(500).json({ success: false, message: 'Could not save branding. Please try again.' }); }
                 if (--pending === 0 && !failed) res.json({ success: true });
             }
         );
@@ -6245,7 +7070,7 @@ app.put('/api/admin/branding', requireAdmin, (req, res) => {
 });
 
 app.get('/api/public/branding', (req, res) => {
-    const keys = ['site_logo', 'favicon', 'primary_color', 'theme_font', 'email_banner', 'doc_logo'];
+    const keys = ['site_logo', 'favicon', 'primary_color', 'theme_font', 'email_banner', 'login_background'];
     const ph = keys.map(() => '?').join(',');
     db.all(`SELECT setting_key, setting_value FROM settings WHERE setting_key IN (${ph})`, keys,
         (err, rows) => {
@@ -6257,7 +7082,7 @@ app.get('/api/public/branding', (req, res) => {
     );
 });
 
-app.post('/api/admin/settings/test-notification', requireAdmin, async (req, res) => {
+app.post('/api/admin/settings/test-notification', requireAdmin, requireRole(['administrator']), async (req, res) => {
     try {
         const to = await getNotificationEmail();
         await sendEmail({
@@ -6301,7 +7126,7 @@ app.post('/api/admin/invoices/bulk-send-unsent', requireAdmin, (req, res) => {
         `SELECT i.*, b.id AS booking_id_num, b.email, b.name, b.event_name, b.event_type, b.date
          FROM invoices i
          JOIN bookings b ON i.booking_id = b.id
-         WHERE i.sent_at IS NULL AND i.status NOT IN ('void','VOID') AND b.status = 'CONFIRMED'`,
+         WHERE i.sent_at IS NULL AND i.status NOT IN ('VOID') AND b.status = 'CONFIRMED'`,
         [],
         async (err, rows) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
@@ -6322,12 +7147,12 @@ app.post('/api/admin/invoices/bulk-send-unsent', requireAdmin, (req, res) => {
     );
 });
 
-app.post('/api/admin/invoices/:id/void', requireAdmin, (req, res) => {
+app.post('/api/admin/invoices/:id/void', requireAdmin, requireRole(['administrator']), (req, res) => {
     const { reason } = req.body;
     if (!reason || !reason.trim()) {
         return res.status(400).json({ error: 'Void reason is required.' });
     }
-    const adminUser = req.session?.adminUser?.username || 'admin';
+    const adminUser = req.session.username || 'system';
     db.get('SELECT * FROM invoices WHERE id = ?', [req.params.id], (err, inv) => {
         if (err || !inv) return res.status(404).json({ error: 'Invoice not found.' });
         db.run(
@@ -6358,7 +7183,7 @@ app.post('/api/admin/invoices/:id/void', requireAdmin, (req, res) => {
 
 // POST /api/admin/invoices/:id/mark-paid — quick-mark an invoice as PAID
 app.post('/api/admin/invoices/:id/mark-paid', requireAdmin, (req, res) => {
-    const adminUser = req.session?.adminUser?.username || 'admin';
+    const adminUser = req.session.username || 'system';
     db.get('SELECT * FROM invoices WHERE id = ?', [req.params.id], (err, inv) => {
         if (err || !inv) return res.status(404).json({ success: false, error: 'Invoice not found.' });
         if (inv.status === 'VOID') {
@@ -6444,6 +7269,44 @@ app.post('/api/admin/bookings/:id/unlink-client', requireAdmin, (req, res) => {
         if (this.changes === 0) return res.status(404).json({ success: false, message: 'Booking not found.' });
         res.json({ success: true, message: `client_id cleared for booking #${req.params.id}` });
     });
+});
+
+// P3-12: Client duplicate detection — finds clients with the same phone number
+// or very similar name (within 2-char edit distance) but different emails.
+app.get('/api/admin/clients/duplicates', requireAdmin, (req, res) => {
+    // Phone-based duplicates: same non-null phone, different email
+    db.all(
+        `SELECT a.id AS id_a, a.full_name AS name_a, a.email AS email_a, a.phone AS phone,
+                b.id AS id_b, b.full_name AS name_b, b.email AS email_b,
+                'phone' AS match_type
+         FROM clients a
+         JOIN clients b ON a.phone = b.phone
+           AND a.id < b.id
+           AND LOWER(a.email) != LOWER(b.email)
+           AND a.phone IS NOT NULL AND a.phone != ''
+         ORDER BY a.phone`,
+        [],
+        (pErr, phoneRows) => {
+            if (pErr) return res.status(500).json({ success: false, error: pErr.message });
+            // Name-based duplicates: same name (case-insensitive), different email
+            db.all(
+                `SELECT a.id AS id_a, a.full_name AS name_a, a.email AS email_a, a.phone AS phone_a,
+                        b.id AS id_b, b.full_name AS name_b, b.email AS email_b, b.phone AS phone_b,
+                        'name' AS match_type
+                 FROM clients a
+                 JOIN clients b ON LOWER(TRIM(a.full_name)) = LOWER(TRIM(b.full_name))
+                   AND a.id < b.id
+                   AND LOWER(a.email) != LOWER(b.email)
+                 ORDER BY a.full_name`,
+                [],
+                (nErr, nameRows) => {
+                    if (nErr) return res.status(500).json({ success: false, error: nErr.message });
+                    const all = [...(phoneRows || []), ...(nameRows || [])];
+                    res.json({ success: true, count: all.length, duplicates: all });
+                }
+            );
+        }
+    );
 });
 
 // S5-4: Threaded booking notes — replaces the single admin_notes text blob.
@@ -6754,52 +7617,274 @@ app.get('/api/admin/bookings/:id/details', requireAdmin, (req, res) => {
 // --- Bookings ---
 
 // Admin: manually create a booking (bypasses public rate limiter + POPIA form)
-app.post('/api/admin/bookings', requireAdmin, async (req, res) => {
+app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
     const { name, email, cell, company, event_date, event_start_time,
             event_name, event_type, event_location, status, budget_range, message,
-            venue_place_id, city, venue_address, country } = req.body;
+            venue_place_id, city, venue_address, country, services, override_conflict,
+            override_duplicate, override_working_hours, popia_consent } = req.body;
 
     if (!name || !email || !cell || !event_date || !event_name || !event_type || !event_location || !message)
         return res.status(400).json({ success: false, message: 'Missing required fields.' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(event_date))
         return res.status(400).json({ success: false, message: 'Invalid event date format.' });
 
-    const validStatuses = ['NEW','PENDING','QUOTED','ACCEPTED','CONFIRMED'];
+    if ((status || '').toUpperCase() === 'CONFIRMED') {
+        return res.status(400).json({ success: false, message: 'Direct manual creation in CONFIRMED status is blocked. Bookings must start as PENDING, QUOTED, or NEW and require payment to be confirmed.' });
+    }
+
+    const validStatuses = ['NEW','PENDING','QUOTED'];
     const bookingStatus = validStatuses.includes((status || '').toUpperCase()) ? status.toUpperCase() : 'NEW';
 
+    // Duplicate check: same email + same date with an already-active booking
+    const existingBooking = await new Promise(resolve =>
+        db.get(
+            `SELECT id FROM bookings
+             WHERE lower(email) = lower(?) AND date = ? AND status NOT IN ('CANCELLED','EXPIRED')
+             LIMIT 1`,
+            [email, event_date],
+            (_, row) => resolve(row)
+        )
+    );
+    if (existingBooking && !override_duplicate) {
+        return res.status(409).json({
+            success: false,
+            duplicate: true,
+            existing_id: existingBooking.id,
+            message: `An active booking (#${existingBooking.id}) already exists for this client on this date. Do you want to override and create this booking anyway?`
+        });
+    }
+
+    // 1. SECURE SERVICE VALIDATION & SNAPSHOTTING
+    if (!services || !Array.isArray(services) || services.length === 0) {
+        return res.status(400).json({ success: false, message: 'At least one service must be selected.' });
+    }
+
+    const svcIds = services.map(s => parseInt(s.service_id)).filter(id => !isNaN(id));
+    if (svcIds.length === 0) {
+        return res.status(400).json({ success: false, message: 'Invalid services provided.' });
+    }
+
     try {
+        const placeholders = svcIds.map(() => '?').join(',');
+        const query = `SELECT * FROM services WHERE id IN (${placeholders})`;
+        const dbServices = await new Promise((resolve, reject) => {
+            db.all(query, svcIds, (err, rows) => {
+                if (err) reject(err); else resolve(rows || []);
+            });
+        });
+
+        let selectedServices = [];
+        let calculatedBaseScope = 0;
+
+        for (const inputSvc of services) {
+            const srv = dbServices.find(s => s.id === parseInt(inputSvc.service_id));
+            if (!srv) {
+                return res.status(400).json({ success: false, message: `Service ID ${inputSvc.service_id} is invalid.` });
+            }
+
+            const model = srv.pricing_model || 'flat';
+            const isFlat = model === 'flat' || model === 'flat_fee';
+            const isPerMinute = model === 'per_minute';
+            const isPerHour = model === 'per_hour';
+            
+            const qtyMinutes = parseInt(inputSvc.quantity_minutes) || 1;
+            const unitPrice = parseFloat(srv.base_price != null ? srv.base_price : (srv.default_price ?? 0));
+            let lineTotal = 0;
+            
+            if (isFlat) {
+                lineTotal = unitPrice;
+            } else if (isPerMinute) {
+                lineTotal = unitPrice * qtyMinutes;
+            } else if (isPerHour) {
+                lineTotal = unitPrice * Math.ceil(qtyMinutes / 60);
+            } else {
+                lineTotal = unitPrice * qtyMinutes;
+            }
+            
+            calculatedBaseScope += lineTotal;
+            selectedServices.push({
+                service_id: srv.id,
+                name: srv.name,
+                quantity_minutes: isFlat ? 1 : qtyMinutes,
+                unit_price: unitPrice,
+                total_price: lineTotal,
+                pricing_model: model
+            });
+        }
+
+        // Calculate event duration
+        const maxServiceMins = dbServices.reduce((max, srv) => {
+            const rowInput = services.find(s => s.service_id == srv.id);
+            const isDurationBased = srv.pricing_model === 'per_minute' || srv.pricing_model === 'per_hour';
+            const qtyMins = rowInput ? parseInt(rowInput.quantity_minutes) : 0;
+            const length = isDurationBased && qtyMins > 0 ? qtyMins : (parseInt(srv.performance_length_minutes) || 0);
+            const total = length + (parseInt(srv.setup_time_minutes) || 0);
+            return Math.max(max, total);
+        }, 0);
+        
+        const durationMins = maxServiceMins > 0 ? maxServiceMins : 120;
+        const startTime = moment(`${event_date} ${event_start_time || '18:00'}`).toISOString();
+        const endTime   = moment(startTime).add(durationMins, 'minutes').toISOString();
+        const perfEndTime = event_start_time ? addMinutesToTime(event_start_time, durationMins) : null;
+
+        // Working hours check
+        if (event_start_time && !override_working_hours) {
+            const endHHMM = addMinutesToTime(event_start_time, durationMins);
+            const wh = await isWithinWorkingHours(event_date, event_start_time, endHHMM);
+            if (!wh.allowed) {
+                return res.status(400).json({
+                    success: false,
+                    working_hours_violation: true,
+                    message: `${wh.reason} Do you want to override and create this booking anyway?`
+                });
+            }
+        }
+
+        // Conflict check
+        const isBusy = await hasCalendarConflict(startTime, endTime);
+        if (isBusy && !override_conflict) {
+            return res.status(409).json({
+                success: false,
+                conflict: true,
+                message: "Scheduling Conflict Detected: Thabiso is busy or holds exist during this slot. Do you want to override and create this booking anyway?"
+            });
+        }
+
         const clientId = await findOrCreateClient(name, email, cell, company, null);
         const venueId = await findOrCreateVenueFromPlace(event_location, venue_address || null, city || null, country || null, venue_place_id || null);
 
-        db.run(
-            `INSERT INTO bookings
-                (name, company, email, cell, event_name, date, event_start_time, performance_start_time,
-                 event_type, event_location, city, venue_place_id, budget_range, message, status,
-                 popia_consent, consent_timestamp, client_id, venue_id)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1,CURRENT_TIMESTAMP,?,?)`,
-            [name, company || null, email, cell, event_name, event_date,
-             event_start_time || null, event_start_time || null, event_type, event_location,
-             city || null, venue_place_id || null,
-             budget_range || null, message, bookingStatus, clientId, venueId],
-            function(err) {
-                if (err) {
-                    console.error('[Admin] Manual booking insert error:', err.message);
-                    return res.status(500).json({ success: false, message: 'Database error: ' + err.message });
+        db.run("BEGIN IMMEDIATE", async (beginErr) => {
+            if (beginErr) return res.status(500).json({ success: false, message: 'Database lock error: ' + beginErr.message });
+
+            if (!override_conflict) {
+                const lockedBusy = await hasCalendarConflict(startTime, endTime);
+                if (lockedBusy) {
+                    db.run("ROLLBACK");
+                    return res.status(409).json({
+                        success: false,
+                        conflict: true,
+                        message: "Scheduling Conflict Detected: Thabiso is busy or holds exist during this slot. Do you want to override and create this booking anyway?"
+                    });
                 }
-                const bookingId = this.lastID;
-                db.run(
-                    `INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by)
-                     VALUES ('bookings', ?, 'CREATE', ?, ?)`,
-                    [bookingId,
-                     JSON.stringify({ name, email, date: event_date, status: bookingStatus, client_id: clientId, venue_id: venueId }),
-                     req.session.username || 'admin']
-                );
-                res.json({ success: true, booking_id: bookingId, message: 'Booking created.' });
             }
-        );
+
+            if (!override_duplicate) {
+                const lockedDuplicate = await new Promise(resolve =>
+                    db.get(
+                        `SELECT id FROM bookings
+                         WHERE lower(email) = lower(?) AND date = ? AND status NOT IN ('CANCELLED','EXPIRED')
+                         LIMIT 1`,
+                        [email, event_date],
+                        (_, row) => resolve(row)
+                    )
+                );
+                if (lockedDuplicate) {
+                    db.run("ROLLBACK");
+                    return res.status(409).json({
+                        success: false,
+                        duplicate: true,
+                        existing_id: lockedDuplicate.id,
+                        message: `An active booking (#${lockedDuplicate.id}) already exists for this client on this date. Do you want to override and create this booking anyway?`
+                    });
+                }
+            }
+
+            let initialQuoteAmountStr = `R ${calculatedBaseScope.toFixed(2)}`;
+            let initialTotalAmount = calculatedBaseScope;
+            let paymentStatus = 'UNPAID';
+            const defaultQuoteExpiry = moment(event_date).subtract(14, 'days').format('YYYY-MM-DD');
+
+            const consentVal = popia_consent !== undefined ? (popia_consent ? 1 : 0) : 1;
+
+            db.run(
+                `INSERT INTO bookings
+                    (name, company, email, cell, event_name, date, event_start_time, performance_start_time,
+                     performance_end_time, performance_duration,
+                     event_type, event_location, city, venue_place_id, budget_range, message, status,
+                     popia_consent, consent_timestamp, client_id, venue_id,
+                     quote_amount, total_amount, amount_outstanding, payment_status, quote_expiry_date, policy_version, source, consent_source)
+                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?,?,?,?,?, 'admin_recorded')`,
+                [
+                    name, company || null, email, cell, event_name, event_date,
+                    event_start_time || null, event_start_time || null,
+                    perfEndTime, String(durationMins),
+                    event_type, event_location,
+                    city || null, venue_place_id || null,
+                    budget_range || null, message, bookingStatus,
+                    consentVal, clientId, venueId,
+                    initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, defaultQuoteExpiry, 'v2.2', 'admin'
+                ],
+                async function(err) {
+                    if (err) {
+                        db.run("ROLLBACK");
+                        console.error('[Admin] Manual booking insert error:', err.message);
+                        return res.status(500).json({ success: false, message: 'Database error: ' + err.message });
+                    }
+                    const bookingId = this.lastID;
+                    db.run("COMMIT");
+
+                    try {
+                        // Immutable consent audit record
+                        await new Promise((resolve, reject) => {
+                            db.run(
+                                `INSERT INTO consent_audit (booking_id, ip_address, user_agent, policy_version, consent_source) VALUES (?, ?, ?, 'v2.2', 'admin_recorded')`,
+                                [bookingId, req.ip || null, req.headers['user-agent'] || null],
+                                (err2) => { if (err2) reject(err2); else resolve(); }
+                            );
+                        });
+
+                        // Insert relational items
+                        for (const srv of selectedServices) {
+                            await new Promise((resolve, reject) => {
+                                db.run("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
+                                    [bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price],
+                                    (err2) => { if (err2) reject(err2); else resolve(); }
+                                );
+                            });
+                            await new Promise((resolve, reject) => {
+                                db.run("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
+                                    [bookingId, srv.service_id, srv.name, srv.quantity_minutes, srv.unit_price],
+                                    (err2) => { if (err2) reject(err2); else resolve(); }
+                                );
+                            });
+                        }
+
+                        // Insert audit log
+                        await new Promise((resolve, reject) => {
+                            db.run(
+                                `INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by)
+                                 VALUES ('bookings', ?, 'CREATE', ?, ?)`,
+                                [
+                                    bookingId,
+                                    JSON.stringify({ 
+                                        name, email, cell, event_name, event_type, date: event_date, budget_range, status: bookingStatus, client_id: clientId, venue_id: venueId,
+                                        overrides: {
+                                            conflict: !!override_conflict,
+                                            duplicate: !!override_duplicate,
+                                            working_hours: !!override_working_hours
+                                        }
+                                    }),
+                                    req.session.username || 'admin'
+                                ],
+                                (err2) => { if (err2) reject(err2); else resolve(); }
+                            );
+                        });
+                    } catch (dbErr) {
+                        console.error("[Admin] Async DB inserts failed:", dbErr.message);
+                    }
+
+                    // Sync to Google Calendar (non-blocking)
+                    syncBookingToCalendar(bookingId).catch(calErr => {
+                        console.error(`[Admin] Google Calendar sync failed for booking #${bookingId}:`, calErr.message);
+                    });
+
+                    res.json({ success: true, booking_id: bookingId, message: 'Booking created.' });
+                }
+            );
+        });
     } catch (err) {
-        console.error('[Admin] Manual booking dependency resolution error:', err);
-        return res.status(500).json({ success: false, message: 'Failed to resolve client/venue constraints: ' + err.message });
+        console.error('[Admin] Manual booking error:', err);
+        return res.status(500).json({ success: false, message: 'Failed to create manual booking: ' + err.message });
     }
 });
 
@@ -7001,12 +8086,28 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                 }
                 if (requestedStatus === 'PENDING') sendBookingUnderReviewEmail(b).catch(e => console.error('Under-review email failed:', e.message));
                 if (requestedStatus === 'ACCEPTED') sendQuoteAcceptedEmail(b).catch(e => console.error('Invoiced email failed:', e.message));
-                if (requestedStatus === 'CONFIRMED') sendBookingConfirmedEmail(b).catch(e => console.error('Confirmed email failed:', e.message));
+                if (requestedStatus === 'CONFIRMED') {
+                    sendBookingConfirmedEmail(b).catch(e => console.error('Confirmed email failed:', e.message));
+                    // Auto-create an events row if none exists yet for this booking
+                    if (!b.event_id) {
+                        const eventDatetime = b.date + (b.event_start_time ? ' ' + b.event_start_time : ' 00:00:00');
+                        db.run(
+                            `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
+                             VALUES (?, ?, ?, ?, ?, 'upcoming', 'system')`,
+                            [b.event_name || b.event_type || 'Booking Event', eventDatetime, b.event_location || null, b.venue_id || null, b.id],
+                            function(evInsErr) {
+                                if (evInsErr) { console.error('[Auto-Event] Insert failed for booking #' + b.id + ':', evInsErr.message); return; }
+                                db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [this.lastID, b.id],
+                                    (evUpErr) => { if (evUpErr) console.error('[Auto-Event] Booking event_id link failed:', evUpErr.message); });
+                            }
+                        );
+                    }
+                }
                 if (requestedStatus === 'COMPLETED') {
                     sendBookingCompletedEmail(b).catch(e => console.error('Completed email failed:', e.message));
                     sendAdminCompletionSummaryEmail(b).catch(e => console.error('Admin completion summary failed:', e.message));
                     // S6-4: Auto-mark invoice as paid when booking is completed with full payment
-                    db.run("UPDATE invoices SET status = 'paid', updated_at = CURRENT_TIMESTAMP WHERE booking_id = ? AND status NOT IN ('void','paid')", [b.id]);
+                    db.run("UPDATE invoices SET status = 'PAID', updated_at = CURRENT_TIMESTAMP WHERE booking_id = ? AND status NOT IN ('VOID','PAID')", [b.id]);
                 }
             }
         });
@@ -7654,7 +8755,7 @@ app.put('/api/admin/bookings/:id/status', requireAdmin, (req, res) => {
         applyStatusChange(req.params.id, requestedStatus, (row.status || '').toUpperCase(), res, { reason, adminId: req.session.adminId });
     });
 });
-app.post('/api/admin/bookings/:id/quote', requireAdmin, async (req, res) => {
+app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
     const bookingId = req.params.id;
     const isStructured = Array.isArray(req.body.items);
     
@@ -7713,7 +8814,8 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, async (req, res) => {
                 });
                 let dp = parseFloat(discount) || 0;
                 let vatable = Math.max(0, subtotal - dp);
-                let vat = apply_vat ? vatable * 0.15 : 0;
+                const vatRate = await getVatRate();
+                let vat = apply_vat ? vatable * vatRate : 0;
                 finalTotal = vatable + vat;
                 items = bodyItems;
                 
@@ -7736,7 +8838,22 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, async (req, res) => {
             }
 
             const currentStatus = (booking.status || '').toUpperCase();
-            let nextStatus = (currentStatus === 'NEW' || currentStatus === 'PENDING' || currentStatus === 'REVIEWED') ? 'QUOTED' : currentStatus;
+            // Gap 3 (Phase 2): When re-quoting an ACCEPTED booking, push it back to QUOTED and void
+            // stale non-paid payment schedules + invoices so the client must re-accept the new total.
+            const reQuotingAccepted = currentStatus === 'ACCEPTED';
+            let nextStatus = (currentStatus === 'NEW' || currentStatus === 'PENDING' || currentStatus === 'REVIEWED' || currentStatus === 'ACCEPTED') ? 'QUOTED' : currentStatus;
+
+            if (reQuotingAccepted) {
+                // Void non-paid payment schedules (mark superseded so they remain visible in audit trails)
+                db.run("UPDATE payment_schedules SET status = 'superseded' WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) != 'paid'", [bookingId]);
+                // Void non-paid, non-void invoices so the admin panel shows no active invoice during the re-quote window
+                db.run("UPDATE invoices SET status = 'VOID', void_reason = 'superseded_by_requote', voided_at = CURRENT_TIMESTAMP WHERE booking_id = ? AND UPPER(status) NOT IN ('VOID','PAID')", [bookingId]);
+                // Audit trail for re-quote after acceptance
+                db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+                        VALUES ('bookings', ?, 'REQUOTE_AFTER_ACCEPTED', ?, ?, CURRENT_TIMESTAMP)`,
+                    [bookingId, JSON.stringify({ previous_status: 'ACCEPTED', new_status: 'QUOTED' }), req.session.adminId || 'admin'],
+                    (aErr) => { if (aErr) console.error('[Audit] Re-quote-after-accepted log failed:', aErr.message); });
+            }
 
             // Ensure directory exists
             const quotesDir = path.join(__dirname, 'docs', 'quotes');
@@ -7766,9 +8883,12 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, async (req, res) => {
                 const currentPaid = parseFloat(booking.amount_paid) || 0;
                 const newOutstanding = Math.max(0, finalTotal - currentPaid);
                 
+                // quote_amount is kept on bookings for backward-compat (legacy email templates + admin UI
+                // fallback). The bookings SELECT query prefers quotations.total_amount when a quotations
+                // row exists. quote_details is no longer written here; line items live in quote_line_items.
                 db.run(
-                    "UPDATE bookings SET quote_amount = ?, quote_details = ?, quote_expiry_date = ?, status = ?, quoted_at = CURRENT_TIMESTAMP, total_amount = ?, amount_outstanding = ? WHERE id = ?",
-                    [quote_amount, quote_details, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId]
+                    "UPDATE bookings SET quote_amount = ?, quote_expiry_date = ?, status = ?, quoted_at = CURRENT_TIMESTAMP, total_amount = ?, amount_outstanding = ? WHERE id = ?",
+                    [quote_amount, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId]
                 );
 
                 // 2. Get next version (runs after UPDATE due to serialize order)
@@ -7788,9 +8908,14 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, async (req, res) => {
                             }
                             const quotationId = this.lastID;
 
-                            // 4. Refresh line items (current-snapshot)
-                            db.run("DELETE FROM booking_line_items WHERE booking_id = ?", [bookingId]);
-                            db.run("DELETE FROM booking_services WHERE booking_id = ?", [bookingId]);
+                            // 4. Refresh line items (current-snapshot) — both DELETEs are inside the
+                            //    BEGIN TRANSACTION above, so a ROLLBACK below undoes them atomically.
+                            db.run("DELETE FROM booking_line_items WHERE booking_id = ?", [bookingId], (dliErr) => {
+                                if (dliErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: 'DB error clearing line items: ' + dliErr.message }));
+                            });
+                            db.run("DELETE FROM booking_services WHERE booking_id = ?", [bookingId], (dsErr) => {
+                                if (dsErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: 'DB error clearing services: ' + dsErr.message }));
+                            });
 
                             const insertNext = (idx) => {
                                 if (idx >= items.length) {
@@ -7799,6 +8924,11 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, async (req, res) => {
                                             console.error("Commit Error:", commitErr.message);
                                             return res.status(500).json({ success: false, error: commitErr.message });
                                         }
+                                        // P3-3: Audit log for quote generation
+                                        db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+                                                VALUES ('quotations', ?, 'QUOTE_GENERATED', ?, ?, CURRENT_TIMESTAMP)`,
+                                            [bookingId, JSON.stringify({ version: nextVersion, amount: finalTotal, expiry: quote_expiry_date }), req.session.adminId || 'admin'],
+                                            (aErr) => { if (aErr) console.error('[Audit] Quote generation log failed:', aErr.message); });
                                         syncBookingToCalendar(booking).catch(e => console.error('[Quote] Calendar sync failed:', e.message));
                                         sendQuoteEmail(booking, quote_amount, pdfPath, pdfFileName, items).catch(e => console.error("Quote email error:", e));
                                         sendAdminQuoteSentNotification(booking, quote_amount).catch(e => console.error('[Quote] Admin notif failed:', e.message));
@@ -7885,8 +9015,32 @@ app.get('/api/admin/bookings/:id/quote-history', requireAdmin, (req, res) => {
 
 // 1. Generate Invoice from Booking (Admin)
 app.post('/api/admin/bookings/:id/invoice/generate', requireAdmin, async (req, res) => {
+    const bookingId = req.params.id;
+    // Guard: if a quotation exists for this booking it must be in 'accepted' state
+    const activeQuote = await new Promise((resolve, reject) => {
+        db.get(
+            `SELECT id, status FROM quotations WHERE booking_id = ? AND archived = 0 ORDER BY version DESC LIMIT 1`,
+            [bookingId],
+            (err, row) => { if (err) reject(err); else resolve(row); }
+        );
+    }).catch(() => null);
+
+    if (activeQuote && activeQuote.status !== 'accepted') {
+        return res.status(400).json({
+            success: false,
+            message: `Invoice cannot be generated: the active quote is in '${activeQuote.status}' status. The client must accept the quote first.`
+        });
+    }
+
     try {
-        const result = await generateInvoice(req.params.id);
+        const result = await generateInvoice(bookingId);
+        // P3-3: Audit log for invoice generation
+        if (result && result.success) {
+            db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+                    VALUES ('invoices', ?, 'INVOICE_GENERATED', ?, ?, CURRENT_TIMESTAMP)`,
+                [bookingId, JSON.stringify({ invoice_id: result.invoice_id }), req.session.adminId || 'admin'],
+                (aErr) => { if (aErr) console.error('[Audit] Invoice generation log failed:', aErr.message); });
+        }
         res.json(result);
     } catch (err) {
         console.error("Admin Invoice Generation Error:", err);
@@ -7894,7 +9048,35 @@ app.post('/api/admin/bookings/:id/invoice/generate', requireAdmin, async (req, r
     }
 });
 
-// 2. Download Invoice (Public Secured)
+// 2. Ledger reconciliation — compares booking's denormalised ledger against transaction sum.
+app.get('/api/admin/bookings/:id/reconcile', requireAdmin, (req, res) => {
+    const bookingId = req.params.id;
+    db.get(
+        `SELECT
+            b.id, b.amount_paid AS ledger_paid, b.amount_outstanding AS ledger_outstanding, b.total_amount AS ledger_total,
+            COALESCE(SUM(CASE WHEN t.source != 'payfast' OR t.is_verified = 1 THEN t.amount ELSE 0 END), 0) AS tx_paid,
+            COUNT(t.id) AS tx_count
+         FROM bookings b
+         LEFT JOIN transactions t ON t.booking_id = b.id
+         WHERE b.id = ?
+         GROUP BY b.id`,
+        [bookingId],
+        (err, row) => {
+            if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
+            const drift = Math.abs((row.ledger_paid || 0) - (row.tx_paid || 0)) > 0.01;
+            res.json({
+                success: true,
+                booking_id: row.id,
+                ledger: { total: row.ledger_total, paid: row.ledger_paid, outstanding: row.ledger_outstanding },
+                transactions: { total_paid: row.tx_paid, count: row.tx_count },
+                drift,
+                drift_amount: drift ? ((row.ledger_paid || 0) - (row.tx_paid || 0)).toFixed(2) : '0.00'
+            });
+        }
+    );
+});
+
+// 3. Download Invoice (Public Secured)
 app.get('/api/public/bookings/:id/invoice/download', async (req, res) => {
     const { email } = req.query;
     if (!email) return res.status(400).send('Email required for verification');
@@ -8177,7 +9359,7 @@ app.patch('/api/admin/reviews/:id', requireAdmin, (req, res) => {
 
 
 // 3. Admin Invoice View
-app.get('/api/admin/invoices', requireAdmin, (req, res) => {
+app.get('/api/admin/invoices', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     db.all(`SELECT i.*, b.name as client_name, b.event_name, b.date as event_date 
             FROM invoices i 
             JOIN bookings b ON i.booking_id = b.id 
@@ -8191,10 +9373,10 @@ app.get('/api/admin/invoices', requireAdmin, (req, res) => {
 // GET /api/admin/bookings/:id/payment-schedules — get schedules for a booking
 app.get('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res) => {
     const bookingId = req.params.id;
-    db.get('SELECT total_amount, (SELECT COALESCE(SUM(expected_amount), 0) FROM payment_schedules WHERE booking_id = ?) AS scheduled_total FROM bookings WHERE id = ?', [bookingId, bookingId], (bErr, booking) => {
+    db.get("SELECT total_amount, (SELECT COALESCE(SUM(expected_amount), 0) FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')) AS scheduled_total FROM bookings WHERE id = ?", [bookingId, bookingId], (bErr, booking) => {
         if (bErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         
-        db.all('SELECT * FROM payment_schedules WHERE booking_id = ? ORDER BY due_date ASC, id ASC', [bookingId], (err, rows) => {
+        db.all("SELECT * FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC, id ASC", [bookingId], (err, rows) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
             res.json({
                 success: true,
@@ -8229,7 +9411,19 @@ app.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res) =
     
     db.get('SELECT total_amount FROM bookings WHERE id = ?', [bookingId], (bErr, booking) => {
         if (bErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        
+
+        // Validate that schedule amounts sum to total_amount (skip if total_amount not yet set)
+        if (schedules.length > 0 && booking.total_amount > 0) {
+            const scheduleSum = schedules.reduce((s, item) => s + parseFloat(item.expected_amount), 0);
+            const diff = Math.abs(scheduleSum - parseFloat(booking.total_amount));
+            if (diff > 0.01) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Schedule amounts sum to R${scheduleSum.toFixed(2)} but booking total is R${parseFloat(booking.total_amount).toFixed(2)}. Adjust amounts so they add up to the booking total.`
+                });
+            }
+        }
+
         db.serialize(() => {
             db.run('DELETE FROM payment_schedules WHERE booking_id = ?', [bookingId], (delErr) => {
                 if (delErr) return res.status(500).json({ success: false, message: delErr.message });
@@ -8264,7 +9458,7 @@ app.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res) =
 
 // 3.7 Financial Analytics API (Admin)
 // GET /api/admin/financials/analytics
-app.get('/api/admin/financials/analytics', requireAdmin, (req, res) => {
+app.get('/api/admin/financials/analytics', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const trendQuery = `
         SELECT strftime('%Y-%m', transaction_date) AS month, SUM(amount) AS total_revenue
         FROM transactions
@@ -8343,13 +9537,67 @@ app.get('/api/admin/financials/analytics', requireAdmin, (req, res) => {
 
 // 4. Financial Statistics (Admin)
 
+// P3-11: Profit & Loss endpoint — aggregates revenue (transactions) vs costs (expenses) by period.
+app.get('/api/admin/finance/pl', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    const { period = 'month', date_from, date_to } = req.query;
+    const groupFormat = period === 'year' ? '%Y' : (period === 'week' ? '%Y-W%W' : '%Y-%m');
+    const fromFilter = date_from ? `AND date >= ${db.prepare ? '?' : JSON.stringify(date_from)}` : '';
+    const toFilter   = date_to   ? `AND date <= ${db.prepare ? '?' : JSON.stringify(date_to)}`   : '';
+    const revenueParams = []; const expenseParams = [];
+    let revWhere = 'WHERE t.status = \'completed\' AND (t.transaction_type IS NULL OR t.transaction_type NOT IN (\'refund\',\'chargeback\'))';
+    let expWhere = 'WHERE 1=1';
+    if (date_from) { revWhere += ' AND t.transaction_date >= ?'; revenueParams.push(date_from); expWhere += ' AND e.expense_date >= ?'; expenseParams.push(date_from); }
+    if (date_to)   { revWhere += ' AND t.transaction_date <= ?'; revenueParams.push(date_to);   expWhere += ' AND e.expense_date <= ?'; expenseParams.push(date_to);   }
+
+    db.all(
+        `SELECT strftime('${groupFormat}', transaction_date) AS period,
+                COALESCE(SUM(amount), 0) AS revenue
+         FROM transactions t
+         ${revWhere}
+         GROUP BY period ORDER BY period ASC`,
+        revenueParams,
+        (rErr, revenueRows) => {
+            if (rErr) return res.status(500).json({ success: false, error: rErr.message });
+            db.all(
+                `SELECT strftime('${groupFormat}', expense_date) AS period,
+                        COALESCE(SUM(amount), 0) AS expenses
+                 FROM expenses e
+                 ${expWhere}
+                 GROUP BY period ORDER BY period ASC`,
+                expenseParams,
+                (eErr, expenseRows) => {
+                    if (eErr) return res.status(500).json({ success: false, error: eErr.message });
+
+                    // Merge into unified P&L by period
+                    const pl = {};
+                    (revenueRows || []).forEach(r => { pl[r.period] = { period: r.period, revenue: parseFloat(r.revenue), expenses: 0, profit: 0 }; });
+                    (expenseRows || []).forEach(e => {
+                        if (!pl[e.period]) pl[e.period] = { period: e.period, revenue: 0, expenses: 0, profit: 0 };
+                        pl[e.period].expenses = parseFloat(e.expenses);
+                    });
+                    const rows = Object.values(pl).map(r => ({ ...r, profit: r.revenue - r.expenses }));
+                    rows.sort((a, b) => a.period < b.period ? -1 : 1);
+
+                    const totals = rows.reduce((acc, r) => ({
+                        revenue: acc.revenue + r.revenue,
+                        expenses: acc.expenses + r.expenses,
+                        profit: acc.profit + r.profit
+                    }), { revenue: 0, expenses: 0, profit: 0 });
+
+                    res.json({ success: true, period_type: period, rows, totals });
+                }
+            );
+        }
+    );
+});
+
 // ========================================
 // EXPENSE TRACKING ENDPOINTS (Admin)
 // ========================================
 const VALID_EXPENSE_CATEGORIES = ['mileage','airfare','accommodation','meals','per_diem','parking_tolls','marketing','props','misc'];
 
 // GET /api/admin/expenses — list with optional filters
-app.get('/api/admin/expenses', requireAdmin, (req, res) => {
+app.get('/api/admin/expenses', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { booking_id, category, date_from, date_to, limit, offset } = req.query;
     let query = `SELECT e.*, b.event_name, b.name AS client_name
                  FROM expenses e
@@ -8387,7 +9635,7 @@ app.post('/api/admin/expenses', requireAdmin, (req, res) => {
     if (!expense_date) {
         return res.status(400).json({ success: false, message: 'Expense date is required.' });
     }
-    const addedBy = req.session?.adminUser?.username || 'admin';
+    const addedBy = req.session.username || 'system';
 
     db.run(
         `INSERT INTO expenses (booking_id, category, amount, description, expense_date, receipt_url,
@@ -8425,8 +9673,8 @@ app.post('/api/admin/expenses', requireAdmin, (req, res) => {
 });
 
 // DELETE /api/admin/expenses/:id — delete (soft-delete) an expense
-app.delete('/api/admin/expenses/:id', requireAdmin, (req, res) => {
-    const addedBy = req.session?.adminUser?.username || 'admin';
+app.delete('/api/admin/expenses/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+    const addedBy = req.session.username || 'system';
     db.get('SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL', [req.params.id], (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Expense not found.' });
         db.run('UPDATE expenses SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id], function(e2) {
@@ -8451,7 +9699,7 @@ app.delete('/api/admin/expenses/:id', requireAdmin, (req, res) => {
 // PUT /api/admin/expenses/:id — edit an existing expense
 app.put('/api/admin/expenses/:id', requireAdmin, (req, res) => {
     const expenseId = req.params.id;
-    const addedBy = req.session?.adminUser?.username || 'admin';
+    const addedBy = req.session.username || 'system';
     db.get('SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL', [expenseId], (err, existing) => {
         if (err || !existing) return res.status(404).json({ success: false, message: 'Expense not found.' });
         const { booking_id, category, amount, description, expense_date, receipt_url,
@@ -8506,7 +9754,7 @@ app.put('/api/admin/expenses/:id', requireAdmin, (req, res) => {
 });
 
 // GET /api/admin/expenses/export — CSV download for all expenses (respects same filters as list)
-app.get('/api/admin/expenses/export', requireAdmin, (req, res) => {
+app.get('/api/admin/expenses/export', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { category, date_from, date_to, booking_id } = req.query;
     let sql = `SELECT e.*, b.event_name, b.name AS client_name
                FROM expenses e
@@ -8552,7 +9800,7 @@ app.post('/api/admin/expenses/upload-receipt', requireAdmin, uploadReceipt.singl
 });
 
 // POST /api/admin/transactions/manual — log a manual payment, refund, or adjustment
-app.post('/api/admin/transactions/manual', requireAdmin, (req, res) => {
+app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { booking_id, amount, transaction_type, payment_method, reference, notes, transaction_date } = req.body;
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0)
         return res.status(400).json({ success: false, message: 'A valid positive amount is required.' });
@@ -8568,17 +9816,105 @@ app.post('/api/admin/transactions/manual', requireAdmin, (req, res) => {
         function(err) {
             if (err) return res.status(500).json({ success: false, message: err.message });
             const txId = this.lastID;
+            
+            // Log to financial_audit_log
+            const adminUser = req.session.username || 'system';
+            db.run(
+                `INSERT INTO financial_audit_log (event_type, entity_type, entity_id, amount, changed_by, notes)
+                 VALUES ('MANUAL_PAYMENT', 'transaction', ?, ?, ?, ?)`,
+                [txId, parseFloat(amt), adminUser, `Type: ${transaction_type}, Method: ${payment_method || 'N/A'}, Ref: ${reference || 'N/A'}, Notes: ${notes || ''}`],
+                () => {}
+            );
+
             // Update booking financials if linked
             if (booking_id) {
                 if (transaction_type === 'payment') {
-                    db.run(`UPDATE bookings SET amount_paid = amount_paid + ?, amount_outstanding = MAX(0, amount_outstanding - ?) WHERE id = ?`,
-                        [amt, amt, booking_id], (upErr) => {
-                            if (!upErr) {
-                                updateBookingMilestones(booking_id, (psErr) => {
-                                    if (psErr) console.error('[Manual Transaction] Milestone update failed:', psErr.message);
-                                });
+                    // Fetch booking row to compute new outstanding balance and run notifications/sync
+                    db.get("SELECT * FROM bookings WHERE id = ?", [booking_id], (bookErr, row) => {
+                        if (bookErr || !row) {
+                            console.error(`[Manual Transaction] Booking #${booking_id} not found:`, bookErr?.message);
+                            return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
+                        }
+
+                        const total = parseFloat(row.total_amount) ||
+                                      parseFloat((row.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
+                        const existingPaid = parseFloat(row.amount_paid) || 0;
+                        const paid = existingPaid + parseFloat(amt);
+                        const outstanding = Math.max(0, total - paid);
+
+                        // Determine correct payment status
+                        const isFullyPaid = total > 0 ? paid >= total : false;
+                        let payment_status = 'PARTIALLY_PAID';
+                        if (isFullyPaid) {
+                            payment_status = 'PAID';
+                        } else {
+                            const depositThreshold = total * 0.5;
+                            if (paid >= depositThreshold) {
+                                payment_status = 'DEPOSIT_PAID';
                             }
-                        });
+                        }
+
+                        // Determine new status (move to CONFIRMED or ACCEPTED if fully paid)
+                        const newStatus = payment_status === 'PAID'
+                            ? (['ACCEPTED','CONFIRMED'].includes(row.status) ? 'CONFIRMED' : 'ACCEPTED')
+                            : row.status;
+
+                        db.run(
+                            `UPDATE bookings SET
+                                payment_status = ?, amount_paid = ?, amount_outstanding = ?,
+                                total_amount = CASE WHEN COALESCE(total_amount, 0) = 0 THEN ? ELSE total_amount END,
+                                status = ?,
+                                last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP,
+                                confirmed_at = CASE WHEN ? = 'PAID' AND confirmed_at IS NULL THEN CURRENT_TIMESTAMP ELSE confirmed_at END
+                             WHERE id = ?`,
+                            [payment_status, paid, outstanding, total, newStatus, payment_status, booking_id],
+                            (upErr) => {
+                                if (upErr) {
+                                    console.error('[Manual Transaction] Booking update failed:', upErr.message);
+                                    return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking update failed.' });
+                                }
+
+                                // Record payment event
+                                logPaymentEvent(booking_id, 'MANUAL_PAYMENT_RECORDED', {
+                                    amount_gross: parseFloat(amt),
+                                    payment_method: payment_method || 'manual',
+                                    pf_payment_id: null,
+                                    m_payment_id: `MANUAL-${booking_id}-${Date.now()}`
+                                }, true);
+
+                                db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+                                        VALUES ('bookings', ?, 'PAYMENT', ?, ?, CURRENT_TIMESTAMP)`,
+                                    [booking_id, JSON.stringify({ amount_paid: paid, payment_status, amount_outstanding: outstanding }), adminUser],
+                                    (aErr) => { if (aErr) console.error('[Audit] Manual payment transaction log failed:', aErr.message); });
+
+                                (async () => {
+                                    await syncBookingToCalendar(booking_id);
+                                    sendPaymentReceivedEmail(row, parseFloat(amt), outstanding, payment_status).catch(e => console.error('Manual transaction payment email failed:', e));
+                                    sendAdminPaymentNotification(row, parseFloat(amt), payment_status).catch(e => console.error('Admin payment notification failed:', e.message));
+
+                                    alignMilestonePayments(booking_id, paid, (psErr) => {
+                                        if (psErr) console.error('[Manual Transaction] payment_schedules update failed:', psErr.message);
+                                    });
+
+                                    if (payment_status === 'DEPOSIT_PAID' && outstanding > 0) {
+                                        sendDepositBalanceDueEmail(row, outstanding).catch(e => console.error('Deposit balance-due email failed:', e.message));
+                                    }
+
+                                    if (payment_status === 'PAID') {
+                                        db.run("UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [booking_id]);
+                                        db.get("SELECT * FROM bookings WHERE id = ?", [booking_id], (e, updated) => {
+                                            if (!e && updated) {
+                                                sendBookingConfirmedEmail(updated).catch(e => console.error('Confirmed email failed:', e.message));
+                                                setTimeout(() => sendPaidReceiptEmail(updated).catch(e => console.error('Paid receipt email failed:', e.message)), 600);
+                                            }
+                                        });
+                                    }
+                                })();
+
+                                res.json({ success: true, transaction_id: txId, message: 'Transaction logged and booking updated.' });
+                            }
+                        );
+                    });
                 } else if (transaction_type === 'refund') {
                     db.run(`UPDATE bookings SET amount_paid = MAX(0, amount_paid - ?), amount_outstanding = amount_outstanding + ? WHERE id = ?`,
                         [amt, amt, booking_id], (upErr) => {
@@ -8587,26 +9923,20 @@ app.post('/api/admin/transactions/manual', requireAdmin, (req, res) => {
                                     if (psErr) console.error('[Manual Transaction] Milestone update failed:', psErr.message);
                                 });
                             }
+                            res.json({ success: true, transaction_id: txId, message: 'Transaction logged and booking updated.' });
                         });
+                } else {
+                    res.json({ success: true, transaction_id: txId, message: 'Transaction logged.' });
                 }
+            } else {
+                res.json({ success: true, transaction_id: txId, message: 'Transaction logged.' });
             }
-
-            // Log to financial_audit_log
-            const adminUser = req.session?.adminUser?.username || 'admin';
-            db.run(
-                `INSERT INTO financial_audit_log (event_type, entity_type, entity_id, amount, changed_by, notes)
-                 VALUES ('MANUAL_PAYMENT', 'transaction', ?, ?, ?, ?)`,
-                [txId, parseFloat(amt), adminUser, `Type: ${transaction_type}, Method: ${payment_method || 'N/A'}, Ref: ${reference || 'N/A'}, Notes: ${notes || ''}`],
-                () => {}
-            );
-
-            res.json({ success: true, transaction_id: txId, message: 'Transaction logged.' });
         }
     );
 });
 
 // GET /api/admin/bookings/:id/expenses — expenses for a specific booking + P&L
-app.get('/api/admin/bookings/:id/expenses', requireAdmin, (req, res) => {
+app.get('/api/admin/bookings/:id/expenses', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const bookingId = req.params.id;
     db.all('SELECT * FROM expenses WHERE booking_id = ? AND deleted_at IS NULL ORDER BY expense_date DESC', [bookingId], (err, expenses) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
@@ -8632,7 +9962,7 @@ app.get('/api/admin/bookings/:id/expenses', requireAdmin, (req, res) => {
     });
 });
 
-app.get('/api/admin/financials/stats', requireAdmin, (req, res) => {
+app.get('/api/admin/financials/stats', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     // Support optional date range for period-scoped stats
     const { date_from, date_to } = req.query;
 
@@ -8785,7 +10115,7 @@ app.get('/api/admin/financials/stats', requireAdmin, (req, res) => {
 // ========================================
 
 // GET /api/admin/reconciliation — full reconciliation matrix per booking
-app.get('/api/admin/reconciliation', requireAdmin, (req, res) => {
+app.get('/api/admin/reconciliation', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const query = `
         SELECT
             b.id AS booking_id,
@@ -8846,7 +10176,7 @@ app.get('/api/admin/reconciliation', requireAdmin, (req, res) => {
 });
 
 // GET /api/admin/reconciliation/:bookingId/transactions — full tx list for one booking (expandable row)
-app.get('/api/admin/reconciliation/:bookingId/transactions', requireAdmin, (req, res) => {
+app.get('/api/admin/reconciliation/:bookingId/transactions', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     db.all(
         `SELECT id, amount, source, payment_method, reference, transaction_date, status, is_duplicate, reconcile_note
          FROM transactions WHERE booking_id = ? AND status = 'completed' ORDER BY transaction_date DESC`,
@@ -8862,7 +10192,7 @@ app.patch('/api/admin/transactions/:id/reconcile', requireAdmin, (req, res) => {
     const { is_duplicate, reconcile_note } = req.body;
     const flag = is_duplicate ? 1 : 0;
     const note = (reconcile_note || '').trim().substring(0, 255);
-    const adminUser = req.session?.adminUser?.username || 'admin';
+    const adminUser = req.session.username || 'system';
 
     db.run(
         `UPDATE transactions SET is_duplicate = ?, reconcile_note = ? WHERE id = ?`,
@@ -8918,7 +10248,7 @@ app.post('/api/admin/bank-statement/import', requireAdmin, csvUpload.single('sta
 });
 
 // GET /api/admin/bank-statement/lines — list imported lines with optional batch filter
-app.get('/api/admin/bank-statement/lines', requireAdmin, (req, res) => {
+app.get('/api/admin/bank-statement/lines', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { batch_id, unmatched_only } = req.query;
     let sql = `SELECT bsl.*, b.name AS matched_client
                FROM bank_statement_lines bsl
@@ -8972,7 +10302,7 @@ app.delete('/api/admin/bank-statement/batch/:batchId', requireAdmin, (req, res) 
 });
 
 // GET /api/admin/reconciliation/export/csv — CSV export for accountant
-app.get('/api/admin/reconciliation/export/csv', requireAdmin, (req, res) => {
+app.get('/api/admin/reconciliation/export/csv', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const query = `
         SELECT
             b.id, b.name AS client, b.event_name, b.date AS event_date, b.status, b.payment_status,
@@ -9018,7 +10348,7 @@ app.get('/api/admin/reconciliation/export/csv', requireAdmin, (req, res) => {
 
 // 5. Booking-Specific Financial Details (Admin)
 
-app.get('/api/admin/bookings/:id/financials', requireAdmin, (req, res) => {
+app.get('/api/admin/bookings/:id/financials', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const bookingId = req.params.id;
     const result = { quote: null, invoice: null };
 
@@ -9047,7 +10377,7 @@ app.get('/api/admin/bookings/:id/financials', requireAdmin, (req, res) => {
     });
 });
 
-app.delete('/api/admin/bookings/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     const id = req.params.id;
     db.get("SELECT * FROM bookings WHERE id = ?", [id], (fetchErr, booking) => {
         if (fetchErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -9285,7 +10615,7 @@ app.put('/api/admin/events/:id', requireAdmin, (req, res) => {
         });
     });
 });
-app.delete('/api/admin/events/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/events/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.get("SELECT google_calendar_event_id FROM events WHERE event_id = ?", [req.params.id], (selErr, evRow) => {
         // Null out any booking that references this event before deleting to prevent dangling FK
         db.run("UPDATE bookings SET event_id = NULL WHERE event_id = ?", [req.params.id], () => {
@@ -9404,8 +10734,8 @@ app.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
                 [bookingId, subject, textSnippet]
             );
             // Auto-update booking status upon send
-            db.run("UPDATE bookings SET status = 'Responded' WHERE id = ?", [bookingId], function(err) {
-                if (err) console.error("Error auto-updating status to Responded:", err);
+            db.run("UPDATE bookings SET status = 'PENDING' WHERE id = ?", [bookingId], function(err) {
+                if (err) console.error("Error auto-updating status to PENDING:", err);
                 res.json({ success: true, message: 'Response dispatched successfully and status updated.' });
             });
         } else {
@@ -9444,7 +10774,7 @@ app.put('/api/admin/highlights/:id', requireAdmin, (req, res) => {
         res.json({ success: true });
     });
 });
-app.delete('/api/admin/highlights/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/highlights/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM career_highlights WHERE id = ?", req.params.id, function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });
@@ -9477,7 +10807,7 @@ app.post('/api/admin/home-slider', requireAdmin, (req, res) => {
         });
 });
 
-app.delete('/api/admin/home-slider/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/home-slider/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM home_slider WHERE id = ?", [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });
@@ -9558,7 +10888,7 @@ app.post('/api/admin/gallery', requireAdmin, upload.single('file'), (req, res) =
         res.json({ success: true, id: this.lastID, imagePath });
     });
 });
-app.delete('/api/admin/gallery/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/gallery/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM gallery_images WHERE id = ?", req.params.id, function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });
@@ -9578,7 +10908,7 @@ app.get('/api/admin/campaigns', requireAdmin, (req, res) => {
         res.json(rows);
     });
 });
-app.delete('/api/admin/campaigns/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/campaigns/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM newsletter_campaigns WHERE id = ?", [req.params.id], function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (this.changes === 0) return res.status(404).json({ success: false, message: 'Campaign not found.' });
@@ -9631,7 +10961,7 @@ app.get('/api/admin/campaigns/unified', requireAdmin, (req, res) => {
     });
 });
 
-app.post('/api/admin/campaigns/bulk-delete', requireAdmin, (req, res) => {
+app.post('/api/admin/campaigns/bulk-delete', requireAdmin, requireRole(['administrator']), (req, res) => {
     const { items } = req.body;
     if (!Array.isArray(items) || !items.length) {
         return res.status(400).json({ success: false, message: 'No items specified.' });
@@ -9685,7 +11015,7 @@ app.put('/api/admin/inquiries/:id/status', requireAdmin, (req, res) => {
     });
 });
 
-app.delete('/api/admin/inquiries/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/inquiries/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM inquiries WHERE inquiry_id = ?", req.params.id, function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });
@@ -9785,7 +11115,16 @@ app.get('/api/public/manager', (req, res) => {
 app.put('/api/admin/manager', requireAdmin, (req, res) => {
     const { name, cell_number, whatsapp_number, email } = req.body;
     const adminId = req.session.adminId;
-    
+
+    // Server-side validation (D3) — never trust the client. Phone *format* stays client-side (intl-tel-input).
+    if (!name || !String(name).trim() || !email || !String(email).trim() ||
+        !cell_number || !String(cell_number).trim() || !whatsapp_number || !String(whatsapp_number).trim()) {
+        return res.status(400).json({ success: false, message: 'Name, email, cell number, and WhatsApp number are all required.' });
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+        return res.status(400).json({ success: false, message: 'Enter a valid manager email address.' });
+    }
+
     db.get("SELECT manager_id FROM manager_details ORDER BY manager_id ASC LIMIT 1", [], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         
@@ -9808,7 +11147,7 @@ app.put('/api/admin/manager', requireAdmin, (req, res) => {
     });
 });
 
-app.delete('/api/admin/manager', requireAdmin, (req, res) => {
+app.delete('/api/admin/manager', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM manager_details", [], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, message: 'Manager details cleared successfully.' });
@@ -9903,7 +11242,7 @@ app.post('/api/admin/social_links', requireAdmin, (req, res) => {
     }
 });
 
-app.delete('/api/admin/social_links/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/social_links/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM social_links WHERE id = ?", [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, message: 'Social link deleted successfully.' });
@@ -9919,6 +11258,16 @@ const ALLOWED_ABOUT_TAGS = /<(script|style|iframe|object|embed|form|input|button
 const STRIP_ON_ATTRS = /\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi;
 const STRIP_JS_HREF = /href\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi;
 
+function unescapeHtml(str) {
+    if (!str || typeof str !== 'string') return '';
+    return str
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#x27;/g, "'");
+}
+
 function sanitizeAboutHtml(html) {
     if (!html || typeof html !== 'string') return '';
     return html
@@ -9930,6 +11279,11 @@ function sanitizeAboutHtml(html) {
 app.get('/api/public/about-me', (req, res) => {
     db.get("SELECT image_path, paragraph1, paragraph2, paragraph3 FROM about_me WHERE id = 1", (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
+        if (row) {
+            row.paragraph1 = unescapeHtml(row.paragraph1);
+            row.paragraph2 = unescapeHtml(row.paragraph2);
+            row.paragraph3 = unescapeHtml(row.paragraph3);
+        }
         res.json(row || { image_path: 'images/image-slider-1.jpg', paragraph1: '', paragraph2: '', paragraph3: '' });
     });
 });
@@ -9937,6 +11291,11 @@ app.get('/api/public/about-me', (req, res) => {
 app.get('/api/admin/about-me', requireAdmin, (req, res) => {
     db.get("SELECT * FROM about_me WHERE id = 1", (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
+        if (row) {
+            row.paragraph1 = unescapeHtml(row.paragraph1);
+            row.paragraph2 = unescapeHtml(row.paragraph2);
+            row.paragraph3 = unescapeHtml(row.paragraph3);
+        }
         res.json(row || null);
     });
 });
@@ -10017,7 +11376,7 @@ app.post('/api/admin/social_embeds', requireAdmin, (req, res) => {
     }
 });
 
-app.delete('/api/admin/social_embeds/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/social_embeds/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM social_embeds WHERE id = ?", [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, message: 'Social embed deleted successfully.' });
@@ -10025,7 +11384,7 @@ app.delete('/api/admin/social_embeds/:id', requireAdmin, (req, res) => {
 });
 
 // --- GDPR / POPIA Data Deletion (Anonymization) ---
-app.post('/api/admin/gdpr/delete', requireAdmin, async (req, res) => {
+app.post('/api/admin/gdpr/delete', requireAdmin, requireRole(['administrator']), async (req, res) => {
     const { email } = req.body;
     if (!email) return res.status(400).json({ success: false, message: 'Email address is required for deletion.' });
 
@@ -10102,7 +11461,7 @@ app.post('/api/admin/gdpr/delete', requireAdmin, async (req, res) => {
  * This tool scans existing flat 'bookings' records and creates unique 'clients' and 'venues' 
  * entries, then updates the booking record with foreign key references.
  */
-app.post('/api/admin/system/migrate-legacy-data', requireAdmin, async (req, res) => {
+app.post('/api/admin/system/migrate-legacy-data', requireAdmin, requireRole(['administrator']), async (req, res) => {
     db.all("SELECT * FROM bookings", [], async (err, bookings) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         
@@ -10397,6 +11756,69 @@ setTimeout(() => {
     }, 24 * 60 * 60 * 1000);
 }, 20000);
 
+// S3: Stalled-booking admin alert — ACCEPTED with no invoice after 3 days
+async function runStalledBookingAdminAlertJob() {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 3);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+
+    const stalled = await new Promise(resolve =>
+        db.all(
+            `SELECT b.id, b.name, b.email, b.event_name, b.event_type, b.date, b.accepted_at
+             FROM bookings b
+             LEFT JOIN invoices i ON i.booking_id = b.id AND UPPER(i.status) != 'VOID'
+             WHERE b.status = 'ACCEPTED'
+               AND DATE(b.accepted_at) <= ?
+               AND i.id IS NULL`,
+            [cutoffStr], (err, rows) => resolve(err ? [] : (rows || []))
+        )
+    );
+
+    if (stalled.length === 0) return;
+
+    const adminEmail = await getNotificationEmail();
+    if (!adminEmail) return;
+
+    const rows = stalled.map(b =>
+        `<tr><td style="padding:6px 10px;color:#ccc;">#${b.id}</td><td style="padding:6px 10px;color:#ccc;">${b.name}</td>` +
+        `<td style="padding:6px 10px;color:#ccc;">${b.event_name || b.event_type}</td>` +
+        `<td style="padding:6px 10px;color:#D4AF37;">${b.date}</td>` +
+        `<td style="padding:6px 10px;color:#aaa;">${b.accepted_at ? b.accepted_at.slice(0,10) : 'N/A'}</td></tr>`
+    ).join('');
+
+    const body = `
+        <p style="color:#ccc;">The following bookings have been in <strong style="color:#D4AF37;">ACCEPTED</strong> status for more than 3 days with no invoice generated:</p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+            <thead><tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
+                <th style="padding:6px 10px;text-align:left;color:#888;">Booking</th>
+                <th style="padding:6px 10px;text-align:left;color:#888;">Client</th>
+                <th style="padding:6px 10px;text-align:left;color:#888;">Event</th>
+                <th style="padding:6px 10px;text-align:left;color:#888;">Event Date</th>
+                <th style="padding:6px 10px;text-align:left;color:#888;">Accepted</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+        <p style="margin-top:16px;color:#aaa;font-size:12px;">Log in to the admin portal to generate invoices for these bookings.</p>
+    `;
+
+    await sendEmail({
+        to: adminEmail,
+        subject: `Action Required: ${stalled.length} ACCEPTED booking(s) missing invoice`,
+        htmlContent: body,
+        titleOverride: 'Stalled Bookings Alert',
+        trigger_event: 'Admin: Stalled Booking Alert'
+    }).catch(e => console.error('[Stalled Booking Alert] Email failed:', e.message));
+
+    console.log(`[Stalled Booking Alert] Notified admin of ${stalled.length} stalled booking(s).`);
+}
+
+setTimeout(() => {
+    runStalledBookingAdminAlertJob().catch(e => console.error('[Stalled Booking Alert] Startup run failed:', e.message));
+    setInterval(() => {
+        runStalledBookingAdminAlertJob().catch(e => console.error('[Stalled Booking Alert] Scheduled run failed:', e.message));
+    }, 24 * 60 * 60 * 1000);
+}, 30000);
+
 // S4-1: DEPOSIT_PAID approaching-event reminder job
 // Fires for DEPOSIT_PAID bookings whose event is within 14 days; deduplicates per booking using deposit_balance_reminded_at.
 async function runDepositBalanceReminderJob() {
@@ -10487,7 +11909,7 @@ async function runInvoicePreDueReminderJob() {
                     b.id AS booking_id, b.name, b.email, b.event_name, b.event_type, b.date
              FROM invoices i
              JOIN bookings b ON b.id = i.booking_id
-             WHERE i.status = 'SENT'
+             WHERE UPPER(i.status) = 'SENT'
                AND i.due_date = ?
                AND i.pre_due_reminded_at IS NULL
                AND b.status = 'CONFIRMED'
@@ -10528,7 +11950,7 @@ async function runOverdueInvoiceSweepJob() {
                     b.id AS booking_id, b.name, b.email, b.event_name, b.event_type, b.date
              FROM invoices i
              JOIN bookings b ON b.id = i.booking_id
-             WHERE i.status = 'SENT'
+             WHERE UPPER(i.status) = 'SENT'
                AND i.due_date IS NOT NULL
                AND i.due_date < DATE('now')
                AND i.overdue_reminded_at IS NULL
@@ -10599,6 +12021,132 @@ setTimeout(() => {
         runPostEventFollowupJob().catch(err => console.error('[Post-Event Followup Job] Scheduled run failed:', err.message));
     }, 24 * 60 * 60 * 1000);
 }, 35000);
+
+// P2-10: Daily ledger reconciliation — compare bookings.amount_paid vs SUM(verified transactions).
+async function runLedgerReconciliationJob() {
+    const discrepancies = await new Promise(resolve => {
+        db.all(
+            `SELECT b.id, b.name, b.event_name, b.amount_paid AS recorded,
+                    COALESCE(SUM(t.amount), 0) AS actual
+             FROM bookings b
+             LEFT JOIN transactions t ON t.booking_id = b.id
+               AND t.is_duplicate = 0
+               AND (t.status = 'completed' OR t.status IS NULL)
+             WHERE b.payment_status NOT IN ('UNPAID','CANCELLED')
+             GROUP BY b.id
+             HAVING ABS(b.amount_paid - COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)) > 1`,
+            [],
+            (err, rows) => resolve(err ? [] : (rows || []))
+        );
+    });
+
+    if (discrepancies.length === 0) return;
+
+    console.warn(`[Ledger Reconciliation] ${discrepancies.length} booking(s) have amount_paid vs transaction-sum discrepancy.`);
+
+    const adminEmail = await getNotificationEmail();
+    if (!adminEmail) return;
+
+    const rows = discrepancies.map(d =>
+        `<tr>
+          <td style="padding:4px 8px; border-bottom:1px solid #333;">#${d.id}</td>
+          <td style="padding:4px 8px; border-bottom:1px solid #333;">${d.name || ''}</td>
+          <td style="padding:4px 8px; border-bottom:1px solid #333;">${d.event_name || ''}</td>
+          <td style="padding:4px 8px; border-bottom:1px solid #333; color:#D4AF37;">R ${parseFloat(d.recorded).toFixed(2)}</td>
+          <td style="padding:4px 8px; border-bottom:1px solid #333; color:#ff4d4d;">R ${parseFloat(d.actual).toFixed(2)}</td>
+          <td style="padding:4px 8px; border-bottom:1px solid #333; color:#ff4d4d;">R ${(parseFloat(d.recorded) - parseFloat(d.actual)).toFixed(2)}</td>
+        </tr>`
+    ).join('');
+
+    await sendEmail({
+        to: adminEmail,
+        subject: `[Ledger Alert] ${discrepancies.length} booking(s) with payment discrepancy`,
+        htmlContent: `<div style="font-family:sans-serif;color:#ccc;background:#1a1a1a;padding:20px;">
+            <h2 style="color:#D4AF37;">Payment Ledger Discrepancy Report</h2>
+            <p>The following bookings have a mismatch between <strong>bookings.amount_paid</strong> and the
+            <strong>sum of completed non-duplicate transactions</strong>. Please investigate and correct manually.</p>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead><tr style="color:#D4AF37;">
+                <th style="padding:4px 8px;text-align:left;">Booking</th>
+                <th style="padding:4px 8px;text-align:left;">Client</th>
+                <th style="padding:4px 8px;text-align:left;">Event</th>
+                <th style="padding:4px 8px;text-align:left;">Recorded</th>
+                <th style="padding:4px 8px;text-align:left;">Tx Sum</th>
+                <th style="padding:4px 8px;text-align:left;">Drift</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+        </div>`,
+        titleOverride: 'Ledger Discrepancy Alert',
+        trigger_event: 'Admin: Ledger Reconciliation'
+    });
+}
+
+setTimeout(() => {
+    runLedgerReconciliationJob().catch(err => console.error('[Ledger Reconciliation] Startup run failed:', err.message));
+    setInterval(() => {
+        runLedgerReconciliationJob().catch(err => console.error('[Ledger Reconciliation] Scheduled run failed:', err.message));
+    }, 24 * 60 * 60 * 1000);
+}, 55000);
+
+// P3-14: Detect transactions stuck in pending PayFast status for >1 hour and alert admin.
+async function runPayFastPendingTimeoutJob() {
+    const stuckTx = await new Promise(resolve => {
+        db.all(
+            `SELECT t.id, t.booking_id, t.amount, t.created_at, b.name, b.email, b.event_name
+             FROM transactions t
+             JOIN bookings b ON b.id = t.booking_id
+             WHERE t.source = 'payfast'
+               AND (t.pf_status = 'PENDING' OR (t.status = 'pending' AND t.pf_status IS NULL))
+               AND t.created_at <= datetime('now', '-1 hour')`,
+            [],
+            (err, rows) => resolve(err ? [] : (rows || []))
+        );
+    });
+
+    if (stuckTx.length === 0) return;
+
+    console.warn(`[PayFast Pending] ${stuckTx.length} transaction(s) stuck in PENDING for >1 hour.`);
+    const adminEmail = await getNotificationEmail();
+    if (!adminEmail) return;
+
+    const rowsHtml = stuckTx.map(t =>
+        `<tr>
+          <td style="padding:4px 8px;border-bottom:1px solid #333;">#${t.booking_id}</td>
+          <td style="padding:4px 8px;border-bottom:1px solid #333;">${t.name || ''}</td>
+          <td style="padding:4px 8px;border-bottom:1px solid #333;">R${parseFloat(t.amount).toFixed(2)}</td>
+          <td style="padding:4px 8px;border-bottom:1px solid #333;">${t.created_at}</td>
+        </tr>`
+    ).join('');
+
+    await sendEmail({
+        to: adminEmail,
+        subject: `[PayFast Alert] ${stuckTx.length} transaction(s) stuck in PENDING for >1 hour`,
+        htmlContent: `<div style="font-family:sans-serif;color:#ccc;background:#1a1a1a;padding:20px;">
+            <h2 style="color:#D4AF37;">PayFast Pending Timeout Alert</h2>
+            <p>The following PayFast transactions have been in <strong>PENDING</strong> status for more than 1 hour.
+            PayFast may have not sent an ITN. Please check the PayFast dashboard and confirm or void manually.</p>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead><tr style="color:#D4AF37;">
+                <th style="padding:4px 8px;text-align:left;">Booking</th>
+                <th style="padding:4px 8px;text-align:left;">Client</th>
+                <th style="padding:4px 8px;text-align:left;">Amount</th>
+                <th style="padding:4px 8px;text-align:left;">Started</th>
+              </tr></thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+        </div>`,
+        titleOverride: 'PayFast Pending Timeout',
+        trigger_event: 'Admin: PayFast Pending Timeout'
+    });
+}
+
+setTimeout(() => {
+    runPayFastPendingTimeoutJob().catch(e => console.error('[PayFast Pending Timeout] Startup run failed:', e.message));
+    setInterval(() => {
+        runPayFastPendingTimeoutJob().catch(e => console.error('[PayFast Pending Timeout] Scheduled run failed:', e.message));
+    }, 60 * 60 * 1000); // check hourly
+}, 65000);
 
 // C9: Prevent sandbox PayFast config from silently disabling payment validation in production
 if (process.env.NODE_ENV === 'production' && (process.env.PAYFAST_URL || '').includes('sandbox')) {

@@ -1,5 +1,5 @@
 /*@import 'https://fonts.googleapis.com/css?family=Open+Sans:300,400,700,800|Roboto+Slab:100,300,400,700';*/
-@import url("https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Raleway:ital,wght@0,100..900;1,100..900&family=Oswald:wght@200..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&family=Farsan&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Raleway:ital,wght@0,100..900;1,100..900&family=Oswald:wght@200..700&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Merriweather:ital,wght@0,300;0,400;0,700;0,900;1,300;1,400;1,700;1,900&family=Farsan&family=Outfit:wght@100..900&family=Inter:wght@100..900&family=Poppins:ital,wght@0,100..900;1,100..900&display=swap");
 @import url("https://fonts.googleapis.com/css?family=Amatic+SC:400,700|Bad+Script|Gloria+Hallelujah|Indie+Flower|Open+Sans+Condensed:300,300i,700|Poiret+One");
 
 :root {
@@ -698,6 +698,17 @@ footer .navbar-nav > li a {
   font-size: .95rem;
   font-weight: 400;
   color: var(--y-light, #F4E4B5);
+}
+
+.about-text-card a {
+  color: #D4AF38 !important;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.about-text-card a:hover {
+  color: #fff !important;
+  text-decoration: underline;
 }
 
 @media (min-width: 992px) {

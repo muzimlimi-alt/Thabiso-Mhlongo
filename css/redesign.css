@@ -1,4 +1,4 @@
-﻿/* =====================================================================
+/* =====================================================================
    THABISO MHLONGO — REDESIGN v3.0
    Editorial-luxe, light cream base + warm gold accents.
    Design language inspired by O'luhle Scents:
@@ -2721,8 +2721,8 @@ header .navbar {
   border:1px solid transparent;
   transition:all .15s;
 }
-.tm-cal-cell--past{ color:#333; cursor:default; }
-.tm-cal-cell--held{ background:rgba(255,255,255,.03); color:#3a3a3a; cursor:not-allowed; }
+.tm-cal-cell--past{ color:#5c5c5c; cursor:default; }
+.tm-cal-cell--held{ background:rgba(255,255,255,.03); color:#5c5c5c; cursor:not-allowed; }
 .tm-cal-cell--booked{
   background:rgba(212,175,55,.08);
   color:var(--y-base);
@@ -2771,7 +2771,7 @@ header .navbar {
 .tm-cal-dot--booked{ background:var(--y-base); }
 .tm-cal-dot--held{ background:#333; border:1px solid #555; }
 .tm-cal-dot--nonworking{ background:#2a2a2a; border:1px solid #444; }
-.tm-cal-cell--nonworking{ color:#383838; cursor:not-allowed; background:rgba(255,255,255,0.01); }
+.tm-cal-cell--nonworking{ color:#5c5c5c; cursor:not-allowed; background:rgba(255,255,255,0.01); }
 .tm-cal-loading{ text-align:center; padding:32px 0; color:var(--text-muted); font-size:13px; }
 .book-step-dot .bk-step-num i{ font-size:.78rem; }
 
@@ -3094,7 +3094,8 @@ header .navbar {
 }
 
 /* -- Close button -- */
-.tm-modal .modal-header .close {
+.tm-modal .modal-header .close,
+#bookingModal .close {
   color: var(--text-primary) !important;
   opacity: .55;
   font-size: 28px;
@@ -3107,8 +3108,15 @@ header .navbar {
   flex-shrink: 0;
   line-height: 1;
   transition: all var(--t) var(--ease);
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
-.tm-modal .modal-header .close:hover {
+.tm-modal .modal-header .close:hover,
+#bookingModal .close:hover {
   opacity: 1;
   color: var(--y-base) !important;
   transform: rotate(90deg);

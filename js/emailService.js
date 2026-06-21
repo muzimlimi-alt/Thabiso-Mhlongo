@@ -86,7 +86,8 @@ function extractInlineImages(htmlContent) {
 }
 
 /**
- * Unified async function to send emails with professional branding and logging.
+ * Unified async function to send emails with professional branding and logging/**
+ * Unified public email queue function. Instead of sending directly, it inserts the details into the notifications queue.
  */
 async function sendEmail({ 
     to, 
@@ -95,6 +96,61 @@ async function sendEmail({
     plainTextAlternative = null, 
     attachments = [], 
     fromName = "Thabiso Mhlongo Management", 
+    replyTo = null,
+    skipBrandAttachments = false,
+    titleOverride = null,
+    trigger_event = 'System Communication',
+    related_entity = null,
+    related_id = null
+}) {
+    try {
+        let attachmentPathsString = null;
+        if (attachments && attachments.length > 0) {
+            const paths = attachments.map(a => a.path || a.content).filter(p => typeof p === 'string');
+            if (paths.length > 0) {
+                attachmentPathsString = JSON.stringify(paths);
+            }
+        }
+
+        const emailDetails = {
+            htmlContent,
+            plainTextAlternative,
+            fromName,
+            replyTo,
+            skipBrandAttachments,
+            titleOverride,
+            trigger_event
+        };
+
+        await new Promise((resolve, reject) => {
+            db.run(
+                `INSERT INTO notifications (type, channel, status, recipient_email, recipient_name, subject, body, attachment_paths, related_entity, related_id)
+                 VALUES ('email', 'email', 'pending', ?, ?, ?, ?, ?, ?, ?)`,
+                [to, fromName, subject, JSON.stringify(emailDetails), attachmentPathsString, related_entity || null, related_id || null],
+                function(err) {
+                    if (err) reject(err);
+                    else resolve(this.lastID);
+                }
+            );
+        });
+
+        return { success: true, message: 'Email queued successfully.' };
+    } catch (error) {
+        console.error('❌ Failed to queue email:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Internal direct email sender that connects to the SMTP transporter.
+ */
+async function sendEmailDirectly({
+    to,
+    subject,
+    htmlContent,
+    plainTextAlternative = null,
+    attachments = [],
+    fromName = "Thabiso Mhlongo Management",
     replyTo = null,
     skipBrandAttachments = false,
     titleOverride = null,
@@ -124,48 +180,32 @@ async function sendEmail({
         }
     }
 
-    // 2. New Branded Logic
+    // 2. Branded Logic
     try {
-        // Extract inline base64 images from htmlContent
         const processedContent = extractInlineImages(htmlContent);
         const emailBody = processedContent.html;
         const inlineAttachments = processedContent.attachments;
 
-        // Fetch Unsubscribe Token if applicable
         let unsubscribeUrl = null;
-        console.log(`[DEBUG] Checking unsubscribe token for ${to}...`);
         const subRow = await new Promise((resolve) => {
-            db.get("SELECT unsubscribe_token FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)", [to], (err, row) => {
-                console.log(`[DEBUG] Token check error:`, err);
-                resolve(row);
-            });
+            db.get("SELECT unsubscribe_token FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)", [to], (err, row) => resolve(row));
         });
-        console.log(`[DEBUG] subRow:`, subRow);
         
         if (subRow && subRow.unsubscribe_token) {
             const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
             unsubscribeUrl = `${baseUrl}/unsubscribe.html?token=${subRow.unsubscribe_token}&email=${encodeURIComponent(to)}`;
         }
 
-        // Fetch social links for footer
         const socialLinks = await new Promise((resolve) => {
-            db.all(
-                "SELECT platform_name, platform_url FROM social_links WHERE is_active = 1 ORDER BY display_order ASC",
-                [],
-                (err, rows) => resolve(err ? [] : (rows || []))
-            );
+            db.all("SELECT platform_name, platform_url FROM social_links WHERE is_active = 1 ORDER BY display_order ASC", [], (err, rows) => resolve(err ? [] : (rows || [])));
         });
 
-        // Prepare brand assets
         const brandAttachments = skipBrandAttachments ? [] : emailAssets.getBrandAttachments();
         const mergedAttachments = [...brandAttachments, ...inlineAttachments, ...attachments];
-
-        // Format HTML with brand wrapper (pass dynamic unsubscribe link and social links)
+        
         const hasBanner = brandAttachments.some(a => a.cid === 'thabisoBanner');
         const bannerSrc = hasBanner ? 'cid:thabisoBanner' : (process.env.EMAIL_BANNER || null);
         const finalHtml = emailTemplates.createEmailWrapper(emailBody, titleOverride || subject, unsubscribeUrl, bannerSrc, socialLinks);
-        
-        // Generate plain-text if not provided
         const finalPlainText = plainTextAlternative || htmlToPlainText(emailBody);
 
         const mailOptions = {
@@ -179,37 +219,31 @@ async function sendEmail({
 
         if (replyTo) mailOptions.replyTo = replyTo;
 
-        console.log(`[DEBUG] Sending email to ${to}...`);
-        
-        // --- ASYNC LOGGING (Don't wait for DB insert to start SMTP) ---
         let logId = null;
-        db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status) VALUES (?, ?, ?, ?)", 
-            [to, subject, trigger_event, 'pending'], function(err) {
-                if (!err) logId = this.lastID;
-            }
-        );
+        await new Promise((resVal) => {
+            db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status) VALUES (?, ?, ?, 'pending')", 
+                [to, subject, trigger_event], function(err) {
+                    if (!err) logId = this.lastID;
+                    resVal();
+                }
+            );
+        });
 
         const info = await transporter.sendMail(mailOptions);
-        console.log(`[DEBUG] Email sent:`, info.messageId);
         
-        // Update Log to Success
         if (logId) {
             db.run("UPDATE email_logs SET status = 'success' WHERE id = ?", [logId]);
         } else {
-            // Fallback if logId wasn't ready (race condition)
-            db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status) VALUES (?, ?, ?, ?)", 
-                [to, subject, trigger_event, 'success']);
+            db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status) VALUES (?, ?, ?, 'success')", 
+                [to, subject, trigger_event]);
         }
 
         return { success: true, messageId: info.messageId };
     } catch (error) {
         console.error('❌ Premium Email Service Failed:', error);
-        
-        // Log Failure to DB
-        db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status, error_message) VALUES (?, ?, ?, ?, ?)", 
-            [to, subject, trigger_event, 'failed', error.message]
+        db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status, error_message) VALUES (?, ?, ?, 'failed', ?)", 
+            [to, subject, trigger_event, error.message]
         );
-
         return { success: false, error: error.message };
     }
 }
@@ -217,6 +251,7 @@ async function sendEmail({
 module.exports = {
     transporter,
     sendEmail,
+    sendEmailDirectly,
     htmlToPlainText,
     extractInlineImages
 };

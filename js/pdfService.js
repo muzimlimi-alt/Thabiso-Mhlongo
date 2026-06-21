@@ -13,10 +13,15 @@ const GREY       = '#666666';
 const LIGHT_GREY = '#F5F5F5';
 const MID_GREY   = '#DDDDDD';
 const WHITE      = '#FFFFFF';
+const LIGHT_TEXT = '#F0EEE6';
+
+// Wordmark fonts — Cormorant Garamond, matching the rest of the brand
+// Falls back to PDFKit's built-in Times-Roman/Times-Italic if TTF files are missing.
+const WORDMARK_FONT_REGULAR = path.join(__dirname, '..', 'fonts', 'CormorantGaramond-Regular.ttf');
+const WORDMARK_FONT_ITALIC  = path.join(__dirname, '..', 'fonts', 'CormorantGaramond-Italic.ttf');
 
 class PDFService {
     constructor() {
-        this.logoPath = path.join(__dirname, '..', 'images', 'logo4.png');
         this.companyInfo = {
             name:    process.env.COMPANY_NAME    || "Thabiso Mhlongo Management",
             address: process.env.COMPANY_ADDRESS || "Johannesburg, South Africa",
@@ -29,28 +34,24 @@ class PDFService {
         // Gold bar
         doc.rect(0, 0, 612, 100).fillColor(GOLD).fill();
 
-        // White backing behind logo so it's visible on any gold shade
-        doc.roundedRect(20, 8, 148, 84, 3).fillColor(WHITE).fill();
+        // Dark/obsidian backing behind the wordmark. The brand mark is a light
+        // "Thabiso" + gold italic "Mhlongo" lockup designed for dark surfaces.
+        // A dark card keeps it legible and echoes the dark company band below.
+        doc.roundedRect(20, 20, 190, 60, 3).fillColor(DARK).fill();
+        doc.roundedRect(20, 20, 190, 60, 3).lineWidth(0.75).strokeColor(GOLD).stroke();
 
-        const logo = this.logoSource || this.logoPath;
-        try {
-            if (logo && (typeof logo !== 'string' || fs.existsSync(logo))) {
-                doc.image(logo, 22, 10, { width: 144, height: 80, fit: [144, 80] });
-            }
-        } catch(e) {
-            console.error("Error drawing logo:", e);
-        }
+        this._drawWordmark(doc, 20, 20, 190, 60);
 
         // Document type — right side of gold bar
         const label = isTaxInvoice ? 'TAX INVOICE' : type.toUpperCase();
         doc.fillColor(DARK).font('Helvetica-Bold').fontSize(22)
-           .text(label, 180, 26, { width: 410, align: 'right' });
+           .text(label, 220, 26, { width: 370, align: 'right' });
 
         doc.font('Helvetica').fontSize(9).fillColor(DARK)
-           .text(`# ${number}`, 180, 54, { width: 410, align: 'right' });
+           .text(`# ${number}`, 220, 54, { width: 370, align: 'right' });
 
         if (isTaxInvoice && OUR_VAT_REG) {
-            doc.fontSize(8).text(`VAT Reg: ${OUR_VAT_REG}`, 180, 67, { width: 410, align: 'right' });
+            doc.fontSize(8).text(`VAT Reg: ${OUR_VAT_REG}`, 220, 67, { width: 370, align: 'right' });
         }
 
         // Dark company sub-band
@@ -64,6 +65,56 @@ class PDFService {
                `${this.companyInfo.email}  ·  ${this.companyInfo.website}  ·  ${this.companyInfo.address}`,
                28, 120, { width: 556 }
            );
+    }
+
+    // Draws "Thabiso" (regular) + "Mhlongo" (italic, gold) as native PDF text,
+    // sized to fill the card and baseline-aligned between the two weights.
+    // No image asset to upload, fetch, or keep in sync — just text + fonts.
+    _drawWordmark(doc, cardX, cardY, cardW, cardH) {
+        const haveCustomFont = fs.existsSync(WORDMARK_FONT_REGULAR) && fs.existsSync(WORDMARK_FONT_ITALIC);
+        const regularFont = haveCustomFont ? WORDMARK_FONT_REGULAR : 'Times-Roman';
+        const italicFont  = haveCustomFont ? WORDMARK_FONT_ITALIC  : 'Times-Italic';
+
+        const firstName = 'Thabiso';
+        const surname   = 'Mhlongo';
+        const gap       = 6;
+        const maxWidth  = cardW - 16; // 8pt padding each side
+
+        // Largest firstName size (surname scaled at 0.6x) that fits the card width
+        let size1 = 30, size2, w1, w2;
+        for (; size1 >= 10; size1--) {
+            size2 = Math.round(size1 * 0.6);
+            doc.font(regularFont).fontSize(size1);
+            w1 = doc.widthOfString(firstName);
+            doc.font(italicFont).fontSize(size2);
+            w2 = doc.widthOfString(surname);
+            if (w1 + gap + w2 <= maxWidth) break;
+        }
+
+        const totalW  = w1 + gap + w2;
+        const startX  = cardX + (cardW - totalW) / 2;
+        const centerY = cardY + cardH / 2;
+
+        // Baseline-align the two words using real font ascender/descender metrics
+        // rather than just centering each text box (which looks uneven at mixed sizes).
+        doc.font(regularFont).fontSize(size1);
+        const f1 = doc._font;
+        const upm1 = (f1.font && f1.font.unitsPerEm) || 1000;
+        const asc1 = (f1.ascender / upm1) * size1;
+        const desc1 = (f1.descender / upm1) * size1; // negative
+
+        doc.font(italicFont).fontSize(size2);
+        const f2 = doc._font;
+        const upm2 = (f2.font && f2.font.unitsPerEm) || 1000;
+        const asc2 = (f2.ascender / upm2) * size2;
+
+        const baselineY = centerY + (asc1 + desc1) / 2;
+
+        doc.font(regularFont).fontSize(size1).fillColor(LIGHT_TEXT)
+           .text(firstName, startX, baselineY - asc1, { lineBreak: false });
+
+        doc.font(italicFont).fontSize(size2).fillColor(GOLD)
+           .text(surname, startX + w1 + gap, baselineY - asc2, { lineBreak: false });
     }
 
     // Returns the Y coordinate of the bottom of the cards
@@ -186,22 +237,7 @@ class PDFService {
         return `${m}m`;
     }
 
-    async generateDocument(type, booking, lineItems, outputPath) {
-        if (process.env.DOC_LOGO) {
-            try {
-                const res = await fetch(process.env.DOC_LOGO);
-                if (res.ok) {
-                    const arrayBuffer = await res.arrayBuffer();
-                    this.logoSource = Buffer.from(arrayBuffer);
-                }
-            } catch (e) {
-                console.error("Failed to fetch custom logo:", e);
-                this.logoSource = null;
-            }
-        } else {
-            this.logoSource = null;
-        }
-
+    async generateDocument(type, booking, lineItems, outputPath, schedules = []) {
         return new Promise((resolve, reject) => {
             const doc = new PDFDocument({ margin: 28 });
             const stream = fs.createWriteStream(outputPath);
@@ -421,14 +457,29 @@ class PDFService {
             if (type === 'Invoice') {
                 doc.rect(28, currentY, 556, 15).fillColor(DARK).fill();
                 doc.fillColor(GOLD).font('Helvetica-Bold').fontSize(7)
-                   .text('PAYMENT TERMS', 38, currentY + 4, { characterSpacing: 1.2 });
+                   .text('PAYMENT SCHEDULE', 38, currentY + 4, { characterSpacing: 1.2 });
                 currentY += 15;
 
-                doc.rect(28, currentY, 556, 28).fillColor(LIGHT_GREY).fill();
-                doc.fillColor(GREY).font('Helvetica').fontSize(8)
-                   .text('Please use your Invoice Number as reference when making payment.', 38, currentY + 5)
-                   .text('Payments can be made securely via the portal link sent to your email.', 38, currentY + 16);
-                currentY += 36;
+                if (schedules && schedules.length > 0) {
+                    const rowH = 18;
+                    schedules.forEach((s, i) => {
+                        const rowY = currentY + i * rowH;
+                        doc.rect(28, rowY, 556, rowH).fillColor(i % 2 === 0 ? LIGHT_GREY : WHITE).fill();
+                        doc.font('Helvetica').fontSize(8).fillColor(GREY)
+                           .text(s.description, 38, rowY + 5, { width: 220 });
+                        doc.font('Helvetica').fontSize(8).fillColor(GREY)
+                           .text(s.due_date, 268, rowY + 5, { width: 130 });
+                        doc.font('Helvetica-Bold').fontSize(8).fillColor(GOLD)
+                           .text(`R ${parseFloat(s.expected_amount).toFixed(2)}`, 408, rowY + 5, { width: 160, align: 'right' });
+                    });
+                    currentY += schedules.length * rowH + 6;
+                } else {
+                    doc.rect(28, currentY, 556, 28).fillColor(LIGHT_GREY).fill();
+                    doc.fillColor(GREY).font('Helvetica').fontSize(8)
+                       .text('Please use your Invoice Number as reference when making payment.', 38, currentY + 5)
+                       .text('Payments can be made securely via the portal link sent to your email.', 38, currentY + 16);
+                    currentY += 36;
+                }
             }
 
             if (currentY > 710) { doc.addPage(); currentY = 50; }

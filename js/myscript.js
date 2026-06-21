@@ -1955,11 +1955,62 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
 
-        $('#bookNext2').on('click', function() {
-            if (validateStep(2)) {
-                updateProgress(3);
-                setTimeout(renderTimeSlots, 400);
+        $('#bookNext2').on('click', async function() {
+            var $btn = $(this);
+            if ($btn.prop('disabled')) return;
+            
+            if (!validateStep(2)) return;
+
+            var email = $('#bookEmail').val().trim();
+            var chosenDate = $('#bookDate').val();
+            if (!chosenDate || !email) return;
+
+            $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Checking...');
+            try {
+                var dupRes = await fetch('/api/public/bookings/lookup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: email })
+                });
+                var dupData = await dupRes.json();
+                var clash = null;
+                if (dupData.success && dupData.bookings) {
+                    clash = dupData.bookings.find(function(b) { 
+                        var bStatus = (b.status || '').toUpperCase();
+                        return b.date === chosenDate && bStatus !== 'CANCELLED' && bStatus !== 'EXPIRED'; 
+                    });
+                }
+                
+                if (clash) {
+                    setFieldState('bookEmail', false, 'You already have an active booking on this date (#' + clash.id + '). Only one same-day booking is allowed.');
+                    $('#bookingFormError')
+                        .html('<i class="fa-solid fa-circle-xmark" style="margin-right:6px;color:#ef5350;"></i>' +
+                              'Duplicate booking detected: You already have an active booking on this date (<strong>#' + clash.id + '</strong>' +
+                              (clash.event_name ? ' — ' + clash.event_name : '') + '). ' +
+                              'Please choose another date or <a href="#" id="trackDuplicateBtn2" style="color:var(--y-base);text-decoration:underline;">track booking #' + clash.id + ' &rarr;</a>')
+                        .css('background', 'rgba(239,83,80,0.08)')
+                        .show();
+                    
+                    $('#trackDuplicateBtn2').off('click').on('click', function(e) {
+                        e.preventDefault();
+                        $('#bookingModal').modal('hide');
+                        setTimeout(function() {
+                            $('#trackId').val(clash.id);
+                            $('#trackEmail').val(email);
+                            $('#trackingModal').modal('show');
+                        }, 400);
+                    });
+                    
+                    $btn.prop('disabled', false).html('Venue Details <i class="fa-solid fa-arrow-right"></i>');
+                    return;
+                }
+            } catch(e) {
+                // network error, don't block
             }
+            $btn.prop('disabled', false).html('Venue Details <i class="fa-solid fa-arrow-right"></i>');
+
+            updateProgress(3);
+            setTimeout(renderTimeSlots, 400);
         });
         $('#bookNext3').on('click', function() { if (validateStep(3)) { buildReview(); updateProgress(4); } });
         $('#bookBack2').on('click', function() { updateProgress(1); });
@@ -2020,7 +2071,6 @@ $bookingForm.on('blur', '#bookName', function() {
             }
             setFieldState('bookEmail', true);
 
-            // Non-blocking duplicate hint: if a date is already chosen, soft-warn about an existing booking on that date
             var chosenDate = $('#bookDate').val();
             if (!chosenDate) return;
             $('#bookingFormError').hide().css('background', ''); // clear any previous hint
@@ -2032,15 +2082,29 @@ $bookingForm.on('blur', '#bookName', function() {
                 });
                 var dupData = await dupRes.json();
                 if (dupData.success && dupData.bookings) {
-                    var clash = dupData.bookings.find(function(b) { return b.date === chosenDate; });
+                    var clash = dupData.bookings.find(function(b) { 
+                        var bStatus = (b.status || '').toUpperCase();
+                        return b.date === chosenDate && bStatus !== 'CANCELLED' && bStatus !== 'EXPIRED'; 
+                    });
                     if (clash) {
+                        setFieldState('bookEmail', false, 'You already have an active booking on this date (#' + clash.id + '). Only one same-day booking is allowed.');
                         $('#bookingFormError')
-                            .html('<i class="fa-solid fa-circle-info" style="margin-right:6px;color:#60a5fa;"></i>' +
-                                  'You have an open booking on this date (<strong>#' + clash.id + '</strong>' +
+                            .html('<i class="fa-solid fa-circle-xmark" style="margin-right:6px;color:#ef5350;"></i>' +
+                                  'Duplicate booking detected: You already have an active booking on this date (<strong>#' + clash.id + '</strong>' +
                                   (clash.event_name ? ' — ' + clash.event_name : '') + '). ' +
-                                  'You can still continue if this is a different event.')
-                            .css('background', 'rgba(96,165,250,0.08)')
+                                  'Please choose another date or <a href="#" id="trackDuplicateBtn" style="color:var(--y-base);text-decoration:underline;">track booking #' + clash.id + ' &rarr;</a>')
+                            .css('background', 'rgba(239,83,80,0.08)')
                             .show();
+                        
+                        $('#trackDuplicateBtn').off('click').on('click', function(e) {
+                            e.preventDefault();
+                            $('#bookingModal').modal('hide');
+                            setTimeout(function() {
+                                $('#trackId').val(clash.id);
+                                $('#trackEmail').val(v);
+                                $('#trackingModal').modal('show');
+                            }, 400);
+                        });
                     }
                 }
             } catch(e) { /* silent — informational only */ }
@@ -2468,127 +2532,37 @@ $bookingForm.on('blur', '#bookName', function() {
 
 
     // ==========================================
-    // INITIALIZE WEBSITE THEME FONT AND ADMIN BACKGROUNDS
+    // INITIALIZE ADMIN BACKGROUNDS AND CLEANUP
     // ==========================================
-    var themeFontData = localStorage.getItem('tm_theme_font');
-    if (themeFontData) {
-        document.documentElement.style.setProperty('--theme-font', themeFontData);
-    }
+    // Clean up legacy localStorage preferences now superseded by server-side branding settings.
+    localStorage.removeItem('tm_theme_font');
+    localStorage.removeItem('tm_login_bg');
+    localStorage.removeItem('tm_dashboard_bg');
 
-    // Function to dynamically apply the appropriate admin background
+    // Apply the server-persisted admin login background (set on window.tmLoginBg by the
+    // public-branding fetch in admin.html). Shown on the sign-in screen; cleared on the dashboard.
     window.applyAdminBackgrounds = function() {
-        console.log("Running applyAdminBackgrounds...");
         if (!document.body.classList.contains('admin-body') && !document.body.classList.contains('login-page-bg')) return;
 
         var dashSec = document.getElementById('dashboardSection');
         var isDashboard = dashSec && (dashSec.style.display !== 'none');
-        var loginBg = localStorage.getItem('tm_login_bg');
-        var dashboardBg = localStorage.getItem('tm_dashboard_bg');
+        var loginBg = window.tmLoginBg || null;
 
-        console.log("isDashboard:", isDashboard, "| loginBg:", loginBg, "| dashboardBg:", dashboardBg);
-
-        fetch('/api/debug', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json'},
-            body: JSON.stringify({ isDashboard, loginBg, dashboardBg, location: window.location.href, classList: document.body.className })
-        }).catch(e => console.error(e));
-
-        if (isDashboard) {
-            if (dashboardBg) {
-                document.body.style.setProperty('background-image', 'url("' + dashboardBg + '")', 'important');
-                document.body.style.setProperty('background-size', 'cover', 'important');
-                document.body.style.setProperty('background-position', 'center', 'important');
-                document.body.style.setProperty('background-attachment', 'fixed', 'important');
-                document.body.style.setProperty('background-repeat', 'no-repeat', 'important');
-                document.body.style.setProperty('min-height', '100vh', 'important');
-                console.log("Dashboard background applied.");
-            } else {
-                document.body.style.backgroundImage = '';
-            }
+        if (!isDashboard && loginBg) {
+            document.body.style.setProperty('background-image', 'url("' + loginBg + '")', 'important');
+            document.body.style.setProperty('background-size', 'cover', 'important');
+            document.body.style.setProperty('background-position', 'center', 'important');
+            document.body.style.setProperty('background-attachment', 'fixed', 'important');
+            document.body.style.setProperty('background-repeat', 'no-repeat', 'important');
+            document.body.style.setProperty('min-height', '100vh', 'important');
         } else {
-            if (loginBg) {
-                document.body.style.setProperty('background-image', 'url("' + loginBg + '")', 'important');
-                document.body.style.setProperty('background-size', 'cover', 'important');
-                document.body.style.setProperty('background-position', 'center', 'important');
-                document.body.style.setProperty('background-attachment', 'fixed', 'important');
-                document.body.style.setProperty('background-repeat', 'no-repeat', 'important');
-                document.body.style.setProperty('min-height', '100vh', 'important');
-                console.log("Login background applied.");
-            } else {
-                // Keep the default background set in CSS for login page
-                document.body.style.backgroundImage = '';
-            }
+            // Dashboard, or no custom login background set — fall back to the CSS default.
+            document.body.style.backgroundImage = '';
         }
     };
 
-    // Apply backgrounds initially when loading the page
+    // Apply backgrounds initially when loading the page (re-run after branding fetch resolves).
     setTimeout(window.applyAdminBackgrounds, 100);
-
-    // Handle Preferences Form Save
-    var $preferencesForm = $('#preferencesForm');
-    if ($preferencesForm.length) {
-        // Pre-populate dropdown
-        if (themeFontData) {
-            $('#themeFont').val(themeFontData);
-        }
-
-        $preferencesForm.on('submit', function(e) {
-            e.preventDefault();
-            var selectedFont = $('#themeFont').val();
-            localStorage.setItem('tm_theme_font', selectedFont);
-            document.documentElement.style.setProperty('--theme-font', selectedFont);
-
-            var $btn = $('#savePreferencesBtn');
-            var origText = $btn.text();
-            $btn.text('Preferences Saved!').addClass('btn-success').removeClass('btn-primary');
-            setTimeout(function() {
-                $btn.text(origText).removeClass('btn-success').addClass('btn-primary');
-            }, 2000);
-        });
-    }
-
-    // Handle Admin Backgrounds Form Save
-    var $adminBgForm = $('#adminBgForm');
-    if ($adminBgForm.length) {
-        $adminBgForm.on('submit', async function(e) {
-            e.preventDefault();
-            var $btn = $('#saveAdminBgBtn');
-            var origText = $btn.text();
-            
-            var loginFile = $('#loginBgFile')[0].files[0];
-            var dashboardFile = $('#dashboardBgFile')[0].files[0];
-
-            $btn.prop('disabled', true).text('Saving Backgrounds...');
-
-            try {
-                if (loginFile && window.uploadFileToServer) {
-                    var loginPath = await window.uploadFileToServer(loginFile, 'backgrounds');
-                    if (loginPath) {
-                        localStorage.setItem('tm_login_bg', loginPath);
-                    }
-                }
-                
-                if (dashboardFile && window.uploadFileToServer) {
-                    var dashboardPath = await window.uploadFileToServer(dashboardFile, 'backgrounds');
-                    if (dashboardPath) {
-                        localStorage.setItem('tm_dashboard_bg', dashboardPath);
-                    }
-                }
-
-                $adminBgForm[0].reset();
-                window.applyAdminBackgrounds();
-
-                $btn.text('Backgrounds Saved!').addClass('btn-success').removeClass('btn-primary');
-            } catch (err) {
-                console.error("Error saving backgrounds:", err);
-                $btn.text('Error Saving!').addClass('btn-danger').removeClass('btn-primary');
-            } finally {
-                setTimeout(function() {
-                    $btn.prop('disabled', false).text(origText).removeClass('btn-success btn-danger').addClass('btn-primary');
-                }, 2000);
-            }
-        });
-    }
 
     // ==========================================
     // ADMIN DASHBOARD SIDEBAR LOGIC

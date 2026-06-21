@@ -150,7 +150,8 @@
 		</div>
 
 		<a href="index.html" class="tm-navbar__logo" aria-label="Thabiso Mhlongo home">
-			Thabiso <em>Mhlongo</em>
+			<img class="site-logo" src="" alt="Thabiso Mhlongo" style="display:none; max-height:40px; width:auto;">
+			<span class="tm-navbar__logo-text">Thabiso <em>Mhlongo</em></span>
 		</a>
 
 		<div class="tm-navbar__right">
@@ -1345,7 +1346,7 @@
 							<div id="paymentSection" class="trk-pay-section">
 								<p>Choose a payment option securely via PayFast:</p>
 								<button class="pay-btn pay-btn-deposit" data-type="DEPOSIT">
-									<i class="fa-solid fa-percent"></i>Pay Deposit (50%)
+									<i class="fa-solid fa-percent"></i>Pay Deposit
 								</button>
 								<button class="pay-btn pay-btn-full" data-type="FULL" id="btnPayFull">
 									<i class="fa-solid fa-bolt"></i>Pay Full Amount
@@ -1420,11 +1421,11 @@
 								<div id="payPreviewPanel" style="background:#111;border:1px solid #333;border-radius:4px;padding:14px;margin:12px 0;">
 									<div style="font-size:11px;color:#D4AF37;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Payment Schedule</div>
 									<div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-										<span style="color:#888;font-size:12px;">50% Deposit (due within 7 days)</span>
+										<span style="color:#888;font-size:12px;">Next Milestone</span>
 										<span id="payPreviewDeposit" style="color:#fff;font-size:13px;font-weight:600;">&mdash;</span>
 									</div>
 									<div style="display:flex;justify-content:space-between;">
-										<span style="color:#888;font-size:12px;">50% Balance (due before event)</span>
+										<span style="color:#888;font-size:12px;">Remaining Balance</span>
 										<span id="payPreviewBalance" style="color:#fff;font-size:13px;font-weight:600;">&mdash;</span>
 									</div>
 								</div>
@@ -1690,29 +1691,8 @@
 <!-- UI Dependencies -->
 <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
 
-<!-- Apply saved branding (favicon, accent color, site logo) -->
-<script>
-(function() {
-    fetch('/api/public/branding')
-        .then(function(r) { return r.json(); })
-        .then(function(data) {
-            if (!data.success) return;
-            var b = data.branding;
-            if (b.primary_color) document.documentElement.style.setProperty('--brand-gold', b.primary_color);
-            if (b.favicon) {
-                var link = document.querySelector("link[rel~='icon']");
-                if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
-                link.href = b.favicon;
-            }
-            if (b.site_logo) {
-                document.querySelectorAll('.site-logo, .header-logo, #siteLogo').forEach(function(el) {
-                    if (el.tagName === 'IMG') el.src = b.site_logo;
-                });
-            }
-        })
-        .catch(function() {});
-})();
-</script>
+<!-- Apply saved branding (favicon, accent color, site logo, theme font) -->
+<script src="js/applyBranding.js"></script>
 
 <!-- UI Bridge & Animations Logic -->
 <script>
@@ -1790,6 +1770,8 @@ $(document).ready(function() {
     const statusOrder = ['NEW','PENDING','QUOTED','ACCEPTED','CONFIRMED'];
 
     function setTimeline(status) {
+        // Gap 4 (Phase 2): 'RESPONDED' was a legacy status retired in Phase 2; it maps directly to QUOTED.
+        // Removed the explicit mapping since RESPONDED no longer appears as a booking status.
         var idx = statusOrder.indexOf(status);
         // Connector fills are driven purely by CSS (.trk-wz-dot.done + .bk-wz-conn .bk-wz-conn-fill)
         $('.trk-wz-dot').each(function() {
@@ -1907,10 +1889,16 @@ $(document).ready(function() {
                     $('#quoteSection').show();
                     $('#noQuoteSection').hide();
 
-                    // Accept Quote button (only when QUOTED)
+                    // Accept Quote button (when QUOTED)
                     if (bStatus === 'QUOTED') {
                         var rawQuotePreview = b.quote_amount ? parseFloat(b.quote_amount.replace(/[^0-9.]/g, '')) : 0;
-                        if (rawQuotePreview > 0) {
+                        if (data.payment_schedule && data.payment_schedule.length > 0) {
+                            var firstMs = data.payment_schedule.find(function(s) { return s.status !== 'paid'; });
+                            var depositPreview = firstMs ? parseFloat(firstMs.expected_amount) : Math.round(rawQuotePreview * 0.5 * 100) / 100;
+                            var balancePreview = rawQuotePreview - depositPreview;
+                            $('#payPreviewDeposit').text('R ' + depositPreview.toFixed(2));
+                            $('#payPreviewBalance').text('R ' + balancePreview.toFixed(2));
+                        } else if (rawQuotePreview > 0) {
                             var depositPreview = Math.round(rawQuotePreview * 0.5 * 100) / 100;
                             var balancePreview = Math.round((rawQuotePreview - depositPreview) * 100) / 100;
                             $('#payPreviewDeposit').text('R ' + depositPreview.toFixed(2));

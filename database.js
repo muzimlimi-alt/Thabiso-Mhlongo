@@ -28,7 +28,12 @@ function initializeDatabase() {
             email TEXT,
             password_hash TEXT NOT NULL,
             must_change_password INTEGER DEFAULT 0,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            role TEXT DEFAULT 'manager',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_by INTEGER REFERENCES admins(id),
+            created_on DATETIME DEFAULT CURRENT_TIMESTAMP,
+            modified_by INTEGER REFERENCES admins(id),
+            modified_on DATETIME
         )`, (err) => {
             if (!err) {
 
@@ -37,6 +42,28 @@ function initializeDatabase() {
                     db.run("UPDATE admins SET email = 'admin@thabisomhlongo.com' WHERE username = 'admin' AND (email IS NULL OR email = '')", () => {});
                 });
                 db.run("ALTER TABLE admins ADD COLUMN must_change_password INTEGER DEFAULT 0", () => {});
+                db.run("ALTER TABLE admins ADD COLUMN role TEXT DEFAULT 'manager'", () => {
+                    db.run("UPDATE admins SET role = 'administrator' WHERE username = 'admin'", () => {});
+                });
+
+                // Comprehensive user management — profile/status fields.
+                db.run("ALTER TABLE admins ADD COLUMN full_name TEXT", () => {});
+                db.run("ALTER TABLE admins ADD COLUMN phone TEXT", () => {});
+                db.run("ALTER TABLE admins ADD COLUMN is_active INTEGER DEFAULT 1", () => {});
+                db.run("ALTER TABLE admins ADD COLUMN last_login_at DATETIME", () => {});
+                db.run("UPDATE admins SET is_active = 1 WHERE is_active IS NULL", () => {});
+
+                // Audit log fields for admin table
+                db.run("ALTER TABLE admins ADD COLUMN created_by INTEGER", () => {});
+                db.run("ALTER TABLE admins ADD COLUMN created_on DATETIME DEFAULT CURRENT_TIMESTAMP", () => {});
+                db.run("ALTER TABLE admins ADD COLUMN modified_by INTEGER", () => {});
+                db.run("ALTER TABLE admins ADD COLUMN modified_on DATETIME", () => {});
+
+                // Email is the login identifier — enforce uniqueness.
+                // Requires no duplicate/blank emails (pre-flight cleanup); logs + no-ops on failure.
+                db.run("CREATE UNIQUE INDEX IF NOT EXISTS idx_admins_email_unique ON admins(email)", (err) => {
+                    if (err) console.error('[migration] admins.email unique index failed — duplicate/blank emails remain:', err.message);
+                });
             }
         });
 
@@ -673,16 +700,7 @@ function initializeDatabase() {
         addCol('tax_category',       "TEXT DEFAULT NULL");
         addCol('fulfillment_type',   "TEXT DEFAULT 'on_site'");
 
-        // 1.2 Create the service_uoms table
-        db.run(`CREATE TABLE IF NOT EXISTS service_uoms (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            service_id INTEGER NOT NULL,
-            uom_code TEXT NOT NULL,          -- e.g., 'ea', 'min', 'hr'
-            conversion_factor REAL DEFAULT 1.0, -- e.g., 1 hr = 60 min
-            is_base_uom BOOLEAN DEFAULT 0,
-            FOREIGN KEY (service_id) REFERENCES services(id) ON DELETE CASCADE,
-            UNIQUE(service_id, uom_code)
-        )`);
+
 
         db.run(`CREATE TABLE IF NOT EXISTS booking_services (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1017,16 +1035,7 @@ function initializeDatabase() {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
 
-        db.run(`CREATE TABLE IF NOT EXISTS sars_rates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            rate_type TEXT CHECK(rate_type IN ('mileage','per_diem_local','per_diem_international')),
-            rate_amount DECIMAL(8,2) NOT NULL,
-            effective_from DATE NOT NULL,
-            effective_to DATE,
-            notes TEXT
-        )`);
-        db.run(`INSERT OR IGNORE INTO sars_rates (rate_type, rate_amount, effective_from) VALUES ('mileage', 4.84, '2026-03-01')`);
-        db.run(`INSERT OR IGNORE INTO sars_rates (rate_type, rate_amount, effective_from) VALUES ('per_diem_local', 522.00, '2026-03-01')`);
+
 
         // AUDIT LOG
         db.run(`CREATE TABLE IF NOT EXISTS audit_log (
@@ -1071,12 +1080,13 @@ function initializeDatabase() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             type TEXT NOT NULL,
             channel TEXT NOT NULL DEFAULT 'email',
-            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'sent', 'failed', 'read', 'dismissed')),
+            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'sending', 'sent', 'failed', 'read', 'dismissed')),
             priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('low', 'normal', 'high', 'urgent')),
             recipient_email TEXT,
             recipient_name TEXT,
             subject TEXT,
             body TEXT,
+            attachment_paths TEXT,
             related_entity TEXT,
             related_id INTEGER,
             scheduled_at DATETIME,
@@ -1086,7 +1096,9 @@ function initializeDatabase() {
             error_message TEXT,
             created_by INTEGER REFERENCES admins(id),
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
+        )`, () => {
+            db.run("ALTER TABLE notifications ADD COLUMN attachment_paths TEXT", () => {});
+        });
         db.run(`CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_notifications_entity ON notifications(related_entity, related_id)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_notifications_scheduled ON notifications(scheduled_at)`);
@@ -1187,6 +1199,48 @@ function initializeDatabase() {
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (2, 'add_clients_venues_quotations')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (3, 'add_events_audit_triggers_indexes')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (4, 'add_notifications_schema_migrations')`);
+        // Versions 5-49: Retroactively document ALTER TABLE operations and audit remediation (2026-06-19).
+        // All use INSERT OR IGNORE so re-running is safe (idempotent).
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (5, 'add_contracts_signed_by_uploaded_by_signed_date')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (6, 'add_bookings_client_id_venue_id_google_event_id')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (7, 'add_quotations_version_archived_sent_at_file_path')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (8, 'add_invoices_file_path_notes_sent_at_reminders')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (9, 'add_transactions_source_is_duplicate_reconcile_reference')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (10, 'add_bookings_cancellation_fields_vat_admin_notes')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (11, 'add_cancellations_admin_id_refund_tracking')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (12, 'add_date_holds_event_block_type_google_event_id')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (13, 'add_bookings_event_id_show_on_website_acceptance_fields')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (14, 'add_bookings_deposit_balance_reminded_rebooked_from')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (15, 'add_bookings_performance_times_review_email_attachment')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (16, 'add_bookings_modified_on_buffer_minutes_quote_expiry_warned')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (17, 'add_working_hours_consent_audit_analytics_tables')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (18, 'add_booking_notes_reminders_log_payment_logs')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (19, 'add_sars_rates_expenses_service_reviews')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (20, 'add_bookings_payment_method_raw_data_popia')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (21, 'add_bookings_source_referrer_quotation_id')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (22, 'add_payment_schedules_invoice_id')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (23, 'add_invoices_replacement_invoice_id')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (24, 'add_booking_triggers_recalc_outstanding_auto_payment_status')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (25, 'audit_2026_status_check_constraint_triggers')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (26, 'audit_2026_orphan_protection_triggers')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (27, 'audit_2026_payment_status_machine_fix')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (28, 'audit_2026_remove_confirmed_from_manual_booking_creation')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (29, 'audit_2026_quote_line_item_delete_error_callbacks')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (30, 'audit_2026_invoice_guard_unaccepted_quote')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (31, 'audit_2026_complete_guard_outstanding_balance')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (32, 'audit_2026_admin_booking_performance_end_time')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (33, 'audit_2026_ledger_reconciliation_endpoint')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (34, 'audit_2026_stalled_booking_admin_alert_job')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (35, 'audit_2026_auto_event_creation_on_confirmed')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (36, 'audit_2026_quote_details_write_removed')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (37, 'audit_2026_invoice_status_casing_fix_admin_html')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (38, 'audit_2026_manual_booking_validation_admin_html')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (39, 'audit_2026_quote_builder_line_item_validation')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (40, 'audit_2026_complete_migrations_tracking')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (41, 'audit_2026_cancel_route_audit_log')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (42, 'audit_2026_complete_route_audit_log')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (99, 'full_schema_history_reconstructed_2026_06_19')`);
+        // END schema_migrations seeds
 
         // Contract management columns
         db.run("ALTER TABLE contracts ADD COLUMN signed_by TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: contracts.signed_by already exists or error: " + err.message); });
@@ -1330,6 +1384,140 @@ function initializeDatabase() {
                 CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_events_delete trigger:", err.message); });
 
+        // ==========================================
+        // STATUS VALIDATION TRIGGERS (CHECK-constraint equivalents for SQLite)
+        // These fire BEFORE INSERT/UPDATE on status columns to reject invalid values.
+        // 'draft' variants are included as legacy-safe fallbacks for existing rows.
+        // ==========================================
+
+        // bookings.status
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_bookings_status_insert
+        BEFORE INSERT ON bookings
+        WHEN NEW.status NOT IN ('NEW','PENDING','REVIEWED','QUOTED','ACCEPTED','CONFIRMED','COMPLETED','CANCELLED','EXPIRED')
+        BEGIN SELECT RAISE(ABORT, 'Invalid bookings.status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_bookings_status_update
+        BEFORE UPDATE OF status ON bookings
+        WHEN NEW.status NOT IN ('NEW','PENDING','REVIEWED','QUOTED','ACCEPTED','CONFIRMED','COMPLETED','CANCELLED','EXPIRED')
+        BEGIN SELECT RAISE(ABORT, 'Invalid bookings.status value'); END`);
+
+        // bookings.payment_status
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_bookings_payment_status_insert
+        BEFORE INSERT ON bookings
+        WHEN NEW.payment_status NOT IN ('UNPAID','DEPOSIT_PAID','PARTIALLY_PAID','PAID','REFUNDED','FAILED')
+        BEGIN SELECT RAISE(ABORT, 'Invalid bookings.payment_status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_bookings_payment_status_update
+        BEFORE UPDATE OF payment_status ON bookings
+        WHEN NEW.payment_status NOT IN ('UNPAID','DEPOSIT_PAID','PARTIALLY_PAID','PAID','REFUNDED','FAILED')
+        BEGIN SELECT RAISE(ABORT, 'Invalid bookings.payment_status value'); END`);
+
+        // quotations.status (lowercase convention)
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_quotations_status_insert
+        BEFORE INSERT ON quotations
+        WHEN NEW.status NOT IN ('draft','sent','accepted','expired','rejected','archived')
+        BEGIN SELECT RAISE(ABORT, 'Invalid quotations.status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_quotations_status_update
+        BEFORE UPDATE OF status ON quotations
+        WHEN NEW.status NOT IN ('draft','sent','accepted','expired','rejected','archived')
+        BEGIN SELECT RAISE(ABORT, 'Invalid quotations.status value'); END`);
+
+        // invoices.status (mixed casing — UPPERCASE for new rows, 'draft' kept for legacy rows)
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_invoices_status_insert
+        BEFORE INSERT ON invoices
+        WHEN NEW.status NOT IN ('draft','DRAFT','sent','SENT','overdue','OVERDUE','paid','PAID','void','VOID','partially_paid','PARTIALLY_PAID')
+        BEGIN SELECT RAISE(ABORT, 'Invalid invoices.status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_invoices_status_update
+        BEFORE UPDATE OF status ON invoices
+        WHEN NEW.status NOT IN ('draft','DRAFT','sent','SENT','overdue','OVERDUE','paid','PAID','void','VOID','partially_paid','PARTIALLY_PAID')
+        BEGIN SELECT RAISE(ABORT, 'Invalid invoices.status value'); END`);
+
+        // transactions.status (lowercase convention)
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_transactions_status_insert
+        BEFORE INSERT ON transactions
+        WHEN NEW.status NOT IN ('pending','completed','failed','cancelled','refunded')
+        BEGIN SELECT RAISE(ABORT, 'Invalid transactions.status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_transactions_status_update
+        BEFORE UPDATE OF status ON transactions
+        WHEN NEW.status NOT IN ('pending','completed','failed','cancelled','refunded')
+        BEGIN SELECT RAISE(ABORT, 'Invalid transactions.status value'); END`);
+
+        // payment_schedules.status (lowercase convention)
+        db.run("DROP TRIGGER IF EXISTS chk_payment_schedules_status_insert");
+        db.run("DROP TRIGGER IF EXISTS chk_payment_schedules_status_update");
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_payment_schedules_status_insert
+        BEFORE INSERT ON payment_schedules
+        WHEN NEW.status NOT IN ('pending','due_soon','overdue','paid','cancelled','superseded')
+        BEGIN SELECT RAISE(ABORT, 'Invalid payment_schedules.status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_payment_schedules_status_update
+        BEFORE UPDATE OF status ON payment_schedules
+        WHEN NEW.status NOT IN ('pending','due_soon','overdue','paid','cancelled','superseded')
+        BEGIN SELECT RAISE(ABORT, 'Invalid payment_schedules.status value'); END`);
+
+        // date_holds.status (lowercase convention)
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_date_holds_status_insert
+        BEFORE INSERT ON date_holds
+        WHEN NEW.status NOT IN ('active','expired','converted','cancelled')
+        BEGIN SELECT RAISE(ABORT, 'Invalid date_holds.status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_date_holds_status_update
+        BEFORE UPDATE OF status ON date_holds
+        WHEN NEW.status NOT IN ('active','expired','converted','cancelled')
+        BEGIN SELECT RAISE(ABORT, 'Invalid date_holds.status value'); END`);
+
+        // contracts.status (lowercase convention)
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_contracts_status_insert
+        BEFORE INSERT ON contracts
+        WHEN NEW.status NOT IN ('draft','sent','signed','active','expired','voided')
+        BEGIN SELECT RAISE(ABORT, 'Invalid contracts.status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_contracts_status_update
+        BEFORE UPDATE OF status ON contracts
+        WHEN NEW.status NOT IN ('draft','sent','signed','active','expired','voided')
+        BEGIN SELECT RAISE(ABORT, 'Invalid contracts.status value'); END`);
+
+        // cancellations.refund_status (lowercase convention)
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_cancellations_refund_status_insert
+        BEFORE INSERT ON cancellations
+        WHEN NEW.refund_status NOT IN ('pending','processing','processed','failed','cancelled')
+        BEGIN SELECT RAISE(ABORT, 'Invalid cancellations.refund_status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_cancellations_refund_status_update
+        BEFORE UPDATE OF refund_status ON cancellations
+        WHEN NEW.refund_status NOT IN ('pending','processing','processed','failed','cancelled')
+        BEGIN SELECT RAISE(ABORT, 'Invalid cancellations.refund_status value'); END`);
+
+        // ==========================================
+        // ORPHAN PROTECTION TRIGGERS
+        // SQLite cannot add ON DELETE RESTRICT after table creation, so these BEFORE DELETE
+        // triggers prevent booking deletion when financial records exist, mirroring that intent.
+        // ==========================================
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS protect_booking_delete_invoices
+        BEFORE DELETE ON bookings
+        WHEN (SELECT COUNT(*) FROM invoices WHERE booking_id = OLD.id) > 0
+        BEGIN SELECT RAISE(ABORT, 'Cannot delete booking: financial records (invoices) exist. Void the invoice first.'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS protect_booking_delete_transactions
+        BEFORE DELETE ON bookings
+        WHEN (SELECT COUNT(*) FROM transactions WHERE booking_id = OLD.id) > 0
+        BEGIN SELECT RAISE(ABORT, 'Cannot delete booking: financial records (transactions) exist.'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS protect_booking_delete_contracts
+        BEFORE DELETE ON bookings
+        WHEN (SELECT COUNT(*) FROM contracts WHERE booking_id = OLD.id) > 0
+        BEGIN SELECT RAISE(ABORT, 'Cannot delete booking: a contract exists for this booking.'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS protect_booking_delete_quotations
+        BEFORE DELETE ON bookings
+        WHEN (SELECT COUNT(*) FROM quotations WHERE booking_id = OLD.id) > 0
+        BEGIN SELECT RAISE(ABORT, 'Cannot delete booking: quotation records exist for this booking.'); END`);
+
         // Booking scheduling defaults — only inserted once; admin can update via settings UI
         db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('working_hours_start', '09:00')`);
         db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('working_hours_end', '22:00')`);
@@ -1358,15 +1546,20 @@ function initializeDatabase() {
             booking_id  INTEGER NOT NULL,
             ip_address  TEXT,
             user_agent  TEXT,
+            policy_version TEXT,
             consented_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (booking_id) REFERENCES bookings(id)
-        )`);
+        )`, () => {
+            db.run("ALTER TABLE consent_audit ADD COLUMN policy_version TEXT", () => {});
+        });
         db.run(`CREATE INDEX IF NOT EXISTS idx_consent_audit_booking ON consent_audit(booking_id)`);
 
         // Ensure performance_end_time column exists on bookings (failsafe for older DBs)
         db.run("ALTER TABLE bookings ADD COLUMN performance_end_time TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.performance_end_time already exists or error: ' + err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN modified_on DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.modified_on already exists.'); });
         db.run("ALTER TABLE bookings ADD COLUMN buffer_minutes INTEGER DEFAULT NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.buffer_minutes migration:', err.message); });
+        db.run("ALTER TABLE bookings ADD COLUMN consent_source TEXT DEFAULT 'public_form'", (err) => { if (err && !err.message.includes('duplicate column name')) {} });
+        db.run("ALTER TABLE consent_audit ADD COLUMN consent_source TEXT DEFAULT 'public_form'", (err) => { if (err && !err.message.includes('duplicate column name')) {} });
 
         db.run(`CREATE INDEX IF NOT EXISTS idx_working_hours_dow ON working_hours(day_of_week)`);
 
@@ -1435,6 +1628,20 @@ function initializeDatabase() {
             bounced_sessions INTEGER DEFAULT 0,
             total_dwell_secs INTEGER DEFAULT 0
         )`);
+
+        // Status casing normalization migrations.
+        // NOTE (Phase 2 Gap 4): 'RESPONDED' was a legacy status name that has been retired.
+        // The migration below converts any stale RESPONDED/RESPOND rows back to PENDING on every
+        // startup. The status is no longer set by any code path in server.js.
+        db.run("UPDATE bookings SET status = 'PENDING' WHERE status IS NOT NULL AND UPPER(status) IN ('RESPONDED', 'RESPOND')");
+        db.run("UPDATE bookings SET status = UPPER(status) WHERE status IS NOT NULL");
+        db.run("UPDATE inquiries SET status = LOWER(status) WHERE status IS NOT NULL");
+        db.run("UPDATE quotations SET status = LOWER(status) WHERE status IS NOT NULL");
+        db.run("UPDATE invoices SET status = UPPER(status) WHERE status IS NOT NULL");
+        db.run("UPDATE contracts SET status = LOWER(status) WHERE status IS NOT NULL");
+        db.run("UPDATE payment_schedules SET status = LOWER(status) WHERE status IS NOT NULL");
+        db.run("UPDATE date_holds SET status = LOWER(status) WHERE status IS NOT NULL");
+        db.run("UPDATE transactions SET status = LOWER(status) WHERE status IS NOT NULL");
 
         console.log('Database tables initialized successfully.');
     });
