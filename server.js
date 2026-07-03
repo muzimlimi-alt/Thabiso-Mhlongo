@@ -206,7 +206,7 @@ const sanitizeEmailInput = (input) => {
 };
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(helmet({
     contentSecurityPolicy: {
@@ -1943,8 +1943,25 @@ app.post('/api/admin/login', adminLoginRateLimiter, (req, res) => {
                 req.session.must_change_password = row.must_change_password ? true : false;
                 // Remember me: 30-day persistent cookie; otherwise session-only (expires on browser close)
                 req.session.cookie.maxAge = remember_me ? 1000 * 60 * 60 * 24 * 30 : null;
+                
                 db.run("UPDATE admins SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", [row.id], () => {});
-                return res.json({ success: true, message: 'Login successful', role: row.role || 'manager', must_change_password: row.must_change_password ? true : false });
+                
+                const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+                const ua = req.headers['user-agent'] || '';
+                
+                db.run(
+                    `INSERT INTO admin_login_logs (admin_id, ip_address, user_agent) VALUES (?, ?, ?)`,
+                    [row.id, ip, ua],
+                    function(insertErr) {
+                        if (!insertErr) {
+                            req.session.loginLogId = this.lastID;
+                        }
+                        req.session.save((saveErr) => {
+                            if (saveErr) console.error('Error saving session after login:', saveErr);
+                            return res.json({ success: true, message: 'Login successful', role: row.role || 'manager', must_change_password: row.must_change_password ? true : false });
+                        });
+                    }
+                );
             } else {
                 return res.status(401).json({ success: false, message: 'Invalid credentials' });
             }
@@ -1970,13 +1987,33 @@ app.post('/api/admin/force-change-password', requireAdmin, (req, res) => {
 
 // Admin Logout Route
 app.post('/api/admin/logout', (req, res) => {
-    req.session.destroy((err) => {
-        if (err) {
-            return res.status(500).json({ success: false, message: 'Error during logout' });
-        }
-        res.clearCookie('connect.sid'); // default cookie name
-        return res.json({ success: true, message: 'Logged out successfully' });
-    });
+    const loginLogId = req.session ? req.session.loginLogId : null;
+    const finalizeLogout = () => {
+        req.session.destroy((err) => {
+            if (err) {
+                return res.status(500).json({ success: false, message: 'Error during logout' });
+            }
+            res.clearCookie('connect.sid'); // default cookie name
+            return res.json({ success: true, message: 'Logged out successfully' });
+        });
+    };
+
+    if (loginLogId) {
+        db.run(
+            `UPDATE admin_login_logs 
+             SET logout_at = CURRENT_TIMESTAMP, 
+                 last_activity_at = CURRENT_TIMESTAMP,
+                 duration_seconds = CAST((strftime('%s', 'now') - strftime('%s', login_at)) AS INTEGER)
+             WHERE id = ?`,
+            [loginLogId],
+            (err) => {
+                if (err) console.error('Error finalising login log on logout:', err.message);
+                finalizeLogout();
+            }
+        );
+    } else {
+        finalizeLogout();
+    }
 });
 
 // Admin session check
@@ -3554,6 +3591,15 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
 
                     // 7. DISPATCH EMAILS CONCURRENTLY (Asynchronously/Non-blocking)
                     sendBookingReceivedEmail(bookingId, req.body).catch(e => console.error("Async email dispatch failed:", e));
+
+                    // Booking Recovery: mark any matching abandoned draft as recovered (non-blocking)
+                    if (req.body.draft_token) {
+                        db.run(`UPDATE abandoned_bookings SET status='RECOVERED', converted_booking_id=?, last_activity_at=CURRENT_TIMESTAMP
+                                WHERE draft_token=? AND status NOT IN ('RECOVERED','WON')`,
+                            [bookingId, req.body.draft_token],
+                            (e) => { if (e) console.error('[Booking Recovery] convert-mark failed:', e.message); });
+                    }
+
                     res.json({ success: true, message: 'Booking submitted successfully! Check your inbox for confirmation.', booking_id: bookingId });
                 });
         });
@@ -3561,6 +3607,314 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
         console.error("Relational schema error during booking:", e);
         res.status(500).json({ success: false, message: "Server encountered a structural error."});
     }
+});
+
+// ============================================================================
+// BOOKING RECOVERY — abandoned booking drafts (abandoned-cart style)
+//  • Public: autosave drafts, resume a draft, opt out of reminders.
+//  • Admin:  list / stats / export / detail / manual resend / status.
+//  • Reminder + purge jobs live near the other scheduled jobs (end of file).
+//  POPIA: capture is minimised to email-present drafts, auto-emails are
+//  consent-gated, every reminder carries an opt-out link, and stale rows are
+//  purged after 30 days.
+// ============================================================================
+
+// Best-effort estimate of the value of selected services (lost-revenue analytics).
+async function estimateDraftValue(services) {
+    try {
+        if (!Array.isArray(services) || services.length === 0) return 0;
+        const ids = services.map(s => parseInt(s.service_id)).filter(n => !isNaN(n));
+        if (!ids.length) return 0;
+        const placeholders = ids.map(() => '?').join(',');
+        const rows = await new Promise(resolve =>
+            db.all(`SELECT id, base_price, default_price FROM services WHERE id IN (${placeholders})`, ids,
+                (err, r) => resolve(err ? [] : (r || []))));
+        let total = 0;
+        for (const s of services) {
+            const row = rows.find(r => r.id === parseInt(s.service_id));
+            if (!row) continue;
+            const price = parseFloat(row.base_price != null ? row.base_price : (row.default_price || 0)) || 0;
+            const qty = parseInt(s.quantity || s.quantity_minutes || 1) || 1;
+            total += price * qty;
+        }
+        return Math.round(total * 100) / 100;
+    } catch (e) { return 0; }
+}
+
+// Branded recovery reminder email with a one-click resume link + opt-out.
+async function sendAbandonedBookingReminderEmail(draft) {
+    if (!draft || !draft.email || draft.opt_out) return false;
+    const base = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
+    const resumeUrl = `${base}/?resume=${encodeURIComponent(draft.resume_token)}`;
+    const optOutUrl = `${base}/api/public/bookings/draft/${encodeURIComponent(draft.resume_token)}/optout`;
+    let services = [];
+    try { services = draft.services_json ? JSON.parse(draft.services_json) : []; } catch (e) {}
+    const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const summaryRows = [
+        ['Event', draft.event_name],
+        ['Date', draft.event_date],
+        ['Type', draft.event_type],
+        ['Venue', draft.event_location],
+        ['Services', services.map(s => esc(s.name)).filter(Boolean).join(', ')]
+    ].filter(r => r[1]).map(r =>
+        `<tr><td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#888;font-size:13px;width:38%;">${r[0]}</td>` +
+        `<td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:13px;">${esc(r[1])}</td></tr>`).join('');
+
+    const html = `
+        <p style="color:#e8e8e8;">Hi <strong>${esc(draft.name || 'there')}</strong>,</p>
+        <p style="color:#b0b0b0;">It looks like you started a booking request for <strong style="color:#D4AF37;">Thabiso Mhlongo</strong> but didn't quite finish. Good news &mdash; your details are saved, so you can pick up right where you left off.</p>
+        <table style="width:100%;border-collapse:collapse;margin:22px 0;background-color:#1a1a1a;">
+            <tr><td colspan="2" style="padding:12px 16px;background-color:#1e1a0e;border-bottom:1px solid rgba(212,175,55,0.3);">
+                <strong style="color:#D4AF37;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Your booking so far</strong></td></tr>
+            ${summaryRows || '<tr><td style="padding:12px 16px;color:#888;font-size:13px;">Your saved progress</td></tr>'}
+        </table>
+        <div style="text-align:center;margin:28px 0;">
+            <a href="${resumeUrl}" style="display:inline-block;padding:14px 28px;background:#D4AF37;color:#000;text-decoration:none;font-weight:bold;border-radius:4px;">Resume my booking</a>
+        </div>
+        <p style="color:#888;font-size:12px;">Submitting a request doesn't confirm a booking &mdash; our team reviews each one and sends a personalised quote, usually within 2 business days.</p>
+        <p style="color:#666;font-size:11px;margin-top:18px;">Not planning to continue? <a href="${optOutUrl}" style="color:#888;">Unsubscribe from booking reminders</a>.</p>
+    `;
+    try {
+        const info = await sendEmail({
+            to: draft.email,
+            subject: 'Complete your booking request — Thabiso Mhlongo',
+            htmlContent: html,
+            titleOverride: 'Finish Your Booking Request',
+            trigger_event: 'Booking: Recovery Reminder'
+        });
+        return !!(info && info.success);
+    } catch (e) { console.error('[Booking Recovery] reminder email failed:', e.message); return false; }
+}
+
+// ---- Public: upsert a draft (autosave). Uses only ipRateLimiter (100/hr) so debounced autosaves aren't blocked. ----
+app.post('/api/public/bookings/draft', ipRateLimiter, async (req, res) => {
+    try {
+        const b = req.body || {};
+        const draftToken = (b.draft_token || '').toString().slice(0, 80);
+        if (!draftToken) return res.status(400).json({ success: false, message: 'Missing draft token.' });
+
+        const email = (b.email || '').toString().trim().slice(0, 200);
+        // POPIA data minimisation: only persist once a valid email exists (Step 2+).
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+            return res.json({ success: true, skipped: true });
+        }
+
+        const eventDate = (b.event_date || '').toString().slice(0, 20);
+        // If a real booking already exists for this email+date, don't track it as abandoned.
+        if (eventDate) {
+            const existing = await new Promise(resolve => db.get(
+                `SELECT id FROM bookings WHERE lower(email)=lower(?) AND date=? AND status NOT IN ('CANCELLED','EXPIRED') LIMIT 1`,
+                [email, eventDate], (e, row) => resolve(row)));
+            if (existing) return res.json({ success: true, converted: true });
+        }
+
+        const services = Array.isArray(b.services) ? b.services : [];
+        const servicesJson = JSON.stringify(services.map(s => ({ service_id: s.service_id, name: s.name, quantity: s.quantity || s.quantity_minutes || 1 })));
+        const estValue = await estimateDraftValue(services);
+        const currentStep = Math.min(4, Math.max(1, parseInt(b.current_step) || 1));
+        const consent = b.consent_given ? 1 : 0;
+        const source = (b.source || '').toString().slice(0, 120);
+        const ua = (req.headers['user-agent'] || '').toString().slice(0, 255);
+        const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+        const msg = (b.message || '').toString().slice(0, 2000);
+
+        const resumeToken = crypto.randomBytes(24).toString('hex');
+
+        // Atomic UPSERT keyed by draft_token — race-safe (BUG-1). On conflict, resume_token/
+        // created_at are preserved (not in the SET list), furthest_step stays monotonic, and
+        // terminal statuses (RECOVERED/WON/LOST/CLOSED) are never downgraded back to ABANDONED.
+        db.run(
+            `INSERT INTO abandoned_bookings
+                (draft_token, resume_token, name, company, email, cell, event_name, event_date, event_start_time,
+                 performance_slot, performance_duration, event_location, venue_address, city, country, venue_type, event_type, message,
+                 services_json, current_step, furthest_step, consent_given, est_value, source, ip_address, user_agent)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+             ON CONFLICT(draft_token) DO UPDATE SET
+                name=excluded.name, company=excluded.company, email=excluded.email, cell=excluded.cell,
+                event_name=excluded.event_name, event_date=excluded.event_date, event_start_time=excluded.event_start_time,
+                performance_slot=excluded.performance_slot, performance_duration=excluded.performance_duration,
+                event_location=excluded.event_location, venue_address=excluded.venue_address, city=excluded.city,
+                country=excluded.country, venue_type=excluded.venue_type, event_type=excluded.event_type, message=excluded.message,
+                services_json=excluded.services_json, current_step=excluded.current_step,
+                furthest_step=MAX(abandoned_bookings.furthest_step, excluded.furthest_step),
+                consent_given=excluded.consent_given, est_value=excluded.est_value,
+                source=COALESCE(NULLIF(excluded.source, ''), abandoned_bookings.source),
+                ip_address=excluded.ip_address, user_agent=excluded.user_agent, last_activity_at=CURRENT_TIMESTAMP,
+                status=CASE WHEN abandoned_bookings.status IN ('RECOVERED','WON','LOST','CLOSED') THEN abandoned_bookings.status ELSE 'ABANDONED' END`,
+            [draftToken, resumeToken, b.name || null, b.company || null, email, b.cell || null, b.event_name || null, eventDate || null, b.event_start_time || null,
+             b.performance_slot || null, b.performance_duration || null, b.event_location || null, b.venue_address || null, b.city || null, b.country || null, b.venue_type || null, b.event_type || null, msg,
+             servicesJson, currentStep, currentStep, consent, estValue, source, ip, ua],
+            (err) => {
+                if (err) { console.error('[Booking Recovery] draft upsert failed:', err.message); return res.status(500).json({ success: false }); }
+                // Return the row's resume_token (the original one if this was an update).
+                db.get(`SELECT resume_token FROM abandoned_bookings WHERE draft_token=?`, [draftToken],
+                    (e2, row) => res.json({ success: true, resume_token: row ? row.resume_token : resumeToken }));
+            });
+    } catch (e) { console.error('[Booking Recovery] draft endpoint error:', e.message); res.status(500).json({ success: false }); }
+});
+
+// ---- Public: fetch a draft for resume (prefill the wizard) ----
+app.get('/api/public/bookings/draft/:resumeToken', ipRateLimiter, (req, res) => {
+    db.get(`SELECT * FROM abandoned_bookings WHERE resume_token=?`, [req.params.resumeToken], (err, row) => {
+        if (err || !row) return res.status(404).json({ success: false, message: 'Draft not found.' });
+        if (row.opt_out || row.status === 'RECOVERED' || row.status === 'CLOSED') {
+            return res.status(410).json({ success: false, message: 'This booking draft is no longer available.' });
+        }
+        let services = [];
+        try { services = row.services_json ? JSON.parse(row.services_json) : []; } catch (e) {}
+        res.json({ success: true, draft: {
+            draft_token: row.draft_token,
+            name: row.name, company: row.company, email: row.email, cell: row.cell,
+            event_name: row.event_name, event_date: row.event_date, event_start_time: row.event_start_time,
+            performance_slot: row.performance_slot, performance_duration: row.performance_duration,
+            event_location: row.event_location, venue_address: row.venue_address, city: row.city, country: row.country, venue_type: row.venue_type,
+            event_type: row.event_type, message: row.message, services,
+            current_step: row.current_step, furthest_step: row.furthest_step
+        }});
+    });
+});
+
+// ---- Public: opt out of recovery reminders ----
+// BUG-2: a GET must NOT mutate state — corporate email-security scanners pre-fetch links and would
+// silently unsubscribe engaged users. The GET renders a confirmation page; the POST performs it.
+function _abOptOutPage(inner) {
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Booking reminders</title></head>
+        <body style="font-family:Arial,sans-serif;background:#0a0a0a;color:#e8e8e8;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;">
+        <div style="max-width:460px;text-align:center;border:1px solid rgba(255,255,255,0.12);border-radius:12px;padding:36px 28px;">
+        ${inner}
+        <p style="color:#888;font-size:13px;margin:22px 0 0;">Thabiso Mhlongo Management</p>
+        </div></body></html>`;
+}
+
+app.get('/api/public/bookings/draft/:resumeToken/optout', ipRateLimiter, (req, res) => {
+    const token = encodeURIComponent(req.params.resumeToken); // safe inside the form action attribute
+    res.setHeader('Content-Type', 'text/html');
+    res.send(_abOptOutPage(
+        '<div style="font-size:34px;color:#D4AF37;margin-bottom:12px;">&#9993;</div>'
+        + '<h2 style="font-weight:400;margin:0 0 10px;">Stop booking reminders?</h2>'
+        + '<p style="color:#b0b0b0;font-size:14px;margin:0 0 22px;">You will no longer receive emails reminding you to finish your booking request.</p>'
+        + '<form method="POST" action="/api/public/bookings/draft/' + token + '/optout" style="margin:0;">'
+        + '<button type="submit" style="padding:12px 24px;background:#D4AF37;color:#000;border:none;border-radius:4px;font-weight:bold;font-size:14px;cursor:pointer;">Yes, stop reminders</button>'
+        + '</form>'
+        + '<a href="' + (process.env.BASE_URL || '') + '/" style="display:inline-block;margin-top:16px;color:#888;text-decoration:none;font-size:13px;">No, take me back to the site</a>'
+    ));
+});
+
+app.post('/api/public/bookings/draft/:resumeToken/optout', ipRateLimiter, (req, res) => {
+    db.run(`UPDATE abandoned_bookings SET opt_out=1, status=CASE WHEN status IN ('RECOVERED','WON') THEN status ELSE 'CLOSED' END WHERE resume_token=?`,
+        [req.params.resumeToken], function (err) {
+            res.setHeader('Content-Type', 'text/html');
+            const back = '<a href="' + (process.env.BASE_URL || '') + '/" style="display:inline-block;margin-top:8px;color:#D4AF37;text-decoration:none;font-size:14px;">Return to the website &rarr;</a>';
+            if (err) return res.status(500).send(_abOptOutPage('<div style="font-size:34px;color:#888;margin-bottom:12px;">&#9888;</div><h2 style="font-weight:400;margin:0 0 10px;">Something went wrong.</h2><p style="color:#b0b0b0;font-size:14px;">Please try again later.</p>' + back));
+            res.send(_abOptOutPage('<div style="font-size:34px;color:#D4AF37;margin-bottom:12px;">&#10003;</div><h2 style="font-weight:400;margin:0 0 10px;">You have been unsubscribed.</h2><p style="color:#b0b0b0;font-size:14px;">You will not receive any more booking reminders.</p>' + back));
+        });
+});
+
+// ---- Admin: list abandoned bookings (search / filter / sort / paginate) ----
+app.get('/api/admin/abandoned-bookings', requireAdmin, (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 25));
+    const offset = (page - 1) * limit;
+    const status = (req.query.status || 'all').toString();
+    const stage = (req.query.stage || 'all').toString();
+    const search = (req.query.search || '').toString().trim();
+    const sort = (req.query.sort || 'recent').toString();
+
+    const where = [], params = [];
+    if (status && status !== 'all') { where.push('status = ?'); params.push(status.toUpperCase()); }
+    if (stage && stage !== 'all') { where.push('furthest_step = ?'); params.push(parseInt(stage) || 1); }
+    if (search) { where.push('(name LIKE ? OR email LIKE ? OR event_name LIKE ? OR event_type LIKE ?)'); const s = `%${search}%`; params.push(s, s, s, s); }
+    const whereSql = where.length ? 'WHERE ' + where.join(' AND ') : '';
+    const orderSql = sort === 'oldest' ? 'last_activity_at ASC'
+        : sort === 'value' ? 'est_value DESC'
+        : sort === 'reminders' ? 'reminders_sent DESC'
+        : 'last_activity_at DESC';
+
+    const cols = `id, name, company, email, cell, event_name, event_date, event_type, event_location, current_step, furthest_step,
+                  consent_given, status, reminders_sent, last_reminder_at, last_activity_at, created_at, converted_booking_id, opt_out, source, est_value`;
+    db.get(`SELECT COUNT(*) AS total FROM abandoned_bookings ${whereSql}`, params, (err, countRow) => {
+        if (err) return res.status(500).json({ success: false, message: 'DB error' });
+        const total = countRow ? countRow.total : 0;
+        db.all(`SELECT ${cols} FROM abandoned_bookings ${whereSql} ORDER BY ${orderSql} LIMIT ? OFFSET ?`,
+            [...params, limit, offset], (err2, rows) => {
+                if (err2) return res.status(500).json({ success: false, message: 'DB error' });
+                res.json({ success: true, items: rows || [], total, page, pages: Math.max(1, Math.ceil(total / limit)) });
+            });
+    });
+});
+
+// ---- Admin: recovery statistics (registered before /:id) ----
+app.get('/api/admin/abandoned-bookings/stats', requireAdmin, (req, res) => {
+    db.all(`SELECT status, COUNT(*) AS c, COALESCE(SUM(est_value),0) AS v FROM abandoned_bookings GROUP BY status`, [], (err, rows) => {
+        if (err) return res.status(500).json({ success: false });
+        const byStatus = {}; let total = 0, openValue = 0;
+        (rows || []).forEach(r => { byStatus[r.status] = { count: r.c, value: r.v }; total += r.c; });
+        const recovered = (byStatus.RECOVERED?.count || 0) + (byStatus.WON?.count || 0);
+        ['ABANDONED', 'REMINDED'].forEach(s => { if (byStatus[s]) openValue += byStatus[s].value; });
+        db.all(`SELECT furthest_step, COUNT(*) AS c FROM abandoned_bookings GROUP BY furthest_step`, [], (e2, frows) => {
+            const funnel = { 1: 0, 2: 0, 3: 0, 4: 0 };
+            (frows || []).forEach(r => { funnel[r.furthest_step] = r.c; });
+            res.json({ success: true, stats: {
+                total,
+                abandoned: byStatus.ABANDONED?.count || 0,
+                reminded: byStatus.REMINDED?.count || 0,
+                recovered,
+                won: byStatus.WON?.count || 0,
+                lost: byStatus.LOST?.count || 0,
+                closed: byStatus.CLOSED?.count || 0,
+                conversion_rate: total > 0 ? Math.round((recovered / total) * 1000) / 10 : 0,
+                est_lost_value: Math.round(openValue * 100) / 100,
+                funnel
+            }});
+        });
+    });
+});
+
+// ---- Admin: CSV export (registered before /:id) ----
+app.get('/api/admin/abandoned-bookings/export', requireAdmin, exportRateLimiter, (req, res) => {
+    const cols = ['id', 'name', 'company', 'email', 'cell', 'event_name', 'event_date', 'event_type', 'event_location', 'current_step', 'furthest_step', 'consent_given', 'status', 'reminders_sent', 'last_reminder_at', 'last_activity_at', 'created_at', 'converted_booking_id', 'opt_out', 'source', 'est_value'];
+    db.all(`SELECT ${cols.join(', ')} FROM abandoned_bookings ORDER BY last_activity_at DESC`, [], (err, rows) => {
+        if (err) return res.status(500).send('Export failed');
+        const escapeCsv = (v) => { if (v == null) return ''; const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+        const csv = [cols.join(',')].concat((rows || []).map(r => cols.map(c => escapeCsv(r[c])).join(','))).join('\n');
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="abandoned-bookings-${new Date().toISOString().slice(0, 10)}.csv"`);
+        res.send(csv);
+    });
+});
+
+// ---- Admin: single draft detail ----
+app.get('/api/admin/abandoned-bookings/:id', requireAdmin, (req, res) => {
+    db.get(`SELECT * FROM abandoned_bookings WHERE id=?`, [req.params.id], (err, row) => {
+        if (err || !row) return res.status(404).json({ success: false, message: 'Not found' });
+        try { row.services = row.services_json ? JSON.parse(row.services_json) : []; } catch (e) { row.services = []; }
+        res.json({ success: true, item: row });
+    });
+});
+
+// ---- Admin: manually resend a reminder (admin-initiated; respects opt-out) ----
+app.post('/api/admin/abandoned-bookings/:id/resend-reminder', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    db.get(`SELECT * FROM abandoned_bookings WHERE id=?`, [req.params.id], async (err, row) => {
+        if (err || !row) return res.status(404).json({ success: false, message: 'Not found' });
+        if (row.opt_out) return res.status(400).json({ success: false, message: 'This contact has opted out of reminders.' });
+        if (!row.email) return res.status(400).json({ success: false, message: 'No email on this draft.' });
+        const ok = await sendAbandonedBookingReminderEmail(row);
+        if (!ok) return res.status(502).json({ success: false, message: 'Email could not be sent.' });
+        db.run(`UPDATE abandoned_bookings SET reminders_sent=reminders_sent+1, last_reminder_at=CURRENT_TIMESTAMP,
+                    status=CASE WHEN status='ABANDONED' THEN 'REMINDED' ELSE status END WHERE id=?`,
+            [req.params.id], () => res.json({ success: true, message: 'Reminder sent.' }));
+    });
+});
+
+// ---- Admin: mark as won / lost / closed (or re-open to abandoned) ----
+app.put('/api/admin/abandoned-bookings/:id/status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    const allowed = ['WON', 'LOST', 'CLOSED', 'ABANDONED'];
+    const status = (req.body.status || '').toString().toUpperCase();
+    if (!allowed.includes(status)) return res.status(400).json({ success: false, message: 'Invalid status.' });
+    db.run(`UPDATE abandoned_bookings SET status=? WHERE id=?`, [status, req.params.id], function (err) {
+        if (err) return res.status(500).json({ success: false });
+        res.json({ success: true, message: 'Status updated.' });
+    });
 });
 
 function generatePayFastSignature(pfData, passPhrase = null) {
@@ -6437,6 +6791,55 @@ app.get('/api/admin/users', requireAdmin, requireRole(['administrator']), (req, 
         res.json(rows);
     });
 });
+
+// Admin Session Heartbeat Route
+app.post('/api/admin/session/heartbeat', requireAdmin, (req, res) => {
+    const loginLogId = req.session.loginLogId;
+    if (!loginLogId) {
+        return res.json({ success: true, message: 'No active login log ID' });
+    }
+    db.run(
+        `UPDATE admin_login_logs 
+         SET last_activity_at = CURRENT_TIMESTAMP,
+             duration_seconds = CAST((strftime('%s', 'now') - strftime('%s', login_at)) AS INTEGER)
+         WHERE id = ?`,
+        [loginLogId],
+        (err) => {
+            if (err) {
+                console.error('[heartbeat] Failed to update login log:', err.message);
+                return res.status(500).json({ success: false });
+            }
+            res.json({ success: true });
+        }
+    );
+});
+
+// GET Admin Login Activity Logs
+app.get('/api/admin/user-login-logs', requireAdmin, requireRole(['administrator']), (req, res) => {
+    db.all(`
+        SELECT 
+            l.id,
+            l.admin_id,
+            l.login_at,
+            l.logout_at,
+            l.last_activity_at,
+            l.duration_seconds,
+            l.ip_address,
+            l.user_agent,
+            a.username,
+            a.email,
+            a.full_name
+        FROM admin_login_logs l
+        JOIN admins a ON l.admin_id = a.id
+        ORDER BY l.login_at DESC
+    `, [], (err, rows) => {
+        if (err) {
+            console.error('Failed to fetch login logs:', err);
+            return res.status(500).json({ success: false, message: 'Could not fetch login activity logs.' });
+        }
+        res.json(rows);
+    });
+});
 app.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (req, res) => {
     const { email, full_name, phone, role } = req.body;
     if (!email) {
@@ -7021,6 +7424,229 @@ app.put('/api/admin/policies', requireAdmin, (req, res) => {
                 if (err && !failed) { failed = true; return res.status(500).json({ error: err.message }); }
                 if (--pending === 0 && !failed) res.json({ success: true });
             });
+    });
+});
+
+// ============================================================
+// Legal & Compliance Centre — /api/admin/legal/*
+// Reads use requireAdmin; writes (draft/publish/restore) require the administrator role (Gate 4).
+// ============================================================
+
+// Next version number for a document: max numeric base + 0.1, with optional "-draft" suffix.
+function computeNextLegalVersion(rows, isDraft) {
+    let maxBase = 1.0;
+    (rows || []).forEach(r => {
+        const base = parseFloat(String(r.version_number).replace('-draft', ''));
+        if (!isNaN(base) && base > maxBase) maxBase = base;
+    });
+    const s = ((Math.round(maxBase * 10) + 1) / 10).toFixed(1);
+    return isDraft ? s + '-draft' : s;
+}
+
+// Route 1 — Overview stats + recent activity
+app.get('/api/admin/legal/overview', requireAdmin, (req, res) => {
+    const stats = {};
+    db.get("SELECT COUNT(*) AS c FROM legal_documents WHERE status='published'", [], (e1, r1) => {
+        stats.active_documents = r1 ? r1.c : 0;
+        db.get("SELECT COUNT(*) AS c FROM legal_document_versions WHERE is_published=1", [], (e2, r2) => {
+            stats.published_versions = r2 ? r2.c : 0;
+            db.get("SELECT COUNT(*) AS c FROM consent_audit", [], (e3, r3) => {
+                stats.total_consent_records = r3 ? r3.c : 0;
+                db.get("SELECT COUNT(*) AS c FROM contracts WHERE status='signed'", [], (e4, r4) => {
+                    stats.signed_contracts = r4 ? r4.c : 0;
+                    db.get("SELECT COUNT(*) AS c FROM contracts WHERE status='draft'", [], (e5, r5) => {
+                        stats.draft_contracts = r5 ? r5.c : 0;
+                        db.all(`SELECT lv.id, lv.version_number, lv.change_summary, lv.is_published, lv.created_at, lv.published_by,
+                                       ld.document_type, ld.title
+                                FROM legal_document_versions lv
+                                JOIN legal_documents ld ON ld.id = lv.document_id
+                                ORDER BY lv.created_at DESC, lv.id DESC LIMIT 5`, [], (e6, recent) => {
+                            res.json({ success: true, stats, recent_activity: recent || [] });
+                        });
+                    });
+                });
+            });
+        });
+    });
+});
+
+// Route 2 — All documents with current-version metadata
+app.get('/api/admin/legal/documents', requireAdmin, (req, res) => {
+    db.all(`SELECT ld.*, lv.version_number, lv.content_html, lv.published_at, lv.published_by, lv.change_summary
+            FROM legal_documents ld
+            LEFT JOIN legal_document_versions lv ON lv.id = ld.current_version_id
+            ORDER BY ld.document_type`, [], (err, docs) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, documents: docs || [] });
+    });
+});
+
+// Route 9 — Full version history for one document type (registered before :type so the 3-segment path is explicit)
+app.get('/api/admin/legal/documents/:type/history', requireAdmin, (req, res) => {
+    db.get("SELECT id FROM legal_documents WHERE document_type = ?", [req.params.type], (err, doc) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (!doc) return res.status(404).json({ success: false, message: 'Unknown document type' });
+        db.all("SELECT * FROM legal_document_versions WHERE document_id = ? ORDER BY created_at DESC, id DESC", [doc.id], (e2, versions) => {
+            if (e2) return res.status(500).json({ success: false, message: e2.message });
+            res.json({ success: true, document_type: req.params.type, versions: versions || [] });
+        });
+    });
+});
+
+// Route 4 — Save a new draft version (write)
+app.post('/api/admin/legal/documents/:type/draft', requireAdmin, requireRole(['administrator']), (req, res) => {
+    const type = req.params.type;
+    let content = (req.body.content_html || '').toString();
+    if (!content.trim()) return res.status(400).json({ success: false, message: 'Content cannot be empty.' });
+    if (content.length > 500000) content = content.substring(0, 500000);
+    const summary = ((req.body.change_summary || '').toString().substring(0, 500)) || null;
+    db.get("SELECT id FROM legal_documents WHERE document_type = ?", [type], (err, doc) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (!doc) return res.status(400).json({ success: false, message: 'Unknown document type' });
+        db.all("SELECT version_number FROM legal_document_versions WHERE document_id = ?", [doc.id], (e2, rows) => {
+            const nextVer = computeNextLegalVersion(rows, true);
+            db.run(`INSERT INTO legal_document_versions (document_id, version_number, content_html, change_summary, is_published)
+                    VALUES (?,?,?,?,0)`, [doc.id, nextVer, content, summary], function (e3) {
+                if (e3) return res.status(500).json({ success: false, message: e3.message });
+                db.run("UPDATE legal_documents SET status='draft', updated_at=CURRENT_TIMESTAMP WHERE id=?", [doc.id]);
+                res.json({ success: true, version: { id: this.lastID, version_number: nextVer } });
+            });
+        });
+    });
+});
+
+// Route 5 — Publish a draft (latest, or a specific version_id) (write)
+app.post('/api/admin/legal/documents/:type/publish', requireAdmin, requireRole(['administrator']), (req, res) => {
+    const type = req.params.type;
+    const by = req.session.username || 'admin';
+    db.get("SELECT id FROM legal_documents WHERE document_type = ?", [type], (err, doc) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (!doc) return res.status(400).json({ success: false, message: 'Unknown document type' });
+        const publishVersion = (versionId) => {
+            db.get("SELECT * FROM legal_document_versions WHERE id = ? AND document_id = ?", [versionId, doc.id], (e2, ver) => {
+                if (e2) return res.status(500).json({ success: false, message: e2.message });
+                if (!ver) return res.status(404).json({ success: false, message: 'Version not found for this document.' });
+                const cleanNum = String(ver.version_number).replace('-draft', '');
+                db.run("UPDATE legal_document_versions SET is_published=1, version_number=?, published_at=CURRENT_TIMESTAMP, published_by=? WHERE id=?",
+                    [cleanNum, by, ver.id], (e3) => {
+                        if (e3) return res.status(500).json({ success: false, message: e3.message });
+                        db.run(`UPDATE legal_documents SET status='published', current_version_id=?, last_published_at=CURRENT_TIMESTAMP,
+                                last_published_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [ver.id, by, doc.id], () => {
+                            res.json({ success: true, message: 'Document published.', version_number: cleanNum, published_at: new Date().toISOString() });
+                        });
+                    });
+            });
+        };
+        if (req.body.version_id) {
+            publishVersion(parseInt(req.body.version_id));
+        } else {
+            db.get("SELECT id FROM legal_document_versions WHERE document_id = ? ORDER BY created_at DESC, id DESC LIMIT 1", [doc.id], (e4, latest) => {
+                if (e4) return res.status(500).json({ success: false, message: e4.message });
+                if (!latest) return res.status(400).json({ success: false, message: 'No version to publish.' });
+                publishVersion(latest.id);
+            });
+        }
+    });
+});
+
+// Route 6 — Restore a previous version as a new draft (write)
+app.post('/api/admin/legal/documents/:type/restore/:versionId', requireAdmin, requireRole(['administrator']), (req, res) => {
+    const type = req.params.type;
+    db.get("SELECT id FROM legal_documents WHERE document_type = ?", [type], (err, doc) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (!doc) return res.status(400).json({ success: false, message: 'Unknown document type' });
+        db.get("SELECT * FROM legal_document_versions WHERE id = ? AND document_id = ?", [req.params.versionId, doc.id], (e2, old) => {
+            if (e2) return res.status(500).json({ success: false, message: e2.message });
+            if (!old) return res.status(404).json({ success: false, message: 'Version not found.' });
+            db.all("SELECT version_number FROM legal_document_versions WHERE document_id = ?", [doc.id], (e3, rows) => {
+                const nextVer = computeNextLegalVersion(rows, true);
+                db.run(`INSERT INTO legal_document_versions (document_id, version_number, content_html, change_summary, is_published)
+                        VALUES (?,?,?,?,0)`, [doc.id, nextVer, old.content_html, 'Restored from version ' + old.version_number], function (e4) {
+                    if (e4) return res.status(500).json({ success: false, message: e4.message });
+                    db.run("UPDATE legal_documents SET status='draft', updated_at=CURRENT_TIMESTAMP WHERE id=?", [doc.id]);
+                    res.json({ success: true, message: 'Restored as new draft.', new_version_id: this.lastID });
+                });
+            });
+        });
+    });
+});
+
+// Route 3 — Single document + current content + all versions
+app.get('/api/admin/legal/documents/:type', requireAdmin, (req, res) => {
+    db.get("SELECT * FROM legal_documents WHERE document_type = ?", [req.params.type], (err, doc) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (!doc) return res.status(404).json({ success: false, message: 'Unknown document type' });
+        db.all("SELECT * FROM legal_document_versions WHERE document_id = ? ORDER BY created_at DESC, id DESC", [doc.id], (e2, versions) => {
+            if (e2) return res.status(500).json({ success: false, message: e2.message });
+            const current = (versions || []).find(v => v.id === doc.current_version_id) || null;
+            res.json({ success: true, document: Object.assign({}, doc, {
+                versions: versions || [],
+                current_content_html: current ? current.content_html : '',
+                current_version_number: current ? current.version_number : null
+            }) });
+        });
+    });
+});
+
+// Route 7 — Consent audit (paginated, joined with booking name/email)
+app.get('/api/admin/legal/consent-audit', requireAdmin, (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    // Cap at 10000 so the "Export CSV" path (limit=10000) returns the full set; the UI page-size
+    // select only offers 20/50, so normal paged reads stay naturally bounded.
+    const limit = Math.min(10000, Math.max(1, parseInt(req.query.limit) || 20));
+    const search = (req.query.search || '').trim().substring(0, 100);
+    const type = req.query.type || 'all';
+    const offset = (page - 1) * limit;
+    const conds = [], qp = [];
+    if (type !== 'all') { conds.push("ca.consent_type = ?"); qp.push(type); }
+    if (search) { const t = '%' + search + '%'; conds.push("(b.name LIKE ? OR b.email LIKE ? OR ca.ip_address LIKE ? OR ca.source_email LIKE ?)"); qp.push(t, t, t, t); }
+    const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+    db.get(`SELECT COUNT(*) AS total FROM consent_audit ca LEFT JOIN bookings b ON b.id = ca.booking_id ${where}`, qp, (e1, cnt) => {
+        if (e1) return res.status(500).json({ success: false, message: e1.message });
+        db.all(`SELECT ca.id, ca.booking_id, ca.ip_address, ca.consented_at, ca.consent_type, ca.policy_version, ca.source_email, ca.consent_source,
+                       b.name AS booking_name, b.email AS booking_email
+                FROM consent_audit ca LEFT JOIN bookings b ON b.id = ca.booking_id
+                ${where} ORDER BY ca.consented_at DESC, ca.id DESC LIMIT ? OFFSET ?`, [...qp, limit, offset], (e2, records) => {
+            if (e2) return res.status(500).json({ success: false, message: e2.message });
+            const total = cnt.total;
+            res.json({ success: true, records: records || [], total, page, limit, pages: Math.ceil(total / limit) });
+        });
+    });
+});
+
+// Route 8 — Contract registry (all contracts joined with booking)
+app.get('/api/admin/legal/contracts', requireAdmin, (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, parseInt(req.query.limit) || 20);
+    const status = req.query.status || 'all';
+    const search = (req.query.search || '').trim().substring(0, 100);
+    const offset = (page - 1) * limit;
+    const conds = [], qp = [];
+    if (status !== 'all') { conds.push("c.status = ?"); qp.push(status); }
+    if (search) { const t = '%' + search + '%'; conds.push("(b.name LIKE ? OR b.email LIKE ? OR b.event_name LIKE ?)"); qp.push(t, t, t); }
+    const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+    db.get(`SELECT COUNT(*) AS total FROM contracts c LEFT JOIN bookings b ON b.id = c.booking_id ${where}`, qp, (e1, cnt) => {
+        if (e1) return res.status(500).json({ success: false, message: e1.message });
+        db.all(`SELECT c.id, c.booking_id, c.template_version, c.status, c.is_frozen, c.pdf_url, c.uploaded_by, c.signed_by, c.signed_date,
+                       c.sent_to_client_at, c.signed_by_client_at, c.created_at, c.updated_at,
+                       b.name AS client_name, b.email AS client_email, b.event_name, b.date AS event_date
+                FROM contracts c LEFT JOIN bookings b ON b.id = c.booking_id
+                ${where} ORDER BY c.updated_at DESC, c.id DESC LIMIT ? OFFSET ?`, [...qp, limit, offset], (e2, contracts) => {
+            if (e2) return res.status(500).json({ success: false, message: e2.message });
+            const total = cnt.total;
+            res.json({ success: true, contracts: contracts || [], total, page, limit, pages: Math.ceil(total / limit) });
+        });
+    });
+});
+
+// Public — cookie policy wording for the public site's cookie banner (Gate 5 live sync)
+app.get('/api/public/legal/cookie-policy', (req, res) => {
+    db.get(`SELECT lv.content_html, lv.version_number, lv.published_at
+            FROM legal_documents ld
+            JOIN legal_document_versions lv ON lv.id = ld.current_version_id
+            WHERE ld.document_type = 'cookie_policy'`, [], (err, row) => {
+        if (err || !row) return res.json({ success: false });
+        res.json({ success: true, content_html: row.content_html, version_number: row.version_number, published_at: row.published_at });
     });
 });
 
@@ -9071,7 +9697,7 @@ app.get('/api/admin/bookings/:id/reconcile', requireAdmin, (req, res) => {
     db.get(
         `SELECT
             b.id, b.amount_paid AS ledger_paid, b.amount_outstanding AS ledger_outstanding, b.total_amount AS ledger_total,
-            COALESCE(SUM(CASE WHEN t.source != 'payfast' OR t.is_verified = 1 THEN t.amount ELSE 0 END), 0) AS tx_paid,
+            COALESCE(SUM(CASE WHEN (t.source != 'payfast' OR t.is_verified = 1) AND COALESCE(t.is_duplicate, 0) = 0 AND t.status = 'completed' THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS tx_paid,
             COUNT(t.id) AS tx_count
          FROM bookings b
          LEFT JOIN transactions t ON t.booking_id = b.id
@@ -9088,6 +9714,88 @@ app.get('/api/admin/bookings/:id/reconcile', requireAdmin, (req, res) => {
                 transactions: { total_paid: row.tx_paid, count: row.tx_count },
                 drift,
                 drift_amount: drift ? ((row.ledger_paid || 0) - (row.tx_paid || 0)).toFixed(2) : '0.00'
+            });
+        }
+    );
+});
+
+// 2.5 Ledger reconciliation sync — force aligns bookings totals to transactions
+app.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    const bookingId = req.params.id;
+    db.get(
+        `SELECT
+            COALESCE(SUM(CASE WHEN (t.source != 'payfast' OR t.is_verified = 1) AND COALESCE(t.is_duplicate, 0) = 0 AND t.status = 'completed' THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS tx_paid
+         FROM transactions t
+         WHERE t.booking_id = ?`,
+        [bookingId],
+        (err, row) => {
+            if (err) return res.status(500).json({ success: false, message: 'Database error counting transactions: ' + err.message });
+            
+            const txPaid = parseFloat(row.tx_paid) || 0;
+            
+            db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (bookErr, booking) => {
+                if (bookErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+                
+                const total = parseFloat(booking.total_amount) || 0;
+                const outstanding = Math.max(0, total - txPaid);
+                
+                const isFullyPaid = total > 0 ? txPaid >= total : false;
+                let payment_status = booking.payment_status;
+                if (isFullyPaid) {
+                    payment_status = 'PAID';
+                } else if (total > 0) {
+                    const depositThreshold = total * 0.5;
+                    if (txPaid >= depositThreshold) {
+                        payment_status = 'DEPOSIT_PAID';
+                    } else if (txPaid > 0) {
+                        payment_status = 'PARTIALLY_PAID';
+                    } else {
+                        payment_status = 'UNPAID';
+                    }
+                }
+                
+                const newStatus = payment_status === 'PAID'
+                    ? (['ACCEPTED','CONFIRMED'].includes(booking.status) ? 'CONFIRMED' : 'ACCEPTED')
+                    : booking.status;
+                
+                const adminUser = req.session.username || 'system';
+                
+                db.run(
+                    `UPDATE bookings SET
+                        amount_paid = ?, amount_outstanding = ?, payment_status = ?, status = ?,
+                        confirmed_at = CASE WHEN ? = 'PAID' AND confirmed_at IS NULL THEN CURRENT_TIMESTAMP ELSE confirmed_at END
+                     WHERE id = ?`,
+                    [txPaid, outstanding, payment_status, newStatus, payment_status, bookingId],
+                    (upErr) => {
+                        if (upErr) return res.status(500).json({ success: false, message: 'Failed to update booking: ' + upErr.message });
+                        
+                        db.run(
+                            `INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+                             VALUES ('bookings', ?, 'RECONCILE_SYNC', ?, ?, CURRENT_TIMESTAMP)`,
+                            [bookingId, JSON.stringify({ amount_paid: txPaid, amount_outstanding: outstanding, payment_status }), adminUser],
+                            () => {}
+                        );
+                        db.run(
+                            `INSERT INTO financial_audit_log (event_type, entity_type, entity_id, amount, changed_by, notes)
+                             VALUES ('LEDGER_SYNC', 'booking', ?, ?, ?, ?)`,
+                            [bookingId, txPaid, adminUser, `Synced ledger paid to match transaction ledger. Outstanding: R${outstanding.toFixed(2)}`],
+                            () => {}
+                        );
+                        
+                        (async () => {
+                            await syncBookingToCalendar(bookingId);
+                            alignMilestonePayments(bookingId, txPaid, (psErr) => {
+                                if (psErr) console.error('[Ledger Sync] Milestone alignment failed:', psErr.message);
+                            });
+                            
+                            if (payment_status === 'PAID') {
+                                db.run("UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [bookingId]);
+                            }
+                        })();
+                        
+                        res.json({ success: true, message: 'Ledger aligned and booking synced successfully.', amount_paid: txPaid, amount_outstanding: outstanding, payment_status });
+                    }
+                );
             });
         }
     );
@@ -9818,18 +10526,25 @@ app.post('/api/admin/expenses/upload-receipt', requireAdmin, uploadReceipt.singl
 
 // POST /api/admin/transactions/manual — log a manual payment, refund, or adjustment
 app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    const { booking_id, amount, transaction_type, payment_method, reference, notes, transaction_date } = req.body;
+    const { booking_id, amount, transaction_type, payment_method, reference, notes, transaction_date, direction } = req.body;
     if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0)
         return res.status(400).json({ success: false, message: 'A valid positive amount is required.' });
     const validTypes = ['payment', 'refund', 'adjustment'];
     if (!transaction_type || !validTypes.includes(transaction_type))
         return res.status(400).json({ success: false, message: 'Transaction type must be payment, refund, or adjustment.' });
+    if (transaction_type === 'adjustment' && (!direction || !['credit', 'debit'].includes(direction)))
+        return res.status(400).json({ success: false, message: 'Adjustment direction must be credit or debit.' });
+
     const amt = parseFloat(amount).toFixed(2);
     const txDate = transaction_date || new Date().toISOString().split('T')[0];
+    const finalNotes = transaction_type === 'adjustment'
+        ? (notes ? `[Adjustment: ${direction}] ${notes.trim()}` : `[Adjustment: ${direction}]`)
+        : (notes ? notes.trim() : null);
+
     db.run(
         `INSERT INTO transactions (booking_id, amount, transaction_type, payment_method, reference, notes, transaction_date, source, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', 'completed', CURRENT_TIMESTAMP)`,
-        [booking_id || null, amt, transaction_type, payment_method || null, reference || null, notes || null, txDate],
+        [booking_id || null, amt, transaction_type, payment_method || null, reference || null, finalNotes, txDate],
         function(err) {
             if (err) return res.status(500).json({ success: false, message: err.message });
             const txId = this.lastID;
@@ -9839,7 +10554,7 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
             db.run(
                 `INSERT INTO financial_audit_log (event_type, entity_type, entity_id, amount, changed_by, notes)
                  VALUES ('MANUAL_PAYMENT', 'transaction', ?, ?, ?, ?)`,
-                [txId, parseFloat(amt), adminUser, `Type: ${transaction_type}, Method: ${payment_method || 'N/A'}, Ref: ${reference || 'N/A'}, Notes: ${notes || ''}`],
+                [txId, parseFloat(amt), adminUser, `Type: ${transaction_type}, Method: ${payment_method || 'N/A'}, Ref: ${reference || 'N/A'}, Notes: ${finalNotes || ''}`],
                 () => {}
             );
 
@@ -9942,6 +10657,79 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                             }
                             res.json({ success: true, transaction_id: txId, message: 'Transaction logged and booking updated.' });
                         });
+                } else if (transaction_type === 'adjustment') {
+                    db.get("SELECT * FROM bookings WHERE id = ?", [booking_id], (bookErr, row) => {
+                        if (bookErr || !row) {
+                            console.error(`[Manual Transaction] Booking #${booking_id} not found:`, bookErr?.message);
+                            return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
+                        }
+                        const total = parseFloat(row.total_amount) || 0;
+                        const newTotal = direction === 'credit' ? Math.max(0, total - parseFloat(amt)) : total + parseFloat(amt);
+                        const paid = parseFloat(row.amount_paid) || 0;
+                        const outstanding = Math.max(0, newTotal - paid);
+
+                        // Determine correct payment status
+                        const isFullyPaid = newTotal > 0 ? paid >= newTotal : false;
+                        let payment_status = row.payment_status;
+                        if (isFullyPaid) {
+                            payment_status = 'PAID';
+                        } else if (newTotal > 0) {
+                            const depositThreshold = newTotal * 0.5;
+                            if (paid >= depositThreshold) {
+                                payment_status = 'DEPOSIT_PAID';
+                            } else if (paid > 0) {
+                                payment_status = 'PARTIALLY_PAID';
+                            } else {
+                                payment_status = 'UNPAID';
+                            }
+                        }
+
+                        // Determine new status (move to CONFIRMED or ACCEPTED if fully paid)
+                        const newStatus = payment_status === 'PAID'
+                            ? (['ACCEPTED','CONFIRMED'].includes(row.status) ? 'CONFIRMED' : 'ACCEPTED')
+                            : row.status;
+
+                        db.run(
+                            `UPDATE bookings SET
+                                payment_status = ?, total_amount = ?, amount_outstanding = ?,
+                                status = ?,
+                                confirmed_at = CASE WHEN ? = 'PAID' AND confirmed_at IS NULL THEN CURRENT_TIMESTAMP ELSE confirmed_at END
+                             WHERE id = ?`,
+                            [payment_status, newTotal, outstanding, newStatus, payment_status, booking_id],
+                            (upErr) => {
+                                if (upErr) {
+                                    console.error('[Manual Transaction] Booking update failed:', upErr.message);
+                                    return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking update failed.' });
+                                }
+
+                                // Log audit trails
+                                db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+                                        VALUES ('bookings', ?, 'ADJUSTMENT', ?, ?, CURRENT_TIMESTAMP)`,
+                                    [booking_id, JSON.stringify({ total_amount: newTotal, payment_status, amount_outstanding: outstanding }), adminUser],
+                                    (aErr) => { if (aErr) console.error('[Audit] Manual adjustment log failed:', aErr.message); });
+
+                                (async () => {
+                                    await syncBookingToCalendar(booking_id);
+                                    updateBookingMilestones(booking_id, (psErr) => {
+                                        if (psErr) console.error('[Manual Transaction] Milestone update failed:', psErr.message);
+                                    });
+
+                                    // Void and regenerate invoice if one exists that is not paid/void
+                                    db.get("SELECT id FROM invoices WHERE booking_id = ? AND UPPER(status) NOT IN ('VOID','PAID') LIMIT 1", [booking_id], async (invErr, invRow) => {
+                                        if (!invErr && invRow) {
+                                            try {
+                                                await generateInvoice(booking_id);
+                                            } catch (e) {
+                                                console.error('[Manual Transaction] Auto-regeneration of invoice failed:', e.message);
+                                            }
+                                        }
+                                    });
+                                })();
+
+                                res.json({ success: true, transaction_id: txId, message: 'Transaction logged and booking total adjusted.' });
+                            }
+                        );
+                    });
                 } else {
                     res.json({ success: true, transaction_id: txId, message: 'Transaction logged.' });
                 }
@@ -10146,14 +10934,14 @@ app.get('/api/admin/reconciliation', requireAdmin, requireRole(['administrator',
             COALESCE(b.amount_outstanding, 0) AS outstanding,
 
             -- PayFast transactions (non-duplicate)
-            COALESCE(SUM(CASE WHEN t.source = 'payfast'  AND COALESCE(t.is_duplicate, 0) = 0 THEN t.amount ELSE 0 END), 0) AS payfast_total,
+            COALESCE(SUM(CASE WHEN t.source = 'payfast' AND COALESCE(t.is_duplicate, 0) = 0 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS payfast_total,
             -- Manual transactions (non-duplicate)
-            COALESCE(SUM(CASE WHEN t.source = 'manual'   AND COALESCE(t.is_duplicate, 0) = 0 THEN t.amount ELSE 0 END), 0) AS manual_total,
+            COALESCE(SUM(CASE WHEN t.source = 'manual' AND COALESCE(t.is_duplicate, 0) = 0 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS manual_total,
             -- All flagged duplicates
-            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate, 0) = 1 THEN t.amount ELSE 0 END), 0) AS duplicate_total,
+            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate, 0) = 1 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS duplicate_total,
 
             -- Effective received = payfast + manual (excluding duplicates)
-            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate, 0) = 0 THEN t.amount ELSE 0 END), 0) AS effective_received,
+            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate, 0) = 0 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS effective_received,
 
             -- Warning flags
             -- 'duplicate': both payfast and manual entries exist for same booking
@@ -10166,7 +10954,7 @@ app.get('/api/admin/reconciliation', requireAdmin, requireRole(['administrator',
             -- 'overpayment': effective received > quoted amount (and quoted > 0)
             CASE
                 WHEN COALESCE(b.total_amount, 0) > 0
-                 AND COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate, 0) = 0 THEN t.amount ELSE 0 END), 0) > COALESCE(b.total_amount, 0) + 1.0
+                 AND COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate, 0) = 0 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) > COALESCE(b.total_amount, 0) + 1.0
                 THEN 1 ELSE 0
             END AS is_overpaid
 
@@ -10771,6 +11559,13 @@ app.get('/api/public/highlights', (req, res) => { // Public route for index.html
         res.json(rows);
     });
 });
+// Admin route — same data/ordering as the public route, but session-gated for the dashboard
+app.get('/api/admin/highlights', requireAdmin, (req, res) => {
+    db.all("SELECT * FROM career_highlights ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
 // Using Multer array middleware we defined earlier, or single file handler
 app.post('/api/admin/highlights', requireAdmin, upload.single('file'), (req, res) => {
     const { year, title, badge, location, description, display_order, fallback_url } = req.body;
@@ -10784,12 +11579,24 @@ app.post('/api/admin/highlights', requireAdmin, upload.single('file'), (req, res
     });
 });
 app.put('/api/admin/highlights/:id', requireAdmin, (req, res) => {
-    const { year, title, badge, location, description, display_order } = req.body;
-    db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, display_order = ? WHERE id = ?", 
-        [year, title, badge, location, description, display_order, req.params.id], function(err) {
+    const { year, title, badge, location, description, display_order, fallback_url, clear_image } = req.body;
+    const done = function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });
-    });
+    };
+    if (clear_image === true || clear_image === 'true') {
+        // Clear the image path entirely
+        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = NULL, display_order = ? WHERE id = ?",
+            [year, title, badge, location, description, display_order, req.params.id], done);
+    } else if (fallback_url) {
+        // A new media URL was supplied on edit — update image_path too.
+        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = ?, display_order = ? WHERE id = ?",
+            [year, title, badge, location, description, fallback_url, display_order, req.params.id], done);
+    } else {
+        // No new media — leave the existing image_path untouched.
+        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, display_order = ? WHERE id = ?",
+            [year, title, badge, location, description, display_order, req.params.id], done);
+    }
 });
 app.delete('/api/admin/highlights/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM career_highlights WHERE id = ?", req.params.id, function(err) {
@@ -10845,6 +11652,24 @@ app.put('/api/admin/home-slider/reorder', requireAdmin, (req, res) => {
     });
 });
 
+// NB: registered AFTER /home-slider/reorder so "reorder" is not captured as :id.
+app.put('/api/admin/home-slider/:id', requireAdmin, (req, res) => {
+    const { alt, url, file_name } = req.body;
+    const done = function(err) {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        res.json({ success: true });
+    };
+    if (url) {
+        // A new image URL was supplied — update url/file_name + alt.
+        db.run("UPDATE home_slider SET alt = ?, url = ?, file_name = ? WHERE id = ?",
+            [alt || null, url, file_name || null, req.params.id], done);
+    } else {
+        // Alt-text-only edit — leave the image untouched.
+        db.run("UPDATE home_slider SET alt = ? WHERE id = ?",
+            [alt || null, req.params.id], done);
+    }
+});
+
 app.post('/api/admin/publish-home-slider', requireAdmin, (req, res) => {
     db.all("SELECT url, alt FROM home_slider ORDER BY display_order ASC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -10895,15 +11720,31 @@ app.get('/api/public/gallery', (req, res) => { // Public route for index.html
     });
 });
 app.post('/api/admin/gallery', requireAdmin, upload.single('file'), (req, res) => {
-    const { title, fallback_url } = req.body;
+    const { title, fallback_url, uploader_name, location } = req.body;
     const imagePath = req.file ? `images/gallery/${req.file.filename}` : (fallback_url || null);
     if (!imagePath) return res.status(400).json({ success: false, message: 'Image file required' });
 
-    db.run("INSERT INTO gallery_images (title, image_path) VALUES (?, ?)", 
-        [title, imagePath], function(err) {
+    db.run("INSERT INTO gallery_images (title, image_path, uploader_name, location) VALUES (?, ?, ?, ?)", 
+        [title, imagePath, uploader_name || null, location || null], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, id: this.lastID, imagePath });
     });
+});
+app.put('/api/admin/gallery/:id', requireAdmin, (req, res) => {
+    const { title, fallback_url, uploader_name, location } = req.body;
+    const done = function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    };
+    if (fallback_url) {
+        // A new media URL was supplied — update image_path too.
+        db.run("UPDATE gallery_images SET title = ?, image_path = ?, uploader_name = ?, location = ? WHERE id = ?",
+            [title, fallback_url, uploader_name || null, location || null, req.params.id], done);
+    } else {
+        // Title-only edit — leave the existing image untouched.
+        db.run("UPDATE gallery_images SET title = ?, uploader_name = ?, location = ? WHERE id = ?",
+            [title, uploader_name || null, location || null, req.params.id], done);
+    }
 });
 app.delete('/api/admin/gallery/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM gallery_images WHERE id = ?", req.params.id, function(err) {
@@ -11202,7 +12043,7 @@ app.get('/api/public/manager', (req, res) => {
 });
 
 app.put('/api/admin/manager', requireAdmin, (req, res) => {
-    const { name, cell_number, whatsapp_number, email } = req.body;
+    const { name, cell_number, whatsapp_number, email, whatsapp_link } = req.body;
     const adminId = req.session.adminId;
 
     // Server-side validation (D3) — never trust the client. Phone *format* stays client-side (intl-tel-input).
@@ -11214,21 +12055,23 @@ app.put('/api/admin/manager', requireAdmin, (req, res) => {
         return res.status(400).json({ success: false, message: 'Enter a valid manager email address.' });
     }
 
+    const cleanLink = whatsapp_link ? String(whatsapp_link).trim() : null;
+
     db.get("SELECT manager_id FROM manager_details ORDER BY manager_id ASC LIMIT 1", [], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         
         if (row) {
             db.run(`UPDATE manager_details 
-                    SET name = ?, cell_number = ?, whatsapp_number = ?, email = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ? 
+                    SET name = ?, cell_number = ?, whatsapp_number = ?, email = ?, whatsapp_link = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ? 
                     WHERE manager_id = ?`, 
-                [name, cell_number, whatsapp_number, email, adminId, row.manager_id], function(err) {
+                [name, cell_number, whatsapp_number, email, cleanLink, adminId, row.manager_id], function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 res.json({ success: true, message: 'Manager details updated successfully.' });
             });
         } else {
-            db.run(`INSERT INTO manager_details (name, cell_number, whatsapp_number, email, created_by) 
-                    VALUES (?, ?, ?, ?, ?)`, 
-                [name, cell_number, whatsapp_number, email, adminId], function(err) {
+            db.run(`INSERT INTO manager_details (name, cell_number, whatsapp_number, email, whatsapp_link, created_by) 
+                    VALUES (?, ?, ?, ?, ?, ?)`, 
+                [name, cell_number, whatsapp_number, email, cleanLink, adminId], function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 res.json({ success: true, message: 'Manager details created successfully.' });
             });
@@ -11906,6 +12749,60 @@ setTimeout(() => {
     setInterval(() => {
         runStalledBookingAdminAlertJob().catch(e => console.error('[Stalled Booking Alert] Scheduled run failed:', e.message));
     }, 24 * 60 * 60 * 1000);
+}, 30000);
+
+// ============================================================================
+// BOOKING RECOVERY — reminder + purge jobs
+//  Reminder cadence: #1 at last_activity + 1h, #2 at last_reminder + 24h,
+//  #3 at last_reminder + 72h. Consent-gated (consent_given=1), opt-out-aware,
+//  capped at 3. Due-time selection is done in SQL to avoid TZ parsing issues.
+// ============================================================================
+async function runAbandonedBookingReminderJob() {
+    const candidates = await new Promise(resolve =>
+        db.all(`SELECT * FROM abandoned_bookings
+                WHERE status IN ('ABANDONED','REMINDED') AND consent_given=1 AND opt_out=0
+                  AND converted_booking_id IS NULL AND reminders_sent < 3 AND email IS NOT NULL
+                  AND (
+                    (reminders_sent = 0 AND last_activity_at <= datetime('now','-1 hour')) OR
+                    (reminders_sent = 1 AND last_reminder_at <= datetime('now','-24 hours')) OR
+                    (reminders_sent = 2 AND last_reminder_at <= datetime('now','-72 hours'))
+                  )`, [], (err, rows) => resolve(err ? [] : (rows || []))));
+    if (!candidates.length) return;
+
+    for (const d of candidates) {
+        // Defensive: if a real booking now exists for this email+date, mark recovered instead of emailing.
+        if (d.event_date) {
+            const existing = await new Promise(resolve => db.get(
+                `SELECT id FROM bookings WHERE lower(email)=lower(?) AND date=? AND status NOT IN ('CANCELLED','EXPIRED') LIMIT 1`,
+                [d.email, d.event_date], (e, row) => resolve(row)));
+            if (existing) {
+                await new Promise(r => db.run(`UPDATE abandoned_bookings SET status='RECOVERED', converted_booking_id=? WHERE id=?`, [existing.id, d.id], () => r()));
+                continue;
+            }
+        }
+        const ok = await sendAbandonedBookingReminderEmail(d);
+        if (ok) {
+            await new Promise(r => db.run(`UPDATE abandoned_bookings SET reminders_sent=reminders_sent+1, last_reminder_at=CURRENT_TIMESTAMP, status='REMINDED' WHERE id=?`, [d.id], () => r()));
+            console.log(`[Booking Recovery] reminder #${d.reminders_sent + 1} sent for draft ${d.id}`);
+        }
+    }
+}
+
+// POPIA retention: purge stale, non-converted drafts after 30 days.
+function runAbandonedBookingPurgeJob() {
+    db.run(`DELETE FROM abandoned_bookings WHERE status NOT IN ('RECOVERED','WON') AND last_activity_at < datetime('now','-30 days')`, function (err) {
+        if (err) return console.error('[Booking Recovery] purge failed:', err.message);
+        if (this && this.changes > 0) console.log(`[Booking Recovery] POPIA purge removed ${this.changes} stale draft(s).`);
+    });
+}
+
+setTimeout(() => {
+    runAbandonedBookingReminderJob().catch(e => console.error('[Booking Recovery] reminder startup run failed:', e.message));
+    setInterval(() => {
+        runAbandonedBookingReminderJob().catch(e => console.error('[Booking Recovery] reminder run failed:', e.message));
+    }, 15 * 60 * 1000);
+    runAbandonedBookingPurgeJob();
+    setInterval(runAbandonedBookingPurgeJob, 24 * 60 * 60 * 1000);
 }, 30000);
 
 // S4-1: DEPOSIT_PAID approaching-event reminder job

@@ -37,21 +37,22 @@ class PDFService {
         // Dark/obsidian backing behind the wordmark. The brand mark is a light
         // "Thabiso" + gold italic "Mhlongo" lockup designed for dark surfaces.
         // A dark card keeps it legible and echoes the dark company band below.
-        doc.roundedRect(20, 20, 190, 60, 3).fillColor(DARK).fill();
-        doc.roundedRect(20, 20, 190, 60, 3).lineWidth(0.75).strokeColor(GOLD).stroke();
+        // Sized larger (220x70, Y=15) to make the logo look prominent and premium.
+        doc.roundedRect(20, 15, 220, 70, 3).fillColor(DARK).fill();
+        doc.roundedRect(20, 15, 220, 70, 3).lineWidth(0.75).strokeColor(GOLD).stroke();
 
-        this._drawWordmark(doc, 20, 20, 190, 60);
+        this._drawWordmark(doc, 20, 15, 220, 70);
 
-        // Document type — right side of gold bar
+        // Document type — right side of gold bar (aligned to the right margin of 584)
         const label = isTaxInvoice ? 'TAX INVOICE' : type.toUpperCase();
         doc.fillColor(DARK).font('Helvetica-Bold').fontSize(22)
-           .text(label, 220, 26, { width: 370, align: 'right' });
+           .text(label, 250, 24, { width: 334, align: 'right' });
 
         doc.font('Helvetica').fontSize(9).fillColor(DARK)
-           .text(`# ${number}`, 220, 54, { width: 370, align: 'right' });
+           .text(`# ${number}`, 250, 52, { width: 334, align: 'right' });
 
         if (isTaxInvoice && OUR_VAT_REG) {
-            doc.fontSize(8).text(`VAT Reg: ${OUR_VAT_REG}`, 220, 67, { width: 370, align: 'right' });
+            doc.fontSize(8).text(`VAT Reg: ${OUR_VAT_REG}`, 250, 65, { width: 334, align: 'right' });
         }
 
         // Dark company sub-band
@@ -80,10 +81,10 @@ class PDFService {
         const gap       = 6;
         const maxWidth  = cardW - 16; // 8pt padding each side
 
-        // Largest firstName size (surname scaled at 0.6x) that fits the card width
-        let size1 = 30, size2, w1, w2;
+        // Largest firstName size (surname scaled at 0.65x for larger display) that fits the card width
+        let size1 = 42, size2, w1, w2;
         for (; size1 >= 10; size1--) {
-            size2 = Math.round(size1 * 0.6);
+            size2 = Math.round(size1 * 0.65);
             doc.font(regularFont).fontSize(size1);
             w1 = doc.widthOfString(firstName);
             doc.font(italicFont).fontSize(size2);
@@ -130,6 +131,7 @@ class PDFService {
         const expDate   = moment().add(validDays, 'days').format('DD MMM YYYY');
 
         const eventRows = [
+            ['BOOKING REF', `#${booking.id}`],
             ['EVENT',  booking.event_name || 'N/A'],
             ['DATE',   booking.date],
             ['VENUE',  booking.event_location || 'TBD'],

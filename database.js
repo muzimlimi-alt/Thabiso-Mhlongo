@@ -344,8 +344,17 @@ function initializeDatabase() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT,
             image_path TEXT NOT NULL,
+            uploader_name TEXT,
+            location TEXT,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
+        )`, () => {
+            db.all("PRAGMA table_info(gallery_images)", (err, columns) => {
+                if (err || !columns) return;
+                const colNames = columns.map(c => c.name);
+                if (!colNames.includes('uploader_name')) db.run("ALTER TABLE gallery_images ADD COLUMN uploader_name TEXT", () => {});
+                if (!colNames.includes('location')) db.run("ALTER TABLE gallery_images ADD COLUMN location TEXT", () => {});
+            });
+        });
          // 8. Manager Details Table
         db.run(`CREATE TABLE IF NOT EXISTS manager_details (
             manager_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -353,6 +362,7 @@ function initializeDatabase() {
             cell_number TEXT NOT NULL,
             whatsapp_number TEXT NOT NULL,
             email TEXT NOT NULL,
+            whatsapp_link TEXT,
             created_on DATETIME DEFAULT CURRENT_TIMESTAMP,
             created_by INTEGER,
             modified_on DATETIME,
@@ -360,6 +370,7 @@ function initializeDatabase() {
             FOREIGN KEY (created_by) REFERENCES admins (id),
             FOREIGN KEY (modified_by) REFERENCES admins (id)
         )`, () => {
+             db.run("ALTER TABLE manager_details ADD COLUMN whatsapp_link TEXT", () => {});
              db.get("SELECT COUNT(*) AS count FROM manager_details", (err, row) => {
                  if (row && row.count === 0) {
                      db.run(`INSERT INTO manager_details (name, cell_number, whatsapp_number, email) 
@@ -1554,12 +1565,172 @@ function initializeDatabase() {
         });
         db.run(`CREATE INDEX IF NOT EXISTS idx_consent_audit_booking ON consent_audit(booking_id)`);
 
+        // ============================================================
+        // Booking Recovery — abandoned booking drafts (abandoned-cart style)
+        // Captures partial booking-wizard progress so admins can recover lost
+        // opportunities. PII is minimised, auto-purged after 30 days (see
+        // runAbandonedBookingPurgeJob), and reminder emails are consent-gated.
+        // ============================================================
+        db.run(`CREATE TABLE IF NOT EXISTS abandoned_bookings (
+            id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+            draft_token          TEXT UNIQUE NOT NULL,   -- client-generated id, stable across autosaves
+            resume_token         TEXT UNIQUE,            -- server-generated, used in resume/opt-out links
+            name                 TEXT,
+            company              TEXT,
+            email                TEXT,
+            cell                 TEXT,
+            event_name           TEXT,
+            event_date           TEXT,
+            event_start_time     TEXT,
+            performance_slot     TEXT,
+            performance_duration TEXT,
+            event_location       TEXT,
+            venue_address        TEXT,
+            city                 TEXT,
+            country              TEXT,
+            venue_type           TEXT,
+            event_type           TEXT,
+            message              TEXT,
+            services_json        TEXT,                   -- snapshot: [{service_id,name,quantity}]
+            current_step         INTEGER DEFAULT 1,
+            furthest_step        INTEGER DEFAULT 1,
+            consent_given        INTEGER DEFAULT 0,      -- ticked the Step-4 POPIA box? gates auto-email
+            status               TEXT DEFAULT 'ABANDONED', -- ABANDONED|REMINDED|RECOVERED|WON|LOST|CLOSED
+            reminders_sent       INTEGER DEFAULT 0,
+            last_reminder_at     DATETIME,
+            last_activity_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+            created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+            converted_booking_id INTEGER,
+            opt_out              INTEGER DEFAULT 0,
+            source               TEXT,                   -- data-bk-source (which CTA opened the modal)
+            ip_address           TEXT,
+            user_agent           TEXT,
+            est_value            REAL DEFAULT 0          -- estimated value of entered services (lost-revenue analytics)
+        )`, () => {
+            db.run(`CREATE INDEX IF NOT EXISTS idx_abandoned_status ON abandoned_bookings(status)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_abandoned_activity ON abandoned_bookings(last_activity_at)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_abandoned_resume ON abandoned_bookings(resume_token)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_abandoned_email ON abandoned_bookings(email)`);
+        });
+
         // Ensure performance_end_time column exists on bookings (failsafe for older DBs)
         db.run("ALTER TABLE bookings ADD COLUMN performance_end_time TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.performance_end_time already exists or error: ' + err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN modified_on DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.modified_on already exists.'); });
         db.run("ALTER TABLE bookings ADD COLUMN buffer_minutes INTEGER DEFAULT NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.buffer_minutes migration:', err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN consent_source TEXT DEFAULT 'public_form'", (err) => { if (err && !err.message.includes('duplicate column name')) {} });
         db.run("ALTER TABLE consent_audit ADD COLUMN consent_source TEXT DEFAULT 'public_form'", (err) => { if (err && !err.message.includes('duplicate column name')) {} });
+
+        // ============================================================
+        // Legal & Compliance Centre — legal documents + version history
+        // ============================================================
+        // (Gate 2 = schema only) consent_audit already has policy_version + consent_source;
+        // add the two genuinely-missing columns. consent_type defaults to 'booking' (accurate for existing rows).
+        db.run("ALTER TABLE consent_audit ADD COLUMN consent_type TEXT DEFAULT 'booking'", (err) => { if (err && !err.message.includes('duplicate column name')) {} });
+        db.run("ALTER TABLE consent_audit ADD COLUMN source_email TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) {} });
+
+        db.run(`CREATE TABLE IF NOT EXISTS legal_documents (
+            id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_type       TEXT UNIQUE NOT NULL,
+            title               TEXT NOT NULL,
+            current_version_id  INTEGER,
+            status              TEXT DEFAULT 'draft' CHECK(status IN ('draft','published')),
+            last_published_at   DATETIME,
+            last_published_by   TEXT,
+            created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at          DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, () => {
+            db.run(`INSERT OR IGNORE INTO legal_documents (document_type, title, status) VALUES
+                ('privacy_policy', 'Privacy Policy', 'published'),
+                ('terms_of_use',   'Terms of Use',   'published'),
+                ('cookie_policy',  'Cookie & Consent Policy', 'published')`);
+        });
+
+        db.run(`CREATE TABLE IF NOT EXISTS legal_document_versions (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id     INTEGER NOT NULL,
+            version_number  TEXT NOT NULL,
+            content_html    TEXT NOT NULL,
+            change_summary  TEXT,
+            is_published    INTEGER DEFAULT 0,
+            published_at    DATETIME,
+            published_by    TEXT,
+            created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (document_id) REFERENCES legal_documents(id) ON DELETE CASCADE
+        )`, () => {
+            // Seed the initial published version (1.0) once, from the existing static legal content.
+            db.get("SELECT COUNT(*) AS c FROM legal_document_versions", (err, row) => {
+                if (err || (row && row.c > 0)) return;
+                const seeds = {
+                    privacy_policy: `<h5>1. Introduction</h5>
+<p>Welcome to the official website of <strong>Thabiso Mhlongo</strong>. We respect your privacy and are committed to protecting the personal information you share with us.</p>
+<h5>2. Information We Collect</h5>
+<ul>
+<li><strong>Contact &amp; booking forms:</strong> Name, email, phone, event details, and notes.</li>
+<li><strong>Newsletter subscriptions:</strong> Your email address.</li>
+<li><strong>Technical/usage data:</strong> IP address, browser type, and pages visited via server logs.</li>
+</ul>
+<p>We do <strong>not</strong> collect payment card details &mdash; payments are processed securely by PayFast.</p>
+<h5>3. How We Use Your Information</h5>
+<ul>
+<li>To respond to contact and booking requests.</li>
+<li>To send newsletters to opted-in subscribers.</li>
+<li>To generate booking quotes and email correspondence.</li>
+<li>To improve website performance and security.</li>
+<li>To comply with applicable legal obligations.</li>
+</ul>
+<h5>4. Cookies &amp; Local Storage</h5>
+<ul>
+<li><strong>Session cookies:</strong> Admin authentication sessions only.</li>
+<li><strong>Local storage:</strong> Cookie consent preference and personalisation settings.</li>
+<li><strong>Third-party embeds:</strong> YouTube, Instagram, TikTok, Facebook may set their own cookies.</li>
+</ul>
+<h5>5. Your Rights (POPIA)</h5>
+<p>Under South Africa&rsquo;s <strong>POPIA</strong>, you have the right to access, correct, or delete your data, and to unsubscribe from newsletters at any time. Contact: <a href="mailto:bookings@thabisomhlongo.com">bookings@thabisomhlongo.com</a></p>
+<h5>6. Data Security</h5>
+<p>We implement bcrypt password hashing, session-based authentication, rate limiting on public forms, and duplicate submission prevention.</p>
+<h5>7. Changes to This Policy</h5>
+<p>We may update this policy at any time. Continued use of the website after changes constitutes acceptance of the revised policy.</p>`,
+                    terms_of_use: `<h5>1. Introduction</h5>
+<p>These Terms &amp; Conditions govern your use of the official website of <strong>Thabiso Mhlongo</strong>. By using this website, you agree to these Terms.</p>
+<h5>2. Use of the Website</h5>
+<ul>
+<li>Do not access unauthorised areas or attempt to bypass security.</li>
+<li>Do not use bots or scrapers to collect data without consent.</li>
+<li>Do not interfere with or damage servers or infrastructure.</li>
+<li>Do not impersonate others or use the site fraudulently.</li>
+</ul>
+<h5>3. Bookings &amp; Inquiries</h5>
+<p>Submitting a booking request does <strong>not</strong> constitute a confirmed booking. All bookings are subject to availability, management review, and a separate written agreement confirmed only upon written confirmation and receipt of any required deposit.</p>
+<h5>4. Intellectual Property</h5>
+<p>All content is the exclusive property of Thabiso Mhlongo or licensed to him. You may not copy, reproduce, or use any content for commercial purposes without prior written consent.</p>
+<h5>5. Limitation of Liability</h5>
+<p>Thabiso Mhlongo and his management shall not be liable for any direct, indirect, or consequential damages arising from use of this website. The site is provided &ldquo;as is&rdquo; without warranties of any kind.</p>
+<h5>6. Privacy</h5>
+<p>Use of this website is also governed by our Privacy Policy, incorporated into these Terms by reference.</p>
+<h5>7. Governing Law</h5>
+<p>These Terms are governed by the laws of the <strong>Republic of South Africa</strong>.</p>
+<h5>8. Contact</h5>
+<p><a href="mailto:bookings@thabisomhlongo.com">bookings@thabisomhlongo.com</a> &mdash; WhatsApp: <a href="https://wa.me/27843235075" target="_blank">+27 84 323 5075</a></p>`,
+                    cookie_policy: `<p>We use cookies to personalise content, analyse traffic, and enhance your experience on this site. Some are essential; others help us improve. Choose your preferences below &mdash; you can change them at any time via Cookie Settings in the footer.</p>`
+                };
+                Object.keys(seeds).forEach((type) => {
+                    db.get("SELECT id FROM legal_documents WHERE document_type = ?", [type], (e2, doc) => {
+                        if (e2 || !doc) return;
+                        db.run(`INSERT INTO legal_document_versions
+                            (document_id, version_number, content_html, change_summary, is_published, published_at, published_by)
+                            VALUES (?, '1.0', ?, 'Initial seeded version', 1, CURRENT_TIMESTAMP, 'system')`,
+                            [doc.id, seeds[type]], function () {
+                                const vid = this.lastID;
+                                db.run(`UPDATE legal_documents
+                                        SET current_version_id = ?, status = 'published',
+                                            last_published_at = CURRENT_TIMESTAMP, last_published_by = 'system'
+                                        WHERE id = ?`, [vid, doc.id]);
+                            });
+                    });
+                });
+            });
+        });
+        db.run(`CREATE INDEX IF NOT EXISTS idx_legal_versions_doc ON legal_document_versions(document_id)`);
 
         db.run(`CREATE INDEX IF NOT EXISTS idx_working_hours_dow ON working_hours(day_of_week)`);
 
@@ -1629,6 +1800,22 @@ function initializeDatabase() {
             total_dwell_secs INTEGER DEFAULT 0
         )`);
 
+        // Admin login and activity logs table
+        db.run(`CREATE TABLE IF NOT EXISTS admin_login_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER NOT NULL,
+            login_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            logout_at DATETIME,
+            last_activity_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            duration_seconds INTEGER DEFAULT 0,
+            ip_address TEXT,
+            user_agent TEXT,
+            FOREIGN KEY (admin_id) REFERENCES admins(id) ON DELETE CASCADE
+        )`, () => {
+            db.run(`CREATE INDEX IF NOT EXISTS idx_admin_login_logs_admin ON admin_login_logs(admin_id)`);
+        });
+
+
         // Status casing normalization migrations.
         // NOTE (Phase 2 Gap 4): 'RESPONDED' was a legacy status name that has been retired.
         // The migration below converts any stale RESPONDED/RESPOND rows back to PENDING on every
@@ -1642,6 +1829,8 @@ function initializeDatabase() {
         db.run("UPDATE payment_schedules SET status = LOWER(status) WHERE status IS NOT NULL");
         db.run("UPDATE date_holds SET status = LOWER(status) WHERE status IS NOT NULL");
         db.run("UPDATE transactions SET status = LOWER(status) WHERE status IS NOT NULL");
+
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (100, 'abandoned_booking_recovery_system')");
 
         console.log('Database tables initialized successfully.');
     });

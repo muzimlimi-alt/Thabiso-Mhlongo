@@ -808,7 +808,14 @@ document.addEventListener("DOMContentLoaded", function() {
             if (data && !data.error && data.name) {
                 $('#dynamicManagerName').text(data.name || '');
                 $('#dynamicManagerCell').text(data.cell_number || '');
-                $('#dynamicManagerWhatsApp').text(data.whatsapp_number || '');
+                if (data.whatsapp_link) {
+                    $('#dynamicManagerWhatsApp').html('<a href="' + data.whatsapp_link + '" target="_blank">' + (data.whatsapp_number || '') + '</a>');
+                } else if (data.whatsapp_number) {
+                    const cleanPhone = data.whatsapp_number.replace(/\D/g, '');
+                    $('#dynamicManagerWhatsApp').html('<a href="https://wa.me/' + cleanPhone + '" target="_blank">' + data.whatsapp_number + '</a>');
+                } else {
+                    $('#dynamicManagerWhatsApp').empty();
+                }
                 if (data.email) {
                     $('#dynamicManagerEmail').text(data.email).attr('href', 'mailto:' + data.email);
                 }
@@ -1666,7 +1673,137 @@ document.addEventListener("DOMContentLoaded", function() {
                 localStorage.setItem('bkDraft', JSON.stringify(draft));
                 $('#bkDraftStatus').stop(true).fadeIn(300).delay(2000).fadeOut(600);
                 $('#bkClearDraftBtn').show();
+                serverSyncBkDraft();
             } catch(e) {}
+        }
+
+        // =====================================================================
+        // BOOKING RECOVERY — server-side draft autosave (abandoned-cart capture)
+        //  Piggybacks on the existing localStorage draft; only syncs once a valid
+        //  email exists (POPIA minimisation). consent_given mirrors #bookPopia.
+        // =====================================================================
+        var _bkFurthestStep = 1;
+        var _bkServerSyncTimer = null;
+
+        function getBkDraftToken() {
+            try {
+                var t = localStorage.getItem('bkDraftToken');
+                if (!t) {
+                    t = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+                        : 'd' + Date.now() + Math.random().toString(16).slice(2);
+                    localStorage.setItem('bkDraftToken', t);
+                }
+                return t;
+            } catch (e) { return 'd' + Date.now(); }
+        }
+
+        function bkEmailValid() {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(($('#bookEmail').val() || '').trim());
+        }
+
+        function buildBkDraftPayload() {
+            var srv = [];
+            $('#bkServicesTableBody tr').each(function () {
+                var svcId = $(this).data('svc-id');
+                var cat = _bkServicesCatalogue.find(function (s) { return String(s.id) === String(svcId); }) || {};
+                srv.push({ service_id: svcId, name: cat.name || '', quantity: parseInt($(this).find('.bk-svc-qty').val()) || 1 });
+            });
+            return {
+                draft_token: getBkDraftToken(),
+                current_step: currentStep || 1,
+                furthest_step: Math.max(_bkFurthestStep, currentStep || 1),
+                name: $('#bookName').val(), company: $('#bookCompany').val(), email: $('#bookEmail').val(),
+                cell: $('#bookCell').val(), event_name: $('#bookEventName').val(), event_date: $('#bookDate').val(),
+                event_type: $('#bookType').val(), event_location: $('#bookLocation').val(),
+                venue_address: $('#bookAddress').val(), city: $('#bookCity').val(), country: $('#bookCountry').val(),
+                venue_type: $('#bookVenueType').val(), performance_slot: $('#bookSlot').val(),
+                performance_duration: (typeof getBkDurationMins === 'function' ? getBkDurationMins() : ''),
+                message: $('#bookNotes').val(),
+                services: srv,
+                consent_given: $('#bookPopia').is(':checked'),
+                source: window._bkSource || 'direct'
+            };
+        }
+
+        // Debounced background sync (used while the user is active in the form).
+        function serverSyncBkDraft() {
+            if (!bkEmailValid()) return;
+            clearTimeout(_bkServerSyncTimer);
+            _bkServerSyncTimer = setTimeout(function () {
+                try {
+                    fetch('/api/public/bookings/draft', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(buildBkDraftPayload()),
+                        bypassInterceptor: true
+                    }).catch(function () {});
+                } catch (e) {}
+            }, 1200);
+        }
+
+        // Best-effort flush on exit (modal close / tab hidden / unload) via sendBeacon.
+        function flushBkDraft() {
+            if (!bkEmailValid()) return;
+            try {
+                var blob = new Blob([JSON.stringify(buildBkDraftPayload())], { type: 'application/json' });
+                if (navigator.sendBeacon) navigator.sendBeacon('/api/public/bookings/draft', blob);
+            } catch (e) {}
+        }
+
+        // Resume a saved draft from an email link (?resume=token): rebuild the
+        // localStorage draft in the existing format, then let the show.bs.modal
+        // restore path rehydrate fields + services before jumping to the saved step.
+        function initBkResume() {
+            var params = new URLSearchParams(window.location.search || '');
+            var token = params.get('resume');
+            if (!token) return;
+            fetch('/api/public/bookings/draft/' + encodeURIComponent(token), { bypassInterceptor: true })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data || !data.success || !data.draft) return;
+                    var d = data.draft, attempts = 0;
+                    (function build() {
+                        var catReady = _bkServicesCatalogue && _bkServicesCatalogue.length;
+                        if (!catReady && attempts++ < 12) { return setTimeout(build, 250); }
+                        var fields = {
+                            bookEventName: d.event_name || '', bookType: d.event_type || '', bookDate: d.event_date || '',
+                            bookName: d.name || '', bookEmail: d.email || '', bookCell: d.cell || '', bookCompany: d.company || '',
+                            bookLocation: d.event_location || '', bookAddress: d.venue_address || '', bookCity: d.city || '',
+                            bookCountry: d.country || '', bookNotes: d.message || ''
+                        };
+                        var services = [];
+                        (d.services || []).forEach(function (s) {
+                            var cat = (_bkServicesCatalogue || []).find(function (c) { return String(c.id) === String(s.service_id); });
+                            if (!cat) return;
+                            services.push({
+                                id: cat.id, name: cat.name,
+                                unitPrice: parseFloat(cat.base_price != null ? cat.base_price : cat.default_price) || 0,
+                                qty: parseInt(s.quantity) || 1, model: cat.pricing_model || 'flat_fee',
+                                minQty: parseInt(cat.min_quantity) || 1, unit: cat.display_unit || '',
+                                meta: {
+                                    performance_length_minutes: parseInt(cat.performance_length_minutes) || 0,
+                                    travel_included: cat.travel_included || false,
+                                    booking_lead_time_days: parseInt(cat.booking_lead_time_days) || 0,
+                                    availability_rule: cat.availability_rule || ''
+                                }
+                            });
+                        });
+                        var target = Math.min(4, Math.max(1, parseInt(d.furthest_step) || 1));
+                        _bkFurthestStep = target;
+                        try {
+                            localStorage.setItem('bkDraft', JSON.stringify({ step: target, fields: fields, services: services, savedAt: Date.now() }));
+                            if (d.draft_token) localStorage.setItem('bkDraftToken', d.draft_token);
+                        } catch (e) {}
+                        $('#bookingModal').modal('show');
+                        setTimeout(function () { if (typeof updateProgress === 'function') updateProgress(target); }, 700);
+                        try {
+                            if (history.replaceState) {
+                                params.delete('resume');
+                                history.replaceState({}, '', window.location.pathname + (params.toString() ? '?' + params.toString() : '') + window.location.hash);
+                            }
+                        } catch (e) {}
+                    })();
+                }).catch(function () {});
         }
 
         function updateProgress(step) {
@@ -1684,6 +1821,7 @@ document.addEventListener("DOMContentLoaded", function() {
             $('.book-step-panel').removeClass('active');
             $('#bookStep' + step).addClass('active');
             currentStep = step;
+            _bkFurthestStep = Math.max(_bkFurthestStep, step);
             // Wait past the 350ms tmFadeIn animation before measuring input position
             if (step === 3) {
                 setTimeout(initAutocomplete, 450);
@@ -2202,7 +2340,8 @@ $bookingForm.on('blur', '#bookName', function() {
                 popia_consent: $('#bookPopia').is(':checked'),
                 policy_version: 'v2.2',
                 source: window._bkSource || 'direct',
-                referrer: document.referrer ? document.referrer.substring(0, 255) : null
+                referrer: document.referrer ? document.referrer.substring(0, 255) : null,
+                draft_token: getBkDraftToken()
             };
 
             try {
@@ -2241,7 +2380,9 @@ $bookingForm.on('blur', '#bookName', function() {
                     $('#bookSuccessId').text(bookingRef);
                     $('#bookSuccessScreen').show();
                     $bookingForm[0].reset();
-                    try { localStorage.removeItem('bkDraft'); } catch(e) {}
+                    // Booking Recovery: clear the local draft + token so a completed booking isn't re-counted as abandoned.
+                    try { localStorage.removeItem('bkDraft'); localStorage.removeItem('bkDraftToken'); } catch(e) {}
+                    _bkFurthestStep = 1;
                     $('#bkDraftBanner').remove();
 
                     // Wire up "Track this booking" button
@@ -2528,6 +2669,16 @@ $bookingForm.on('blur', '#bookName', function() {
             e.preventDefault();
             _clearBookingDraft();
         });
+
+        // ---- Booking Recovery wiring ----
+        // Live background sync as the user types (debounced + email-gated inside serverSyncBkDraft).
+        $bookingForm.on('input change', 'input, textarea, select', serverSyncBkDraft);
+        // Capture latest progress when the visitor leaves before submitting.
+        $('#bookingModal').on('hide.bs.modal', flushBkDraft);
+        $(window).on('beforeunload', flushBkDraft);
+        document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flushBkDraft(); });
+        // Resume-from-email-link support (?resume=token).
+        initBkResume();
     }
 
 

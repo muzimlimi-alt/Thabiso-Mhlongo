@@ -639,7 +639,7 @@
 						<tr>
 							<td><i class="fa-brands fa-whatsapp" aria-hidden="true"></i></td>
 							<td><b>WhatsApp</b></td>
-							<td id="dynamicManagerWhatsApp">+27 84 323 5075</td>
+							<td id="dynamicManagerWhatsApp"><a href="https://wa.me/27843235075" target="_blank">+27 84 323 5075</a></td>
 						</tr>
 						<tr>
 							<td><i class="fa-solid fa-envelope" aria-hidden="true"></i></td>
@@ -915,6 +915,10 @@
 								<span class="bk-step-eyebrow">Step 2 of 4</span>
 								<h4 class="bk-step-title">Your Details</h4>
 								<p class="bk-step-desc">Who should we contact about this booking?</p>
+								<p class="bk-step-hint" style="display:flex; gap:7px; align-items:flex-start; margin:8px 0 4px; font-size:12px; color:#9a9a9a; line-height:1.5;">
+									<i class="fa-solid fa-floppy-disk" style="margin-top:2px; color:#D4AF37; flex-shrink:0;"></i>
+									<span>We may save your progress so you can pick up where you left off &mdash; and, if you don't finish, email you a reminder with a link to complete your request. Your details are used only for this booking, and every reminder includes a one-click opt-out.</span>
+								</p>
 							</div>
 							<div class="row">
 								<div class="col-md-4 form-group">
@@ -1369,7 +1373,7 @@
 						</div>
 
 						<!-- Invoice + Quote PDF downloads — side by side, full-width row -->
-						<div id="docDownloadRow" style="display:flex;gap:8px;margin-top:12px;">
+						<div id="docDownloadRow" style="display:flex;gap:8px;margin-top:16px;margin-bottom:16px;">
 							<div id="invoiceSection" style="display:none;flex:1;">
 								<a id="invoiceDownloadLink" href="#" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;width:100%;box-sizing:border-box;background:rgba(212,175,55,0.12);border:1px solid rgba(212,175,55,0.35);border-radius:8px;color:#D4AF37;font-size:12px;font-weight:700;text-decoration:none;transition:background 0.2s;">
 									<i class="fa-solid fa-file-pdf"></i> Download Invoice
@@ -1388,21 +1392,21 @@
 						</div>
 
 						<!-- Cancelled Notice -->
-						<div id="cancelledNotice" style="display:none;padding:14px;background:rgba(239,83,80,0.08);border:1px solid rgba(239,83,80,0.3);border-radius:8px;margin-bottom:12px;">
-							<i class="fa-solid fa-ban" style="color:#EF5350;margin-right:6px;"></i>
+						<div id="cancelledNotice" style="display:none;padding:16px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;color:var(--error);font-weight:500;">
+							<i class="fa-solid fa-ban" style="color:var(--error);margin-right:6px;"></i>
 							This booking has been cancelled.
 							<div id="cancelledRefundInfo" style="margin-top:6px;font-size:12px;color:#aaa;display:none;"></div>
 						</div>
 
 						<!-- Completed Notice -->
-						<div id="completedNotice" style="display:none;padding:14px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:8px;margin-bottom:12px;">
-							<i class="fa-solid fa-flag-checkered" style="color:#10b981;margin-right:6px;"></i>
+						<div id="completedNotice" style="display:none;padding:16px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.3);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;color:var(--success);font-weight:500;">
+							<i class="fa-solid fa-flag-checkered" style="color:var(--success);margin-right:6px;"></i>
 							Your event is complete — thank you for choosing Thabiso Mhlongo!
 						</div>
 
 						<!-- Expired Notice -->
-						<div id="expiredNotice" style="display:none;padding:14px;background:rgba(158,158,158,0.08);border:1px solid rgba(158,158,158,0.3);border-radius:8px;margin-bottom:12px;">
-							<i class="fa-solid fa-clock" style="color:#9e9e9e;margin-right:6px;"></i>
+						<div id="expiredNotice" style="display:none;padding:16px;background:rgba(112,112,112,0.12);border:1px solid rgba(112,112,112,0.3);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;color:var(--text-secondary);font-weight:500;">
+							<i class="fa-solid fa-clock" style="color:var(--text-secondary);margin-right:6px;"></i>
 							This booking enquiry has expired. Please <a href="#booking" style="color:#D4AF37;">submit a new enquiry</a> if you'd still like to book.
 						</div>
 
@@ -2473,6 +2477,23 @@ $(document).on('click', '.trk-lookup-row', function() {
     <p class="cookie-modal__policy">By using this site you agree to our <a href="#" id="cookiePrivacyLink">Privacy Policy</a>. South African POPIA compliant.</p>
   </div>
 </div>
+
+<script>
+/* Cookie banner wording is managed in the admin Legal Centre — pull the published version, fall back to the static copy above. */
+(function () {
+  fetch('/api/public/legal/cookie-policy', { credentials: 'omit' })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      if (!d || !d.success || !d.content_html) return;
+      var el = document.querySelector('#cookieModal .cookie-modal__desc');
+      if (!el) return;
+      var html = String(d.content_html).trim();
+      var m = html.match(/^<p>([\s\S]*)<\/p>$/i);
+      el.innerHTML = (m && html.toLowerCase().indexOf('<p', 1) === -1) ? m[1] : html;
+    })
+    .catch(function () { /* keep static wording */ });
+})();
+</script>
 
 <script>
 (function () {

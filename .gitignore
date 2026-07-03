@@ -1,3 +1,15 @@
 backups/
 node_modules/
 .env
+
+# Runtime databases / session stores (regenerated at runtime, not source)
+database.sqlite
+database.sqlite-shm
+database.sqlite-wal
+sessions.sqlite
+
+# Local scratch / verification helpers and logs
+scratch/
+*.log
+puppeteer_verify.js
+verify_login_logs.js

@@ -4266,7 +4266,7 @@ h1, h2, h3, h4, h5, h6 {
 /* ---- Three-panel Shell ---- */
 .inq-client {
     display: grid;
-    grid-template-columns: 210px 340px 1fr;
+    grid-template-columns: 210px 1fr;
     height: calc(100vh - 200px);
     min-height: 520px;
     background: #0d0d0d;
@@ -4524,6 +4524,8 @@ h1, h2, h3, h4, h5, h6 {
     flex-direction: column;
     overflow: hidden;
 }
+/* Reading pane hosted inside the slide-in drawer (#inqDetailDrawer) */
+.inq-detail-panel--drawer { flex: 1 1 auto; min-height: 0; height: 100%; }
 
 /* ---- Read View ---- */
 .inq-read-view, .inq-compose-view {
@@ -4684,6 +4686,11 @@ h1, h2, h3, h4, h5, h6 {
 .inq-compose-textarea:focus { outline: none; border-color: #D4AF37; box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.12); }
 .inq-compose-textarea::placeholder { color: #555; }
 .inq-compose-textarea--tall { min-height: 280px; }
+/* The global `.admin-body textarea { height:45px !important }` + `textarea { min-height:80px !important }`
+   rules squish these multi-line editors down to ~3 lines and ignore the rows="" attribute.
+   ID + !important specificity restores generous, resizable heights for the reply & compose boxes. */
+#inqReplyBody { height: auto !important; min-height: 280px !important; }
+#inqComposeBody { height: auto !important; min-height: 320px !important; }
 
 .inq-compose-actions {
     display: flex;
@@ -4777,7 +4784,7 @@ h1, h2, h3, h4, h5, h6 {
 /* ---- Responsive ---- */
 @media (max-width: 1150px) {
     .inq-client {
-        grid-template-columns: 190px 300px 1fr;
+        grid-template-columns: 190px 1fr;
     }
 }
 
@@ -4785,16 +4792,6 @@ h1, h2, h3, h4, h5, h6 {
     .inq-client {
         grid-template-columns: 170px 1fr;
         height: calc(100vh - 170px);
-    }
-    .inq-detail-panel {
-        display: none;
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        z-index: 9999;
-        background: #111;
-    }
-    .inq-detail-panel.inq-detail-panel--active {
-        display: flex;
     }
 }
 

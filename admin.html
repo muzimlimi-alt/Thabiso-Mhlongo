@@ -4222,7 +4222,7 @@
                     <li class="tm-sidebar-group-title"><span style="color: var(--atl-amber)">Bookings</span></li>
                     <li><a href="#bookingsAdmin" class="tm-nav-link" title="Bookings"><i class="fa-solid fa-calendar-check"></i> <span class="tm-nav-text">Bookings</span></a></li>
                     <li><a href="#calendarAdmin" class="tm-nav-link" title="Unified Calendar"><i class="fa-solid fa-calendar-days"></i> <span class="tm-nav-text">Calendar</span></a></li>
-                    <li><a href="#eventsAdmin" class="tm-nav-link" title="Upcoming Events"><i class="fa-regular fa-calendar-days"></i> <span class="tm-nav-text">Events</span></a></li>
+                    <li><a href="#eventsAdmin" class="tm-nav-link" title="Upcoming Events"><i class="fa-solid fa-masks-theater"></i> <span class="tm-nav-text">Events</span></a></li>
                     
                     <li class="tm-sidebar-group-title"><span style="color: var(--atl-amber)">Finance</span></li>
                     <li><a href="#financeAdmin" class="tm-nav-link" title="Financials"><i class="fa-solid fa-file-invoice-dollar"></i> <span class="tm-nav-text">Finance</span></a></li>
@@ -4362,7 +4362,7 @@
                                     <i class="fa-regular fa-calendar-days" aria-hidden="true"></i>
                                     <div>
                                         <span class="adm-dropdown__item-title">Event</span>
-                                        <span class="adm-dropdown__item-sub">Add upcoming event</span>
+                                        <span class="rgrhjxtdm-dropdown__item-sub">Add upcoming event</span>
                                     </div>
                                 </button>
                             </div>
@@ -4531,7 +4531,7 @@
                             </div>
                         </div>
                         <div class="db-stat-card" onclick="switchTab('eventsAdmin');">
-                            <div class="db-stat-icon"><i class="fa-regular fa-calendar-days"></i></div>
+                            <div class="db-stat-icon"><i class="fa-solid fa-masks-theater"></i></div>
                             <div class="db-stat-content">
                                 <span class="db-stat-label">Events</span>
                                 <span class="db-stat-value" id="dashStat-eventsAdmin">...</span>
@@ -5495,6 +5495,16 @@
                         <div class="atl-header-rule"></div>
                     </header>
 
+                    <!-- Tab Navigation (mirrors #usersAdmin) -->
+                    <div class="atl-tab-bar" role="tablist">
+                        <button class="atl-tab-btn active" data-um-tab="bkPanelPipeline" role="tab" aria-selected="true"><i class="fa-solid fa-diagram-project"></i> Pipeline</button>
+                        <button class="atl-tab-btn" data-um-tab="bkPanelRecovery" role="tab" aria-selected="false"><i class="fa-solid fa-arrow-rotate-left"></i> Booking Recovery<span id="abTabCount" style="display:none; margin-left:7px; background:var(--atl-amber); color:#000; font-size:11px; font-weight:700; padding:1px 7px; border-radius:10px;">0</span></button>
+                        <button class="atl-tab-btn" data-um-tab="bkPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
+                    </div>
+
+                    <!-- ===== PANEL: Pipeline (booking lifecycle) ===== -->
+                    <div class="um-panel active" id="bkPanelPipeline">
+
                     <!-- Stats & Filters bar -->
                     <section aria-labelledby="filtersHeading" class="mb-8">
                         <h2 id="filtersHeading" class="atl-sr-only">Booking filters and status counts</h2>
@@ -5580,6 +5590,144 @@
                             </div>
                         </div>
                     </main>
+
+                    </div><!-- /#bkPanelPipeline -->
+
+                    <!-- ===== PANEL: Booking Recovery (abandoned bookings) ===== -->
+                    <div class="um-panel" id="bkPanelRecovery">
+                        <p class="um-section-desc" style="margin:0 0 16px;">Visitors who started a booking request but didn't finish. Reminder emails are sent automatically only to those who reached the final step and gave consent &mdash; you can resend to anyone manually below.</p>
+
+                        <!-- Analytics cards -->
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px,1fr)); gap:14px; margin-bottom:18px;">
+                            <div class="atl-card" style="padding:16px 18px;">
+                                <div style="font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--atl-muted); font-weight:600;">Open / Abandoned</div>
+                                <div id="abStatOpen" style="font-size:27px; font-weight:700; color:var(--atl-amber); margin-top:6px;">&mdash;</div>
+                            </div>
+                            <div class="atl-card" style="padding:16px 18px;">
+                                <div style="font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--atl-muted); font-weight:600;">Recovered</div>
+                                <div id="abStatRecovered" style="font-size:27px; font-weight:700; color:var(--atl-green); margin-top:6px;">&mdash;</div>
+                            </div>
+                            <div class="atl-card" style="padding:16px 18px;">
+                                <div style="font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--atl-muted); font-weight:600;">Conversion Rate</div>
+                                <div id="abStatConversion" style="font-size:27px; font-weight:700; color:var(--atl-ink); margin-top:6px;">&mdash;</div>
+                            </div>
+                            <div class="atl-card" style="padding:16px 18px;">
+                                <div style="font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--atl-muted); font-weight:600;">Est. Lost Value</div>
+                                <div id="abStatLostValue" style="font-size:27px; font-weight:700; color:var(--atl-clay); margin-top:6px;">&mdash;</div>
+                            </div>
+                        </div>
+
+                        <!-- Drop-off funnel (populated from /stats) -->
+                        <div id="abFunnel" class="atl-card" style="padding:14px 18px; margin-bottom:16px; display:none;"></div>
+
+                        <!-- Toolbar -->
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;">
+                            <div class="atl-search-wrap" style="flex:1; min-width:200px;">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                                <input type="text" id="abSearchInput" class="atl-search" placeholder="Search name, email, event&hellip;" autocomplete="off" spellcheck="false">
+                            </div>
+                            <select id="abStatusFilter" class="atl-filter-select">
+                                <option value="all">All statuses</option>
+                                <option value="ABANDONED">Abandoned</option>
+                                <option value="REMINDED">Reminded</option>
+                                <option value="RECOVERED">Recovered</option>
+                                <option value="WON">Won</option>
+                                <option value="LOST">Lost</option>
+                                <option value="CLOSED">Closed</option>
+                            </select>
+                            <select id="abStageFilter" class="atl-filter-select">
+                                <option value="all">All stages</option>
+                                <option value="2">Reached: Your Details</option>
+                                <option value="3">Reached: Venue</option>
+                                <option value="4">Reached: Review</option>
+                            </select>
+                            <select id="abSortSelect" class="atl-filter-select">
+                                <option value="recent">Most recent</option>
+                                <option value="oldest">Oldest</option>
+                                <option value="value">Highest value</option>
+                                <option value="reminders">Most reminders</option>
+                            </select>
+                            <button type="button" id="abRefreshBtn" class="atl-btn atl-btn--ghost" style="height:40px;" title="Refresh"><i class="fa-solid fa-arrows-rotate"></i></button>
+                            <button type="button" id="abExportBtn" class="atl-btn atl-btn--ghost" style="height:40px;"><i class="fa-solid fa-file-csv"></i> Export</button>
+                        </div>
+
+                        <!-- Table -->
+                        <div class="atl-card" style="padding:0; overflow:hidden;">
+                            <div style="overflow-x:auto;">
+                                <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                                    <thead>
+                                        <tr style="border-bottom:1px solid var(--atl-line);">
+                                            <th style="text-align:left; padding:12px 14px; color:var(--atl-muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; font-weight:600;">Contact</th>
+                                            <th style="text-align:left; padding:12px 14px; color:var(--atl-muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; font-weight:600;">Event</th>
+                                            <th style="text-align:left; padding:12px 14px; color:var(--atl-muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; font-weight:600;">Exited&nbsp;at</th>
+                                            <th style="text-align:left; padding:12px 14px; color:var(--atl-muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; font-weight:600;">Status</th>
+                                            <th style="text-align:center; padding:12px 14px; color:var(--atl-muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; font-weight:600;">Reminders</th>
+                                            <th style="text-align:left; padding:12px 14px; color:var(--atl-muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; font-weight:600;">Last&nbsp;activity</th>
+                                            <th style="text-align:right; padding:12px 14px; color:var(--atl-muted); font-size:11px; text-transform:uppercase; letter-spacing:.5px; font-weight:600;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="abTableBody">
+                                        <tr><td colspan="7" style="padding:30px; text-align:center; color:var(--atl-muted-dim);">Loading&hellip;</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div id="abPagination" style="display:none; align-items:center; justify-content:space-between; gap:8px; margin-top:14px;">
+                            <button id="abPrevBtn" class="um-btn um-btn--ghost um-btn--sm"><i class="fa-solid fa-chevron-left"></i> Prev</button>
+                            <span id="abPageInfo" style="font-size:12px; color:var(--atl-muted-dim);">&mdash;</span>
+                            <button id="abNextBtn" class="um-btn um-btn--ghost um-btn--sm">Next <i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
+                    </div><!-- /#bkPanelRecovery -->
+
+                    <!-- ===== PANEL: About ===== -->
+                    <div class="um-panel" id="bkPanelAbout">
+                        <div class="atl-card">
+                            <div class="um-icon-header">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                <div>
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">About Bookings</h4>
+                                    <p class="um-section-desc">How the pipeline and booking recovery work.</p>
+                                </div>
+                            </div>
+                            <div class="um-divider"></div>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                The <strong style="color:var(--atl-ink);">Pipeline</strong> manages every engagement through an eight-stage lifecycle &mdash; <strong style="color:var(--atl-ink);">New &rarr; Pending &rarr; Quoted &rarr; Accepted &rarr; Confirmed &rarr; Completed</strong>, with <strong style="color:var(--atl-ink);">Expired</strong> and <strong style="color:var(--atl-ink);">Cancelled</strong> as terminal states. Every transition is validated server-side.
+                            </p>
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                            <div class="um-roles-grid">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-diagram-project" style="color:var(--atl-amber);"></i> Pipeline</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> The coloured pills are <strong style="color:var(--atl-ink);">filter shortcuts</strong> with live counts</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Click a card to expand its full lifecycle panel</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> The dropdown filters by booking <em>or</em> payment status</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-arrow-rotate-left" style="color:var(--atl-amber);"></i> Booking Recovery</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Captures visitors who start but don't finish a booking</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Auto-reminders go only to consented Step-4 drop-offs (1h / 24h / 72h)</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Resend manually, or mark opportunities Won / Lost / Closed</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-shield-halved" style="color:var(--atl-amber);"></i> Privacy (POPIA)</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Only drafts with an email entered are stored</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Every reminder carries a one-click opt-out</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Abandoned drafts auto-purge after 30 days</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-shield-halved" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>All status transitions, quotes, invoices and payments are validated and recorded server-side with an audit trail.</span>
+                            </p>
+                        </div>
+                    </div>
 
                     <div id="atlModalRoot"></div>
 
@@ -7261,7 +7409,7 @@
                     <div class="atl-section-hd">
                         <div>
                             <p class="atl-section-eyebrow">Performances</p>
-                            <h2 class="atl-section-heading"><i class="fa-regular fa-calendar-days"></i> Events Management</h2>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-masks-theater"></i> Events Management</h2>
                             <p class="atl-section-sub">Schedule new performances, manage posters, and archive past events.</p>
                         </div>
                         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
@@ -12170,7 +12318,228 @@
 
             // Re-apply current filter/search
             applyBookingFilter();
+
+            // Keep the Booking Recovery tab badge current whenever the section loads.
+            if (typeof updateAbTabCount === 'function') updateAbTabCount();
         }
+
+        // =====================================================================
+        // BOOKING RECOVERY — admin tab (abandoned bookings)
+        // =====================================================================
+        var abState = { page: 1, limit: 25, status: 'all', stage: 'all', sort: 'recent', search: '', loaded: false };
+        var _abSearchTimer = null;
+
+        function abEsc(s) { return $('<span>').text(s == null ? '' : String(s)).html(); }
+        function abStageLabel(step) { return ({ 1: 'Started', 2: 'Your Details', 3: 'Venue', 4: 'Review' })[step] || ('Step ' + step); }
+        function abStatusBadge(status) {
+            var map = {
+                ABANDONED: ['var(--atl-amber)', 'rgba(212,175,55,0.12)'],
+                REMINDED:  ['var(--atl-blue)',  'rgba(96,165,250,0.12)'],
+                RECOVERED: ['var(--atl-green)', 'rgba(52,211,153,0.12)'],
+                WON:       ['var(--atl-green)', 'rgba(52,211,153,0.16)'],
+                LOST:      ['var(--atl-clay)',  'rgba(248,113,113,0.12)'],
+                CLOSED:    ['var(--atl-muted)', 'rgba(148,148,148,0.12)']
+            };
+            var c = map[status] || ['var(--atl-muted)', 'rgba(148,148,148,0.12)'];
+            var label = String(status || '').charAt(0) + String(status || '').slice(1).toLowerCase();
+            return '<span style="display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; color:' + c[0] + '; background:' + c[1] + ';">' + abEsc(label) + '</span>';
+        }
+        function abTimeAgo(ts) {
+            if (!ts) return '—';
+            var d = new Date(String(ts).replace(' ', 'T') + 'Z');
+            if (isNaN(d)) return abEsc(ts);
+            var mins = Math.floor((Date.now() - d.getTime()) / 60000);
+            if (mins < 1) return 'just now';
+            if (mins < 60) return mins + 'm ago';
+            if (mins < 1440) return Math.floor(mins / 60) + 'h ago';
+            var days = Math.floor(mins / 1440);
+            if (days < 30) return days + 'd ago';
+            return d.toLocaleDateString();
+        }
+
+        function abSetTabCount(n) {
+            var $b = $('#abTabCount');
+            if (n > 0) $b.text(n).show(); else $b.hide();
+        }
+
+        // Standalone badge refresh — raw fetch so a 401 never flips the app into the login view.
+        function updateAbTabCount() {
+            fetch('/api/admin/abandoned-bookings/stats', { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) { if (d && d.success) abSetTabCount((d.stats.abandoned || 0) + (d.stats.reminded || 0)); })
+                .catch(function () {});
+        }
+
+        function abRenderFunnel(f) {
+            f = f || {};
+            var stages = [[2, 'Your Details'], [3, 'Venue'], [4, 'Review']];
+            var maxv = Math.max(1, f[2] || 0, f[3] || 0, f[4] || 0);
+            var totalStaged = (f[2] || 0) + (f[3] || 0) + (f[4] || 0);
+            var $f = $('#abFunnel');
+            if (totalStaged === 0) { $f.hide(); return; }
+            var bars = stages.map(function (st) {
+                var v = f[st[0]] || 0;
+                var pct = Math.round((v / maxv) * 100);
+                return '<div style="flex:1; min-width:110px;">'
+                    + '<div style="display:flex; justify-content:space-between; font-size:11px; color:var(--atl-muted); margin-bottom:5px;"><span>' + st[1] + '</span><strong style="color:var(--atl-ink-dim);">' + v + '</strong></div>'
+                    + '<div style="height:8px; background:var(--atl-line); border-radius:4px; overflow:hidden;"><div style="height:100%; width:' + pct + '%; background:var(--atl-amber);"></div></div>'
+                    + '</div>';
+            }).join('<div style="align-self:flex-end; color:var(--atl-muted-dim); padding:0 2px 2px;"><i class="fa-solid fa-arrow-right"></i></div>');
+            $f.html('<div style="font-size:11px; text-transform:uppercase; letter-spacing:.5px; color:var(--atl-muted); font-weight:600; margin-bottom:10px;">How far visitors got before leaving</div><div style="display:flex; align-items:stretch; gap:8px; flex-wrap:wrap;">' + bars + '</div>').show();
+        }
+
+        async function loadAbandonedStats() {
+            try {
+                var data = await apiCall('/api/admin/abandoned-bookings/stats');
+                if (!data || !data.success) return;
+                var s = data.stats || {};
+                $('#abStatOpen').text((s.abandoned || 0) + (s.reminded || 0));
+                $('#abStatRecovered').text(s.recovered || 0);
+                $('#abStatConversion').text((s.conversion_rate || 0) + '%');
+                $('#abStatLostValue').text('R ' + Number(s.est_lost_value || 0).toLocaleString());
+                abSetTabCount((s.abandoned || 0) + (s.reminded || 0));
+                abRenderFunnel(s.funnel);
+            } catch (e) { /* apiCall already toasts */ }
+        }
+
+        async function loadAbandonedBookings() {
+            var $body = $('#abTableBody');
+            $body.html('<tr><td colspan="7" style="padding:30px; text-align:center; color:var(--atl-muted-dim);">Loading…</td></tr>');
+            try {
+                var qs = '?page=' + abState.page + '&limit=' + abState.limit
+                    + '&status=' + encodeURIComponent(abState.status)
+                    + '&stage=' + encodeURIComponent(abState.stage)
+                    + '&sort=' + encodeURIComponent(abState.sort)
+                    + '&search=' + encodeURIComponent(abState.search);
+                var data = await apiCall('/api/admin/abandoned-bookings' + qs);
+                if (!data || !data.success) throw new Error('bad response');
+                renderAbandonedTable(data.items || []);
+                if ((data.total || 0) > abState.limit) {
+                    var from = (abState.page - 1) * abState.limit + 1;
+                    var to = Math.min(abState.page * abState.limit, data.total);
+                    $('#abPageInfo').text(from + '–' + to + ' of ' + data.total);
+                    $('#abPrevBtn').prop('disabled', abState.page <= 1);
+                    $('#abNextBtn').prop('disabled', abState.page >= data.pages);
+                    $('#abPagination').css('display', 'flex');
+                } else { $('#abPagination').hide(); }
+            } catch (e) {
+                $body.html('<tr><td colspan="7" style="padding:30px; text-align:center; color:var(--atl-clay);">Could not load abandoned bookings. Please refresh.</td></tr>');
+                $('#abPagination').hide();
+            }
+        }
+
+        function renderAbandonedTable(items) {
+            var $body = $('#abTableBody');
+            if (!items.length) {
+                $body.html('<tr><td colspan="7" style="padding:40px 20px; text-align:center; color:var(--atl-muted);"><i class="fa-solid fa-inbox" style="font-size:24px; display:block; margin-bottom:10px; opacity:.4;"></i>No abandoned bookings match these filters.</td></tr>');
+                return;
+            }
+            var rows = items.map(function (it) {
+                var canResend = !it.opt_out && it.email && ['ABANDONED', 'REMINDED'].indexOf(it.status) !== -1;
+                var actions =
+                    '<button class="um-btn um-btn--ghost um-btn--sm ab-view-btn" data-id="' + it.id + '" title="View details"><i class="fa-solid fa-eye"></i></button> '
+                    + (canResend ? '<button class="um-btn um-btn--ghost um-btn--sm ab-resend-btn" data-id="' + it.id + '" title="Resend reminder"><i class="fa-solid fa-paper-plane"></i></button> ' : '')
+                    + '<select class="atl-filter-select ab-status-select" data-id="' + it.id + '" style="height:30px; font-size:12px; padding:2px 6px; vertical-align:middle;">'
+                    + '<option value="">Mark…</option><option value="WON">Won</option><option value="LOST">Lost</option><option value="CLOSED">Closed</option></select>';
+                return '<tr style="border-bottom:1px solid var(--atl-line);">'
+                    + '<td style="padding:11px 14px; vertical-align:top;"><div style="color:var(--atl-ink); font-weight:600;">' + abEsc(it.name || '—') + '</div><div style="color:var(--atl-muted); font-size:12px;">' + abEsc(it.email || '') + '</div></td>'
+                    + '<td style="padding:11px 14px; vertical-align:top;"><div style="color:var(--atl-ink-dim);">' + abEsc(it.event_name || it.event_type || '—') + '</div>' + (it.event_date ? '<div style="color:var(--atl-muted); font-size:12px;">' + abEsc(it.event_date) + '</div>' : '') + '</td>'
+                    + '<td style="padding:11px 14px; vertical-align:top;"><span style="display:inline-block; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:600; color:var(--atl-ink-dim); background:var(--atl-card); border:1px solid var(--atl-line);">' + abEsc(abStageLabel(it.furthest_step)) + '</span>' + (it.consent_given ? ' <i class="fa-solid fa-circle-check" title="Consented to reminders" style="color:var(--atl-green); font-size:11px;"></i>' : '') + '</td>'
+                    + '<td style="padding:11px 14px; vertical-align:top;">' + abStatusBadge(it.status) + '</td>'
+                    + '<td style="padding:11px 14px; vertical-align:top; text-align:center; color:var(--atl-ink-dim);">' + (it.reminders_sent || 0) + '</td>'
+                    + '<td style="padding:11px 14px; vertical-align:top; color:var(--atl-muted); white-space:nowrap;">' + abTimeAgo(it.last_activity_at) + '</td>'
+                    + '<td style="padding:11px 14px; vertical-align:top; text-align:right; white-space:nowrap;">' + actions + '</td>'
+                    + '</tr>';
+            }).join('');
+            $body.html(rows);
+        }
+
+        window.abCloseDrawer = function () { $('#abDrawerWrap').remove(); };
+
+        async function openAbandonedDetail(id) {
+            try {
+                var data = await apiCall('/api/admin/abandoned-bookings/' + id);
+                if (!data || !data.success) return;
+                var it = data.item;
+                var fields = [
+                    ['Name', it.name], ['Email', it.email], ['Phone', it.cell], ['Company', it.company],
+                    ['Event', it.event_name], ['Date', it.event_date], ['Type', it.event_type],
+                    ['Venue', it.event_location], ['City', it.city], ['Country', it.country], ['Source', it.source]
+                ].filter(function (f) { return f[1]; });
+                var rowsHtml = fields.map(function (f) {
+                    return '<tr><td style="padding:8px 0; color:var(--atl-muted); width:36%; vertical-align:top; font-size:13px;">' + abEsc(f[0]) + '</td><td style="padding:8px 0; color:var(--atl-ink-dim); font-size:13px;">' + abEsc(f[1]) + '</td></tr>';
+                }).join('');
+                var svc = (it.services || []).map(function (s) { return abEsc(s.name); }).filter(Boolean).join(', ');
+                var canResend = !it.opt_out && it.email && ['ABANDONED', 'REMINDED'].indexOf(it.status) !== -1;
+                var html =
+                    '<div id="abDrawerWrap">'
+                    + '<div class="atl-drawer-backdrop" style="display:block;" onclick="abCloseDrawer()"></div>'
+                    + '<aside class="atl-drawer atl-drawer--520">'
+                    + '<div class="atl-drawer__header"><h5><i class="fa-solid fa-arrow-rotate-left" style="color:var(--atl-amber);"></i> Abandoned Booking</h5><button class="atl-drawer__close" onclick="abCloseDrawer()">&times;</button></div>'
+                    + '<div class="atl-drawer__body">'
+                    + '<div style="margin-bottom:14px;">' + abStatusBadge(it.status) + ' <span style="margin-left:6px; font-size:12px; color:var(--atl-muted);">Reached: ' + abEsc(abStageLabel(it.furthest_step)) + (it.consent_given ? ' • consented' : ' • no consent') + '</span></div>'
+                    + '<table style="width:100%; border-collapse:collapse;">' + rowsHtml + '</table>'
+                    + (svc ? '<div style="margin-top:14px;"><div style="color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px;">Services</div><div style="color:var(--atl-ink-dim); font-size:13px;">' + svc + '</div></div>' : '')
+                    + '<div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--atl-line); font-size:12px; color:var(--atl-muted); line-height:1.9;">'
+                    + '<div>Reminders sent: <strong style="color:var(--atl-ink-dim);">' + (it.reminders_sent || 0) + '</strong>' + (it.last_reminder_at ? ' (last ' + abTimeAgo(it.last_reminder_at) + ')' : '') + '</div>'
+                    + '<div>Est. value: <strong style="color:var(--atl-ink-dim);">R ' + Number(it.est_value || 0).toLocaleString() + '</strong></div>'
+                    + '<div>Last activity: <strong style="color:var(--atl-ink-dim);">' + abTimeAgo(it.last_activity_at) + '</strong></div>'
+                    + (it.converted_booking_id ? '<div style="color:var(--atl-green);">Converted to booking #' + abEsc(it.converted_booking_id) + '</div>' : '')
+                    + (it.opt_out ? '<div style="color:var(--atl-clay);">Opted out of reminders</div>' : '')
+                    + '</div>'
+                    + '</div>'
+                    + '<div class="atl-drawer__footer" style="display:flex; gap:10px; padding:16px 24px; border-top:1px solid var(--atl-line);">'
+                    + (canResend ? '<button class="atl-btn atl-btn--primary ab-resend-btn" data-id="' + it.id + '" style="flex:1; justify-content:center;"><i class="fa-solid fa-paper-plane"></i> Resend reminder</button>' : '')
+                    + '<button class="atl-btn atl-btn--ghost" onclick="abCloseDrawer()" style="flex:1; justify-content:center;">Close</button>'
+                    + '</div>'
+                    + '</aside></div>';
+                $('body').append(html);
+                setTimeout(function () { $('#abDrawerWrap .atl-drawer').addClass('atl-drawer--open'); }, 10);
+            } catch (e) { /* apiCall already toasts */ }
+        }
+
+        // ---- Booking Recovery event wiring (delegated; survives panel re-render) ----
+        $(document).on('click', '[data-um-tab="bkPanelRecovery"]', function () {
+            if (!abState.loaded) { abState.loaded = true; loadAbandonedStats(); loadAbandonedBookings(); }
+        });
+        $(document).on('input', '#abSearchInput', function () {
+            var v = this.value.trim();
+            clearTimeout(_abSearchTimer);
+            _abSearchTimer = setTimeout(function () { abState.search = v; abState.page = 1; loadAbandonedBookings(); }, 300);
+        });
+        $(document).on('change', '#abStatusFilter', function () { abState.status = this.value; abState.page = 1; loadAbandonedBookings(); });
+        $(document).on('change', '#abStageFilter', function () { abState.stage = this.value; abState.page = 1; loadAbandonedBookings(); });
+        $(document).on('change', '#abSortSelect', function () { abState.sort = this.value; abState.page = 1; loadAbandonedBookings(); });
+        $(document).on('click', '#abPrevBtn', function () { if (abState.page > 1) { abState.page--; loadAbandonedBookings(); } });
+        $(document).on('click', '#abNextBtn', function () { abState.page++; loadAbandonedBookings(); });
+        $(document).on('click', '#abExportBtn', function () {
+            var a = document.createElement('a');
+            a.href = '/api/admin/abandoned-bookings/export';
+            a.download = 'abandoned-bookings.csv';
+            document.body.appendChild(a); a.click(); a.remove();
+        });
+        $(document).on('click', '#abRefreshBtn', function () { loadAbandonedStats(); loadAbandonedBookings(); });
+        $(document).on('click', '.ab-view-btn', function () { openAbandonedDetail($(this).data('id')); });
+        $(document).on('click', '.ab-resend-btn', async function () {
+            var id = $(this).data('id'); var $btn = $(this); $btn.prop('disabled', true);
+            try {
+                var r = await apiCall('/api/admin/abandoned-bookings/' + id + '/resend-reminder', 'POST', {});
+                if (r && r.success) { window.notificationService.showSuccess('Reminder sent.'); abCloseDrawer(); loadAbandonedBookings(); loadAbandonedStats(); }
+            } catch (e) { /* apiCall already toasts */ } finally { $btn.prop('disabled', false); }
+        });
+        $(document).on('change', '.ab-status-select', async function () {
+            var id = $(this).data('id'); var status = this.value; var $sel = $(this);
+            if (!status) return;
+            var label = status.charAt(0) + status.slice(1).toLowerCase();
+            var ok = window.notificationService
+                ? await window.notificationService.showConfirm({ message: 'Mark this opportunity as ' + label + '?', isDestructive: status === 'LOST' })
+                : confirm('Mark this opportunity as ' + label + '?');
+            if (!ok) { $sel.val(''); return; }
+            try {
+                var r = await apiCall('/api/admin/abandoned-bookings/' + id + '/status', 'PUT', { status: status });
+                if (r && r.success) { window.notificationService.showSuccess('Status updated.'); loadAbandonedBookings(); loadAbandonedStats(); }
+            } catch (e) { $sel.val(''); }
+        });
 
         // Parse and format quote_details JSON into a readable HTML breakdown
         function formatQuoteDetails(quoteDetailsJson) {
@@ -18410,7 +18779,7 @@
         careerAdmin:      { label: 'Career',            icon: 'fa-star' },
         galleryAdmin:     { label: 'Gallery',           icon: 'fa-image' },
         socialAdmin:      { label: 'Socials',           icon: 'fa-share-nodes' },
-        eventsAdmin:      { label: 'Events',            icon: 'fa-calendar-days' },
+        eventsAdmin:      { label: 'Events',            icon: 'fa-masks-theater' },
         contactAdmin:     { label: 'Contact',           icon: 'fa-address-book' },
         inquiriesAdmin:   { label: 'Inquiries',         icon: 'fa-envelope-open-text' },
         bookingsAdmin:    { label: 'Bookings',          icon: 'fa-calendar-check' },
