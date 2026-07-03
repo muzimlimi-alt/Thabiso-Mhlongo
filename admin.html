@@ -4356,7 +4356,7 @@
                     <li class="tm-sidebar-group-title"><span style="color: var(--atl-amber)">Bookings</span></li>
                     <li><a href="#bookingsAdmin" class="tm-nav-link" title="Bookings"><i class="fa-solid fa-calendar-check"></i> <span class="tm-nav-text">Bookings</span></a></li>
                     <li><a href="#calendarAdmin" class="tm-nav-link" title="Unified Calendar"><i class="fa-solid fa-calendar-days"></i> <span class="tm-nav-text">Calendar</span></a></li>
-                    <li><a href="#eventsAdmin" class="tm-nav-link" title="Upcoming Events"><i class="fa-regular fa-calendar-days"></i> <span class="tm-nav-text">Events</span></a></li>
+                    <li><a href="#eventsAdmin" class="tm-nav-link" title="Upcoming Events"><i class="fa-solid fa-masks-theater"></i> <span class="tm-nav-text">Events</span></a></li>
                     
                     <li class="tm-sidebar-group-title"><span style="color: var(--atl-amber)">Finance</span></li>
                     <li><a href="#financeAdmin" class="tm-nav-link" title="Financials"><i class="fa-solid fa-file-invoice-dollar"></i> <span class="tm-nav-text">Finance</span></a></li>
@@ -4665,7 +4665,7 @@
                             </div>
                         </div>
                         <div class="db-stat-card" onclick="switchTab('eventsAdmin');">
-                            <div class="db-stat-icon"><i class="fa-regular fa-calendar-days"></i></div>
+                            <div class="db-stat-icon"><i class="fa-solid fa-masks-theater"></i></div>
                             <div class="db-stat-content">
                                 <span class="db-stat-label">Events</span>
                                 <span class="db-stat-value" id="dashStat-eventsAdmin">...</span>
@@ -7433,6 +7433,11 @@
                             <h2 class="atl-section-heading"><i class="fa-solid fa-user"></i> About Me</h2>
                             <p class="atl-section-sub">Update your profile picture and biography text.</p>
                         </div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
+                            <button id="aboutEditBtn" class="atl-btn atl-btn--primary">
+                                <i class="fa-solid fa-user-pen"></i> Edit Profile Content
+                            </button>
+                        </div>
                     </div>
                     <div class="atl-section-rule"></div>
 
@@ -7442,80 +7447,26 @@
                     </div>
 
                     <div id="aboutConfigPanel" class="um-panel active">
-                    <div class="um-grid-2 um-grid-2--5-7">
-                        <div>
-                            <div class="atl-card">
-                                <div class="um-icon-header" style="margin-bottom:16px;">
-                                    <div class="um-icon-header__icon"><i class="fa-solid fa-image"></i></div>
-                                    <div>
-                                        <h4 class="um-section-label">Profile Content</h4>
-                                        <p class="um-section-desc">Upload a photo or enter a URL, then fill in the biography paragraphs.</p>
-                                    </div>
-                                </div>
-                                <hr class="um-divider" style="margin-top:0;">
-                                <form id="aboutForm" class="um-form">
-                                    <div class="um-field-group">
-                                        <label class="um-label" for="aboutFile">Profile Photo (Upload)</label>
-                                        <label for="aboutFile" id="aboutUploadZone" class="um-upload-zone">
-                                            <i class="fa-solid fa-image um-upload-icon"></i>
-                                            <p class="um-upload-text" id="aboutUploadText">Select or drop profile picture</p>
-                                            <input type="file" id="aboutFile" class="um-file-input" accept="image/*">
-                                            <small class="help-block">Recommended square ratio. Scale automatically.</small>
-                                        </label>
-                                        <small id="aboutVideoWarning" style="display:none; color:var(--atl-clay); font-size:12px; margin-top:4px;">Videos are not supported here. Please upload an image.</small>
-                                    </div>
-                                    <div style="display:flex; align-items:center; gap:12px; margin:20px 0;">
-                                        <hr style="flex:1; border:0; border-top:1px solid var(--atl-line);">
-                                        <span style="color:var(--atl-muted-dim); font-size:11px; font-weight:700; letter-spacing:1px;">OR</span>
-                                        <hr style="flex:1; border:0; border-top:1px solid var(--atl-line);">
-                                    </div>
-                                    <div class="um-field-group">
-                                        <label class="um-label" for="aboutUrl">Web URL Fallback</label>
-                                        <div class="um-input-wrap">
-                                            <i class="fa-solid fa-link um-input-icon"></i>
-                                            <input type="text" id="aboutUrl" class="um-input" placeholder="e.g. images/image-slider-1.jpg">
-                                        </div>
-                                    </div>
-                                    <div class="um-field-group">
-                                        <label class="um-label">Paragraph 1 (Lead)</label>
-                                        <div class="about-quill-wrap atl-quill-wrap"><div id="aboutEditorP1"></div></div>
-                                    </div>
-                                    <div class="um-field-group">
-                                        <label class="um-label">Paragraph 2</label>
-                                        <div class="about-quill-wrap atl-quill-wrap"><div id="aboutEditorP2"></div></div>
-                                    </div>
-                                    <div class="um-field-group">
-                                        <label class="um-label">Paragraph 3</label>
-                                        <div class="about-quill-wrap atl-quill-wrap"><div id="aboutEditorP3"></div></div>
-                                    </div>
-                                    <button type="submit" class="atl-btn atl-btn--primary" id="aboutSubmitBtn" style="width:100%; justify-content:center;">
-                                        <i class="fa-solid fa-floppy-disk"></i> Update
-                                    </button>
-                                </form>
+                    <div class="atl-card">
+                        <div class="um-icon-header" style="margin-bottom:16px;">
+                            <div class="um-icon-header__icon"><i class="fa-solid fa-eye"></i></div>
+                            <div style="flex:1;">
+                                <h4 class="um-section-label">Live Preview</h4>
+                                <p class="um-section-desc">How your About section currently looks on the site. Use <strong style="color:var(--atl-ink);">Edit Profile Content</strong> to change the photo or biography.</p>
                             </div>
+                            <button type="button" class="atl-btn atl-btn--ghost" onclick="if(window.openAtlDrawer)openAtlDrawer('aboutDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-user-pen"></i> Edit</button>
                         </div>
-                        <div>
-                            <div class="atl-card">
-                                <div class="um-icon-header" style="margin-bottom:16px;">
-                                    <div class="um-icon-header__icon"><i class="fa-solid fa-eye"></i></div>
-                                    <div>
-                                        <h4 class="um-section-label">Live Preview</h4>
-                                        <p class="um-section-desc">This is how your About section currently looks on the site.</p>
+                        <hr class="um-divider" style="margin-top:0;">
+                        <div id="collapseAboutPreview">
+                            <div class="live-preview-box" style="padding:20px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper); min-height:350px;">
+                                <div class="um-grid-2 um-grid-2--5-7">
+                                    <div style="text-align:center;">
+                                        <img id="previewAboutImg" class="img-responsive about-img" src="images/image-slider-1.jpg" alt="Preview" style="max-width:100%; height:auto; border-radius:5px; box-shadow:var(--atl-shadow-card);">
                                     </div>
-                                </div>
-                                <hr class="um-divider" style="margin-top:0;">
-                                <div id="collapseAboutPreview">
-                                    <div class="live-preview-box" style="padding:20px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper); min-height:350px;">
-                                        <div class="um-grid-2 um-grid-2--5-7">
-                                            <div style="text-align:center;">
-                                                <img id="previewAboutImg" class="img-responsive about-img" src="images/image-slider-1.jpg" alt="Preview" style="max-width:100%; height:auto; border-radius:5px; box-shadow:var(--atl-shadow-card);">
-                                            </div>
-                                            <div style="color: var(--atl-ink-dim);">
-                                                <p class="lead" id="previewAboutP1" style="font-size:16px; margin-bottom:15px; font-weight:300;"><em style="color:var(--atl-muted);">No lead text provided yet.</em></p>
-                                                <p id="previewAboutP2" style="margin-bottom:10px; font-size:14px;"></p>
-                                                <p id="previewAboutP3" style="font-size:14px;"></p>
-                                            </div>
-                                        </div>
+                                    <div style="color: var(--atl-ink-dim);">
+                                        <p class="lead" id="previewAboutP1" style="font-size:16px; margin-bottom:15px; font-weight:300;"><em style="color:var(--atl-muted);">No lead text provided yet.</em></p>
+                                        <p id="previewAboutP2" style="margin-bottom:10px; font-size:14px;"></p>
+                                        <p id="previewAboutP3" style="font-size:14px;"></p>
                                     </div>
                                 </div>
                             </div>
@@ -7804,7 +7755,7 @@
                     <div class="atl-section-hd">
                         <div>
                             <p class="atl-section-eyebrow">Performances</p>
-                            <h2 class="atl-section-heading"><i class="fa-regular fa-calendar-days"></i> Events Management</h2><br>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-masks-theater"></i> Events Management</h2><br>
                             <p class="atl-section-sub">Schedule new performances, manage posters, and archive past events.</p>
                         </div>
                         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
@@ -10241,6 +10192,10 @@
             }
         }
 
+        // About profile-content drawer open/close (atl-drawer pattern, mirrors career/events)
+        $(document).on('click', '#aboutEditBtn', function() { if (window.openAtlDrawer) openAtlDrawer('aboutDrawer'); });
+        $(document).on('click', '#aboutDrawerClose, #aboutDrawerBackdrop', function() { if (window.closeAtlDrawer) closeAtlDrawer('aboutDrawer'); });
+
         $('#aboutForm').on('submit', async function(e) {
             e.preventDefault();
             var urlInput = $('#aboutUrl').val().trim();
@@ -10275,8 +10230,9 @@
                 await apiCall('/api/admin/about-me', 'POST', { image_path: imagePath, paragraph1: p1, paragraph2: p2, paragraph3: p3 });
                 updateAboutPreview();
                 $('#aboutFile').val('');
-                $btn.prop('disabled', false).html('<i class="fa-solid fa-check"></i> Saved!');
-                setTimeout(function() { $btn.html('<i class="fa-solid fa-floppy-disk"></i> Update'); }, 2500);
+                if (window.notificationService) window.notificationService.showSuccess('Profile updated.');
+                if (window.closeAtlDrawer) closeAtlDrawer('aboutDrawer');
+                $btn.prop('disabled', false).html('<i class="fa-solid fa-floppy-disk"></i> Update');
             } catch(saveErr) {
                 window.notificationService.showError('Save failed: ' + (saveErr.message || 'Server error'));
                 $btn.prop('disabled', false).html('<i class="fa-solid fa-floppy-disk"></i> Update');
@@ -18619,6 +18575,57 @@
         </div>
     </div>
 
+    <!-- About Me profile-content editor drawer (atl-drawer pattern) -->
+    <div id="aboutDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="aboutDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="aboutDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="aboutDrawerTitle"><i class="fa-solid fa-user-pen"></i> Edit Profile Content</h5>
+            <button type="button" class="atl-drawer__close" id="aboutDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <p class="um-section-desc" style="margin:0 0 16px;">Upload a photo or enter a URL, then fill in the biography paragraphs. The Live Preview updates as you type.</p>
+            <form id="aboutForm" class="um-form">
+                <div class="um-field-group">
+                    <label class="um-label" for="aboutFile">Profile Photo (Upload)</label>
+                    <label for="aboutFile" id="aboutUploadZone" class="um-upload-zone">
+                        <i class="fa-solid fa-image um-upload-icon"></i>
+                        <p class="um-upload-text" id="aboutUploadText">Select or drop profile picture</p>
+                        <input type="file" id="aboutFile" class="um-file-input" accept="image/*">
+                        <small class="help-block">Recommended square ratio. Scale automatically.</small>
+                    </label>
+                    <small id="aboutVideoWarning" style="display:none; color:var(--atl-clay); font-size:12px; margin-top:4px;">Videos are not supported here. Please upload an image.</small>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px; margin:20px 0;">
+                    <hr style="flex:1; border:0; border-top:1px solid var(--atl-line);">
+                    <span style="color:var(--atl-muted-dim); font-size:11px; font-weight:700; letter-spacing:1px;">OR</span>
+                    <hr style="flex:1; border:0; border-top:1px solid var(--atl-line);">
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="aboutUrl">Web URL Fallback</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-link um-input-icon"></i>
+                        <input type="text" id="aboutUrl" class="um-input" placeholder="e.g. images/image-slider-1.jpg">
+                    </div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label">Paragraph 1 (Lead)</label>
+                    <div class="about-quill-wrap atl-quill-wrap"><div id="aboutEditorP1"></div></div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label">Paragraph 2</label>
+                    <div class="about-quill-wrap atl-quill-wrap"><div id="aboutEditorP2"></div></div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label">Paragraph 3</label>
+                    <div class="about-quill-wrap atl-quill-wrap"><div id="aboutEditorP3"></div></div>
+                </div>
+                <button type="submit" class="atl-btn atl-btn--primary" id="aboutSubmitBtn" style="width:100%; justify-content:center;">
+                    <i class="fa-solid fa-floppy-disk"></i> Update
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- Career Highlight editor drawer (Add) / docks into expanded cards (Edit) -->
     <div id="careerDrawerBackdrop" class="atl-drawer-backdrop"></div>
     <div id="careerDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="careerDrawerTitle" aria-modal="true" aria-hidden="true">
@@ -20404,7 +20411,7 @@
         careerAdmin:      { label: 'Career',            icon: 'fa-star' },
         galleryAdmin:     { label: 'Gallery',           icon: 'fa-image' },
         socialAdmin:      { label: 'Socials',           icon: 'fa-share-nodes' },
-        eventsAdmin:      { label: 'Events',            icon: 'fa-calendar-days' },
+        eventsAdmin:      { label: 'Events',            icon: 'fa-masks-theater' },
         contactAdmin:     { label: 'Contact',           icon: 'fa-address-book' },
         inquiriesAdmin:   { label: 'Inquiries',         icon: 'fa-envelope-open-text' },
         bookingsAdmin:    { label: 'Bookings',          icon: 'fa-calendar-check' },
