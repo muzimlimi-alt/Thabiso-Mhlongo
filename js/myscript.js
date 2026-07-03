@@ -299,7 +299,7 @@ $(function() {
     // 6. Dynamic About Me Rendering
     async function renderAboutMe() {
         try {
-            var res = await fetch('/api/public/about-me');
+            var res = await fetch('/api/public/about-me', { cache: 'no-store' });
             if (!res.ok) return;
             var data = await res.json();
             if (data.image_path) $('.about-img').attr('src', data.image_path);

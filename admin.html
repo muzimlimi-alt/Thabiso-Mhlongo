@@ -10168,7 +10168,7 @@
                 $('#previewAboutImg').attr('src', fallbackUrl);
             }
         }
-        $('#aboutUrl').on('input', updateAboutPreview);
+        $(document).on('input', '#aboutUrl', updateAboutPreview);
 
         // Loads data from the API into Quill editors — called from last script block after Quill init
         async function loadAboutData() {
@@ -10192,11 +10192,30 @@
             }
         }
 
-        // About profile-content drawer open/close (atl-drawer pattern, mirrors career/events)
+        // About profile-content drawer open/close (atl-drawer pattern, mirrors career/events).
+        // Quill's cursor/selection is unreliable inside an ancestor that has a CSS transform, and
+        // .atl-drawer animates via translateX. So once the drawer has slid open we drop the
+        // transform (translateX(0) === no offset → no visual change) and focus the editor; the
+        // transform is restored on close so the slide-out still animates. Done via the
+        // atl:drawerOpened/Closed events so EVERY close path (button, backdrop, Esc, save) is covered.
         $(document).on('click', '#aboutEditBtn', function() { if (window.openAtlDrawer) openAtlDrawer('aboutDrawer'); });
         $(document).on('click', '#aboutDrawerClose, #aboutDrawerBackdrop', function() { if (window.closeAtlDrawer) closeAtlDrawer('aboutDrawer'); });
+        document.addEventListener('atl:drawerOpened', function(e) {
+            if (!e.detail || e.detail.id !== 'aboutDrawer') return;
+            setTimeout(function() {
+                var d = document.getElementById('aboutDrawer');
+                if (d && d.classList.contains('atl-drawer--open')) d.style.transform = 'none';
+                try { if (window.aboutQuill1) window.aboutQuill1.focus(); } catch (err) {}
+            }, 320);
+        });
+        document.addEventListener('atl:drawerClosed', function(e) {
+            if (!e.detail || e.detail.id !== 'aboutDrawer') return;
+            var d = document.getElementById('aboutDrawer'); if (d) d.style.transform = '';
+        });
 
-        $('#aboutForm').on('submit', async function(e) {
+        // Delegated: the form lives in #aboutDrawer, which is parsed AFTER this script runs,
+        // so a direct $('#aboutForm').on(...) would bind to nothing. Delegation is order-independent.
+        $(document).on('submit', '#aboutForm', async function(e) {
             e.preventDefault();
             var urlInput = $('#aboutUrl').val().trim();
             var file = $('#aboutFile')[0].files[0];
@@ -10240,7 +10259,8 @@
         });
 
         // Show a local preview on pick; the actual upload happens once on submit (avoids double-upload).
-        $('#aboutFile').on('change', function() {
+        // Delegated (form is in the drawer, parsed after this script).
+        $(document).on('change', '#aboutFile', function() {
             var file = this.files[0];
             var text = document.getElementById('aboutUploadText');
             if (text) {
