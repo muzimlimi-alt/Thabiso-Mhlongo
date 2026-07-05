@@ -311,6 +311,94 @@ $(function() {
     }
     renderAboutMe();
 
+    // 6b. Dynamic homepage content — Hero paragraph + "What I Do" section (admin-editable).
+    // Only overrides a field when the DB has a value for it, so the static markup is the fallback.
+
+    // Admin-controlled public section visibility. `sel` = the section element; `nav` = hrefs of nav
+    // links (desktop <li> + mobile <a>) to hide alongside it so nothing scrolls to a hidden section.
+    // The Announcement bar is handled separately (it shares the announcement_enabled setting).
+    var SECTION_MAP = {
+        hero:       { sel: '#hero',        nav: ['#hero'] },
+        features:   { sel: '.tm-features', nav: [] },
+        services:   { sel: '.tm-services', nav: [] },
+        about:      { sel: '#about',       nav: ['#about'] },
+        career:     { sel: '#career',      nav: ['#career'] },
+        gallery:    { sel: '#gallery',     nav: ['#gallery'] },
+        events:     { sel: '#events',      nav: ['#events'] },
+        social:     { sel: '#social',      nav: ['#social'] },
+        newsletter: { sel: '#newsletter',  nav: ['#newsletter'] },
+        contact:    { sel: '#contact',     nav: ['#contact'] },
+        footer:     { sel: '.tm-footer',   nav: [] }
+    };
+
+    function applySectionVisibility(sections) {
+        sections = sections || {};
+        Object.keys(SECTION_MAP).forEach(function (key) {
+            var conf = SECTION_MAP[key];
+            var visible = sections[key] !== false; // absent/true => visible
+            $(conf.sel).toggleClass('tm-section-hidden', !visible);
+            (conf.nav || []).forEach(function (href) {
+                $('.tm-navlinks a[href="' + href + '"], .tm-mobile-menu a[href="' + href + '"]').each(function () {
+                    var $li = $(this).closest('li');
+                    ($li.length ? $li : $(this)).toggle(visible);
+                });
+            });
+        });
+        // Cache the authoritative map for the no-FOUC head script on the next load…
+        try { localStorage.setItem('tm_sections', JSON.stringify(sections)); } catch (e) {}
+        // …then drop the temporary head style so the .tm-section-hidden classes above are the only control.
+        var tmp = document.querySelector('style[data-tm-sections]');
+        if (tmp) tmp.parentNode.removeChild(tmp);
+    }
+
+    async function renderSiteContent() {
+        try {
+            var res = await fetch('/api/public/site-content', { cache: 'no-store' });
+            if (!res.ok) return;
+            var data = await res.json();
+            if (!data || !data.success) return;
+            var a = data.announcement || {};
+            if (a.text && a.text.trim()) {
+                var $am = $('.tm-announcement .tm-announce-marquee');
+                if (!$am.length) { $('.tm-announcement').html('<div class="tm-announce-marquee"></div>'); $am = $('.tm-announcement .tm-announce-marquee'); }
+                $am.html(a.text);
+            }
+            if (a.enabled === false) $('.tm-announcement').hide(); else $('.tm-announcement').show();
+            if (a.rotate === false) $('.tm-announcement').addClass('no-rotate'); else $('.tm-announcement').removeClass('no-rotate');
+            if (data.hero_tagline && data.hero_tagline.trim()) $('.tm-hero__tagline').text(data.hero_tagline);
+            if (data.hero_subtitle && data.hero_subtitle.trim()) $('.tm-hero__subtitle').html(data.hero_subtitle);
+            var s = data.services || {};
+            if (s.eyebrow && s.eyebrow.trim()) $('.tm-services .tm-eyebrow').text(s.eyebrow);
+            if (s.heading && s.heading.trim()) $('#servicesTitle').html(s.heading);
+            if (Array.isArray(s.items) && s.items.length) {
+                var $cards = $('.tm-services__grid .tm-service');
+                s.items.forEach(function (item, i) {
+                    var $c = $cards.eq(i);
+                    if (!$c.length || !item) return;
+                    if (item.title && String(item.title).trim()) $c.find('.tm-service__title').text(item.title);
+                    if (item.description && String(item.description).trim()) $c.find('.tm-service__desc').text(item.description);
+                    if (item.image && String(item.image).trim()) $c.find('.tm-service__bg').css('background-image', 'url("' + item.image + '")');
+                });
+            }
+            var f = (data.features && Array.isArray(data.features.items)) ? data.features.items : [];
+            if (f.length) {
+                var $feat = $('.tm-features__grid .tm-feature');
+                f.forEach(function (item, i) {
+                    var $c = $feat.eq(i);
+                    if (!$c.length || !item) return;
+                    if (item.title && String(item.title).trim()) $c.find('.tm-feature__title').text(item.title);
+                    if (item.description && String(item.description).trim()) $c.find('.tm-feature__desc').text(item.description);
+                });
+            }
+
+            // Apply admin-controlled section visibility (hides sections + their nav links).
+            applySectionVisibility(data.sections);
+        } catch (e) {
+            console.warn('Could not load site content:', e);
+        }
+    }
+    renderSiteContent();
+
 
     // 8. Dynamic Events Rendering (API Driven)
     async function renderEvents() {

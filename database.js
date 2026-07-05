@@ -1044,7 +1044,36 @@ function initializeDatabase() {
             setting_key TEXT UNIQUE NOT NULL,
             setting_value TEXT NOT NULL,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
+        )`, () => {
+            // Seed editable homepage content (Hero paragraph + "What I Do" section) so the admin
+            // editors are pre-populated and index.html renders from the DB. INSERT OR IGNORE keeps
+            // any admin edits intact across restarts; absent values fall back to the static HTML.
+            db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('announcement_enabled', '1')`);
+            db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('announcement_rotate', '1')`);
+            // Public homepage section visibility (JSON map); '{}' = every section visible by default.
+            db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('section_visibility', '{}')`);
+            db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('announcement_text', ?)`,
+                ['<strong>Funny Business </strong> World Wide ']);
+            db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('hero_tagline', 'Officially funny since 2014')`);
+            db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('hero_subtitle', ?)`,
+                ["An award winning South African stand-up comedian, writer, actor, podcaster and TV presenter from Barberton — bringing a decade of stage-craft, razor-sharp wit and premium entertainment to South Africa's biggest rooms."]);
+            db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('features_items', ?)`,
+                [JSON.stringify([
+                    { title: '10+ Years', description: 'On stage since 2014' },
+                    { title: '200+ Shows', description: 'Live performances' },
+                    { title: '15+ Credits', description: 'TV, film & voice-over' },
+                    { title: '3 Languages', description: 'English, IsiSwati & Hilarious' }
+                ])]);
+            db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('services_eyebrow', 'What I do')`);
+            db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('services_heading', 'From the mic to the <em>moment</em>')`);
+            db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('services_items', ?)`,
+                [JSON.stringify([
+                    { title: 'Stand-Up', description: 'Solo sets, festivals & comedy nights', image: '' },
+                    { title: 'MC & Host', description: 'Galas, weddings & corporate events', image: '' },
+                    { title: 'TV, Podcast & Film', description: 'Acting, presenting & writing', image: '' },
+                    { title: 'Voice-Over', description: 'Radio & TV ads', image: '' }
+                ])]);
+        });
 
 
 

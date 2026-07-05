@@ -286,7 +286,9 @@ const deepEscapeBody = (obj) => {
     });
 };
 app.use((req, res, next) => {
-    if (req.body && req.path !== '/api/admin/about-me') deepEscapeBody(req.body);
+    // about-me + site-content carry admin-authored rich text (e.g. <em>); they are sanitised
+    // per-field in their handlers instead of being blanket entity-escaped here.
+    if (req.body && req.path !== '/api/admin/about-me' && req.path !== '/api/admin/site-content') deepEscapeBody(req.body);
     next();
 });
 
@@ -12268,6 +12270,88 @@ app.get('/api/public/social_embeds', (req, res) => {
     db.all("SELECT * FROM social_embeds WHERE is_active = 1 ORDER BY display_order ASC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
+    });
+});
+
+// ─── Editable homepage content: Hero paragraph + "What I Do" section ──────────
+// Stored as key-value rows in `settings`. hero_subtitle + services_heading may contain simple
+// admin-authored HTML (e.g. <em>) and are sanitised; eyebrow + card fields are plain text
+// (rendered client-side via .text()). Values fall back to the static index.html when unset.
+const SITE_CONTENT_KEYS = ['announcement_text', 'announcement_enabled', 'announcement_rotate', 'hero_tagline', 'hero_subtitle', 'services_eyebrow', 'services_heading', 'services_items', 'features_items', 'section_visibility'];
+// Public homepage sections whose visibility admins can toggle (stored as a JSON map in the
+// `section_visibility` setting). A key absent/true = visible; only an explicit false hides it.
+// `announcement` is intentionally NOT here — its visibility shares the `announcement_enabled` key.
+const SECTION_KEYS = ['hero', 'features', 'services', 'about', 'career', 'gallery', 'events', 'social', 'newsletter', 'contact', 'footer'];
+
+app.get('/api/public/site-content', (req, res) => {
+    const ph = SITE_CONTENT_KEYS.map(() => '?').join(',');
+    db.all(`SELECT setting_key, setting_value FROM settings WHERE setting_key IN (${ph})`, SITE_CONTENT_KEYS, (err, rows) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        const map = {};
+        (rows || []).forEach(r => { map[r.setting_key] = r.setting_value; });
+        let items = [], features = [], sectionVis = {};
+        try { items = map.services_items ? JSON.parse(map.services_items) : []; } catch (e) { items = []; }
+        try { features = map.features_items ? JSON.parse(map.features_items) : []; } catch (e) { features = []; }
+        try { sectionVis = map.section_visibility ? JSON.parse(map.section_visibility) : {}; } catch (e) { sectionVis = {}; }
+        // Resolve to an explicit map: every known section defaults to visible unless stored false.
+        const sections = {};
+        SECTION_KEYS.forEach(k => { sections[k] = sectionVis[k] !== false; });
+        res.json({
+            success: true,
+            announcement: { text: map.announcement_text || '', enabled: map.announcement_enabled !== '0', rotate: map.announcement_rotate !== '0' },
+            hero_tagline: map.hero_tagline || '',
+            hero_subtitle: map.hero_subtitle || '',
+            services: {
+                eyebrow: map.services_eyebrow || '',
+                heading: map.services_heading || '',
+                items: Array.isArray(items) ? items : []
+            },
+            features: { items: Array.isArray(features) ? features : [] },
+            sections: sections
+        });
+    });
+});
+
+app.put('/api/admin/site-content', requireAdmin, (req, res) => {
+    const b = req.body || {};
+    const updates = {};
+    if (typeof b.announcement_text === 'string') updates.announcement_text = sanitizeAboutHtml(b.announcement_text).slice(0, 300);
+    if (typeof b.announcement_enabled !== 'undefined') updates.announcement_enabled = b.announcement_enabled ? '1' : '0';
+    if (typeof b.announcement_rotate !== 'undefined') updates.announcement_rotate = b.announcement_rotate ? '1' : '0';
+    if (b.section_visibility && typeof b.section_visibility === 'object') {
+        // Whitelist keys + coerce to booleans so only known sections are ever stored.
+        const clean = {};
+        SECTION_KEYS.forEach(k => { if (k in b.section_visibility) clean[k] = !!b.section_visibility[k]; });
+        updates.section_visibility = JSON.stringify(clean);
+    }
+    if (typeof b.hero_subtitle === 'string') updates.hero_subtitle = sanitizeAboutHtml(b.hero_subtitle).slice(0, 1500);
+    if (typeof b.services_eyebrow === 'string') updates.services_eyebrow = b.services_eyebrow.replace(/<[^>]*>/g, '').slice(0, 120);
+    if (typeof b.services_heading === 'string') updates.services_heading = sanitizeAboutHtml(b.services_heading).slice(0, 300);
+    if (Array.isArray(b.services_items)) {
+        const clean = b.services_items.slice(0, 12).map(it => ({
+            title: String((it && it.title) || '').replace(/<[^>]*>/g, '').slice(0, 120),
+            description: String((it && it.description) || '').replace(/<[^>]*>/g, '').slice(0, 300),
+            image: String((it && it.image) || '').slice(0, 500)
+        }));
+        updates.services_items = JSON.stringify(clean);
+    }
+    if (typeof b.hero_tagline === 'string') updates.hero_tagline = b.hero_tagline.replace(/<[^>]*>/g, '').slice(0, 160);
+    if (Array.isArray(b.features_items)) {
+        const cf = b.features_items.slice(0, 12).map(it => ({
+            title: String((it && it.title) || '').replace(/<[^>]*>/g, '').slice(0, 60),
+            description: String((it && it.description) || '').replace(/<[^>]*>/g, '').slice(0, 120)
+        }));
+        updates.features_items = JSON.stringify(cf);
+    }
+    const keys = Object.keys(updates);
+    if (!keys.length) return res.json({ success: true });
+    let pending = keys.length, failed = false;
+    keys.forEach(key => {
+        db.run("INSERT OR REPLACE INTO settings (setting_key, setting_value, updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
+            [key, updates[key]], (err) => {
+                if (err && !failed) { failed = true; console.error('save site-content failed:', err); return res.status(500).json({ success: false, message: 'Could not save homepage content. Please try again.' }); }
+                if (--pending === 0 && !failed) res.json({ success: true, message: 'Homepage content updated.' });
+            });
     });
 });
 

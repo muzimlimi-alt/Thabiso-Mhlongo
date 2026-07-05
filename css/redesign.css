@@ -336,12 +336,13 @@ a:hover,a:focus{ color:var(--y-hover); }
 .tm-announcement{
   position:fixed; top:0; left:0; right:0; z-index:1001;
   background: rgba(10, 10, 10, 0.05);
-  backdrop-filter: saturate(180%) blur(2px);
-  -webkit-backdrop-filter: saturate(180%) blur(2px);
+  backdrop-filter: saturate(180%);
+  -webkit-backdrop-filter: saturate(180%);
   color:var(--text-primary);
   border: none !important;
-  text-align:center;
-  padding:10px 16px;
+  display:flex; align-items:center;
+  overflow:hidden;
+  padding:0;
   font-size:.7rem;
   letter-spacing:.18em;
   text-transform:uppercase;
@@ -356,6 +357,30 @@ a:hover,a:focus{ color:var(--y-hover); }
 }
 .tm-announcement strong{ color:var(--y-base); font-weight:500; }
 .tm-announcement .sep{ color:var(--y-dark); margin:0 12px; }
+
+/* Announcement ticker — scrolls the message right-to-left, looping */
+.tm-announce-marquee{
+  flex:0 0 auto;
+  white-space:nowrap;
+  padding-left:100%;
+  animation:tm-announce-scroll 18s linear infinite;
+  will-change:transform;
+}
+.tm-announcement:hover .tm-announce-marquee{ animation-play-state:paused; }
+@keyframes tm-announce-scroll{
+  from{ transform:translateX(0); }
+  to{ transform:translateX(-100%); }
+}
+/* Rotation toggle off — the message sits still and centred (no scroll) */
+.tm-announcement.no-rotate{ justify-content:center; }
+.tm-announcement.no-rotate .tm-announce-marquee{ animation:none; padding-left:0; }
+
+/* Admin-controlled section visibility (Settings → Website Sections). Removed from flow, no gap. */
+.tm-section-hidden{ display:none !important; }
+@media (prefers-reduced-motion: reduce){
+  .tm-announce-marquee{ animation:none; padding-left:0; }
+  .tm-announcement{ justify-content:center; }
+}
 
 /* ---------- HEADER / NAVBAR ---------- */
 .tm-header{

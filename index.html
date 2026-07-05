@@ -114,7 +114,24 @@
 		}
 	</style>
 
-
+	<!-- No-FOUC section visibility: hide sections the admin turned off, from cache, before first paint.
+	     renderSiteContent() in myscript.js reconciles with the server and removes this style. -->
+	<script>
+	(function () {
+		try {
+			var v = JSON.parse(localStorage.getItem('tm_sections') || '{}');
+			var MAP = { hero:'#hero', features:'.tm-features', services:'.tm-services', about:'#about', career:'#career', gallery:'#gallery', events:'#events', social:'#social', newsletter:'#newsletter', contact:'#contact', footer:'.tm-footer' };
+			var sel = [];
+			Object.keys(MAP).forEach(function (k) { if (v[k] === false) sel.push(MAP[k]); });
+			if (sel.length) {
+				var s = document.createElement('style');
+				s.setAttribute('data-tm-sections', '');
+				s.textContent = sel.map(function (x) { return x + '{display:none !important;}'; }).join('');
+				document.head.appendChild(s);
+			}
+		} catch (e) {}
+	})();
+	</script>
 
 </head>
 
@@ -126,9 +143,7 @@
 
 <!-- ============== ANNOUNCEMENT BAR ============== -->
 <div class="tm-announcement" role="status">
-	<strong>Funny Business </strong>
-	<!-- <span class="sep">·</span> -->
-	 World Wide 
+	<div class="tm-announce-marquee"><strong>Funny Business </strong> World Wide</div>
 </div>
 
 <!-- ============== HEADER ============== -->

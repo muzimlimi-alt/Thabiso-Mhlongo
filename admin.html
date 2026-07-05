@@ -1777,6 +1777,17 @@
         }
 
         /* Global tab bar */
+        /* Inline code — Atelier styling (overrides Bootstrap's pink default) */
+        code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+            color: var(--atl-amber);
+            background: color-mix(in srgb, var(--atl-amber) 12%, transparent);
+            border: 1px solid color-mix(in srgb, var(--atl-amber) 24%, transparent);
+            border-radius: 5px;
+            padding: 1px 6px;
+        }
+
         .atl-tab-bar {
             display: flex; gap: 4px; flex-wrap: wrap;
             border-bottom: 1px solid var(--atl-line);
@@ -5658,9 +5669,22 @@
                             </div>
                         </div>
 
+                        <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                        <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                            <li><strong style="color:var(--atl-ink);">Reply to a message</strong> &mdash; open it (this marks it Read), click <strong style="color:var(--atl-ink);">Reply</strong>, write your response and send. The sender is emailed and the message becomes <strong style="color:var(--atl-ink);">Replied</strong>.</li>
+                            <li><strong style="color:var(--atl-ink);">Clear the backlog</strong> &mdash; open the <strong style="color:var(--atl-ink);">Unread</strong> folder, select the page, then <strong style="color:var(--atl-ink);">Mark read</strong> or <strong style="color:var(--atl-ink);">Archive</strong> in one action.</li>
+                            <li><strong style="color:var(--atl-ink);">Find an old enquiry</strong> &mdash; search by sender, email, subject or text and sort by newest, oldest or name.</li>
+                            <li><strong style="color:var(--atl-ink);">Keep it tidy</strong> &mdash; Archive anything you've handled; delete only when a message is truly unwanted.</li>
+                        </ol>
+
                         <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
                             <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
                             <span>Deleting a message is permanent and only available to administrators &mdash; <strong style="color:var(--atl-ink);">Archive</strong> instead if you may need it later.</span>
+                        </p>
+
+                        <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                            <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                            <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Bookings</strong> for enquiries that turn into paid engagements; <strong style="color:var(--atl-ink);">Contact</strong> for the public enquiry form and your listed details; and <strong style="color:var(--atl-ink);">Newsletter</strong> to add interested senders to your mailing list.</span>
                         </p>
                     </div>
                 </div>
@@ -5794,54 +5818,93 @@
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                 <div>
                                     <h4 class="um-section-label" style="margin-bottom:4px;">About Bookings</h4>
-                                    <p class="um-section-desc">How the booking pipeline works and what each control does.</p>
+                                    <p class="um-section-desc">The operational heart of the platform &mdash; how the booking pipeline works, what each control does, and how to recover lost enquiries.</p>
                                 </div>
                             </div>
 
                             <div class="um-divider"></div>
 
                             <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
-                                The <strong style="color:var(--atl-ink);">Pipeline</strong> is the end-to-end manager for every artist engagement. Each enquiry moves through an eight-stage lifecycle &mdash; <strong style="color:var(--atl-ink);">New &rarr; Pending &rarr; Quoted &rarr; Accepted &rarr; Confirmed &rarr; Completed</strong>, with <strong style="color:var(--atl-ink);">Expired</strong> and <strong style="color:var(--atl-ink);">Cancelled</strong> as terminal states. Every status transition is validated server-side.
+                                <strong style="color:var(--atl-ink);">Bookings</strong> manages every artist engagement from first contact to final payment. It has two working tabs &mdash; the <strong style="color:var(--atl-ink);">Pipeline</strong> (all live bookings) and <strong style="color:var(--atl-ink);">Booking Recovery</strong> (visitors who started a request but didn't finish). Each enquiry moves through an eight-stage lifecycle &mdash; <strong style="color:var(--atl-ink);">New &rarr; Pending &rarr; Quoted &rarr; Accepted &rarr; Confirmed &rarr; Completed</strong>, with <strong style="color:var(--atl-ink);">Expired</strong> and <strong style="color:var(--atl-ink);">Cancelled</strong> as terminal states. Every status transition is validated and recorded server-side.
                             </p>
 
                             <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
-                            <div class="um-roles-grid">
+                            <div class="um-roles-grid" style="margin-bottom:26px;">
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
-                                        <span class="um-feature-title"><i class="fa-solid fa-diagram-project" style="color:var(--atl-amber);"></i> Lifecycle &amp; pills</span>
+                                        <span class="um-feature-title"><i class="fa-solid fa-diagram-project" style="color:var(--atl-amber);"></i> The lifecycle</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Eight stages carry a booking from enquiry to completion; each stage colour-coded</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Status only advances through <strong style="color:var(--atl-ink);">validated actions inside a card</strong> &mdash; never by editing a field</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> You can't skip stages or move backwards past a terminal state</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-filter" style="color:var(--atl-amber);"></i> Pills &amp; filters</span>
                                     </div>
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i> The coloured pills are <strong style="color:var(--atl-ink);">filter shortcuts</strong>, not status changers &mdash; each shows a live count</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Click any booking card to expand its full lifecycle panel (quote, invoice, payments)</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Status only advances through validated actions inside a card</li>
-                                    </ul>
-                                </div>
-                                <div class="um-role-info">
-                                    <div class="um-role-info__head">
-                                        <span class="um-feature-title"><i class="fa-solid fa-magnifying-glass" style="color:var(--atl-amber);"></i> Find &amp; filter</span>
-                                    </div>
-                                    <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> Search by name, email, event or booking ID</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> The dropdown filters by <strong style="color:var(--atl-ink);">booking status</strong> or <strong style="color:var(--atl-ink);">payment status</strong> &mdash; they are distinct</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Use <strong style="color:var(--atl-ink);">Clear filters</strong> to reset the view</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Search by name, email, event or booking ID; <strong style="color:var(--atl-ink);">Clear filters</strong> resets the view</li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
-                                        <span class="um-feature-title"><i class="fa-solid fa-plus" style="color:var(--atl-amber);"></i> Create &amp; refresh</span>
+                                        <span class="um-feature-title"><i class="fa-solid fa-id-card" style="color:var(--atl-amber);"></i> Inside a booking</span>
                                     </div>
                                     <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">New enquiry</strong> opens the manual booking modal for phone/email leads</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Refresh</strong> reloads the pipeline and re-syncs the calendar</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Click any card to expand its full lifecycle panel &mdash; quote, invoice and payments</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Send a quote, mark it accepted, confirm the date and complete the job from here</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Every action is timestamped to the audit trail in <strong style="color:var(--atl-ink);">Security</strong></li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-plus" style="color:var(--atl-amber);"></i> Create &amp; sync</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">New enquiry</strong> opens the manual booking modal for phone / email leads</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Refresh</strong> reloads the pipeline and re-syncs the Calendar</li>
                                         <li class="cannot"><i class="fa-solid fa-xmark"></i> Deleting a booking is administrator-only and permanent</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-arrow-rotate-left" style="color:var(--atl-amber);"></i> Booking Recovery</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Lists visitors who started a request but didn't submit; the tab badge shows how many</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Resend</strong> a reminder to anyone manually at any time</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Automatic reminders go <em>only</em> to those who reached the final step and consented</li>
                                     </ul>
                                 </div>
                             </div>
 
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Log a phone / email lead</strong> &mdash; click <strong style="color:var(--atl-ink);">New enquiry</strong>, fill in the client and event details, and save. It enters the pipeline as <strong style="color:var(--atl-amber);">New</strong>.</li>
+                                <li><strong style="color:var(--atl-ink);">Move a booking forward</strong> &mdash; open the card, send a quote, mark it accepted, confirm the date, then mark it completed once the job is done.</li>
+                                <li><strong style="color:var(--atl-ink);">Find what needs chasing</strong> &mdash; set the dropdown to a booking status (e.g. Confirmed) or a payment status (e.g. Unpaid) to isolate exactly those cards.</li>
+                                <li><strong style="color:var(--atl-ink);">Recover a lost request</strong> &mdash; open the <strong style="color:var(--atl-ink);">Booking Recovery</strong> tab and use <strong style="color:var(--atl-ink);">Resend</strong> to nudge an abandoned enquiry.</li>
+                            </ol>
+
                             <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
-                                <i class="fa-solid fa-shield-halved" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span>All booking status transitions, quotes, invoices and payments are validated and recorded server-side with an audit trail &mdash; the pipeline view is a window onto that, not the source of truth.</span>
-                    </div>
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Booking status and payment status are separate.</strong> A <strong style="color:var(--atl-ink);">Completed</strong> booking can still be <strong style="color:var(--atl-ink);">Unpaid</strong> &mdash; always check both before you consider an engagement closed.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span>All status transitions, quotes, invoices and payments are validated and recorded server-side with an audit trail &mdash; the pipeline view is a window onto that, not the source of truth. <strong style="color:var(--atl-ink);">Deleting a booking is permanent</strong> and cannot be undone.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Finance</strong> for invoices, payments and refunds; <strong style="color:var(--atl-ink);">Calendar</strong>, where confirmed bookings appear as events; <strong style="color:var(--atl-ink);">Inquiries</strong> for general messages that aren't yet bookings; and <strong style="color:var(--atl-ink);">Security</strong> for the audit trail of every change.</span>
+                            </p>
+                        </div>
                     </div>
 
                                         <!-- ===== PANEL: Booking Recovery (abandoned bookings) ===== -->
@@ -6142,9 +6205,22 @@
                                 </div>
                             </div>
 
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Block out dates</strong> &mdash; click <strong style="color:var(--atl-ink);">Block Out Dates</strong> (or a day in the mini-calendar), set the range and a category, and save. Those days become unavailable on the public booking form.</li>
+                                <li><strong style="color:var(--atl-ink);">Set your working hours</strong> &mdash; open the <strong style="color:var(--atl-ink);">Schedule</strong> sidebar tab, set hours per day of the week and the booking-gap buffer.</li>
+                                <li><strong style="color:var(--atl-ink);">Subscribe elsewhere</strong> &mdash; use <strong style="color:var(--atl-ink);">Copy Feed URL</strong> and paste the link into Google, Outlook or Apple Calendar.</li>
+                                <li><strong style="color:var(--atl-ink);">Review an entry</strong> &mdash; click any colour-coded event to view or edit its details.</li>
+                            </ol>
+
                             <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-shield-halved" style="color:var(--atl-amber); margin-top:2px;"></i>
                                 <span>All calendar entries are validated server-side. Date holds enforce availability rules on the public booking form, and booking events are kept in sync with the Pipeline in real time.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Bookings</strong>, whose confirmed engagements appear here automatically; <strong style="color:var(--atl-ink);">Finance</strong>, whose payment milestones show as entries; and <strong style="color:var(--atl-ink);">Events</strong> for public event dates.</span>
                             </p>
                         </div>
                     </div>
@@ -6646,24 +6722,100 @@
                                 <!-- About Tab -->
                                 <div role="tabpanel" class="um-panel" id="finAbout">
                                     <div class="atl-card">
-                                        <div class="um-icon-header" style="margin-bottom:16px;">
+                                        <div class="um-icon-header">
                                             <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                             <div>
-                                                <h4 class="um-section-label">About This Section</h4>
-                                                <p class="um-section-desc">The financial ledger — revenue, invoices, expenses, reconciliation, and payment reminders for your bookings.</p>
+                                                <h4 class="um-section-label" style="margin-bottom:4px;">About Finance</h4>
+                                                <p class="um-section-desc">The financial ledger &mdash; revenue, invoices, expenses, reconciliation and payment reminders for your bookings.</p>
                                             </div>
                                         </div>
-                                        <hr class="um-divider" style="margin-top:0;">
-                                        <h5 class="um-section-label" style="font-size:13px;">The tiles &amp; period</h5>
-                                        <p class="um-section-desc">The tiles at the top reflect the <strong style="color:var(--atl-ink);">selected period</strong>. <strong style="color:var(--atl-ink);">Net Profit = Revenue − Expenses</strong> for that period. The <strong style="color:var(--atl-ink);">Overdue</strong> and <strong style="color:var(--atl-ink);">Due Soon</strong> tiles are clickable shortcuts that jump to the Invoices tab.</p>
-                                        <h5 class="um-section-label" style="font-size:13px; margin-top:18px;">The tabs</h5>
-                                        <ul class="um-security-tips" style="list-style:none; padding-left:0;">
-                                            <li><i class="fa-solid fa-list" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Transactions / Invoices</strong> — every payment received and every invoice raised, with filters.</li>
-                                            <li><i class="fa-solid fa-receipt" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Expenses</strong> — costs are <em>manually logged</em> via “Log Expense”; they feed Net Profit.</li>
-                                            <li><i class="fa-solid fa-scale-balanced" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Reconciliation</strong> — compares quoted amounts against PayFast + manual payments and flags discrepancies.</li>
-                                            <li><i class="fa-solid fa-bell" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Reminders</strong> — automated payment reminders; their timing is configured in <strong style="color:var(--atl-ink);">Legal &amp; Compliance → Booking Policies</strong>.</li>
-                                            <li><i class="fa-solid fa-chart-pie" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Analytics &amp; Reports</strong> — revenue trend, debt ageing, and top clients.</li>
-                                        </ul>
+
+                                        <div class="um-divider"></div>
+
+                                        <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                            The <strong style="color:var(--atl-ink);">Financial Ledger</strong> tracks every rand in and out of the business. The tiles at the top reflect the <strong style="color:var(--atl-ink);">selected period</strong>, where <strong style="color:var(--atl-ink);">Net Profit = Revenue &minus; Expenses</strong>. The <strong style="color:var(--atl-ink);">Overdue</strong> and <strong style="color:var(--atl-ink);">Due Soon</strong> tiles are clickable shortcuts that jump straight to the matching invoices.
+                                        </p>
+
+                                        <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                                        <div class="um-roles-grid" style="margin-bottom:26px;">
+                                            <div class="um-role-info">
+                                                <div class="um-role-info__head">
+                                                    <span class="um-feature-title"><i class="fa-solid fa-chart-simple" style="color:var(--atl-amber);"></i> Tiles &amp; period</span>
+                                                </div>
+                                                <ul class="um-role-list">
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Pick the <strong style="color:var(--atl-ink);">period</strong> first &mdash; every tile and total respects it</li>
+                                                    <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Overdue</strong> and <strong style="color:var(--atl-ink);">Due Soon</strong> tiles jump to the matching invoices</li>
+                                                </ul>
+                                            </div>
+                                            <div class="um-role-info">
+                                                <div class="um-role-info__head">
+                                                    <span class="um-feature-title"><i class="fa-solid fa-list" style="color:var(--atl-amber);"></i> Transactions &amp; Invoices</span>
+                                                </div>
+                                                <ul class="um-role-list">
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Every payment received and every invoice raised, with filters</li>
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Invoices are raised from a booking in the Pipeline</li>
+                                                    <li class="cannot"><i class="fa-solid fa-xmark"></i> Voiding an invoice is administrator-only</li>
+                                                </ul>
+                                            </div>
+                                            <div class="um-role-info">
+                                                <div class="um-role-info__head">
+                                                    <span class="um-feature-title"><i class="fa-solid fa-receipt" style="color:var(--atl-amber);"></i> Expenses</span>
+                                                </div>
+                                                <ul class="um-role-list">
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Costs are <em>manually logged</em> via <strong style="color:var(--atl-ink);">Log Expense</strong></li>
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Logged expenses feed directly into Net Profit</li>
+                                                </ul>
+                                            </div>
+                                            <div class="um-role-info">
+                                                <div class="um-role-info__head">
+                                                    <span class="um-feature-title"><i class="fa-solid fa-scale-balanced" style="color:var(--atl-amber);"></i> Reconciliation</span>
+                                                </div>
+                                                <ul class="um-role-list">
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Compares quoted amounts against PayFast and manual payments</li>
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Flags discrepancies so nothing is under- or over-collected</li>
+                                                </ul>
+                                            </div>
+                                            <div class="um-role-info">
+                                                <div class="um-role-info__head">
+                                                    <span class="um-feature-title"><i class="fa-solid fa-bell" style="color:var(--atl-amber);"></i> Reminders</span>
+                                                </div>
+                                                <ul class="um-role-list">
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Automated payment reminders for outstanding invoices</li>
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Timing is configured in <strong style="color:var(--atl-ink);">Legal &amp; Compliance &rarr; Booking Policies</strong></li>
+                                                </ul>
+                                            </div>
+                                            <div class="um-role-info">
+                                                <div class="um-role-info__head">
+                                                    <span class="um-feature-title"><i class="fa-solid fa-chart-pie" style="color:var(--atl-amber);"></i> Analytics &amp; Reports</span>
+                                                </div>
+                                                <ul class="um-role-list">
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Revenue trend, debt ageing and top clients at a glance</li>
+                                                </ul>
+                                            </div>
+                                        </div>
+
+                                        <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                                        <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                            <li><strong style="color:var(--atl-ink);">Chase an overdue invoice</strong> &mdash; click the <strong style="color:var(--atl-ink);">Overdue</strong> tile to jump to those invoices, then send a reminder.</li>
+                                            <li><strong style="color:var(--atl-ink);">Log an expense</strong> &mdash; open the <strong style="color:var(--atl-ink);">Expenses</strong> tab, click <strong style="color:var(--atl-ink);">Log Expense</strong>; it lowers Net Profit for the period.</li>
+                                            <li><strong style="color:var(--atl-ink);">Check the books balance</strong> &mdash; open <strong style="color:var(--atl-ink);">Reconciliation</strong> to spot any gap between quotes and payments received.</li>
+                                            <li><strong style="color:var(--atl-ink);">Change reminder timing</strong> &mdash; head to <strong style="color:var(--atl-ink);">Legal &amp; Compliance &rarr; Booking Policies</strong>.</li>
+                                        </ol>
+
+                                        <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                            <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                            <span>Always set the <strong style="color:var(--atl-ink);">period</strong> before reading the tiles &mdash; a &ldquo;low revenue&rdquo; month is often just a narrow date range.</span>
+                                        </p>
+
+                                        <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                            <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                            <span>Finance is available to <strong style="color:var(--atl-ink);">Managers and Administrators only</strong> &mdash; Assistants can't see it. Voiding invoices and deleting records is administrator-only, and financial records are retained for the legally required <strong style="color:var(--atl-ink);">5-year SARS period</strong> even after a POPIA erasure.</span>
+                                        </p>
+
+                                        <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                            <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                            <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Bookings</strong>, where invoices and payments originate; <strong style="color:var(--atl-ink);">Legal &amp; Compliance</strong> for reminder and policy settings; and <strong style="color:var(--atl-ink);">Security</strong> for the financial audit trail and POPIA erasure.</span>
+                                        </p>
                                     </div>
                                 </div>
 
@@ -6779,27 +6931,90 @@
 
                     <div id="servicesAboutPanel" class="um-panel">
                         <div class="atl-card">
-                            <div class="um-icon-header" style="margin-bottom:16px;">
+                            <div class="um-icon-header">
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                 <div>
-                                    <h4 class="um-section-label">About This Section</h4>
-                                    <p class="um-section-desc">The services catalogue — the priced items used when building quotes and invoices for bookings.</p>
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">About Services</h4>
+                                    <p class="um-section-desc">The priced catalogue items used when building quotes and invoices for bookings.</p>
                                 </div>
                             </div>
-                            <hr class="um-divider" style="margin-top:0;">
-                            <h5 class="um-section-label" style="font-size:13px;">What a service is</h5>
-                            <p class="um-section-desc">Each service is a reusable catalogue item (a performance, travel, production line, etc.). When you build a quote for a booking, you pick from <strong style="color:var(--atl-ink);">active</strong> services here.</p>
-                            <h5 class="um-section-label" style="font-size:13px; margin-top:18px;">Pricing models</h5>
-                            <ul class="um-security-tips" style="list-style:none; padding-left:0;">
-                                <li><i class="fa-solid fa-coins" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Flat Fee</strong> — one fixed price. <strong style="color:var(--atl-ink);">Per Minute / Per Hour</strong> — price × quantity, with min/max limits.</li>
-                                <li><i class="fa-solid fa-toggle-on" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Active vs Inactive</strong> — inactive services are hidden from new quotes but don't affect existing bookings.</li>
-                                <li><i class="fa-solid fa-sliders" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Advanced / Financial fields</strong> — GL codes, crew, tax class etc. are optional, for accounting integration.</li>
-                                <li><i class="fa-solid fa-box-archive" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Archive vs Delete</strong> — archiving is reversible; a service used by existing booking line items can't be hard-deleted.</li>
-                            </ul>
-                            <div class="um-security-tips" style="margin-top:18px;">
-                                <i class="fa-solid fa-shield-halved"></i>
-                                <span>Changing a service's price does not retroactively change quotes that already used it — you'll be warned if active drafts reference it.</span>
+
+                            <div class="um-divider"></div>
+
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                The <strong style="color:var(--atl-ink);">Services Catalogue</strong> holds reusable, priced items &mdash; performances, travel, production lines and more. When you build a quote for a booking, you pick from the <strong style="color:var(--atl-ink);">active</strong> services listed here, so pricing stays consistent across every engagement.
+                            </p>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                            <div class="um-roles-grid" style="margin-bottom:26px;">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-tag" style="color:var(--atl-amber);"></i> What a service is</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> A reusable catalogue item &mdash; a performance, travel, a production line, etc.</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Quotes are assembled by picking from the active services here</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-coins" style="color:var(--atl-amber);"></i> Pricing models</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Flat Fee</strong> &mdash; one fixed price</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Per Minute / Per Hour</strong> &mdash; price &times; quantity, with min/max limits</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-toggle-on" style="color:var(--atl-amber);"></i> Active vs Inactive</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Inactive services are hidden from new quotes</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Making a service inactive doesn't change existing bookings</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-sliders" style="color:var(--atl-amber);"></i> Advanced fields</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> GL codes, crew, tax class and more for accounting integration</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> All optional &mdash; a name, price and model are enough to start</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-box-archive" style="color:var(--atl-amber);"></i> Archive vs Delete</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Archiving is reversible &mdash; the item just leaves new quotes</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> A service used by existing booking line items can't be hard-deleted</li>
+                                    </ul>
+                                </div>
                             </div>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Add a service</strong> &mdash; click <strong style="color:var(--atl-ink);">Add Service</strong>, set the name, category, pricing model and price, then save. It's active by default.</li>
+                                <li><strong style="color:var(--atl-ink);">Retire a service</strong> &mdash; set it <strong style="color:var(--atl-ink);">Inactive</strong> to hide it from new quotes, or <strong style="color:var(--atl-ink);">Archive</strong> it to remove it reversibly.</li>
+                                <li><strong style="color:var(--atl-ink);">Reprice</strong> &mdash; edit the price; quotes that already used the old price are left untouched.</li>
+                            </ol>
+
+                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>Keep the catalogue lean &mdash; mark seasonal or one-off items <strong style="color:var(--atl-ink);">Inactive</strong> rather than deleting them, so their history stays intact.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span>Changing a service's price does <strong style="color:var(--atl-ink);">not</strong> retroactively change quotes that already used it &mdash; you'll be warned if active drafts reference it.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Bookings</strong>, where these services become quote line items; and <strong style="color:var(--atl-ink);">Finance</strong>, where those quotes turn into invoices and revenue.</span>
+                            </p>
                         </div>
                     </div>
 
@@ -7016,7 +7231,7 @@
                             </div>
 
                             <!-- Advanced / ERP (collapsible) -->
-                            <div style="margin:16px 0 10px;">
+                            <!--<div style="margin:16px 0 10px;">
                                 <button type="button" class="atl-btn atl-btn--ghost" onclick="$('#svcAdvancedPanel').slideToggle(200);" style="font-size:11px;letter-spacing:0.5px;width:100%;justify-content:flex-start;">
                                     <i class="fa-solid fa-chevron-down" style="margin-right:5px;"></i>Advanced / Financial Fields
                                 </button>
@@ -7080,7 +7295,7 @@
                                         <input type="checkbox" id="svcIsDeleted" style="width:14px;height:14px;"> Mark as Archived
                                     </label>
                                 </div>
-                            </div>
+                            </div>-->
                         </div><!-- /.svc-drawer__body -->
                         <div class="svc-drawer__footer">
                             <button class="atl-btn atl-btn--primary" onclick="saveService()" style="flex:1;">
@@ -7113,6 +7328,7 @@
                         <button class="atl-tab-btn" data-um-tab="lcPanelBookingPolicies" role="tab" aria-selected="false"><i class="fa-solid fa-sliders"></i> Booking Policies</button>
                         <button class="atl-tab-btn" data-um-tab="lcPanelContracts" role="tab" aria-selected="false"><i class="fa-solid fa-file-signature"></i> Contract Registry</button>
                         <button class="atl-tab-btn" data-um-tab="lcPanelVersionHistory" role="tab" aria-selected="false"><i class="fa-solid fa-clock-rotate-left"></i> Version History</button>
+                        <button class="atl-tab-btn" data-um-tab="lcPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
                     </div>
 
                     <!-- Tab 1: Overview -->
@@ -7356,6 +7572,101 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Tab: About -->
+                    <div id="lcPanelAbout" class="um-panel">
+                        <div class="lc-panel-inner">
+                            <div class="atl-card">
+                                <div class="um-icon-header">
+                                    <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                    <div>
+                                        <h4 class="um-section-label" style="margin-bottom:4px;">About the Legal &amp; Consent Centre</h4>
+                                        <p class="um-section-desc">Draft, version and publish your public legal documents &mdash; and keep the consent trail that proves compliance.</p>
+                                    </div>
+                                </div>
+
+                                <div class="um-divider"></div>
+
+                                <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                    This centre manages everything legal and compliance-related for your public site: the <strong style="color:var(--atl-ink);">Privacy Policy</strong>, <strong style="color:var(--atl-ink);">Terms of Use</strong> and <strong style="color:var(--atl-ink);">Cookie &amp; Consent</strong> wording your visitors see, plus the records that prove you're compliant &mdash; the <strong style="color:var(--atl-ink);">Consent Audit</strong>, the <strong style="color:var(--atl-ink);">Contract Registry</strong> and full <strong style="color:var(--atl-ink);">Version History</strong>. <strong style="color:var(--atl-ink);">Booking Policies</strong> sets the rules that Bookings and Finance enforce.
+                                </p>
+
+                                <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                                <div class="um-roles-grid" style="margin-bottom:26px;">
+                                    <div class="um-role-info">
+                                        <div class="um-role-info__head">
+                                            <span class="um-feature-title"><i class="fa-solid fa-file-contract" style="color:var(--atl-amber);"></i> Legal documents</span>
+                                        </div>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> Edit Privacy Policy, Terms of Use and Cookie &amp; Consent wording in a rich-text editor</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Save as Draft</strong> while you work, <strong style="color:var(--atl-ink);">Publish Now</strong> to go live</li>
+                                        </ul>
+                                    </div>
+                                    <div class="um-role-info">
+                                        <div class="um-role-info__head">
+                                            <span class="um-feature-title"><i class="fa-solid fa-clock-rotate-left" style="color:var(--atl-amber);"></i> Versioning &amp; history</span>
+                                        </div>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> Every publish creates a version stamped with your change summary</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Version History</strong> shows the full trail across all documents</li>
+                                            <li class="cannot"><i class="fa-solid fa-xmark"></i> A published version can't be rewritten &mdash; only superseded</li>
+                                        </ul>
+                                    </div>
+                                    <div class="um-role-info">
+                                        <div class="um-role-info__head">
+                                            <span class="um-feature-title"><i class="fa-solid fa-clipboard-check" style="color:var(--atl-amber);"></i> Consent Audit</span>
+                                        </div>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> Records who consented, when, from which IP and to which policy version</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> Search and <strong style="color:var(--atl-ink);">export to CSV</strong> for your records</li>
+                                            <li class="cannot"><i class="fa-solid fa-xmark"></i> Read-only evidence &mdash; entries aren't edited by hand</li>
+                                        </ul>
+                                    </div>
+                                    <div class="um-role-info">
+                                        <div class="um-role-info__head">
+                                            <span class="um-feature-title"><i class="fa-solid fa-file-signature" style="color:var(--atl-amber);"></i> Contract Registry</span>
+                                        </div>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> Tracks signed and draft contracts in one place</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> Counts surface on the Overview tiles at a glance</li>
+                                        </ul>
+                                    </div>
+                                    <div class="um-role-info">
+                                        <div class="um-role-info__head">
+                                            <span class="um-feature-title"><i class="fa-solid fa-sliders" style="color:var(--atl-amber);"></i> Booking Policies</span>
+                                        </div>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> Deposit terms, cancellation rules and payment-reminder timing</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> These rules are enforced over in <strong style="color:var(--atl-ink);">Bookings</strong> and <strong style="color:var(--atl-ink);">Finance</strong></li>
+                                        </ul>
+                                    </div>
+                                </div>
+
+                                <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                                <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                    <li><strong style="color:var(--atl-ink);">Update a policy</strong> &mdash; open <strong style="color:var(--atl-ink);">Privacy Policy</strong>, <strong style="color:var(--atl-ink);">Terms of Use</strong> or <strong style="color:var(--atl-ink);">Cookie &amp; Consent</strong>, edit, write a change summary, <strong style="color:var(--atl-ink);">Save as Draft</strong>, then <strong style="color:var(--atl-ink);">Publish Now</strong>.</li>
+                                    <li><strong style="color:var(--atl-ink);">Prove consent</strong> &mdash; open <strong style="color:var(--atl-ink);">Consent Audit</strong>, search by name, email or IP, and <strong style="color:var(--atl-ink);">Export CSV</strong>.</li>
+                                    <li><strong style="color:var(--atl-ink);">Review what changed</strong> &mdash; open <strong style="color:var(--atl-ink);">Version History</strong> to see every published version and its note.</li>
+                                    <li><strong style="color:var(--atl-ink);">Adjust booking rules</strong> &mdash; open <strong style="color:var(--atl-ink);">Booking Policies</strong> to change deposit and cancellation terms or reminder timing.</li>
+                                </ol>
+
+                                <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                    <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                    <span>Always write a clear <strong style="color:var(--atl-ink);">change summary</strong> before publishing &mdash; it becomes the permanent version note, so future-you can see exactly what changed and when.</span>
+                                </p>
+
+                                <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                    <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                    <span><strong style="color:var(--atl-ink);">Publish Now</strong> updates the live public site on the next page load &mdash; draft first. <strong style="color:var(--atl-ink);">Consent and contract records are legal evidence</strong>: treat them as read-only and export via CSV rather than altering them. Legal edits are <strong style="color:var(--atl-ink);">administrator-only</strong>.</span>
+                                </p>
+
+                                <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                    <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                    <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Bookings</strong>, where consent is captured at booking time; <strong style="color:var(--atl-ink);">Finance</strong>, which applies the deposit terms and reminder timing set here; and <strong style="color:var(--atl-ink);">Security</strong> for POPIA data erasure and the wider audit trail.</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -7398,27 +7709,81 @@
 
                     <div id="homeAboutPanel" class="um-panel">
                         <div class="atl-card">
-                            <div class="um-icon-header" style="margin-bottom:16px;">
+                            <div class="um-icon-header">
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                 <div>
-                                    <h4 class="um-section-label">About This Section</h4>
-                                    <p class="um-section-desc">The homepage hero carousel — the rotating images at the top of your public site.</p>
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">About Home Slider</h4>
+                                    <p class="um-section-desc">The rotating hero images at the very top of your public homepage.</p>
                                 </div>
                             </div>
-                            <hr class="um-divider" style="margin-top:0;">
-                            <h5 class="um-section-label" style="font-size:13px;">What this section does</h5>
-                            <p class="um-section-desc">Add slides by <strong style="color:var(--atl-ink);">uploading images</strong> (one or many) or pasting a <strong style="color:var(--atl-ink);">direct URL</strong>. Drag the cards in the list to reorder them — the new order saves to the database instantly.</p>
-                            <h5 class="um-section-label" style="font-size:13px; margin-top:18px;">Available controls</h5>
-                            <ul class="um-security-tips" style="list-style:none; padding-left:0;">
-                                <li><i class="fa-solid fa-cloud-arrow-up" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Upload / URL</strong> — alt text applies to every file in a batch; images are auto-resized to a max of 1200px server-side.</li>
-                                <li><i class="fa-solid fa-arrows-up-down-left-right" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Drag to reorder</strong> — the order persists to the database immediately.</li>
-                                <li><i class="fa-solid fa-rocket" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Publish to Homepage</strong> — writes the &lt;img&gt; tags directly into <code>index.html</code> on disk (a file write, not just a DB update).</li>
-                                <li><i class="fa-solid fa-trash" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Delete / Clear All</strong> — individual delete is instant; Clear All removes every slide and cannot be undone.</li>
-                            </ul>
-                            <div class="um-security-tips" style="margin-top:18px;">
-                                <i class="fa-solid fa-shield-halved"></i>
-                                <span>Deleting slides and clearing all require an administrator. Remember to <strong>Publish to Homepage</strong> after changes so the live site reflects them.</span>
+
+                            <div class="um-divider"></div>
+
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                The <strong style="color:var(--atl-ink);">Home Slider</strong> is the carousel of images that greets every visitor at the top of your homepage. Add slides by upload or URL, drag them into the order you want, then <strong style="color:var(--atl-ink);">Publish to Homepage</strong> to push the new set live.
+                            </p>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                            <div class="um-roles-grid" style="margin-bottom:26px;">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-cloud-arrow-up" style="color:var(--atl-amber);"></i> Add slides</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Upload one or many images, or paste a <strong style="color:var(--atl-ink);">direct URL</strong></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Alt text applies to the whole batch; images auto-resize to max 1200px server-side</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-arrows-up-down-left-right" style="color:var(--atl-amber);"></i> Reorder</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Drag the cards to set the running order</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> The new order persists to the database immediately</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-rocket" style="color:var(--atl-amber);"></i> Publish to Homepage</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Writes the image tags directly into <code>index.html</code> on disk</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Editing or reordering alone won't update the live site &mdash; you must publish</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-trash" style="color:var(--atl-amber);"></i> Delete &amp; Clear All</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Deleting an individual slide is instant</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> <strong style="color:var(--atl-ink);">Clear All</strong> removes every slide, can't be undone, and is administrator-only</li>
+                                    </ul>
+                                </div>
                             </div>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Add slides</strong> &mdash; upload images or paste a URL, set the alt text, and save.</li>
+                                <li><strong style="color:var(--atl-ink);">Reorder</strong> &mdash; drag the cards into the sequence you want.</li>
+                                <li><strong style="color:var(--atl-ink);">Go live</strong> &mdash; click <strong style="color:var(--atl-ink);">Publish to Homepage</strong> after any change.</li>
+                            </ol>
+
+                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>Changes only reach visitors after <strong style="color:var(--atl-ink);">Publish to Homepage</strong> &mdash; adding or reordering slides updates the database, but not <code>index.html</code>, until you publish.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Publish</strong> writes directly to <code>index.html</code> on the server, and <strong style="color:var(--atl-ink);">Clear All</strong> is permanent &mdash; both, along with deletes, require an administrator.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">About Me</strong> for the hero text and biography beneath the slider; <strong style="color:var(--atl-ink);">Gallery</strong> for your wider photo collection; and <strong style="color:var(--atl-ink);">Branding</strong> for the logo and site colours.</span>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -7442,6 +7807,10 @@
                     <div class="atl-section-rule"></div>
 
                     <div class="atl-tab-bar" role="tablist">
+                        <button class="atl-tab-btn" data-um-tab="aboutAnnouncePanel" role="tab" aria-selected="false"><i class="fa-solid fa-bullhorn"></i> Announcement</button>
+                        <button class="atl-tab-btn" data-um-tab="aboutHeroPanel" role="tab" aria-selected="false"><i class="fa-solid fa-heading"></i> Hero</button>
+                        <button class="atl-tab-btn" data-um-tab="aboutFeaturesPanel" role="tab" aria-selected="false"><i class="fa-solid fa-chart-simple"></i> Features</button>
+                        <button class="atl-tab-btn" data-um-tab="aboutServicesPanel" role="tab" aria-selected="false"><i class="fa-solid fa-briefcase"></i> What I Do</button>
                         <button class="atl-tab-btn active" data-um-tab="aboutConfigPanel" role="tab" aria-selected="true"><i class="fa-solid fa-user-pen"></i> Edit Biography</button>
                         <button class="atl-tab-btn" data-um-tab="aboutAboutPanel" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
                     </div>
@@ -7474,24 +7843,182 @@
                     </div>
                     </div><!-- /#aboutConfigPanel -->
 
-                    <div id="aboutAboutPanel" class="um-panel">
+                    <!-- ===== PANEL: What I Do (homepage services grid) ===== -->
+                    <div id="aboutServicesPanel" class="um-panel">
                         <div class="atl-card">
                             <div class="um-icon-header" style="margin-bottom:16px;">
-                                <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
-                                <div>
-                                    <h4 class="um-section-label">About This Section</h4>
-                                    <p class="um-section-desc">Your public biography — the profile photo and three paragraphs shown in the About area of your site.</p>
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-briefcase"></i></div>
+                                <div style="flex:1;">
+                                    <h4 class="um-section-label">What I Do</h4>
+                                    <p class="um-section-desc">The "What I Do" services grid on your homepage. Edit the eyebrow, heading and each card's title, description &amp; background image.</p>
                                 </div>
+                                <button type="button" class="atl-btn atl-btn--primary" onclick="if(window.openAtlDrawer)openAtlDrawer('servicesDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-pen"></i> Edit</button>
                             </div>
                             <hr class="um-divider" style="margin-top:0;">
-                            <h5 class="um-section-label" style="font-size:13px;">What this section does</h5>
-                            <p class="um-section-desc">Set your profile image by <strong style="color:var(--atl-ink);">uploading a photo</strong> or pasting a <strong style="color:var(--atl-ink);">direct URL</strong>, then write up to three rich-text paragraphs. The <strong style="color:var(--atl-ink);">Live Preview</strong> updates as you type.</p>
-                            <h5 class="um-section-label" style="font-size:13px; margin-top:18px;">Tips</h5>
-                            <ul class="um-security-tips" style="list-style:none; padding-left:0;">
-                                <li><i class="fa-solid fa-image" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Photo</strong> — a square image works best; it is scaled automatically. Videos are not accepted here.</li>
-                                <li><i class="fa-solid fa-paragraph" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Paragraph 1</strong> is the lead line and is styled larger than the rest.</li>
-                                <li><i class="fa-solid fa-floppy-disk" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Update</strong> saves all changes; the public site reflects them immediately.</li>
-                            </ul>
+                            <div class="live-preview-box" style="padding:22px 20px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper);">
+                                <p id="svcPrevEyebrow" style="text-transform:uppercase; letter-spacing:2px; font-size:11px; font-weight:700; color:var(--atl-amber); margin:0 0 6px; text-align:center;">What I do</p>
+                                <h3 id="svcPrevHeading" style="text-align:center; margin:0 0 20px; color:var(--atl-ink); font-weight:400;">From the mic to the <em>moment</em></h3>
+                                <div id="svcPrevGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== PANEL: Features strip ===== -->
+                    <div id="aboutFeaturesPanel" class="um-panel">
+                        <div class="atl-card">
+                            <div class="um-icon-header" style="margin-bottom:16px;">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-chart-simple"></i></div>
+                                <div style="flex:1;">
+                                    <h4 class="um-section-label">Features Strip</h4>
+                                    <p class="um-section-desc">The "at a glance" stats row on your homepage (e.g. 10+ Years, 200+ Shows). Edit each stat's number/label and caption &mdash; the icons stay as-is.</p>
+                                </div>
+                                <button type="button" class="atl-btn atl-btn--primary" onclick="if(window.openAtlDrawer)openAtlDrawer('featuresDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-pen"></i> Edit</button>
+                            </div>
+                            <hr class="um-divider" style="margin-top:0;">
+                            <div class="live-preview-box" style="padding:22px 20px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper);">
+                                <div id="featPrevGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px,1fr)); gap:14px; text-align:center;"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== PANEL: Hero (tagline + paragraph) ===== -->
+                    <div id="aboutHeroPanel" class="um-panel">
+                        <div class="atl-card">
+                            <div class="um-icon-header" style="margin-bottom:16px;">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-heading"></i></div>
+                                <div style="flex:1;">
+                                    <h4 class="um-section-label">Hero</h4>
+                                    <p class="um-section-desc">The tagline and introductory paragraph shown in the homepage hero section.</p>
+                                </div>
+                                <button type="button" class="atl-btn atl-btn--primary" onclick="if(window.openAtlDrawer)openAtlDrawer('heroDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-pen"></i> Edit</button>
+                            </div>
+                            <hr class="um-divider" style="margin-top:0;">
+                            <div class="live-preview-box" style="padding:30px 24px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper); text-align:center;">
+                                <p id="taglinePrev" style="text-transform:uppercase; letter-spacing:2px; font-size:11px; font-weight:700; color:var(--atl-amber); margin:0 0 14px;">&mdash;</p>
+                                <p id="heroPrev" style="font-size:16px; line-height:1.7; color:var(--atl-ink-dim); max-width:660px; margin:0 auto; font-weight:300;">&mdash;</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ===== PANEL: Announcement bar ===== -->
+                    <div id="aboutAnnouncePanel" class="um-panel">
+                        <div class="atl-card">
+                            <div class="um-icon-header" style="margin-bottom:16px;">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-bullhorn"></i></div>
+                                <div style="flex:1;">
+                                    <h4 class="um-section-label">Announcement Bar</h4>
+                                    <p class="um-section-desc">The thin message bar at the very top of your homepage. Edit its text or switch it off entirely.</p>
+                                </div>
+                                <button type="button" class="atl-btn atl-btn--primary" onclick="if(window.openAtlDrawer)openAtlDrawer('announceDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-pen"></i> Edit</button>
+                            </div>
+                            <hr class="um-divider" style="margin-top:0;">
+                            <div class="live-preview-box" style="padding:16px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper);">
+                                <div id="announcePrevWrap">
+                                    <div id="announcePrev" style="background:var(--atl-amber); color:#111; text-align:center; font-size:13px; letter-spacing:0.4px; padding:9px 14px; border-radius:6px;">&mdash;</div>
+                                </div>
+                                <p id="announcePrevOff" style="display:none; text-align:center; color:var(--atl-muted); font-size:12px; margin:10px 0 0;"><i class="fa-solid fa-eye-slash"></i> The bar is currently hidden on the live site.</p>
+                                <p id="announcePrevMotion" style="text-align:center; color:var(--atl-muted); font-size:11px; margin:10px 0 0; letter-spacing:0.3px;"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="aboutAboutPanel" class="um-panel">
+                        <div class="atl-card">
+                            <div class="um-icon-header">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                <div>
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">About This Section</h4>
+                                    <p class="um-section-desc">The content studio for your public homepage &mdash; biography, hero, announcement, features and services, all edited here and published live.</p>
+                                </div>
+                            </div>
+
+                            <div class="um-divider"></div>
+
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                <strong style="color:var(--atl-ink);">About Me</strong> is where you write and manage the public-facing content of your website without touching any code. It has six tabs: five edit a different block of the live site, and this one explains them. Every change is saved to the database and the <strong style="color:var(--atl-ink);">public site updates immediately</strong>. Leave a field empty and it falls back to the site's built-in default rather than showing blank &mdash; nothing ever breaks.
+                            </p>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">The tabs</h4>
+                            <div class="um-roles-grid" style="margin-bottom:26px;">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-user-pen" style="color:var(--atl-amber);"></i> Edit Biography</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Set your profile photo by <strong style="color:var(--atl-ink);">upload</strong> or a <strong style="color:var(--atl-ink);">direct URL</strong></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Write up to three rich-text paragraphs; <strong style="color:var(--atl-ink);">paragraph 1</strong> is the larger lead line</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Photos only &mdash; videos aren't accepted here</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-briefcase" style="color:var(--atl-amber);"></i> What I Do</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Edit the services strip: the eyebrow, heading and four service cards</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Each card has a title, description and image (upload or URL)</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-chart-simple" style="color:var(--atl-amber);"></i> Features</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Edit the stats strip &mdash; four <strong style="color:var(--atl-ink);">stat + caption</strong> pairs</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Use it for milestones like shows played or years active</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-heading" style="color:var(--atl-amber);"></i> Hero</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Edit the homepage <strong style="color:var(--atl-ink);">tagline</strong> and introductory paragraph</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> The paragraph accepts light emphasis (e.g. <em>italic</em>)</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-bullhorn" style="color:var(--atl-amber);"></i> Announcement</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Edit the scrolling bar at the very top of every public page</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> A <strong style="color:var(--atl-ink);">show / hide toggle</strong> removes the bar entirely when off</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-eye" style="color:var(--atl-amber);"></i> Live Preview</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Every editable tab mirrors the public layout as you type</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Check wording and spacing before you save &mdash; nothing publishes until you do</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Update your bio</strong> &mdash; open <strong style="color:var(--atl-ink);">Edit Biography</strong>, click <strong style="color:var(--atl-ink);">Edit</strong>, change the photo or paragraphs, then <strong style="color:var(--atl-ink);">Update</strong>.</li>
+                                <li><strong style="color:var(--atl-ink);">Change a service card</strong> &mdash; open <strong style="color:var(--atl-ink);">What I Do</strong>, edit a card's title, description and image, and save.</li>
+                                <li><strong style="color:var(--atl-ink);">Post an announcement</strong> &mdash; open <strong style="color:var(--atl-ink);">Announcement</strong>, type the message, make sure the toggle is <strong style="color:var(--atl-ink);">on</strong>, and save.</li>
+                                <li><strong style="color:var(--atl-ink);">Hide the announcement</strong> &mdash; open <strong style="color:var(--atl-ink);">Announcement</strong>, switch the toggle <strong style="color:var(--atl-ink);">off</strong> and save; the bar disappears from the site.</li>
+                            </ol>
+
+                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>Use each tab's <strong style="color:var(--atl-ink);">Live Preview</strong> to proof your wording and spacing before saving. Square, reasonably-sized images load fastest &mdash; very large uploads slow the homepage for visitors.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span>Changes here publish to the <strong style="color:var(--atl-ink);">live public website</strong> the moment you save. If a saved change doesn't appear, hard-refresh the public page (Ctrl+Shift+R) to clear the browser cache.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Branding</strong> for the logo and colours; <strong style="color:var(--atl-ink);">Home Slider</strong>, <strong style="color:var(--atl-ink);">Career Highlights</strong>, <strong style="color:var(--atl-ink);">Gallery</strong> and <strong style="color:var(--atl-ink);">Social Feed</strong> for other public content; and <strong style="color:var(--atl-ink);">Newsletter</strong> to send announcements by email.</span>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -7532,22 +8059,81 @@
 
                     <div id="careerAboutPanel" class="um-panel">
                         <div class="atl-card">
-                            <div class="um-icon-header" style="margin-bottom:16px;">
+                            <div class="um-icon-header">
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                 <div>
-                                    <h4 class="um-section-label">About This Section</h4>
-                                    <p class="um-section-desc">Your career timeline — the milestone cards shown in the Highlights area of your public site.</p>
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">About Career Highlights</h4>
+                                    <p class="um-section-desc">The milestone cards shown in the Highlights area of your public site.</p>
                                 </div>
                             </div>
-                            <hr class="um-divider" style="margin-top:0;">
-                            <h5 class="um-section-label" style="font-size:13px;">What this section does</h5>
-                            <p class="um-section-desc">Each highlight captures a <strong style="color:var(--atl-ink);">year</strong>, <strong style="color:var(--atl-ink);">title</strong>, optional <strong style="color:var(--atl-ink);">badge</strong> and <strong style="color:var(--atl-ink);">location</strong>, a description, and a media thumbnail. Highlights are ordered by event year, newest first.</p>
-                            <h5 class="um-section-label" style="font-size:13px; margin-top:18px;">Available controls</h5>
-                            <ul class="um-security-tips" style="list-style:none; padding-left:0;">
-                                <li><i class="fa-solid fa-image" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Media</strong> — upload an image, or paste a YouTube/Vimeo or image URL in the Web URL field (videos must use a URL).</li>
-                                <li><i class="fa-solid fa-pencil" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Edit</strong> — the kebab menu on each card loads it into the form; use <strong style="color:var(--atl-ink);">Cancel Edit</strong> to return to add mode.</li>
-                                <li><i class="fa-solid fa-trash" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Delete / Clear All</strong> — deleting and clearing all require an administrator and cannot be undone.</li>
-                            </ul>
+
+                            <div class="um-divider"></div>
+
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                <strong style="color:var(--atl-ink);">Career Highlights</strong> is the public timeline that tells your story. Each highlight captures a <strong style="color:var(--atl-ink);">year</strong>, <strong style="color:var(--atl-ink);">title</strong>, an optional <strong style="color:var(--atl-ink);">badge</strong> and <strong style="color:var(--atl-ink);">location</strong>, a description and a media thumbnail. Highlights are ordered by event year, newest first.
+                            </p>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                            <div class="um-roles-grid" style="margin-bottom:26px;">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-star" style="color:var(--atl-amber);"></i> What a highlight holds</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Year, title, optional badge and location, description and thumbnail</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Cards sort by event year automatically &mdash; newest first</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-image" style="color:var(--atl-amber);"></i> Media</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Upload an image, or paste a YouTube / Vimeo or image URL in <strong style="color:var(--atl-ink);">Web URL</strong></li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Videos must use a URL &mdash; they can't be uploaded directly</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-pencil" style="color:var(--atl-amber);"></i> Edit</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> The kebab menu on a card loads it into the form</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Cancel Edit</strong> returns the form to add mode</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-trash" style="color:var(--atl-amber);"></i> Delete &amp; Clear All</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Deleting and clearing all require an administrator</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Neither action can be undone</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Add a highlight</strong> &mdash; click <strong style="color:var(--atl-ink);">Add Career Highlight</strong>, fill in the year, title and description, attach media, and save.</li>
+                                <li><strong style="color:var(--atl-ink);">Feature a video</strong> &mdash; paste a YouTube or Vimeo link into the <strong style="color:var(--atl-ink);">Web URL</strong> field instead of uploading.</li>
+                                <li><strong style="color:var(--atl-ink);">Edit a card</strong> &mdash; open its kebab menu, choose <strong style="color:var(--atl-ink);">Edit</strong>, make changes, and save.</li>
+                            </ol>
+
+                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>You don't arrange highlights by hand &mdash; set the correct <strong style="color:var(--atl-ink);">event year</strong> and the timeline orders itself, newest at the top.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span>Deleting a highlight or using <strong style="color:var(--atl-ink);">Clear All</strong> is permanent and administrator-only &mdash; there is no undo.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">About Me</strong> for your biography; <strong style="color:var(--atl-ink);">Gallery</strong> for the photo collection; and <strong style="color:var(--atl-ink);">Events</strong> for upcoming public dates.</span>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -7588,22 +8174,71 @@
 
                     <div id="galleryAboutPanel" class="um-panel">
                         <div class="atl-card">
-                            <div class="um-icon-header" style="margin-bottom:16px;">
+                            <div class="um-icon-header">
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                 <div>
-                                    <h4 class="um-section-label">About This Section</h4>
-                                    <p class="um-section-desc">The public photo gallery — the images shown in the Gallery area of your site.</p>
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">About Gallery</h4>
+                                    <p class="um-section-desc">The public photo portfolio shown in the Gallery area of your site.</p>
                                 </div>
                             </div>
-                            <hr class="um-divider" style="margin-top:0;">
-                            <h5 class="um-section-label" style="font-size:13px;">What this section does</h5>
-                            <p class="um-section-desc">Add images by <strong style="color:var(--atl-ink);">uploading one or more files</strong> or pasting a <strong style="color:var(--atl-ink);">direct URL</strong> via “Add Gallery Media”. Each item shows a thumbnail and its upload date.</p>
-                            <h5 class="um-section-label" style="font-size:13px; margin-top:18px;">Available controls</h5>
-                            <ul class="um-security-tips" style="list-style:none; padding-left:0;">
-                                <li><i class="fa-solid fa-cloud-arrow-up" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Add</strong> — upload multiple images at once (auto-compressed), or paste a URL; an optional title, uploader and GPS location can be attached.</li>
-                                <li><i class="fa-solid fa-pen-to-square" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Edit</strong> — click any card to expand it and rename the image (title) inline.</li>
-                                <li><i class="fa-solid fa-trash" style="color:var(--atl-amber); margin-right:8px;"></i><strong style="color:var(--atl-ink);">Delete / Clear All</strong> — deleting and clearing all require an administrator and cannot be undone.</li>
-                            </ul>
+
+                            <div class="um-divider"></div>
+
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                The <strong style="color:var(--atl-ink);">Gallery</strong> is your public photo portfolio. Add images by uploading one or more files or pasting a <strong style="color:var(--atl-ink);">direct URL</strong> via <strong style="color:var(--atl-ink);">Add Gallery Media</strong>. Each item shows a thumbnail and its upload date, and appears in the gallery on your site.
+                            </p>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                            <div class="um-roles-grid" style="margin-bottom:26px;">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-cloud-arrow-up" style="color:var(--atl-amber);"></i> Add media</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Upload multiple images at once (auto-compressed) or paste a URL</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Attach an optional title, uploader and GPS location</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-pen-to-square" style="color:var(--atl-amber);"></i> Edit</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Click any card to expand it and rename the image inline</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-trash" style="color:var(--atl-amber);"></i> Delete &amp; Clear All</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Deleting and clearing all require an administrator</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Neither action can be undone</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Add photos</strong> &mdash; click <strong style="color:var(--atl-ink);">Add Gallery Media</strong>, select files or paste a URL, and save.</li>
+                                <li><strong style="color:var(--atl-ink);">Rename an image</strong> &mdash; click its card and edit the title inline.</li>
+                                <li><strong style="color:var(--atl-ink);">Clean up</strong> &mdash; delete individual items, or use <strong style="color:var(--atl-ink);">Clear All</strong> to empty the gallery.</li>
+                            </ol>
+
+                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>Upload several photos in one go &mdash; they're <strong style="color:var(--atl-ink);">auto-compressed</strong> on the server, so full-size originals from a phone or camera are fine.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span>Deleting an image and <strong style="color:var(--atl-ink);">Clear All</strong> are permanent and administrator-only &mdash; there is no undo.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Home Slider</strong> for the homepage hero images; <strong style="color:var(--atl-ink);">Career Highlights</strong> for milestone photos; and <strong style="color:var(--atl-ink);">About Me</strong> for your profile picture.</span>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -7739,9 +8374,26 @@
                                 </div>
                             </div>
 
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Add a profile link</strong> &mdash; on the <strong style="color:var(--atl-ink);">Social Links</strong> tab, click <strong style="color:var(--atl-ink);">Add Social Link</strong>, pick the platform, paste the URL and save.</li>
+                                <li><strong style="color:var(--atl-ink);">Embed a video or post</strong> &mdash; on the <strong style="color:var(--atl-ink);">Media Embeds</strong> tab, click <strong style="color:var(--atl-ink);">Add Media Embed</strong> and paste the link or embed code.</li>
+                                <li><strong style="color:var(--atl-ink);">Hide something temporarily</strong> &mdash; set the item <strong style="color:var(--atl-ink);">Inactive</strong> instead of deleting it, so you can bring it back later.</li>
+                            </ol>
+
                             <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
-                                <i class="fa-solid fa-shield-halved" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span>Any platform <strong style="color:var(--atl-ink);">API key</strong> you enter is stored in <strong>this browser</strong> (local storage), not on the server &mdash; avoid entering keys on a shared computer.</span>
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>Use <strong style="color:var(--atl-ink);">Active / Inactive</strong> to curate what visitors see without losing anything &mdash; retired links and embeds stay saved and ready to re-enable.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span>Any platform <strong style="color:var(--atl-ink);">API key</strong> you enter is stored in <strong style="color:var(--atl-ink);">this browser</strong> (local storage), not on the server &mdash; avoid entering keys on a shared or public computer.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">About Me</strong> and <strong style="color:var(--atl-ink);">Home Slider</strong> for the public pages these links appear on; and <strong style="color:var(--atl-ink);">Newsletter</strong> for reaching your audience by email.</span>
                             </p>
                         </div>
                     </div>
@@ -7849,7 +8501,7 @@
                                 The <strong style="color:var(--atl-ink);">Events Management</strong> module allows you to showcase public performances, comedy club appearances, corporate events, and festivals on the main website. You can customize dates, venues, categories, poster images, and direct ticket booking links.
                             </p>
 
-                            <h4 class="um-section-label" style="margin: 4px 0 14px;">Key Features</h4>
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
                             <div class="um-roles-grid" style="margin-bottom:26px;">
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
@@ -7882,6 +8534,28 @@
                                     </ul>
                                 </div>
                             </div>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Add an event</strong> &mdash; click <strong style="color:var(--atl-ink);">Add Event</strong>, set the title, date and time, venue (via Google Maps), category, poster and ticket link, then save.</li>
+                                <li><strong style="color:var(--atl-ink);">Flag a status</strong> &mdash; edit an event to mark it <strong style="color:var(--atl-ink);">Sold Out</strong> or <strong style="color:var(--atl-ink);">Postponed</strong> so fans stay informed.</li>
+                                <li><strong style="color:var(--atl-ink);">Avoid clashes</strong> &mdash; enable <strong style="color:var(--atl-ink);">Calendar Sync</strong> and choose a conflict rule: soft hold, block calendar, or create a booking placeholder.</li>
+                            </ol>
+
+                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>Always add a <strong style="color:var(--atl-ink);">ticket link</strong> and a poster &mdash; both appear on the public listing and turn an announcement into a sale.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Calendar Sync</strong> can block time on your calendar and create holds &mdash; pick the conflict rule deliberately so a public event doesn't accidentally close a bookable date.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Calendar</strong>, where these events appear alongside bookings and holds; <strong style="color:var(--atl-ink);">Bookings</strong> for paid private engagements; and <strong style="color:var(--atl-ink);">About Me</strong> for the public homepage.</span>
+                            </p>
                         </div>
                     </div>
 
@@ -8056,9 +8730,21 @@
                                 </div>
                             </div>
 
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Route incoming messages</strong> &mdash; set the <strong style="color:var(--atl-ink);">Form Delivery Email</strong> and click <strong style="color:var(--atl-ink);">Save Contact Config</strong>.</li>
+                                <li><strong style="color:var(--atl-ink);">Personalise the form</strong> &mdash; edit the intro quote and sign-off shown above the public contact form, then save.</li>
+                                <li><strong style="color:var(--atl-ink);">Publish manager details</strong> &mdash; fill in the name, cell, WhatsApp and email, pick the country code, and click <strong style="color:var(--atl-ink);">Save Manager Details</strong>.</li>
+                            </ol>
+
                             <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
                                 <span>Saving and clearing require an administrator session and take effect on the live site right away &mdash; <strong style="color:var(--atl-ink);">Clear Details</strong> cannot be undone.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Inquiries</strong>, where messages sent through this form arrive; <strong style="color:var(--atl-ink);">Newsletter</strong> for outbound campaigns; and <strong style="color:var(--atl-ink);">About Me</strong> for the rest of your public profile.</span>
                             </p>
                         </div>
                     </div>
@@ -8374,9 +9060,27 @@
                                 </div>
                             </div>
 
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Send a newsletter</strong> &mdash; on <strong style="color:var(--atl-ink);">Compose</strong>, write a subject and message, preview it, then send to all active subscribers.</li>
+                                <li><strong style="color:var(--atl-ink);">Schedule for later</strong> &mdash; on Compose, pick a send date and time instead of sending immediately.</li>
+                                <li><strong style="color:var(--atl-ink);">Grow the list</strong> &mdash; on <strong style="color:var(--atl-ink);">Subscribers</strong>, add contacts manually or import a CSV.</li>
+                                <li><strong style="color:var(--atl-ink);">Reuse a past email</strong> &mdash; on <strong style="color:var(--atl-ink);">Campaigns</strong>, open a previous send and use it as a starting point.</li>
+                            </ol>
+
                             <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span>Only <strong style="color:var(--atl-ink);">active</strong> subscribers receive sends, and every email includes a one-click unsubscribe link in line with POPIA. Deleting subscribers or campaigns is permanent.</span>
+                                <span>Only <strong style="color:var(--atl-ink);">active</strong> subscribers receive a send &mdash; deactivate rather than delete a contact if you might want to reach them again later.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span>Every email includes a one-click <strong style="color:var(--atl-ink);">unsubscribe</strong> link in line with POPIA &mdash; don't remove it. Deleting subscribers or campaigns is <strong style="color:var(--atl-ink);">permanent</strong>.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Branding</strong> for the brand style wrapped around every email; <strong style="color:var(--atl-ink);">System Settings</strong> for the SMTP mail server that delivers them; and <strong style="color:var(--atl-ink);">Inquiries</strong> for interested contacts to add.</span>
                             </p>
                         </div>
                     </div>
@@ -8401,6 +9105,7 @@
                             <!-- System Settings -->
                             <div class="atl-tab-bar" role="tablist">
                                 <button class="atl-tab-btn active" data-um-tab="prefPanelSettings" role="tab" aria-selected="true"><i class="fa-solid fa-sliders"></i> System Settings</button>
+                                <button class="atl-tab-btn" data-um-tab="prefPanelSections" role="tab" aria-selected="false"><i class="fa-solid fa-table-cells-large"></i> Website Sections</button>
                                 <button class="atl-tab-btn" data-um-tab="prefPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
                             </div>
                             <div class="um-panel active" id="prefPanelSettings">
@@ -8498,16 +9203,61 @@
                                     </button>
                                 </div>
                             </div>
+
+                            <!-- ===== PANEL: Website Sections (public homepage visibility) ===== -->
+                            <div class="um-panel" id="prefPanelSections">
+                                <div class="atl-card">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-table-cells-large"></i></div>
+                                        <div style="flex:1;">
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Website Sections</h4>
+                                            <p class="um-section-desc">Show or hide sections of the public homepage. Changes publish to the live site the moment you save &mdash; the layout, navigation and animations adjust automatically.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+
+                                    <!-- Toolbar: search + bulk actions -->
+                                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:18px;">
+                                        <div class="um-input-wrap" style="flex:1 1 220px;">
+                                            <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                                            <input type="text" id="secSearch" class="um-input" placeholder="Search sections…" style="padding-left:38px;" aria-label="Search sections">
+                                        </div>
+                                        <button type="button" class="atl-btn atl-btn--ghost" id="secEnableAll"><i class="fa-solid fa-eye" style="margin-right:6px;"></i>Enable All</button>
+                                        <button type="button" class="atl-btn atl-btn--ghost" id="secDisableAll"><i class="fa-solid fa-eye-slash" style="margin-right:6px;"></i>Disable All</button>
+                                        <button type="button" class="atl-btn atl-btn--ghost" id="secReset"><i class="fa-solid fa-rotate-left" style="margin-right:6px;"></i>Reset to Default</button>
+                                    </div>
+
+                                    <div id="secLoading" style="display:none; text-align:center; padding:24px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i> Loading sections…</div>
+                                    <div id="secEmpty" style="display:none; text-align:center; padding:18px; color:var(--atl-muted);">No sections match your search.</div>
+                                    <div id="sectionsList" role="group" aria-label="Website section visibility"></div>
+
+                                    <!-- Save bar -->
+                                    <div class="um-settings-save" style="margin-top:20px;">
+                                        <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Changes go live on the public site the moment you save.</span>
+                                        <button id="btnSaveSections" class="atl-btn atl-btn--primary" onclick="saveSectionVisibility(this)">
+                                            <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Changes
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
                             <div class="um-panel" id="prefPanelAbout">
                                 <div class="atl-card">
                                     <div class="um-icon-header">
                                         <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                         <div>
                                             <h4 class="um-section-label" style="margin-bottom:4px;">About System Settings</h4>
-                                            <p class="um-section-desc">The <strong style="color:var(--atl-ink);">Settings</strong> tab is now organised into three cards &mdash; <strong style="color:var(--atl-ink);">PayFast</strong>, <strong style="color:var(--atl-ink);">Email (SMTP)</strong> and <strong style="color:var(--atl-ink);">Notifications</strong>. Below is what every field does and how to fill it in. Everything saves together with the one <strong style="color:var(--atl-ink);">Save System Settings</strong> button and takes effect immediately &mdash; no restart.</p>
+                                            <p class="um-section-desc">Gateway, mail-server and notification settings that power online payments and every system email.</p>
                                         </div>
                                     </div>
+
                                     <div class="um-divider"></div>
+
+                                    <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                        The <strong style="color:var(--atl-ink);">Settings</strong> tab is organised into three cards &mdash; <strong style="color:var(--atl-ink);">PayFast</strong>, <strong style="color:var(--atl-ink);">Email (SMTP)</strong> and <strong style="color:var(--atl-ink);">Notifications</strong>. Everything saves together with the single <strong style="color:var(--atl-ink);">Save System Settings</strong> button and takes effect immediately &mdash; no restart. Leaving a field blank keeps its current saved value. Below is what every field does and how to fill it in.
+                                    </p>
+
+                                    <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
 
                                     <!-- PayFast -->
                                     <div class="um-role-info" style="margin-bottom:16px;">
@@ -8543,7 +9293,19 @@
                                         </ul>
                                     </div>
 
-                                    <div class="um-security-tips" style="margin-top:18px;">
+                                    <h4 class="um-section-label" style="margin: 20px 0 12px;">Common tasks</h4>
+                                    <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                        <li><strong style="color:var(--atl-ink);">Connect PayFast</strong> &mdash; paste your Merchant ID, Merchant Key and (optionally) passphrase, set the sandbox URL to test, then switch to the live URL and <strong style="color:var(--atl-ink);">Save System Settings</strong>.</li>
+                                        <li><strong style="color:var(--atl-ink);">Set up email</strong> &mdash; enter the SMTP host, port, from-address and login, save, then use <strong style="color:var(--atl-ink);">Send Test</strong> to confirm mail actually delivers.</li>
+                                        <li><strong style="color:var(--atl-ink);">Route admin alerts</strong> &mdash; set the Notifications Email so new-booking and overdue-payment notices reach the right inbox.</li>
+                                    </ol>
+
+                                    <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                        <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                        <span>After changing the <strong style="color:var(--atl-ink);">Email (SMTP)</strong> card, always click <strong style="color:var(--atl-ink);">Send Test</strong> &mdash; a silent mis-configuration here stops quotes, receipts and password resets from ever arriving.</span>
+                                    </p>
+
+                                    <div class="um-security-tips" style="margin-top:14px;">
                                         <i class="fa-solid fa-circle-info"></i>
                                         <ul>
                                             <li>All three cards are saved together by the single <strong>Save System Settings</strong> button, and changes apply immediately &mdash; no server restart.</li>
@@ -8551,6 +9313,11 @@
                                             <li>Only <strong>Administrators</strong> can open System Settings.</li>
                                         </ul>
                                     </div>
+
+                                    <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                        <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                        <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Finance</strong>, where PayFast payments are recorded; <strong style="color:var(--atl-ink);">Newsletter</strong> and <strong style="color:var(--atl-ink);">User Management</strong>, which rely on the SMTP server to send mail; and <strong style="color:var(--atl-ink);">Email Logs</strong> to confirm what actually went out.</span>
+                                    </p>
                                 </div>
                             </div>
                         </div>
@@ -8799,10 +9566,17 @@
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                 <div>
                                     <h4 class="um-section-label" style="margin-bottom:4px;">About Branding</h4>
-                                    <p class="um-section-desc">Branding is split across four tabs. Upload an image (or paste a URL) and a <strong style="color:var(--atl-ink);">preview</strong> appears straight away &mdash; then click <strong style="color:var(--atl-ink);">Save Branding</strong> to apply. Saved values are stored on the server, so they're the same on every device and take effect immediately.</p>
+                                    <p class="um-section-desc">Your logo, favicon, accent colour, fonts and imagery &mdash; the visual identity applied across the public site, the dashboard and every email.</p>
                                 </div>
                             </div>
+
                             <div class="um-divider"></div>
+
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                Branding is grouped into a few sets of settings. Upload an image (or paste a URL) and a <strong style="color:var(--atl-ink);">preview</strong> appears straight away &mdash; then click <strong style="color:var(--atl-ink);">Save Branding</strong> to apply. Saved values live on the server, so they're identical on every device and take effect immediately.
+                            </p>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
 
                             <!-- Identity -->
                             <div class="um-role-info" style="margin-bottom:16px;">
@@ -8832,7 +9606,20 @@
                                 </ul>
                             </div>
 
-                            <div class="um-security-tips" style="margin-top:18px;">
+                            <h4 class="um-section-label" style="margin: 20px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Swap the logo</strong> &mdash; under <strong style="color:var(--atl-ink);">Identity</strong>, upload the header logo (or paste a URL), check the preview, and <strong style="color:var(--atl-ink);">Save Branding</strong>.</li>
+                                <li><strong style="color:var(--atl-ink);">Set the accent colour</strong> &mdash; under Identity, pick the primary accent colour used for buttons and highlights, then save.</li>
+                                <li><strong style="color:var(--atl-ink);">Brand your emails</strong> &mdash; under <strong style="color:var(--atl-ink);">Email</strong>, upload the Email Header Banner shown atop every system email.</li>
+                                <li><strong style="color:var(--atl-ink);">Change the login screen</strong> &mdash; under <strong style="color:var(--atl-ink);">Site</strong>, set the Admin Login Background (clear the field to reset it), then save.</li>
+                            </ol>
+
+                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>A preview appears the moment you upload, but nothing reaches visitors until you click <strong style="color:var(--atl-ink);">Save Branding</strong> &mdash; don't navigate away expecting an un-saved preview to stick.</span>
+                            </p>
+
+                            <div class="um-security-tips" style="margin-top:14px;">
                                 <i class="fa-solid fa-circle-info"></i>
                                 <ul>
                                     <li>Uploads show a live preview here in the panel; the change goes live only after <strong>Save Branding</strong>.</li>
@@ -8840,6 +9627,11 @@
                                     <li>Only <strong>Administrators</strong> can change branding.</li>
                                 </ul>
                             </div>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">About Me</strong> and <strong style="color:var(--atl-ink);">Home Slider</strong> for the public content this styles; <strong style="color:var(--atl-ink);">Newsletter</strong>, which wraps campaigns in this brand; and <strong style="color:var(--atl-ink);">System Settings</strong> for the mail server behind branded emails.</span>
+                            </p>
                         </div>
                     </div>
 
@@ -9002,6 +9794,23 @@
                                     </ul>
                                 </div>
                             </div>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Trace a message</strong> &mdash; use the search box (recipient or subject) together with the status and event filters, then sort by date.</li>
+                                <li><strong style="color:var(--atl-ink);">Investigate a failure</strong> &mdash; filter by <strong style="color:var(--atl-ink);">Failed</strong> to see what didn't deliver, then check <strong style="color:var(--atl-ink);">System Settings &rarr; Email (SMTP)</strong>.</li>
+                                <li><strong style="color:var(--atl-ink);">Confirm a send</strong> &mdash; filter by event type (e.g. a quote or password reset) and read the status column.</li>
+                            </ol>
+
+                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>This log is <strong style="color:var(--atl-ink);">read-only</strong> and can't be edited or cleared &mdash; treat it as the definitive delivery audit trail when a client says an email never arrived.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">System Settings</strong> for the SMTP server that sends these emails; <strong style="color:var(--atl-ink);">Newsletter</strong>, <strong style="color:var(--atl-ink);">Bookings</strong> and <strong style="color:var(--atl-ink);">Finance</strong>, which trigger most of them; and <strong style="color:var(--atl-ink);">Security</strong> for the wider change audit trail.</span>
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -9162,26 +9971,70 @@
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                 <div>
                                     <h4 class="um-section-label" style="margin-bottom:4px;">About Security &amp; Audit</h4>
-                                    <p class="um-section-desc">What each tab in this section does.</p>
+                                    <p class="um-section-desc">System health, the change audit trail and POPIA data erasure &mdash; the tools that keep the platform secure and compliant.</p>
                                 </div>
                             </div>
 
                             <div class="um-divider"></div>
 
-                            <div class="um-roles-grid">
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                <strong style="color:var(--atl-ink);">Security &amp; Audit</strong> is where administrators watch the platform's health, review an immutable record of every change, and honour data-privacy requests. Everything in this section is <strong style="color:var(--atl-ink);">administrator-only</strong>.
+                            </p>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                            <div class="um-roles-grid" style="margin-bottom:26px;">
                                 <div class="um-role-info">
-                                    <p class="um-section-label" style="margin-bottom:8px;"><i class="fa-solid fa-heart-pulse" style="margin-right:8px; color:var(--atl-green);"></i>System Integrity</p>
-                                    <p class="um-role-info__desc" style="margin:0;">A live health snapshot of the platform &mdash; database sync, SSL/TLS encryption and session-expiry monitoring &mdash; plus a list of recent administrator sign-ins.</p>
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-heart-pulse" style="color:var(--atl-amber);"></i> System Integrity</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Live health snapshot &mdash; database sync, SSL/TLS encryption, session-expiry monitoring</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Lists recent administrator sign-ins at a glance</li>
+                                    </ul>
                                 </div>
                                 <div class="um-role-info">
-                                    <p class="um-section-label" style="margin-bottom:8px;"><i class="fa-solid fa-clipboard-list" style="margin-right:8px; color:var(--atl-amber);"></i>Audit Trail</p>
-                                    <p class="um-role-info__desc" style="margin:0;">An immutable, system-generated record of every change to bookings, invoices, transactions, cancellations and quotations &mdash; who changed what, and when. These entries cannot be edited or deleted.</p>
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-clipboard-list" style="color:var(--atl-amber);"></i> Audit Trail</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Records every change to bookings, invoices, transactions, cancellations and quotations &mdash; who, what and when</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Search and filter by table, action, user or date range</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Entries are immutable &mdash; they can't be edited or deleted</li>
+                                    </ul>
                                 </div>
                                 <div class="um-role-info">
-                                    <p class="um-section-label" style="margin-bottom:8px;"><i class="fa-solid fa-user-slash" style="margin-right:8px; color:var(--atl-clay);"></i>POPIA Data Erasure</p>
-                                    <p class="um-role-info__desc" style="margin:0;">Anonymizes a client's personal identifiers on request. This is irreversible. Financial records are retained for the legally required 5-year SARS period; only personal data is replaced.</p>
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-user-slash" style="color:var(--atl-amber);"></i> POPIA Data Erasure</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Anonymises a client's personal identifiers on request</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Financial records are kept for the legally required 5-year SARS period; only personal data is replaced</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Irreversible &mdash; the original personal data cannot be recovered</li>
+                                    </ul>
                                 </div>
                             </div>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
+                            <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                <li><strong style="color:var(--atl-ink);">Check the platform's health</strong> &mdash; open <strong style="color:var(--atl-ink);">System Integrity</strong> to confirm sync, encryption and session status, and see who signed in recently.</li>
+                                <li><strong style="color:var(--atl-ink);">Trace a change</strong> &mdash; on the <strong style="color:var(--atl-ink);">Audit Trail</strong>, search by table, action or user and set a date range to find exactly what happened.</li>
+                                <li><strong style="color:var(--atl-ink);">Honour an erasure request</strong> &mdash; use <strong style="color:var(--atl-ink);">POPIA Data Erasure</strong> to anonymise a client (financial totals stay intact).</li>
+                            </ol>
+
+                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>The <strong style="color:var(--atl-ink);">Audit Trail</strong> is your accountability record &mdash; check it first whenever a figure, status or booking looks wrong, before assuming a bug.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">POPIA erasure is permanent</strong> and can't be undone, and the audit trail can't be edited or deleted. This entire section is administrator-only &mdash; grant that role sparingly.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">User Management</strong> for roles and login-activity logs; <strong style="color:var(--atl-ink);">Finance</strong>, whose records the 5-year retention protects; and <strong style="color:var(--atl-ink);">Email Logs</strong> for outbound-mail history.</span>
+                            </p>
                         </div>
                     </div>
 
@@ -10287,6 +11140,390 @@
                 var dropped = e.dataTransfer && e.dataTransfer.files;
                 if (dropped && dropped.length) { var input = document.getElementById('aboutFile'); try { input.files = dropped; } catch(err){} $('#aboutFile').trigger('change'); }
             });
+        });
+
+        // =====================================================================
+        // HOMEPAGE CONTENT — Hero paragraph + "What I Do" services (admin-editable)
+        // =====================================================================
+        var _siteContent = null, _siteContentLoaded = false;
+        var DEFAULT_SVC_ITEMS = [
+            { title: 'Stand-Up', description: 'Solo sets, festivals & comedy nights', image: '' },
+            { title: 'MC & Host', description: 'Galas, weddings & corporate events', image: '' },
+            { title: 'TV, Podcast & Film', description: 'Acting, presenting & writing', image: '' },
+            { title: 'Voice-Over', description: 'Radio & TV ads', image: '' }
+        ];
+        var DEFAULT_FEAT_ITEMS = [
+            { title: '10+ Years', description: 'On stage since 2014' },
+            { title: '200+ Shows', description: 'Live performances' },
+            { title: '15+ Credits', description: 'TV, film & voice-over' },
+            { title: '3 Languages', description: 'English, IsiSwati & Hilarious' }
+        ];
+        function siteEsc(s) { return $('<span>').text(s == null ? '' : String(s)).html(); }
+
+        async function loadSiteContent(force) {
+            if (_siteContentLoaded && !force) return;
+            try {
+                var res = await fetch('/api/public/site-content', { cache: 'no-store', credentials: 'same-origin' });
+                var data = await res.json();
+                if (!data || !data.success) throw new Error('bad response');
+                if (!data.services) data.services = {};
+                if (!Array.isArray(data.services.items) || !data.services.items.length) data.services.items = DEFAULT_SVC_ITEMS.slice();
+                if (!data.features) data.features = {};
+                if (!Array.isArray(data.features.items) || !data.features.items.length) data.features.items = DEFAULT_FEAT_ITEMS.slice();
+                if (!data.announcement) data.announcement = {};
+                _siteContent = data; _siteContentLoaded = true;
+                $('#announceInput').val(data.announcement.text || '');
+                $('#announceEnabled').prop('checked', data.announcement.enabled !== false);
+                $('#announceRotate').prop('checked', data.announcement.rotate !== false);
+                $('#taglineInput').val(data.hero_tagline || '');
+                $('#heroInput').val(data.hero_subtitle || '');
+                $('#svcEyebrow').val(data.services.eyebrow || '');
+                $('#svcHeading').val(data.services.heading || '');
+                buildSvcCardEditors(data.services.items);
+                buildFeatEditors(data.features.items);
+                renderAnnouncePreview();
+                renderHeroPreview();
+                renderSvcPreview();
+                renderFeatPreview();
+            } catch (e) {
+                if (window.notificationService) window.notificationService.showError('Could not load homepage content — please refresh.');
+            }
+        }
+
+        function buildSvcCardEditors(items) {
+            var html = (items || []).map(function (it, i) {
+                return '<div style="border:1px solid var(--atl-line); border-radius:8px; padding:14px; margin-bottom:14px;">'
+                    + '<div style="font-weight:700; color:var(--atl-amber); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">Card ' + (i + 1) + '</div>'
+                    + '<label class="um-label">Title</label>'
+                    + '<div class="um-input-wrap"><input type="text" class="um-input svc-card-title" data-idx="' + i + '" value="' + siteEsc(it.title) + '"></div>'
+                    + '<label class="um-label" style="margin-top:10px;">Description</label>'
+                    + '<div class="um-input-wrap"><input type="text" class="um-input svc-card-desc" data-idx="' + i + '" value="' + siteEsc(it.description) + '"></div>'
+                    + '<label class="um-label" style="margin-top:10px;">Background image URL</label>'
+                    + '<div class="um-input-wrap"><input type="text" class="um-input svc-card-image" data-idx="' + i + '" value="' + siteEsc(it.image) + '" placeholder="images/… or https://…"></div>'
+                    + '<label for="svcCardFile' + i + '" class="um-upload-zone" style="margin-top:8px; padding:14px;">'
+                    + '<i class="fa-solid fa-image um-upload-icon"></i><p class="um-upload-text" id="svcCardFileText' + i + '">Upload an image</p>'
+                    + '<input type="file" id="svcCardFile' + i + '" class="um-file-input svc-card-file" data-idx="' + i + '" accept="image/*"></label>'
+                    + '</div>';
+            }).join('');
+            $('#svcCardsEditor').html(html);
+        }
+
+        function collectSvcItems() {
+            var items = [];
+            $('#svcCardsEditor .svc-card-title').each(function () {
+                var i = $(this).data('idx');
+                items[i] = items[i] || {};
+                items[i].title = $(this).val();
+                items[i].description = $('#svcCardsEditor .svc-card-desc[data-idx="' + i + '"]').val();
+                items[i].image = $('#svcCardsEditor .svc-card-image[data-idx="' + i + '"]').val();
+            });
+            return items.filter(Boolean);
+        }
+
+        function renderHeroPreview() {
+            var t = $('#taglineInput').val();
+            $('#taglinePrev').text((t && t.trim()) ? t : '—');
+            var v = $('#heroInput').val();
+            $('#heroPrev').html((v && v.trim()) ? v : '&mdash;');
+        }
+
+        function renderAnnouncePreview() {
+            var on = $('#announceEnabled').is(':checked');
+            var rot = $('#announceRotate').is(':checked');
+            var txt = $('#announceInput').val();
+            $('#announcePrev').html((txt && txt.trim()) ? txt : '&mdash;');
+            $('#announcePrevWrap').css('opacity', on ? '1' : '0.35');
+            $('#announcePrevOff').toggle(!on);
+            $('#announcePrevMotion')
+                .html(rot
+                    ? '<i class="fa-solid fa-arrows-left-right"></i> Rotating &mdash; the text scrolls across the bar'
+                    : '<i class="fa-solid fa-align-center"></i> Static &mdash; the text stays still and centred')
+                .toggle(on);
+        }
+
+        function renderSvcPreview() {
+            $('#svcPrevEyebrow').text($('#svcEyebrow').val() || 'What I do');
+            $('#svcPrevHeading').html($('#svcHeading').val() || 'From the mic to the <em>moment</em>');
+            var items = collectSvcItems();
+            var grid = items.map(function (it, i) {
+                var bg = (it.image && it.image.trim())
+                    ? "background-image:url('" + String(it.image).replace(/'/g, '%27') + "'); background-size:cover; background-position:center;"
+                    : 'background:linear-gradient(135deg, var(--atl-card), var(--atl-line));';
+                return '<div style="position:relative; border-radius:8px; overflow:hidden; min-height:130px; ' + bg + ' border:1px solid var(--atl-line);">'
+                    + '<div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.78), rgba(0,0,0,0.1));"></div>'
+                    + '<div style="position:absolute; left:10px; right:10px; bottom:8px;">'
+                    + '<div style="color:var(--atl-amber); font-size:10px; font-weight:700;">0' + (i + 1) + '</div>'
+                    + '<div style="color:#fff; font-weight:600; font-size:13px; line-height:1.2;">' + siteEsc(it.title) + '</div>'
+                    + '<div style="color:#d4d4d4; font-size:11px;">' + siteEsc(it.description) + '</div>'
+                    + '</div></div>';
+            }).join('');
+            $('#svcPrevGrid').html(grid);
+        }
+
+        function buildFeatEditors(items) {
+            var html = (items || []).map(function (it, i) {
+                return '<div style="border:1px solid var(--atl-line); border-radius:8px; padding:14px; margin-bottom:14px;">'
+                    + '<div style="font-weight:700; color:var(--atl-amber); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">Stat ' + (i + 1) + '</div>'
+                    + '<label class="um-label">Number / label</label>'
+                    + '<div class="um-input-wrap"><input type="text" class="um-input feat-title" data-idx="' + i + '" value="' + siteEsc(it.title) + '"></div>'
+                    + '<label class="um-label" style="margin-top:10px;">Caption</label>'
+                    + '<div class="um-input-wrap"><input type="text" class="um-input feat-desc" data-idx="' + i + '" value="' + siteEsc(it.description) + '"></div>'
+                    + '</div>';
+            }).join('');
+            $('#featCardsEditor').html(html);
+        }
+
+        function collectFeatItems() {
+            var items = [];
+            $('#featCardsEditor .feat-title').each(function () {
+                var i = $(this).data('idx');
+                items[i] = items[i] || {};
+                items[i].title = $(this).val();
+                items[i].description = $('#featCardsEditor .feat-desc[data-idx="' + i + '"]').val();
+            });
+            return items.filter(Boolean);
+        }
+
+        function renderFeatPreview() {
+            var items = collectFeatItems();
+            var grid = items.map(function (it) {
+                return '<div>'
+                    + '<div style="font-size:22px; font-weight:700; color:var(--atl-amber); line-height:1.1;">' + siteEsc(it.title) + '</div>'
+                    + '<div style="font-size:12px; color:var(--atl-muted); margin-top:2px;">' + siteEsc(it.description) + '</div>'
+                    + '</div>';
+            }).join('');
+            $('#featPrevGrid').html(grid);
+        }
+
+        // Live preview wiring (delegated — editors live in drawers parsed after this script)
+        $(document).on('input', '#taglineInput, #heroInput', renderHeroPreview);
+        $(document).on('input', '#svcEyebrow, #svcHeading', renderSvcPreview);
+        $(document).on('input', '#svcCardsEditor input', renderSvcPreview);
+        $(document).on('input', '#featCardsEditor input', renderFeatPreview);
+        $(document).on('input', '#announceInput', renderAnnouncePreview);
+        $(document).on('change', '#announceEnabled', renderAnnouncePreview);
+        $(document).on('change', '#announceRotate', renderAnnouncePreview);
+        $(document).on('change', '.svc-card-file', function () {
+            var f = this.files[0]; $('#svcCardFileText' + $(this).data('idx')).text(f ? f.name : 'Upload an image');
+        });
+
+        // Drawer open/close (plain inputs → no Quill/transform issue) + lazy content load
+        $(document).on('click', '#heroDrawerClose, #heroDrawerBackdrop', function () { if (window.closeAtlDrawer) closeAtlDrawer('heroDrawer'); });
+        $(document).on('click', '#servicesDrawerClose, #servicesDrawerBackdrop', function () { if (window.closeAtlDrawer) closeAtlDrawer('servicesDrawer'); });
+        $(document).on('click', '#featuresDrawerClose, #featuresDrawerBackdrop', function () { if (window.closeAtlDrawer) closeAtlDrawer('featuresDrawer'); });
+        $(document).on('click', '#announceDrawerClose, #announceDrawerBackdrop', function () { if (window.closeAtlDrawer) closeAtlDrawer('announceDrawer'); });
+        $(document).on('click', '[data-um-tab="aboutServicesPanel"], [data-um-tab="aboutFeaturesPanel"], [data-um-tab="aboutHeroPanel"], [data-um-tab="aboutAnnouncePanel"]', function () { loadSiteContent(); });
+
+        // Hero save (delegated)
+        $(document).on('submit', '#heroForm', async function (e) {
+            e.preventDefault();
+            var $btn = $('#heroSubmitBtn'), orig = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving…');
+            try {
+                await apiCall('/api/admin/site-content', 'PUT', { hero_tagline: $('#taglineInput').val(), hero_subtitle: $('#heroInput').val() });
+                if (_siteContent) { _siteContent.hero_tagline = $('#taglineInput').val(); _siteContent.hero_subtitle = $('#heroInput').val(); }
+                renderHeroPreview();
+                if (window.notificationService) window.notificationService.showSuccess('Hero content published.');
+                if (window.closeAtlDrawer) closeAtlDrawer('heroDrawer');
+            } catch (err) {
+                if (window.notificationService) window.notificationService.showError('Save failed: ' + (err.message || 'Server error'));
+            } finally { $btn.prop('disabled', false).html(orig); }
+        });
+
+        // Features strip save (delegated)
+        $(document).on('submit', '#featuresForm', async function (e) {
+            e.preventDefault();
+            var $btn = $('#featuresSubmitBtn'), orig = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving…');
+            try {
+                var items = collectFeatItems();
+                await apiCall('/api/admin/site-content', 'PUT', { features_items: items });
+                if (_siteContent) _siteContent.features = { items: items };
+                renderFeatPreview();
+                if (window.notificationService) window.notificationService.showSuccess('Features strip published.');
+                if (window.closeAtlDrawer) closeAtlDrawer('featuresDrawer');
+            } catch (err) {
+                if (window.notificationService) window.notificationService.showError('Save failed: ' + (err.message || 'Server error'));
+            } finally { $btn.prop('disabled', false).html(orig); }
+        });
+
+        // Announcement bar save (delegated)
+        $(document).on('submit', '#announceForm', async function (e) {
+            e.preventDefault();
+            var $btn = $('#announceSubmitBtn'), orig = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving…');
+            try {
+                var enabled = $('#announceEnabled').is(':checked');
+                var rotate = $('#announceRotate').is(':checked');
+                await apiCall('/api/admin/site-content', 'PUT', { announcement_text: $('#announceInput').val(), announcement_enabled: enabled, announcement_rotate: rotate });
+                if (_siteContent) _siteContent.announcement = { text: $('#announceInput').val(), enabled: enabled, rotate: rotate };
+                renderAnnouncePreview();
+                if (window.notificationService) window.notificationService.showSuccess('Announcement bar published.');
+                if (window.closeAtlDrawer) closeAtlDrawer('announceDrawer');
+            } catch (err) {
+                if (window.notificationService) window.notificationService.showError('Save failed: ' + (err.message || 'Server error'));
+            } finally { $btn.prop('disabled', false).html(orig); }
+        });
+
+        // ===== Website Sections — public homepage visibility (Settings → Website Sections) =====
+        // Single source of truth for the admin UI; mirrors SECTION_MAP in js/myscript.js.
+        // `shared:true` means the row maps to an existing setting instead of the section_visibility map.
+        var SECTION_REGISTRY = [
+            { key: 'announcement', label: 'Announcement Bar', cat: 'Marketing',  shared: true, desc: 'The thin scrolling message bar at the very top of every page (shares the About Me → Announcement toggle).' },
+            { key: 'hero',       label: 'Hero',              cat: 'Content',    desc: 'The full-screen intro with the rotating background and headline.' },
+            { key: 'features',   label: 'At a Glance',       cat: 'Content',    desc: 'The strip of key stats and highlights just below the hero.' },
+            { key: 'services',   label: 'What I Do',         cat: 'Content',    desc: 'The services grid ("From the mic to the moment").' },
+            { key: 'about',      label: 'About',             cat: 'Content',    desc: 'Your biography, portrait and story.' },
+            { key: 'career',     label: 'Career Highlights', cat: 'Content',    desc: 'The milestones timeline / accordion.' },
+            { key: 'gallery',    label: 'Gallery',           cat: 'Engagement', desc: 'The photo grid of moments from road, stage & studio.' },
+            { key: 'events',     label: 'Events',            cat: 'Engagement', desc: 'Upcoming and past public events.' },
+            { key: 'social',     label: 'Social Media',      cat: 'Marketing',  desc: 'Social profile links and embedded posts.' },
+            { key: 'newsletter', label: 'Newsletter',        cat: 'Marketing',  desc: 'The email newsletter sign-up form.' },
+            { key: 'contact',    label: 'Contact',           cat: 'Contact',    desc: 'The contact form and manager details.' },
+            { key: 'footer',     label: 'Footer',            cat: 'Footer',     desc: 'The site footer with brand, links and legal bar.' }
+        ];
+        var SECTION_CATS = ['Content', 'Marketing', 'Engagement', 'Contact', 'Footer'];
+        var _sectionsRendered = false, _sectionsLoaded = false;
+
+        function secEsc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+        function renderSectionsUI() {
+            if (_sectionsRendered) return;
+            var $list = $('#sectionsList'); if (!$list.length) return;
+            var html = '';
+            SECTION_CATS.forEach(function (cat) {
+                var rows = SECTION_REGISTRY.filter(function (s) { return s.cat === cat; });
+                if (!rows.length) return;
+                html += '<div class="sec-group" data-cat="' + cat + '" style="margin-bottom:22px;">'
+                     +    '<h5 class="um-section-label" style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--atl-muted); margin:0 0 10px;">' + cat + '</h5>';
+                rows.forEach(function (s) {
+                    html += '<div class="sec-row" data-key="' + s.key + '" data-search="' + secEsc((s.label + ' ' + s.desc).toLowerCase()) + '" '
+                         +      'style="display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid var(--atl-line); border-radius:10px; margin-bottom:8px; background:var(--atl-card);">'
+                         +      '<div style="flex:1; min-width:0;">'
+                         +        '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">'
+                         +          '<span style="font-weight:600; color:var(--atl-ink);">' + secEsc(s.label) + '</span>'
+                         +          '<span class="sec-badge" id="secBadge-' + s.key + '" style="font-size:10px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; padding:2px 8px; border-radius:999px;"></span>'
+                         +        '</div>'
+                         +        '<p class="um-section-desc" style="margin:4px 0 0; font-size:12.5px;">' + secEsc(s.desc) + '</p>'
+                         +      '</div>'
+                         +      '<button type="button" class="atl-switch sec-toggle" role="switch" id="secToggle-' + s.key + '" data-key="' + s.key + '" aria-checked="false" aria-label="Show ' + secEsc(s.label) + ' section"></button>'
+                         +    '</div>';
+                });
+                html += '</div>';
+            });
+            $list.html(html);
+            _sectionsRendered = true;
+        }
+
+        function secSetToggle(key, on) {
+            $('#secToggle-' + key).attr('aria-checked', on ? 'true' : 'false');
+            var $b = $('#secBadge-' + key);
+            if (on) $b.text('Visible').css({ background: 'color-mix(in srgb, var(--atl-sage) 18%, transparent)', color: 'var(--atl-sage)' });
+            else    $b.text('Hidden').css({ background: 'color-mix(in srgb, var(--atl-clay) 16%, transparent)', color: 'var(--atl-clay)' });
+        }
+
+        async function loadSectionVisibility(force) {
+            renderSectionsUI();
+            if (_sectionsLoaded && !force) return;
+            $('#secLoading').show();
+            try {
+                var res = await fetch('/api/public/site-content', { cache: 'no-store', credentials: 'same-origin' });
+                var data = await res.json();
+                if (!data || !data.success) throw new Error('bad response');
+                var sec = data.sections || {};
+                SECTION_REGISTRY.forEach(function (s) {
+                    var on = s.shared === true
+                        ? (data.announcement && data.announcement.enabled !== false)
+                        : (sec[s.key] !== false);
+                    secSetToggle(s.key, on);
+                });
+                _sectionsLoaded = true;
+            } catch (e) {
+                if (window.notificationService) window.notificationService.showError('Could not load website sections — please refresh.');
+            } finally { $('#secLoading').hide(); }
+        }
+
+        function secFilter() {
+            var q = ($('#secSearch').val() || '').trim().toLowerCase();
+            var any = false;
+            $('#sectionsList .sec-row').each(function () {
+                var match = !q || ($(this).attr('data-search') || '').indexOf(q) !== -1;
+                $(this).toggle(match); if (match) any = true;
+            });
+            $('#sectionsList .sec-group').each(function () { $(this).toggle($(this).find('.sec-row:visible').length > 0); });
+            $('#secEmpty').toggle(!any);
+        }
+
+        $(document).on('click', '.sec-toggle', function () {
+            secSetToggle($(this).data('key'), $(this).attr('aria-checked') !== 'true');
+        });
+        $(document).on('click', '#secEnableAll',  function () { SECTION_REGISTRY.forEach(function (s) { secSetToggle(s.key, true); }); });
+        $(document).on('click', '#secDisableAll', function () { SECTION_REGISTRY.forEach(function (s) { secSetToggle(s.key, false); }); });
+        $(document).on('click', '#secReset',      function () { loadSectionVisibility(true); });
+        $(document).on('input', '#secSearch', secFilter);
+        // Lazy-load the saved state the first time the tab is opened.
+        $(document).on('click', '[data-um-tab="prefPanelSections"]', function () { loadSectionVisibility(); });
+
+        async function saveSectionVisibility(btn) {
+            var $btn = $(btn), orig = $btn.html();
+            var ok = window.notificationService
+                ? await window.notificationService.showConfirm({ title: 'Publish section changes', message: 'Apply these visibility settings to the live public website now?' })
+                : window.confirm('Apply these visibility settings to the live public website now?');
+            if (!ok) return;
+            var payload = { section_visibility: {} }, announcement;
+            SECTION_REGISTRY.forEach(function (s) {
+                var on = $('#secToggle-' + s.key).attr('aria-checked') === 'true';
+                if (s.shared === true) announcement = on; else payload.section_visibility[s.key] = on;
+            });
+            if (typeof announcement !== 'undefined') payload.announcement_enabled = announcement;
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Saving…');
+            try {
+                await apiCall('/api/admin/site-content', 'PUT', payload);
+                if (_siteContent) {
+                    _siteContent.sections = payload.section_visibility;
+                    if (typeof announcement !== 'undefined') { _siteContent.announcement = _siteContent.announcement || {}; _siteContent.announcement.enabled = announcement; }
+                }
+                if (window.notificationService) window.notificationService.showSuccess('Website sections updated.');
+            } catch (err) {
+                if (window.notificationService) window.notificationService.showError('Save failed: ' + (err.message || 'Server error'));
+            } finally { $btn.prop('disabled', false).html(orig); }
+        }
+
+        // What I Do save (delegated) — uploads any picked card images first
+        $(document).on('submit', '#servicesForm', async function (e) {
+            e.preventDefault();
+            var $btn = $('#servicesSubmitBtn'), orig = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving…');
+            try {
+                var items = [];
+                var idxs = $('#svcCardsEditor .svc-card-title').map(function () { return $(this).data('idx'); }).get();
+                for (var k = 0; k < idxs.length; k++) {
+                    var i = idxs[k];
+                    var image = $('#svcCardsEditor .svc-card-image[data-idx="' + i + '"]').val();
+                    var fileInput = document.getElementById('svcCardFile' + i);
+                    if (fileInput && fileInput.files && fileInput.files[0]) {
+                        var uploaded = await uploadFileToServer(fileInput.files[0], 'about');
+                        if (uploaded) image = uploaded;
+                    }
+                    items.push({
+                        title: $('#svcCardsEditor .svc-card-title[data-idx="' + i + '"]').val(),
+                        description: $('#svcCardsEditor .svc-card-desc[data-idx="' + i + '"]').val(),
+                        image: image
+                    });
+                }
+                await apiCall('/api/admin/site-content', 'PUT', {
+                    services_eyebrow: $('#svcEyebrow').val(),
+                    services_heading: $('#svcHeading').val(),
+                    services_items: items
+                });
+                if (_siteContent) _siteContent.services = { eyebrow: $('#svcEyebrow').val(), heading: $('#svcHeading').val(), items: items };
+                buildSvcCardEditors(items); // reflect uploaded URLs back into the editor
+                renderSvcPreview();
+                if (window.notificationService) window.notificationService.showSuccess('What I Do section published.');
+                if (window.closeAtlDrawer) closeAtlDrawer('servicesDrawer');
+            } catch (err) {
+                if (window.notificationService) window.notificationService.showError('Save failed: ' + (err.message || 'Server error'));
+            } finally { $btn.prop('disabled', false).html(orig); }
         });
 
         // ==========================================
@@ -18592,6 +19829,113 @@
                     </div>
                 </form>
             </div>
+        </div>
+    </div>
+
+    <!-- Hero paragraph editor drawer -->
+    <div id="heroDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="heroDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="heroDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="heroDrawerTitle"><i class="fa-solid fa-heading"></i> Edit Hero</h5>
+            <button type="button" class="atl-drawer__close" id="heroDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <form id="heroForm" class="um-form">
+                <div class="um-field-group">
+                    <label class="um-label" for="taglineInput">Tagline</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-quote-left um-input-icon"></i>
+                        <input type="text" id="taglineInput" class="um-input" placeholder="Officially funny since 2014">
+                    </div>
+                    <small class="help-block">The small uppercase line shown above your name.</small>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="heroInput">Hero paragraph</label>
+                    <textarea id="heroInput" class="um-input" rows="7" placeholder="Introductory paragraph shown in the homepage hero&hellip;"></textarea>
+                    <small class="help-block">Plain text. To italicise a word, wrap it like <code>&lt;em&gt;word&lt;/em&gt;</code>.</small>
+                </div>
+                <button type="submit" class="atl-btn atl-btn--primary" id="heroSubmitBtn" style="width:100%; justify-content:center;">
+                    <i class="fa-solid fa-floppy-disk"></i> Save &amp; Publish
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Announcement bar editor drawer -->
+    <div id="announceDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="announceDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="announceDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="announceDrawerTitle"><i class="fa-solid fa-bullhorn"></i> Edit Announcement Bar</h5>
+            <button type="button" class="atl-drawer__close" id="announceDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <form id="announceForm" class="um-form">
+                <div class="um-field-group">
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; color:var(--atl-ink);">
+                        <input type="checkbox" id="announceEnabled" style="width:16px; height:16px; accent-color:var(--atl-amber);">
+                        Show the announcement bar on the site
+                    </label>
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; color:var(--atl-ink); margin-top:12px; padding-left:26px;">
+                        <input type="checkbox" id="announceRotate" style="width:16px; height:16px; accent-color:var(--atl-amber);">
+                        Rotate (scroll) the announcement text
+                    </label>
+                    <small class="help-block" style="padding-left:26px;">When off, the message stays still and centred instead of scrolling across the bar.</small>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="announceInput">Message</label>
+                    <textarea id="announceInput" class="um-input" rows="3" placeholder="Announcement message&hellip;"></textarea>
+                    <small class="help-block">Plain text. Use <code>&lt;strong&gt;&hellip;&lt;/strong&gt;</code> to bold part of it.</small>
+                </div>
+                <button type="submit" class="atl-btn atl-btn--primary" id="announceSubmitBtn" style="width:100%; justify-content:center;">
+                    <i class="fa-solid fa-floppy-disk"></i> Save &amp; Publish
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Features strip editor drawer -->
+    <div id="featuresDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="featuresDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="featuresDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="featuresDrawerTitle"><i class="fa-solid fa-chart-simple"></i> Edit Features Strip</h5>
+            <button type="button" class="atl-drawer__close" id="featuresDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <form id="featuresForm" class="um-form">
+                <p class="um-section-desc" style="margin:0 0 12px;">Each stat has a bold number/label and a short caption. Icons stay fixed.</p>
+                <div id="featCardsEditor"><!-- feature editors injected by JS --></div>
+                <button type="submit" class="atl-btn atl-btn--primary" id="featuresSubmitBtn" style="width:100%; justify-content:center;">
+                    <i class="fa-solid fa-floppy-disk"></i> Save &amp; Publish
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- "What I Do" services editor drawer -->
+    <div id="servicesDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="servicesDrawer" class="atl-drawer atl-drawer--600" role="dialog" aria-labelledby="servicesDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="servicesDrawerTitle"><i class="fa-solid fa-briefcase"></i> Edit What I Do</h5>
+            <button type="button" class="atl-drawer__close" id="servicesDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <form id="servicesForm" class="um-form">
+                <div class="um-field-group">
+                    <label class="um-label" for="svcEyebrow">Section eyebrow</label>
+                    <input type="text" id="svcEyebrow" class="um-input" placeholder="What I do">
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="svcHeading">Section heading</label>
+                    <input type="text" id="svcHeading" class="um-input" placeholder="From the mic to the <em>moment</em>">
+                    <small class="help-block">Wrap a word in <code>&lt;em&gt;&hellip;&lt;/em&gt;</code> to italicise it (as in the current heading).</small>
+                </div>
+                <hr class="um-divider">
+                <p class="um-section-desc" style="margin:0 0 12px;">Service cards</p>
+                <div id="svcCardsEditor"><!-- card editors injected by JS --></div>
+                <button type="submit" class="atl-btn atl-btn--primary" id="servicesSubmitBtn" style="width:100%; justify-content:center;">
+                    <i class="fa-solid fa-floppy-disk"></i> Save &amp; Publish
+                </button>
+            </form>
         </div>
     </div>
 
