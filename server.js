@@ -8794,8 +8794,17 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                 if (requestedStatus === 'CANCELLED') {
                     const reason = options.reason || 'Booking cancelled by admin';
                     await deleteGoogleEvent(b.google_event_id);
-                    // Store cancellation reason and attribution in the booking row
-                    db.run("UPDATE bookings SET cancellation_reason = ?, cancelled_by = 'admin' WHERE id = ?", [reason, bookingId]);
+                    // E1: store cancellation reason/attribution AND run the SAME financial + hold
+                    // cascade as POST /api/admin/bookings/:id/cancel, so cancelling via the status
+                    // API leaves an identical state (previously this path skipped payment_status,
+                    // invoice void, schedule cancel and hold release).
+                    db.run("UPDATE bookings SET cancellation_reason = ?, cancelled_by = 'admin', payment_status = 'CANCELLED' WHERE id = ?", [reason, bookingId]);
+                    db.run("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [bookingId],
+                        (e) => { if (e) console.error('[Status Cancel] Hold release failed:', e.message); });
+                    db.run("UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [bookingId],
+                        (e) => { if (e) console.error('[Status Cancel] Invoice void failed:', e.message); });
+                    db.run("UPDATE payment_schedules SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status='pending'", [bookingId],
+                        (e) => { if (e) console.error('[Status Cancel] Payment schedule cancel failed:', e.message); });
                     // Apply the same refund policy calculator used by client self-cancellation
                     db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", [], (pErr, policy) => {
                         const calc = calculateCancellationRefund(b, policy ? policy.policy_value : '');
@@ -11590,9 +11599,16 @@ app.patch('/api/admin/events/:id/date', requireAdmin, (req, res) => {
                         () => {
                             // Notify booking client of date change
                             db.get("SELECT * FROM bookings WHERE id = ?", [row.booking_id], (bErr, booking) => {
-                                if (!bErr && booking && booking.email && oldDate !== date) {
-                                    sendDateChangedEmail(booking, oldDate, date)
-                                        .catch(e => console.error('[Event Date Change] Client email failed:', e.message));
+                                if (!bErr && booking) {
+                                    if (booking.email && oldDate !== date) {
+                                        sendDateChangedEmail(booking, oldDate, date)
+                                            .catch(e => console.error('[Event Date Change] Client email failed:', e.message));
+                                    }
+                                    // E2: keep the booking's Google Calendar event in sync with the moved
+                                    // date — the booking date changed above but its GCal event would
+                                    // otherwise stay on the old date (calendar drift).
+                                    syncBookingToCalendar(booking)
+                                        .catch(e => console.error('[Event Date Change] Calendar sync failed:', e.message));
                                 }
                             });
                         }
