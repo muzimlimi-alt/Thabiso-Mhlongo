@@ -9165,7 +9165,10 @@ app.post('/api/admin/calendar/hold', requireAdmin, (req, res) => {
     const notes = reason || category || 'Admin hold';
     if (!date) return res.status(400).json({ success: false, message: 'Date required.' });
 
-    const overlap = (s1, e1, s2, e2) => (s1 < e2) && (s2 < e1);
+    // Compare by minutes, not lexically (consistent with the booking-submit overlap / timeRangesOverlap):
+    // a non-zero-padded time like "9:00" would break a string compare ("9:00" < "10:00" is false).
+    const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+    const overlap = (s1, e1, s2, e2) => (toMin(s1) < toMin(e2)) && (toMin(s2) < toMin(e1));
 
     // Check for conflicts
     db.all("SELECT id, start_time, end_time FROM date_holds WHERE hold_date = ? AND status = 'active'", [date], (err, holds) => {
