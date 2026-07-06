@@ -8812,12 +8812,17 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                     // Apply the same refund policy calculator used by client self-cancellation
                     db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", [], (pErr, policy) => {
                         const calc = calculateCancellationRefund(b, policy ? policy.policy_value : '');
+                        // D-1: cancellations.cancelled_by has a CHECK IN ('client','comedian','mutual','force_majeure')
+                        // — 'admin' violated it, so this INSERT failed silently (no cancellation record via the
+                        // status API). Use 'comedian' (business-initiated), matching the dedicated /cancel endpoint's
+                        // default for admin-initiated cancellations. Attribution to admin stays on bookings.cancelled_by.
                         db.run(`INSERT INTO cancellations (booking_id, cancelled_by, reason, total_paid_to_date, refund_due, retention_amount, refund_status)
-                                VALUES (?, 'admin', ?, ?, ?, ?, 'pending')
+                                VALUES (?, 'comedian', ?, ?, ?, ?, 'pending')
                                 ON CONFLICT(booking_id) DO UPDATE SET
-                                cancelled_by='admin', reason=excluded.reason, total_paid_to_date=excluded.total_paid_to_date,
+                                cancelled_by='comedian', reason=excluded.reason, total_paid_to_date=excluded.total_paid_to_date,
                                 refund_due=excluded.refund_due, retention_amount=excluded.retention_amount, refund_status='pending'`,
-                            [bookingId, reason, calc.totalPaid, calc.refund, calc.retention]);
+                            [bookingId, reason, calc.totalPaid, calc.refund, calc.retention],
+                            (cErr) => { if (cErr) console.error('[Status Cancel] Cancellation record insert failed:', cErr.message); });
                         // SC-3: Include policy rule + timing in cancellation email
                         sendCancellationEmail(b, { reason, refund_due: calc.refund, rule: calc.rule, days_until_event: calc.daysUntilEvent }).catch(e => console.error('Cancel email failed:', e.message));
                     });
@@ -10686,10 +10691,19 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
         ? (notes ? `[Adjustment: ${direction}] ${notes.trim()}` : `[Adjustment: ${direction}]`)
         : (notes ? notes.trim() : null);
 
+    // D-2: normalize to a value the transactions.payment_method CHECK permits
+    // ('cash','check','bank_transfer','credit_card','payfast','other'). The UI sends 'eft'/'card',
+    // which the CHECK rejects — the INSERT then 500'd and the manual payment went unrecorded.
+    const PM_MAP = { eft: 'bank_transfer', bank_transfer: 'bank_transfer', card: 'credit_card',
+        credit_card: 'credit_card', cash: 'cash', check: 'check', cheque: 'check', payfast: 'payfast' };
+    const normalizedMethod = (transaction_type === 'adjustment' || !payment_method)
+        ? null
+        : (PM_MAP[String(payment_method).toLowerCase().trim()] || 'other');
+
     db.run(
         `INSERT INTO transactions (booking_id, amount, transaction_type, payment_method, reference, notes, transaction_date, source, status, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', 'completed', CURRENT_TIMESTAMP)`,
-        [booking_id || null, amt, transaction_type, payment_method || null, reference || null, finalNotes, txDate],
+        [booking_id || null, amt, transaction_type, normalizedMethod, reference || null, finalNotes, txDate],
         function(err) {
             if (err) return res.status(500).json({ success: false, message: err.message });
             const txId = this.lastID;
