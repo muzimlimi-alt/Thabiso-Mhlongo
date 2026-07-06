@@ -16637,29 +16637,53 @@
         $msg.css('color','#aaa').text('Generating PDF & Sending Email...');
         $btn.prop('disabled', true).text('Working...');
 
-        try {
+        async function performQuoteSubmit(body) {
             const r = await fetch(`/api/admin/bookings/${id}/quote`, { 
                 method:'POST', 
                 headers:{'Content-Type':'application/json'}, 
-                body: JSON.stringify(payload) 
+                body: JSON.stringify(body) 
             });
-            const d = await r.json();
-            if (d.success) {
-                $msg.css('color','var(--atl-sage)').text('Quote sent successfully!');
-                localStorage.removeItem(`quote_draft_booking_${id}`);
-                qbHasUnsavedChanges = false;
-                if (d.warnings && d.warnings.length) {
-                    d.warnings.forEach(w => window.notificationService.showError('⚠ ' + w));
+            
+            if (r.status === 409) {
+                const data = await r.json();
+                if (data.conflict) {
+                    const confirmOverride = await window.notificationService.showConfirm({
+                        title: 'Scheduling Conflict Detected',
+                        message: data.message,
+                        confirmText: 'Override & Send',
+                        cancelText: 'Cancel'
+                    });
+                    if (confirmOverride) {
+                        body.override_conflict = true;
+                        $msg.text('Overriding Conflict & Sending...');
+                        return await performQuoteSubmit(body);
+                    } else {
+                        throw new Error('Quote generation cancelled due to scheduling conflict.');
+                    }
                 }
-                setTimeout(() => {
-                    window.closeQuoteDrawer();
-                    loadBookings();
-                }, 1500);
-            } else {
-                $msg.css('color','var(--atl-clay)').text(d.message || 'Failed to send quote.');
             }
+            
+            const data = await r.json();
+            if (!r.ok || !data.success) {
+                throw new Error(data.message || 'Failed to send quote.');
+            }
+            return data;
+        }
+
+        try {
+            const d = await performQuoteSubmit(payload);
+            $msg.css('color','var(--atl-sage)').text('Quote sent successfully!');
+            localStorage.removeItem(`quote_draft_booking_${id}`);
+            qbHasUnsavedChanges = false;
+            if (d.warnings && d.warnings.length) {
+                d.warnings.forEach(w => window.notificationService.showError('⚠ ' + w));
+            }
+            setTimeout(() => {
+                window.closeQuoteDrawer();
+                loadBookings();
+            }, 1500);
         } catch(e) { 
-            $msg.css('color','var(--atl-clay)').text('Network error.'); 
+            $msg.css('color','var(--atl-clay)').text(e.message || 'Network error.'); 
         }
         $btn.prop('disabled', false).html(originalText);
     });

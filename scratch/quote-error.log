@@ -1,1 +1,1 @@
-SQLITE_CONSTRAINT: NOT NULL constraint failed: quotations.client_id
+SQLITE_CONSTRAINT: UNIQUE constraint failed: quotations.quote_number
