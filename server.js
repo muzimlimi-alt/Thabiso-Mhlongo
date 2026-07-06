@@ -9607,6 +9607,66 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
                 bodyItems.forEach(i => {
                     i.quantity_minutes = parseFloat(i.quantity_minutes) || parseFloat(i.quantity) || 1; // normalization
                 });
+
+                // Conflict check
+                if (!req.body.override_conflict && booking.date) {
+                    const serviceIds = bodyItems.filter(i => i.service_id).map(i => i.service_id);
+                    if (serviceIds.length) {
+                        const dbServices = await new Promise((resolve) => {
+                            db.all(`SELECT * FROM services WHERE id IN (${serviceIds.map(() => '?').join(',')})`, serviceIds, (err, rows) => resolve(rows || []));
+                        });
+                        
+                        const maxServiceMins = dbServices.reduce((max, srv) => {
+                            const rowInput = bodyItems.find(s => s.service_id == srv.id);
+                            const isDurationBased = srv.pricing_model === 'per_minute' || srv.pricing_model === 'per_hour';
+                            const qtyMins = rowInput ? (parseFloat(rowInput.quantity_minutes) || parseFloat(rowInput.quantity) || 0) : 0;
+                            const length = isDurationBased && qtyMins > 0 ? qtyMins : (parseInt(srv.performance_length_minutes) || 0);
+                            const total = length + (parseInt(srv.setup_time_minutes) || 0);
+                            return Math.max(max, total);
+                        }, 0);
+                        
+                        const durationMins = maxServiceMins > 0 ? maxServiceMins : 120;
+                        const event_start_time = booking.event_start_time || '18:00';
+                        const startTime = moment(`${booking.date} ${event_start_time}`).toISOString();
+                        const endTime   = moment(startTime).add(durationMins, 'minutes').toISOString();
+                        
+                        // 1. Calendar conflict check
+                        const isBusy = await hasCalendarConflict(startTime, endTime, bookingId);
+                        if (isBusy) {
+                            return res.status(409).json({
+                                success: false,
+                                conflict: true,
+                                message: "Scheduling Conflict Detected: Thabiso is busy or holds exist during this slot. Do you want to override and send this quote anyway?"
+                            });
+                        }
+                        
+                        // 2. per_day availability rule check
+                        const hasPerDayService = dbServices.some(s => s.availability_rule === 'per_day');
+                        if (hasPerDayService) {
+                            const conflictingBooking = await new Promise((resolve) => {
+                                db.get(`
+                                    SELECT b.id, b.event_name, s.name AS service_name
+                                    FROM booking_services bs
+                                    JOIN services s ON bs.service_id = s.id
+                                    JOIN bookings b ON bs.booking_id = b.id
+                                    WHERE b.date = ? 
+                                      AND b.id != ? 
+                                      AND b.status NOT IN ('CANCELLED', 'EXPIRED')
+                                      AND s.availability_rule = 'per_day'
+                                    LIMIT 1
+                                `, [booking.date, bookingId], (err, row) => resolve(row));
+                            });
+                            if (conflictingBooking) {
+                                return res.status(409).json({
+                                    success: false,
+                                    conflict: true,
+                                    message: `Scheduling Conflict Detected: "${conflictingBooking.service_name}" is already booked on this day (Booking #${conflictingBooking.id}: "${conflictingBooking.event_name}"). Do you want to override and send this quote anyway?`
+                                });
+                            }
+                        }
+                    }
+                }
+
                 // FIN-2: tag each line's tax_class from the services catalog, then compute totals with
                 // the shared helper so VAT is charged only on taxable lines and the quote total, the
                 // stored invoice, and the PDF all agree.
@@ -9736,7 +9796,7 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
                                         // Per-day availability warning (non-blocking for admins)
                                         const perDaySvcIds = items.filter(i => i.service_id).map(i => i.service_id);
                                         const sendResponse = (warnings) => res.json({ success: true, message: 'Quote generated and sent.', status: nextStatus, pdfUrl: `/docs/quotes/${pdfFileName}`, version: nextVersion, warnings: warnings.length ? warnings : undefined });
-                                        if (perDaySvcIds.length) {
+                                        if (perDaySvcIds.length && !req.body.override_conflict) {
                                             db.all(`SELECT name FROM services WHERE id IN (${perDaySvcIds.map(() => '?').join(',')}) AND availability_rule = 'per_day'`, perDaySvcIds, (_, perDayRows) => {
                                                 sendResponse((perDayRows || []).map(s => `"${s.name}" is limited to one booking per day — verify no date conflicts exist.`));
                                             });
@@ -10863,15 +10923,38 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                         );
                     });
                 } else if (transaction_type === 'refund') {
-                    db.run(`UPDATE bookings SET amount_paid = MAX(0, amount_paid - ?), amount_outstanding = amount_outstanding + ? WHERE id = ?`,
-                        [amt, amt, booking_id], (upErr) => {
-                            if (!upErr) {
+                    db.get("SELECT * FROM bookings WHERE id = ?", [booking_id], (bookErr, row) => {
+                        if (bookErr || !row) {
+                            return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
+                        }
+                        // FIN-4: recompute outstanding as (total - new paid), NOT additively — the old
+                        // `amount_outstanding + amt` could push outstanding above total_amount (e.g. a
+                        // refund larger than amount_paid) and never re-derived payment_status, leaving a
+                        // refunded booking still marked PAID.
+                        const total = parseFloat(row.total_amount) || parseFloat((row.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
+                        const newPaid = Math.max(0, (parseFloat(row.amount_paid) || 0) - parseFloat(amt));
+                        const outstanding = Math.max(0, total - newPaid);
+                        let payment_status;
+                        if (total > 0 && newPaid >= total)      payment_status = 'PAID';
+                        else if (newPaid <= 0)                   payment_status = 'UNPAID';
+                        else if (newPaid >= total * 0.5)         payment_status = 'DEPOSIT_PAID';
+                        else                                     payment_status = 'PARTIALLY_PAID';
+                        db.run(`UPDATE bookings SET amount_paid = ?, amount_outstanding = ?, payment_status = ? WHERE id = ?`,
+                            [newPaid, outstanding, payment_status, booking_id], (upErr) => {
+                                if (upErr) {
+                                    console.error('[Manual Transaction] Refund booking update failed:', upErr.message);
+                                    return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking update failed.' });
+                                }
                                 updateBookingMilestones(booking_id, (psErr) => {
                                     if (psErr) console.error('[Manual Transaction] Milestone update failed:', psErr.message);
                                 });
-                            }
-                            res.json({ success: true, transaction_id: txId, message: 'Transaction logged and booking updated.' });
-                        });
+                                db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+                                        VALUES ('bookings', ?, 'REFUND', ?, ?, CURRENT_TIMESTAMP)`,
+                                    [booking_id, JSON.stringify({ amount_paid: newPaid, amount_outstanding: outstanding, payment_status }), adminUser],
+                                    (aErr) => { if (aErr) console.error('[Audit] Manual refund log failed:', aErr.message); });
+                                res.json({ success: true, transaction_id: txId, message: 'Refund recorded and booking updated.' });
+                            });
+                    });
                 } else if (transaction_type === 'adjustment') {
                     db.get("SELECT * FROM bookings WHERE id = ?", [booking_id], (bookErr, row) => {
                         if (bookErr || !row) {
