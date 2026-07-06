@@ -581,7 +581,7 @@ async function isWithinWorkingHours(dateStr, startHHMM, endHHMM) {
     });
 }
 
-async function hasCalendarConflict(startTime, endTime, excludeBookingId) {
+async function hasCalendarConflict(startTime, endTime, excludeBookingId, skipGoogle) {
     try {
         const targetDate = startTime.split('T')[0];
         const reqStart = moment(startTime).format('HH:mm'); // Local time formatting (HH:MM)
@@ -636,8 +636,11 @@ async function hasCalendarConflict(startTime, endTime, excludeBookingId) {
         });
         if (bookingConflict) return true;
 
-        // 3. Check Google Calendar (if configured)
-        if (typeof calendar !== 'undefined' && CALENDAR_ID) {
+        // 3. Check Google Calendar (if configured).
+        // skipGoogle=true is used for the in-transaction re-check so we don't hold a
+        // BEGIN IMMEDIATE write lock open during a network round-trip; the local
+        // holds+bookings checks above are sufficient to close the concurrent-booking race.
+        if (!skipGoogle && typeof calendar !== 'undefined' && CALENDAR_ID) {
             try {
                 const response = await calendar.freebusy.query({
                     requestBody: {
@@ -1785,6 +1788,52 @@ app.get('/api/admin/analytics/devices', requireAdmin, (req, res) => {
         WHERE date(viewed_at) BETWEEN ? AND ?
         GROUP BY device_type
         ORDER BY pageviews DESC`,
+        [start, end],
+        (err, rows) => {
+            if (err) return res.status(500).json({ success: false });
+            res.json({ success: true, rows: rows || [] });
+        }
+    );
+});
+
+// GET /api/admin/analytics/countries?period=7d|30d|90d
+// Top visitor countries — gauges fanbase geography & prospective touring markets
+app.get('/api/admin/analytics/countries', requireAdmin, (req, res) => {
+    const { start, end } = getAnalyticsDates(req.query);
+    db.all(`
+        SELECT
+            COALESCE(NULLIF(country_name, ''), 'Unknown') AS country,
+            MAX(country_code)                             AS code,
+            COUNT(*)                                      AS pageviews,
+            COUNT(DISTINCT visitor_id)                    AS visitors
+        FROM analytics_pageviews
+        WHERE date(viewed_at) BETWEEN ? AND ?
+        GROUP BY country
+        ORDER BY visitors DESC, pageviews DESC
+        LIMIT 8`,
+        [start, end],
+        (err, rows) => {
+            if (err) return res.status(500).json({ success: false });
+            res.json({ success: true, rows: rows || [] });
+        }
+    );
+});
+
+// GET /api/admin/analytics/top-pages?period=7d|30d|90d
+// Most-viewed pages — reveals which content (events, gallery, booking) resonates
+app.get('/api/admin/analytics/top-pages', requireAdmin, (req, res) => {
+    const { start, end } = getAnalyticsDates(req.query);
+    db.all(`
+        SELECT
+            page                        AS page,
+            COUNT(*)                    AS pageviews,
+            COUNT(DISTINCT visitor_id)  AS visitors
+        FROM analytics_pageviews
+        WHERE date(viewed_at) BETWEEN ? AND ?
+          AND page IS NOT NULL AND page != ''
+        GROUP BY page
+        ORDER BY pageviews DESC
+        LIMIT 8`,
         [start, end],
         (err, rows) => {
             if (err) return res.status(500).json({ success: false });
@@ -3471,9 +3520,10 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
         let initialTotalAmount = calculatedBaseScope;
         let paymentStatus = 'UNPAID';
 
-        // 4. SAVE TO DATABASE — INSERT inside BEGIN IMMEDIATE
-        // Note: same-client multi-booking on the same day is allowed; time-overlap is enforced earlier
-        // via hasCalendarConflict which now checks all existing bookings for time conflicts.
+        // 4. SAVE TO DATABASE — booking + all child rows are committed atomically inside
+        //    BEGIN IMMEDIATE. Note: same-client multi-booking on the same day is allowed;
+        //    time-overlap is enforced both before the lock (fast path) and again inside the
+        //    lock (F1) so two concurrent submissions cannot double-book the same slot.
         db.run("BEGIN IMMEDIATE", async (beginErr) => {
             if (beginErr) return res.status(500).json({ success: false, message: 'Database error while saving booking.' });
 
@@ -3482,6 +3532,16 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
             if (!lockedAvail.available) {
                 db.run("ROLLBACK");
                 return res.status(409).json({ success: false, message: 'The selected date is no longer available.' });
+            }
+
+            // F1: re-run the time-overlap check INSIDE the write lock. skipGoogle=true keeps it to
+            // fast local reads (no network call while holding BEGIN IMMEDIATE). Because writers
+            // serialize, a second concurrent submission now sees the first (committed) booking here
+            // and is rejected instead of double-booking the slot.
+            const lockedBusy = await hasCalendarConflict(startTime, endTime, null, true);
+            if (lockedBusy) {
+                db.run("ROLLBACK");
+                return res.status(409).json({ success: false, message: 'This date and time were just booked. Please select another slot or contact us for special inquiries.' });
             }
 
             // Default expiry: event date minus 14 days; overridden when admin generates the actual quote
@@ -3510,8 +3570,11 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                     }
 
                     const bookingId = this.lastID;
-                    db.run("COMMIT");
 
+                    // F2: write ALL child rows inside the transaction, then COMMIT. If any child
+                    // insert fails we ROLLBACK, so we never persist a booking without the services /
+                    // line items its quote_amount was calculated from (previously these ran AFTER
+                    // COMMIT and a failure left an inconsistent booking while still returning success).
                     try {
                         // POPIA consent audit — immutable record of when/where consent was given
                         await new Promise((resolve, reject) => {
@@ -3573,9 +3636,18 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                                 );
                             });
                         }
+
+                        // All child rows persisted — commit the whole booking atomically.
+                        await new Promise((resolve, reject) => {
+                            db.run("COMMIT", (cErr) => { if (cErr) reject(cErr); else resolve(); });
+                        });
                     } catch (dbErr) {
-                        console.error("[Booking] Async DB inserts failed:", dbErr.message);
+                        db.run("ROLLBACK");
+                        console.error("[Booking] Transactional insert failed — rolled back, no partial booking saved:", dbErr.message);
+                        return res.status(500).json({ success: false, message: 'Database error while saving booking.' });
                     }
+
+                    // ---- Side effects run AFTER commit (non-blocking; must never roll back the booking) ----
 
                     // 6. SYNC TO GOOGLE CALENDAR (Asynchronously/Non-blocking)
                     syncBookingToCalendar(bookingId).catch(calErr => {
@@ -10236,25 +10308,73 @@ app.get('/api/admin/financials/analytics', requireAdmin, requireRole(['administr
           AND i.due_date < DATE('now')
         ORDER BY days_overdue DESC
     `;
-    
+
+    // Revenue grouped by booking event/service type — reveals which kinds of
+    // engagements (live shows, corporate, comedy, virtual …) earn the most.
+    const categoryQuery = `
+        SELECT COALESCE(NULLIF(b.event_type, ''), 'Other') AS category,
+               SUM(t.amount)          AS revenue,
+               COUNT(DISTINCT b.id)   AS bookings
+        FROM transactions t
+        JOIN bookings b ON t.booking_id = b.id
+        WHERE t.status = 'completed' AND COALESCE(t.is_duplicate, 0) = 0
+        GROUP BY category
+        ORDER BY revenue DESC
+        LIMIT 8
+    `;
+
+    // Monthly expenses over the same 12-month window used by the revenue trend,
+    // so the two can be combined into a cash-flow (money in vs money out) view.
+    const expenseTrendQuery = `
+        SELECT strftime('%Y-%m', expense_date) AS month, SUM(amount) AS total_expenses
+        FROM expenses
+        WHERE expense_date >= DATE('now', '-12 months')
+        GROUP BY month
+        ORDER BY month ASC
+    `;
+
     db.all(trendQuery, [], (err, trend) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
-        
+
         db.all(clientQuery, [], (e2, clients) => {
             if (e2) return res.status(500).json({ success: false, message: e2.message });
-            
+
             db.get(agingQuery, [], (e3, aging) => {
                 if (e3) return res.status(500).json({ success: false, message: e3.message });
-                
+
                 db.all(overdueListQuery, [], (e4, overdueInvoices) => {
                     if (e4) return res.status(500).json({ success: false, message: e4.message });
-                    
-                    res.json({
-                        success: true,
-                        revenueTrend: trend || [],
-                        topClients: clients || [],
-                        debtAging: aging || {},
-                        overdueInvoices: overdueInvoices || []
+
+                    db.all(categoryQuery, [], (e5, categories) => {
+                        if (e5) return res.status(500).json({ success: false, message: e5.message });
+
+                        db.all(expenseTrendQuery, [], (e6, expenseTrend) => {
+                            if (e6) return res.status(500).json({ success: false, message: e6.message });
+
+                            // Merge revenue trend + expense trend into a unified
+                            // cash-flow series keyed by month.
+                            const cf = {};
+                            (trend || []).forEach(r => {
+                                cf[r.month] = { month: r.month, revenue: parseFloat(r.total_revenue || 0), expenses: 0 };
+                            });
+                            (expenseTrend || []).forEach(x => {
+                                if (!cf[x.month]) cf[x.month] = { month: x.month, revenue: 0, expenses: 0 };
+                                cf[x.month].expenses = parseFloat(x.total_expenses || 0);
+                            });
+                            const cashFlow = Object.values(cf)
+                                .map(r => ({ ...r, net: r.revenue - r.expenses }))
+                                .sort((a, b) => (a.month < b.month ? -1 : 1));
+
+                            res.json({
+                                success: true,
+                                revenueTrend: trend || [],
+                                topClients: clients || [],
+                                debtAging: aging || {},
+                                overdueInvoices: overdueInvoices || [],
+                                revenueByCategory: categories || [],
+                                cashFlow: cashFlow
+                            });
+                        });
                     });
                 });
             });
@@ -12396,6 +12516,178 @@ app.delete('/api/admin/social_embeds/:id', requireAdmin, requireRole(['administr
     db.run("DELETE FROM social_embeds WHERE id = ?", [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, message: 'Social embed deleted successfully.' });
+    });
+});
+
+// =============================================
+// Helper to retrieve setting value dynamically from the database
+const getSettingVal = (key) => {
+    return new Promise(resolve => {
+        db.get("SELECT setting_value FROM settings WHERE setting_key = ?", [key], (err, row) => {
+            resolve(row ? row.setting_value : null);
+        });
+    });
+};
+
+app.get('/api/admin/dashboard/social_kpis', requireAdmin, (req, res) => {
+    db.all("SELECT * FROM social_kpi_stats ORDER BY id ASC", [], async (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        
+        let needsDbUpdate = false;
+        const now = new Date();
+        const updatedRows = [];
+
+        for (const row of rows) {
+            // Cache timeout is 1 hour
+            const lastUpdated = new Date(row.last_updated);
+            const isStale = (now - lastUpdated) > 60 * 60 * 1000;
+            
+            if (row.manual_override === 0 && isStale) {
+                let liveFollowers = null;
+                let liveLikes = null;
+                
+                try {
+                    if (row.platform_name === 'YouTube') {
+                        const ytApiKey = await getSettingVal('youtube_api_key') || process.env.YOUTUBE_API_KEY;
+                        const ytChannelId = await getSettingVal('youtube_channel_id') || process.env.YOUTUBE_CHANNEL_ID;
+                        if (ytApiKey && ytChannelId) {
+                            const ytUrl = `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${ytChannelId}&key=${ytApiKey}`;
+                            const apiRes = await fetch(ytUrl);
+                            if (apiRes.ok) {
+                                const data = await apiRes.json();
+                                if (data.items && data.items.length > 0) {
+                                    liveFollowers = parseInt(data.items[0].statistics.subscriberCount) || null;
+                                    liveLikes = parseInt(data.items[0].statistics.viewCount) || null;
+                                }
+                            }
+                        }
+                    } else if (row.platform_name === 'Facebook') {
+                        const fbAccessToken = await getSettingVal('facebook_page_access_token') || process.env.FACEBOOK_PAGE_ACCESS_TOKEN;
+                        const fbPageId = await getSettingVal('facebook_page_id') || process.env.FACEBOOK_PAGE_ID;
+                        if (fbAccessToken && fbPageId) {
+                            const fbUrl = `https://graph.facebook.com/v19.0/${fbPageId}?fields=fan_count,talking_about_count&access_token=${fbAccessToken}`;
+                            const apiRes = await fetch(fbUrl);
+                            if (apiRes.ok) {
+                                const data = await apiRes.json();
+                                liveFollowers = data.fan_count || null;
+                                liveLikes = data.fan_count || null;
+                            }
+                        }
+                    } else if (row.platform_name === 'Instagram') {
+                        const igAccessToken = await getSettingVal('instagram_access_token') || process.env.INSTAGRAM_ACCESS_TOKEN;
+                        const igUserId = await getSettingVal('instagram_user_id') || process.env.INSTAGRAM_USER_ID;
+                        if (igAccessToken && igUserId) {
+                            const igUrl = `https://graph.facebook.com/v19.0/${igUserId}?fields=followers_count,media_count&access_token=${igAccessToken}`;
+                            const apiRes = await fetch(igUrl);
+                            if (apiRes.ok) {
+                                const data = await apiRes.json();
+                                liveFollowers = data.followers_count || null;
+                                liveLikes = data.media_count || null;
+                            }
+                        }
+                    } else if (row.platform_name === 'X (Twitter)') {
+                        const twBearerToken = await getSettingVal('twitter_bearer_token') || process.env.TWITTER_BEARER_TOKEN;
+                        const twUsername = await getSettingVal('twitter_username') || process.env.TWITTER_USERNAME;
+                        if (twBearerToken && twUsername) {
+                            const twUrl = `https://api.twitter.com/2/users/by/username/${twUsername}?user.fields=public_metrics`;
+                            const apiRes = await fetch(twUrl, {
+                                headers: {
+                                    'Authorization': `Bearer ${twBearerToken}`
+                                }
+                            });
+                            if (apiRes.ok) {
+                                const data = await apiRes.json();
+                                if (data.data && data.data.public_metrics) {
+                                    liveFollowers = data.data.public_metrics.followers_count || null;
+                                    liveLikes = data.data.public_metrics.tweet_count || null;
+                                }
+                            }
+                        }
+                    } else if (row.platform_name === 'TikTok') {
+                        const ttAccessToken = await getSettingVal('tiktok_access_token') || process.env.TIKTOK_ACCESS_TOKEN;
+                        if (ttAccessToken) {
+                            const ttUrl = `https://open.tiktokapis.com/v2/user/info/?fields=follower_count,likes_count`;
+                            const apiRes = await fetch(ttUrl, {
+                                headers: {
+                                    'Authorization': `Bearer ${ttAccessToken}`
+                                }
+                            });
+                            if (apiRes.ok) {
+                                const data = await apiRes.json();
+                                if (data.data && data.data.user) {
+                                    liveFollowers = data.data.user.follower_count || null;
+                                    liveLikes = data.data.user.likes_count || null;
+                                }
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.error(`Failed to fetch live stats for ${row.platform_name}:`, e.message);
+                }
+
+                if (liveFollowers !== null) {
+                    needsDbUpdate = true;
+                    row.follower_count = liveFollowers;
+                    if (liveLikes !== null) row.like_count = liveLikes;
+                    row.last_updated = now.toISOString();
+                    
+                    // Run update to DB
+                    db.run(
+                        "UPDATE social_kpi_stats SET follower_count = ?, like_count = ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?",
+                        [row.follower_count, row.like_count, row.id]
+                    );
+                }
+            }
+            updatedRows.push(row);
+        }
+
+        const credentials = {
+            youtube_api_key: await getSettingVal('youtube_api_key') || '',
+            youtube_channel_id: await getSettingVal('youtube_channel_id') || '',
+            facebook_page_access_token: await getSettingVal('facebook_page_access_token') || '',
+            facebook_page_id: await getSettingVal('facebook_page_id') || '',
+            instagram_access_token: await getSettingVal('instagram_access_token') || '',
+            instagram_user_id: await getSettingVal('instagram_user_id') || '',
+            twitter_bearer_token: await getSettingVal('twitter_bearer_token') || '',
+            twitter_username: await getSettingVal('twitter_username') || '',
+            tiktok_access_token: await getSettingVal('tiktok_access_token') || ''
+        };
+
+        res.json({ success: true, kpis: updatedRows, credentials: credentials });
+    });
+});
+
+app.post('/api/admin/dashboard/social_kpis', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    const { platform_name, follower_count, like_count, trend_percentage, trend_direction, manual_override } = req.body;
+    
+    if (!platform_name) {
+        return res.status(400).json({ success: false, message: 'Platform name is required.' });
+    }
+
+    db.get("SELECT * FROM social_kpi_stats WHERE platform_name = ?", [platform_name], (err, row) => {
+        if (err || !row) return res.status(404).json({ success: false, message: 'Platform stats not found.' });
+
+        const updatedFollowers = follower_count !== undefined ? parseInt(follower_count) : row.follower_count;
+        const updatedLikes = like_count !== undefined ? parseInt(like_count) : row.like_count;
+        const updatedTrendPct = trend_percentage !== undefined ? parseFloat(trend_percentage) : row.trend_percentage;
+        const updatedTrendDir = trend_direction !== undefined ? trend_direction : row.trend_direction;
+        const updatedOverride = manual_override !== undefined ? (manual_override ? 1 : 0) : row.manual_override;
+
+        db.run(
+            `UPDATE social_kpi_stats 
+             SET follower_count = ?,
+                 like_count = ?,
+                 trend_percentage = ?,
+                 trend_direction = ?,
+                 manual_override = ?,
+                 last_updated = CURRENT_TIMESTAMP
+             WHERE platform_name = ?`,
+            [updatedFollowers, updatedLikes, updatedTrendPct, updatedTrendDir, updatedOverride, platform_name],
+            function(updateErr) {
+                if (updateErr) return res.status(500).json({ success: false, error: updateErr.message });
+                res.json({ success: true, message: `Social media stats updated for ${platform_name}.` });
+            }
+        );
     });
 });
 
