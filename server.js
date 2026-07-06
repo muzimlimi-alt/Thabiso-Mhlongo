@@ -1003,10 +1003,18 @@ function getNotificationEmail() {
 }
 
 // P2-3: Returns the active VAT rate from tax_rates table (falls back to 0.15 / 15%).
+// FIN-1: the tax_rates table has no tax_type/is_active columns (real columns: name, rate,
+// is_default, effective_from, effective_to), so the original query always errored and
+// silently returned the 0.15 fallback — meaning a reconfigured VAT rate was never picked up.
+// Now selects the current default rate by effective-date window.
 function getVatRate() {
     return new Promise(resolve => {
-        db.get("SELECT rate FROM tax_rates WHERE tax_type = 'VAT' AND is_active = 1 ORDER BY id DESC LIMIT 1",
-            [], (err, row) => resolve((!err && row) ? parseFloat(row.rate) : 0.15));
+        db.get(`SELECT rate FROM tax_rates
+                WHERE COALESCE(is_default, 0) = 1
+                  AND (effective_from IS NULL OR effective_from <= date('now'))
+                  AND (effective_to   IS NULL OR effective_to   >= date('now'))
+                ORDER BY effective_from DESC, id DESC LIMIT 1`,
+            [], (err, row) => resolve((!err && row && row.rate != null) ? parseFloat(row.rate) : 0.15));
     });
 }
 
