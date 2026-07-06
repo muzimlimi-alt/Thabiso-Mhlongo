@@ -50,6 +50,15 @@ class NotificationService {
         requestAnimationFrame(() => { this.liveRegion.textContent = text; });
     }
 
+    // NOTIF-XSS: toast/modal/http-error bodies are built via innerHTML, and messages can carry
+    // user- or server-reflected data (e.g. the global fetch interceptor auto-shows data.message
+    // from any failed API response). Escape all interpolated text so a message can never inject
+    // markup into the admin's DOM. Callers pass plain text only (verified), so this is loss-free.
+    _escape(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
     // ─── Toast ───────────────────────────────────────────────────────────────
 
     _showToast(type, message, opts) {
@@ -88,8 +97,8 @@ class NotificationService {
             <div class="tm-toast__progress" aria-hidden="true"></div>
             <div class="tm-toast__icon" aria-hidden="true"><i class="${icons[type]}"></i></div>
             <div class="tm-toast__content">
-                <span class="tm-toast__title">${toastTitle}</span>
-                <p class="tm-toast__message">${message}</p>
+                <span class="tm-toast__title">${this._escape(toastTitle)}</span>
+                <p class="tm-toast__message">${this._escape(message)}</p>
             </div>
             <button class="tm-toast__close" aria-label="Dismiss notification" type="button">
                 <i class="fa-solid fa-xmark" aria-hidden="true"></i>
@@ -169,15 +178,15 @@ class NotificationService {
                      aria-labelledby="tm-modal-title" aria-describedby="tm-modal-desc">
                     <div class="tm-modal__header">
                         <i class="tm-modal__icon ${iconMap[type] || iconMap.info}" aria-hidden="true"></i>
-                        <h2 class="tm-modal__title" id="tm-modal-title">${title}</h2>
+                        <h2 class="tm-modal__title" id="tm-modal-title">${this._escape(title)}</h2>
                     </div>
                     <div class="tm-modal__body" id="tm-modal-desc">
-                        <p>${message}</p>
+                        <p>${this._escape(message)}</p>
                         ${isPrompt ? `
                             <div class="tm-modal__input-wrap">
                                 <label for="tm-modal-input" class="tm-sr-only">Input</label>
                                 <input type="text" class="tm-modal__input" id="tm-modal-input"
-                                       placeholder="${placeholder}" value="${defaultValue}" autocomplete="off">
+                                       placeholder="${this._escape(placeholder)}" value="${this._escape(defaultValue)}" autocomplete="off">
                             </div>
                         ` : ''}
                     </div>
@@ -289,7 +298,7 @@ class NotificationService {
         const cfg = Object.assign({}, defaults[code] || defaults[500], options || {});
 
         const actionBtns = cfg.actions.map(a =>
-            `<a href="${a.href}" class="tm-http-error__btn ${a.primary ? 'tm-http-error__btn--primary' : 'tm-http-error__btn--secondary'}">${a.label}</a>`
+            `<a href="${this._escape(a.href)}" class="tm-http-error__btn ${a.primary ? 'tm-http-error__btn--primary' : 'tm-http-error__btn--secondary'}">${this._escape(a.label)}</a>`
         ).join('');
 
         this.httpErrorRoot.innerHTML = `
@@ -298,8 +307,8 @@ class NotificationService {
                 <div class="tm-http-error__inner">
                     <div class="tm-http-error__icon" aria-hidden="true"><i class="${cfg.icon}"></i></div>
                     ${code ? `<div class="tm-http-error__code" aria-hidden="true">${code}</div>` : ''}
-                    <h1 class="tm-http-error__title" id="tm-http-title">${cfg.title}</h1>
-                    <p class="tm-http-error__message" id="tm-http-desc">${cfg.message}</p>
+                    <h1 class="tm-http-error__title" id="tm-http-title">${this._escape(cfg.title)}</h1>
+                    <p class="tm-http-error__message" id="tm-http-desc">${this._escape(cfg.message)}</p>
                     <div class="tm-http-error__actions">
                         <button class="tm-http-error__btn tm-http-error__btn--secondary"
                                 type="button" onclick="history.back()">
