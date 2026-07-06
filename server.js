@@ -3384,7 +3384,11 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
 
     // Check time overlap if applicable
     if ((performance_slot || event_start_time) && availableResult.busy_ranges && availableResult.busy_ranges.length > 0) {
-        const overlap = (s1, e1, s2, e2) => (s1 < e2) && (s2 < e1);
+        // L2: compare by minutes, not lexically. performance_slot comes from the public form and
+        // may be non-zero-padded (e.g. "9:00"), where the string compare "9:00" < "10:00" is false
+        // and would miss a real overlap. toMin() normalizes both sides.
+        const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+        const overlap = (s1, e1, s2, e2) => (toMin(s1) < toMin(e2)) && (toMin(s2) < toMin(e1));
         let from, to;
         // Prefer performance_slot ("HH:MM–HH:MM") for the most accurate window
         if (performance_slot && performance_slot.includes('–')) {
@@ -11604,16 +11608,33 @@ app.delete('/api/admin/events/:id', requireAdmin, requireRole(['administrator'])
 });
 
 // Drag-drop date update for public events on the calendar
-app.patch('/api/admin/events/:id/date', requireAdmin, (req, res) => {
+app.patch('/api/admin/events/:id/date', requireAdmin, async (req, res) => {
     const { date, time } = req.body;
     if (!date) return res.status(400).json({ success: false, message: 'date is required' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ success: false, message: 'date must be YYYY-MM-DD' });
     const eventId = req.params.id;
-    db.get("SELECT event_datetime, booking_id FROM events WHERE event_id = ?", [eventId], (err, row) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        if (!row) return res.status(404).json({ success: false, message: 'Event not found' });
-        const existingTime = time || (row.event_datetime || '').split('T')[1] || '00:00';
-        const newDatetime = date + 'T' + existingTime;
+    const row = await new Promise(r => db.get("SELECT event_datetime, booking_id FROM events WHERE event_id = ?", [eventId], (e, x) => r(e ? null : x)));
+    if (!row) return res.status(404).json({ success: false, message: 'Event not found' });
+    const existingTime = time || (row.event_datetime || '').split('T')[1] || '00:00';
+    const newDatetime = date + 'T' + existingTime;
+
+    // L1: for a booking-linked event, re-check calendar conflicts before moving it — the same
+    // guard the booking date-change endpoint (PATCH /bookings/:id/date) applies — so dragging an
+    // event on the calendar can't silently create a double-booking. Terminal bookings are skipped.
+    if (row.booking_id) {
+        const booking = await new Promise(r => db.get("SELECT * FROM bookings WHERE id = ?", [row.booking_id], (e, x) => r(e ? null : x)));
+        if (booking && !['CANCELLED', 'EXPIRED', 'COMPLETED'].includes((booking.status || '').toUpperCase())) {
+            const startISO = moment(`${date} ${existingTime.substring(0, 5)}`).toISOString();
+            const durMins = (booking.performance_end_time && booking.event_start_time)
+                ? Math.max(30, moment(`2000-01-01 ${booking.performance_end_time}`).diff(moment(`2000-01-01 ${booking.event_start_time}`), 'minutes'))
+                : parseDurationToMinutes(booking.performance_duration);
+            const endISO = moment(startISO).add(durMins, 'minutes').toISOString();
+            const busy = await hasCalendarConflict(startISO, endISO, parseInt(row.booking_id));
+            if (busy) return res.status(409).json({ success: false, message: `That slot on ${date} conflicts with another booking or hold. Choose a different date/time.` });
+        }
+    }
+
+    {
         db.run(
             "UPDATE events SET event_datetime = ?, modified_on = CURRENT_TIMESTAMP WHERE event_id = ?",
             [newDatetime, eventId],
@@ -11644,7 +11665,7 @@ app.patch('/api/admin/events/:id/date', requireAdmin, (req, res) => {
                 res.json({ success: true, event_datetime: newDatetime });
             }
         );
-    });
+    }
 });
 
 // Duplicate an event (copy all fields, reset status to draft, append " (Copy)" to title)
