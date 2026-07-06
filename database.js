@@ -507,6 +507,34 @@ function initializeDatabase() {
             });
         });
         
+        // 12b. Social KPI Stats Table (cache and manual override values for dashboard KPI cards)
+        db.run(`CREATE TABLE IF NOT EXISTS social_kpi_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            platform_name TEXT NOT NULL UNIQUE,
+            follower_count INTEGER DEFAULT 0,
+            like_count INTEGER DEFAULT 0,
+            trend_percentage REAL DEFAULT 0,
+            trend_direction TEXT DEFAULT 'up',
+            manual_override BOOLEAN DEFAULT 1,
+            last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, () => {
+             db.get("SELECT COUNT(*) AS count FROM social_kpi_stats", (err, row) => {
+                 if (row && row.count === 0) {
+                     const defaultKPIs = [
+                         ['Facebook', 12098, 12098, 22.9, 'up', 1],
+                         ['Instagram', 15080, 0, -27.4, 'down', 1],
+                         ['X (Twitter)', 12564, 0, 76.10, 'up', 1],
+                         ['YouTube', 14890, 0, 62.08, 'up', 1],
+                         ['TikTok', 50230, 0, 120.5, 'up', 1]
+                     ];
+                     const stmt = db.prepare("INSERT INTO social_kpi_stats (platform_name, follower_count, like_count, trend_percentage, trend_direction, manual_override) VALUES (?, ?, ?, ?, ?, ?)");
+                     defaultKPIs.forEach(kpi => stmt.run(kpi));
+                     stmt.finalize();
+                     console.log('Default Social Media KPI items seeded.');
+                 }
+             });
+        });
+
         // 13. Email Audit Logs Table (Modernization Phase 3+)
         db.run(`CREATE TABLE IF NOT EXISTS email_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

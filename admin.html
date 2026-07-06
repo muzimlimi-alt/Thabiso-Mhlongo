@@ -26,6 +26,10 @@
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400;1,500&family=JetBrains+Mono:wght@300;400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js'></script>
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <!-- jsVectorMap — world choropleth for the dashboard "Visits by Country" map -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsvectormap@1.7.0/dist/jsvectormap.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap@1.7.0/dist/jsvectormap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsvectormap@1.7.0/dist/maps/world-merc.js"></script>
     <style>
         /* ── Shared Quill dark theme ──────────────────────────────── */
         .atl-quill-wrap {
@@ -2423,51 +2427,84 @@
             background-color: transparent !important;
         }
 
-        /* ── DESIGN SYSTEM SECTION HEADERS (Matching Bookings Style) ── */
+        /* ============================================================
+           ADMIN SECTION HEADERS — Unified Atelier system (mobile-first)
+           Single source of truth for every #…Admin section header.
+           Canonical markup:
+             <div class="atl-section-hd">
+               <div>                           ← title block
+                 <p class="atl-section-eyebrow">…</p>
+                 <h2 class="atl-section-heading"><i></i> …</h2>
+                 <p class="atl-section-sub">…</p>
+               </div>
+               <div>… optional action buttons …</div>
+             </div>
+             <div class="atl-section-rule"></div>
+           Base styles target small screens; the ≥600px query promotes
+           the title + actions onto one shared baseline-aligned row.
+           ============================================================ */
         .atl-section-hd {
             display: flex;
-            align-items: flex-end;
-            justify-content: space-between;
-            gap: 16px;
-            flex-wrap: wrap;
+            flex-direction: column;        /* mobile-first: title stacks above actions */
+            align-items: stretch;
+            gap: 14px;
             width: 100%;
             margin-bottom: 8px;
+        }
+        .atl-section-hd > div { min-width: 0; }             /* allow long text to wrap */
+        .atl-section-hd > div:nth-child(2) {                /* action cluster */
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         .atl-section-eyebrow {
             font-family: 'Outfit', sans-serif !important;
             font-size: 11px !important;
             font-weight: 600 !important;
-            letter-spacing: 0.25em !important;
+            letter-spacing: 0.22em !important;
             text-transform: uppercase !important;
             color: var(--atl-amber) !important;
-            margin-bottom: 8px !important;
+            margin: 0 0 6px !important;
         }
         .atl-section-heading {
             font-family: 'Cormorant Garamond', Georgia, serif !important;
-            font-size: clamp(40px, 6vw, 56px) !important;
+            font-size: clamp(26px, 5vw, 40px) !important;   /* scales down cleanly on phones */
             font-weight: 500 !important;
             letter-spacing: -0.01em !important;
-            line-height: 1.0 !important;
+            line-height: 1.1 !important;
             color: var(--atl-ink) !important;
             margin: 0 !important;
         }
         .atl-section-heading i {
-            margin-right: 12px !important;
-            font-size: 0.85em !important;
+            margin-right: 10px !important;
+            font-size: 0.78em !important;
             color: var(--atl-amber) !important;
         }
         .atl-section-sub {
             font-family: 'Outfit', sans-serif !important;
             font-size: 13px !important;
+            line-height: 1.5 !important;
             color: var(--atl-muted) !important;
-            margin: 4px 0 0 0 !important;
+            margin: 8px 0 0 !important;
+            max-width: 64ch;
         }
         .atl-section-rule {
             height: 1px !important;
-            margin-top: 24px !important;
-            margin-bottom: 24px !important;
-            background: linear-gradient(to right, var(--atl-amber), rgba(212,175,55,0.15) 40%, transparent) !important;
+            margin: 18px 0 24px !important;
+            background: linear-gradient(to right, var(--atl-amber), rgba(212,175,55,0.18) 42%, transparent 78%) !important;
             border: none !important;
+        }
+        /* ≥600px — title and action cluster share one baseline-aligned row */
+        @media (min-width: 600px) {
+            .atl-section-hd {
+                flex-direction: row;
+                align-items: flex-end;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 16px;
+            }
+            .atl-section-hd > div:nth-child(2) { margin-left: auto; }
         }
 
         /* ── SIDEBAR NAVIGATION ── */
@@ -3834,48 +3871,9 @@
             border-color: var(--atl-line) !important;
         }
 
-        /* ── Design System Global Definitions ── */
-        .atl-section-hd {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 16px;
-            flex-wrap: wrap;
-            margin-bottom: 8px;
-        }
-        .atl-section-eyebrow {
-            font-family: 'Outfit', sans-serif;
-            font-size: 11px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.25em;
-            color: var(--atl-amber);
-            margin-bottom: 8px;
-        }
-        .atl-section-heading {
-            font-family: 'Cormorant Garamond', Georgia, serif;
-            font-size: clamp(24px, 4vw, 36px);
-            font-weight: 500;
-            color: var(--atl-ink-dim);
-            letter-spacing: -0.01em;
-            margin: 0 0 4px;
-        }
-        .atl-section-sub {
-            font-family: 'Outfit', sans-serif;
-            font-size: 13px;
-            color: var(--atl-muted);
-            margin: 4px 0 0;
-        }
-        .atl-section-rule {
-            height: 1px;
-            margin: 16px 0 28px;
-            background: linear-gradient(
-                to right,
-                var(--atl-amber),
-                rgba(212,175,55,0.20) 40%,
-                transparent 75%
-            );
-        }
+        /* ── Section header design system now lives in the unified
+              "ADMIN SECTION HEADERS" block above (single source of truth). ── */
+
         /* Finance Stat Tiles */
         .fin-tile {
             background: var(--atl-card) !important;
@@ -4582,7 +4580,8 @@
                 <div class="atl-section-hd">
                     <div>
                         <p class="atl-section-eyebrow">Central Management Portal</p>
-                        <h2 class="atl-section-heading">Command Center</h2>
+                        <h2 class="atl-section-heading"><i class="fa-solid fa-gauge-high"></i> Command Center</h2>
+                        <p class="atl-section-sub">Your at-a-glance overview of bookings, audience reach, and performance.</p>
                     </div>
                 </div>
                 <div class="atl-section-rule"></div>
@@ -4594,60 +4593,60 @@
                             <div class="db-social-header">
                                 <i class="fa-brands fa-facebook db-icon-fb"></i>
                                 <span class="db-social-name">Facebook</span>
-                                <span class="db-social-trend trend-up">+22.9%</span>
+                                <span class="db-social-trend" id="dbSocial-fb-trend">+22.9%</span>
                             </div>
                             <div class="db-social-body">
-                                <span class="db-social-count">12,098</span>
+                                <span class="db-social-count" id="dbSocial-fb-count">12,098</span>
                                 <span class="db-social-label">Likes</span>
-                                <div class="db-social-progress" data-percent="78"></div>
+                                <div class="db-social-progress" id="dbSocial-fb-progress" data-percent="78"></div>
                             </div>
                         </div>
                         <div class="db-social-card">
                             <div class="db-social-header">
                                 <i class="fa-brands fa-instagram db-icon-ig"></i>
                                 <span class="db-social-name">Instagram</span>
-                                <span class="db-social-trend trend-down">-27.4%</span>
+                                <span class="db-social-trend" id="dbSocial-ig-trend">-27.4%</span>
                             </div>
                             <div class="db-social-body">
-                                <span class="db-social-count">15,080</span>
+                                <span class="db-social-count" id="dbSocial-ig-count">15,080</span>
                                 <span class="db-social-label">Followers</span>
-                                <div class="db-social-progress" data-percent="70"></div>
+                                <div class="db-social-progress" id="dbSocial-ig-progress" data-percent="70"></div>
                             </div>
                         </div>
                         <div class="db-social-card">
                             <div class="db-social-header">
                                 <i class="fa-brands fa-x-twitter db-icon-x"></i>
                                 <span class="db-social-name">X (Twitter)</span>
-                                <span class="db-social-trend trend-up">+76.10%</span>
+                                <span class="db-social-trend" id="dbSocial-x-trend">+76.10%</span>
                             </div>
                             <div class="db-social-body">
-                                <span class="db-social-count">12,564</span>
+                                <span class="db-social-count" id="dbSocial-x-count">12,564</span>
                                 <span class="db-social-label">Followers</span>
-                                <div class="db-social-progress" data-percent="50"></div>
+                                <div class="db-social-progress" id="dbSocial-x-progress" data-percent="50"></div>
                             </div>
                         </div>
                         <div class="db-social-card">
                             <div class="db-social-header">
                                 <i class="fa-brands fa-youtube db-icon-yt"></i>
                                 <span class="db-social-name">Youtube</span>
-                                <span class="db-social-trend trend-up">+62.08%</span>
+                                <span class="db-social-trend" id="dbSocial-yt-trend">+62.08%</span>
                             </div>
                             <div class="db-social-body">
-                                <span class="db-social-count">14,890</span>
+                                <span class="db-social-count" id="dbSocial-yt-count">14,890</span>
                                 <span class="db-social-label">Followers</span>
-                                <div class="db-social-progress" data-percent="80"></div>
+                                <div class="db-social-progress" id="dbSocial-yt-progress" data-percent="80"></div>
                             </div>
                         </div>
                         <div class="db-social-card">
                             <div class="db-social-header">
                                 <i class="fa-brands fa-tiktok db-icon-tt"></i>
                                 <span class="db-social-name">TikTok</span>
-                                <span class="db-social-trend trend-up">+120.5%</span>
+                                <span class="db-social-trend" id="dbSocial-tt-trend">+120.5%</span>
                             </div>
                             <div class="db-social-body">
-                                <span class="db-social-count">50,230</span>
+                                <span class="db-social-count" id="dbSocial-tt-count">50,230</span>
                                 <span class="db-social-label">Followers</span>
-                                <div class="db-social-progress" data-percent="90"></div>
+                                <div class="db-social-progress" id="dbSocial-tt-progress" data-percent="90"></div>
                             </div>
                         </div>
                     </div>
@@ -4749,6 +4748,35 @@
                         <div class="atl-card atl-card--flush">
                             <div class="atl-card-header"><h3>Devices</h3></div>
                             <div class="atl-card-body"><div id="db-chartDevices"></div></div>
+                        </div>
+                    </div>
+
+                    <!-- Visits by Country — world map + ranked list (audience geography) -->
+                    <div class="atl-card atl-card--flush">
+                        <div class="atl-card-header">
+                            <h3><i class="fa-solid fa-earth-africa" style="color:var(--atl-amber);margin-right:8px;"></i>Visits by Country</h3>
+                        </div>
+                        <div class="atl-card-body">
+                            <div class="db-geo-grid">
+                                <div class="db-geo-map">
+                                    <div id="db-mapCountries"></div>
+                                </div>
+                                <div class="db-rank-list db-geo-list" id="db-listCountries">
+                                    <div class="db-rank-empty">Loading…</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Top Pages — content reach -->
+                    <div class="atl-card atl-card--flush">
+                        <div class="atl-card-header">
+                            <h3><i class="fa-solid fa-fire" style="color:var(--atl-amber);margin-right:8px;"></i>Top Pages</h3>
+                        </div>
+                        <div class="atl-card-body">
+                            <div class="db-rank-list" id="db-listPages">
+                                <div class="db-rank-empty">Loading…</div>
+                            </div>
                         </div>
                     </div>
 
@@ -5001,6 +5029,106 @@
                         color: var(--atl-ink);
                     }
 
+                    /* ── Ranked lists (top locations / top pages) ─────────────────── */
+                    .db-rank-list { display: flex; flex-direction: column; gap: 2px; padding: 4px 6px 8px; }
+                    .db-rank-item {
+                        display: grid;
+                        grid-template-columns: 18px 1fr auto;
+                        align-items: center;
+                        gap: 12px;
+                        padding: 9px 8px;
+                        border-radius: var(--atl-r-md);
+                        transition: background var(--atl-t-fast);
+                    }
+                    .db-rank-item:hover { background: var(--atl-surface2); }
+                    .db-rank-idx {
+                        font-family: 'JetBrains Mono', monospace;
+                        font-size: 11px;
+                        color: var(--atl-muted);
+                        text-align: center;
+                    }
+                    .db-rank-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+                    .db-rank-label {
+                        font-family: 'Outfit', sans-serif;
+                        font-size: 13px;
+                        color: var(--atl-ink);
+                        font-weight: 500;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                    }
+                    .db-rank-bar { height: 4px; background: var(--atl-line); border-radius: 2px; overflow: hidden; }
+                    .db-rank-bar::after {
+                        content: '';
+                        display: block;
+                        height: 100%;
+                        width: var(--db-rank-pct, 0%);
+                        background: var(--atl-amber);
+                        border-radius: 2px;
+                    }
+                    .db-rank-value {
+                        font-family: 'JetBrains Mono', monospace;
+                        font-size: 14px;
+                        font-weight: 700;
+                        color: var(--atl-ink);
+                        white-space: nowrap;
+                        text-align: right;
+                    }
+                    .db-rank-value small {
+                        display: block;
+                        font-weight: 500;
+                        font-size: 10px;
+                        color: var(--atl-muted);
+                    }
+                    .db-rank-empty {
+                        padding: 28px 0;
+                        text-align: center;
+                        color: var(--atl-muted);
+                        font-family: 'Outfit', sans-serif;
+                        font-size: 13px;
+                    }
+
+                    /* ── Visits by Country — world map + list ─────────────────────── */
+                    .db-geo-grid {
+                        display: grid;
+                        grid-template-columns: 1fr;
+                        gap: 18px;
+                        align-items: stretch;
+                    }
+                    @media (min-width: 900px) {
+                        .db-geo-grid { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+                    }
+                    .db-geo-map {
+                        background: var(--atl-surface2);
+                        border: 1px solid var(--atl-line);
+                        border-radius: var(--atl-r-lg);
+                        overflow: hidden;
+                        min-height: 340px;
+                    }
+                    #db-mapCountries { width: 100%; height: 340px; }
+                    .db-geo-list { align-self: start; }
+                    /* jsVectorMap chrome — align with Atelier tokens */
+                    .jvm-container { background: transparent !important; }
+                    .jvm-tooltip {
+                        background: var(--atl-ink) !important;
+                        color: var(--atl-paper) !important;
+                        font-family: 'Outfit', sans-serif !important;
+                        font-size: 12px !important;
+                        border: 1px solid var(--atl-line) !important;
+                        border-radius: 6px !important;
+                        padding: 7px 10px !important;
+                        box-shadow: var(--atl-shadow-card) !important;
+                    }
+                    .jvm-zoom-btn {
+                        background: var(--atl-amber) !important;
+                        color: var(--atl-on-amber, #1a1205) !important;
+                        border-radius: 4px !important;
+                        border: none !important;
+                        width: 22px !important;
+                        height: 22px !important;
+                        line-height: 20px !important;
+                    }
+
                     /* ── Social media cards ───────────────────────────────────────── */
                     .db-social-grid {
                         display: grid;
@@ -5058,7 +5186,7 @@
                     <div class="atl-section-hd">
                         <div>
                             <p class="atl-section-eyebrow">Access Control</p>
-                            <h2 class="atl-section-heading"><i class="fa-solid fa-users-gear"></i> User Management</h2><br>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-users-gear"></i> User Management</h2>
                             <p class="atl-section-sub">Manage administrative accounts, update your profile, and control access.</p>
                         </div>
                     </div>
@@ -5694,24 +5822,22 @@
                 <div class="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 py-8">
 
                     <!-- Header -->
-                    <header class="mb-8">
-                        <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px; width:100%;">
-                            <div>
-                                <p class="atl-overline">Booking Operations</p>
-                                <h1 class="atl-heading">Event Bookings</h1>
-                                <p class="atl-subtitle">End-to-end lifecycle manager for all artist engagements.</p>
-                            </div>
-                            <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-left:auto;">
-                                <button id="btnRefreshBookings" class="atl-btn atl-btn--ghost" title="Refresh Bookings" style="height: 40px; display: inline-flex; align-items: center; gap: 6px;">
-                                    <i class="fa-solid fa-arrows-rotate"></i> Refresh
-                                </button>
-                                <button id="btnNewManualBooking" class="atl-new-btn">
-                                    ＋ New enquiry
-                                </button>
-                            </div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">Booking Operations</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-calendar-check"></i> Event Bookings</h2>
+                            <p class="atl-section-sub">End-to-end lifecycle manager for all artist engagements.</p>
                         </div>
-                        <div class="atl-header-rule"></div>
-                    </header>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
+                            <button id="btnRefreshBookings" class="atl-btn atl-btn--ghost" title="Refresh Bookings">
+                                <i class="fa-solid fa-arrows-rotate"></i> Refresh
+                            </button>
+                            <button id="btnNewManualBooking" class="atl-new-btn">
+                                ＋ New enquiry
+                            </button>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
 
                     <!-- Tab Navigation (mirrors #usersAdmin) -->
                     <div class="atl-tab-bar" role="tablist">
@@ -6629,84 +6755,93 @@
                                         <button class="atl-btn atl-btn--ghost" onclick="loadFinAnalytics()"><i class="fa-solid fa-rotate-right" style="margin-right:5px;"></i>Refresh Analytics</button>
                                     </div>
                                     
-                                    <!-- Top Row: Chart & Client Table -->
-                                    <div class="row" style="margin-bottom: 24px;">
-                                        <div class="col-md-7" style="margin-bottom: 16px;">
-                                            <div class="admin-card" style="margin-bottom:0; min-height:380px; background:var(--atl-card); border-color:var(--atl-line);">
-                                                <h4 style="margin-top:0; color:var(--atl-amber); font-weight:700;"><i class="fa-solid fa-chart-line" style="margin-right:8px;"></i>Monthly Revenue Trend</h4>
-                                                <div id="finAnalyticsRevenueChart" style="margin-top:16px;"></div>
+                                    <!-- Dashboard-style analytics layout -->
+                                    <div style="display:flex; flex-direction:column; gap:20px;">
+
+                                        <!-- Monthly Revenue Trend (full width) -->
+                                        <div class="atl-card atl-card--flush">
+                                            <div class="atl-card-header"><h3><i class="fa-solid fa-chart-line" style="color:var(--atl-amber); margin-right:8px;"></i>Monthly Revenue Trend</h3></div>
+                                            <div class="atl-card-body" style="padding:8px 12px 12px;">
+                                                <div id="finAnalyticsRevenueChart"></div>
                                             </div>
                                         </div>
-                                        <div class="col-md-5" style="margin-bottom: 16px;">
-                                            <div class="admin-card" style="margin-bottom:0; min-height:380px; background:var(--atl-card); border-color:var(--atl-line);">
-                                                <h4 style="margin-top:0; color:var(--atl-amber); font-weight:700;"><i class="fa-solid fa-crown" style="margin-right:8px;"></i>Top Clients by Revenue</h4>
-                                                <div class="table-responsive" style="margin-top:16px;">
-                                                    <table class="table" style="color:var(--atl-ink-dim); font-size:13px; margin-bottom:0;">
-                                                        <thead>
-                                                            <tr style="color:var(--atl-amber);">
-                                                                <th>Client</th>
-                                                                <th style="text-align:right;">Bookings</th>
-                                                                <th style="text-align:right;">Total Revenue</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody id="finAnalyticsTopClientsBody">
-                                                            <tr><td colspan="3" class="text-center">Loading clients...</td></tr>
-                                                        </tbody>
-                                                    </table>
+
+                                        <!-- Revenue by Service Type + Cash Flow -->
+                                        <div class="db-analytics-pair-grid">
+                                            <div class="atl-card atl-card--flush">
+                                                <div class="atl-card-header"><h3><i class="fa-solid fa-chart-pie" style="color:var(--atl-amber); margin-right:8px;"></i>Revenue by Service Type</h3></div>
+                                                <div class="atl-card-body">
+                                                    <div id="finAnalyticsCategoryChart"></div>
+                                                </div>
+                                            </div>
+                                            <div class="atl-card atl-card--flush">
+                                                <div class="atl-card-header"><h3><i class="fa-solid fa-money-bill-transfer" style="color:var(--atl-amber); margin-right:8px;"></i>Cash Flow &mdash; Revenue vs Expenses</h3></div>
+                                                <div class="atl-card-body">
+                                                    <div id="finAnalyticsCashflowChart"></div>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                    
-                                    <!-- Bottom Row: Debt Ageing & Overdue List -->
-                                    <div class="row">
-                                        <div class="col-md-5" style="margin-bottom: 16px;">
-                                            <div class="admin-card" style="margin-bottom:0; min-height:350px; background:var(--atl-card); border-color:var(--atl-line);">
-                                                <h4 style="margin-top:0; color:var(--atl-amber); font-weight:700;"><i class="fa-solid fa-business-time" style="margin-right:8px;"></i>Outstanding Debt Ageing</h4>
-                                                <div style="display:flex; flex-direction:column; gap:12px; margin-top:20px;">
-                                                    <div style="display:flex; justify-content:space-between; align-items:center; background:var(--atl-surface2); padding:10px 14px; border-radius:6px; border-left:4px solid var(--atl-sage);">
-                                                        <div>
-                                                            <div style="font-weight:700; color:var(--atl-ink);">Current (&lt; 30 days)</div>
-                                                            <div style="font-size:11px; color:var(--atl-muted);" id="finAgingCurrentCount">0 invoices</div>
-                                                        </div>
-                                                        <strong style="color:var(--atl-sage); font-size:16px;" id="finAgingCurrentVal">R 0.00</strong>
+
+                                        <!-- Top Clients + Debt Ageing -->
+                                        <div class="db-analytics-pair-grid">
+                                            <div class="atl-card atl-card--flush">
+                                                <div class="atl-card-header"><h3><i class="fa-solid fa-crown" style="color:var(--atl-amber); margin-right:8px;"></i>Top Clients by Revenue</h3></div>
+                                                <div class="atl-card-body">
+                                                    <div class="db-rank-list" id="finAnalyticsTopClientsList">
+                                                        <div class="db-rank-empty">Loading&hellip;</div>
                                                     </div>
-                                                    <div style="display:flex; justify-content:space-between; align-items:center; background:var(--atl-surface2); padding:10px 14px; border-radius:6px; border-left:4px solid var(--atl-amber);">
-                                                        <div>
-                                                            <div style="font-weight:700; color:var(--atl-ink);">30 – 60 Days Overdue</div>
-                                                            <div style="font-size:11px; color:var(--atl-muted);" id="finAging30Count">0 invoices</div>
+                                                </div>
+                                            </div>
+                                            <div class="atl-card atl-card--flush">
+                                                <div class="atl-card-header"><h3><i class="fa-solid fa-business-time" style="color:var(--atl-amber); margin-right:8px;"></i>Outstanding Debt Ageing</h3></div>
+                                                <div class="atl-card-body">
+                                                    <div style="display:flex; flex-direction:column; gap:10px;">
+                                                        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--atl-surface2); padding:11px 14px; border-radius:8px; border-left:4px solid var(--atl-sage);">
+                                                            <div>
+                                                                <div style="font-weight:700; color:var(--atl-ink); font-size:13px;">Current (&lt; 30 days)</div>
+                                                                <div style="font-size:11px; color:var(--atl-muted);" id="finAgingCurrentCount">0 invoices</div>
+                                                            </div>
+                                                            <strong style="color:var(--atl-sage); font-family:'JetBrains Mono',monospace; font-size:15px;" id="finAgingCurrentVal">R 0.00</strong>
                                                         </div>
-                                                        <strong style="color:var(--atl-amber); font-size:16px;" id="finAging30Val">R 0.00</strong>
-                                                    </div>
-                                                    <div style="display:flex; justify-content:space-between; align-items:center; background:var(--atl-surface2); padding:10px 14px; border-radius:6px; border-left:4px solid var(--atl-orange);">
-                                                        <div>
-                                                            <div style="font-weight:700; color:var(--atl-ink);">60 – 90 Days Overdue</div>
-                                                            <div style="font-size:11px; color:var(--atl-muted);" id="finAging60Count">0 invoices</div>
+                                                        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--atl-surface2); padding:11px 14px; border-radius:8px; border-left:4px solid var(--atl-amber);">
+                                                            <div>
+                                                                <div style="font-weight:700; color:var(--atl-ink); font-size:13px;">30 &ndash; 60 Days Overdue</div>
+                                                                <div style="font-size:11px; color:var(--atl-muted);" id="finAging30Count">0 invoices</div>
+                                                            </div>
+                                                            <strong style="color:var(--atl-amber); font-family:'JetBrains Mono',monospace; font-size:15px;" id="finAging30Val">R 0.00</strong>
                                                         </div>
-                                                        <strong style="color:var(--atl-orange); font-size:16px;" id="finAging60Val">R 0.00</strong>
-                                                    </div>
-                                                    <div style="display:flex; justify-content:space-between; align-items:center; background:var(--atl-surface2); padding:10px 14px; border-radius:6px; border-left:4px solid var(--atl-clay);">
-                                                        <div>
-                                                            <div style="font-weight:700; color:var(--atl-ink);">90+ Days Overdue</div>
-                                                            <div style="font-size:11px; color:var(--atl-muted);" id="finAging90Count">0 invoices</div>
+                                                        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--atl-surface2); padding:11px 14px; border-radius:8px; border-left:4px solid var(--atl-orange);">
+                                                            <div>
+                                                                <div style="font-weight:700; color:var(--atl-ink); font-size:13px;">60 &ndash; 90 Days Overdue</div>
+                                                                <div style="font-size:11px; color:var(--atl-muted);" id="finAging60Count">0 invoices</div>
+                                                            </div>
+                                                            <strong style="color:var(--atl-orange); font-family:'JetBrains Mono',monospace; font-size:15px;" id="finAging60Val">R 0.00</strong>
                                                         </div>
-                                                        <strong style="color:var(--atl-clay); font-size:16px;" id="finAging90Val">R 0.00</strong>
+                                                        <div style="display:flex; justify-content:space-between; align-items:center; background:var(--atl-surface2); padding:11px 14px; border-radius:8px; border-left:4px solid var(--atl-clay);">
+                                                            <div>
+                                                                <div style="font-weight:700; color:var(--atl-ink); font-size:13px;">90+ Days Overdue</div>
+                                                                <div style="font-size:11px; color:var(--atl-muted);" id="finAging90Count">0 invoices</div>
+                                                            </div>
+                                                            <strong style="color:var(--atl-clay); font-family:'JetBrains Mono',monospace; font-size:15px;" id="finAging90Val">R 0.00</strong>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="col-md-7" style="margin-bottom: 16px;">
-                                            <div class="admin-card" style="margin-bottom:0; min-height:350px; background:var(--atl-card); border-color:var(--atl-line);">
-                                                <h4 style="margin-top:0; color:var(--atl-amber); font-weight:700;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:8px;"></i>Overdue Invoices Aging List</h4>
-                                                <div class="table-responsive" style="margin-top:16px; max-height:260px; overflow-y:auto;">
+
+                                        <!-- Overdue Invoices Aging List (full width) -->
+                                        <div class="atl-card atl-card--flush">
+                                            <div class="atl-card-header"><h3><i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-amber); margin-right:8px;"></i>Overdue Invoices Aging List</h3></div>
+                                            <div class="atl-card-body" style="padding:0;">
+                                                <div class="table-responsive" style="max-height:300px; overflow-y:auto;">
                                                     <table class="table" style="color:var(--atl-ink-dim); font-size:13px; margin-bottom:0;">
                                                         <thead>
                                                             <tr style="color:var(--atl-amber);">
-                                                                <th>Invoice #</th>
+                                                                <th style="padding-left:20px;">Invoice #</th>
                                                                 <th>Client</th>
                                                                 <th>Due Date</th>
                                                                 <th style="text-align:right;">Days Past</th>
-                                                                <th style="text-align:right;">Amount</th>
+                                                                <th style="text-align:right; padding-right:20px;">Amount</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody id="finAnalyticsOverdueListBody">
@@ -6716,6 +6851,7 @@
                                                 </div>
                                             </div>
                                         </div>
+
                                     </div>
                                 </div>
 
@@ -8264,6 +8400,9 @@
                         <button type="button" class="atl-tab-btn" data-um-tab="socialEmbedsPanel" role="tab" aria-selected="false">
                             <i class="fa-solid fa-code"></i> Media Embeds
                         </button>
+                        <button type="button" class="atl-tab-btn" data-um-tab="socialKpiPanel" role="tab" aria-selected="false">
+                            <i class="fa-solid fa-chart-line"></i> Dashboard KPIs
+                        </button>
                         <button type="button" class="atl-tab-btn" data-um-tab="socialAboutPanel" role="tab" aria-selected="false">
                             <i class="fa-solid fa-circle-info"></i> About
                         </button>
@@ -8312,6 +8451,24 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Panel: Dashboard KPIs -->
+                    <div id="socialKpiPanel" class="um-panel">
+                        <div class="atl-card">
+                            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--atl-line);">
+                                <div>
+                                    <h4 class="um-section-label" style="margin:0 0 4px 0;">Dashboard Social KPIs Settings</h4>
+                                    <p class="um-section-desc" style="margin:0;">Configure whether your dashboard displays live API counts or manually adjusted follower metrics.</p>
+                                </div>
+                            </div>
+                            <div class="row" id="kpiSettingsContainer">
+                                <!-- Platform setting cards will be loaded here via JS -->
+                            </div>
+                            <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+                                <button type="button" class="atl-btn atl-btn--primary" id="saveKpiSettingsBtn" onclick="saveSocialKpiSettings()"><i class="fa-solid fa-floppy-disk"></i> Save KPI Settings</button>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Panel: About -->
                     <div id="socialAboutPanel" class="um-panel">
@@ -8327,7 +8484,7 @@
                             <div class="um-divider"></div>
 
                             <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
-                                <strong style="color:var(--atl-ink);">Social Media</strong> controls the social profile links and embedded media that appear on your public website. Add a <strong style="color:var(--atl-ink);">Social Link</strong> (a profile URL with an auto-matched icon) or a <strong style="color:var(--atl-ink);">Media Embed</strong> (a video or post), and set each one <strong style="color:var(--atl-ink);">Active</strong> or <strong style="color:var(--atl-ink);">Inactive</strong> to control whether it shows on the site &mdash; without deleting it.
+                                <strong style="color:var(--atl-ink);">Social Media</strong> controls the social profile links and embedded media that appear on your public website, as well as the follower metrics and trend stats displayed on the main admin dashboard. Add a <strong style="color:var(--atl-ink);">Social Link</strong> or a <strong style="color:var(--atl-ink);">Media Embed</strong>, and set each one active or inactive. Use the <strong style="color:var(--atl-ink);">Dashboard KPIs</strong> tab to toggle between live API feeds and manual overrides for your analytics counters.
                             </p>
 
                             <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
@@ -8350,6 +8507,16 @@
                                         <li class="can"><i class="fa-solid fa-check"></i> Paste a video/post URL or embed code</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> The link is checked against the chosen platform's domain</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> An optional API key enables richer stats</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-chart-line" style="color:var(--atl-amber);"></i> Dashboard KPIs</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Toggle between Live API data or manual inputs</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Define manual follower counts and custom trend rates</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Changes reflect instantly on the admin dashboard</li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -8378,8 +8545,47 @@
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
                                 <li><strong style="color:var(--atl-ink);">Add a profile link</strong> &mdash; on the <strong style="color:var(--atl-ink);">Social Links</strong> tab, click <strong style="color:var(--atl-ink);">Add Social Link</strong>, pick the platform, paste the URL and save.</li>
                                 <li><strong style="color:var(--atl-ink);">Embed a video or post</strong> &mdash; on the <strong style="color:var(--atl-ink);">Media Embeds</strong> tab, click <strong style="color:var(--atl-ink);">Add Media Embed</strong> and paste the link or embed code.</li>
+                                <li><strong style="color:var(--atl-ink);">Configure Dashboard KPIs</strong> &mdash; on the <strong style="color:var(--atl-ink);">Dashboard KPIs</strong> tab, select your preferred data source for each platform. If "Manual Input" is chosen, specify your follower counts and trend rates, then click <strong style="color:var(--atl-ink);">Save KPI Settings</strong>.</li>
                                 <li><strong style="color:var(--atl-ink);">Hide something temporarily</strong> &mdash; set the item <strong style="color:var(--atl-ink);">Inactive</strong> instead of deleting it, so you can bring it back later.</li>
                             </ol>
+
+                            <h4 class="um-section-label" style="margin: 24px 0 12px;">Understanding Dashboard KPIs</h4>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:14px; line-height:1.6;">
+                                The **Dashboard KPIs** display key metrics (followers, subscriber counts, and growth trends) in the *Social Media Channels* grid of the main Admin Dashboard. This allows you to track your aggregate digital footprint in one central view.
+                            </p>
+                            
+                            <div class="atl-card" style="border: 1px solid var(--atl-line); background: var(--atl-surface); padding: 16px; margin-bottom: 20px; border-radius: 8px;">
+                                <h5 style="color: var(--atl-ink); margin-bottom: 12px; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-gears" style="color: var(--atl-amber);"></i> Key Terms & Configurations</h5>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
+                                    <div>
+                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px;">Data Sources</h6>
+                                        <p class="um-section-desc" style="font-size: 12px; line-height: 1.5; margin: 0;">
+                                            <strong>Live API Integration:</strong> Fetches stats automatically from platform APIs. Storing credentials (such as API keys, bearer tokens, or access tokens) is done directly within each platform's card on the settings tab. The server stores these keys securely and dynamically in the database. Values cache for 1 hour.<br>
+                                            <strong>Manual Input:</strong> Bypasses API checks, letting you type values directly to override what is shown on the dashboard.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px;">Follower/Like Count</h6>
+                                        <p class="um-section-desc" style="font-size: 12px; line-height: 1.5; margin: 0;">
+                                            The current total size of your audience on that platform (e.g. enter <code>12345</code>). The dashboard automatically formats this with commas (e.g., <code>12,345</code>).
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px;">Trend % (Growth Momentum)</h6>
+                                        <p class="um-section-desc" style="font-size: 12px; line-height: 1.5; margin: 0;">
+                                            The percentage rate of growth or decline (e.g. enter <code>5.5</code>). It represents changes over a recent interval (e.g. 30 days) and displays on the dashboard as <code>+5.5%</code> or <code>-5.5%</code>.
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px;">Trend Direction</h6>
+                                        <p class="um-section-desc" style="font-size: 12px; line-height: 1.5; margin: 0;">
+                                            Determines the visual styling of the trend badge:<br>
+                                            <strong>Up (+):</strong> Renders a green badge with an upward-pointing arrow.<br>
+                                            <strong>Down (-):</strong> Renders a red badge with a downward-pointing arrow.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
 
                             <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
@@ -8407,7 +8613,7 @@
                     <div class="atl-section-hd">
                         <div>
                             <p class="atl-section-eyebrow">Performances</p>
-                            <h2 class="atl-section-heading"><i class="fa-solid fa-masks-theater"></i> Events Management</h2><br>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-masks-theater"></i> Events Management</h2>
                             <p class="atl-section-sub">Schedule new performances, manage posters, and archive past events.</p>
                         </div>
                         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
@@ -9094,7 +9300,7 @@
                     <div class="atl-section-hd">
                         <div>
                             <p class="atl-section-eyebrow">Configuration</p>
-                            <h2 class="atl-section-heading"><i class="fa-solid fa-sliders"></i> System Settings</h2><br>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-sliders"></i> System Settings</h2>
                             <p class="atl-section-sub">Configure gateway credentials, SMTP mail server settings, and system parameters.</p>
                         </div>
                     </div>
@@ -9335,7 +9541,7 @@
                     <div class="atl-section-hd">
                         <div>
                             <p class="atl-section-eyebrow">Visual Identity</p>
-                            <h2 class="atl-section-heading"><i class="fa-solid fa-palette"></i> Branding</h2><br>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-palette"></i> Branding</h2>
                             <p class="atl-section-sub">Control the visual identity of the website and all outgoing communications.</p>
                         </div>
                     </div>
@@ -9652,7 +9858,7 @@
                     <div class="atl-section-hd">
                         <div>
                             <p class="atl-section-eyebrow">Auditing</p>
-                            <h2 class="atl-section-heading"><i class="fa-solid fa-list-check"></i> Email Delivery Logs</h2><br>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-list-check"></i> Email Delivery Logs</h2>
                             <p class="atl-section-sub">Monitor all outgoing system communications, delivery status, and error reports.</p>
                         </div>
                         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
@@ -9822,7 +10028,7 @@
                     <div class="atl-section-hd">
                         <div>
                             <p class="atl-section-eyebrow">Security</p>
-                            <h2 class="atl-section-heading"><i class="fa-solid fa-shield-halved"></i> Security & Audit</h2><br>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-shield-halved"></i> Security & Audit</h2>
                             <p class="atl-section-sub">Monitor system integrity, track administrative changes, and manage session security.</p>
                         </div>
                         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
@@ -13907,9 +14113,242 @@
 
         function loadSocialData() {
             renderEmbedList();
-            // Overwrite old render list logic
             renderSocialList();
+            loadSocialKpiSettings();
         }
+
+        function loadSocialKpiSettings() {
+            fetch('/api/admin/dashboard/social_kpis', { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data || !data.success || !data.kpis) return;
+                    const container = $('#kpiSettingsContainer');
+                    container.empty();
+                    
+                    const icons = {
+                        'Facebook': 'fa-brands fa-facebook db-icon-fb',
+                        'Instagram': 'fa-brands fa-instagram db-icon-ig',
+                        'X (Twitter)': 'fa-brands fa-x-twitter db-icon-x',
+                        'YouTube': 'fa-brands fa-youtube db-icon-yt',
+                        'TikTok': 'fa-brands fa-tiktok db-icon-tt'
+                    };
+
+                    const creds = data.credentials || {};
+
+                    data.kpis.forEach(function (kpi) {
+                        const icon = icons[kpi.platform_name] || 'fa-solid fa-link';
+                        
+                        let apiFieldsHtml = '';
+                        if (kpi.platform_name === 'YouTube') {
+                            apiFieldsHtml = `
+                                <div class="kpi-api-fields" style="${kpi.manual_override === 1 ? 'display:none;' : ''} margin-top:8px;">
+                                    <div class="um-field-group" style="margin-bottom:8px;">
+                                        <label class="um-label">YouTube API Key</label>
+                                        <input type="password" class="atl-input kpi-yt-key" value="${creds.youtube_api_key || ''}" style="width:100%; font-family:monospace;" placeholder="AIzaSy...">
+                                    </div>
+                                    <div class="um-field-group">
+                                        <label class="um-label">YouTube Channel ID</label>
+                                        <input type="text" class="atl-input kpi-yt-channel" value="${creds.youtube_channel_id || ''}" style="width:100%;" placeholder="UC...">
+                                    </div>
+                                </div>
+                            `;
+                        } else if (kpi.platform_name === 'Facebook') {
+                            apiFieldsHtml = `
+                                <div class="kpi-api-fields" style="${kpi.manual_override === 1 ? 'display:none;' : ''} margin-top:8px;">
+                                    <div class="um-field-group" style="margin-bottom:8px;">
+                                        <label class="um-label">Facebook Page Access Token</label>
+                                        <input type="password" class="atl-input kpi-fb-token" value="${creds.facebook_page_access_token || ''}" style="width:100%; font-family:monospace;" placeholder="EAA...">
+                                    </div>
+                                    <div class="um-field-group">
+                                        <label class="um-label">Facebook Page ID</label>
+                                        <input type="text" class="atl-input kpi-fb-id" value="${creds.facebook_page_id || ''}" style="width:100%;" placeholder="Page ID...">
+                                    </div>
+                                </div>
+                            `;
+                        } else if (kpi.platform_name === 'Instagram') {
+                            apiFieldsHtml = `
+                                <div class="kpi-api-fields" style="${kpi.manual_override === 1 ? 'display:none;' : ''} margin-top:8px;">
+                                    <div class="um-field-group" style="margin-bottom:8px;">
+                                        <label class="um-label">Instagram Access Token</label>
+                                        <input type="password" class="atl-input kpi-ig-token" value="${creds.instagram_access_token || ''}" style="width:100%; font-family:monospace;" placeholder="IGQV...">
+                                    </div>
+                                    <div class="um-field-group">
+                                        <label class="um-label">Instagram User ID</label>
+                                        <input type="text" class="atl-input kpi-ig-id" value="${creds.instagram_user_id || ''}" style="width:100%;" placeholder="User/Page ID...">
+                                    </div>
+                                </div>
+                            `;
+                        } else if (kpi.platform_name === 'X (Twitter)') {
+                            apiFieldsHtml = `
+                                <div class="kpi-api-fields" style="${kpi.manual_override === 1 ? 'display:none;' : ''} margin-top:8px;">
+                                    <div class="um-field-group" style="margin-bottom:8px;">
+                                        <label class="um-label">Twitter Bearer Token</label>
+                                        <input type="password" class="atl-input kpi-tw-token" value="${creds.twitter_bearer_token || ''}" style="width:100%; font-family:monospace;" placeholder="AAAAAAAAAAAAAAAAAAAA...">
+                                    </div>
+                                    <div class="um-field-group">
+                                        <label class="um-label">Twitter Username</label>
+                                        <input type="text" class="atl-input kpi-tw-username" value="${creds.twitter_username || ''}" style="width:100%;" placeholder="username">
+                                    </div>
+                                </div>
+                            `;
+                        } else if (kpi.platform_name === 'TikTok') {
+                            apiFieldsHtml = `
+                                <div class="kpi-api-fields" style="${kpi.manual_override === 1 ? 'display:none;' : ''} margin-top:8px;">
+                                    <div class="um-field-group">
+                                        <label class="um-label">TikTok Access Token</label>
+                                        <input type="password" class="atl-input kpi-tt-token" value="${creds.tiktok_access_token || ''}" style="width:100%; font-family:monospace;" placeholder="act.example...">
+                                    </div>
+                                </div>
+                            `;
+                        }
+
+                        const card = `
+                            <div class="col-md-6 col-lg-4" style="margin-bottom:16px;">
+                                <div class="atl-card" style="border: 1px solid var(--atl-line); background: var(--atl-surface); padding:16px; height:100%;">
+                                    <h5 style="display:flex; align-items:center; gap:8px; margin-bottom:12px; color:var(--atl-ink); font-weight:600;">
+                                        <i class="${icon}"></i> ${kpi.platform_name}
+                                    </h5>
+                                    
+                                    <div class="um-field-group" style="margin-bottom:12px;">
+                                        <label class="um-label">Data Source</label>
+                                        <select class="atl-input kpi-source-select" data-platform="${kpi.platform_name}" style="width:100%; padding: 8px;" onchange="toggleKpiFields(this)">
+                                            <option value="1" ${kpi.manual_override === 1 ? 'selected' : ''}>Manual Input</option>
+                                            <option value="0" ${kpi.manual_override === 0 ? 'selected' : ''}>Live API Integration</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="kpi-manual-fields" style="${kpi.manual_override === 0 ? 'display:none;' : ''}">
+                                        <div class="um-field-group" style="margin-bottom:8px;">
+                                            <label class="um-label">Follower/Like Count</label>
+                                            <input type="number" class="atl-input kpi-count-input" data-platform="${kpi.platform_name}" value="${kpi.follower_count}" min="0" style="width:100%;">
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="um-field-group">
+                                                    <label class="um-label">Trend %</label>
+                                                    <input type="number" step="0.01" class="atl-input kpi-trend-input" data-platform="${kpi.platform_name}" value="${kpi.trend_percentage}" style="width:100%;">
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="um-field-group">
+                                                    <label class="um-label">Direction</label>
+                                                    <select class="atl-input kpi-direction-select" data-platform="${kpi.platform_name}" style="width:100%;">
+                                                        <option value="up" ${kpi.trend_direction === 'up' ? 'selected' : ''}>Up (+)</option>
+                                                        <option value="down" ${kpi.trend_direction === 'down' ? 'selected' : ''}>Down (-)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    ${apiFieldsHtml}
+                                </div>
+                            </div>
+                        `;
+                        container.append(card);
+                    });
+                })
+                .catch(function (e) {
+                    console.error('Failed to load social KPI settings', e);
+                });
+        }
+
+        window.toggleKpiFields = function (selectEl) {
+            const parent = $(selectEl).closest('.atl-card');
+            if (selectEl.value === '1') {
+                parent.find('.kpi-manual-fields').show();
+                parent.find('.kpi-api-fields').hide();
+            } else {
+                parent.find('.kpi-manual-fields').hide();
+                parent.find('.kpi-api-fields').show();
+            }
+        };
+
+        window.saveSocialKpiSettings = async function () {
+            const btn = $('#saveKpiSettingsBtn');
+            const originalHtml = btn.html();
+            btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving...');
+            
+            // Save API credentials if they are defined in the UI
+            const credentialsToSave = {};
+            const ytKeyInput = $('.kpi-yt-key');
+            if (ytKeyInput.length > 0) {
+                credentialsToSave.youtube_api_key = ytKeyInput.val().trim();
+                credentialsToSave.youtube_channel_id = $('.kpi-yt-channel').val().trim();
+            }
+            const fbTokenInput = $('.kpi-fb-token');
+            if (fbTokenInput.length > 0) {
+                credentialsToSave.facebook_page_access_token = fbTokenInput.val().trim();
+                credentialsToSave.facebook_page_id = $('.kpi-fb-id').val().trim();
+            }
+            const igTokenInput = $('.kpi-ig-token');
+            if (igTokenInput.length > 0) {
+                credentialsToSave.instagram_access_token = igTokenInput.val().trim();
+                credentialsToSave.instagram_user_id = $('.kpi-ig-id').val().trim();
+            }
+            const twTokenInput = $('.kpi-tw-token');
+            if (twTokenInput.length > 0) {
+                credentialsToSave.twitter_bearer_token = twTokenInput.val().trim();
+                credentialsToSave.twitter_username = $('.kpi-tw-username').val().trim();
+            }
+            const ttTokenInput = $('.kpi-tt-token');
+            if (ttTokenInput.length > 0) {
+                credentialsToSave.tiktok_access_token = ttTokenInput.val().trim();
+            }
+
+            if (Object.keys(credentialsToSave).length > 0) {
+                try {
+                    await apiCall('/api/admin/settings', 'PUT', { settings: credentialsToSave });
+                } catch (e) {
+                    console.error('Failed to save API credentials:', e);
+                }
+            }
+
+            const platforms = ['Facebook', 'Instagram', 'X (Twitter)', 'YouTube', 'TikTok'];
+            let errorCount = 0;
+
+            for (const platform of platforms) {
+                const selectEl = $(`.kpi-source-select[data-platform="${platform}"]`);
+                if (selectEl.length === 0) continue;
+                
+                const card = selectEl.closest('.atl-card');
+                const manual_override = parseInt(selectEl.val());
+                const follower_count = parseInt(card.find('.kpi-count-input').val()) || 0;
+                const trend_percentage = parseFloat(card.find('.kpi-trend-input').val()) || 0;
+                const trend_direction = card.find('.kpi-direction-select').val() || 'up';
+
+                try {
+                    const res = await apiCall('/api/admin/dashboard/social_kpis', 'POST', {
+                        platform_name: platform,
+                        manual_override: manual_override,
+                        follower_count: follower_count,
+                        trend_percentage: trend_percentage,
+                        trend_direction: trend_direction
+                    });
+                    if (!res || !res.success) errorCount++;
+                } catch (e) {
+                    console.error('Error saving ' + platform + ' KPI', e);
+                    errorCount++;
+                }
+            }
+
+            btn.prop('disabled', false).html(originalHtml);
+            if (errorCount === 0) {
+                if (window.notificationService) {
+                    window.notificationService.showSuccess("Social Media KPI configurations saved successfully!");
+                } else {
+                    alert("Social Media KPI configurations saved successfully!");
+                }
+                loadAnalyticsDashboard();
+                loadSocialKpiSettings();
+            } else {
+                if (window.notificationService) {
+                    window.notificationService.showError("Some platform settings failed to update. Please check console.");
+                } else {
+                    alert("Some platform settings failed to update.");
+                }
+            }
+        };
 
         // Initial render
         $(document).ready(function () {
@@ -25227,9 +25666,11 @@
 
     // --- Financial Analytics & Reports ---
     let finRevenueChartInstance = null;
+    let finCategoryChartInstance = null;
+    let finCashflowChartInstance = null;
 
     window.loadFinAnalytics = async function() {
-        $('#finAnalyticsTopClientsBody').html('<tr><td colspan="3" class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading...</td></tr>');
+        $('#finAnalyticsTopClientsList').html('<div class="db-rank-empty"><i class="fa fa-spinner fa-spin"></i> Loading&hellip;</div>');
         $('#finAnalyticsOverdueListBody').html('<tr><td colspan="5" class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading...</td></tr>');
         
         try {
@@ -25250,48 +25691,18 @@
             });
             const revenues = trend.map(t => parseFloat(t.total_revenue || 0));
             
+            const fb = finApexBase();
             const chartOptions = {
-                series: [{
-                    name: 'Revenue Received',
-                    data: revenues
-                }],
-                chart: {
-                    type: 'line',
-                    height: 300,
-                    toolbar: { show: false },
-                    background: 'transparent'
-                },
+                series: [{ name: 'Revenue Received', data: revenues }],
+                chart: { type: 'area', height: 300, toolbar: { show: false }, background: 'transparent', animations: { enabled: true, speed: 600 } },
                 colors: ['#D4AF37'],
-                stroke: {
-                    curve: 'smooth',
-                    width: 3
-                },
-                grid: {
-                    borderColor: 'rgba(255,255,255,0.08)'
-                },
-                xaxis: {
-                    categories: months,
-                    labels: {
-                        style: { colors: '#b0b0b0' }
-                    }
-                },
-                yaxis: {
-                    labels: {
-                        style: { colors: '#b0b0b0' },
-                        formatter: function(val) {
-                            return 'R' + val.toLocaleString();
-                        }
-                    }
-                },
-                tooltip: {
-                    theme: 'dark',
-                    x: { show: true },
-                    y: {
-                        formatter: function(val) {
-                            return 'R ' + val.toFixed(2);
-                        }
-                    }
-                }
+                stroke: { curve: 'smooth', width: 2 },
+                fill: { type: 'gradient', gradient: { opacityFrom: 0.4, opacityTo: 0.05 } },
+                dataLabels: { enabled: false },
+                grid: { borderColor: fb.gridColor },
+                xaxis: { categories: months, labels: { style: { colors: fb.axisColor } } },
+                yaxis: { labels: { style: { colors: fb.axisColor }, formatter: function(val) { return val >= 1000 ? 'R' + (val / 1000).toFixed(0) + 'k' : 'R' + Math.round(val); } } },
+                tooltip: { theme: fb.tooltip, x: { show: true }, y: { formatter: function(val) { return R_FMT(val); } } }
             };
             
             if (finRevenueChartInstance) {
@@ -25304,19 +25715,27 @@
             }
             
             const clients = res.topClients || [];
-            if (clients.length === 0) {
-                $('#finAnalyticsTopClientsBody').html('<tr><td colspan="3" class="text-center" style="color:var(--atl-muted-dim);">No customer data found.</td></tr>');
-            } else {
-                $('#finAnalyticsTopClientsBody').html(clients.map(c => `
-                    <tr>
-                        <td>
-                            <div style="font-weight:600;color:var(--atl-ink);">${c.client_name || '—'}</div>
-                            <div style="font-size:11px;color:var(--atl-muted);">${c.company_name || ''}</div>
-                        </td>
-                        <td style="text-align:right;">${c.booking_count || 0}</td>
-                        <td style="text-align:right;font-weight:700;color:var(--atl-sage);">${R_FMT(c.total_spent)}</td>
-                    </tr>
-                `).join(''));
+            const tcEl = document.getElementById('finAnalyticsTopClientsList');
+            if (tcEl) {
+                if (!clients.length) {
+                    tcEl.innerHTML = '<div class="db-rank-empty">No customer data found.</div>';
+                } else {
+                    const tcMax = clients.reduce(function(m, c) { return Math.max(m, parseFloat(c.total_spent || 0)); }, 0) || 1;
+                    tcEl.innerHTML = clients.map(function(c, i) {
+                        const val  = parseFloat(c.total_spent || 0);
+                        const pct  = Math.max(4, Math.round(val / tcMax * 100));
+                        const name = (c.client_name || '—') + (c.company_name ? ' · ' + c.company_name : '');
+                        const n    = c.booking_count || 0;
+                        return '<div class="db-rank-item">' +
+                                '<span class="db-rank-idx">' + (i + 1) + '</span>' +
+                                '<span class="db-rank-main">' +
+                                    '<span class="db-rank-label">' + finEsc(name) + '</span>' +
+                                    '<span class="db-rank-bar" style="--db-rank-pct:' + pct + '%"></span>' +
+                                '</span>' +
+                                '<span class="db-rank-value">' + R_FMT(val) + '<small>' + n + ' booking' + (n === 1 ? '' : 's') + '</small></span>' +
+                            '</div>';
+                    }).join('');
+                }
             }
             
             const aging = res.debtAging || {};
@@ -25350,11 +25769,94 @@
                 `).join(''));
             }
             
+            // Supplementary charts: Revenue by Service Type + Cash Flow
+            renderFinExtraCharts(res);
+
         } catch(e) {
             console.error('Error loading financial analytics:', e);
             window.notificationService.showError('Failed to load financial analytics.');
         }
     };
+
+    // Theme-aware chart palette shared by the finance-analytics charts — mirrors
+    // the main dashboard's dbApexBase() light/dark behaviour.
+    function finApexBase() {
+        var light = document.documentElement.getAttribute('data-theme') === 'light';
+        return {
+            axisColor: light ? '#555'    : '#b0b0b0',
+            gridColor: light ? '#e6e6e6' : 'rgba(255,255,255,0.08)',
+            tooltip:   light ? 'light'   : 'dark',
+            legend:    light ? '#555'    : '#b0b0b0'
+        };
+    }
+    function finEsc(s) {
+        return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+    }
+
+    // Renders the two supplementary finance-analytics charts:
+    //   • Revenue by Service Type (donut)  • Cash Flow: Revenue vs Expenses (combo)
+    function renderFinExtraCharts(res) {
+        var fb = finApexBase();
+        // ---- Revenue by Service Type (donut) ----
+        const cats  = (res && res.revenueByCategory) || [];
+        const catEl = document.querySelector('#finAnalyticsCategoryChart');
+        if (finCategoryChartInstance) { finCategoryChartInstance.destroy(); finCategoryChartInstance = null; }
+        if (catEl) {
+            if (!cats.length) {
+                catEl.innerHTML = '<div style="text-align:center;color:var(--atl-muted-dim);padding:70px 0;font-size:13px;">No revenue recorded yet.</div>';
+            } else {
+                finCategoryChartInstance = new ApexCharts(catEl, {
+                    series: cats.map(function(c){ return parseFloat(c.revenue || 0); }),
+                    labels: cats.map(function(c){ return c.category; }),
+                    chart: { type: 'donut', height: 300, background: 'transparent', animations: { enabled: true, speed: 600 } },
+                    colors: ['#D4AF37','#e0c04a','#b08800','#8a6d00','#c98a3c','#7c9a6d','#6d8a9a','#9a6d7c'],
+                    stroke: { width: 0 },
+                    legend: { position: 'bottom', fontSize: '12px', labels: { colors: fb.legend } },
+                    dataLabels: { enabled: true, formatter: function(val){ return Math.round(val) + '%'; }, style: { fontSize: '11px', fontWeight: 600 } },
+                    plotOptions: { pie: { donut: { size: '62%', labels: { show: true, total: { show: true, label: 'Total', color: fb.axisColor, fontSize: '13px', formatter: function(w){ return R_FMT(w.globals.seriesTotals.reduce(function(a,b){ return a + b; }, 0)); } } } } } },
+                    tooltip: { theme: fb.tooltip, y: { formatter: function(val){ return R_FMT(val); } } }
+                });
+                finCategoryChartInstance.render();
+            }
+        }
+
+        // ---- Cash Flow — Revenue vs Expenses (combo) ----
+        const cf   = (res && res.cashFlow) || [];
+        const cfEl = document.querySelector('#finAnalyticsCashflowChart');
+        if (finCashflowChartInstance) { finCashflowChartInstance.destroy(); finCashflowChartInstance = null; }
+        if (cfEl) {
+            if (!cf.length) {
+                cfEl.innerHTML = '<div style="text-align:center;color:var(--atl-muted-dim);padding:70px 0;font-size:13px;">No cash-flow data yet.</div>';
+            } else {
+                const cfMonths = cf.map(function(r){
+                    const p = String(r.month).split('-');
+                    return (p.length === 2)
+                        ? new Date(parseInt(p[0]), parseInt(p[1]) - 1, 1).toLocaleString('default', { month: 'short', year: '2-digit' })
+                        : r.month;
+                });
+                finCashflowChartInstance = new ApexCharts(cfEl, {
+                    series: [
+                        { name: 'Revenue',  type: 'column', data: cf.map(function(r){ return parseFloat(r.revenue  || 0); }) },
+                        { name: 'Expenses', type: 'column', data: cf.map(function(r){ return parseFloat(r.expenses || 0); }) },
+                        { name: 'Net',      type: 'line',   data: cf.map(function(r){ return parseFloat(r.net      || 0); }) }
+                    ],
+                    chart: { type: 'line', height: 300, toolbar: { show: false }, background: 'transparent', animations: { enabled: true, speed: 600 } },
+                    colors: ['#7c9a6d','#c17767','#D4AF37'],
+                    stroke: { width: [0,0,3], curve: 'smooth' },
+                    plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },
+                    grid: { borderColor: fb.gridColor },
+                    xaxis: { categories: cfMonths, labels: { style: { colors: fb.axisColor } } },
+                    yaxis: { labels: { style: { colors: fb.axisColor }, formatter: function(v){ return v >= 1000 ? 'R' + (v / 1000).toFixed(0) + 'k' : 'R' + Math.round(v); } } },
+                    legend: { position: 'top', labels: { colors: fb.legend } },
+                    dataLabels: { enabled: false },
+                    tooltip: { theme: fb.tooltip, shared: true, intersect: false, y: { formatter: function(val){ return R_FMT(val); } } }
+                });
+                finCashflowChartInstance.render();
+            }
+        }
+    }
 
     // --- Payment Milestone Schedules (Phase 4 Widget) ---
     window.loadBookingPaymentSchedule = async function(bookingId) {
@@ -27253,6 +27755,7 @@
         var _dbChartBookings = null;
         var _dbSparkUsers    = null;
         var _dbSparkViews    = null;
+        var _dbCountryMap    = null;
 
         // ── 1. Theme-aware ApexCharts base options ────────────────────────────────
         function dbApexBase() {
@@ -27293,6 +27796,68 @@
             if (!btn) return;
             dbSetPeriod(btn.dataset.period);
         });
+
+        function dbLoadSocialKPIs() {
+            fetch('/api/admin/dashboard/social_kpis', { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (data) {
+                    if (!data || !data.success || !data.kpis) return;
+                    
+                    const platformIdMap = {
+                        'Facebook': 'fb',
+                        'Instagram': 'ig',
+                        'X (Twitter)': 'x',
+                        'YouTube': 'yt',
+                        'TikTok': 'tt'
+                    };
+
+                    data.kpis.forEach(function (kpi) {
+                        const idPrefix = platformIdMap[kpi.platform_name];
+                        if (!idPrefix) return;
+
+                        // Update count
+                        const countEl = document.getElementById('dbSocial-' + idPrefix + '-count');
+                        if (countEl) {
+                            countEl.textContent = kpi.follower_count.toLocaleString();
+                        }
+
+                        // Update trend percentage and class
+                        const trendEl = document.getElementById('dbSocial-' + idPrefix + '-trend');
+                        if (trendEl) {
+                            const pctFormatted = (kpi.trend_percentage >= 0 ? '+' : '') + kpi.trend_percentage.toFixed(1) + '%';
+                            trendEl.textContent = pctFormatted;
+                            
+                            // Remove existing trend classes
+                            trendEl.classList.remove('trend-up', 'trend-down');
+                            if (kpi.trend_direction === 'up') {
+                                trendEl.classList.add('trend-up');
+                            } else {
+                                trendEl.classList.add('trend-down');
+                            }
+                        }
+
+                        // Update progress bar
+                        const progressEl = document.getElementById('dbSocial-' + idPrefix + '-progress');
+                        if (progressEl) {
+                            const goals = {
+                                'Facebook': 20000,
+                                'Instagram': 25000,
+                                'X (Twitter)': 20000,
+                                'YouTube': 25000,
+                                'TikTok': 100000
+                            };
+                            const goal = goals[kpi.platform_name] || 50000;
+                            const percent = Math.min(100, Math.round((kpi.follower_count / goal) * 100));
+                            
+                            progressEl.setAttribute('data-percent', percent);
+                            progressEl.style.setProperty('--db-pct', percent + '%');
+                        }
+                    });
+                })
+                .catch(function (e) {
+                    console.error('Failed to load social KPIs', e);
+                });
+        }
 
         // ── 4. KPI summary ───────────────────────────────────────────────────────
         function dbLoadKpiSummary() {
@@ -27471,6 +28036,155 @@
                 .catch(function () {});
         }
 
+        // ── 7b. Ranked-list helpers + Top Locations / Top Pages ───────────────────
+        function dbEsc(s) {
+            return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+            });
+        }
+        // ISO 3166 alpha-2 → regional-indicator flag emoji (globe for unknown/non-geo codes)
+        function dbCountryFlag(code) {
+            if (!code || typeof code !== 'string') return '🌐';
+            var cc = code.trim().toUpperCase();
+            if (!/^[A-Z]{2}$/.test(cc) || cc === 'ZZ' || cc === 'XX') return '🌐';
+            return String.fromCodePoint(0x1F1E6 + (cc.charCodeAt(0) - 65))
+                 + String.fromCodePoint(0x1F1E6 + (cc.charCodeAt(1) - 65));
+        }
+        // Turn a raw page path into a friendly label (Home, Events, Gallery, …)
+        function dbPrettyPage(p) {
+            if (!p) return 'Home';
+            var path = String(p).split('?')[0].split('#')[0];
+            var frag = String(p).indexOf('#') > -1 ? String(p).split('#')[1] : '';
+            if (frag) return frag.charAt(0).toUpperCase() + frag.slice(1);
+            if (path === '/' || path === '' || /\/index(\.html)?$/i.test(path)) return 'Home';
+            return path.replace(/\.html?$/i, '').replace(/^\//, '').replace(/\/$/, '')
+                       .replace(/[-_]/g, ' ')
+                       .replace(/\b\w/g, function (c) { return c.toUpperCase(); }) || 'Home';
+        }
+        function dbRenderRankList(elId, rows, opts) {
+            var el = document.getElementById(elId);
+            if (!el) return;
+            if (!rows || !rows.length) {
+                el.innerHTML = '<div class="db-rank-empty">' + (opts.empty || 'No data tracked yet.') + '</div>';
+                return;
+            }
+            var max = rows.reduce(function (m, r) { return Math.max(m, opts.value(r)); }, 0) || 1;
+            el.innerHTML = rows.map(function (r, i) {
+                var val = opts.value(r);
+                var pct = Math.max(4, Math.round((val / max) * 100));
+                return '<div class="db-rank-item">' +
+                        '<span class="db-rank-idx">' + (i + 1) + '</span>' +
+                        '<span class="db-rank-main">' +
+                            '<span class="db-rank-label">' + opts.label(r) + '</span>' +
+                            '<span class="db-rank-bar" style="--db-rank-pct:' + pct + '%"></span>' +
+                        '</span>' +
+                        '<span class="db-rank-value">' + dbFmtNum(val) +
+                            (opts.sub ? '<small>' + opts.sub(r) + '</small>' : '') +
+                        '</span>' +
+                    '</div>';
+            }).join('');
+        }
+        function dbLoadCountries() {
+            if (!document.getElementById('db-listCountries')) return;
+            fetch('/api/admin/analytics/countries?period=' + _dbPeriod, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    dbRenderRankList('db-listCountries', d && d.success ? d.rows : [], {
+                        empty: 'No location data tracked yet.',
+                        value: function (r) { return r.visitors || 0; },
+                        label: function (r) { return dbCountryFlag(r.code) + ' ' + dbEsc(r.country || 'Unknown'); },
+                        sub:   function (r) { return dbFmtNum(r.pageviews) + ' views'; }
+                    });
+                })
+                .catch(function () {});
+        }
+        function dbLoadTopPages() {
+            if (!document.getElementById('db-listPages')) return;
+            fetch('/api/admin/analytics/top-pages?period=' + _dbPeriod, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    dbRenderRankList('db-listPages', d && d.success ? d.rows : [], {
+                        empty: 'No page-view data tracked yet.',
+                        value: function (r) { return r.pageviews || 0; },
+                        label: function (r) { return dbEsc(dbPrettyPage(r.page)); },
+                        sub:   function (r) { return dbFmtNum(r.visitors) + ' visitors'; }
+                    });
+                })
+                .catch(function () {});
+        }
+
+        // ── 7c. Visits-by-country world map (jsVectorMap choropleth) ──────────────
+        function dbLoadCountryMap() {
+            var el = document.getElementById('db-mapCountries');
+            if (!el || typeof jsVectorMap === 'undefined') return;
+            fetch('/api/admin/analytics/countries?period=' + _dbPeriod, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (d) {
+                    var rows = (d && d.success && d.rows) ? d.rows : [];
+                    // Build {ISO-alpha2: visitors}, skipping non-geographic codes (ZZ/XX/Unknown)
+                    var values = {}, maxV = 0;
+                    rows.forEach(function (r) {
+                        var cc = (r.code || '').toString().trim().toUpperCase();
+                        if (!/^[A-Z]{2}$/.test(cc) || cc === 'ZZ' || cc === 'XX') return;
+                        var v = r.visitors || 0;
+                        values[cc] = v;
+                        if (v > maxV) maxV = v;
+                    });
+
+                    var light      = document.documentElement.getAttribute('data-theme') === 'light';
+                    var regionBase = light ? '#e4e4e4' : '#20242c';
+                    var regionLine = light ? '#ffffff' : '#0d0f13';
+                    // Map a 0..1 intensity to a dark→bright amber shade (smallest count stays visibly amber)
+                    function amberShade(t) {
+                        t = Math.max(0, Math.min(1, t));
+                        var u = 0.40 + 0.60 * t;
+                        return 'rgb(' + Math.round(74 + 138 * u) + ',' + Math.round(58 + 117 * u) + ',' + Math.round(15 + 40 * u) + ')';
+                    }
+
+                    // Recreate cleanly (jsVectorMap appends an SVG on each init)
+                    if (_dbCountryMap) { try { _dbCountryMap.destroy(); } catch (e) {} _dbCountryMap = null; }
+                    el.innerHTML = '';
+
+                    try {
+                        _dbCountryMap = new jsVectorMap({
+                            selector: '#db-mapCountries',
+                            map: 'world_merc',
+                            backgroundColor: 'transparent',
+                            zoomOnScroll: false,
+                            zoomButtons: true,
+                            regionStyle: {
+                                initial: { fill: regionBase, stroke: regionLine, strokeWidth: 0.4, fillOpacity: 1 },
+                                hover:   { fill: '#e0c04a' }
+                            },
+                            // jsVectorMap's numeric scale renders unreliably (and breaks for a
+                            // single country), so we paint each visited region directly instead.
+                            onLoaded: function (map) {
+                                Object.keys(values).forEach(function (cc) {
+                                    var reg = map.regions[cc];
+                                    if (reg && reg.element) {
+                                        reg.element.setStyle('fill', amberShade(maxV > 0 ? values[cc] / maxV : 1));
+                                    }
+                                });
+                            },
+                            onRegionTooltipShow: function (event, tooltip, code) {
+                                var v = values[code];
+                                tooltip.text(
+                                    '<div style="font-weight:700;">' + tooltip.text() + '</div>' +
+                                    '<div style="font-size:11px;opacity:.85;">' +
+                                        (v ? (v.toLocaleString('en-ZA') + ' visitor' + (v === 1 ? '' : 's')) : 'No visits tracked') +
+                                    '</div>',
+                                    true
+                                );
+                            }
+                        });
+                    } catch (e) {
+                        // If the map engine/data failed to load, leave the ranked list as the fallback.
+                        el.innerHTML = '<div class="db-rank-empty">Map unavailable.</div>';
+                    }
+                })
+                .catch(function () {});
+        }
+
         // ── 8. Bookings trend chart (replaces hardcoded #bookingsChart) ───────────
         function dbLoadBookingsChart() {
             var el = document.querySelector('#bookingsChart');
@@ -27566,7 +28280,11 @@
             dbLoadVisitorsChart();
             dbLoadSourcesChart();
             dbLoadDevicesChart();
+            dbLoadCountries();
+            dbLoadCountryMap();
+            dbLoadTopPages();
             dbLoadBookingsChart();
+            dbLoadSocialKPIs();
             // Schedule is loaded separately via loadTodaysSchedule() hook in switchTab
         }
 

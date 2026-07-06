@@ -363,6 +363,11 @@ a:hover,a:focus{ color:var(--y-hover); }
   flex:0 0 auto;
   white-space:nowrap;
   padding-left:100%;
+  
+  /* Optical centring: all-caps text leaves empty descender space, so nudge it down ~1px.
+     Uses position (not transform) so it never clashes with the translateX scroll animation. */
+  position:relative;
+  top:1px;
   animation:tm-announce-scroll 18s linear infinite;
   will-change:transform;
 }
