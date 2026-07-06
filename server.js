@@ -4361,17 +4361,49 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
                 }).catch(e => console.error('[ITN] Admin alert failed:', e.message));
                 return;
             }
-            const currentPaid = parseFloat(booking.amount_paid) || 0;
-            const newAmountPaid = currentPaid + itnAmount;
-            const newOutstanding = Math.max(0, currentTotal - newAmountPaid);
-            
-            if (itnAmount > (currentTotal - currentPaid) + 1.0) { // Allowed 1 Rand drift tolerance
-                console.warn(`[PayFast ITN] OVERPAYMENT REJECTED for booking #${bookingId}. Total: ${currentTotal}, Paid so far: ${currentPaid}, ITN amount: ${itnAmount}`);
+            // F4: credit the payment with a SINGLE atomic UPDATE. The increment
+            // (amount_paid = amount_paid + ?), the outstanding/status derivation, and the
+            // overpayment guard (WHERE new_total <= total + 1 Rand) all happen in one statement,
+            // so two DISTINCT concurrent ITNs for the same booking cannot lose an update.
+            // Previously amount_paid was read at the top of the handler (before the ~8s PayFast
+            // postback), computed in JS, then written back — a classic read-modify-write race.
+            // Column refs in the SET/WHERE expressions read the pre-update row, so
+            // (amount_paid + ?) is the post-credit total consistently across every clause.
+            const creditResult = await new Promise((resolve) => {
+                db.run(
+                    `UPDATE bookings SET
+                        amount_paid = COALESCE(amount_paid,0) + ?,
+                        total_amount = ?,
+                        amount_outstanding = MAX(0, ? - (COALESCE(amount_paid,0) + ?)),
+                        payment_status = CASE
+                            WHEN (COALESCE(amount_paid,0) + ?) >= ? THEN 'PAID'
+                            WHEN ? = 'DEPOSIT' THEN 'DEPOSIT_PAID'
+                            ELSE 'PARTIALLY_PAID' END,
+                        status = CASE WHEN status IN ('ACCEPTED','CONFIRMED') THEN 'CONFIRMED' ELSE status END,
+                        payment_reference = ?, payment_signature = ?, payment_raw_data = ?, payment_method = ?,
+                        confirmed_at = CURRENT_TIMESTAMP, last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP
+                    WHERE id = ? AND (COALESCE(amount_paid,0) + ?) <= ? + 1.0`,
+                    [
+                        itnAmount, currentTotal, currentTotal, itnAmount, itnAmount, currentTotal, paymentType,
+                        pfData.pf_payment_id || null, receivedSignature, JSON.stringify(pfData), pfData.payment_method || 'payfast',
+                        bookingId, itnAmount, currentTotal
+                    ],
+                    function (err) { resolve({ err, changes: this ? this.changes : 0 }); }
+                );
+            });
+
+            if (creditResult.err) {
+                console.error(`[PayFast ITN] DB UPDATE ERROR for booking #${bookingId}:`, creditResult.err.message);
+                return;
+            }
+            if (creditResult.changes === 0) {
+                // The overpayment guard in the WHERE blocked the credit (booking exists — checked earlier).
+                console.warn(`[PayFast ITN] OVERPAYMENT REJECTED for booking #${bookingId} (atomic guard). Total: ${currentTotal}, ITN amount: ${itnAmount}`);
                 logPaymentEvent(bookingId, 'OVERPAYMENT_REJECTED', pfData, true);
                 getNotificationEmail().then(notifEmail => {
                     sendEmail({ to: notifEmail,
                         subject: `Overpayment Detected – Booking #${bookingId}`,
-                        htmlContent: `<p>PayFast sent <strong>R${itnAmount.toFixed(2)}</strong> for booking <strong>#${bookingId}</strong> but only <strong>R${(currentTotal - currentPaid).toFixed(2)}</strong> was outstanding. Credit was <strong>NOT applied</strong>. Manual review required.</p>`,
+                        htmlContent: `<p>PayFast sent <strong>R${itnAmount.toFixed(2)}</strong> for booking <strong>#${bookingId}</strong> but crediting it would exceed the R${currentTotal.toFixed(2)} booking total. Credit was <strong>NOT applied</strong>. Manual review required.</p>`,
                         titleOverride: 'Overpayment Alert', trigger_event: 'Admin: Overpayment Alert' });
                 }).catch((emailErr) => {
                     console.error(`[PayFast ITN] CRITICAL: Overpayment admin notification failed for booking #${bookingId}:`, emailErr.message);
@@ -4379,78 +4411,53 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
                 return; // res already sent at top of handler; stop processing
             }
 
-            // Determine correct payment status using paymentType from m_payment_id.
-            // 'DEPOSIT' → DEPOSIT_PAID (half paid, balance outstanding).
-            // 'FULL' or balance payment → PAID when total is covered, PARTIALLY_PAID otherwise.
-            const isFullyCovered = currentTotal > 0 ? newAmountPaid >= currentTotal : paymentType === 'FULL';
-            const newPaymentStatus = isFullyCovered ? 'PAID'
-                : paymentType === 'DEPOSIT'         ? 'DEPOSIT_PAID'
-                :                                     'PARTIALLY_PAID';
-            
-            db.run(
-                `UPDATE bookings SET
-                    payment_status = ?,
-                    status = CASE WHEN status IN ('ACCEPTED','CONFIRMED') THEN 'CONFIRMED' ELSE status END,
-                    total_amount = ?, amount_paid = ?, amount_outstanding = ?,
-                    payment_reference = ?, payment_signature = ?, payment_raw_data = ?, payment_method = ?,
-                    confirmed_at = CURRENT_TIMESTAMP, last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP
-                WHERE id = ?`,
-                [
-                    newPaymentStatus, currentTotal, newAmountPaid, newOutstanding,
-                    pfData.pf_payment_id || null, receivedSignature, JSON.stringify(pfData), pfData.payment_method || 'payfast',
-                    bookingId
-                ],
-                (err) => {
-                    if (err) {
-                        console.error(`[PayFast ITN] DB UPDATE ERROR for booking #${bookingId}:`, err.message);
-                    } else {
-                        console.log(`[PayFast ITN] ✅ Booking #${bookingId} Ledger Updated: Paid=R${newAmountPaid.toFixed(2)}, Remaining=R${newOutstanding.toFixed(2)}, Status=${newPaymentStatus}`);
-                        logPaymentEvent(bookingId, 'LEDGER_UPDATED_COMPLETE', pfData, true);
-                        
-                        db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], async (e, updatedRow) => {
-                            if (!e && updatedRow) {
-                                await syncBookingToCalendar(updatedRow);
-                                await sendPaymentReceivedEmail(updatedRow, newAmountPaid, newOutstanding, newPaymentStatus);
-                                sendAdminPaymentNotification(updatedRow, newAmountPaid, newPaymentStatus)
-                                    .catch(e => console.error('Admin payment notification failed:', e.message));
-                                if (newPaymentStatus === 'DEPOSIT_PAID' && newOutstanding > 0) {
-                                    sendDepositBalanceDueEmail(updatedRow, newOutstanding).catch(e => console.error('Deposit balance-due email failed:', e.message));
-                                }
-                                if (newPaymentStatus === 'PAID') {
-                                    sendBookingConfirmedEmail(updatedRow).catch(e => console.error('Confirmed email after payment failed:', e.message));
-                                    db.run(
-                                        `UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')`,
-                                        [bookingId],
-                                        (invErr) => {
-                                            if (invErr) { console.error(`[Invoices] Status sync failed for booking #${bookingId}:`, invErr.message); return; }
-                                            // P3-7: Send paid invoice as receipt
-                                            sendPaidReceiptEmail(updatedRow).catch(e => console.error('Paid receipt email (ITN) failed:', e.message));
-                                        }
-                                    );
-                                    // Auto-create events row when fully paid (booking is now CONFIRMED)
-                                    if (!updatedRow.event_id) {
-                                        const evDatetime = updatedRow.date + (updatedRow.event_start_time ? ' ' + updatedRow.event_start_time : ' 00:00:00');
-                                        db.run(
-                                            `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
-                                             VALUES (?, ?, ?, ?, ?, 'upcoming', 'system')`,
-                                            [updatedRow.event_name || updatedRow.event_type || 'Booking Event', evDatetime,
-                                             updatedRow.event_location || null, updatedRow.venue_id || null, bookingId],
-                                            function(evErr) {
-                                                if (evErr) { console.error('[Auto-Event] PayFast: Insert failed for booking #' + bookingId + ':', evErr.message); return; }
-                                                db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [this.lastID, bookingId]);
-                                            }
-                                        );
-                                    }
-                                }
-                                // Mark payment schedule items as paid based on total amount now credited
-                                alignMilestonePayments(bookingId, newAmountPaid, (psErr) => {
-                                    if (psErr) console.error(`[Payment Schedules] Update failed for booking #${bookingId}:`, psErr.message);
-                                });
-                            }
-                        });
+            // Credited atomically. Re-read the fresh ledger to drive status-specific side effects.
+            const updatedRow = await new Promise(resolve => db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (e, r) => resolve(e ? null : r)));
+            if (!updatedRow) return;
+            const newAmountPaid = parseFloat(updatedRow.amount_paid) || 0;
+            const newOutstanding = parseFloat(updatedRow.amount_outstanding) || 0;
+            const newPaymentStatus = updatedRow.payment_status;
+
+            console.log(`[PayFast ITN] ✅ Booking #${bookingId} Ledger Updated: Paid=R${newAmountPaid.toFixed(2)}, Remaining=R${newOutstanding.toFixed(2)}, Status=${newPaymentStatus}`);
+            logPaymentEvent(bookingId, 'LEDGER_UPDATED_COMPLETE', pfData, true);
+
+            await syncBookingToCalendar(updatedRow);
+            await sendPaymentReceivedEmail(updatedRow, newAmountPaid, newOutstanding, newPaymentStatus);
+            sendAdminPaymentNotification(updatedRow, newAmountPaid, newPaymentStatus)
+                .catch(e => console.error('Admin payment notification failed:', e.message));
+            if (newPaymentStatus === 'DEPOSIT_PAID' && newOutstanding > 0) {
+                sendDepositBalanceDueEmail(updatedRow, newOutstanding).catch(e => console.error('Deposit balance-due email failed:', e.message));
+            }
+            if (newPaymentStatus === 'PAID') {
+                sendBookingConfirmedEmail(updatedRow).catch(e => console.error('Confirmed email after payment failed:', e.message));
+                db.run(
+                    `UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')`,
+                    [bookingId],
+                    (invErr) => {
+                        if (invErr) { console.error(`[Invoices] Status sync failed for booking #${bookingId}:`, invErr.message); return; }
+                        // P3-7: Send paid invoice as receipt
+                        sendPaidReceiptEmail(updatedRow).catch(e => console.error('Paid receipt email (ITN) failed:', e.message));
                     }
+                );
+                // Auto-create events row when fully paid (booking is now CONFIRMED)
+                if (!updatedRow.event_id) {
+                    const evDatetime = updatedRow.date + (updatedRow.event_start_time ? ' ' + updatedRow.event_start_time : ' 00:00:00');
+                    db.run(
+                        `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
+                         VALUES (?, ?, ?, ?, ?, 'upcoming', 'system')`,
+                        [updatedRow.event_name || updatedRow.event_type || 'Booking Event', evDatetime,
+                         updatedRow.event_location || null, updatedRow.venue_id || null, bookingId],
+                        function(evErr) {
+                            if (evErr) { console.error('[Auto-Event] PayFast: Insert failed for booking #' + bookingId + ':', evErr.message); return; }
+                            db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [this.lastID, bookingId]);
+                        }
+                    );
                 }
-            );
+            }
+            // Mark payment schedule items as paid based on total amount now credited
+            alignMilestonePayments(bookingId, newAmountPaid, (psErr) => {
+                if (psErr) console.error(`[Payment Schedules] Update failed for booking #${bookingId}:`, psErr.message);
+            });
         } else {
             console.warn(`[PayFast ITN] Payment status is "${pfData.payment_status}" (not COMPLETE) for booking #${bookingId}`);
             logPaymentEvent(bookingId, `STATUS_${pfData.payment_status.toUpperCase()}`, pfData, true);
