@@ -5747,7 +5747,7 @@ app.post('/api/admin/bookings/:id/complete', requireAdmin, (req, res) => {
  * PUT /api/admin/bookings/:id/refund
  * Record that a refund has been issued for a cancelled booking.
  */
-app.put('/api/admin/bookings/:id/refund', requireAdmin, (req, res) => {
+app.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { refund_amount, refund_reference, notes } = req.body;
     const bookingId = req.params.id;
     const amt = parseFloat(refund_amount) || 0;
@@ -7896,7 +7896,7 @@ app.post('/api/admin/settings/test-notification', requireAdmin, requireRole(['ad
 });
 
 // --- Invoice Actions ---
-app.post('/api/admin/invoices/:id/send', requireAdmin, (req, res) => {
+app.post('/api/admin/invoices/:id/send', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     db.get(`SELECT i.*, b.id as booking_id_num, b.email, b.name, b.event_name, b.event_type, b.date
             FROM invoices i JOIN bookings b ON i.booking_id = b.id WHERE i.id = ?`, [req.params.id], async (err, inv) => {
         if (err || !inv) return res.status(404).json({ error: 'Invoice not found.' });
@@ -7915,7 +7915,7 @@ app.post('/api/admin/invoices/:id/send', requireAdmin, (req, res) => {
     });
 });
 // POST /api/admin/invoices/bulk-send-unsent — email all generated-but-unsent invoices
-app.post('/api/admin/invoices/bulk-send-unsent', requireAdmin, (req, res) => {
+app.post('/api/admin/invoices/bulk-send-unsent', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     db.all(
         `SELECT i.*, b.id AS booking_id_num, b.email, b.name, b.event_name, b.event_type, b.date
          FROM invoices i
@@ -7976,7 +7976,7 @@ app.post('/api/admin/invoices/:id/void', requireAdmin, requireRole(['administrat
 });
 
 // POST /api/admin/invoices/:id/mark-paid — quick-mark an invoice as PAID
-app.post('/api/admin/invoices/:id/mark-paid', requireAdmin, (req, res) => {
+app.post('/api/admin/invoices/:id/mark-paid', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const adminUser = req.session.username || 'system';
     db.get('SELECT * FROM invoices WHERE id = ?', [req.params.id], (err, inv) => {
         if (err || !inv) return res.status(404).json({ success: false, error: 'Invoice not found.' });
@@ -9884,7 +9884,7 @@ app.get('/api/admin/bookings/:id/quote-history', requireAdmin, (req, res) => {
 // ==========================================
 
 // 1. Generate Invoice from Booking (Admin)
-app.post('/api/admin/bookings/:id/invoice/generate', requireAdmin, async (req, res) => {
+app.post('/api/admin/bookings/:id/invoice/generate', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
     const bookingId = req.params.id;
     // Guard: if a quotation exists for this booking it must be in 'accepted' state
     const activeQuote = await new Promise((resolve, reject) => {
@@ -10341,7 +10341,7 @@ app.get('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res) =>
 });
 
 // POST /api/admin/bookings/:id/payment-schedules — create or replace schedules
-app.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res) => {
+app.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const bookingId = req.params.id;
     const { schedules } = req.body;
     
@@ -10618,7 +10618,7 @@ app.get('/api/admin/expenses', requireAdmin, requireRole(['administrator', 'mana
 });
 
 // POST /api/admin/expenses — create a new expense
-app.post('/api/admin/expenses', requireAdmin, (req, res) => {
+app.post('/api/admin/expenses', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { booking_id, category, amount, description, expense_date, receipt_url,
             start_odometer, end_odometer, rate_per_km,
             per_diem_days, per_diem_rate,
@@ -10697,7 +10697,7 @@ app.delete('/api/admin/expenses/:id', requireAdmin, requireRole(['administrator'
 });
 
 // PUT /api/admin/expenses/:id — edit an existing expense
-app.put('/api/admin/expenses/:id', requireAdmin, (req, res) => {
+app.put('/api/admin/expenses/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const expenseId = req.params.id;
     const addedBy = req.session.username || 'system';
     db.get('SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL', [expenseId], (err, existing) => {
@@ -10793,7 +10793,7 @@ app.get('/api/admin/expenses/export', requireAdmin, requireRole(['administrator'
 });
 
 // POST /api/admin/expenses/upload-receipt — upload a receipt file for an expense
-app.post('/api/admin/expenses/upload-receipt', requireAdmin, uploadReceipt.single('receipt'), (req, res) => {
+app.post('/api/admin/expenses/upload-receipt', requireAdmin, requireRole(['administrator', 'manager']), uploadReceipt.single('receipt'), (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file received.' });
     const url = '/uploads/receipts/' + req.file.filename;
     res.json({ success: true, url, filename: req.file.originalname });
@@ -11300,7 +11300,7 @@ app.get('/api/admin/reconciliation/:bookingId/transactions', requireAdmin, requi
 });
 
 // PATCH /api/admin/transactions/:id/reconcile — flag/unflag as duplicate (audit-safe, no delete)
-app.patch('/api/admin/transactions/:id/reconcile', requireAdmin, (req, res) => {
+app.patch('/api/admin/transactions/:id/reconcile', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { is_duplicate, reconcile_note } = req.body;
     const flag = is_duplicate ? 1 : 0;
     const note = (reconcile_note || '').trim().substring(0, 255);
@@ -11331,7 +11331,7 @@ app.patch('/api/admin/transactions/:id/reconcile', requireAdmin, (req, res) => {
 const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 // POST /api/admin/bank-statement/import — parse and store a CSV bank statement
-app.post('/api/admin/bank-statement/import', requireAdmin, csvUpload.single('statement'), (req, res) => {
+app.post('/api/admin/bank-statement/import', requireAdmin, requireRole(['administrator', 'manager']), csvUpload.single('statement'), (req, res) => {
     if (!req.file) return res.status(400).json({ success: false, message: 'No file received.' });
     const batchId = 'BS-' + Date.now();
     const importDate = new Date().toISOString().split('T')[0];
@@ -11385,7 +11385,7 @@ app.get('/api/admin/bank-statement/lines', requireAdmin, requireRole(['administr
 });
 
 // PATCH /api/admin/bank-statement/lines/:id/match — link a line to a booking
-app.patch('/api/admin/bank-statement/lines/:id/match', requireAdmin, (req, res) => {
+app.patch('/api/admin/bank-statement/lines/:id/match', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { booking_id, transaction_id, match_note } = req.body;
     db.run(
         `UPDATE bank_statement_lines SET matched_booking_id=?, matched_transaction_id=?, match_note=? WHERE id=?`,
@@ -11398,7 +11398,7 @@ app.patch('/api/admin/bank-statement/lines/:id/match', requireAdmin, (req, res) 
 });
 
 // DELETE /api/admin/bank-statement/lines/:id — remove a single imported line
-app.delete('/api/admin/bank-statement/lines/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/bank-statement/lines/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     db.run('DELETE FROM bank_statement_lines WHERE id = ?', [req.params.id], function(err) {
         if (err || this.changes === 0) return res.status(err ? 500 : 404).json({ success: false });
         res.json({ success: true });
@@ -11406,7 +11406,7 @@ app.delete('/api/admin/bank-statement/lines/:id', requireAdmin, (req, res) => {
 });
 
 // DELETE /api/admin/bank-statement/batch/:batchId — delete an entire import batch
-app.delete('/api/admin/bank-statement/batch/:batchId', requireAdmin, (req, res) => {
+app.delete('/api/admin/bank-statement/batch/:batchId', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     db.run('DELETE FROM bank_statement_lines WHERE import_batch = ?', [req.params.batchId], function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, deleted: this.changes });
