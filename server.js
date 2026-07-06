@@ -2373,7 +2373,30 @@ app.post('/api/admin/reset-password', (req, res) => {
 // Email Service Functions
 // ==========================================
 
+// EMAIL-1: HTML-escape user-controlled free-text before it is interpolated into email HTML,
+// so a malicious booking (e.g. message = "<img src=x onerror=...>") can't inject markup into
+// the admin's notification inbox or a client's mailbox. Escapes & < > " (not ' — avoids mangling
+// apostrophes in the rare plain-text subject case). Only the whitelisted free-text fields are
+// escaped; recipient emails, dates, amounts, ids and URLs are left untouched.
+function escapeEmailHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+const EMAIL_ESCAPE_FIELDS = ['name', 'client_name', 'company', 'company_name', 'client_company',
+    'message', 'event_name', 'event_location', 'venue_address', 'venue_name', 'city', 'country',
+    'event_type', 'venue_type', 'audience_demographic', 'budget_range', 'performance_slot',
+    'performance_duration', 'cancellation_reason'];
+function escapeEmailFields(obj) {
+    if (!obj || typeof obj !== 'object') return obj;
+    const copy = { ...obj };
+    for (const f of EMAIL_ESCAPE_FIELDS) {
+        if (typeof copy[f] === 'string') copy[f] = escapeEmailHtml(copy[f]);
+    }
+    return copy;
+}
+
 async function sendBookingReceivedEmail(bookingId, data) {
+    data = escapeEmailFields(data);
     const { 
         name, company, email, cell, 
         event_name, event_date, event_start_time, performance_slot, performance_duration,
@@ -2523,6 +2546,7 @@ async function sendBookingReceivedEmail(bookingId, data) {
 
 // S2-1: Notify client when their booking moves to PENDING (under review)
 async function sendBookingUnderReviewEmail(booking) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_type, date } = booking;
     const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
     const emailBody = `
@@ -2545,6 +2569,7 @@ async function sendBookingUnderReviewEmail(booking) {
 }
 
 async function sendQuoteEmail(booking, amount, pdfPath, pdfFileName, items = []) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     
     let attachments = [];
@@ -2683,6 +2708,7 @@ async function sendAdminQuoteSentNotification(booking, amount) {
 }
 
 async function sendInvoiceEmail(booking, invoicePdfPath) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
 
     let attachments = [];
@@ -2750,6 +2776,7 @@ async function sendInvoiceEmail(booking, invoicePdfPath) {
 }
 
 async function sendInvoicePreDueEmail(booking, invoice, daysUntilDue) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
     const payUrl  = `${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}`;
@@ -2791,6 +2818,7 @@ async function sendInvoicePreDueEmail(booking, invoice, daysUntilDue) {
 }
 
 async function sendOverdueInvoiceEmail(booking, invoice) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
     const payUrl  = `${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}`;
@@ -2835,6 +2863,7 @@ async function sendOverdueInvoiceEmail(booking, invoice) {
 // Gap 2 (Phase 2): accepts an options object { invoiceGenerated: bool } so that the email subject
 // and title are honest — if invoice generation failed during acceptance, we don't claim it succeeded.
 async function sendQuoteAcceptedEmail(booking, options = {}) {
+    booking = escapeEmailFields(booking);
     const { invoiceGenerated = true } = options;
     const { id, name, email, event_name, event_type, date } = booking;
 
@@ -2902,6 +2931,7 @@ async function sendQuoteAcceptedEmail(booking, options = {}) {
 }
 
 async function sendCancellationEmail(booking, cancellationData) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     const { reason, refund_due, rule, days_until_event, is_force_majeure } = cancellationData;
 
@@ -2939,6 +2969,7 @@ async function sendCancellationEmail(booking, cancellationData) {
 }
 
 async function sendPaymentReceivedEmail(booking, newAmountPaid, newOutstanding, newPaymentStatus) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, total_amount, quote_amount } = booking;
     
     const isPartial = newPaymentStatus === 'PARTIALLY_PAID';
@@ -3015,6 +3046,7 @@ function generateBookingICS(booking) {
 }
 
 async function sendBookingConfirmedEmail(booking) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, event_location, performance_slot, performance_duration } = booking;
 
     const performanceRows = [
@@ -3058,6 +3090,7 @@ async function sendBookingConfirmedEmail(booking) {
 
 // P3-7: Resend the paid invoice PDF as a payment receipt when booking becomes fully PAID.
 async function sendPaidReceiptEmail(booking) {
+    booking = escapeEmailFields(booking);
     const inv = await new Promise(resolve => {
         db.get("SELECT file_path, invoice_number FROM invoices WHERE booking_id = ? AND status = 'PAID' ORDER BY id DESC LIMIT 1",
             [booking.id], (e, row) => resolve(e ? null : row));
@@ -3069,6 +3102,7 @@ async function sendPaidReceiptEmail(booking) {
 }
 
 async function sendBookingCompletedEmail(booking) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, event_location,
             total_amount, amount_paid, quote_amount } = booking;
 
@@ -3137,6 +3171,7 @@ async function sendBookingCompletedEmail(booking) {
 }
 
 async function sendQuoteExpiredEmail(booking) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     const emailBody = `
         <p>Hi <strong>${name}</strong>,</p>
@@ -3153,6 +3188,7 @@ async function sendQuoteExpiredEmail(booking) {
 }
 
 async function sendPaymentFailedEmail(booking) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, total_amount, quote_amount } = booking;
     const displayTotal = total_amount || (quote_amount ? parseFloat((quote_amount || '0').replace(/[^0-9.]/g, '')) : 0);
     const emailBody = `
@@ -3172,6 +3208,7 @@ async function sendPaymentFailedEmail(booking) {
 }
 
 async function sendDepositBalanceDueEmail(booking, outstanding) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, event_location } = booking;
     const emailBody = `
         <p>Hi <strong>${name}</strong>,</p>
@@ -3190,6 +3227,7 @@ async function sendDepositBalanceDueEmail(booking, outstanding) {
 }
 
 async function sendPendingExpiredEmail(booking) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     const emailBody = `
         <p>Hi <strong>${name}</strong>,</p>
@@ -3219,6 +3257,7 @@ async function sendAdminPaymentNotification(booking, amountPaid, paymentStatus) 
 }
 
 async function sendAdminCompletionSummaryEmail(booking) {
+    booking = escapeEmailFields(booking);
     const notifEmail = await getNotificationEmail();
     const { id, name, email, event_name, event_type, date, event_location,
             total_amount, amount_paid, quote_amount } = booking;
@@ -3298,6 +3337,7 @@ async function sendAdminQuoteAcceptedNotification(booking) {
 }
 
 async function sendQuoteExpiryWarningEmail(booking) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, quote_expiry_date } = booking;
     const body = `<p>Hi <strong>${name}</strong>,</p>
         <p>Your quote for <strong>${event_name || event_type}</strong> on <strong>${date}</strong> expires <strong>tomorrow (${quote_expiry_date})</strong>.</p>
@@ -3307,6 +3347,7 @@ async function sendQuoteExpiryWarningEmail(booking) {
 }
 
 async function sendReviewRequestEmail(booking) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     const body = `<p>Hi <strong>${name}</strong>,</p>
         <p>We hope your event — <strong>${event_name || event_type}</strong> on <strong>${date}</strong> — was everything you imagined!</p>
@@ -3317,6 +3358,7 @@ async function sendReviewRequestEmail(booking) {
 }
 
 async function sendRefundProcessedEmail(booking, refundAmount, refundReference) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     const amtFormatted = `R ${parseFloat(refundAmount || 0).toFixed(2)}`;
     const body = `<p>Hi <strong>${name}</strong>,</p>
@@ -3332,6 +3374,7 @@ async function sendRefundProcessedEmail(booking, refundAmount, refundReference) 
 }
 
 async function sendDateChangedEmail(booking, oldDate, newDate) {
+    booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type } = booking;
     const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
     const trackUrl = `${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}`;
