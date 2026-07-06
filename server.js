@@ -2395,6 +2395,17 @@ function escapeEmailFields(obj) {
     return copy;
 }
 
+// ADMIN-XSS: neutralize stored HTML at the input boundary. The admin panel renders many
+// booking/client fields via innerHTML/.html() without escaping, so a malicious public
+// submission (e.g. message = "<img src=x onerror=...>") would execute JS in the admin's
+// authenticated session. Encoding < > " here means no tag/attribute can ever form from stored
+// data, in the admin DOM, emails, or PDFs. '&' is deliberately left raw so output-layer
+// escaping (EMAIL-1) handles it without double-encoding common values like "Tom & Jerry".
+function encodeUserHtml(s) {
+    if (s == null) return s;
+    return String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 async function sendBookingReceivedEmail(bookingId, data) {
     data = escapeEmailFields(data);
     const { 
@@ -3665,10 +3676,10 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                         client_id, venue_id, quote_amount, total_amount, amount_outstanding, payment_status, popia_consent, consent_timestamp, vat_number, venue_place_id, quote_expiry_date, policy_version, source, referrer, consent_source
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "NEW", ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, 'public_form')`,
                 [
-                    name, company || null, email, cell,
-                    event_name || null, event_date, event_start_time || null, performance_slot || null, performance_duration || null,
-                    event_location, venue_address || null, city || null, country || null, venue_type || null,
-                    event_type, audience_size || null, audience_demographic || null, budget_range || null, travel_accommodation || null, message,
+                    encodeUserHtml(name), encodeUserHtml(company) || null, email, cell,
+                    encodeUserHtml(event_name) || null, event_date, event_start_time || null, encodeUserHtml(performance_slot) || null, encodeUserHtml(performance_duration) || null,
+                    encodeUserHtml(event_location), encodeUserHtml(venue_address) || null, encodeUserHtml(city) || null, encodeUserHtml(country) || null, encodeUserHtml(venue_type) || null,
+                    encodeUserHtml(event_type), encodeUserHtml(audience_size) || null, encodeUserHtml(audience_demographic) || null, encodeUserHtml(budget_range) || null, travel_accommodation || null, encodeUserHtml(message),
                     clientId, venueId, initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, vat_number || null, venuePlaceId || null, defaultQuoteExpiry, policy_version || 'v2.2',
                     req.body.source || null, req.body.referrer || null
                 ],
@@ -3925,8 +3936,8 @@ app.post('/api/public/bookings/draft', ipRateLimiter, async (req, res) => {
                 source=COALESCE(NULLIF(excluded.source, ''), abandoned_bookings.source),
                 ip_address=excluded.ip_address, user_agent=excluded.user_agent, last_activity_at=CURRENT_TIMESTAMP,
                 status=CASE WHEN abandoned_bookings.status IN ('RECOVERED','WON','LOST','CLOSED') THEN abandoned_bookings.status ELSE 'ABANDONED' END`,
-            [draftToken, resumeToken, b.name || null, b.company || null, email, b.cell || null, b.event_name || null, eventDate || null, b.event_start_time || null,
-             b.performance_slot || null, b.performance_duration || null, b.event_location || null, b.venue_address || null, b.city || null, b.country || null, b.venue_type || null, b.event_type || null, msg,
+            [draftToken, resumeToken, encodeUserHtml(b.name) || null, encodeUserHtml(b.company) || null, email, b.cell || null, encodeUserHtml(b.event_name) || null, eventDate || null, b.event_start_time || null,
+             encodeUserHtml(b.performance_slot) || null, encodeUserHtml(b.performance_duration) || null, encodeUserHtml(b.event_location) || null, encodeUserHtml(b.venue_address) || null, encodeUserHtml(b.city) || null, encodeUserHtml(b.country) || null, encodeUserHtml(b.venue_type) || null, encodeUserHtml(b.event_type) || null, encodeUserHtml(msg),
              servicesJson, currentStep, currentStep, consent, estValue, source, ip, ua],
             (err) => {
                 if (err) { console.error('[Booking Recovery] draft upsert failed:', err.message); return res.status(500).json({ success: false }); }
@@ -5219,7 +5230,7 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
             await new Promise((resolveNote, rejectNote) => {
                 db.run(
                     "INSERT INTO booking_notes (booking_id, note, author) VALUES (?, ?, 'Client')",
-                    [row.id, noteText],
+                    [row.id, encodeUserHtml(noteText)],
                     (noteErr) => noteErr ? rejectNote(noteErr) : resolveNote()
                 );
             });
@@ -6089,7 +6100,7 @@ app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
             const routing_path = req.get('Referrer') || req.originalUrl || '';
             
             db.run(`INSERT INTO inquiries (sender_name, sender_email, receiver_email, sender_phone, category, subject, message_body, status, routing_path, ip_address, user_agent, popia_consent, consent_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, 'unread', ?, ?, ?, 1, CURRENT_TIMESTAMP)`, 
-                [name, email, receiver, cell || '', category || 'Contact Form', subject || 'No Subject', message, routing_path, ip_address, user_agent], function(err) {
+                [encodeUserHtml(name), email, receiver, cell || '', category || 'Contact Form', encodeUserHtml(subject) || 'No Subject', encodeUserHtml(message), routing_path, ip_address, user_agent], function(err) {
                     if (err) console.error("DB Insert Error (Inquiries):", err);
                 });
         }
@@ -6864,6 +6875,10 @@ app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachmen
 
 // --- Database Migration Helpers (Phase 2) ---
 function findOrCreateClient(name, email, phone, company, vat_number) {
+    // ADMIN-XSS: encode HTML in the stored client name/company (rendered unescaped in the admin
+    // client views). No-op for normal names; email/phone are validated and left raw.
+    name = encodeUserHtml(name);
+    company = encodeUserHtml(company);
     return new Promise((resolve, reject) => {
         // INSERT OR IGNORE exploits the UNIQUE constraint on clients.email, eliminating the
         // SELECT-then-INSERT race that produced duplicate client rows under concurrent submissions.
@@ -6893,6 +6908,11 @@ function findOrCreateClient(name, email, phone, company, vat_number) {
 }
 
 function findOrCreateVenueFromPlace(venueName, address, city, country, placeId) {
+    // ADMIN-XSS: encode HTML in stored venue text (rendered unescaped in admin venue/booking views).
+    venueName = encodeUserHtml(venueName);
+    address = encodeUserHtml(address);
+    city = encodeUserHtml(city);
+    country = encodeUserHtml(country);
     return new Promise((resolve, reject) => {
         if (!venueName && !address) return resolve(null);
         const searchName = venueName || address;
@@ -10217,7 +10237,7 @@ app.post('/api/public/bookings/:id/review', mutateRateLimiter, ipRateLimiter, (r
             `INSERT INTO service_reviews (booking_id, client_name, rating, review_text)
              VALUES (?, ?, ?, ?)
              ON CONFLICT(booking_id) DO UPDATE SET rating=excluded.rating, review_text=excluded.review_text, submitted_at=CURRENT_TIMESTAMP`,
-            [req.params.id, clientName, ratingNum, review_text || null],
+            [req.params.id, encodeUserHtml(clientName), ratingNum, encodeUserHtml(review_text) || null],
             function(insErr) {
                 if (insErr) return res.status(500).json({ success: false, message: 'Could not save review.' });
                 // Notify admin of new review
