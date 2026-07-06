@@ -851,92 +851,96 @@ async function syncCalendarHolds() {
     }
 }
 
+// Single-flight guard: a batch (attachments / slow SMTP) can take longer than the 20s
+// setInterval, and two overlapping sweeps would double-send the same 'pending' rows. We serialize
+// in-process because an intra-DB claim isn't available — the notifications.status CHECK constraint
+// only permits ('pending','sent','failed','read','dismissed'), so the previous
+// `SET status='sending'` flip always failed the CHECK (its error was ignored), leaving the
+// double-send guard non-functional and sent_at never written.
+let _notificationSweepRunning = false;
 async function processNotificationQueue() {
-    // Process up to 10 pending notifications
-    db.all(
-        `SELECT * FROM notifications 
-         WHERE status = 'pending' AND channel = 'email' 
-         AND (scheduled_at IS NULL OR scheduled_at <= datetime('now'))
-         LIMIT 10`,
-        [],
-        async (err, rows) => {
-            if (err) {
-                console.error('[Notification Queue] Error fetching pending emails:', err.message);
-                return;
+    if (_notificationSweepRunning) return; // a prior sweep is still draining the queue
+    _notificationSweepRunning = true;
+    try {
+        // Process up to 10 pending notifications
+        const rows = await new Promise((resolve) => {
+            db.all(
+                `SELECT * FROM notifications
+                 WHERE status = 'pending' AND channel = 'email'
+                 AND (scheduled_at IS NULL OR scheduled_at <= datetime('now'))
+                 LIMIT 10`,
+                [],
+                (err, r) => {
+                    if (err) { console.error('[Notification Queue] Error fetching pending emails:', err.message); return resolve([]); }
+                    resolve(r || []);
+                }
+            );
+        });
+        if (rows.length === 0) return;
+
+        const { sendEmailDirectly } = require('./js/emailService');
+
+        for (const row of rows) {
+            let emailDetails = {};
+            try {
+                emailDetails = JSON.parse(row.body || '{}');
+            } catch (e) {
+                console.error(`[Notification Queue] Failed to parse body for notification #${row.id}:`, e.message);
+                db.run("UPDATE notifications SET status = 'failed', error_message = ? WHERE id = ?", ['JSON_PARSE_ERROR: ' + e.message, row.id]);
+                continue;
             }
-            if (!rows || rows.length === 0) return;
 
-            const { sendEmailDirectly } = require('./js/emailService');
+            // Map attachment paths to standard nodemailer attachments array
+            const attachments = [];
+            if (row.attachment_paths) {
+                try {
+                    const paths = JSON.parse(row.attachment_paths);
+                    paths.forEach(p => {
+                        if (typeof p === 'string') {
+                            const pathModule = require('path');
+                            const resolvedPath = pathModule.isAbsolute(p) ? p : pathModule.join(__dirname, p);
+                            const filename = pathModule.basename(p);
+                            attachments.push({ filename, path: resolvedPath });
+                        }
+                    });
+                } catch(e) {
+                    console.error(`[Notification Queue] Failed to parse attachments for #${row.id}:`, e.message);
+                }
+            }
 
-            for (const row of rows) {
-                // Update status immediately to prevent double sending
-                await new Promise((resVal) => {
-                    db.run(
-                        "UPDATE notifications SET status = 'sending', sent_at = CURRENT_TIMESTAMP WHERE id = ?",
-                        [row.id],
-                        () => resVal()
-                    );
+            try {
+                const result = await sendEmailDirectly({
+                    to: row.recipient_email,
+                    subject: row.subject,
+                    htmlContent: emailDetails.htmlContent,
+                    plainTextAlternative: emailDetails.plainTextAlternative,
+                    attachments: attachments,
+                    fromName: row.recipient_name || emailDetails.fromName || "Thabiso Mhlongo Management",
+                    replyTo: emailDetails.replyTo,
+                    skipBrandAttachments: emailDetails.skipBrandAttachments,
+                    titleOverride: emailDetails.titleOverride,
+                    trigger_event: emailDetails.trigger_event || 'Notification Queue Dispatch'
                 });
 
-                let emailDetails = {};
-                try {
-                    emailDetails = JSON.parse(row.body || '{}');
-                } catch (e) {
-                    console.error(`[Notification Queue] Failed to parse body for notification #${row.id}:`, e.message);
-                    db.run("UPDATE notifications SET status = 'failed', error_message = ? WHERE id = ?", ['JSON_PARSE_ERROR: ' + e.message, row.id]);
-                    continue;
+                if (result.success) {
+                    db.run("UPDATE notifications SET status = 'sent', sent_at = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
+                    console.log(`✓ [Notification Queue] Successfully sent email #${row.id} to ${row.recipient_email}`);
+                } else {
+                    throw new Error(result.error || 'SMTP_SEND_FAILED');
                 }
-
-                // Map attachment paths to standard nodemailer attachments array
-                const attachments = [];
-                if (row.attachment_paths) {
-                    try {
-                        const paths = JSON.parse(row.attachment_paths);
-                        paths.forEach(p => {
-                            if (typeof p === 'string') {
-                                const pathModule = require('path');
-                                const resolvedPath = pathModule.isAbsolute(p) ? p : pathModule.join(__dirname, p);
-                                const filename = pathModule.basename(p);
-                                attachments.push({ filename, path: resolvedPath });
-                            }
-                        });
-                    } catch(e) {
-                        console.error(`[Notification Queue] Failed to parse attachments for #${row.id}:`, e.message);
-                    }
-                }
-
-                try {
-                    const result = await sendEmailDirectly({
-                        to: row.recipient_email,
-                        subject: row.subject,
-                        htmlContent: emailDetails.htmlContent,
-                        plainTextAlternative: emailDetails.plainTextAlternative,
-                        attachments: attachments,
-                        fromName: row.recipient_name || emailDetails.fromName || "Thabiso Mhlongo Management",
-                        replyTo: emailDetails.replyTo,
-                        skipBrandAttachments: emailDetails.skipBrandAttachments,
-                        titleOverride: emailDetails.titleOverride,
-                        trigger_event: emailDetails.trigger_event || 'Notification Queue Dispatch'
-                    });
-
-                    if (result.success) {
-                        db.run("UPDATE notifications SET status = 'sent' WHERE id = ?", [row.id]);
-                        console.log(`✓ [Notification Queue] Successfully sent email #${row.id} to ${row.recipient_email}`);
-                    } else {
-                        throw new Error(result.error || 'SMTP_SEND_FAILED');
-                    }
-                } catch (sendErr) {
-                    console.error(`❌ [Notification Queue] Failed to send email #${row.id} to ${row.recipient_email}:`, sendErr.message);
-                    const newRetryCount = (row.retry_count || 0) + 1;
-                    const nextStatus = newRetryCount >= 3 ? 'failed' : 'pending';
-                    db.run(
-                        "UPDATE notifications SET status = ?, retry_count = ?, error_message = ? WHERE id = ?",
-                        [nextStatus, newRetryCount, sendErr.message.substring(0, 255), row.id]
-                    );
-                }
+            } catch (sendErr) {
+                console.error(`❌ [Notification Queue] Failed to send email #${row.id} to ${row.recipient_email}:`, sendErr.message);
+                const newRetryCount = (row.retry_count || 0) + 1;
+                const nextStatus = newRetryCount >= 3 ? 'failed' : 'pending';
+                db.run(
+                    "UPDATE notifications SET status = ?, retry_count = ?, error_message = ? WHERE id = ?",
+                    [nextStatus, newRetryCount, sendErr.message.substring(0, 255), row.id]
+                );
             }
         }
-    );
+    } finally {
+        _notificationSweepRunning = false;
+    }
 }
 
 async function syncEventToCalendar(eventId) {
