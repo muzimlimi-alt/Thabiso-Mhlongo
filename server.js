@@ -5000,28 +5000,34 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
                     (aErr) => { if (aErr) console.error('[Audit] Quote acceptance log failed:', aErr.message); });
 
                 // Auto-create 50/50 payment schedule only if no custom milestones have been configured
+                // F3: create the default 50/50 schedule and AWAIT it so both rows exist before
+                // generateInvoice() reads payment_schedules for the invoice PDF. Previously these
+                // inserts were fire-and-forget and a 300ms setTimeout only guarded the email — the
+                // invoice could be generated before the schedule existed, dropping the split from the PDF.
                 const totalAmount = parseFloat(row.quote_amount) || parseFloat(row.total_amount) || 0;
                 if (totalAmount > 0) {
-                    db.get("SELECT COUNT(*) AS cnt FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')", [req.params.id], (cErr, cRow) => {
-                        if (!cErr && cRow && cRow.cnt > 0) return; // admin-configured milestones exist — preserve them
-                        const depositAmount = Math.round((totalAmount * 0.5) * 100) / 100;
-                        const balanceAmount = Math.round((totalAmount - depositAmount) * 100) / 100;
-                        const depositDue = moment().add(7, 'days').format('YYYY-MM-DD');
-                        const eventDate = row.date || row.event_date;
-                        const balanceDue = eventDate
-                            ? moment(eventDate).subtract(2, 'days').format('YYYY-MM-DD')
-                            : moment().add(30, 'days').format('YYYY-MM-DD');
-                        db.run(
-                            "INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
-                            [req.params.id, '50% Deposit', depositDue, depositAmount],
-                            () => {
-                                db.run(
-                                    "INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
-                                    [req.params.id, '50% Balance', balanceDue, balanceAmount]
-                                );
-                            }
-                        );
-                    });
+                    try {
+                        const existingCount = await new Promise((resolve, reject) =>
+                            db.get("SELECT COUNT(*) AS cnt FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')",
+                                [req.params.id], (cErr, cRow) => cErr ? reject(cErr) : resolve(cRow ? cRow.cnt : 0)));
+                        if (existingCount === 0) { // no admin-configured milestones — create the default split
+                            const depositAmount = Math.round((totalAmount * 0.5) * 100) / 100;
+                            const balanceAmount = Math.round((totalAmount - depositAmount) * 100) / 100;
+                            const depositDue = moment().add(7, 'days').format('YYYY-MM-DD');
+                            const eventDate = row.date || row.event_date;
+                            const balanceDue = eventDate
+                                ? moment(eventDate).subtract(2, 'days').format('YYYY-MM-DD')
+                                : moment().add(30, 'days').format('YYYY-MM-DD');
+                            await new Promise((resolve, reject) =>
+                                db.run("INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
+                                    [req.params.id, '50% Deposit', depositDue, depositAmount], (e) => e ? reject(e) : resolve()));
+                            await new Promise((resolve, reject) =>
+                                db.run("INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
+                                    [req.params.id, '50% Balance', balanceDue, balanceAmount], (e) => e ? reject(e) : resolve()));
+                        }
+                    } catch (schedErr) {
+                        console.error('[Accept-Quote] Payment schedule creation failed (booking #' + req.params.id + '):', schedErr.message);
+                    }
                 }
 
                 // Sync to Google Calendar (Update status on Hold)
@@ -5037,9 +5043,6 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
                 } catch(invErr) {
                     console.error('[Invoice] Auto-generation failed during acceptance (booking #' + req.params.id + '):', invErr);
                 }
-
-                // Slight delay to let payment schedules be inserted before email query runs
-                await new Promise(resolve => setTimeout(resolve, 300));
 
                 await sendQuoteAcceptedEmail({ ...row, status: 'ACCEPTED' }, { invoiceGenerated });
                 sendAdminQuoteAcceptedNotification({ ...row, status: 'ACCEPTED' })
