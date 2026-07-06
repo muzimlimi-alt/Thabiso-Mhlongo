@@ -473,7 +473,16 @@ const bookingAttachUpload = multer({
     limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-app.post('/upload', upload.single('file'), (req, res) => {
+app.post('/upload', (req, res, next) => {
+    // SEC-1: require an admin session BEFORE multer runs — this route is defined above the
+    // requireAdmin const (~L1569) so it can't use that middleware, and gating pre-multer means an
+    // unauthenticated request never writes a file. Previously anyone could upload into the
+    // web-served images/* dirs (the filter allows .svg → stored-XSS vector, plus defacement/DoS).
+    if (!req.session || !req.session.adminId) {
+        return res.status(401).json({ success: false, message: 'Unauthorized. Please log in.' });
+    }
+    next();
+}, upload.single('file'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
@@ -13058,7 +13067,8 @@ app.get('/sitemap.xml', sitemapRateLimiter, (req, res) => {
 });
 
 // Dynamic admin backgrounds debug logger
-app.post('/api/debug', (req, res) => {
+app.post('/api/debug', requireAdmin, (req, res) => {
+    // SEC-2: gated behind admin auth — it was an open endpoint that logged arbitrary request bodies.
     console.log('[DEBUG API] Background configuration trace:', req.body);
     return res.status(200).json({ success: true });
 });
