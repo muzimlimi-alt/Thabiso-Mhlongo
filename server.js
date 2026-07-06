@@ -11356,13 +11356,22 @@ app.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrator'
         }
         db.run("UPDATE bookings SET event_id = NULL WHERE id = ?", [id], () => {
             db.run("BEGIN TRANSACTION", () => {
+                // node-sqlite3 runs these in array order on the one connection, so line-item
+                // children are removed before their parent invoice/quotation rows. Previously
+                // booking_line_items, invoice_line_items, quote_line_items, service_reviews and
+                // booking_notes were NOT cascaded, leaving orphaned rows behind on every delete.
                 const cascadeTargets = [
+                "DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE booking_id = ?)",
+                "DELETE FROM quote_line_items WHERE quotation_id IN (SELECT id FROM quotations WHERE booking_id = ?)",
                 "DELETE FROM quotations WHERE booking_id = ?",
                 "DELETE FROM invoices WHERE booking_id = ?",
                 "DELETE FROM cancellations WHERE booking_id = ?",
                 "DELETE FROM contracts WHERE booking_id = ?",
                 "DELETE FROM payment_schedules WHERE booking_id = ?",
                 "DELETE FROM booking_services WHERE booking_id = ?",
+                "DELETE FROM booking_line_items WHERE booking_id = ?",
+                "DELETE FROM service_reviews WHERE booking_id = ?",
+                "DELETE FROM booking_notes WHERE booking_id = ?",
                 "DELETE FROM communication_log WHERE booking_id = ?",
                 "DELETE FROM transactions WHERE booking_id = ?",
                 "DELETE FROM date_holds WHERE converted_to_booking_id = ?",
