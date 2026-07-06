@@ -1018,6 +1018,47 @@ function getVatRate() {
     });
 }
 
+// FIN-2: VAT applies only to taxable lines. Resolve each line's tax_class from the services
+// catalog (lines without a service_id — e.g. custom quote lines — default to 'standard'/taxable).
+// Mutates items in place, adding a tax_class where missing.
+async function resolveLineTaxClasses(items) {
+    if (!Array.isArray(items) || items.length === 0) return items;
+    const ids = [...new Set(items.map(i => parseInt(i.service_id)).filter(n => !isNaN(n)))];
+    const byId = {};
+    if (ids.length) {
+        const rows = await new Promise(res => db.all(
+            `SELECT id, tax_class FROM services WHERE id IN (${ids.map(() => '?').join(',')})`, ids,
+            (e, r) => res(e ? [] : (r || []))));
+        rows.forEach(s => { byId[s.id] = s.tax_class; });
+    }
+    for (const it of items) {
+        if (!it.tax_class) it.tax_class = byId[parseInt(it.service_id)] || 'standard';
+    }
+    return items;
+}
+
+// FIN-2: single source of truth for quote/invoice money math — mirrors pdfService's totals block
+// so the stored total and the printed document always agree. VAT is charged only on taxable
+// (non-exempt) lines; a discount is split across taxable/exempt in proportion to their subtotals.
+function computeDocumentTotals(items, { discount = 0, applyVat = false, vatRate = 0.15 } = {}) {
+    let vatableSubtotal = 0, exemptSubtotal = 0;
+    for (const it of (items || [])) {
+        const qty = parseFloat(it.quantity_minutes) || parseFloat(it.quantity) || 1;
+        const price = parseFloat(it.unit_price) || 0;
+        const amt = qty * price;
+        const tc = it.tax_class || 'standard';
+        if (tc === 'exempt' || tc === 'zero-rated') exemptSubtotal += amt; else vatableSubtotal += amt;
+    }
+    const subtotal = vatableSubtotal + exemptSubtotal;
+    const dp = Math.max(0, parseFloat(discount) || 0);
+    const ratio = subtotal > 0 ? vatableSubtotal / subtotal : 1;
+    const vatableBase = Math.max(0, vatableSubtotal - dp * ratio);
+    const exemptBase  = Math.max(0, exemptSubtotal - dp * (1 - ratio));
+    const vat = applyVat ? Math.round(vatableBase * vatRate * 100) / 100 : 0;
+    const total = Math.round((vatableBase + exemptBase + vat) * 100) / 100;
+    return { subtotal, vatableBase, exemptBase, vat, total, discount: dp };
+}
+
 /**
  * Generates an invoice for a booking, saves to DB and sends email.
  * @param {number|string} bookingId
@@ -1063,6 +1104,11 @@ async function generateInvoice(bookingId) {
 
                     let items = [];
                     let quoteData = {};
+                    // apply_vat + discount live reliably in booking.quote_details JSON — the quotations
+                    // table has no such columns, so reading activeQuote.apply_vat/discount always yielded
+                    // undefined (FIN-3: invoices via the quotations path silently dropped VAT + discount).
+                    // Source them from quote_details; use the relational rows only for the line items.
+                    try { quoteData = JSON.parse(booking.quote_details || '{}'); } catch(ex) {}
 
                     if (activeQuote) {
                         const qLines = await new Promise(resolve => {
@@ -1077,33 +1123,28 @@ async function generateInvoice(bookingId) {
                                 service_id: li.service_id
                             }));
                         }
-                        quoteData = {
-                            apply_vat: !!activeQuote.apply_vat,
-                            discount: parseFloat(activeQuote.discount) || 0,
-                            items
-                        };
-                    } else {
-                        // Legacy fallback: parse booking.quote_details JSON
-                        try { quoteData = JSON.parse(booking.quote_details || '{}'); } catch(ex) {}
-                        if (quoteData.items && Array.isArray(quoteData.items)) items = quoteData.items;
+                    }
+                    if (items.length === 0 && Array.isArray(quoteData.items)) {
+                        items = quoteData.items; // fallback item source (legacy quote_details)
                     }
 
-                    if (items.length === 0) {
-                        console.warn(`[Invoice Warning] Booking #${bookingId}: no line items from quotations or quote_details — using fallback.`);
-                    }
+                    // FIN-2: tag each line's tax_class so VAT is charged only on taxable lines and the PDF matches.
+                    await resolveLineTaxClasses(items);
 
-                    const rawSubtotal = items.length > 0
-                        ? items.reduce((s, i) => s + (parseFloat(i.unit_price) || 0) * (parseFloat(i.quantity) || 1), 0)
-                        : (quoteData.subtotal || parseFloat((booking.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0);
-                    const discount = parseFloat(quoteData.discount) || 0;
-                    const vatable = Math.max(0, rawSubtotal - discount);
-                    const subtotal = rawSubtotal;
                     const applyVat = !!quoteData.apply_vat;
-                    const tax = applyVat ? (quoteData.vat || (vatable * vatRate)) : 0;
-                    const total = vatable + tax;
+                    const discount = parseFloat(quoteData.discount) || 0;
 
-                    if (items.length === 0) {
-                        items = [{ description: 'Performance Booking Service', quantity: 1, unit_price: subtotal }];
+                    let subtotal, tax, total;
+                    if (items.length > 0) {
+                        const t = computeDocumentTotals(items, { discount, applyVat, vatRate });
+                        subtotal = t.subtotal; tax = t.vat; total = t.total;
+                    } else {
+                        console.warn(`[Invoice Warning] Booking #${bookingId}: no line items from quotations or quote_details — using fallback.`);
+                        subtotal = quoteData.subtotal || parseFloat((booking.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
+                        const vatable = Math.max(0, subtotal - discount);
+                        tax = applyVat ? (quoteData.vat || (vatable * vatRate)) : 0;
+                        total = vatable + tax;
+                        items = [{ description: 'Performance Booking Service', quantity: 1, unit_price: subtotal, tax_class: 'standard' }];
                     }
 
                     const invNumber = `INV-${moment().format('YYYY')}-${bookingId.toString().padStart(4, '0')}`;
@@ -1111,6 +1152,7 @@ async function generateInvoice(bookingId) {
                     // Enrich booking with VAT flag and discount from quote
                     booking.apply_vat = applyVat;
                     booking.discount = discount;
+                    booking.vat_rate = vatRate; // FIN-1/2: PDF uses the same rate as the server calc
 
                     // Generate PDF
                     const pdfFileName = `${invNumber}-${moment().format('YYYYMMDDHHmmss')}.pdf`;
@@ -9562,24 +9604,26 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
                     return res.status(400).json({ success: false, message: 'Quote expiry must be at least 3 days from today to give the client adequate time to respond.' });
                 }
                 
-                let subtotal = 0;
                 bodyItems.forEach(i => {
-                    const q = parseFloat(i.quantity_minutes) || parseFloat(i.quantity) || 1;
-                    const p = parseFloat(i.unit_price) || 0;
-                    subtotal += (q * p);
-                    i.quantity_minutes = q; // normalization
+                    i.quantity_minutes = parseFloat(i.quantity_minutes) || parseFloat(i.quantity) || 1; // normalization
                 });
+                // FIN-2: tag each line's tax_class from the services catalog, then compute totals with
+                // the shared helper so VAT is charged only on taxable lines and the quote total, the
+                // stored invoice, and the PDF all agree.
+                await resolveLineTaxClasses(bodyItems);
                 let dp = parseFloat(discount) || 0;
-                let vatable = Math.max(0, subtotal - dp);
                 const vatRate = await getVatRate();
-                let vat = apply_vat ? vatable * vatRate : 0;
-                finalTotal = vatable + vat;
+                const totals = computeDocumentTotals(bodyItems, { discount: dp, applyVat: !!apply_vat, vatRate });
+                let subtotal = totals.subtotal;
+                let vat = totals.vat;
+                finalTotal = totals.total;
                 items = bodyItems;
-                
+
                 quote_amount = finalTotal.toFixed(2);
                 quote_details = JSON.stringify({ terms, items, discount: dp, apply_vat, finalTotal, subtotal, vat });
                 quote_expiry_date = expiry;
                 booking.discount = dp;
+                booking.vat_rate = vatRate; // FIN-1/2: quote PDF uses the same rate as the calc
                 booking.terms = terms;
             } else {
                 // Unstructured fallback (legacy) — normalize to plain numeric string

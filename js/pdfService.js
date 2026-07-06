@@ -428,7 +428,9 @@ class PDFService {
             }
 
             if (applyVat) {
-                const vatRate = parseFloat(process.env.VAT_RATE) || 0.15;
+                // FIN-1/2: use the rate the server calc used (passed on the booking) so the PDF total
+                // matches the stored invoice/quote total; fall back to env / 0.15 for legacy callers.
+                const vatRate = parseFloat(booking.vat_rate ?? process.env.VAT_RATE) || 0.15;
                 const vat     = vatableBase * vatRate;
                 const total   = vatableBase + exemptBase + vat;
 
@@ -437,7 +439,7 @@ class PDFService {
                 }
 
                 drawTotalsRow(
-                    `VAT (${((parseFloat(process.env.VAT_RATE) || 0.15) * 100).toFixed(0)}%)`,
+                    `VAT (${(vatRate * 100).toFixed(0)}%)`,
                     `R ${vat.toFixed(2)}`, false, false
                 );
                 drawTotalsRow('TOTAL (incl. VAT)', `R ${total.toFixed(2)}`, true, true);
