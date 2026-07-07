@@ -4703,11 +4703,14 @@
                         </div>
                     </div>
 
-                    <!-- Analytics Period Selector -->
-                    <div class="db-period-bar" role="group" aria-label="Analytics period">
-                        <button class="db-period-btn"        data-period="7d"  id="dbPeriod-7d">7 days</button>
-                        <button class="db-period-btn active" data-period="30d" id="dbPeriod-30d">30 days</button>
-                        <button class="db-period-btn"        data-period="90d" id="dbPeriod-90d">90 days</button>
+                    <!-- Analytics Period Selector + Refresh (matches Finance Analytics control bar) -->
+                    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:space-between; margin-bottom:4px;">
+                        <div class="db-period-bar" role="group" aria-label="Analytics period">
+                            <button class="db-period-btn"        data-period="7d"  id="dbPeriod-7d">7 days</button>
+                            <button class="db-period-btn active" data-period="30d" id="dbPeriod-30d">30 days</button>
+                            <button class="db-period-btn"        data-period="90d" id="dbPeriod-90d">90 days</button>
+                        </div>
+                        <button class="atl-btn atl-btn--ghost" onclick="loadAnalyticsDashboard()"><i class="fa-solid fa-rotate-right" style="margin-right:5px;"></i>Refresh</button>
                     </div>
 
                     <!-- Web Analytics KPI Cards -->
@@ -4745,7 +4748,7 @@
                     <!-- Visitors Over Time Chart (full width) -->
                     <div class="atl-card atl-card--flush">
                         <div class="atl-card-header">
-                            <h3>Visitors Over Time</h3>
+                            <h3><i class="fa-solid fa-chart-line" style="color:var(--atl-amber); margin-right:8px;"></i>Visitors Over Time</h3>
                         </div>
                         <div class="atl-card-body" style="padding: 0 12px 12px;">
                             <div id="db-chartVisitors"></div>
@@ -4755,11 +4758,11 @@
                     <!-- Traffic Sources + Device Breakdown (2-col) -->
                     <div class="db-analytics-pair-grid">
                         <div class="atl-card atl-card--flush">
-                            <div class="atl-card-header"><h3>Traffic Sources</h3></div>
+                            <div class="atl-card-header"><h3><i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-right:8px;"></i>Traffic Sources</h3></div>
                             <div class="atl-card-body"><div id="db-chartSources"></div></div>
                         </div>
                         <div class="atl-card atl-card--flush">
-                            <div class="atl-card-header"><h3>Devices</h3></div>
+                            <div class="atl-card-header"><h3><i class="fa-solid fa-mobile-screen-button" style="color:var(--atl-amber); margin-right:8px;"></i>Devices</h3></div>
                             <div class="atl-card-body"><div id="db-chartDevices"></div></div>
                         </div>
                     </div>
@@ -4797,7 +4800,7 @@
                     <div class="db-spark-grid">
                         <div class="atl-card atl-card--flush db-spark-card">
                             <div class="atl-card-header">
-                                <h3>Total Users</h3>
+                                <h3><i class="fa-solid fa-users" style="color:var(--atl-amber); margin-right:8px;"></i>Total Users</h3>
                                 <span class="db-spark-value">—</span>
                             </div>
                             <div class="atl-card-body">
@@ -4806,7 +4809,7 @@
                         </div>
                         <div class="atl-card atl-card--flush db-spark-card">
                             <div class="atl-card-header">
-                                <h3>Page Views</h3>
+                                <h3><i class="fa-solid fa-eye" style="color:var(--atl-amber); margin-right:8px;"></i>Page Views</h3>
                                 <span class="db-spark-value">—</span>
                             </div>
                             <div class="atl-card-body">
@@ -4820,7 +4823,7 @@
                         <!-- Chart Card -->
                         <div class="atl-card atl-card--flush db-chart-card">
                             <div class="atl-card-header">
-                                <h3>Bookings Overview</h3>
+                                <h3><i class="fa-solid fa-calendar-check" style="color:var(--atl-amber); margin-right:8px;"></i>Bookings Overview</h3>
                             </div>
                             <div class="atl-card-body">
                                 <div id="bookingsChart"></div>
@@ -4830,7 +4833,7 @@
                         <!-- Schedule Card -->
                         <div class="atl-card atl-card--flush db-schedule-card">
                             <div class="atl-card-header">
-                                <h3>Today's Schedule</h3>
+                                <h3><i class="fa-solid fa-calendar-day" style="color:var(--atl-amber); margin-right:8px;"></i>Today's Schedule</h3>
                             </div>
                             <div class="atl-card-body">
                                 <div class="db-schedule-list" id="dbScheduleList">
