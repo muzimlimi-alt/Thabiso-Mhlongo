@@ -8685,6 +8685,82 @@
                                 </div>
                             </div>
 
+                            <h4 class="um-section-label" style="margin: 24px 0 12px;">Getting your Live API credentials</h4>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:14px; line-height:1.6;">
+                                To switch a platform to <strong style="color:var(--atl-ink);">Live API</strong>, paste credentials from that platform's developer console into its card on the <strong style="color:var(--atl-ink);">Dashboard KPIs</strong> tab, then click <strong style="color:var(--atl-ink);">Save KPI Settings</strong>. These are stored <strong style="color:var(--atl-ink);">on the server</strong> (admin-only) and the dashboard refreshes them hourly. New to this? <strong style="color:var(--atl-ink);">Start with YouTube</strong> &mdash; it's the quickest and needs no approval.
+                            </p>
+
+                            <div class="atl-card" style="border: 1px solid var(--atl-line); background: var(--atl-surface); padding: 16px; margin-bottom: 20px; border-radius: 8px;">
+                                <h5 style="color: var(--atl-ink); margin-bottom: 14px; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-key" style="color: var(--atl-amber);"></i> Where each credential comes from</h5>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                                    <div>
+                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">
+                                            <i class="fa-brands fa-youtube" style="color:var(--db-yt-red);"></i> YouTube
+                                            <span style="font-size:9.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--atl-sage); background:var(--atl-sage-dim, rgba(74,222,128,0.12)); padding:2px 7px; border-radius:999px;">Easiest</span>
+                                        </h6>
+                                        <p class="um-section-desc" style="font-size:12px; line-height:1.5; margin:0 0 6px;"><strong style="color:var(--atl-ink);">Needs:</strong> API Key + Channel ID</p>
+                                        <ol class="um-section-desc" style="font-size:12px; line-height:1.65; margin:0; padding-left:16px;">
+                                            <li>In <a href="https://console.cloud.google.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">Google Cloud Console</a>, create a project.</li>
+                                            <li>Enable <strong style="color:var(--atl-ink);">YouTube Data API v3</strong> (APIs &amp; Services &rarr; Library).</li>
+                                            <li>Create an <strong style="color:var(--atl-ink);">API key</strong> under Credentials.</li>
+                                            <li>Copy the <strong style="color:var(--atl-ink);">Channel ID</strong> (channel page &rarr; Share &rarr; Copy channel ID, starts with <code>UC…</code>).</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">
+                                            <i class="fa-brands fa-facebook" style="color:var(--db-fb-blue);"></i> Facebook
+                                        </h6>
+                                        <p class="um-section-desc" style="font-size:12px; line-height:1.5; margin:0 0 6px;"><strong style="color:var(--atl-ink);">Needs:</strong> Page Access Token + Page ID</p>
+                                        <ol class="um-section-desc" style="font-size:12px; line-height:1.65; margin:0; padding-left:16px;">
+                                            <li>You must be an <strong style="color:var(--atl-ink);">admin of the Facebook Page</strong> (not a personal profile).</li>
+                                            <li>Create a <strong style="color:var(--atl-ink);">Business</strong> app at <a href="https://developers.facebook.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">Meta for Developers</a>.</li>
+                                            <li>In the <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener" style="color:var(--atl-amber);">Graph API Explorer</a>: <strong style="color:var(--atl-ink);">Get Token &rarr; Get Page Access Token</strong>, allow <code>pages_read_engagement</code>.</li>
+                                            <li>Run <code>me/accounts</code> to list each Page's <strong style="color:var(--atl-ink);">id</strong> (the Page ID) and token.</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">
+                                            <i class="fa-brands fa-instagram" style="color:var(--db-ig-pink);"></i> Instagram
+                                        </h6>
+                                        <p class="um-section-desc" style="font-size:12px; line-height:1.5; margin:0 0 6px;"><strong style="color:var(--atl-ink);">Needs:</strong> Access Token + User ID</p>
+                                        <ol class="um-section-desc" style="font-size:12px; line-height:1.65; margin:0; padding-left:16px;">
+                                            <li>Uses the same <a href="https://developers.facebook.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">Meta</a> app as Facebook.</li>
+                                            <li>Requires an IG <strong style="color:var(--atl-ink);">Business / Creator</strong> account linked to a Facebook Page.</li>
+                                            <li>Get the IG <strong style="color:var(--atl-ink);">User ID</strong> via <code>{page-id}?fields=instagram_business_account</code>.</li>
+                                            <li>Token needs <code>instagram_basic</code> + <code>pages_read_engagement</code>.</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">
+                                            <i class="fa-brands fa-x-twitter" style="color:var(--db-x-ink);"></i> X (Twitter)
+                                        </h6>
+                                        <p class="um-section-desc" style="font-size:12px; line-height:1.5; margin:0 0 6px;"><strong style="color:var(--atl-ink);">Needs:</strong> Bearer Token + Username</p>
+                                        <ol class="um-section-desc" style="font-size:12px; line-height:1.65; margin:0; padding-left:16px;">
+                                            <li>Create a project/app in the <a href="https://developer.x.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">X Developer Portal</a>.</li>
+                                            <li>Copy the app's <strong style="color:var(--atl-ink);">Bearer Token</strong> from Keys &amp; Tokens.</li>
+                                            <li>Enter your handle <strong style="color:var(--atl-ink);">without the @</strong>.</li>
+                                            <li><em>Note:</em> the free tier is heavily rate-limited.</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">
+                                            <i class="fa-brands fa-tiktok" style="color:var(--db-tt-red);"></i> TikTok
+                                        </h6>
+                                        <p class="um-section-desc" style="font-size:12px; line-height:1.5; margin:0 0 6px;"><strong style="color:var(--atl-ink);">Needs:</strong> Access Token</p>
+                                        <ol class="um-section-desc" style="font-size:12px; line-height:1.65; margin:0; padding-left:16px;">
+                                            <li>Register an app at <a href="https://developers.tiktok.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">TikTok for Developers</a>.</li>
+                                            <li>Add <strong style="color:var(--atl-ink);">Login Kit</strong> and request the <code>user.info.stats</code> scope.</li>
+                                            <li>Complete OAuth to obtain a user <strong style="color:var(--atl-ink);">Access Token</strong>.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+
+                                <p class="um-section-desc" style="margin-top:16px; margin-bottom:0; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px; font-size:12px; line-height:1.55;">
+                                    <i class="fa-solid fa-clock" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                    <span><strong style="color:var(--atl-ink);">Watch token expiry.</strong> Facebook, Instagram, X and TikTok tokens from the quick-start tools are usually <strong style="color:var(--atl-ink);">short-lived (~1 hour)</strong>, so a card can stop updating soon after you save. For a lasting connection, exchange them for a long-lived / non-expiring token &mdash; for Facebook, a <strong style="color:var(--atl-ink);">Page</strong> token via the token-exchange endpoint. YouTube API keys don't expire. If a fetch fails, the dashboard keeps the last saved number instead of breaking.</span>
+                                </p>
+                            </div>
+
                             <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
                                 <span>Use <strong style="color:var(--atl-ink);">Active / Inactive</strong> to curate what visitors see without losing anything &mdash; retired links and embeds stay saved and ready to re-enable.</span>
