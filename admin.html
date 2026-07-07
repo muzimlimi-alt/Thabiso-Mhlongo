@@ -3454,6 +3454,19 @@
         .um-role-list li.can i { color: var(--atl-sage); }
         .um-role-list li.cannot i { color: var(--atl-clay); }
         .um-feature-title { display: inline-flex; align-items: center; gap: 8px; color: var(--atl-ink); font-weight: 600; font-size: 14px; }
+
+        /* Reusable Atelier callout — used across About panels */
+        .um-note { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.6; color: var(--atl-muted); background: var(--atl-surface2); border: 1px solid var(--atl-line); border-left: 3px solid var(--atl-amber); border-radius: var(--atl-r-md); padding: 12px 14px; margin: 14px 0 0; }
+        .um-note i { margin-top: 3px; flex-shrink: 0; font-size: 13px; }
+        .um-note strong { color: var(--atl-ink); }
+        .um-note code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
+        .um-note--tip  { border-left-color: var(--atl-amber); }
+        .um-note--tip i  { color: var(--atl-amber); }
+        .um-note--warn { border-left-color: var(--atl-clay); background: color-mix(in srgb, var(--atl-clay) 7%, var(--atl-surface2)); }
+        .um-note--warn i { color: var(--atl-clay); }
+        .um-note--info { border-left-color: var(--atl-blue); }
+        .um-note--info i { color: var(--atl-blue); }
+        .um-role-info__desc code, .um-role-list code { font-family: 'JetBrains Mono', monospace; font-size: 0.88em; color: var(--atl-ink-dim); background: color-mix(in srgb, var(--atl-ink) 8%, transparent); padding: 1px 5px; border-radius: 4px; }
         /* System Settings — separate cards + save bar */
         .um-settings-card { margin-bottom: 18px; }
         .um-settings-save {
@@ -8590,7 +8603,9 @@
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
                                         <span class="um-feature-title"><i class="fa-solid fa-at" style="color:var(--atl-amber);"></i> Social Links</span>
+                                        <span class="um-role-info__tag">Public site</span>
                                     </div>
+                                    <p class="um-role-info__desc">Profile links shown in your website's header, footer, and contact areas.</p>
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i> Pick a platform &mdash; the matching icon is chosen automatically</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> Paste the profile URL and save from the Add drawer</li>
@@ -8600,7 +8615,9 @@
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
                                         <span class="um-feature-title"><i class="fa-solid fa-code" style="color:var(--atl-amber);"></i> Media Embeds</span>
+                                        <span class="um-role-info__tag">Public site</span>
                                     </div>
+                                    <p class="um-role-info__desc">Live video and post widgets embedded directly into your public pages.</p>
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i> Paste a video/post URL or embed code</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> The link is checked against the chosen platform's domain</li>
@@ -8610,17 +8627,21 @@
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
                                         <span class="um-feature-title"><i class="fa-solid fa-chart-line" style="color:var(--atl-amber);"></i> Dashboard KPIs</span>
+                                        <span class="um-role-info__tag">Dashboard</span>
                                     </div>
+                                    <p class="um-role-info__desc">Follower and growth figures behind the <em>Social Media Channels</em> cards.</p>
                                     <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> Toggle between Live API data or manual inputs</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Define manual follower counts and custom trend rates</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Toggle each platform between Live API data or manual inputs</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Set follower counts, a goal, and custom trend rates</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> Changes reflect instantly on the admin dashboard</li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
                                         <span class="um-feature-title"><i class="fa-solid fa-toggle-on" style="color:var(--atl-amber);"></i> Status &amp; visibility</span>
+                                        <span class="um-role-info__tag">Everywhere</span>
                                     </div>
+                                    <p class="um-role-info__desc">Curate what visitors see without ever losing an item.</p>
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i> Active items appear on the public site</li>
                                         <li class="cannot"><i class="fa-solid fa-xmark"></i> Inactive items are hidden but kept for later</li>
@@ -8630,7 +8651,9 @@
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
                                         <span class="um-feature-title"><i class="fa-solid fa-magnifying-glass" style="color:var(--atl-amber);"></i> Find &amp; manage</span>
+                                        <span class="um-role-info__tag">Tools</span>
                                     </div>
+                                    <p class="um-role-info__desc">Quickly locate and maintain any entry across the lists.</p>
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i> Search either tab's list by platform name</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> The <strong style="color:var(--atl-ink);">Add</strong> button opens a slide-in entry drawer</li>
@@ -8647,41 +8670,37 @@
                                 <li><strong style="color:var(--atl-ink);">Hide something temporarily</strong> &mdash; set the item <strong style="color:var(--atl-ink);">Inactive</strong> instead of deleting it, so you can bring it back later.</li>
                             </ol>
 
-                            <h4 class="um-section-label" style="margin: 24px 0 12px;">Understanding Dashboard KPIs</h4>
-                            <p class="um-section-desc" style="width:100%; margin-bottom:14px; line-height:1.6;">
-                                The **Dashboard KPIs** display key metrics (followers, subscriber counts, and growth trends) in the *Social Media Channels* grid of the main Admin Dashboard. This allows you to track your aggregate digital footprint in one central view.
+                            <h4 class="um-section-label" style="margin: 24px 0 14px;">Understanding Dashboard KPIs</h4>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:16px; line-height:1.6;">
+                                The <strong style="color:var(--atl-ink);">Dashboard KPIs</strong> tab feeds the five follower cards in the <em>Social Media Channels</em> grid at the top of the main dashboard, giving you your aggregate digital footprint in one view. Configure each platform independently, then click <strong style="color:var(--atl-ink);">Save KPI Settings</strong> &mdash; the dashboard updates immediately. Here's what each field controls:
                             </p>
-                            
-                            <div class="atl-card" style="border: 1px solid var(--atl-line); background: var(--atl-surface); padding: 16px; margin-bottom: 20px; border-radius: 8px;">
-                                <h5 style="color: var(--atl-ink); margin-bottom: 12px; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-gears" style="color: var(--atl-amber);"></i> Key Terms & Configurations</h5>
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;">
-                                    <div>
-                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px;">Data Sources</h6>
-                                        <p class="um-section-desc" style="font-size: 12px; line-height: 1.5; margin: 0;">
-                                            <strong>Live API Integration:</strong> Fetches stats automatically from platform APIs. Storing credentials (such as API keys, bearer tokens, or access tokens) is done directly within each platform's card on the settings tab. The server stores these keys securely and dynamically in the database. Values cache for 1 hour.<br>
-                                            <strong>Manual Input:</strong> Bypasses API checks, letting you type values directly to override what is shown on the dashboard.
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px;">Follower Count</h6>
-                                        <p class="um-section-desc" style="font-size: 12px; line-height: 1.5; margin: 0;">
-                                            The current total size of your audience on that platform (e.g. enter <code>12345</code>). The dashboard automatically formats this with commas (e.g., <code>12,345</code>).
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px;">Trend % (Growth Momentum)</h6>
-                                        <p class="um-section-desc" style="font-size: 12px; line-height: 1.5; margin: 0;">
-                                            The percentage rate of growth or decline (e.g. enter <code>5.5</code>). It represents changes over a recent interval (e.g. 30 days) and displays on the dashboard as <code>+5.5%</code> or <code>-5.5%</code>.
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px;">Trend Direction</h6>
-                                        <p class="um-section-desc" style="font-size: 12px; line-height: 1.5; margin: 0;">
-                                            Determines the visual styling of the trend badge:<br>
-                                            <strong>Up (+):</strong> Renders a green badge with an upward-pointing arrow.<br>
-                                            <strong>Down (-):</strong> Renders a red badge with a downward-pointing arrow.
-                                        </p>
-                                    </div>
+
+                            <div class="um-roles-grid" style="margin-bottom:4px;">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-database" style="color:var(--atl-amber);"></i> Data Source</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-bolt"></i> <span><strong style="color:var(--atl-ink);">Live API</strong> &mdash; pulls the real count from the platform automatically (cached up to 1 hour).</span></li>
+                                        <li class="can"><i class="fa-solid fa-pen-to-square"></i> <span><strong style="color:var(--atl-ink);">Manual</strong> &mdash; you type the numbers in yourself; no API needed.</span></li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-users" style="color:var(--atl-amber);"></i> Follower Count</span></div>
+                                    <p class="um-role-info__desc">Your current audience size on that platform (e.g. <code>12345</code>). The dashboard formats it with commas &mdash; <code>12,345</code>.</p>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-bullseye" style="color:var(--atl-amber);"></i> Goal / Target</span><span class="um-role-info__tag">New</span></div>
+                                    <p class="um-role-info__desc">The milestone you're aiming for. It sets how full the progress bar under each card looks &mdash; e.g. 15,080 of a 25,000 goal fills the bar to 60%.</p>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-percent" style="color:var(--atl-amber);"></i> Trend %</span></div>
+                                    <p class="um-role-info__desc">The growth rate over a recent interval, entered as a positive number (e.g. <code>5.5</code>). The sign comes from Direction, so you never type a minus.</p>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-arrows-up-down" style="color:var(--atl-amber);"></i> Trend Direction</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-arrow-up"></i> <span><strong style="color:var(--atl-ink);">Up (+)</strong> &mdash; green badge, upward arrow, shown as <code>+5.5%</code>.</span></li>
+                                        <li class="cannot"><i class="fa-solid fa-arrow-down"></i> <span><strong style="color:var(--atl-ink);">Down (&minus;)</strong> &mdash; red badge, downward arrow, shown as <code>&minus;5.5%</code>.</span></li>
+                                    </ul>
                                 </div>
                             </div>
 
@@ -8690,90 +8709,142 @@
                                 To switch a platform to <strong style="color:var(--atl-ink);">Live API</strong>, paste credentials from that platform's developer console into its card on the <strong style="color:var(--atl-ink);">Dashboard KPIs</strong> tab, then click <strong style="color:var(--atl-ink);">Save KPI Settings</strong>. These are stored <strong style="color:var(--atl-ink);">on the server</strong> (admin-only) and the dashboard refreshes them hourly. New to this? <strong style="color:var(--atl-ink);">Start with YouTube</strong> &mdash; it's the quickest and needs no approval.
                             </p>
 
-                            <div class="atl-card" style="border: 1px solid var(--atl-line); background: var(--atl-surface); padding: 16px; margin-bottom: 20px; border-radius: 8px;">
-                                <h5 style="color: var(--atl-ink); margin-bottom: 14px; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px;"><i class="fa-solid fa-key" style="color: var(--atl-amber);"></i> Where each credential comes from</h5>
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-                                    <div>
-                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">
-                                            <i class="fa-brands fa-youtube" style="color:var(--db-yt-red);"></i> YouTube
-                                            <span style="font-size:9.5px; font-weight:700; letter-spacing:.03em; text-transform:uppercase; color:var(--atl-sage); background:var(--atl-sage-dim, rgba(74,222,128,0.12)); padding:2px 7px; border-radius:999px;">Easiest</span>
-                                        </h6>
-                                        <p class="um-section-desc" style="font-size:12px; line-height:1.5; margin:0 0 6px;"><strong style="color:var(--atl-ink);">Needs:</strong> API Key + Channel ID</p>
-                                        <ol class="um-section-desc" style="font-size:12px; line-height:1.65; margin:0; padding-left:16px;">
-                                            <li>In <a href="https://console.cloud.google.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">Google Cloud Console</a>, create a project.</li>
-                                            <li>Enable <strong style="color:var(--atl-ink);">YouTube Data API v3</strong> (APIs &amp; Services &rarr; Library).</li>
-                                            <li>Create an <strong style="color:var(--atl-ink);">API key</strong> under Credentials.</li>
-                                            <li>Copy the <strong style="color:var(--atl-ink);">Channel ID</strong> (channel page &rarr; Share &rarr; Copy channel ID, starts with <code>UC…</code>).</li>
-                                        </ol>
+                            <div class="um-roles-grid">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-brands fa-youtube" style="color:var(--db-yt-red);"></i> YouTube</span>
+                                        <span class="um-role-info__tag" style="color:var(--atl-sage);">Easiest</span>
                                     </div>
-                                    <div>
-                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">
-                                            <i class="fa-brands fa-facebook" style="color:var(--db-fb-blue);"></i> Facebook
-                                        </h6>
-                                        <p class="um-section-desc" style="font-size:12px; line-height:1.5; margin:0 0 6px;"><strong style="color:var(--atl-ink);">Needs:</strong> Page Access Token + Page ID</p>
-                                        <ol class="um-section-desc" style="font-size:12px; line-height:1.65; margin:0; padding-left:16px;">
-                                            <li>You must be an <strong style="color:var(--atl-ink);">admin of the Facebook Page</strong> (not a personal profile).</li>
-                                            <li>Create a <strong style="color:var(--atl-ink);">Business</strong> app at <a href="https://developers.facebook.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">Meta for Developers</a>.</li>
-                                            <li>In the <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener" style="color:var(--atl-amber);">Graph API Explorer</a>: <strong style="color:var(--atl-ink);">Get Token &rarr; Get Page Access Token</strong>, allow <code>pages_read_engagement</code>.</li>
-                                            <li>Run <code>me/accounts</code> to list each Page's <strong style="color:var(--atl-ink);">id</strong> (the Page ID) and token.</li>
-                                        </ol>
-                                    </div>
-                                    <div>
-                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">
-                                            <i class="fa-brands fa-instagram" style="color:var(--db-ig-pink);"></i> Instagram
-                                        </h6>
-                                        <p class="um-section-desc" style="font-size:12px; line-height:1.5; margin:0 0 6px;"><strong style="color:var(--atl-ink);">Needs:</strong> Access Token + User ID</p>
-                                        <ol class="um-section-desc" style="font-size:12px; line-height:1.65; margin:0; padding-left:16px;">
-                                            <li>Uses the same <a href="https://developers.facebook.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">Meta</a> app as Facebook.</li>
-                                            <li>Requires an IG <strong style="color:var(--atl-ink);">Business / Creator</strong> account linked to a Facebook Page.</li>
-                                            <li>Get the IG <strong style="color:var(--atl-ink);">User ID</strong> via <code>{page-id}?fields=instagram_business_account</code>.</li>
-                                            <li>Token needs <code>instagram_basic</code> + <code>pages_read_engagement</code>.</li>
-                                        </ol>
-                                    </div>
-                                    <div>
-                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">
-                                            <i class="fa-brands fa-x-twitter" style="color:var(--db-x-ink);"></i> X (Twitter)
-                                        </h6>
-                                        <p class="um-section-desc" style="font-size:12px; line-height:1.5; margin:0 0 6px;"><strong style="color:var(--atl-ink);">Needs:</strong> Bearer Token + Username</p>
-                                        <ol class="um-section-desc" style="font-size:12px; line-height:1.65; margin:0; padding-left:16px;">
-                                            <li>Create a project/app in the <a href="https://developer.x.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">X Developer Portal</a>.</li>
-                                            <li>Copy the app's <strong style="color:var(--atl-ink);">Bearer Token</strong> from Keys &amp; Tokens.</li>
-                                            <li>Enter your handle <strong style="color:var(--atl-ink);">without the @</strong>.</li>
-                                            <li><em>Note:</em> the free tier is heavily rate-limited.</li>
-                                        </ol>
-                                    </div>
-                                    <div>
-                                        <h6 style="color: var(--atl-ink); font-weight: 600; margin-bottom: 6px; font-size: 13px; display:flex; align-items:center; gap:6px;">
-                                            <i class="fa-brands fa-tiktok" style="color:var(--db-tt-red);"></i> TikTok
-                                        </h6>
-                                        <p class="um-section-desc" style="font-size:12px; line-height:1.5; margin:0 0 6px;"><strong style="color:var(--atl-ink);">Needs:</strong> Access Token</p>
-                                        <ol class="um-section-desc" style="font-size:12px; line-height:1.65; margin:0; padding-left:16px;">
-                                            <li>Register an app at <a href="https://developers.tiktok.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">TikTok for Developers</a>.</li>
-                                            <li>Add <strong style="color:var(--atl-ink);">Login Kit</strong> and request the <code>user.info.stats</code> scope.</li>
-                                            <li>Complete OAuth to obtain a user <strong style="color:var(--atl-ink);">Access Token</strong>.</li>
-                                        </ol>
-                                    </div>
+                                    <p class="um-role-info__desc"><strong style="color:var(--atl-ink);">Needs:</strong> API Key + Channel ID</p>
+                                    <ul class="um-role-list">
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>In <a href="https://console.cloud.google.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">Google Cloud Console</a>, create a project.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Enable <strong style="color:var(--atl-ink);">YouTube Data API v3</strong> (APIs &amp; Services &rarr; Library).</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Create an <strong style="color:var(--atl-ink);">API key</strong> under Credentials.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Copy the <strong style="color:var(--atl-ink);">Channel ID</strong> (channel page &rarr; Share &rarr; Copy channel ID, starts with <code>UC…</code>).</span></li>
+                                    </ul>
                                 </div>
-
-                                <p class="um-section-desc" style="margin-top:16px; margin-bottom:0; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px; font-size:12px; line-height:1.55;">
-                                    <i class="fa-solid fa-clock" style="color:var(--atl-clay); margin-top:2px;"></i>
-                                    <span><strong style="color:var(--atl-ink);">Watch token expiry.</strong> Facebook, Instagram, X and TikTok tokens from the quick-start tools are usually <strong style="color:var(--atl-ink);">short-lived (~1 hour)</strong>, so a card can stop updating soon after you save. For a lasting connection, exchange them for a long-lived / non-expiring token &mdash; for Facebook, a <strong style="color:var(--atl-ink);">Page</strong> token via the token-exchange endpoint. YouTube API keys don't expire. If a fetch fails, the dashboard keeps the last saved number instead of breaking.</span>
-                                </p>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-brands fa-facebook" style="color:var(--db-fb-blue);"></i> Facebook</span>
+                                    </div>
+                                    <p class="um-role-info__desc"><strong style="color:var(--atl-ink);">Needs:</strong> Page Access Token + Page ID</p>
+                                    <ul class="um-role-list">
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>You must be an <strong style="color:var(--atl-ink);">admin of the Facebook Page</strong> (not a personal profile).</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Create a <strong style="color:var(--atl-ink);">Business</strong> app at <a href="https://developers.facebook.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">Meta for Developers</a>.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>In the <a href="https://developers.facebook.com/tools/explorer" target="_blank" rel="noopener" style="color:var(--atl-amber);">Graph API Explorer</a>: <strong style="color:var(--atl-ink);">Get Token &rarr; Get Page Access Token</strong>, allow <code>pages_read_engagement</code>.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Run <code>me/accounts</code> to list each Page's <strong style="color:var(--atl-ink);">id</strong> (the Page ID) and token.</span></li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-brands fa-instagram" style="color:var(--db-ig-pink);"></i> Instagram</span>
+                                    </div>
+                                    <p class="um-role-info__desc"><strong style="color:var(--atl-ink);">Needs:</strong> Access Token + User ID</p>
+                                    <ul class="um-role-list">
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Uses the same <a href="https://developers.facebook.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">Meta</a> app as Facebook.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Requires an IG <strong style="color:var(--atl-ink);">Business / Creator</strong> account linked to a Facebook Page.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Get the IG <strong style="color:var(--atl-ink);">User ID</strong> via <code>{page-id}?fields=instagram_business_account</code>.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Token needs <code>instagram_basic</code> + <code>pages_read_engagement</code>.</span></li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-brands fa-x-twitter" style="color:var(--db-x-ink);"></i> X (Twitter)</span>
+                                    </div>
+                                    <p class="um-role-info__desc"><strong style="color:var(--atl-ink);">Needs:</strong> Bearer Token + Username</p>
+                                    <ul class="um-role-list">
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Create a project/app in the <a href="https://developer.x.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">X Developer Portal</a>.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Copy the app's <strong style="color:var(--atl-ink);">Bearer Token</strong> from Keys &amp; Tokens.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Enter your handle <strong style="color:var(--atl-ink);">without the @</strong>.</span></li>
+                                        <li><i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay);"></i> <span>The free tier is heavily rate-limited.</span></li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-brands fa-tiktok" style="color:var(--db-tt-red);"></i> TikTok</span>
+                                    </div>
+                                    <p class="um-role-info__desc"><strong style="color:var(--atl-ink);">Needs:</strong> Access Token</p>
+                                    <ul class="um-role-list">
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Register an app at <a href="https://developers.tiktok.com" target="_blank" rel="noopener" style="color:var(--atl-amber);">TikTok for Developers</a>.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Add <strong style="color:var(--atl-ink);">Login Kit</strong> and request the <code>user.info.stats</code> scope.</span></li>
+                                        <li><i class="fa-solid fa-angle-right" style="color:var(--atl-amber);"></i> <span>Complete OAuth to obtain a user <strong style="color:var(--atl-ink);">Access Token</strong>.</span></li>
+                                    </ul>
+                                </div>
                             </div>
 
-                            <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
-                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span>Use <strong style="color:var(--atl-ink);">Active / Inactive</strong> to curate what visitors see without losing anything &mdash; retired links and embeds stay saved and ready to re-enable.</span>
+                            <p class="um-note um-note--warn">
+                                <i class="fa-solid fa-clock" aria-hidden="true"></i>
+                                <span><strong>Watch token expiry.</strong> Facebook, Instagram, X and TikTok tokens from the quick-start tools are usually <strong>short-lived (~1 hour)</strong>, so a card can stop updating soon after you save. For a lasting connection, exchange them for a long-lived / non-expiring token &mdash; for Facebook, a <strong>Page</strong> token via the token-exchange endpoint. YouTube API keys don't expire. If a fetch fails, the dashboard keeps the last saved number instead of breaking.</span>
                             </p>
 
-                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
-                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
-                                <span>Any platform <strong style="color:var(--atl-ink);">API key</strong> you enter is stored in <strong style="color:var(--atl-ink);">this browser</strong> (local storage), not on the server &mdash; avoid entering keys on a shared or public computer.</span>
-                            </p>
+                            <h4 class="um-section-label" style="margin: 26px 0 14px;">Troubleshooting</h4>
+                            <div class="um-roles-grid">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-clock-rotate-left" style="color:var(--atl-amber);"></i> A card shows old numbers</span></div>
+                                    <p class="um-role-info__desc">Live values are cached for up to an hour. Save the platform again to refresh sooner, or switch it to <strong style="color:var(--atl-ink);">Manual</strong> for an instant change.</p>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-key" style="color:var(--atl-amber);"></i> A live card stopped updating</span></div>
+                                    <p class="um-role-info__desc">The access token has most likely expired. Generate a <strong style="color:var(--atl-ink);">long-lived / non-expiring</strong> token and paste it into the platform's card again.</p>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-id-badge" style="color:var(--atl-amber);"></i> The count looks wrong</span></div>
+                                    <p class="um-role-info__desc">Check the <strong style="color:var(--atl-ink);">Channel / Page / User ID</strong> matches the right account &mdash; a mismatched ID returns someone else's figures, or none at all.</p>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-gauge-high" style="color:var(--atl-amber);"></i> X (Twitter) won't update</span></div>
+                                    <p class="um-role-info__desc">The free API tier is heavily rate-limited and often returns nothing. Wait and try later, or keep X on <strong style="color:var(--atl-ink);">Manual</strong>.</p>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-arrows-up-down" style="color:var(--atl-amber);"></i> Trend arrow is the wrong colour</span></div>
+                                    <p class="um-role-info__desc">The sign and colour follow the <strong style="color:var(--atl-ink);">Direction</strong> field, not the number you type. Set Up or Down explicitly to fix it.</p>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-bullseye" style="color:var(--atl-amber);"></i> Progress bar looks off</span></div>
+                                    <p class="um-role-info__desc">The bar is relative to the <strong style="color:var(--atl-ink);">Goal / Target</strong>. Set a realistic goal so the fill reflects real progress.</p>
+                                </div>
+                            </div>
 
-                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
-                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">About Me</strong> and <strong style="color:var(--atl-ink);">Home Slider</strong> for the public pages these links appear on; and <strong style="color:var(--atl-ink);">Newsletter</strong> for reaching your audience by email.</span>
+                            <h4 class="um-section-label" style="margin: 26px 0 14px;">Data &amp; permissions</h4>
+                            <div class="um-roles-grid">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-database" style="color:var(--atl-amber);"></i> Where your data is stored</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-server"></i> <span><strong style="color:var(--atl-ink);">Live-API credentials</strong> (keys &amp; tokens) &mdash; on the server, admin-only, used for the hourly refresh.</span></li>
+                                        <li class="can"><i class="fa-solid fa-server"></i> <span><strong style="color:var(--atl-ink);">KPI values &amp; goals</strong> &mdash; on the server, in the analytics database.</span></li>
+                                        <li class="can"><i class="fa-solid fa-server"></i> <span><strong style="color:var(--atl-ink);">Social links &amp; media embeds</strong> &mdash; on the server.</span></li>
+                                        <li class="cannot"><i class="fa-solid fa-desktop"></i> <span>The <strong style="color:var(--atl-ink);">Media Embeds API-key</strong> field is the exception &mdash; it stays in this browser (local storage).</span></li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-user-shield" style="color:var(--atl-amber);"></i> Who can manage this</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> <span><strong style="color:var(--atl-ink);">All admin roles</strong> can view everything and add or edit links &amp; embeds.</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <span><strong style="color:var(--atl-ink);">Administrators &amp; Managers</strong> can save Dashboard KPI settings.</span></li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> <span>Only <strong style="color:var(--atl-ink);">Administrators</strong> can delete a social link or media embed.</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <p class="um-note um-note--tip">
+                                <i class="fa-solid fa-shuffle" aria-hidden="true"></i>
+                                <span><strong>Mix and match.</strong> Each platform's data source is independent &mdash; run YouTube live while the rest stay manual, in any combination.</span>
+                            </p>
+                            <p class="um-note um-note--tip">
+                                <i class="fa-solid fa-shield-halved" aria-hidden="true"></i>
+                                <span><strong>Safety net.</strong> If a live fetch fails, the dashboard keeps the last saved number, so cards never go blank.</span>
+                            </p>
+                            <p class="um-note um-note--tip">
+                                <i class="fa-solid fa-toggle-on" aria-hidden="true"></i>
+                                <span>Use <strong>Active / Inactive</strong> to curate what visitors see without losing anything &mdash; retired links and embeds stay saved and ready to re-enable.</span>
+                            </p>
+                            <p class="um-note um-note--warn">
+                                <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                                <span>Your <strong>Media Embeds</strong> API-key field is saved in <strong>this browser</strong> (local storage), not on the server &mdash; avoid entering it on a shared or public computer. Dashboard-KPI credentials are different: those are stored securely on the server.</span>
+                            </p>
+                            <p class="um-note um-note--info">
+                                <i class="fa-solid fa-diagram-project" aria-hidden="true"></i>
+                                <span><strong>Related:</strong> <strong>About Me</strong> and <strong>Home Slider</strong> for the public pages these links appear on; and <strong>Newsletter</strong> for reaching your audience by email.</span>
                             </p>
                         </div>
                     </div>
