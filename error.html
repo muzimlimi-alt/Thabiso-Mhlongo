@@ -3,35 +3,114 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
     <title>Error | Thabiso Mhlongo</title>
     <link href="css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
     <style>
+        /* ─────────────────────────────────────────────────────────────
+           Atelier design tokens (mirrors admin.html — dark + light)
+           ───────────────────────────────────────────────────────────── */
+        :root,
+        [data-theme="dark"],
+        :root:not([data-theme="light"]) {
+            color-scheme: dark;
+            --atl-paper:       #0a0a0a;
+            --atl-card:        #1a1a1a;
+            --atl-surface2:    #242424;
+            --atl-input-bg:    #0f0f0f;
+            --atl-ink:         #ffffff;
+            --atl-ink-dim:     #e0ddd6;
+            --atl-muted:       #949494;
+            --atl-muted-dim:   #666666;
+            --atl-line:        rgba(255,255,255,0.10);
+            --atl-line-strong: rgba(255,255,255,0.18);
+            --atl-amber:       var(--brand-gold, #D4AF37);
+            --atl-amber-hover: #E8C14B;
+            --atl-amber-dim:   rgba(212,175,55,0.12);
+            --atl-amber-border:rgba(212,175,55,0.30);
+            --atl-on-amber:    #0a0a0a;
+            --atl-sage:        #4ade80;
+            --atl-clay:        #f87171;
+            --atl-focus:       #E8C14B;
+            --atl-shadow-card:  0 8px 32px rgba(0,0,0,0.45);
+            --atl-shadow-modal: 0 24px 80px rgba(0,0,0,0.70), 0 0 0 1px rgba(212,175,55,0.15);
+            --atl-glow:        rgba(212,175,55,0.10);
+            --atl-selection:   rgba(212,175,55,0.28);
+        }
+
+        [data-theme="light"] {
+            color-scheme: light;
+            --atl-paper:       #f7f4ee;
+            --atl-card:        #ffffff;
+            --atl-surface2:    #f1ece1;
+            --atl-input-bg:    #fbf9f4;
+            --atl-ink:         #1c1a16;
+            --atl-ink-dim:     #2a2723;
+            --atl-muted:       #6b6457;
+            --atl-muted-dim:   #9b9384;
+            --atl-line:        rgba(28,26,22,0.12);
+            --atl-line-strong: rgba(28,26,22,0.22);
+            --atl-amber:       var(--brand-gold, #9a7611);
+            --atl-amber-hover: #7e6109;
+            --atl-amber-dim:   rgba(154,118,17,0.10);
+            --atl-amber-border:rgba(154,118,17,0.30);
+            --atl-on-amber:    #ffffff;
+            --atl-sage:        #1f9254;
+            --atl-clay:        #c0362c;
+            --atl-focus:       #9a7611;
+            --atl-shadow-card:  0 8px 28px rgba(40,36,28,0.12);
+            --atl-shadow-modal: 0 24px 70px rgba(40,36,28,0.22), 0 0 0 1px rgba(154,118,17,0.18);
+            --atl-glow:        rgba(154,118,17,0.08);
+            --atl-selection:   rgba(154,118,17,0.20);
+        }
+
         *, *::before, *::after { box-sizing: border-box; }
+        ::selection { background: var(--atl-selection); }
+
+        html, body { min-height: 100%; }
 
         body {
-            background-color: #0a0a0a;
-            color: #f5f5f5;
+            background-color: var(--atl-paper);
+            color: var(--atl-ink);
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
             margin: 0;
-            padding: 24px;
-            font-family: 'Outfit', 'Helvetica Neue', sans-serif;
+            padding: 32px 20px;
+            font-family: 'Outfit', 'Helvetica Neue', system-ui, sans-serif;
             overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        /* Subtle grid pattern */
+        /* Subtle gold grid + radial glow */
         body::before {
             content: '';
             position: fixed;
             inset: 0;
             background-image:
-                linear-gradient(rgba(212,175,55,0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(212,175,55,0.03) 1px, transparent 1px);
+                linear-gradient(var(--atl-glow) 1px, transparent 1px),
+                linear-gradient(90deg, var(--atl-glow) 1px, transparent 1px);
             background-size: 48px 48px;
+            -webkit-mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 75%);
+                    mask-image: radial-gradient(circle at 50% 42%, #000 0%, transparent 75%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            top: -10%;
+            left: 50%;
+            width: 720px;
+            height: 720px;
+            transform: translateX(-50%);
+            background: radial-gradient(circle, var(--atl-glow) 0%, transparent 62%);
             pointer-events: none;
             z-index: 0;
         }
@@ -39,195 +118,444 @@
         .err-container {
             position: relative;
             z-index: 1;
-            max-width: 620px;
+            max-width: 680px;
             width: 100%;
             text-align: center;
-            padding: 56px 48px;
-            background: rgba(255,255,255,0.025);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 6px;
-            box-shadow: 0 24px 64px rgba(0,0,0,0.7);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            padding: 52px 48px 44px;
+            background: color-mix(in srgb, var(--atl-card) 82%, transparent);
+            border: 1px solid var(--atl-line);
+            border-radius: 16px;
+            box-shadow: var(--atl-shadow-modal);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
             animation: fadeUp 0.55s cubic-bezier(0.16,1,0.3,1) both;
         }
 
         @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(20px) scale(0.97); }
+            from { opacity: 0; transform: translateY(20px) scale(0.985); }
             to   { opacity: 1; transform: translateY(0)    scale(1); }
         }
-
-        .err-icon {
-            font-size: 3.5rem;
-            color: #2a2a2a;
-            margin-bottom: 20px;
-            display: block;
+        @media (prefers-reduced-motion: reduce) {
+            .err-container { animation: none; }
         }
 
+        /* Icon badge */
+        .err-badge {
+            width: 66px;
+            height: 66px;
+            margin: 0 auto 22px;
+            display: grid;
+            place-items: center;
+            border-radius: 50%;
+            background: var(--atl-amber-dim);
+            border: 1px solid var(--atl-amber-border);
+            color: var(--atl-amber);
+            font-size: 1.6rem;
+        }
+        .err-badge--danger {
+            background: color-mix(in srgb, var(--atl-clay) 12%, transparent);
+            border-color: color-mix(in srgb, var(--atl-clay) 34%, transparent);
+            color: var(--atl-clay);
+        }
+
+        /* Eyebrow / category */
+        .err-eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--atl-muted);
+            margin: 0 0 6px;
+        }
+        .err-eyebrow .dot {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--atl-amber);
+        }
+        .err-eyebrow .dot--danger { background: var(--atl-clay); }
+
         .err-code {
-            font-family: 'Cormorant Garamond', 'Georgia', serif;
-            font-size: clamp(5rem, 15vw, 8rem);
-            font-weight: 700;
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: clamp(4.5rem, 14vw, 7.5rem);
+            font-weight: 600;
             line-height: 1;
-            color: #D4AF37;
-            text-shadow: 0 0 40px rgba(212,175,55,0.2);
-            margin: 0 0 8px;
+            color: var(--atl-amber);
+            text-shadow: 0 0 44px var(--atl-glow);
+            margin: 0 0 6px;
             letter-spacing: -0.02em;
         }
 
         .err-title {
-            font-family: 'Cormorant Garamond', 'Georgia', serif;
-            font-size: clamp(1.4rem, 4vw, 2rem);
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: clamp(1.5rem, 4.5vw, 2.15rem);
             font-weight: 500;
-            color: #f5f5f5;
+            color: var(--atl-ink);
             margin: 0 0 16px;
             letter-spacing: 0.01em;
         }
 
         .err-divider {
-            width: 48px;
+            width: 52px;
             height: 1px;
-            background: linear-gradient(90deg, transparent, #D4AF37, transparent);
+            background: linear-gradient(90deg, transparent, var(--atl-amber), transparent);
             margin: 0 auto 20px;
         }
 
         .err-message {
-            font-size: 0.975rem;
-            color: #a0a0a0;
-            line-height: 1.7;
-            max-width: 460px;
-            margin: 0 auto 36px;
+            font-size: 1rem;
+            color: var(--atl-muted);
+            line-height: 1.72;
+            max-width: 500px;
+            margin: 0 auto 28px;
         }
 
+        /* "What you can do" panel */
+        .err-tips {
+            text-align: left;
+            max-width: 440px;
+            margin: 0 auto 32px;
+            padding: 18px 20px;
+            background: color-mix(in srgb, var(--atl-surface2) 60%, transparent);
+            border: 1px solid var(--atl-line);
+            border-radius: 12px;
+        }
+        .err-tips__head {
+            font-size: 0.7rem;
+            font-weight: 600;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--atl-ink-dim);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0 0 12px;
+        }
+        .err-tips__head i { color: var(--atl-amber); }
+        .err-tips ul { list-style: none; margin: 0; padding: 0; }
+        .err-tips li {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.9rem;
+            line-height: 1.55;
+            color: var(--atl-muted);
+            padding: 5px 0;
+        }
+        .err-tips li i {
+            color: var(--atl-amber);
+            font-size: 0.72rem;
+            margin-top: 5px;
+            flex-shrink: 0;
+        }
+
+        /* Actions */
         .err-actions {
             display: flex;
             gap: 12px;
             justify-content: center;
             flex-wrap: wrap;
         }
-
         .err-btn {
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 12px 26px;
+            padding: 12px 24px;
             font-family: 'Outfit', sans-serif;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.1em;
-            border-radius: 4px;
+            border-radius: 10px;
             cursor: pointer;
             text-decoration: none;
-            transition: all 0.25s cubic-bezier(0.16,1,0.3,1);
+            transition: transform var(--atl-t, 0.2s) ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
             border: 1px solid transparent;
         }
-        .err-btn:focus-visible {
-            outline: 2px solid #D4AF37;
-            outline-offset: 3px;
-        }
-
+        .err-btn:focus-visible { outline: 2px solid var(--atl-focus); outline-offset: 3px; }
         .err-btn--primary {
-            background: #D4AF37;
-            color: #000;
-            border-color: #D4AF37;
+            background: var(--atl-amber);
+            color: var(--atl-on-amber);
+            border-color: var(--atl-amber);
         }
         .err-btn--primary:hover {
-            background: #E8C14B;
-            color: #000;
+            background: var(--atl-amber-hover);
+            border-color: var(--atl-amber-hover);
             transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(212,175,55,0.25);
+            box-shadow: 0 8px 24px var(--atl-glow);
         }
-
         .err-btn--secondary {
             background: transparent;
-            color: #f5f5f5;
-            border-color: rgba(255,255,255,0.15);
+            color: var(--atl-ink);
+            border-color: var(--atl-line-strong);
         }
         .err-btn--secondary:hover {
-            background: rgba(255,255,255,0.06);
-            border-color: rgba(255,255,255,0.3);
+            background: color-mix(in srgb, var(--atl-ink) 6%, transparent);
+            border-color: var(--atl-amber-border);
             transform: translateY(-2px);
         }
 
-        .err-brand {
-            margin-top: 40px;
-            font-size: 0.75rem;
-            color: #3a3a3a;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
+        /* Technical details */
+        .err-tech {
+            margin: 30px auto 0;
+            max-width: 520px;
+            text-align: left;
+            border: 1px solid var(--atl-line);
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--atl-input-bg) 70%, transparent);
+            overflow: hidden;
         }
+        .err-tech > summary {
+            list-style: none;
+            cursor: pointer;
+            padding: 13px 18px;
+            font-size: 0.74rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--atl-muted);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            user-select: none;
+            transition: color 0.2s ease;
+        }
+        .err-tech > summary:hover { color: var(--atl-ink); }
+        .err-tech > summary::-webkit-details-marker { display: none; }
+        .err-tech > summary .chev { margin-left: auto; transition: transform 0.25s ease; color: var(--atl-muted-dim); }
+        .err-tech[open] > summary .chev { transform: rotate(180deg); }
+        .err-tech__body { padding: 4px 18px 16px; }
+        .err-tech__row {
+            display: grid;
+            grid-template-columns: 128px 1fr;
+            gap: 10px;
+            padding: 8px 0;
+            border-top: 1px solid var(--atl-line);
+            font-size: 0.82rem;
+        }
+        .err-tech__row:first-child { border-top: none; }
+        .err-tech__k {
+            color: var(--atl-muted-dim);
+            font-weight: 500;
+            letter-spacing: 0.02em;
+        }
+        .err-tech__v {
+            color: var(--atl-ink-dim);
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
+            font-size: 0.78rem;
+            word-break: break-word;
+            overflow-wrap: anywhere;
+        }
+        .err-tech__v .copy {
+            margin-left: 8px;
+            background: none;
+            border: none;
+            color: var(--atl-muted-dim);
+            cursor: pointer;
+            font-size: 0.74rem;
+            padding: 0;
+            transition: color 0.2s ease;
+        }
+        .err-tech__v .copy:hover { color: var(--atl-amber); }
 
-        @media (max-width: 480px) {
-            .err-container { padding: 40px 24px; }
+        .err-help {
+            margin: 22px auto 0;
+            font-size: 0.82rem;
+            color: var(--atl-muted-dim);
+            line-height: 1.6;
+        }
+        .err-help a { color: var(--atl-amber); text-decoration: none; }
+        .err-help a:hover { text-decoration: underline; }
+
+        .err-brand {
+            margin-top: 30px;
+            padding-top: 22px;
+            border-top: 1px solid var(--atl-line);
+            font-family: 'Cormorant Garamond', Georgia, serif;
+            font-size: 0.95rem;
+            letter-spacing: 0.04em;
+            color: var(--atl-muted-dim);
+        }
+        .err-brand b { color: var(--atl-amber); font-weight: 600; }
+
+        @media (max-width: 520px) {
+            .err-container { padding: 40px 22px 34px; }
             .err-actions { flex-direction: column; align-items: stretch; }
             .err-btn { justify-content: center; }
+            .err-tech__row { grid-template-columns: 1fr; gap: 2px; }
         }
     </style>
 </head>
 <body>
-    <div class="err-container" id="errContainer">
+    <main class="err-container" id="errContainer" role="alert" aria-live="polite">
         <!-- Populated by JS -->
-    </div>
+    </main>
 
     <script>
         (function () {
-            var params  = new URLSearchParams(window.location.search);
-            var code    = parseInt(params.get('code'), 10) || 0;
-            var referer = document.referrer || '';
+            var params    = new URLSearchParams(window.location.search);
+            var code      = parseInt(params.get('code'), 10) || 0;
+            var failedUrl = params.get('url') || params.get('path') || params.get('ref') || '';
+            var referer   = document.referrer || '';
+
+            function esc(s) {
+                return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+                    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+                });
+            }
+
+            var reasons = {
+                400:'Bad Request', 401:'Unauthorized', 403:'Forbidden', 404:'Not Found',
+                408:'Request Timeout', 409:'Conflict', 410:'Gone', 429:'Too Many Requests',
+                500:'Internal Server Error', 501:'Not Implemented', 502:'Bad Gateway',
+                503:'Service Unavailable', 504:'Gateway Timeout'
+            };
 
             var configs = {
-                400: {
-                    icon:    'fa-solid fa-triangle-exclamation',
-                    title:   'Bad Request',
-                    message: 'The server could not process this request. Please check your input and try again. If the problem persists, contact us for assistance.'
-                },
-                401: {
-                    icon:    'fa-solid fa-lock',
-                    title:   'Unauthorised',
-                    message: 'You need to sign in before you can access this page. Please log in with your credentials and try again.',
-                    extra:   '<a href="/admin.html" class="err-btn err-btn--primary"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>Sign In</a>'
-                },
-                403: {
-                    icon:    'fa-solid fa-ban',
-                    title:   'Access Forbidden',
-                    message: "You don’t have permission to view this resource. If you believe this is an error, please contact the site administrator.",
-                    extra:   '<a href="mailto:info@thabisomhlongo.com" class="err-btn err-btn--secondary"><i class="fa-solid fa-envelope" aria-hidden="true"></i>Contact Admin</a>'
-                },
-                404: {
-                    icon:    'fa-solid fa-microphone-slash',
-                    title:   'Page Not Found',
-                    message: "The page you’re looking for has left the building. It may have been moved, renamed, or permanently removed from the setlist."
-                },
-                500: {
-                    icon:    'fa-solid fa-server',
-                    title:   'Server Error',
-                    message: 'Something went wrong backstage. Our team has been notified and is working on a fix. Please try again in a few moments.'
-                }
+                400: { icon:'fa-solid fa-triangle-exclamation', title:'Bad Request',
+                    message:'The server couldn’t understand this request — something in the address or submitted data looks off. This usually clears up with a fresh attempt.',
+                    tips:['Check the web address for typos or stray characters.','Go back, clear the form, and re-enter your details.','If you followed a link, it may be malformed.'] },
+                401: { icon:'fa-solid fa-lock', title:'Sign-in Required',
+                    message:'You need to be signed in to view this page. Your session may have expired, or you haven’t logged in yet.',
+                    tips:['Sign in with your account credentials.','If you were signed in, your session likely timed out — log in again.','Make sure cookies are enabled for this site.'] },
+                403: { icon:'fa-solid fa-ban', title:'Access Forbidden',
+                    message:'You don’t have permission to view this resource. It may be reserved for administrators or a different account.',
+                    tips:['Confirm you’re signed in with the correct account.','This area may be restricted to staff or admins.','Contact us if you believe you should have access.'] },
+                404: { icon:'fa-solid fa-microphone-slash', title:'Page Not Found',
+                    message:'The page you’re looking for has left the building. It may have been moved, renamed, or taken off the setlist.',
+                    tips:['Double-check the web address for a typo.','Head to the home page and navigate from there.','The page may have been moved or retired.'] },
+                408: { icon:'fa-solid fa-hourglass-half', title:'Request Timed Out',
+                    message:'The request took too long to complete and was stopped. This is often a slow or dropped connection.',
+                    tips:['Check your internet connection.','Refresh the page to try again.','On a slow network, give it a moment before retrying.'] },
+                409: { icon:'fa-solid fa-code-branch', title:'Conflict',
+                    message:'This action clashed with the current state of the resource — it may have changed since you loaded the page.',
+                    tips:['Refresh to load the latest version.','Review the current details before trying again.'] },
+                410: { icon:'fa-solid fa-box-archive', title:'Gone',
+                    message:'This page has been permanently removed and won’t be coming back. There’s no forwarding address for it.',
+                    tips:['Browse from the home page for current content.','Update any bookmark you may have saved.'] },
+                429: { icon:'fa-solid fa-gauge-high', title:'Too Many Requests',
+                    message:'You’ve sent a lot of requests in a short space of time, so we’ve briefly paused things to keep the site healthy.',
+                    tips:['Wait a minute, then try again.','Avoid refreshing repeatedly.','Automated tools may trigger this limit.'] },
+                500: { icon:'fa-solid fa-server', title:'Server Error',
+                    message:'Something went wrong backstage. This is on our side, not yours — the team has been notified and is looking into it.',
+                    tips:['Try again in a few moments.','This is a problem on our end, not your device.','If it keeps happening, send us the reference below.'] },
+                501: { icon:'fa-solid fa-screwdriver-wrench', title:'Not Implemented',
+                    message:'The server doesn’t support the action needed to fulfil this request. This feature may not be available yet.',
+                    tips:['Return to the home page and continue.','This capability may be coming in a future update.'] },
+                502: { icon:'fa-solid fa-plug-circle-xmark', title:'Bad Gateway',
+                    message:'We received an invalid response from an upstream service. It’s usually a brief hiccup between servers.',
+                    tips:['Wait a moment and try again.','Refreshing often resolves a temporary gateway error.'] },
+                503: { icon:'fa-solid fa-hand', title:'Service Unavailable',
+                    message:'The site is temporarily unavailable — likely brief maintenance or unusually heavy traffic. We’ll be back shortly.',
+                    tips:['Please wait a few moments and try again.','We may be performing quick maintenance.','No action is needed on your side.'] },
+                504: { icon:'fa-solid fa-hourglass-end', title:'Gateway Timeout',
+                    message:'An upstream service took too long to respond. The request was stopped before it could finish.',
+                    tips:['Give it a moment, then try again.','A slow connection can also contribute.'] }
             };
 
             var cfg = configs[code] || {
-                icon:    'fa-solid fa-circle-exclamation',
-                title:   'Something Went Wrong',
-                message: 'An unexpected error occurred. Please go back and try again, or return to the home page.'
+                icon:'fa-solid fa-circle-exclamation', title:'Something Went Wrong',
+                message:'An unexpected error occurred. You can head back and try again, or return to the home page — no harm done.',
+                tips:['Return to the home page and try again.','Go back to the previous page.','Contact us if the problem continues.']
             };
 
+            var isServer  = code >= 500;
+            var category  = code >= 500 ? 'Server Error' : (code >= 400 ? 'Client Error' : 'Error');
+            var reason    = reasons[code] || 'Unknown';
+            var retryable = [408, 429, 500, 502, 503, 504, 0].indexOf(code) !== -1;
+
+            // Only reuse the failed URL for a retry if it's a safe, same-origin relative path.
+            var retryHref = (failedUrl && failedUrl.charAt(0) === '/' && failedUrl.charAt(1) !== '/') ? failedUrl : '';
+
+            // Support reference — helps us trace the specific error if you get in touch.
+            var now = new Date();
+            var ref = 'TM-' + now.getTime().toString(36).toUpperCase() + '-' +
+                      Math.random().toString(36).slice(2, 6).toUpperCase();
+
+            // Reflect the code in the tab title.
+            document.title = (code ? code + ' — ' : '') + cfg.title + ' | Thabiso Mhlongo';
+
+            // Retry handler (exposed for the Try Again button).
+            window.__errRetry = function () {
+                if (retryHref) { window.location.href = retryHref; }
+                else if (referer) { window.location.href = referer; }
+                else { window.location.reload(); }
+            };
+            window.__errCopy = function (btn, value) {
+                if (navigator.clipboard) {
+                    navigator.clipboard.writeText(value).then(function () {
+                        var i = btn.querySelector('i');
+                        if (i) { i.className = 'fa-solid fa-check'; setTimeout(function () { i.className = 'fa-regular fa-copy'; }, 1400); }
+                    }).catch(function () {});
+                }
+            };
+
+            // ── Actions ──────────────────────────────────────────────
+            var mailto = 'mailto:info@thabisomhlongo.com'
+                + '?subject=' + encodeURIComponent('Website error ' + (code || '') + ' (' + ref + ')')
+                + '&body='    + encodeURIComponent('Hi,\n\nI hit an error on the site.\n\nReference: ' + ref
+                                + '\nStatus: ' + (code || 'Unknown') + ' ' + reason
+                                + '\nAddress: ' + (failedUrl || referer || 'n/a')
+                                + '\nTime: ' + now.toISOString() + '\n\nWhat I was doing:\n');
+
+            var homeBtn = '<a href="/" class="err-btn ' + (code === 401 ? 'err-btn--secondary' : 'err-btn--primary') + '">'
+                        + '<i class="fa-solid fa-house" aria-hidden="true"></i>Return Home</a>';
             var backBtn = referer
                 ? '<button class="err-btn err-btn--secondary" onclick="history.back()" type="button"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Go Back</button>'
                 : '';
+            var tryBtn = retryable
+                ? '<button class="err-btn err-btn--secondary" onclick="window.__errRetry()" type="button"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i>Try Again</button>'
+                : '';
+            var extraBtn = '';
+            if (code === 401) {
+                extraBtn = '<a href="/admin.html" class="err-btn err-btn--primary"><i class="fa-solid fa-right-to-bracket" aria-hidden="true"></i>Sign In</a>';
+            } else if (code === 403 || isServer) {
+                extraBtn = '<a href="' + esc(mailto) + '" class="err-btn err-btn--secondary"><i class="fa-solid fa-envelope" aria-hidden="true"></i>Contact Us</a>';
+            }
 
+            var actions = (code === 401)
+                ? [extraBtn, homeBtn, backBtn]
+                : [homeBtn, tryBtn, extraBtn, backBtn];
+
+            // ── Technical detail rows ────────────────────────────────
+            function row(k, v, mono, copyVal) {
+                var val = mono === false ? esc(v) : '<span>' + esc(v) + '</span>';
+                if (copyVal) {
+                    val += '<button class="copy" type="button" title="Copy" onclick="window.__errCopy(this, ' + "'" + esc(copyVal).replace(/'/g, "\\'") + "'" + ')"><i class="fa-regular fa-copy"></i></button>';
+                }
+                return '<div class="err-tech__row"><div class="err-tech__k">' + k + '</div><div class="err-tech__v">' + val + '</div></div>';
+            }
+            var techRows =
+                row('Reference', ref, true, ref) +
+                row('Status', (code ? code + ' ' + reason : 'Unknown')) +
+                row('Category', category) +
+                (failedUrl ? row('Address', failedUrl) : '') +
+                row('Came from', referer || 'Direct visit') +
+                row('Time', now.toLocaleString()) +
+                row('UTC', now.toISOString()) +
+                row('Browser', (navigator.userAgent || 'Unknown'));
+
+            var tips = (cfg.tips || []).map(function (t) {
+                return '<li><i class="fa-solid fa-angle-right" aria-hidden="true"></i><span>' + t + '</span></li>';
+            }).join('');
+
+            // ── Render ───────────────────────────────────────────────
             document.getElementById('errContainer').innerHTML = [
-                '<i class="err-icon ' + cfg.icon + '" aria-hidden="true"></i>',
+                '<div class="err-badge' + (isServer ? ' err-badge--danger' : '') + '"><i class="' + cfg.icon + '" aria-hidden="true"></i></div>',
+                '<p class="err-eyebrow"><span class="dot' + (isServer ? ' dot--danger' : '') + '"></span>' + category + '</p>',
                 code ? '<p class="err-code" aria-label="Error ' + code + '">' + code + '</p>' : '',
                 '<h1 class="err-title">' + cfg.title + '</h1>',
                 '<div class="err-divider" aria-hidden="true"></div>',
                 '<p class="err-message">' + cfg.message + '</p>',
-                '<div class="err-actions">',
-                    backBtn,
-                    '<a href="/" class="err-btn err-btn--primary"><i class="fa-solid fa-house" aria-hidden="true"></i>Return Home</a>',
-                    (cfg.extra || ''),
-                '</div>',
-                '<p class="err-brand">Thabiso Mhlongo &mdash; Official</p>'
+                tips ? '<div class="err-tips"><p class="err-tips__head"><i class="fa-solid fa-compass" aria-hidden="true"></i> What you can do</p><ul>' + tips + '</ul></div>' : '',
+                '<div class="err-actions">' + actions.join('') + '</div>',
+                '<details class="err-tech">',
+                    '<summary><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Technical details <i class="fa-solid fa-chevron-down chev" aria-hidden="true"></i></summary>',
+                    '<div class="err-tech__body">' + techRows + '</div>',
+                '</details>',
+                '<p class="err-help">Still stuck? Email <a href="' + esc(mailto) + '">info@thabisomhlongo.com</a> and quote reference <strong>' + ref + '</strong>.</p>',
+                '<p class="err-brand">Thabiso <b>Mhlongo</b> &mdash; Official</p>'
             ].join('');
         })();
     </script>
