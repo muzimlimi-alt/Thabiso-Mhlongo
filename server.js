@@ -12942,8 +12942,8 @@ app.get('/api/admin/dashboard/social_kpis', requireAdmin, (req, res) => {
 });
 
 app.post('/api/admin/dashboard/social_kpis', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    const { platform_name, follower_count, like_count, trend_percentage, trend_direction, manual_override } = req.body;
-    
+    const { platform_name, follower_count, like_count, trend_percentage, trend_direction, manual_override, goal_target } = req.body;
+
     if (!platform_name) {
         return res.status(400).json({ success: false, message: 'Platform name is required.' });
     }
@@ -12956,17 +12956,19 @@ app.post('/api/admin/dashboard/social_kpis', requireAdmin, requireRole(['adminis
         const updatedTrendPct = trend_percentage !== undefined ? parseFloat(trend_percentage) : row.trend_percentage;
         const updatedTrendDir = trend_direction !== undefined ? trend_direction : row.trend_direction;
         const updatedOverride = manual_override !== undefined ? (manual_override ? 1 : 0) : row.manual_override;
+        const updatedGoal = goal_target !== undefined ? (parseInt(goal_target) || 0) : row.goal_target;
 
         db.run(
-            `UPDATE social_kpi_stats 
+            `UPDATE social_kpi_stats
              SET follower_count = ?,
                  like_count = ?,
                  trend_percentage = ?,
                  trend_direction = ?,
                  manual_override = ?,
+                 goal_target = ?,
                  last_updated = CURRENT_TIMESTAMP
              WHERE platform_name = ?`,
-            [updatedFollowers, updatedLikes, updatedTrendPct, updatedTrendDir, updatedOverride, platform_name],
+            [updatedFollowers, updatedLikes, updatedTrendPct, updatedTrendDir, updatedOverride, updatedGoal, platform_name],
             function(updateErr) {
                 if (updateErr) return res.status(500).json({ success: false, error: updateErr.message });
                 res.json({ success: true, message: `Social media stats updated for ${platform_name}.` });

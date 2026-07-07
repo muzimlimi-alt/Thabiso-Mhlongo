@@ -5175,6 +5175,104 @@
                     .db-icon-x  { color: var(--db-x-ink);  }
                     .db-icon-yt { color: var(--db-yt-red); }
                     .db-icon-tt { color: var(--db-tt-red); }
+
+                    /* ── KPI config cards (Social → Dashboard KPIs settings) ──────── */
+                    .kpi-cfg-grid {
+                        display: grid;
+                        grid-template-columns: 1fr;
+                        gap: 16px;
+                    }
+                    @media (min-width: 640px)  { .kpi-cfg-grid { grid-template-columns: repeat(2,1fr); } }
+                    @media (min-width: 1100px) { .kpi-cfg-grid { grid-template-columns: repeat(3,1fr); } }
+
+                    .kpi-cfg-card {
+                        --kpi-accent: var(--atl-amber);
+                        position: relative;
+                        background: var(--atl-surface);
+                        border: 1px solid var(--atl-line);
+                        border-top: 3px solid var(--kpi-accent);
+                        border-radius: var(--atl-r-md);
+                        padding: 16px;
+                        transition: box-shadow var(--atl-t-fast), transform var(--atl-t-fast), border-color var(--atl-t-fast);
+                    }
+                    .kpi-cfg-card:hover {
+                        box-shadow: var(--atl-shadow-card);
+                        transform: translateY(-2px);
+                        border-color: var(--kpi-accent);
+                    }
+                    .kpi-cfg-card[data-platform-key="fb"] { --kpi-accent: var(--db-fb-blue); }
+                    .kpi-cfg-card[data-platform-key="ig"] { --kpi-accent: var(--db-ig-pink); }
+                    .kpi-cfg-card[data-platform-key="x"]  { --kpi-accent: var(--db-x-ink);  }
+                    .kpi-cfg-card[data-platform-key="yt"] { --kpi-accent: var(--db-yt-red); }
+                    .kpi-cfg-card[data-platform-key="tt"] { --kpi-accent: var(--db-tt-red); }
+
+                    .kpi-cfg-head {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        margin-bottom: 16px;
+                    }
+                    .kpi-cfg-icon  { font-size: 20px; color: var(--kpi-accent); width: 22px; text-align: center; }
+                    .kpi-cfg-title { font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 600; color: var(--atl-ink); flex: 1; }
+
+                    .kpi-cfg-chip {
+                        font-family: 'Outfit', sans-serif;
+                        font-size: 10.5px;
+                        font-weight: 600;
+                        letter-spacing: 0.02em;
+                        text-transform: uppercase;
+                        padding: 3px 9px 3px 8px;
+                        border-radius: 999px;
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 5px;
+                        white-space: nowrap;
+                    }
+                    .kpi-cfg-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+                    .kpi-cfg-chip--live   { color: var(--atl-sage);  background: var(--atl-sage-dim, rgba(74,222,128,0.12)); }
+                    .kpi-cfg-chip--manual { color: var(--atl-amber); background: var(--atl-amber-dim); }
+
+                    /* Segmented data-source control */
+                    .kpi-seg { display: flex; gap: 6px; }
+                    .kpi-seg-btn {
+                        flex: 1;
+                        padding: 8px 10px;
+                        border-radius: var(--atl-r-md);
+                        border: 1px solid var(--atl-line);
+                        background: transparent;
+                        color: var(--atl-muted);
+                        font-family: 'Outfit', sans-serif;
+                        font-size: 12px;
+                        font-weight: 500;
+                        cursor: pointer;
+                        display: inline-flex;
+                        align-items: center;
+                        justify-content: center;
+                        gap: 6px;
+                        transition: border-color var(--atl-t-fast), color var(--atl-t-fast), background var(--atl-t-fast);
+                    }
+                    .kpi-seg-btn:hover  { border-color: var(--atl-amber); color: var(--atl-amber); }
+                    .kpi-seg-btn.active { border-color: var(--atl-amber); background: var(--atl-amber-dim); color: var(--atl-amber); }
+
+                    .kpi-cfg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+                    /* Reveal (eye) button for API credential inputs */
+                    .kpi-input-wrap { position: relative; }
+                    .kpi-input-wrap .atl-input { padding-right: 38px; }
+                    .kpi-eye {
+                        position: absolute;
+                        top: 50%;
+                        right: 8px;
+                        transform: translateY(-50%);
+                        background: transparent;
+                        border: none;
+                        color: var(--atl-muted);
+                        cursor: pointer;
+                        padding: 4px;
+                        line-height: 1;
+                        transition: color var(--atl-t-fast);
+                    }
+                    .kpi-eye:hover { color: var(--atl-amber); }
                 </style>
             </div>
 
@@ -8461,7 +8559,7 @@
                                     <p class="um-section-desc" style="margin:0;">Configure whether your dashboard displays live API counts or manually adjusted follower metrics.</p>
                                 </div>
                             </div>
-                            <div class="row" id="kpiSettingsContainer">
+                            <div class="kpi-cfg-grid" id="kpiSettingsContainer">
                                 <!-- Platform setting cards will be loaded here via JS -->
                             </div>
                             <div style="margin-top:20px; display:flex; justify-content:flex-end;">
@@ -14124,27 +14222,37 @@
                     if (!data || !data.success || !data.kpis) return;
                     const container = $('#kpiSettingsContainer');
                     container.empty();
-                    
-                    const icons = {
-                        'Facebook': 'fa-brands fa-facebook db-icon-fb',
-                        'Instagram': 'fa-brands fa-instagram db-icon-ig',
-                        'X (Twitter)': 'fa-brands fa-x-twitter db-icon-x',
-                        'YouTube': 'fa-brands fa-youtube db-icon-yt',
-                        'TikTok': 'fa-brands fa-tiktok db-icon-tt'
+
+                    const meta = {
+                        'Facebook':    { key: 'fb', icon: 'fa-brands fa-facebook' },
+                        'Instagram':   { key: 'ig', icon: 'fa-brands fa-instagram' },
+                        'X (Twitter)': { key: 'x',  icon: 'fa-brands fa-x-twitter' },
+                        'YouTube':     { key: 'yt', icon: 'fa-brands fa-youtube' },
+                        'TikTok':      { key: 'tt', icon: 'fa-brands fa-tiktok' }
                     };
+
+                    // Wrap a secret input with a show/hide reveal button.
+                    function secret(cls, value, placeholder) {
+                        return `
+                            <div class="kpi-input-wrap">
+                                <input type="password" class="atl-input ${cls}" value="${value || ''}" style="width:100%; font-family:monospace;" placeholder="${placeholder}">
+                                <button type="button" class="kpi-eye" aria-label="Show or hide value"><i class="fa-regular fa-eye"></i></button>
+                            </div>`;
+                    }
 
                     const creds = data.credentials || {};
 
                     data.kpis.forEach(function (kpi) {
-                        const icon = icons[kpi.platform_name] || 'fa-solid fa-link';
-                        
+                        const m = meta[kpi.platform_name] || { key: '', icon: 'fa-solid fa-link' };
+                        const isManual = kpi.manual_override === 1;
+
                         let apiFieldsHtml = '';
                         if (kpi.platform_name === 'YouTube') {
                             apiFieldsHtml = `
-                                <div class="kpi-api-fields" style="${kpi.manual_override === 1 ? 'display:none;' : ''} margin-top:8px;">
+                                <div class="kpi-api-fields" style="${isManual ? 'display:none;' : ''} margin-top:12px;">
                                     <div class="um-field-group" style="margin-bottom:8px;">
                                         <label class="um-label">YouTube API Key</label>
-                                        <input type="password" class="atl-input kpi-yt-key" value="${creds.youtube_api_key || ''}" style="width:100%; font-family:monospace;" placeholder="AIzaSy...">
+                                        ${secret('kpi-yt-key', creds.youtube_api_key, 'AIzaSy...')}
                                     </div>
                                     <div class="um-field-group">
                                         <label class="um-label">YouTube Channel ID</label>
@@ -14154,10 +14262,10 @@
                             `;
                         } else if (kpi.platform_name === 'Facebook') {
                             apiFieldsHtml = `
-                                <div class="kpi-api-fields" style="${kpi.manual_override === 1 ? 'display:none;' : ''} margin-top:8px;">
+                                <div class="kpi-api-fields" style="${isManual ? 'display:none;' : ''} margin-top:12px;">
                                     <div class="um-field-group" style="margin-bottom:8px;">
                                         <label class="um-label">Facebook Page Access Token</label>
-                                        <input type="password" class="atl-input kpi-fb-token" value="${creds.facebook_page_access_token || ''}" style="width:100%; font-family:monospace;" placeholder="EAA...">
+                                        ${secret('kpi-fb-token', creds.facebook_page_access_token, 'EAA...')}
                                     </div>
                                     <div class="um-field-group">
                                         <label class="um-label">Facebook Page ID</label>
@@ -14167,10 +14275,10 @@
                             `;
                         } else if (kpi.platform_name === 'Instagram') {
                             apiFieldsHtml = `
-                                <div class="kpi-api-fields" style="${kpi.manual_override === 1 ? 'display:none;' : ''} margin-top:8px;">
+                                <div class="kpi-api-fields" style="${isManual ? 'display:none;' : ''} margin-top:12px;">
                                     <div class="um-field-group" style="margin-bottom:8px;">
                                         <label class="um-label">Instagram Access Token</label>
-                                        <input type="password" class="atl-input kpi-ig-token" value="${creds.instagram_access_token || ''}" style="width:100%; font-family:monospace;" placeholder="IGQV...">
+                                        ${secret('kpi-ig-token', creds.instagram_access_token, 'IGQV...')}
                                     </div>
                                     <div class="um-field-group">
                                         <label class="um-label">Instagram User ID</label>
@@ -14180,10 +14288,10 @@
                             `;
                         } else if (kpi.platform_name === 'X (Twitter)') {
                             apiFieldsHtml = `
-                                <div class="kpi-api-fields" style="${kpi.manual_override === 1 ? 'display:none;' : ''} margin-top:8px;">
+                                <div class="kpi-api-fields" style="${isManual ? 'display:none;' : ''} margin-top:12px;">
                                     <div class="um-field-group" style="margin-bottom:8px;">
                                         <label class="um-label">Twitter Bearer Token</label>
-                                        <input type="password" class="atl-input kpi-tw-token" value="${creds.twitter_bearer_token || ''}" style="width:100%; font-family:monospace;" placeholder="AAAAAAAAAAAAAAAAAAAA...">
+                                        ${secret('kpi-tw-token', creds.twitter_bearer_token, 'AAAAAAAAAAAAAAAAAAAA...')}
                                     </div>
                                     <div class="um-field-group">
                                         <label class="um-label">Twitter Username</label>
@@ -14193,56 +14301,58 @@
                             `;
                         } else if (kpi.platform_name === 'TikTok') {
                             apiFieldsHtml = `
-                                <div class="kpi-api-fields" style="${kpi.manual_override === 1 ? 'display:none;' : ''} margin-top:8px;">
+                                <div class="kpi-api-fields" style="${isManual ? 'display:none;' : ''} margin-top:12px;">
                                     <div class="um-field-group">
                                         <label class="um-label">TikTok Access Token</label>
-                                        <input type="password" class="atl-input kpi-tt-token" value="${creds.tiktok_access_token || ''}" style="width:100%; font-family:monospace;" placeholder="act.example...">
+                                        ${secret('kpi-tt-token', creds.tiktok_access_token, 'act.example...')}
                                     </div>
                                 </div>
                             `;
                         }
 
                         const card = `
-                            <div class="col-md-6 col-lg-4" style="margin-bottom:16px;">
-                                <div class="atl-card" style="border: 1px solid var(--atl-line); background: var(--atl-surface); padding:16px; height:100%;">
-                                    <h5 style="display:flex; align-items:center; gap:8px; margin-bottom:12px; color:var(--atl-ink); font-weight:600;">
-                                        <i class="${icon}"></i> ${kpi.platform_name}
-                                    </h5>
-                                    
-                                    <div class="um-field-group" style="margin-bottom:12px;">
-                                        <label class="um-label">Data Source</label>
-                                        <select class="atl-input kpi-source-select" data-platform="${kpi.platform_name}" style="width:100%; padding: 8px;" onchange="toggleKpiFields(this)">
-                                            <option value="1" ${kpi.manual_override === 1 ? 'selected' : ''}>Manual Input</option>
-                                            <option value="0" ${kpi.manual_override === 0 ? 'selected' : ''}>Live API Integration</option>
-                                        </select>
-                                    </div>
+                            <div class="kpi-cfg-card" data-platform-key="${m.key}">
+                                <div class="kpi-cfg-head">
+                                    <i class="kpi-cfg-icon ${m.icon}"></i>
+                                    <span class="kpi-cfg-title">${kpi.platform_name}</span>
+                                    <span class="kpi-cfg-chip ${isManual ? 'kpi-cfg-chip--manual' : 'kpi-cfg-chip--live'}">${isManual ? 'Manual' : 'Live'}</span>
+                                </div>
 
-                                    <div class="kpi-manual-fields" style="${kpi.manual_override === 0 ? 'display:none;' : ''}">
-                                        <div class="um-field-group" style="margin-bottom:8px;">
-                                            <label class="um-label">Follower/Like Count</label>
+                                <div class="um-field-group" style="margin-bottom:14px;">
+                                    <label class="um-label">Data Source</label>
+                                    <div class="kpi-seg" data-platform="${kpi.platform_name}">
+                                        <button type="button" class="kpi-seg-btn kpi-source-btn ${isManual ? 'active' : ''}" data-value="1" onclick="toggleKpiFields(this)"><i class="fa-solid fa-pen-to-square"></i> Manual</button>
+                                        <button type="button" class="kpi-seg-btn kpi-source-btn ${isManual ? '' : 'active'}" data-value="0" onclick="toggleKpiFields(this)"><i class="fa-solid fa-bolt"></i> Live API</button>
+                                    </div>
+                                </div>
+
+                                <div class="kpi-manual-fields" style="${isManual ? '' : 'display:none;'}">
+                                    <div class="kpi-cfg-row" style="margin-bottom:10px;">
+                                        <div class="um-field-group" style="margin-bottom:0;">
+                                            <label class="um-label">Follower / Like Count</label>
                                             <input type="number" class="atl-input kpi-count-input" data-platform="${kpi.platform_name}" value="${kpi.follower_count}" min="0" style="width:100%;">
                                         </div>
-                                        <div class="row">
-                                            <div class="col-6">
-                                                <div class="um-field-group">
-                                                    <label class="um-label">Trend %</label>
-                                                    <input type="number" step="0.01" class="atl-input kpi-trend-input" data-platform="${kpi.platform_name}" value="${kpi.trend_percentage}" style="width:100%;">
-                                                </div>
-                                            </div>
-                                            <div class="col-6">
-                                                <div class="um-field-group">
-                                                    <label class="um-label">Direction</label>
-                                                    <select class="atl-input kpi-direction-select" data-platform="${kpi.platform_name}" style="width:100%;">
-                                                        <option value="up" ${kpi.trend_direction === 'up' ? 'selected' : ''}>Up (+)</option>
-                                                        <option value="down" ${kpi.trend_direction === 'down' ? 'selected' : ''}>Down (-)</option>
-                                                    </select>
-                                                </div>
-                                            </div>
+                                        <div class="um-field-group" style="margin-bottom:0;">
+                                            <label class="um-label">Goal / Target</label>
+                                            <input type="number" class="atl-input kpi-goal-input" data-platform="${kpi.platform_name}" value="${kpi.goal_target || 0}" min="0" style="width:100%;">
                                         </div>
                                     </div>
-                                    
-                                    ${apiFieldsHtml}
+                                    <div class="kpi-cfg-row">
+                                        <div class="um-field-group" style="margin-bottom:0;">
+                                            <label class="um-label">Trend %</label>
+                                            <input type="number" step="0.01" min="0" class="atl-input kpi-trend-input" data-platform="${kpi.platform_name}" value="${Math.abs(kpi.trend_percentage)}" style="width:100%;">
+                                        </div>
+                                        <div class="um-field-group" style="margin-bottom:0;">
+                                            <label class="um-label">Direction</label>
+                                            <select class="atl-input kpi-direction-select" data-platform="${kpi.platform_name}" style="width:100%;">
+                                                <option value="up" ${kpi.trend_direction === 'up' ? 'selected' : ''}>Up (+)</option>
+                                                <option value="down" ${kpi.trend_direction === 'down' ? 'selected' : ''}>Down (&minus;)</option>
+                                            </select>
+                                        </div>
+                                    </div>
                                 </div>
+
+                                ${apiFieldsHtml}
                             </div>
                         `;
                         container.append(card);
@@ -14253,16 +14363,39 @@
                 });
         }
 
-        window.toggleKpiFields = function (selectEl) {
-            const parent = $(selectEl).closest('.atl-card');
-            if (selectEl.value === '1') {
-                parent.find('.kpi-manual-fields').show();
-                parent.find('.kpi-api-fields').hide();
+        window.toggleKpiFields = function (btn) {
+            const card = $(btn).closest('.kpi-cfg-card');
+            const isManual = $(btn).attr('data-value') === '1';
+
+            // Activate the clicked segment
+            card.find('.kpi-source-btn').removeClass('active');
+            $(btn).addClass('active');
+
+            // Toggle the relevant field groups
+            if (isManual) {
+                card.find('.kpi-manual-fields').show();
+                card.find('.kpi-api-fields').hide();
             } else {
-                parent.find('.kpi-manual-fields').hide();
-                parent.find('.kpi-api-fields').show();
+                card.find('.kpi-manual-fields').hide();
+                card.find('.kpi-api-fields').show();
             }
+
+            // Reflect the active mode in the status chip
+            card.find('.kpi-cfg-chip')
+                .toggleClass('kpi-cfg-chip--manual', isManual)
+                .toggleClass('kpi-cfg-chip--live', !isManual)
+                .text(isManual ? 'Manual' : 'Live');
         };
+
+        // Delegated show/hide reveal for dynamically-injected KPI credential fields
+        $(document).on('click', '.kpi-eye', function () {
+            const inp = $(this).closest('.kpi-input-wrap').find('input')[0];
+            if (!inp) return;
+            const isPass = inp.type === 'password';
+            inp.type = isPass ? 'text' : 'password';
+            const icon = this.querySelector('i');
+            if (icon) icon.className = isPass ? 'fa-regular fa-eye-slash' : 'fa-regular fa-eye';
+        });
 
         window.saveSocialKpiSettings = async function () {
             const btn = $('#saveKpiSettingsBtn');
@@ -14308,13 +14441,14 @@
             let errorCount = 0;
 
             for (const platform of platforms) {
-                const selectEl = $(`.kpi-source-select[data-platform="${platform}"]`);
-                if (selectEl.length === 0) continue;
-                
-                const card = selectEl.closest('.atl-card');
-                const manual_override = parseInt(selectEl.val());
+                const seg = $(`.kpi-seg[data-platform="${platform}"]`);
+                if (seg.length === 0) continue;
+
+                const card = seg.closest('.kpi-cfg-card');
+                const manual_override = parseInt(seg.find('.kpi-source-btn.active').attr('data-value')) || 0;
                 const follower_count = parseInt(card.find('.kpi-count-input').val()) || 0;
-                const trend_percentage = parseFloat(card.find('.kpi-trend-input').val()) || 0;
+                const goal_target = parseInt(card.find('.kpi-goal-input').val()) || 0;
+                const trend_percentage = Math.abs(parseFloat(card.find('.kpi-trend-input').val()) || 0);
                 const trend_direction = card.find('.kpi-direction-select').val() || 'up';
 
                 try {
@@ -14322,6 +14456,7 @@
                         platform_name: platform,
                         manual_override: manual_override,
                         follower_count: follower_count,
+                        goal_target: goal_target,
                         trend_percentage: trend_percentage,
                         trend_direction: trend_direction
                     });
@@ -27846,34 +27981,34 @@
                             countEl.textContent = kpi.follower_count.toLocaleString();
                         }
 
-                        // Update trend percentage and class
+                        // Update trend percentage and class — direction is the single
+                        // source of truth for both the sign and the colour so they always agree.
                         const trendEl = document.getElementById('dbSocial-' + idPrefix + '-trend');
                         if (trendEl) {
-                            const pctFormatted = (kpi.trend_percentage >= 0 ? '+' : '') + kpi.trend_percentage.toFixed(1) + '%';
-                            trendEl.textContent = pctFormatted;
-                            
+                            const isDown = kpi.trend_direction === 'down';
+                            const sign = isDown ? '−' : '+'; // minus sign / plus
+                            trendEl.textContent = sign + Math.abs(kpi.trend_percentage).toFixed(1) + '%';
+
                             // Remove existing trend classes
                             trendEl.classList.remove('trend-up', 'trend-down');
-                            if (kpi.trend_direction === 'up') {
-                                trendEl.classList.add('trend-up');
-                            } else {
-                                trendEl.classList.add('trend-down');
-                            }
+                            trendEl.classList.add(isDown ? 'trend-down' : 'trend-up');
                         }
 
-                        // Update progress bar
+                        // Update progress bar against the admin-configured goal
                         const progressEl = document.getElementById('dbSocial-' + idPrefix + '-progress');
                         if (progressEl) {
-                            const goals = {
+                            const fallbackGoals = {
                                 'Facebook': 20000,
                                 'Instagram': 25000,
                                 'X (Twitter)': 20000,
                                 'YouTube': 25000,
                                 'TikTok': 100000
                             };
-                            const goal = goals[kpi.platform_name] || 50000;
+                            const goal = (kpi.goal_target && kpi.goal_target > 0)
+                                ? kpi.goal_target
+                                : (fallbackGoals[kpi.platform_name] || 50000);
                             const percent = Math.min(100, Math.round((kpi.follower_count / goal) * 100));
-                            
+
                             progressEl.setAttribute('data-percent', percent);
                             progressEl.style.setProperty('--db-pct', percent + '%');
                         }

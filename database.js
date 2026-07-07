@@ -516,18 +516,35 @@ function initializeDatabase() {
             trend_percentage REAL DEFAULT 0,
             trend_direction TEXT DEFAULT 'up',
             manual_override BOOLEAN DEFAULT 1,
+            goal_target INTEGER DEFAULT 0,
             last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
         )`, () => {
+             // Default progress-bar goals per platform (previously hardcoded in the dashboard JS).
+             const defaultGoals = { 'Facebook': 20000, 'Instagram': 25000, 'X (Twitter)': 20000, 'YouTube': 25000, 'TikTok': 100000 };
+
+             // Migration: add goal_target to existing DBs and backfill sensible defaults once.
+             db.all("PRAGMA table_info(social_kpi_stats)", (err, columns) => {
+                 if (err || !columns) return;
+                 const colNames = columns.map(c => c.name);
+                 if (!colNames.includes('goal_target')) {
+                     db.run("ALTER TABLE social_kpi_stats ADD COLUMN goal_target INTEGER DEFAULT 0", () => {
+                         Object.keys(defaultGoals).forEach(p => {
+                             db.run("UPDATE social_kpi_stats SET goal_target = ? WHERE platform_name = ?", [defaultGoals[p], p], () => {});
+                         });
+                     });
+                 }
+             });
+
              db.get("SELECT COUNT(*) AS count FROM social_kpi_stats", (err, row) => {
                  if (row && row.count === 0) {
                      const defaultKPIs = [
-                         ['Facebook', 12098, 12098, 22.9, 'up', 1],
-                         ['Instagram', 15080, 0, -27.4, 'down', 1],
-                         ['X (Twitter)', 12564, 0, 76.10, 'up', 1],
-                         ['YouTube', 14890, 0, 62.08, 'up', 1],
-                         ['TikTok', 50230, 0, 120.5, 'up', 1]
+                         ['Facebook', 12098, 12098, 22.9, 'up', 1, defaultGoals['Facebook']],
+                         ['Instagram', 15080, 0, -27.4, 'down', 1, defaultGoals['Instagram']],
+                         ['X (Twitter)', 12564, 0, 76.10, 'up', 1, defaultGoals['X (Twitter)']],
+                         ['YouTube', 14890, 0, 62.08, 'up', 1, defaultGoals['YouTube']],
+                         ['TikTok', 50230, 0, 120.5, 'up', 1, defaultGoals['TikTok']]
                      ];
-                     const stmt = db.prepare("INSERT INTO social_kpi_stats (platform_name, follower_count, like_count, trend_percentage, trend_direction, manual_override) VALUES (?, ?, ?, ?, ?, ?)");
+                     const stmt = db.prepare("INSERT INTO social_kpi_stats (platform_name, follower_count, like_count, trend_percentage, trend_direction, manual_override, goal_target) VALUES (?, ?, ?, ?, ?, ?, ?)");
                      defaultKPIs.forEach(kpi => stmt.run(kpi));
                      stmt.finalize();
                      console.log('Default Social Media KPI items seeded.');
