@@ -6055,10 +6055,33 @@
                             <button type="button" id="clearFilters" class="atl-clear-btn">
                                 Clear filters
                             </button>
+                            <button type="button" id="bkSelectToggle" class="atl-clear-btn" style="white-space:nowrap;"><i class="fa-solid fa-square-check" style="margin-right:5px;"></i>Select</button>
                             <span class="atl-sr-only" id="atlLiveRegion" role="status" aria-live="polite" aria-atomic="true"></span>
                             <p id="bkResultCount" class="text-sm ml-auto self-center" style="color:var(--atl-muted); font-family:'Outfit', sans-serif; margin:0;" aria-live="polite"></p>
                         </div>
                     </section>
+
+                    <!-- A3: bulk pipeline actions -->
+                    <style>
+                        .bk-select-box { display:none; position:absolute; top:12px; left:12px; z-index:6; margin:0; }
+                        .bk-select-box input { width:18px; height:18px; accent-color:var(--atl-amber); cursor:pointer; }
+                        #bookingsListContainer.bk-select-mode .atl-booking-card { position:relative; }
+                        #bookingsListContainer.bk-select-mode .bk-select-box { display:block; }
+                        #bookingsListContainer.bk-select-mode .atl-card-inner { padding-left:44px; }
+                        .bk-bulk-bar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; background:var(--atl-surface2); border:1px solid var(--atl-line); border-radius:var(--atl-r-md); padding:10px 14px; margin:10px 0 4px; }
+                        .bk-bulk-count { font-size:13px; font-weight:600; color:var(--atl-amber); }
+                        .bk-bulk-selectall { font-size:12.5px; color:var(--atl-muted); display:inline-flex; align-items:center; gap:6px; cursor:pointer; margin:0; }
+                        .bk-bulk-selectall input { accent-color:var(--atl-amber); cursor:pointer; }
+                        .bk-bulk-actions { display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
+                    </style>
+                    <div id="bkBulkBar" class="bk-bulk-bar" style="display:none;">
+                        <span class="bk-bulk-count"><span id="bkBulkCount">0</span> selected</span>
+                        <label class="bk-bulk-selectall"><input type="checkbox" id="bkSelectAll"> Select all shown</label>
+                        <div class="bk-bulk-actions">
+                            <button type="button" id="bkBulkExport" class="atl-btn atl-btn--ghost"><i class="fa-solid fa-file-csv" style="margin-right:5px;"></i>Export CSV</button>
+                            <button type="button" id="bkBulkCancel" class="atl-btn atl-btn--ghost" style="color:var(--atl-clay);"><i class="fa-solid fa-ban" style="margin-right:5px;"></i>Cancel selected</button>
+                        </div>
+                    </div>
 
                     <!-- Bookings list -->
                     <main>
@@ -15936,6 +15959,7 @@
 
                 $container.append(`
 <article class="atl-booking-card" data-id="${row.id}" style="animation-delay:${_idx*40}ms">
+  <label class="bk-select-box" title="Select booking"><input type="checkbox" class="bk-select-cb" data-id="${row.id}" aria-label="Select booking #${row.id}"></label>
   <!-- Padded inner container -->
   <div class="atl-card-inner">
     <!-- Card header area -->
@@ -18781,6 +18805,7 @@
             }
             $('#bkResultCount').text(filtered.length + ' booking' + (filtered.length !== 1 ? 's' : ''));
             renderBookingsTable(filtered);
+            if (typeof bkUpdateBulkCount === 'function') bkUpdateBulkCount(); // A3: keep bulk count in sync after re-render
         }
 
         $('#bookingStatusFilter').on('change', function() {
@@ -18791,6 +18816,73 @@
         // Live search
         $(document).on('input.bkrsearch', '#bkSearchInput', function() {
             applyBookingFilter();
+        });
+
+        // ── A3: bulk pipeline actions — select mode + CSV export + bulk cancel ─────
+        // Client-side only: export builds a CSV from allBookingsCache; cancel loops the
+        // existing PUT /api/admin/bookings/:id, so every transition + cascade + RBAC guard
+        // the single-row path enforces is preserved.
+        function bkSelectedIds() {
+            return $('#bookingsListContainer .bk-select-cb:checked').map(function() { return $(this).data('id'); }).get();
+        }
+        function bkUpdateBulkCount() {
+            var n = bkSelectedIds().length;
+            $('#bkBulkCount').text(n);
+            var shown = $('#bookingsListContainer .bk-select-cb').length;
+            $('#bkSelectAll').prop('checked', shown > 0 && n === shown);
+        }
+        $('#bkSelectToggle').on('click', function() {
+            var on = $('#bookingsListContainer').toggleClass('bk-select-mode').hasClass('bk-select-mode');
+            $('#bkBulkBar').toggle(on);
+            $(this).html(on ? '<i class="fa-solid fa-xmark" style="margin-right:5px;"></i>Done'
+                            : '<i class="fa-solid fa-square-check" style="margin-right:5px;"></i>Select');
+            if (!on) $('#bookingsListContainer .bk-select-cb, #bkSelectAll').prop('checked', false);
+            bkUpdateBulkCount();
+        });
+        $(document).on('change', '.bk-select-cb', bkUpdateBulkCount);
+        $(document).on('click', '.bk-select-box', function(e) { e.stopPropagation(); }); // don't trigger card expand
+        $('#bkSelectAll').on('change', function() {
+            $('#bookingsListContainer .bk-select-cb').prop('checked', $(this).is(':checked'));
+            bkUpdateBulkCount();
+        });
+        $('#bkBulkExport').on('click', function() {
+            var ids = bkSelectedIds();
+            var rows = (allBookingsCache || []).filter(function(b) { return ids.indexOf(b.id) !== -1; });
+            if (!rows.length) { window.notificationService && window.notificationService.showWarning('Nothing selected', 'Select one or more bookings to export.'); return; }
+            var cols = ['id','name','company','email','cell','event_name','event_type','date','event_location','status','payment_status','total_amount','amount_paid','amount_outstanding','created_at'];
+            var esc = function(v) { v = (v == null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+            var csv = cols.join(',') + '\n' + rows.map(function(r) { return cols.map(function(c) { return esc(r[c]); }).join(','); }).join('\n');
+            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'bookings-selected-' + new Date().toISOString().slice(0, 10) + '.csv';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+        });
+        $('#bkBulkCancel').on('click', async function() {
+            var ids = bkSelectedIds();
+            if (!ids.length) { window.notificationService && window.notificationService.showWarning('Nothing selected', 'Select one or more bookings to cancel.'); return; }
+            var confirmed = window.notificationService ? await window.notificationService.showConfirm({
+                title: 'Cancel ' + ids.length + ' booking' + (ids.length !== 1 ? 's' : '') + '?',
+                message: 'This cancels each selected booking (voiding invoices, releasing holds, applying the refund policy) — exactly like cancelling them one by one. It cannot be undone.',
+                confirmText: 'Cancel ' + ids.length,
+                isDestructive: true
+            }) : confirm('Cancel ' + ids.length + ' bookings?');
+            if (!confirmed) return;
+            var $btn = $(this); $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Cancelling…');
+            var ok = 0, fail = 0;
+            for (var i = 0; i < ids.length; i++) {
+                try {
+                    var res = await apiCall('/api/admin/bookings/' + ids[i], 'PUT', { status: 'CANCELLED', reason: 'Bulk cancelled by admin' });
+                    if (res && res.success) ok++; else fail++;
+                } catch (e) { fail++; }
+            }
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-ban" style="margin-right:5px;"></i>Cancel selected');
+            if (window.notificationService) {
+                if (fail === 0) window.notificationService.showSuccess(ok + ' booking' + (ok !== 1 ? 's' : '') + ' cancelled.');
+                else window.notificationService.showWarning('Partially done', ok + ' cancelled, ' + fail + ' skipped (invalid transition or error).');
+            }
+            if (typeof loadBookings === 'function') loadBookings();
         });
         
         // More dropdown — opens below by default, flips upward only when near viewport bottom

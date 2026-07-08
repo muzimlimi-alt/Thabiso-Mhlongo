@@ -2072,17 +2072,8 @@ document.addEventListener("DOMContentLoaded", function() {
                     }
                 }
 
-                // Notes — at least 20 chars (virtual events no longer get a free auto-fill)
-                var notesVal = $('#bookNotes').val().trim();
-                if (isVirtual && (!notesVal || notesVal === 'Virtual Event Booking Request')) {
-                    ok = setFieldState('bookNotes', false,
-                        'Please describe your virtual event: the platform (Zoom, Teams, etc.), expected audience size, timezone, and any technical requirements.') && ok;
-                } else if (notesVal.length < 20) {
-                    var remaining = 20 - notesVal.length;
-                    ok = setFieldState('bookNotes', false, 'Please describe the event in more detail (' + remaining + ' more character' + (remaining !== 1 ? 's' : '') + ' needed). Include the theme, expected stage time, audience type, or any special requirements.') && ok;
-                } else {
-                    setFieldState('bookNotes', true);
-                }
+                // Notes — optional (C3). Encouraged but never blocks the booking.
+                setFieldState('bookNotes', true);
             }
 
             if (!ok) {
@@ -2181,59 +2172,66 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
 
+        var _bkDupCache = null; // C3: { key:'email|date', clash } — reuse the email-blur check on Next
         $('#bookNext2').on('click', async function() {
             var $btn = $(this);
             if ($btn.prop('disabled')) return;
-            
+
             if (!validateStep(2)) return;
 
             var email = $('#bookEmail').val().trim();
             var chosenDate = $('#bookDate').val();
             if (!chosenDate || !email) return;
 
-            $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Checking...');
-            try {
-                var dupRes = await fetch('/api/public/bookings/lookup', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email })
-                });
-                var dupData = await dupRes.json();
-                var clash = null;
-                if (dupData.success && dupData.bookings) {
-                    clash = dupData.bookings.find(function(b) { 
-                        var bStatus = (b.status || '').toUpperCase();
-                        return b.date === chosenDate && bStatus !== 'CANCELLED' && bStatus !== 'EXPIRED'; 
+            var dupKey = email + '|' + chosenDate;
+            var clash = null;
+            if (_bkDupCache && _bkDupCache.key === dupKey) {
+                // Already validated this email+date on blur — skip the redundant round-trip (C3).
+                clash = _bkDupCache.clash;
+            } else {
+                $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Checking...');
+                try {
+                    var dupRes = await fetch('/api/public/bookings/lookup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: email })
                     });
+                    var dupData = await dupRes.json();
+                    if (dupData.success && dupData.bookings) {
+                        clash = dupData.bookings.find(function(b) {
+                            var bStatus = (b.status || '').toUpperCase();
+                            return b.date === chosenDate && bStatus !== 'CANCELLED' && bStatus !== 'EXPIRED';
+                        });
+                    }
+                    _bkDupCache = { key: dupKey, clash: clash || null };
+                } catch(e) {
+                    // network error — don't block
                 }
-                
-                if (clash) {
-                    setFieldState('bookEmail', false, 'You already have an active booking on this date (#' + clash.id + '). Only one same-day booking is allowed.');
-                    $('#bookingFormError')
-                        .html('<i class="fa-solid fa-circle-xmark" style="margin-right:6px;color:#ef5350;"></i>' +
-                              'Duplicate booking detected: You already have an active booking on this date (<strong>#' + clash.id + '</strong>' +
-                              (clash.event_name ? ' — ' + clash.event_name : '') + '). ' +
-                              'Please choose another date or <a href="#" id="trackDuplicateBtn2" style="color:var(--y-base);text-decoration:underline;">track booking #' + clash.id + ' &rarr;</a>')
-                        .css('background', 'rgba(239,83,80,0.08)')
-                        .show();
-                    
-                    $('#trackDuplicateBtn2').off('click').on('click', function(e) {
-                        e.preventDefault();
-                        $('#bookingModal').modal('hide');
-                        setTimeout(function() {
-                            $('#trackId').val(clash.id);
-                            $('#trackEmail').val(email);
-                            $('#trackingModal').modal('show');
-                        }, 400);
-                    });
-                    
-                    $btn.prop('disabled', false).html('Venue Details <i class="fa-solid fa-arrow-right"></i>');
-                    return;
-                }
-            } catch(e) {
-                // network error, don't block
+                $btn.prop('disabled', false).html('Venue Details <i class="fa-solid fa-arrow-right"></i>');
             }
-            $btn.prop('disabled', false).html('Venue Details <i class="fa-solid fa-arrow-right"></i>');
+
+            // The duplicate guard is preserved: a true same-day clash still blocks here
+            // (and the server re-enforces it at submit). Only the redundant network hop is gone.
+            if (clash) {
+                setFieldState('bookEmail', false, 'You already have an active booking on this date (#' + clash.id + '). Only one same-day booking is allowed.');
+                $('#bookingFormError')
+                    .html('<i class="fa-solid fa-circle-xmark" style="margin-right:6px;color:#ef5350;"></i>' +
+                          'Duplicate booking detected: You already have an active booking on this date (<strong>#' + clash.id + '</strong>' +
+                          (clash.event_name ? ' — ' + clash.event_name : '') + '). ' +
+                          'Please choose another date or <a href="#" id="trackDuplicateBtn2" style="color:var(--y-base);text-decoration:underline;">track booking #' + clash.id + ' &rarr;</a>')
+                    .css('background', 'rgba(239,83,80,0.08)')
+                    .show();
+                $('#trackDuplicateBtn2').off('click').on('click', function(e) {
+                    e.preventDefault();
+                    $('#bookingModal').modal('hide');
+                    setTimeout(function() {
+                        $('#trackId').val(clash.id);
+                        $('#trackEmail').val(email);
+                        $('#trackingModal').modal('show');
+                    }, 400);
+                });
+                return;
+            }
 
             updateProgress(3);
             setTimeout(renderTimeSlots, 400);
@@ -2255,17 +2253,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 $('#err-' + id).hide();
                 if (id === 'bookDate') $('#bookDateDisplay').removeClass('bk-input--err');
             }
-            // Live notes character count hint
+            // Live notes hint — optional field (C3); soft, never alarming.
             if (id === 'bookNotes') {
-                var len = val.length;
-                var $hint = $('#hint-bookNotes');
-                if (len < 20) {
-                    $hint.text((20 - len) + ' more character' + (20 - len !== 1 ? 's' : '') + ' needed').css('color', '#ef5350');
-                } else {
-                    $hint.text('').css('color', '');
-                    $('#bookNotes').removeClass('bk-input--err').addClass('bk-input--ok');
-                    $('#err-bookNotes').hide();
-                }
+                $('#hint-bookNotes').text('').css('color', '');
+                if (val.length) $('#bookNotes').removeClass('bk-input--err').addClass('bk-input--ok');
+                $('#err-bookNotes').hide();
             }
         });
 
@@ -2308,10 +2300,11 @@ $bookingForm.on('blur', '#bookName', function() {
                 });
                 var dupData = await dupRes.json();
                 if (dupData.success && dupData.bookings) {
-                    var clash = dupData.bookings.find(function(b) { 
+                    var clash = dupData.bookings.find(function(b) {
                         var bStatus = (b.status || '').toUpperCase();
-                        return b.date === chosenDate && bStatus !== 'CANCELLED' && bStatus !== 'EXPIRED'; 
+                        return b.date === chosenDate && bStatus !== 'CANCELLED' && bStatus !== 'EXPIRED';
                     });
+                    _bkDupCache = { key: v + '|' + chosenDate, clash: clash || null }; // C3: let Next reuse this
                     if (clash) {
                         setFieldState('bookEmail', false, 'You already have an active booking on this date (#' + clash.id + '). Only one same-day booking is allowed.');
                         $('#bookingFormError')
@@ -2470,8 +2463,18 @@ $bookingForm.on('blur', '#bookName', function() {
                     $bookingForm[0].reset();
                     // Booking Recovery: clear the local draft + token so a completed booking isn't re-counted as abandoned.
                     try { localStorage.removeItem('bkDraft'); localStorage.removeItem('bkDraftToken'); } catch(e) {}
+                    // C2: remember contact details for a faster next booking — only with POPIA consent.
+                    try {
+                        if (submitData.popia_consent) {
+                            localStorage.setItem('bkClientInfo', JSON.stringify({
+                                name: submitData.name || '', email: submitData.email || '',
+                                cell: submitData.cell || '', company: submitData.company || ''
+                            }));
+                        }
+                    } catch(e) {}
                     _bkFurthestStep = 1;
                     $('#bkDraftBanner').remove();
+                    $('#bkPrefillNote').remove();
 
                     // Wire up "Track this booking" button
                     $('#goToTrackBtn').off('click').on('click', function() {
@@ -2619,6 +2622,66 @@ $bookingForm.on('blur', '#bookName', function() {
             window._bkSource = $(this).data('bk-source') || 'direct';
         });
 
+        // C1: when a visitor books from a specific service card, pre-add the matching
+        // catalogue service so they don't re-pick it. Best-effort keyword match; safe
+        // no-op when there's no confident match (they just add manually, as today).
+        var _bkSourceKeywords = {
+            'service-standup':   ['stand-up', 'standup', 'stand up', 'stand'],
+            'service-mc-host':   ['mc /', 'mc/', 'hosting', 'compere', 'master of cere', ' host'],
+            'service-tv-film':   ['tv', 'podcast', 'film', 'present', 'acting', 'screen'],
+            'service-voiceover': ['voice', 'narration']
+        };
+        function bkPreselectServiceFromSource() {
+            try {
+                // Never clobber a restored draft or an existing manual selection.
+                if ($('#bkServicesTableBody tr').length) return;
+                var keywords = _bkSourceKeywords[window._bkSource];
+                if (!keywords || !Array.isArray(_bkServicesCatalogue) || !_bkServicesCatalogue.length) return;
+                var svc = _bkServicesCatalogue.find(function(s) {
+                    if (!s || !s.name) return false;
+                    var n = String(s.name).toLowerCase();
+                    return keywords.some(function(k) { return n.indexOf(k) !== -1; });
+                });
+                if (!svc) return;
+                var perfMins = parseInt(svc.performance_length_minutes) || 0;
+                var startQty = svc.pricing_model === 'per_minute'
+                    ? (perfMins || parseInt(svc.min_quantity) || 60)
+                    : (svc.pricing_model === 'per_hour' ? Math.ceil((perfMins || 60) / 60) : 1);
+                bkAddServiceRow(svc.id, svc.name, parseFloat(svc.default_price) || 0, startQty, svc.pricing_model, svc.min_quantity, svc.display_unit, svc);
+                if (typeof bkSyncDurationSelect === 'function') bkSyncDurationSelect();
+            } catch (e) { /* non-fatal — visitor selects manually */ }
+        }
+
+        // C2: prefill contact details from the visitor's last (consented) booking, with a
+        // Clear control. Only fills empty fields — never overrides a restored draft.
+        function bkPrefillClientInfo() {
+            try {
+                if ($('#bookName').val() || $('#bookEmail').val()) return; // draft already populated these
+                var info = JSON.parse(localStorage.getItem('bkClientInfo') || 'null');
+                if (!info || !info.email) return;
+                $('#bookName').val(info.name || '');
+                $('#bookEmail').val(info.email || '');
+                $('#bookCell').val(info.cell || '');
+                $('#bookCompany').val(info.company || '');
+                $('#bkPrefillNote').remove();
+                $('#bookStep2 .bk-step-header').after(
+                    '<div id="bkPrefillNote" style="background:rgba(74,222,128,0.06);border:1px solid rgba(74,222,128,0.16);' +
+                    'color:#4ade80;font-size:12px;padding:7px 12px;margin:0 0 12px;border-radius:6px;' +
+                    'display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+                    '<span><i class="fa-solid fa-user-check" style="margin-right:6px;"></i>' +
+                    'Prefilled from your last request &mdash; edit anything that changed.</span>' +
+                    '<a href="#" id="bkClearPrefill" style="color:#4ade80;font-size:11px;text-decoration:underline;white-space:nowrap;">Clear</a>' +
+                    '</div>'
+                );
+            } catch (e) { /* non-fatal */ }
+        }
+        $(document).on('click', '#bkClearPrefill', function(e) {
+            e.preventDefault();
+            try { localStorage.removeItem('bkClientInfo'); } catch(err) {}
+            $('#bookName, #bookEmail, #bookCell, #bookCompany').val('');
+            $('#bkPrefillNote').remove();
+        });
+
         // Refresh calendar each time the modal opens; restore any in-progress draft
         $('#bookingModal').on('show.bs.modal', function() {
             if (window.refreshAvailCalendar) window.refreshAvailCalendar();
@@ -2693,6 +2756,10 @@ $bookingForm.on('blur', '#bookName', function() {
                 localStorage.removeItem('bkDraft');
                 $('#bkClearDraftBtn').hide();
             }
+            // C2: prefill returning-visitor contact details (when no draft populated them).
+            bkPrefillClientInfo();
+            // C1: pre-add the service matching the card the visitor came from.
+            bkPreselectServiceFromSource();
             updateProgress(1);
         });
 
@@ -2720,6 +2787,7 @@ $bookingForm.on('blur', '#bookName', function() {
             $('#bookDateDisplay').text('No date selected — pick one from the calendar below.').removeClass('bk-date-display--filled bk-input--err');
             $('#bkClearDraftBtn').hide();
             $('#bkDraftBanner').remove();
+            $('#bkPrefillNote').remove();
         });
 
         function _clearBookingDraft() {
@@ -2737,6 +2805,7 @@ $bookingForm.on('blur', '#bookName', function() {
             $('#bkDraftStatus').hide();
             $('#bkClearDraftBtn').hide();
             $('#bkDraftBanner').remove();
+            $('#bkPrefillNote').remove();
             updateProgress(1);
         }
 
