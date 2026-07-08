@@ -1362,7 +1362,7 @@ function startBackgroundClerk() {
         });
 
         // S6: Auto-complete CONFIRMED fully-paid bookings whose event date has passed
-        db.all(`SELECT id, name, email, event_name, event_type, date, event_location,
+        db.all(`SELECT id, event_id, name, email, event_name, event_type, date, event_location,
                        total_amount, amount_paid, quote_amount
                 FROM bookings
                 WHERE status = 'CONFIRMED'
@@ -1375,11 +1375,18 @@ function startBackgroundClerk() {
                         db.run("UPDATE events SET event_status = 'completed', modified_on = CURRENT_TIMESTAMP WHERE event_id = ? AND event_status NOT IN ('cancelled','completed')",
                             [row.event_id], (e) => { if (e) console.error('[AutoComplete] Event advance failed:', e.message); });
                     }
+                    // Parity with manual completion (applyStatusChange): also mark the linked invoice PAID
+                    // and send the admin completion summary — not just the client completion email.
+                    db.run("UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [row.id],
+                        (e) => { if (e) console.error('[S6] Invoice mark-paid failed:', e.message); });
                     sendBookingCompletedEmail(row).catch(e =>
                         console.error(`[S6] Completion email failed for #${row.id}:`, e.message)
                     );
+                    db.get("SELECT * FROM bookings WHERE id = ?", [row.id], (e, full) => {
+                        if (!e && full) sendAdminCompletionSummaryEmail(full).catch(err => console.error(`[S6] Admin completion summary failed for #${row.id}:`, err.message));
+                    });
                 });
-                console.log(`✓ [S6] Auto-completed ${rows.length} fully-paid past-event booking(s) (completion emails sent).`);
+                console.log(`✓ [S6] Auto-completed ${rows.length} fully-paid past-event booking(s) (completion + admin summary emails sent).`);
             }
         });
 
@@ -1420,6 +1427,27 @@ function startBackgroundClerk() {
                     db.run("UPDATE bookings SET quote_expiry_warned = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
                     sendQuoteExpiryWarningEmail(row).catch(e => console.error('Quote warning email failed:', e.message));
                 });
+            }
+        });
+
+        // 3b. Warn the ADMIN about PENDING enquiries about to auto-expire — the final window
+        // before step 1 auto-EXPIRES them at 48h from creation. Prevents leads being silently
+        // lost. One digest per enquiry (pending_expiry_warned flag stops hourly re-spam).
+        db.all(`SELECT id, name, email, event_name, event_type, date FROM bookings
+                WHERE status = 'PENDING'
+                AND datetime(created_at, '+24 hours') < ?
+                AND datetime(created_at, '+48 hours') > ?
+                AND pending_expiry_warned IS NULL`, [nowLocal, nowLocal], async (err, rows) => {
+            if (rows && rows.length > 0) {
+                const notifEmail = await getNotificationEmail();
+                rows.forEach(row => {
+                    db.run("UPDATE bookings SET pending_expiry_warned = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
+                });
+                const list = rows.map(r => `#${r.id} – ${r.name} – ${r.event_name || r.event_type || 'Event'}${r.date ? ' (event ' + r.date + ')' : ''}`).join('<br>');
+                sendEmail({ to: notifEmail, subject: `Enquiries expiring soon – ${rows.length} pending request(s) need a quote`,
+                    htmlContent: `<p>The following enquiries will <strong>auto-expire within the next ~24 hours</strong> unless a quote is sent — after which the client is notified their request lapsed:</p><p>${list}</p><p>Open the Bookings pipeline and send a quote to keep them alive.</p>`,
+                    titleOverride: 'Enquiries Expiring Soon', trigger_event: 'Admin: Pending Expiry Warning' }).catch(() => {});
+                console.log(`✓ [3b] Warned admin about ${rows.length} pending enquiry(ies) nearing auto-expiry.`);
             }
         });
 

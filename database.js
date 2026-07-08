@@ -1243,6 +1243,7 @@ function initializeDatabase() {
         // bookings: admin notes + background clerk tracking columns
         db.run("ALTER TABLE bookings ADD COLUMN admin_notes TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN quote_expiry_warned DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE bookings ADD COLUMN pending_expiry_warned DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN overdue_reminded_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN quote_follow_up_sent_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
         // Audit-gap fixes: pending_at timestamp and venue place ID storage
