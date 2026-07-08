@@ -3467,6 +3467,28 @@
         .um-note--info { border-left-color: var(--atl-blue); }
         .um-note--info i { color: var(--atl-blue); }
         .um-role-info__desc code, .um-role-list code { font-family: 'JetBrains Mono', monospace; font-size: 0.88em; color: var(--atl-ink-dim); background: color-mix(in srgb, var(--atl-ink) 8%, transparent); padding: 1px 5px; border-radius: 4px; }
+
+        /* Booking lifecycle — vertical timeline (Bookings About). Colour per node via --bk-c. */
+        .bk-timeline { margin: 0 0 8px; }
+        .bk-tl-phase { font-family: 'Outfit', sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--atl-muted-dim); margin: 16px 0 10px 28px; }
+        .bk-tl-phase:first-child { margin-top: 0; }
+        .bk-tl-item { position: relative; display: flex; gap: 14px; padding-bottom: 16px; }
+        .bk-tl-item::before { content: ''; position: absolute; left: 6px; top: 16px; bottom: -2px; width: 2px; background: var(--atl-line); }
+        .bk-tl-item:last-child::before { display: none; }
+        .bk-tl-item--branch::before { background: repeating-linear-gradient(180deg, var(--atl-line) 0 4px, transparent 4px 8px); }
+        .bk-tl-dot { position: relative; z-index: 1; flex-shrink: 0; width: 14px; height: 14px; border-radius: 50%; margin-top: 2px; background: var(--bk-c, var(--atl-amber)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bk-c, var(--atl-amber)) 15%, transparent); }
+        .bk-tl-body { min-width: 0; }
+        .bk-tl-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+        .bk-tl-name { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 14.5px; color: var(--bk-c, var(--atl-ink)); }
+        .bk-tl-tag { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--atl-muted); border: 1px solid var(--atl-line); border-radius: 999px; padding: 1px 7px; }
+        .bk-tl-meaning { font-size: 13px; color: var(--atl-ink-dim); line-height: 1.55; margin: 0 0 3px; }
+        .bk-tl-next { font-size: 12.5px; color: var(--atl-muted); line-height: 1.55; margin: 0; }
+        .bk-tl-next strong { color: var(--atl-ink); font-weight: 600; }
+        .bk-tl-next .arrow { color: var(--bk-c, var(--atl-amber)); font-weight: 700; margin-right: 5px; }
+        .bk-pay-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+        .bk-pay-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--atl-ink-dim); background: var(--atl-surface2); border: 1px solid var(--atl-line); border-radius: 999px; padding: 5px 13px 5px 11px; }
+        .bk-pay-chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--bk-c, var(--atl-muted)); }
+
         /* System Settings — separate cards + save bar */
         .um-settings-card { margin-bottom: 18px; }
         .um-settings-save {
@@ -6068,7 +6090,108 @@
                                 <strong style="color:var(--atl-ink);">Bookings</strong> manages every artist engagement from first contact to final payment. It has two working tabs &mdash; the <strong style="color:var(--atl-ink);">Pipeline</strong> (all live bookings) and <strong style="color:var(--atl-ink);">Booking Recovery</strong> (visitors who started a request but didn't finish). Each enquiry moves through an eight-stage lifecycle &mdash; <strong style="color:var(--atl-ink);">New &rarr; Pending &rarr; Quoted &rarr; Accepted &rarr; Confirmed &rarr; Completed</strong>, with <strong style="color:var(--atl-ink);">Expired</strong> and <strong style="color:var(--atl-ink);">Cancelled</strong> as terminal states. Every status transition is validated and recorded server-side.
                             </p>
 
-                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">The booking lifecycle</h4>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:16px; line-height:1.6;">
+                                Every enquiry travels down this pipeline. Each stage is colour-coded &mdash; the same colours you see on the pills and status badges &mdash; and tells you what it means and what to do next.
+                            </p>
+
+                            <div class="bk-timeline">
+                                <div class="bk-tl-phase">Phase 1 &middot; Request &amp; Intake</div>
+
+                                <div class="bk-tl-item" style="--bk-c: var(--atl-amber);">
+                                    <span class="bk-tl-dot"></span>
+                                    <div class="bk-tl-body">
+                                        <div class="bk-tl-head"><span class="bk-tl-name">New</span></div>
+                                        <p class="bk-tl-meaning">A fresh enquiry has arrived &mdash; from the public booking form or logged manually &mdash; and hasn't been quoted yet.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span>Review the details, then <strong>Send Quote</strong>.</p>
+                                    </div>
+                                </div>
+
+                                <div class="bk-tl-item" style="--bk-c: var(--atl-amber);">
+                                    <span class="bk-tl-dot"></span>
+                                    <div class="bk-tl-body">
+                                        <div class="bk-tl-head"><span class="bk-tl-name">Pending</span><span class="bk-tl-tag">auto</span></div>
+                                        <p class="bk-tl-meaning">Awaiting a quote. A New enquiry becomes Pending automatically after 48 hours if it isn't actioned.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Send Quote.</strong> Left inactive too long, it will Expire.</p>
+                                    </div>
+                                </div>
+
+                                <div class="bk-tl-phase">Phase 2 &middot; Quote &amp; Acceptance</div>
+
+                                <div class="bk-tl-item" style="--bk-c: var(--atl-amber-light);">
+                                    <span class="bk-tl-dot"></span>
+                                    <div class="bk-tl-body">
+                                        <div class="bk-tl-head"><span class="bk-tl-name">Quoted</span></div>
+                                        <p class="bk-tl-meaning">A formal quote has been emailed to the client; you're waiting on their decision.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span>No action needed &mdash; the client accepts via the quote link. <strong>Follow Up</strong> if it goes stale.</p>
+                                    </div>
+                                </div>
+
+                                <div class="bk-tl-item" style="--bk-c: var(--atl-blue);">
+                                    <span class="bk-tl-dot"></span>
+                                    <div class="bk-tl-body">
+                                        <div class="bk-tl-head"><span class="bk-tl-name">Accepted</span></div>
+                                        <p class="bk-tl-meaning">The client accepted the quote and agreed to the terms.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Generate the invoice</strong>, then record payment when it arrives.</p>
+                                    </div>
+                                </div>
+
+                                <div class="bk-tl-phase">Phase 3 &middot; Invoice &amp; Payment</div>
+
+                                <div class="bk-tl-item" style="--bk-c: var(--atl-sage);">
+                                    <span class="bk-tl-dot"></span>
+                                    <div class="bk-tl-body">
+                                        <div class="bk-tl-head"><span class="bk-tl-name">Confirmed</span></div>
+                                        <p class="bk-tl-meaning">The booking is locked in and now appears on the Calendar as an event.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span>Send the invoice and <strong>record payment</strong>; the card's next-step hint guides you until the event.</p>
+                                    </div>
+                                </div>
+
+                                <div class="bk-tl-phase">Phase 4 &middot; Event &amp; Completion</div>
+
+                                <div class="bk-tl-item" style="--bk-c: var(--atl-green);">
+                                    <span class="bk-tl-dot"></span>
+                                    <div class="bk-tl-body">
+                                        <div class="bk-tl-head"><span class="bk-tl-name">Completed</span><span class="bk-tl-tag">auto</span></div>
+                                        <p class="bk-tl-meaning">The event has been delivered and the booking is closed. Set automatically once a confirmed event date passes.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Request a review</strong> to build the profile.</p>
+                                    </div>
+                                </div>
+
+                                <div class="bk-tl-phase">Off-ramps &middot; terminal states</div>
+
+                                <div class="bk-tl-item bk-tl-item--branch" style="--bk-c: var(--atl-muted);">
+                                    <span class="bk-tl-dot"></span>
+                                    <div class="bk-tl-body">
+                                        <div class="bk-tl-head"><span class="bk-tl-name" style="color:var(--atl-ink-dim);">Expired</span><span class="bk-tl-tag">terminal</span></div>
+                                        <p class="bk-tl-meaning">A quote lapsed without acceptance, or a Pending enquiry went stale.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Reopen Booking</strong> to restore it to Pending and quote afresh.</p>
+                                    </div>
+                                </div>
+
+                                <div class="bk-tl-item bk-tl-item--branch" style="--bk-c: var(--atl-clay);">
+                                    <span class="bk-tl-dot"></span>
+                                    <div class="bk-tl-body">
+                                        <div class="bk-tl-head"><span class="bk-tl-name">Cancelled</span><span class="bk-tl-tag">terminal</span></div>
+                                        <p class="bk-tl-meaning">The booking was cancelled; its payment status is set to Cancelled too.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Record a refund</strong> if one is owed, or <strong>Book Again</strong> to rebook.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <h4 class="um-section-label" style="margin: 22px 0 10px;">Payment status</h4>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:10px; line-height:1.6;">
+                                Tracked <strong style="color:var(--atl-ink);">separately</strong> from the booking status above &mdash; a Completed booking can still be Unpaid, so always check both.
+                            </p>
+                            <div class="bk-pay-strip">
+                                <span class="bk-pay-chip" style="--bk-c: var(--atl-green);">Paid</span>
+                                <span class="bk-pay-chip" style="--bk-c: var(--atl-amber);">Deposit Paid</span>
+                                <span class="bk-pay-chip" style="--bk-c: var(--atl-amber-light);">Partially Paid</span>
+                                <span class="bk-pay-chip" style="--bk-c: var(--atl-muted);">Unpaid</span>
+                                <span class="bk-pay-chip" style="--bk-c: var(--atl-clay);">Payment Failed</span>
+                            </div>
+
+                            <h4 class="um-section-label" style="margin: 22px 0 14px;">How it works</h4>
                             <div class="um-roles-grid" style="margin-bottom:26px;">
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
