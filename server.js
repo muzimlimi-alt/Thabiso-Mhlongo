@@ -3453,116 +3453,143 @@ app.get('/api/public/services', (req, res) => {
 });
 
 // ==========================================
+// Promise wrappers over the shared sqlite connection. dbRun resolves with the sqlite3
+// statement context, so `.lastID` / `.changes` stay available.
+const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) { err ? reject(err) : resolve(this); });
+});
+const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => err ? reject(err) : resolve(row));
+});
+
+// Serializes transactional sections that run on the shared sqlite connection.
+//
+// node-sqlite3 multiplexes every request over ONE connection, and a transaction is a property of
+// the connection, not of the request. A second `BEGIN IMMEDIATE` issued while another request's
+// transaction is still open fails with "cannot start a transaction within a transaction" — under
+// concurrent booking submissions the losing requests returned HTTP 500 and the lead was dropped.
+// Worse, statements from an unrelated request that interleave with an open transaction get
+// swept into it and are discarded by its ROLLBACK.
+//
+// Queuing guarded sections behind one another makes BEGIN → COMMIT/ROLLBACK atomic with respect
+// to other guarded sections. Every `BEGIN TRANSACTION` site in this file should migrate onto this
+// helper; the public booking intake is the first.
+let dbTxnQueue = Promise.resolve();
+function withDbTransaction(fn) {
+    const result = dbTxnQueue.then(fn, fn);
+    // Keep the chain alive regardless of how `fn` settled, so one failed transaction
+    // does not wedge every subsequent one.
+    dbTxnQueue = result.then(() => {}, () => {});
+    return result;
+}
+
+// Free-text columns that have no DB-level length limit. Anything not listed here is either
+// validated by its own rule (email/cell/date) or is not a client-supplied string.
+const BOOKING_TEXT_LIMITS = {
+    company: 150, event_name: 200, event_location: 200, venue_address: 300,
+    city: 100, country: 100, venue_type: 60, event_type: 60,
+    audience_size: 40, audience_demographic: 120, budget_range: 60,
+    performance_slot: 40, performance_duration: 40,
+    vat_number: 30, policy_version: 20, source: 100, referrer: 500
+};
+
+// A JSON body may send a number, array or object where a string is expected. Calling
+// .trim()/.replace() on those throws before any validation runs, so every scalar is coerced
+// first; non-scalars collapse to '' and are then caught by the required-field check.
+function asBookingText(v) {
+    if (v == null) return '';
+    if (typeof v === 'string') return v.trim();
+    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+    return '';
+}
+
 app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, res) => {
-    const { 
-        name, company, email, cell, 
+    let {
+        name, company, email, cell,
         event_name, event_date, event_start_time, performance_slot, performance_duration,
         event_location, venue_address, city, country, venue_type,
         event_type, audience_size, audience_demographic, budget_range, travel_accommodation, message,
         services, venuePlaceId, popia_consent, vat_number, policy_version
     } = req.body;
 
+    // Normalize every free-text field once, up-front. Downstream code (validation, the INSERT
+    // params, findOrCreateClient) then works on trimmed strings only.
+    name = asBookingText(name);               company = asBookingText(company);
+    email = asBookingText(email);             cell = asBookingText(cell);
+    event_name = asBookingText(event_name);   event_date = asBookingText(event_date);
+    event_start_time = asBookingText(event_start_time);
+    performance_slot = asBookingText(performance_slot);
+    performance_duration = asBookingText(performance_duration);
+    event_location = asBookingText(event_location); venue_address = asBookingText(venue_address);
+    city = asBookingText(city);               country = asBookingText(country);
+    venue_type = asBookingText(venue_type);   event_type = asBookingText(event_type);
+    audience_size = asBookingText(audience_size);
+    audience_demographic = asBookingText(audience_demographic);
+    budget_range = asBookingText(budget_range);
+    message = asBookingText(message);         vat_number = asBookingText(vat_number);
+    policy_version = asBookingText(policy_version);
+    venuePlaceId = asBookingText(venuePlaceId);
+
     if (!name || !email || !cell || !event_date || !event_location || !event_type || !message) {
         return res.status(400).json({ success: false, message: 'Missing required booking fields.' });
     }
 
     // Field length and format validation
-    if (name.trim().length < 2 || name.trim().length > 150)
+    if (name.length < 2 || name.length > 150)
         return res.status(400).json({ success: false, message: 'Name must be between 2 and 150 characters.' });
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 200)
         return res.status(400).json({ success: false, message: 'Invalid email address.' });
     const cleanCell = cell.replace(/[\s\-().]/g, '');
     if (!/^\+?[0-9]{7,15}$/.test(cleanCell))
         return res.status(400).json({ success: false, message: 'Please enter a valid phone number (e.g. +27821234567 or +442071234567).' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(event_date))
         return res.status(400).json({ success: false, message: 'Invalid event date format.' });
-    if (message.trim().length < 10)
+    if (message.length < 10)
         return res.status(400).json({ success: false, message: 'Please provide a message of at least 10 characters.' });
-    if (message.trim().length > 2000)
+    if (message.length > 2000)
         return res.status(400).json({ success: false, message: 'Message must be under 2000 characters.' });
+
+    // Cap every remaining free-text column. Without this a single request can write megabytes
+    // into TEXT columns that have no length constraint.
+    const overLimit = Object.entries(BOOKING_TEXT_LIMITS)
+        .find(([field, max]) => asBookingText(req.body[field]).length > max);
+    if (overLimit) {
+        return res.status(400).json({ success: false, message: `The ${overLimit[0].replace(/_/g, ' ')} field must be under ${overLimit[1]} characters.` });
+    }
+
+    // Calendar-real date, and never in the past. Previously the only date sanity check was the
+    // per-service lead time, which is skipped entirely for the 13 services with
+    // booking_lead_time_days = 0 — so a backdated event_date was accepted and saved.
+    const eventMoment = moment(event_date, 'YYYY-MM-DD', true);
+    if (!eventMoment.isValid())
+        return res.status(400).json({ success: false, message: 'Invalid event date format.' });
+    if (eventMoment.isBefore(moment().startOf('day')))
+        return res.status(400).json({ success: false, message: 'The event date cannot be in the past.' });
+    if (eventMoment.isAfter(moment().add(5, 'years')))
+        return res.status(400).json({ success: false, message: 'The event date is too far in the future. Please contact us directly for bookings more than 5 years ahead.' });
+
+    // event_start_time reaches moment(), addMinutesToTime() and the working-hours gate unvalidated.
+    // A non-time value ("abc") produced "NaN:NaN" end times and an Invalid-date ISO conversion.
+    if (event_start_time) {
+        const tm = event_start_time.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+        if (!tm) return res.status(400).json({ success: false, message: 'Invalid event start time. Use HH:MM (24-hour), e.g. 19:30.' });
+        event_start_time = `${tm[1].padStart(2, '0')}:${tm[2]}`; // zero-pad so string compares and moment() parsing are safe
+    }
 
     if (!popia_consent) {
         return res.status(400).json({ success: false, message: 'POPIA consent is required to submit a booking request.' });
     }
 
 
-    // Check availability (Race condition prevention)
-    const availableResult = await new Promise((resolve) => {
-        checkDateAvailability(event_date, (err, result) => resolve(result));
-    });
-
-    if (!availableResult.available) {
-        return res.status(409).json({ success: false, message: 'The selected date is no longer available.' });
-    }
-
-    // Duplicate check: same email + same date with an already-active booking
-    const existingBooking = await new Promise(resolve =>
-        db.get(
-            `SELECT id FROM bookings
-             WHERE lower(email) = lower(?) AND date = ? AND status NOT IN ('CANCELLED','EXPIRED')
-             LIMIT 1`,
-            [email, event_date],
-            (_, row) => resolve(row)
-        )
-    );
-    if (existingBooking) {
-        return res.status(409).json({
-            success: false,
-            existing_id: existingBooking.id,
-            message: `You already have an active booking (#${existingBooking.id}) for this date. Please track that booking, or contact us if you need to make changes.`
-        });
-    }
-    
-    // Server-side working hours enforcement (timed bookings only)
-    if (event_start_time) {
-        const durationMins = parseDurationToMinutes(performance_duration) || 60;
-        const endHHMM = addMinutesToTime(event_start_time, durationMins);
-        const wh = await isWithinWorkingHours(event_date, event_start_time, endHHMM);
-        if (!wh.allowed) {
-            return res.status(400).json({ success: false, message: wh.reason });
-        }
-    }
-
-    // Check time overlap if applicable
-    if ((performance_slot || event_start_time) && availableResult.busy_ranges && availableResult.busy_ranges.length > 0) {
-        // L2: compare by minutes, not lexically. performance_slot comes from the public form and
-        // may be non-zero-padded (e.g. "9:00"), where the string compare "9:00" < "10:00" is false
-        // and would miss a real overlap. toMin() normalizes both sides.
-        const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
-        const overlap = (s1, e1, s2, e2) => (toMin(s1) < toMin(e2)) && (toMin(s2) < toMin(e1));
-        let from, to;
-        // Prefer performance_slot ("HH:MM–HH:MM") for the most accurate window
-        if (performance_slot && performance_slot.includes('–')) {
-            const slotParts = performance_slot.split('–');
-            from = slotParts[0].trim();
-            to = slotParts[1].trim();
-        } else if (event_start_time) {
-            from = event_start_time;
-            to = addMinutesToTime(from, parseDurationToMinutes(performance_duration));
-        }
-        
-        let conflict = false;
-        if (from && to) {
-            availableResult.busy_ranges.forEach(r => {
-                if (overlap(from, to, r.start, r.end)) {
-                    conflict = true;
-                }
-            });
-        }
-        
-        if (conflict) {
-            return res.status(409).json({ success: false, message: 'The selected time slot overlaps with a blocked period or another booking.' });
-        }
-    }
-
-    const logoFilePath = path.join(__dirname, 'images', 'logo4.png');
-
     try {
-        // 2. NORMALIZE RELATIONAL CORE ENTITIES
-        const clientId = await findOrCreateClient(name, email, cell, company, vat_number);
-        const venueId = await findOrCreateVenueFromPlace(event_location, venue_address, city, country, venuePlaceId);
+        // ── Read-only gates run first ─────────────────────────────────────────────────────
+        // findOrCreateClient() / findOrCreateVenueFromPlace() are the first statements in this
+        // handler that WRITE. They used to run before service validation, lead-time, per-day,
+        // quantity and calendar-conflict checks — so every 400/409 raised by those gates left an
+        // orphan clients row (email is UNIQUE, poisoning the next legitimate signup) and an orphan
+        // venues row behind. All rejections now happen before the first write.
 
-        // 3. SECURE SERVICE VALIDATION & SNAPSHOTTING
+        // 1. SECURE SERVICE VALIDATION & SNAPSHOTTING
         if (!services || !Array.isArray(services) || services.length === 0) {
             return res.status(400).json({ success: false, message: 'At least one service must be selected.' });
         }
@@ -3648,15 +3675,91 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
             });
         }
 
-        // 1. CALENDAR CONFLICT DETECTION — uses actual service durations
+        // 2. OCCUPANCY WINDOW — a single duration now drives the working-hours gate, the conflict
+        //    window and the persisted performance_end_time. These used to disagree: working hours
+        //    were checked against the form's performance_duration while the stored end time (which
+        //    later bookings are conflict-checked against) used the service-catalogue duration, so a
+        //    booking could pass the gate and then persist an end time outside working hours.
         const maxServiceMins = dbServices.reduce((max, srv) => {
             const total = (parseInt(srv.performance_length_minutes) || 0)
                         + (parseInt(srv.setup_time_minutes) || 0);
             return Math.max(max, total);
         }, 0);
-        const durationMins = maxServiceMins > 0 ? maxServiceMins : 120;
-        const startTime = moment(`${event_date} ${event_start_time || '18:00'}`).toISOString();
+        const formMins = performance_duration ? parseDurationToMinutes(performance_duration) : 0;
+        const durationMins = Math.max(maxServiceMins, formMins) || 120;
+        const startTime = moment(`${event_date} ${event_start_time || '18:00'}`, 'YYYY-MM-DD HH:mm', true).toISOString();
         const endTime   = moment(startTime).add(durationMins, 'minutes').toISOString();
+
+        // 3. DATE AVAILABILITY — holds, standalone events, already-booked dates.
+        //    checkDateAvailability() calls back with (err) and no result on a DB error; resolving
+        //    that as `undefined` used to throw on `.available` a line later.
+        const availableResult = await new Promise((resolve, reject) => {
+            checkDateAvailability(event_date, (err, result) => err ? reject(err) : resolve(result));
+        });
+        if (!availableResult.available) {
+            return res.status(409).json({ success: false, message: 'The selected date is no longer available.' });
+        }
+
+        // 4. DUPLICATE CHECK: same email + same date with an already-active booking
+        const existingBooking = await new Promise((resolve, reject) =>
+            db.get(
+                `SELECT id FROM bookings
+                 WHERE lower(email) = lower(?) AND date = ? AND status NOT IN ('CANCELLED','EXPIRED')
+                 LIMIT 1`,
+                [email, event_date],
+                (err, row) => err ? reject(err) : resolve(row)
+            )
+        );
+        if (existingBooking) {
+            return res.status(409).json({
+                success: false,
+                existing_id: existingBooking.id,
+                message: `You already have an active booking (#${existingBooking.id}) for this date. Please track that booking, or contact us if you need to make changes.`
+            });
+        }
+
+        // 5. Server-side working hours enforcement (timed bookings only)
+        if (event_start_time) {
+            const endHHMM = addMinutesToTime(event_start_time, durationMins);
+            const wh = await isWithinWorkingHours(event_date, event_start_time, endHHMM);
+            if (!wh.allowed) {
+                return res.status(400).json({ success: false, message: wh.reason });
+            }
+        }
+
+        // 6. Time overlap against the busy ranges from the availability check
+        if ((performance_slot || event_start_time) && availableResult.busy_ranges && availableResult.busy_ranges.length > 0) {
+            // L2: compare by minutes, not lexically. performance_slot comes from the public form and
+            // may be non-zero-padded (e.g. "9:00"), where the string compare "9:00" < "10:00" is false
+            // and would miss a real overlap. toMin() normalizes both sides.
+            const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+            const overlap = (s1, e1, s2, e2) => (toMin(s1) < toMin(e2)) && (toMin(s2) < toMin(e1));
+            let from, to;
+            // Prefer performance_slot ("HH:MM–HH:MM") for the most accurate window
+            if (performance_slot && performance_slot.includes('–')) {
+                const slotParts = performance_slot.split('–');
+                from = slotParts[0].trim();
+                to = slotParts[1].trim();
+            } else if (event_start_time) {
+                from = event_start_time;
+                to = addMinutesToTime(from, durationMins);
+            }
+
+            let conflict = false;
+            if (from && to) {
+                availableResult.busy_ranges.forEach(r => {
+                    if (overlap(from, to, r.start, r.end)) {
+                        conflict = true;
+                    }
+                });
+            }
+
+            if (conflict) {
+                return res.status(409).json({ success: false, message: 'The selected time slot overlaps with a blocked period or another booking.' });
+            }
+        }
+
+        // 7. CALENDAR CONFLICT DETECTION (local holds + bookings + Google free/busy)
         const isBusy = await hasCalendarConflict(startTime, endTime);
         if (isBusy) {
             return res.status(409).json({
@@ -3665,170 +3768,189 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
             });
         }
 
+        // 8. NORMALIZE RELATIONAL CORE ENTITIES — the first writes in this handler.
+        const clientId = await findOrCreateClient(name, email, cell, company, vat_number);
+        const venueId = await findOrCreateVenueFromPlace(event_location, venue_address, city, country, venuePlaceId);
+
         let initialQuoteAmountStr = `R ${calculatedBaseScope.toFixed(2)}`;
         let initialTotalAmount = calculatedBaseScope;
         let paymentStatus = 'UNPAID';
 
-        // 4. SAVE TO DATABASE — booking + all child rows are committed atomically inside
-        //    BEGIN IMMEDIATE. Note: same-client multi-booking on the same day is allowed;
-        //    time-overlap is enforced both before the lock (fast path) and again inside the
-        //    lock (F1) so two concurrent submissions cannot double-book the same slot.
-        db.run("BEGIN IMMEDIATE", async (beginErr) => {
-            if (beginErr) return res.status(500).json({ success: false, message: 'Database error while saving booking.' });
+        // Default expiry: event date minus 14 days; overridden when admin generates the actual quote
+        const defaultQuoteExpiry = moment(event_date).subtract(14, 'days').format('YYYY-MM-DD');
 
-            // Re-check availability inside the lock to close the race window
-            const lockedAvail = await new Promise(resolve => checkDateAvailability(event_date, (e, r) => resolve(r || { available: false })));
-            if (!lockedAvail.available) {
-                db.run("ROLLBACK");
-                return res.status(409).json({ success: false, message: 'The selected date is no longer available.' });
+        // 9. SAVE TO DATABASE — booking + all child rows are committed atomically inside
+        //    BEGIN IMMEDIATE, serialized against every other guarded transaction on the shared
+        //    connection. Same-client multi-booking on the same day is allowed; date, time-overlap
+        //    and duplicate rules are all re-checked inside the lock so two concurrent submissions
+        //    cannot double-book a slot.
+        const outcome = await withDbTransaction(async () => {
+            try {
+                await dbRun("BEGIN IMMEDIATE");
+            } catch (beginErr) {
+                console.error('[Booking] BEGIN IMMEDIATE failed:', beginErr.message);
+                return { status: 500, body: { success: false, message: 'Database error while saving booking.' } };
             }
 
-            // F1: re-run the time-overlap check INSIDE the write lock. skipGoogle=true keeps it to
-            // fast local reads (no network call while holding BEGIN IMMEDIATE). Because writers
-            // serialize, a second concurrent submission now sees the first (committed) booking here
-            // and is rejected instead of double-booking the slot.
-            const lockedBusy = await hasCalendarConflict(startTime, endTime, null, true);
-            if (lockedBusy) {
-                db.run("ROLLBACK");
-                return res.status(409).json({ success: false, message: 'This date and time were just booked. Please select another slot or contact us for special inquiries.' });
+            try {
+                // Re-check availability inside the lock to close the race window. A DB error here is
+                // NOT the same as an unavailable date — reporting "no longer available" on a transient
+                // SQLITE_BUSY sends the client away from a date that is in fact free.
+                let lockedAvail;
+                try {
+                    lockedAvail = await new Promise((resolve, reject) =>
+                        checkDateAvailability(event_date, (e, r) => e ? reject(e) : resolve(r)));
+                } catch (availErr) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    console.error('[Booking] In-lock availability re-check failed:', availErr.message);
+                    return { status: 503, body: { success: false, message: 'We could not confirm availability just now. Please try again in a moment.' } };
+                }
+                if (!lockedAvail.available) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 409, body: { success: false, message: 'The selected date is no longer available.' } };
+                }
+
+                // F1: re-run the time-overlap check INSIDE the write lock. skipGoogle=true keeps it to
+                // fast local reads (no network call while holding BEGIN IMMEDIATE). Because writers
+                // serialize, a second concurrent submission now sees the first (committed) booking here
+                // and is rejected instead of double-booking the slot.
+                const lockedBusy = await hasCalendarConflict(startTime, endTime, null, true);
+                if (lockedBusy) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 409, body: { success: false, message: 'This date and time were just booked. Please select another slot or contact us for special inquiries.' } };
+                }
+
+                // F3: re-run the same-email/same-date duplicate check inside the lock. The pre-lock
+                // check alone leaves a window: hasCalendarConflict() skips rows with a NULL
+                // event_start_time, so two untimed submissions for the same date never collide there.
+                const lockedDuplicate = await dbGet(
+                    `SELECT id FROM bookings
+                     WHERE lower(email) = lower(?) AND date = ? AND status NOT IN ('CANCELLED','EXPIRED')
+                     LIMIT 1`,
+                    [email, event_date]
+                );
+                if (lockedDuplicate) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return {
+                        status: 409,
+                        body: {
+                            success: false,
+                            existing_id: lockedDuplicate.id,
+                            message: `You already have an active booking (#${lockedDuplicate.id}) for this date. Please track that booking, or contact us if you need to make changes.`
+                        }
+                    };
+                }
+
+                // F2: write ALL child rows inside the transaction, then COMMIT. If any child insert
+                // fails we ROLLBACK, so we never persist a booking without the services / line items
+                // its quote_amount was calculated from.
+                const insert = await dbRun(`INSERT INTO bookings (
+                            name, company, email, cell,
+                            event_name, date, event_start_time, performance_slot, performance_duration,
+                            event_location, venue_address, city, country, venue_type,
+                            event_type, audience_size, audience_demographic, budget_range, travel_accommodation, message, status,
+                            client_id, venue_id, quote_amount, total_amount, amount_outstanding, payment_status, popia_consent, consent_timestamp, vat_number, venue_place_id, quote_expiry_date, policy_version, source, referrer, consent_source
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "NEW", ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, 'public_form')`,
+                    [
+                        encodeUserHtml(name), encodeUserHtml(company) || null, email, cell,
+                        encodeUserHtml(event_name) || null, event_date, event_start_time || null, encodeUserHtml(performance_slot) || null, encodeUserHtml(performance_duration) || null,
+                        encodeUserHtml(event_location), encodeUserHtml(venue_address) || null, encodeUserHtml(city) || null, encodeUserHtml(country) || null, encodeUserHtml(venue_type) || null,
+                        encodeUserHtml(event_type), encodeUserHtml(audience_size) || null, encodeUserHtml(audience_demographic) || null, encodeUserHtml(budget_range) || null, travel_accommodation ? 1 : 0, encodeUserHtml(message),
+                        clientId, venueId, initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, vat_number || null, venuePlaceId || null, defaultQuoteExpiry, policy_version || 'v2.2',
+                        encodeUserHtml(asBookingText(req.body.source)) || null, encodeUserHtml(asBookingText(req.body.referrer)) || null
+                    ]
+                );
+                const bookingId = insert.lastID;
+
+                // POPIA consent audit — immutable record of when/where consent was given
+                await dbRun(
+                    `INSERT INTO consent_audit (booking_id, ip_address, user_agent, policy_version, consent_source) VALUES (?, ?, ?, ?, 'public_form')`,
+                    [bookingId, req.ip || null, req.headers['user-agent'] || null, policy_version || 'v2.2']
+                );
+
+                // Audit trail for booking creation (trigger only fires on UPDATE, not INSERT).
+                // Records the normalized values that were actually persisted, plus the originating
+                // IP — audit_log.ip_address was previously left NULL for every public submission.
+                await dbRun(
+                    `INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, ip_address) VALUES ('bookings', ?, 'CREATE', ?, 'public', ?)`,
+                    [bookingId, JSON.stringify({ name, email, date: event_date, status: 'NEW' }), req.ip || null]
+                );
+
+                // X3: derive the performance window from performance_slot when it parses, otherwise
+                // from event_start_time + the occupancy duration. Both the start and the end are
+                // written: previously the event_start_time branches set only performance_end_time,
+                // leaving performance_start_time NULL on every timed booking without a slot string.
+                const slotM = performance_slot
+                    ? performance_slot.match(/(\d{1,2}:\d{2})\s*[–\-]\s*(\d{1,2}:\d{2})/)
+                    : null;
+                const pad = (t) => { const [h, m] = t.split(':'); return `${h.padStart(2, '0')}:${m}`; };
+                let perfStart = null, perfEnd = null;
+                if (slotM) {
+                    perfStart = pad(slotM[1]);
+                    perfEnd = pad(slotM[2]);
+                } else if (event_start_time) {
+                    perfStart = event_start_time;
+                    perfEnd = addMinutesToTime(event_start_time, durationMins);
+                }
+                if (perfStart && perfEnd) {
+                    await dbRun("UPDATE bookings SET performance_start_time = ?, performance_end_time = ? WHERE id = ?",
+                        [perfStart, perfEnd, bookingId]);
+                }
+
+                // 10. INSERT BOOKING SERVICES (Relational)
+                for (const srv of selectedServices) {
+                    await dbRun("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
+                        [bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price]);
+                    await dbRun("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
+                        [bookingId, srv.service_id, srv.name, srv.quantity_minutes, srv.unit_price]);
+                }
+
+                // All child rows persisted — commit the whole booking atomically.
+                await dbRun("COMMIT");
+                return { ok: true, bookingId };
+            } catch (dbErr) {
+                await dbRun("ROLLBACK").catch(() => {});
+                console.error("[Booking] Transactional insert failed — rolled back, no partial booking saved:", dbErr.message);
+                return { status: 500, body: { success: false, message: 'Database error while saving booking.' } };
             }
-
-            // Default expiry: event date minus 14 days; overridden when admin generates the actual quote
-            const defaultQuoteExpiry = moment(event_date).subtract(14, 'days').format('YYYY-MM-DD');
-
-            db.run(`INSERT INTO bookings (
-                        name, company, email, cell,
-                        event_name, date, event_start_time, performance_slot, performance_duration,
-                        event_location, venue_address, city, country, venue_type,
-                        event_type, audience_size, audience_demographic, budget_range, travel_accommodation, message, status,
-                        client_id, venue_id, quote_amount, total_amount, amount_outstanding, payment_status, popia_consent, consent_timestamp, vat_number, venue_place_id, quote_expiry_date, policy_version, source, referrer, consent_source
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "NEW", ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, 'public_form')`,
-                [
-                    encodeUserHtml(name), encodeUserHtml(company) || null, email, cell,
-                    encodeUserHtml(event_name) || null, event_date, event_start_time || null, encodeUserHtml(performance_slot) || null, encodeUserHtml(performance_duration) || null,
-                    encodeUserHtml(event_location), encodeUserHtml(venue_address) || null, encodeUserHtml(city) || null, encodeUserHtml(country) || null, encodeUserHtml(venue_type) || null,
-                    encodeUserHtml(event_type), encodeUserHtml(audience_size) || null, encodeUserHtml(audience_demographic) || null, encodeUserHtml(budget_range) || null, travel_accommodation || null, encodeUserHtml(message),
-                    clientId, venueId, initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, vat_number || null, venuePlaceId || null, defaultQuoteExpiry, policy_version || 'v2.2',
-                    req.body.source || null, req.body.referrer || null
-                ],
-                async function(err) {
-                    if (err) {
-                        db.run("ROLLBACK");
-                        console.error("DB Insert Error (Bookings):", err);
-                        return res.status(500).json({ success: false, message: 'Database error while saving booking.' });
-                    }
-
-                    const bookingId = this.lastID;
-
-                    // F2: write ALL child rows inside the transaction, then COMMIT. If any child
-                    // insert fails we ROLLBACK, so we never persist a booking without the services /
-                    // line items its quote_amount was calculated from (previously these ran AFTER
-                    // COMMIT and a failure left an inconsistent booking while still returning success).
-                    try {
-                        // POPIA consent audit — immutable record of when/where consent was given
-                        await new Promise((resolve, reject) => {
-                            db.run(
-                                `INSERT INTO consent_audit (booking_id, ip_address, user_agent, policy_version, consent_source) VALUES (?, ?, ?, ?, 'public_form')`,
-                                [bookingId, req.ip || null, req.headers['user-agent'] || null, policy_version || 'v2.2'],
-                                (err2) => { if (err2) reject(err2); else resolve(); }
-                            );
-                        });
-
-                        // Audit trail for booking creation (trigger only fires on UPDATE, not INSERT)
-                        await new Promise((resolve, reject) => {
-                            db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by) VALUES ('bookings', ?, 'CREATE', ?, 'public')`,
-                                [bookingId, JSON.stringify({ name: req.body.name, email: req.body.email, date: event_date, status: 'NEW' })],
-                                (err2) => { if (err2) reject(err2); else resolve(); }
-                            );
-                        });
-
-                        // X3: Parse performance_slot OR event_start_time + duration → always populate performance_end_time
-                        if (performance_slot) {
-                            const slotM = performance_slot.match(/(\d{1,2}:\d{2})\s*[–\-]\s*(\d{1,2}:\d{2})/);
-                            if (slotM) {
-                                await new Promise((resolve, reject) => {
-                                    db.run("UPDATE bookings SET performance_start_time = ?, performance_end_time = ? WHERE id = ?",
-                                        [slotM[1], slotM[2], bookingId],
-                                        (err2) => { if (err2) reject(err2); else resolve(); }
-                                    );
-                                });
-                            } else if (event_start_time) {
-                                const calcEnd = addMinutesToTime(event_start_time, durationMins);
-                                await new Promise((resolve, reject) => {
-                                    db.run("UPDATE bookings SET performance_end_time = ? WHERE id = ?", [calcEnd, bookingId],
-                                        (err2) => { if (err2) reject(err2); else resolve(); }
-                                    );
-                                });
-                            }
-                        } else if (event_start_time) {
-                            const calcEnd = addMinutesToTime(event_start_time, durationMins);
-                            await new Promise((resolve, reject) => {
-                                db.run("UPDATE bookings SET performance_end_time = ? WHERE id = ?", [calcEnd, bookingId],
-                                    (err2) => { if (err2) reject(err2); else resolve(); }
-                                );
-                            });
-                        }
-
-                        // 5. INSERT BOOKING SERVICES (Relational)
-                        for (const srv of selectedServices) {
-                            await new Promise((resolve, reject) => {
-                                db.run("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
-                                    [bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price],
-                                    (err2) => { if (err2) reject(err2); else resolve(); }
-                                );
-                            });
-                            const legacyQty = srv.quantity_minutes;
-                            await new Promise((resolve, reject) => {
-                                db.run("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
-                                    [bookingId, srv.service_id, srv.name, legacyQty, srv.unit_price],
-                                    (err2) => { if (err2) reject(err2); else resolve(); }
-                                );
-                            });
-                        }
-
-                        // All child rows persisted — commit the whole booking atomically.
-                        await new Promise((resolve, reject) => {
-                            db.run("COMMIT", (cErr) => { if (cErr) reject(cErr); else resolve(); });
-                        });
-                    } catch (dbErr) {
-                        db.run("ROLLBACK");
-                        console.error("[Booking] Transactional insert failed — rolled back, no partial booking saved:", dbErr.message);
-                        return res.status(500).json({ success: false, message: 'Database error while saving booking.' });
-                    }
-
-                    // ---- Side effects run AFTER commit (non-blocking; must never roll back the booking) ----
-
-                    // 6. SYNC TO GOOGLE CALENDAR (Asynchronously/Non-blocking)
-                    syncBookingToCalendar(bookingId).catch(calErr => {
-                        console.error('[Booking] Google Calendar sync failed (booking still saved):', calErr.message);
-                        // Alert admin so the orphaned calendar slot can be fixed manually
-                        getNotificationEmail().then(notifEmail => sendEmail({
-                            to: notifEmail,
-                            subject: `⚠️ Google Calendar Sync Failed – New Booking #${bookingId}`,
-                            htmlContent: `<p>Booking <strong>#${bookingId}</strong> was saved successfully but the Google Calendar event could not be created.</p><p style="color:#888;font-size:12px;">Error: ${calErr.message}</p><p>Please create the calendar entry manually to avoid a scheduling conflict.</p>`,
-                            titleOverride: 'Calendar Sync Failed',
-                            trigger_event: 'System: Calendar Sync Failure',
-                            skipBrandAttachments: true
-                        })).catch(() => {});
-                    });
-
-                    // 7. DISPATCH EMAILS CONCURRENTLY (Asynchronously/Non-blocking)
-                    sendBookingReceivedEmail(bookingId, req.body).catch(e => console.error("Async email dispatch failed:", e));
-
-                    // Booking Recovery: mark any matching abandoned draft as recovered (non-blocking)
-                    if (req.body.draft_token) {
-                        db.run(`UPDATE abandoned_bookings SET status='RECOVERED', converted_booking_id=?, last_activity_at=CURRENT_TIMESTAMP
-                                WHERE draft_token=? AND status NOT IN ('RECOVERED','WON')`,
-                            [bookingId, req.body.draft_token],
-                            (e) => { if (e) console.error('[Booking Recovery] convert-mark failed:', e.message); });
-                    }
-
-                    res.json({ success: true, message: 'Booking submitted successfully! Check your inbox for confirmation.', booking_id: bookingId });
-                });
         });
+
+        if (!outcome.ok) {
+            return res.status(outcome.status).json(outcome.body);
+        }
+        const bookingId = outcome.bookingId;
+
+        // ---- Side effects run AFTER commit (non-blocking; must never roll back the booking) ----
+
+        // 11. SYNC TO GOOGLE CALENDAR (Asynchronously/Non-blocking)
+        syncBookingToCalendar(bookingId).catch(calErr => {
+            console.error('[Booking] Google Calendar sync failed (booking still saved):', calErr.message);
+            // Alert admin so the orphaned calendar slot can be fixed manually
+            getNotificationEmail().then(notifEmail => sendEmail({
+                to: notifEmail,
+                subject: `⚠️ Google Calendar Sync Failed – New Booking #${bookingId}`,
+                htmlContent: `<p>Booking <strong>#${bookingId}</strong> was saved successfully but the Google Calendar event could not be created.</p><p style="color:#888;font-size:12px;">Error: ${calErr.message}</p><p>Please create the calendar entry manually to avoid a scheduling conflict.</p>`,
+                titleOverride: 'Calendar Sync Failed',
+                trigger_event: 'System: Calendar Sync Failure',
+                skipBrandAttachments: true
+            })).catch(() => {});
+        });
+
+        // 12. DISPATCH EMAILS CONCURRENTLY (Asynchronously/Non-blocking)
+        sendBookingReceivedEmail(bookingId, req.body).catch(e => console.error("Async email dispatch failed:", e));
+
+        // Booking Recovery: mark any matching abandoned draft as recovered (non-blocking)
+        if (req.body.draft_token) {
+            db.run(`UPDATE abandoned_bookings SET status='RECOVERED', converted_booking_id=?, last_activity_at=CURRENT_TIMESTAMP
+                    WHERE draft_token=? AND status NOT IN ('RECOVERED','WON')`,
+                [bookingId, req.body.draft_token],
+                (e) => { if (e) console.error('[Booking Recovery] convert-mark failed:', e.message); });
+        }
+
+        res.json({ success: true, message: 'Booking submitted successfully! Check your inbox for confirmation.', booking_id: bookingId });
     } catch (e) {
-        console.error("Relational schema error during booking:", e);
-        res.status(500).json({ success: false, message: "Server encountered a structural error."});
+        console.error("[Booking] Intake failed before commit:", e);
+        res.status(500).json({ success: false, message: "We could not process your booking request. Please try again, or contact us directly if the problem persists." });
     }
 });
 
