@@ -83,7 +83,14 @@ A second, worse consequence of the same root cause: statements from an *unrelate
 
 **Fix.** Guarded transactional sections queue behind `withDbTransaction()`, making `BEGIN → COMMIT/ROLLBACK` atomic with respect to other guarded sections. The transaction body was rewritten promise-first (`dbRun` / `dbGet`) so `ROLLBACK` and the queue slot are released on every exit path, including throws. Retested at 8-way concurrency across 5 rounds.
 
-> The public booking intake is the **first** site migrated onto this helper. There are ~10 other `BEGIN TRANSACTION` sites in `server.js` with the same exposure — see the roadmap.
+**All 9 transaction sites are now migrated (commit `b464865`)** — `generateInvoice`, `POST /api/admin/bookings`, admin cancel, public cancel, quote generation, newsletter CSV import, GDPR anonymization, plus the public intake and the booking delete. Measured with 3 public + 3 admin bookings fired simultaneously, all independent:
+
+```
+before:  1 × 200, 5 × 500 "cannot start a transaction within a transaction"  → 1 of 6 persisted
+after:   6 × 200                                                              → 6 of 6 persisted
+```
+
+See §2b for the three further bugs that migration exposed.
 
 ### B2 — Bookings could be created in the past *(high)*
 
@@ -161,6 +168,54 @@ The column exists and was never populated on the intake path. Now stamped from `
 
 ---
 
+---
+
+## 2b. Bugs the transaction migration exposed *(commit `b464865`)*
+
+Rewriting each transaction promise-first surfaced defects the callback style had been hiding. Errors that were previously passed to a callback nobody checked now throw. Each was reproduced on the preceding commit.
+
+### B13 — Admin cancellation has never worked *(critical)*
+
+`POST /api/admin/bookings/:id/cancel` writes `payment_status = 'CANCELLED'`. The `chk_bookings_payment_status_update` trigger permits only `UNPAID | DEPOSIT_PAID | PARTIALLY_PAID | PAID | REFUNDED | FAILED`, so the statement aborts and takes `status` and `cancelled_at` with it.
+
+**Evidence.** Against the previous commit:
+
+```
+POST /api/admin/bookings/100044/cancel
+  → 500  {"message":"SQLITE_CONSTRAINT: Invalid bookings.payment_status value"}
+  booking after:  {"status":"NEW","payment_status":"UNPAID"}
+  cancellations rows: 0
+```
+
+The same statement appears in the status-change cancel path (`server.js:9203`) with **no error callback**, so the `ABORT` silently discarded `cancellation_reason` and `cancelled_by` as well.
+
+**Fix.** `payment_status` is no longer written on cancellation. It is not a legal value, and the real payment state must survive cancellation anyway — the refund owed is computed from what the client actually paid. This matches the public cancel route, which never touched the column, and the four existing `CANCELLED` bookings, which retain `UNPAID`/`DEPOSIT_PAID`/`PAID`. Nothing reads `bookings.payment_status === 'CANCELLED'` (the two apparent matches are PayFast's payload field, not the column).
+
+This is the same defect class already catalogued for `notifications.status` and `payment_method` — one instance was missed.
+
+### B14 — A failed invoice regeneration destroyed the live invoice *(high)*
+
+`generateInvoice()` voided the booking's existing invoice **outside** the transaction, before the PDF was even generated. `invoices.invoice_number` is `INV-<YYYY>-<bookingId>`, `TEXT UNIQUE NOT NULL` — deterministic per booking per year — so regenerating within the same year always fails the insert.
+
+**Evidence.** Regenerating an existing invoice on the previous commit left `sent=0, void=1`: the booking had no live invoice at all. After the fix, the same call leaves `sent=1, void=0` — the `VOID` is inside the transaction and rolls back with it.
+
+The `UNIQUE` collision itself is **left alone**: invoice numbering carries statutory requirements (sequential, unique, non-reused), and changing the scheme is a finance decision, not a refactor. See §3, G13.
+
+### B15 — The admin has never received a "quote sent" notification *(medium)*
+
+`sendAdminQuoteSentNotification()` interpolates `${event_name}` into its email template but destructures `{ id, name, email, event_type, date }` — `event_name` is never bound. Every call threw `ReferenceError: event_name is not defined`, swallowed by the caller's `.catch()`.
+
+**Evidence.** `[Quote] Admin notif failed: event_name is not defined` on every quote generation.
+
+### Two latent faults removed by the rewrite rather than found
+
+* The quote route issued a `ROLLBACK` and a 500 from the `DELETE` error callbacks while the `insertNext()` chain carried on regardless — a second response on the same request.
+* The GDPR route wrapped callback-style `db.run()` calls in a `try/catch`, which cannot observe an async sqlite error. Every statement's failure was dropped and the route reported success even when nothing was anonymized. It now awaits each step and returns the affected row counts.
+
+Post-`COMMIT` child writes moved inside their transactions: the admin booking route's `consent_audit`, services, line items and audit row (previously written after `COMMIT` with errors swallowed by a bare `console.error`, so a failure left a committed booking with no services while the route answered 200); the admin-cancel cascades (holds, invoices, payment schedules, events); and the quote audit row. The in-lock conflict re-check in `POST /api/admin/bookings` now passes `skipGoogle=true`, matching the public path — it was making a Google free/busy network call while holding the write lock.
+
+---
+
 ## 3. Gaps and weaknesses — found, **not** fixed
 
 These are reported rather than changed: each either touches financial reporting semantics, crosses into another phase, or is a schema migration that deserves its own change window.
@@ -224,6 +279,19 @@ Every `moment()` call parses in server-local time. There is no timezone column o
 ### G11 — Draft autosave is weakly rate-limited
 
 `POST /api/public/bookings/draft` uses only `ipRateLimiter` (100/hr) by design, so debounced autosaves aren't blocked. But `abandoned_bookings.draft_token` is client-generated, so one IP can create 100 draft rows per hour, each holding an email address. The 30-day purge bounds it, but a dedicated per-token limit would be better.
+
+### G13 — Document numbering collides on regeneration *(open — needs a finance decision)*
+
+Both document numbers are derived from a timestamp, and both columns are `UNIQUE`:
+
+| Column | Format | Collides when |
+|---|---|---|
+| `invoices.invoice_number` | `INV-<YYYY>-<bookingId>` | any regeneration in the same **year** |
+| `quotations.quote_number` | `QT-<id>-<YYMMDDHHmmss>` | two quotes in the same **second** (a double-click on *Generate Quote*) |
+
+The invoice case means `POST /api/admin/bookings/:id/invoice/generate` can effectively be called once per booking per year; no booking in the database has ever had a second invoice. Since B14 the failure is at least safe — it rolls back and leaves the live invoice intact — but it is still a 500 to the admin.
+
+Fixing this means choosing a numbering scheme, and invoice numbers carry statutory requirements (sequential, unique, never reused). **Do not change this without the accountant.** The likely answer is a monotonic counter table plus a revision suffix on regeneration.
 
 ### G12 — Booking deletion was broken by the missing cascades — **FIXED (commit `dde0a4a`)**
 
@@ -434,14 +502,23 @@ The step bar already carries `aria`/`role` attributes, and focus is moved to the
 11. Server-authoritative `policy_version` (G5).
 12. Outstanding-revenue KPI restricted to accepted commitments — zero-diff today (G1).
 
+### Quick wins — done in commit `b464865` (transaction migration)
+
+13. All 9 `BEGIN` sites migrated onto `withDbTransaction()`. Concurrent public + admin booking creation went from 1-of-6 to 6-of-6.
+14. Admin cancellation unblocked (B13) — it had never worked.
+15. Failed invoice regeneration no longer destroys the live invoice (B14).
+16. Admin "quote sent" notification actually sends (B15).
+
 ### Medium priority — next change window
 
-13. Migrate `POST /api/admin/bookings` and the remaining `BEGIN TRANSACTION` sites onto `withDbTransaction()`. **Until this is done, an admin creating a booking concurrently with a public submission can still collide.**
-14. The four indexes in §8.
-15. Accessibility: `autocomplete`, `inputmode`, `role="alert"`, `aria-describedby`.
-16. `409` reason discriminator + "track that booking" button on the duplicate path.
-17. Decide backfill vs purge for the 18 orphan `consent_audit` rows, and declare `ON DELETE CASCADE` in the schema (G12).
-18. Instrument `hasCalendarConflict()`'s fail-open paths so a broken Google credential is visible rather than silently degrading conflict detection to local-only (G6) — it is degraded right now.
+17. The four indexes in §8.
+18. Accessibility: `autocomplete`, `inputmode`, `role="alert"`, `aria-describedby`.
+19. `409` reason discriminator + "track that booking" button on the duplicate path.
+20. Decide backfill vs purge for the 18 orphan `consent_audit` rows, and declare `ON DELETE CASCADE` in the schema (G12).
+21. Instrument `hasCalendarConflict()`'s fail-open paths so a broken Google credential is visible rather than silently degrading conflict detection to local-only (G6) — it is degraded right now.
+22. Decide a document-numbering scheme with the accountant (G13).
+
+> **Audit the other CHECK triggers.** B13 was a value the schema forbids, written by code that never checked. The same class already bit `notifications.status`, `cancelled_by` and `payment_method`. A short script that enumerates every `chk_*` trigger's allowed set and greps the codebase for literals written to that column would find the rest in one pass. Worth doing before the next release.
 
 ### Long-term
 
