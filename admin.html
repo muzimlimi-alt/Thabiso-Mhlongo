@@ -11187,7 +11187,10 @@
                     $('#atl-history-' + bookingId).html(historyHtml || '');
 
                     // 4. Contract panel
-                    renderInlineContractPanel(bookingId, contract);
+                    // GET /contract returns an envelope { success, contract } — pass the row, not the
+                    // envelope, or pdf_url/status read as undefined and the panel falsely shows
+                    // "Generate Contract" with no PDF (same unwrap as the post-generate path below).
+                    renderInlineContractPanel(bookingId, contract && contract.contract);
 
                     // 5. Cancellation panel
                     var statusBadgeText = ($card.find('.atl-status-badge').text() || '').replace(/\s+/g, ' ').trim().toUpperCase();
