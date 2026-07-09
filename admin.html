@@ -7112,6 +7112,31 @@
                                             </div>
                                         </div>
 
+                                        <!-- Schedule Mismatches (payment-schedule reconciliation) -->
+                                        <div class="atl-card atl-card--flush">
+                                            <div class="atl-card-header"><h3><i class="fa-solid fa-scale-balanced" style="color:var(--atl-amber); margin-right:8px;"></i>Schedule Mismatches <span id="finSchedMismatchCount" style="font-size:12px;color:var(--atl-muted);font-weight:400;margin-left:6px;"></span></h3></div>
+                                            <div class="atl-card-body" style="padding:0 0 8px;">
+                                                <p class="atl-section-sub" style="margin:0; padding:8px 20px 10px;">Bookings whose payment-schedule total doesn't match the booking total. Rebalance proportionally rescales the unpaid milestones to the booking total.</p>
+                                                <div class="table-responsive" style="max-height:320px; overflow-y:auto;">
+                                                    <table class="table" style="color:var(--atl-ink-dim); font-size:13px; margin-bottom:0;">
+                                                        <thead>
+                                                            <tr style="color:var(--atl-amber);">
+                                                                <th style="padding-left:20px;">Booking</th>
+                                                                <th>Event</th>
+                                                                <th style="text-align:right;">Booking Total</th>
+                                                                <th style="text-align:right;">Scheduled</th>
+                                                                <th style="text-align:right;">Diff</th>
+                                                                <th style="text-align:right; padding-right:20px;">Action</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody id="finSchedMismatchBody">
+                                                            <tr><td colspan="6" class="text-center" style="color:var(--atl-muted-dim);">Loading&hellip;</td></tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+
                                     </div>
                                 </div>
 
@@ -18155,7 +18180,7 @@
             case 'finExpenses':       loadExpensesTab(); break;
             case 'finReconciliation': loadReconciliation(); loadBankLines(); break;
             case 'finReminders':      loadRemindersLog(); break;
-            case 'finAnalytics':      loadFinAnalytics(); break;
+            case 'finAnalytics':      loadFinAnalytics(); if (window.loadScheduleMismatches) window.loadScheduleMismatches(); break;
         }
     });
 
@@ -26445,8 +26470,11 @@
                 
                 const totalScheduled = schedules.reduce((sum, s) => sum + parseFloat(s.expected_amount), 0);
                 const isMatching = Math.abs(totalScheduled - totalAmount) < 0.01;
-                const warningHtml = !isMatching 
-                    ? `<div style="color:var(--atl-orange);font-size:11px;margin-top:10px;"><i class="fa-solid fa-triangle-exclamation"></i> Warning: Total scheduled (R ${totalScheduled.toFixed(2)}) does not match booking total (R ${totalAmount.toFixed(2)}).</div>`
+                const warningHtml = !isMatching
+                    ? `<div style="color:var(--atl-orange);font-size:11px;margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
+                         <span><i class="fa-solid fa-triangle-exclamation"></i> Total scheduled (R ${totalScheduled.toFixed(2)}) does not match booking total (R ${totalAmount.toFixed(2)}).</span>
+                         <button type="button" class="atl-btn atl-btn--ghost bk-rebalance-schedule" data-id="${bookingId}" style="padding:4px 10px;font-size:11px;"><i class="fa-solid fa-scale-balanced" style="margin-right:5px;"></i>Rebalance to total</button>
+                       </div>`
                     : '';
                 
                 container.html(`
@@ -26486,6 +26514,72 @@
             container.html('<div class="atl-det-card"><h5 class="atl-det-title">Payment Schedule</h5><div style="color:var(--atl-clay);">Failed to load schedule from server.</div></div>');
         }
     };
+
+    // Reconcile a mismatched schedule: proportionally rescale the unpaid milestones to the booking total.
+    $(document).on('click', '.bk-rebalance-schedule', async function() {
+        var id = $(this).data('id');
+        var $btn = $(this), orig = $btn.html();
+        var ok = window.notificationService ? await window.notificationService.showConfirm({
+            title: 'Rebalance schedule to booking total?',
+            message: 'This proportionally rescales the unpaid milestones so they add up to the booking total. Paid milestones are left unchanged.',
+            confirmText: 'Rebalance',
+            isDestructive: false
+        }) : true;
+        if (!ok) return;
+        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Rebalancing…');
+        try {
+            var res = await apiCall('/api/admin/bookings/' + id + '/payment-schedules/rebalance', 'POST', {});
+            if (res && res.success) {
+                if (window.notificationService) window.notificationService.showSuccess(res.message || 'Schedule rebalanced.');
+                if (typeof window.loadBookingPaymentSchedule === 'function') window.loadBookingPaymentSchedule(id);
+                if (typeof window.loadScheduleMismatches === 'function') window.loadScheduleMismatches();
+            } else {
+                $btn.prop('disabled', false).html(orig);
+                if (window.notificationService) window.notificationService.showError((res && res.message) || 'Could not rebalance the schedule.');
+            }
+        } catch (e) {
+            $btn.prop('disabled', false).html(orig);
+            if (window.notificationService) window.notificationService.showError((e && e.message) || 'Could not rebalance the schedule.');
+        }
+    });
+
+    // Reconciliation sweep: list every booking whose schedule total ≠ booking total.
+    window.loadScheduleMismatches = async function() {
+        var $body = $('#finSchedMismatchBody');
+        if (!$body.length) return;
+        $body.html('<tr><td colspan="6" class="text-center" style="color:var(--atl-muted-dim);"><i class="fa fa-spinner fa-spin"></i> Loading&hellip;</td></tr>');
+        try {
+            var res = await apiCall('/api/admin/payment-schedules/mismatches', 'GET');
+            var list = (res && res.mismatches) || [];
+            $('#finSchedMismatchCount').text(list.length ? '(' + list.length + ')' : '');
+            if (!list.length) {
+                $body.html('<tr><td colspan="6" class="text-center" style="color:var(--atl-sage);"><i class="fa-solid fa-circle-check" style="margin-right:6px;"></i>All schedules reconciled.</td></tr>');
+                return;
+            }
+            var money = function(n) { return 'R ' + (parseFloat(n) || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+            var esc = function(s) { return $('<div>').text(s == null ? '' : String(s)).html(); };
+            $body.html(list.map(function(m) {
+                var diffColor = m.diff > 0 ? 'var(--atl-orange)' : 'var(--atl-clay)';
+                return '<tr>'
+                    + '<td style="padding-left:20px;"><a href="#" class="atl-det-link fin-open-booking" data-id="' + m.id + '">#' + m.id + ' · ' + esc(m.name) + '</a></td>'
+                    + '<td>' + esc(m.event_name || m.event_type || '—') + (m.date ? ' · ' + esc(m.date) : '') + '</td>'
+                    + '<td style="text-align:right;">' + money(m.total_amount) + '</td>'
+                    + '<td style="text-align:right;">' + money(m.scheduled_total) + '</td>'
+                    + '<td style="text-align:right;color:' + diffColor + ';font-weight:700;">' + (m.diff > 0 ? '+' : '') + money(m.diff) + '</td>'
+                    + '<td style="text-align:right;padding-right:20px;"><button type="button" class="atl-btn atl-btn--ghost bk-rebalance-schedule" data-id="' + m.id + '" style="padding:3px 10px;font-size:11px;"><i class="fa-solid fa-scale-balanced" style="margin-right:4px;"></i>Rebalance</button></td>'
+                    + '</tr>';
+            }).join(''));
+        } catch (e) {
+            $body.html('<tr><td colspan="6" class="text-center" style="color:var(--atl-clay);">Failed to load mismatches.</td></tr>');
+        }
+    };
+    // Open a booking's detail from the mismatches report.
+    $(document).on('click', '.fin-open-booking', function(e) {
+        e.preventDefault();
+        var id = $(this).data('id');
+        switchTab('bookingsAdmin');
+        setTimeout(function() { if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(id, true); }, 500);
+    });
 
     window.showPaymentScheduleEditor = function(bookingId, totalAmount, existingSchedules) {
         const container = $(`#atl-paymentschedule-${bookingId}`);

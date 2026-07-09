@@ -10625,6 +10625,91 @@ app.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRole(
     });
 });
 
+// POST — reconcile a booking's payment schedule to its total by proportionally rescaling the
+// PENDING milestones (paid milestones are preserved). Money only changes on this explicit action.
+app.post('/api/admin/bookings/:id/payment-schedules/rebalance', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    const bookingId = req.params.id;
+    db.get('SELECT total_amount FROM bookings WHERE id = ?', [bookingId], (bErr, booking) => {
+        if (bErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        const total = parseFloat(booking.total_amount) || 0;
+        if (total <= 0) return res.status(400).json({ success: false, message: 'Set a booking total before rebalancing the schedule.' });
+
+        db.all("SELECT * FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC, id ASC", [bookingId], (err, schedules) => {
+            if (err) return res.status(500).json({ success: false, message: err.message });
+            if (!schedules || schedules.length === 0) return res.status(400).json({ success: false, message: 'No payment schedule to rebalance — set up milestones first.' });
+
+            const isPaid = s => String(s.status).toLowerCase() === 'paid';
+            const paid = schedules.filter(isPaid);
+            const pending = schedules.filter(s => !isPaid(s));
+            const paidSum = paid.reduce((s, x) => s + (parseFloat(x.expected_amount) || 0), 0);
+            const remaining = Math.round((total - paidSum) * 100) / 100;
+
+            if (remaining < -0.01) {
+                return res.status(400).json({ success: false, message: `Paid milestones (R${paidSum.toFixed(2)}) already exceed the booking total (R${total.toFixed(2)}). Record a refund or adjust the total instead.` });
+            }
+            if (pending.length === 0) {
+                if (Math.abs(remaining) <= 0.01) return res.json({ success: true, message: 'Schedule already matches the booking total.' });
+                return res.status(400).json({ success: false, message: 'All milestones are already paid — edit the booking total to reconcile.' });
+            }
+
+            // Proportional split of the remaining amount across pending milestones; the last row
+            // absorbs the rounding drift so the sum is exact.
+            const pendSum = pending.reduce((s, x) => s + (parseFloat(x.expected_amount) || 0), 0);
+            const rounded = pending.map(s => {
+                const prop = pendSum > 0 ? (parseFloat(s.expected_amount) || 0) / pendSum : 1 / pending.length;
+                return Math.round(remaining * prop * 100) / 100;
+            });
+            const drift = Math.round((remaining - rounded.reduce((a, b) => a + b, 0)) * 100) / 100;
+            rounded[rounded.length - 1] = Math.max(0, Math.round((rounded[rounded.length - 1] + drift) * 100) / 100);
+            const newAmounts = pending.map((s, i) => ({ id: s.id, amount: rounded[i] }));
+
+            db.serialize(() => {
+                const stmt = db.prepare("UPDATE payment_schedules SET expected_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                let upErr = null;
+                newAmounts.forEach(u => stmt.run([u.amount, u.id], e => { if (e) upErr = e; }));
+                stmt.finalize((finErr) => {
+                    if (upErr || finErr) return res.status(500).json({ success: false, message: (upErr || finErr).message });
+
+                    db.run(`INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json) VALUES ('payment_schedules', ?, 'REBALANCE_SCHEDULE', ?, ?)`,
+                        [bookingId, req.session.adminId || req.session.username || 'admin', JSON.stringify({ total, paidSum, remaining, milestones: newAmounts })], () => {});
+
+                    updateBookingMilestones(bookingId, () => {
+                        db.all("SELECT * FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC, id ASC", [bookingId], (e2, rows) => {
+                            const scheduled_total = (rows || []).reduce((s, x) => s + (parseFloat(x.expected_amount) || 0), 0);
+                            res.json({ success: true, message: 'Schedule rebalanced to the booking total.', schedules: rows || [], scheduled_total, total_amount: total });
+                        });
+                    });
+                });
+            });
+        });
+    });
+});
+
+// GET — bookings whose ACTIVE schedule total diverges from the booking total (reconciliation sweep)
+app.get('/api/admin/payment-schedules/mismatches', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    db.all(
+        `SELECT b.id, b.name, b.event_name, b.event_type, b.date, b.status, b.total_amount,
+                (SELECT COALESCE(SUM(expected_amount),0) FROM payment_schedules ps
+                 WHERE ps.booking_id=b.id AND LOWER(COALESCE(ps.status,'pending')) NOT IN ('superseded','cancelled')) AS scheduled_total
+         FROM bookings b
+         WHERE b.status NOT IN ('CANCELLED')
+           AND b.total_amount > 0
+           AND EXISTS (SELECT 1 FROM payment_schedules ps2 WHERE ps2.booking_id=b.id AND LOWER(COALESCE(ps2.status,'pending')) NOT IN ('superseded','cancelled'))`,
+        [], (err, rows) => {
+            if (err) return res.status(500).json({ success: false, message: err.message });
+            const mismatches = (rows || [])
+                .map(r => {
+                    const total_amount = parseFloat(r.total_amount) || 0;
+                    const scheduled_total = parseFloat(r.scheduled_total) || 0;
+                    return { ...r, total_amount, scheduled_total, diff: Math.round((scheduled_total - total_amount) * 100) / 100 };
+                })
+                .filter(r => Math.abs(r.diff) > 0.01)
+                .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+            res.json({ success: true, mismatches, count: mismatches.length });
+        }
+    );
+});
+
 // 3.7 Financial Analytics API (Admin)
 // GET /api/admin/financials/analytics
 app.get('/api/admin/financials/analytics', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
