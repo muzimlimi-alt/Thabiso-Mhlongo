@@ -208,6 +208,12 @@ const sanitizeEmailInput = (input) => {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// The privacy-policy version consent is recorded against. Server-owned on purpose: the public
+// booking form used to send this value and it was written verbatim into bookings.policy_version
+// AND consent_audit.policy_version, so a stale cached page — or a crafted request — could record
+// consent against a policy the user never saw. Bump this whenever the published policy changes.
+const CURRENT_POLICY_VERSION = 'v2.2';
+
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -3490,7 +3496,7 @@ const BOOKING_TEXT_LIMITS = {
     city: 100, country: 100, venue_type: 60, event_type: 60,
     audience_size: 40, audience_demographic: 120, budget_range: 60,
     performance_slot: 40, performance_duration: 40,
-    vat_number: 30, policy_version: 20, source: 100, referrer: 500
+    vat_number: 30, source: 100, referrer: 500
 };
 
 // A JSON body may send a number, array or object where a string is expected. Calling
@@ -3509,8 +3515,9 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
         event_name, event_date, event_start_time, performance_slot, performance_duration,
         event_location, venue_address, city, country, venue_type,
         event_type, audience_size, audience_demographic, budget_range, travel_accommodation, message,
-        services, venuePlaceId, popia_consent, vat_number, policy_version
+        services, venuePlaceId, popia_consent, vat_number
     } = req.body;
+    // req.body.policy_version is deliberately ignored — see CURRENT_POLICY_VERSION.
 
     // Normalize every free-text field once, up-front. Downstream code (validation, the INSERT
     // params, findOrCreateClient) then works on trimmed strings only.
@@ -3527,7 +3534,6 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
     audience_demographic = asBookingText(audience_demographic);
     budget_range = asBookingText(budget_range);
     message = asBookingText(message);         vat_number = asBookingText(vat_number);
-    policy_version = asBookingText(policy_version);
     venuePlaceId = asBookingText(venuePlaceId);
 
     if (!name || !email || !cell || !event_date || !event_location || !event_type || !message) {
@@ -3856,7 +3862,7 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                         encodeUserHtml(event_name) || null, event_date, event_start_time || null, encodeUserHtml(performance_slot) || null, encodeUserHtml(performance_duration) || null,
                         encodeUserHtml(event_location), encodeUserHtml(venue_address) || null, encodeUserHtml(city) || null, encodeUserHtml(country) || null, encodeUserHtml(venue_type) || null,
                         encodeUserHtml(event_type), encodeUserHtml(audience_size) || null, encodeUserHtml(audience_demographic) || null, encodeUserHtml(budget_range) || null, travel_accommodation ? 1 : 0, encodeUserHtml(message),
-                        clientId, venueId, initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, vat_number || null, venuePlaceId || null, defaultQuoteExpiry, policy_version || 'v2.2',
+                        clientId, venueId, initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, vat_number || null, venuePlaceId || null, defaultQuoteExpiry, CURRENT_POLICY_VERSION,
                         encodeUserHtml(asBookingText(req.body.source)) || null, encodeUserHtml(asBookingText(req.body.referrer)) || null
                     ]
                 );
@@ -3865,7 +3871,7 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                 // POPIA consent audit — immutable record of when/where consent was given
                 await dbRun(
                     `INSERT INTO consent_audit (booking_id, ip_address, user_agent, policy_version, consent_source) VALUES (?, ?, ?, ?, 'public_form')`,
-                    [bookingId, req.ip || null, req.headers['user-agent'] || null, policy_version || 'v2.2']
+                    [bookingId, req.ip || null, req.headers['user-agent'] || null, CURRENT_POLICY_VERSION]
                 );
 
                 // Audit trail for booking creation (trigger only fires on UPDATE, not INSERT).
@@ -6452,7 +6458,7 @@ app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
 
     // Need to insert status, active, and unsubscribe_token
     db.run(`INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, ip_address, user_agent, source, popia_consent, consent_timestamp, policy_version) VALUES (?, 'active', 1, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?)`, 
-    [email, unsubscribe_token, ip_address, user_agent, source, 'v2.2'], function(err) {
+    [email, unsubscribe_token, ip_address, user_agent, source, CURRENT_POLICY_VERSION], function(err) {
         if (err) {
             console.error("Newsletter Subscription DB Error:", err.message);
             // IF UNIQUE constraint failed, they are already subscribed. That's fine.
@@ -8930,7 +8936,7 @@ app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'man
                     city || null, venue_place_id || null,
                     budget_range || null, message, bookingStatus,
                     consentVal, clientId, venueId,
-                    initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, defaultQuoteExpiry, 'v2.2', 'admin'
+                    initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, defaultQuoteExpiry, CURRENT_POLICY_VERSION, 'admin'
                 ],
                 async function(err) {
                     if (err) {
@@ -8945,8 +8951,8 @@ app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'man
                         // Immutable consent audit record
                         await new Promise((resolve, reject) => {
                             db.run(
-                                `INSERT INTO consent_audit (booking_id, ip_address, user_agent, policy_version, consent_source) VALUES (?, ?, ?, 'v2.2', 'admin_recorded')`,
-                                [bookingId, req.ip || null, req.headers['user-agent'] || null],
+                                `INSERT INTO consent_audit (booking_id, ip_address, user_agent, policy_version, consent_source) VALUES (?, ?, ?, ?, 'admin_recorded')`,
+                                [bookingId, req.ip || null, req.headers['user-agent'] || null, CURRENT_POLICY_VERSION],
                                 (err2) => { if (err2) reject(err2); else resolve(); }
                             );
                         });
@@ -11519,11 +11525,16 @@ app.get('/api/admin/financials/stats', requireAdmin, requireRole(['administrator
           AND DATE(t.transaction_date) <= ?
     `;
 
-    // 2. All-time outstanding
+    // 2. All-time outstanding.
+    //    Allowlist, not a denylist. Booking intake writes amount_outstanding = the service
+    //    catalogue estimate on a NEW booking that has never been quoted, so a bare
+    //    "NOT IN ('CANCELLED','EXPIRED')" counted every unsubmitted enquiry as a receivable —
+    //    an hourly MC enquiry silently added R2 950. A quote that has been sent but not accepted
+    //    (QUOTED) is not a receivable either. Only an accepted commitment is money owed.
     const outstandingQuery = `
         SELECT COALESCE(SUM(amount_outstanding), 0) AS total_outstanding
         FROM bookings
-        WHERE status NOT IN ('CANCELLED', 'EXPIRED')
+        WHERE status IN ('ACCEPTED', 'CONFIRMED', 'COMPLETED')
     `;
 
     // 3. Booking status counts
@@ -11913,59 +11924,102 @@ app.get('/api/admin/bookings/:id/financials', requireAdmin, requireRole(['admini
     });
 });
 
-app.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+// Rows removed with the booking. `PRAGMA foreign_keys = ON` is set on the shared connection, and
+// every one of these declares a FK to bookings(id) with ON DELETE NO ACTION — so any table missing
+// from this list makes `DELETE FROM bookings` fail outright with FOREIGN KEY constraint failed.
+// consent_audit, payment_logs and reminders_log were missing, which made 15 of the 33 bookings
+// that business rules allow deleting undeletable (HTTP 500).
+//
+// consent_audit is purged deliberately: deleting a booking erases the personal data captured with
+// it (IP, user agent), so retaining its consent proof would leave exactly the orphaned rows this
+// route produced before FK enforcement. The audit_log DELETE entry remains as the record.
+//
+// Order matters — node-sqlite3 runs these sequentially on the one connection, so line-item children
+// go before their parent invoice/quotation rows, and bookings.event_id is cleared before the events
+// row it points at is removed (bookings.event_id and events.booking_id reference each other).
+const BOOKING_DELETE_PURGE = [
+    "UPDATE bookings SET event_id = NULL WHERE id = ?",
+    "DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE booking_id = ?)",
+    "DELETE FROM quote_line_items WHERE quotation_id IN (SELECT id FROM quotations WHERE booking_id = ?)",
+    "DELETE FROM quotations WHERE booking_id = ?",
+    "DELETE FROM invoices WHERE booking_id = ?",
+    "DELETE FROM cancellations WHERE booking_id = ?",
+    "DELETE FROM contracts WHERE booking_id = ?",
+    "DELETE FROM payment_schedules WHERE booking_id = ?",
+    "DELETE FROM booking_services WHERE booking_id = ?",
+    "DELETE FROM booking_line_items WHERE booking_id = ?",
+    "DELETE FROM service_reviews WHERE booking_id = ?",
+    "DELETE FROM booking_notes WHERE booking_id = ?",
+    "DELETE FROM communication_log WHERE booking_id = ?",
+    "DELETE FROM transactions WHERE booking_id = ?",
+    "DELETE FROM date_holds WHERE converted_to_booking_id = ?",
+    "DELETE FROM events WHERE booking_id = ?",
+    "DELETE FROM consent_audit WHERE booking_id = ?",
+    "DELETE FROM payment_logs WHERE booking_id = ?",
+    "DELETE FROM reminders_log WHERE booking_id = ?"
+];
+
+// Records that outlive the booking. An expense is a cost the business incurred and a bank statement
+// line is a bank's record — neither stops existing because a booking was removed. Both columns are
+// nullable, so the row is kept and only the link is dropped.
+const BOOKING_DELETE_UNLINK = [
+    "UPDATE expenses SET booking_id = NULL WHERE booking_id = ?",
+    "UPDATE bank_statement_lines SET matched_booking_id = NULL WHERE matched_booking_id = ?"
+];
+
+app.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrator']), async (req, res) => {
     const id = req.params.id;
-    db.get("SELECT * FROM bookings WHERE id = ?", [id], (fetchErr, booking) => {
-        if (fetchErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+    try {
+        const booking = await dbGet("SELECT * FROM bookings WHERE id = ?", [id]);
+        if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if (parseFloat(booking.amount_paid) > 0) {
             return res.status(400).json({ success: false, message: 'Cannot delete a booking with recorded payments. Cancel it instead to preserve the financial audit trail.' });
         }
-        db.run(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by) VALUES ('bookings', ?, 'DELETE', ?, '{}', 'admin')`,
-            [id, JSON.stringify(booking)], () => {});
-        // Remove the orphaned Google Calendar event before deleting the DB record
+
+        const outcome = await withDbTransaction(async () => {
+            try {
+                await dbRun("BEGIN IMMEDIATE");
+            } catch (beginErr) {
+                console.error('[Delete] BEGIN IMMEDIATE failed:', beginErr.message);
+                return { status: 500, body: { success: false, error: 'Database busy. Please retry.' } };
+            }
+            try {
+                for (const sql of BOOKING_DELETE_PURGE) await dbRun(sql, [id]);
+                for (const sql of BOOKING_DELETE_UNLINK) await dbRun(sql, [id]);
+
+                // Inside the transaction: a failed delete must not leave an audit_log row claiming
+                // the booking was deleted. This previously ran before the transaction even opened.
+                await dbRun(
+                    `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, ip_address) VALUES ('bookings', ?, 'DELETE', ?, '{}', 'admin', ?)`,
+                    [id, JSON.stringify(booking), req.ip || null]
+                );
+
+                const del = await dbRun("DELETE FROM bookings WHERE id = ?", [id]);
+                if (del.changes === 0) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 404, body: { success: false, message: 'Booking not found.' } };
+                }
+                await dbRun("COMMIT");
+                return { ok: true };
+            } catch (dbErr) {
+                await dbRun("ROLLBACK").catch(() => {});
+                console.error('[Delete] Cascade failed — rolled back, booking left intact:', dbErr.message);
+                return { status: 500, body: { success: false, error: 'Cascade delete failed.' } };
+            }
+        });
+
+        if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+
+        // Only once the booking is really gone. This used to run before the transaction, so a
+        // failed delete still destroyed the Google Calendar event of a booking that still existed.
         if (booking.google_event_id) {
             deleteGoogleEvent(booking.google_event_id).catch(e => console.error('[Delete] GCal cleanup failed:', e.message));
         }
-        db.run("UPDATE bookings SET event_id = NULL WHERE id = ?", [id], () => {
-            db.run("BEGIN TRANSACTION", () => {
-                // node-sqlite3 runs these in array order on the one connection, so line-item
-                // children are removed before their parent invoice/quotation rows. Previously
-                // booking_line_items, invoice_line_items, quote_line_items, service_reviews and
-                // booking_notes were NOT cascaded, leaving orphaned rows behind on every delete.
-                const cascadeTargets = [
-                "DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE booking_id = ?)",
-                "DELETE FROM quote_line_items WHERE quotation_id IN (SELECT id FROM quotations WHERE booking_id = ?)",
-                "DELETE FROM quotations WHERE booking_id = ?",
-                "DELETE FROM invoices WHERE booking_id = ?",
-                "DELETE FROM cancellations WHERE booking_id = ?",
-                "DELETE FROM contracts WHERE booking_id = ?",
-                "DELETE FROM payment_schedules WHERE booking_id = ?",
-                "DELETE FROM booking_services WHERE booking_id = ?",
-                "DELETE FROM booking_line_items WHERE booking_id = ?",
-                "DELETE FROM service_reviews WHERE booking_id = ?",
-                "DELETE FROM booking_notes WHERE booking_id = ?",
-                "DELETE FROM communication_log WHERE booking_id = ?",
-                "DELETE FROM transactions WHERE booking_id = ?",
-                "DELETE FROM date_holds WHERE converted_to_booking_id = ?",
-                "DELETE FROM events WHERE booking_id = ?",
-            ];
-            let pending = cascadeTargets.length;
-            let failed = false;
-            cascadeTargets.forEach(sql => {
-                db.run(sql, [id], (err) => {
-                    if (err) { failed = true; }
-                    if (--pending === 0) {
-                        if (failed) return db.run("ROLLBACK", () => res.status(500).json({ success: false, error: 'Cascade delete failed.' }));
-                        db.run("DELETE FROM bookings WHERE id = ?", [id], function(delErr) {
-                            if (delErr) return db.run("ROLLBACK", () => res.status(500).json({ error: delErr.message }));
-                            db.run("COMMIT", () => res.json({ success: true }));
-                        });
-                    }
-                });
-            });
-        });
-    });
-});
+        res.json({ success: true });
+    } catch (e) {
+        console.error('[Delete] Booking delete failed:', e);
+        res.status(500).json({ success: false, error: 'Failed to delete booking.' });
+    }
 });
 
 // --- Public Events ---
