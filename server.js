@@ -9972,10 +9972,10 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
                 
                 // quote_amount is kept on bookings for backward-compat (legacy email templates + admin UI
                 // fallback). The bookings SELECT query prefers quotations.total_amount when a quotations
-                // row exists. quote_details is no longer written here; line items live in quote_line_items.
+                // row exists. We also update quote_details JSON for fallback/caching on details/invoice generation.
                 db.run(
-                    "UPDATE bookings SET quote_amount = ?, quote_expiry_date = ?, status = ?, quoted_at = CURRENT_TIMESTAMP, total_amount = ?, amount_outstanding = ? WHERE id = ?",
-                    [quote_amount, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId]
+                    "UPDATE bookings SET quote_amount = ?, quote_details = ?, quote_expiry_date = ?, status = ?, quoted_at = CURRENT_TIMESTAMP, total_amount = ?, amount_outstanding = ? WHERE id = ?",
+                    [quote_amount, quote_details, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId]
                 );
 
                 // 2. Get next version (runs after UPDATE due to serialize order)
