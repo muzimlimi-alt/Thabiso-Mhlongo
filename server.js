@@ -1100,8 +1100,9 @@ async function generateInvoice(bookingId) {
                 }
             }
 
-            // Auto-void any existing non-paid, non-void invoices before generating a new one (prevent duplicates)
-            db.run("UPDATE invoices SET status='VOID', void_reason='superseded', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [bookingId]);
+            // Superseding the previous invoice now happens inside the write transaction below —
+            // running it here voided the booking's existing invoice before the replacement was even
+            // built, so any later failure (PDF, insert) left the booking with no live invoice at all.
             db.get("SELECT id, file_path FROM invoices WHERE booking_id = ? AND status = 'PAID' LIMIT 1", [bookingId], async (e, inv) => {
                 if (inv) return resolve({ success: true, message: 'Invoice already paid — no regeneration needed.', invoice_id: inv.id, pdfUrl: `/docs/invoices/${inv.file_path}` });
 
@@ -1184,54 +1185,46 @@ async function generateInvoice(bookingId) {
                     });
                     const pdfResult = await pdfService.generateDocument('Invoice', booking, items, pdfPath, paymentSchedules);
 
-                    // Create Invoice Record
-                    db.run("BEGIN TRANSACTION", (tErr) => {
-                        if (tErr) return reject(tErr);
-                        db.run(`INSERT INTO invoices (booking_id, client_id, invoice_number, invoice_date, due_date, subtotal, tax_amount, total_amount, status, file_path)
-                                VALUES (?, ?, ?, CURRENT_DATE, date('now', '+7 days'), ?, ?, ?, 'SENT', ?)`,
-                            [bookingId, booking.client_id, invNumber, subtotal, tax, total, pdfFileName],
-                            async function(insErr) {
-                                if (insErr) {
-                                    db.run("ROLLBACK");
-                                    return reject(insErr);
-                                }
-                                
-                                const invoiceId = this.lastID;
-                                
-                                // Insert items
-                                let itemsInserted = 0;
-                                if (items.length === 0) {
-                                    finalizeInvoice();
-                                } else {
-                                    items.forEach(item => {
-                                        db.run(`INSERT INTO invoice_line_items (invoice_id, description, quantity, unit_price)
-                                                VALUES (?, ?, ?, ?)`, [invoiceId, item.description, item.quantity, item.unit_price], (liErr) => {
-                                            itemsInserted++;
-                                            if (itemsInserted === items.length) finalizeInvoice();
-                                        });
-                                    });
-                                }
+                    // Create the invoice record. Voiding the superseded invoice, inserting the new
+                    // invoice and its line items, and updating the booking are one atomic unit,
+                    // queued behind every other guarded transaction on the shared connection.
+                    const invoiceId = await withDbTransaction(async () => {
+                        await dbRun("BEGIN IMMEDIATE");
+                        try {
+                            await dbRun("UPDATE invoices SET status='VOID', void_reason='superseded', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [bookingId]);
 
-                                function finalizeInvoice() {
-                                    // Update Booking's outstanding amount
-                                    db.run("UPDATE bookings SET total_amount = ?, amount_outstanding = ?, payment_status = CASE WHEN payment_status IS NULL THEN 'UNPAID' ELSE payment_status END WHERE id = ?",
-                                        [total, total - (booking.amount_paid || 0), bookingId], (upErr) => {
-                                            db.run("COMMIT", async (cErr) => {
-                                                if (cErr) return reject(cErr);
-                                                
-                                                // Send Email
-                                                try {
-                                                    await sendInvoiceEmail(booking, pdfPath);
-                                                    db.run("UPDATE invoices SET sent_at = CURRENT_TIMESTAMP WHERE id = ?", [invoiceId], () => {});
-                                                } catch(emErr) { console.error("Invoice Email Error:", emErr); }
+                            const ins = await dbRun(`INSERT INTO invoices (booking_id, client_id, invoice_number, invoice_date, due_date, subtotal, tax_amount, total_amount, status, file_path)
+                                    VALUES (?, ?, ?, CURRENT_DATE, date('now', '+7 days'), ?, ?, ?, 'SENT', ?)`,
+                                [bookingId, booking.client_id, invNumber, subtotal, tax, total, pdfFileName]);
+                            const newInvoiceId = ins.lastID;
 
-                                                resolve({ success: true, message: 'Invoice generated successfully', invoice_id: invoiceId, pdfUrl: `/docs/invoices/${pdfFileName}` });
-                                            });
-                                        });
-                                }
+                            // Sequential and error-checked. These previously ran as a parallel forEach
+                            // whose error argument was ignored, so a failed line item still committed an
+                            // invoice whose total no line item supported.
+                            for (const item of items) {
+                                await dbRun(`INSERT INTO invoice_line_items (invoice_id, description, quantity, unit_price)
+                                             VALUES (?, ?, ?, ?)`,
+                                    [newInvoiceId, item.description, item.quantity, item.unit_price]);
                             }
-                        );
+
+                            await dbRun("UPDATE bookings SET total_amount = ?, amount_outstanding = ?, payment_status = CASE WHEN payment_status IS NULL THEN 'UNPAID' ELSE payment_status END WHERE id = ?",
+                                [total, total - (booking.amount_paid || 0), bookingId]);
+
+                            await dbRun("COMMIT");
+                            return newInvoiceId;
+                        } catch (txErr) {
+                            await dbRun("ROLLBACK").catch(() => {});
+                            throw txErr;
+                        }
                     });
+
+                    // Side effects only after the commit.
+                    try {
+                        await sendInvoiceEmail(booking, pdfPath);
+                        db.run("UPDATE invoices SET sent_at = CURRENT_TIMESTAMP WHERE id = ?", [invoiceId], () => {});
+                    } catch (emErr) { console.error("Invoice Email Error:", emErr); }
+
+                    resolve({ success: true, message: 'Invoice generated successfully', invoice_id: invoiceId, pdfUrl: `/docs/invoices/${pdfFileName}` });
                 } catch (ex) {
                     console.error("Invoice Gen Error:", ex);
                     reject(ex);
@@ -2731,7 +2724,10 @@ async function sendQuoteEmail(booking, amount, pdfPath, pdfFileName, items = [])
 
 // S2-2: Notify all admin users when a quote has been dispatched to a client
 async function sendAdminQuoteSentNotification(booking, amount) {
-    const { id, name, email, event_type, date } = booking;
+    // event_name was used in the template below but never destructured, so this function threw
+    // ReferenceError on every call. The throw was swallowed by the caller's .catch(), meaning the
+    // admin has never actually received a "quote sent" notification.
+    const { id, name, email, event_name, date } = booking;
     const notifEmail = await getNotificationEmail();
     const emailBody = `
         <p>A quotation has been dispatched to the client for Booking <strong>#${id}</strong>.</p>
@@ -5854,7 +5850,7 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
             return res.status(400).json({ success: false, message: `Cannot cancel a booking with status ${booking.status}.` });
         }
         
-        db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", (err, policy) => {
+        db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", async (err, policy) => {
             // SC-2: Force majeure — full refund regardless of timeline
             const isForceMajeure = cancelledBy === 'force_majeure';
             const policyStr = policy ? policy.policy_value : "";
@@ -5864,11 +5860,27 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
             const retentionAmount = isForceMajeure ? 0          : calc.retention;
             const policyRule      = isForceMajeure ? 'Force Majeure — Full Refund Granted' : calc.rule;
 
-            db.run("BEGIN TRANSACTION", () => {
-                db.run("UPDATE bookings SET status = 'CANCELLED', payment_status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [bookingId], (upErr) => {
-                    if (upErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: upErr.message }));
+            // Everything a cancellation implies is one atomic unit. The audit row and the four
+            // cascades (holds, invoices, payment schedules, events) used to run AFTER `COMMIT` with
+            // their errors logged and ignored, so a cancelled booking could keep an open invoice the
+            // admin would go on chasing.
+            const outcome = await withDbTransaction(async () => {
+                try {
+                    await dbRun("BEGIN IMMEDIATE");
+                } catch (beginErr) {
+                    console.error('[Cancel] BEGIN IMMEDIATE failed:', beginErr.message);
+                    return { status: 500, body: { success: false, message: 'Database busy. Please retry.' } };
+                }
+                try {
+                    // payment_status is deliberately NOT set to 'CANCELLED'. The
+                    // chk_bookings_payment_status_update trigger only permits
+                    // UNPAID|DEPOSIT_PAID|PARTIALLY_PAID|PAID|REFUNDED|FAILED, so writing 'CANCELLED'
+                    // aborted the whole statement — this route returned 500 on every call. The real
+                    // payment state must survive cancellation anyway: the refund owed is computed
+                    // from what the client actually paid.
+                    await dbRun("UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [bookingId]);
 
-                    db.run(`INSERT INTO cancellations (booking_id, cancelled_by, reason, total_paid_to_date, refund_due, retention_amount, notes, admin_id, refund_status)
+                    await dbRun(`INSERT INTO cancellations (booking_id, cancelled_by, reason, total_paid_to_date, refund_due, retention_amount, notes, admin_id, refund_status)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
                         ON CONFLICT(booking_id) DO UPDATE SET
                             cancelled_by = excluded.cancelled_by, reason = excluded.reason,
@@ -5876,49 +5888,49 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
                             retention_amount = excluded.retention_amount, notes = excluded.notes,
                             admin_id = excluded.admin_id, refund_status = excluded.refund_status,
                             cancelled_at = CURRENT_TIMESTAMP`,
-                        [bookingId, cancelledBy, reason || null, totalPaid, refundDue, retentionAmount, notes || null, req.session.adminId],
-                        (insErr) => {
-                            if (insErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: insErr.message }));
+                        [bookingId, cancelledBy, reason || null, totalPaid, refundDue, retentionAmount, notes || null, req.session.adminId]);
 
-                            db.run("COMMIT", async () => {
-                                // Audit log
-                                db.run(
-                                    `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
-                                     VALUES ('bookings', ?, 'CANCEL', ?, ?, ?, CURRENT_TIMESTAMP)`,
-                                    [bookingId,
-                                     JSON.stringify({ status: booking.status, payment_status: booking.payment_status }),
-                                     JSON.stringify({ status: 'CANCELLED', cancelled_by: cancelledBy, reason: reason || null, refund_due: refundDue, retention: retentionAmount, policy_rule: policyRule }),
-                                     req.session.adminId || 'admin'],
-                                    (aErr) => { if (aErr) console.error('[Audit] Cancellation log failed:', aErr.message); }
-                                );
-                                // Release date holds
-                                db.run("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [bookingId]);
-                                // Cascade: void open invoices so admin stops chasing payment
-                                db.run("UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [bookingId],
-                                    (err) => { if (err) console.error('[Cancel] Invoice void failed:', err.message); });
-                                // Cascade: cancel pending payment schedule items
-                                db.run("UPDATE payment_schedules SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status='pending'", [bookingId],
-                                    (err) => { if (err) console.error('[Cancel] Payment schedule cancel failed:', err.message); });
-                                // Cascade: delink events so they don't appear as booking-linked
-                                db.run("UPDATE events SET booking_id=NULL WHERE booking_id=?", [bookingId],
-                                    (err) => { if (err) console.error('[Cancel] Event delink failed:', err.message); });
-                                // Remove Google Calendar event so date shows as available
-                                if (booking.google_event_id) {
-                                    deleteGoogleEvent(booking.google_event_id).catch(calErr => {
-                                        console.error(`[Cancel] Google Calendar event removal failed for booking #${bookingId}:`, calErr.message);
-                                    });
-                                }
-                                booking.name = booking.client_name || booking.name;
-                                booking.email = booking.client_email || booking.email;
-                                // SC-3: Pass policy rule + timing so client knows what was applied
-                                try { await sendCancellationEmail(booking, { reason, refund_due: refundDue, rule: policyRule, days_until_event: calc.daysUntilEvent, is_force_majeure: isForceMajeure }); }
-                                catch (e) { console.error('Cancellation email failed:', e.message); }
-                                res.json({ success: true, message: 'Booking cancelled and client notified.', refund_due: refundDue, rule: policyRule });
-                            });
-                        }
-                    );
-                });
+                    await dbRun(
+                        `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
+                         VALUES ('bookings', ?, 'CANCEL', ?, ?, ?, CURRENT_TIMESTAMP)`,
+                        [bookingId,
+                         JSON.stringify({ status: booking.status, payment_status: booking.payment_status }),
+                         JSON.stringify({ status: 'CANCELLED', cancelled_by: cancelledBy, reason: reason || null, refund_due: refundDue, retention: retentionAmount, policy_rule: policyRule }),
+                         req.session.adminId || 'admin']);
+
+                    // Release date holds
+                    await dbRun("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [bookingId]);
+                    // Cascade: void open invoices so admin stops chasing payment
+                    await dbRun("UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [bookingId]);
+                    // Cascade: cancel pending payment schedule items
+                    await dbRun("UPDATE payment_schedules SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status='pending'", [bookingId]);
+                    // Cascade: delink events so they don't appear as booking-linked
+                    await dbRun("UPDATE events SET booking_id=NULL WHERE booking_id=?", [bookingId]);
+
+                    await dbRun("COMMIT");
+                    return { ok: true };
+                } catch (txErr) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    console.error('[Cancel] Cancellation failed — rolled back, booking unchanged:', txErr.message);
+                    return { status: 500, body: { success: false, message: txErr.message } };
+                }
             });
+
+            if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+
+            // ---- Side effects, after the commit ----
+            // Remove Google Calendar event so date shows as available
+            if (booking.google_event_id) {
+                deleteGoogleEvent(booking.google_event_id).catch(calErr => {
+                    console.error(`[Cancel] Google Calendar event removal failed for booking #${bookingId}:`, calErr.message);
+                });
+            }
+            booking.name = booking.client_name || booking.name;
+            booking.email = booking.client_email || booking.email;
+            // SC-3: Pass policy rule + timing so client knows what was applied
+            try { await sendCancellationEmail(booking, { reason, refund_due: refundDue, rule: policyRule, days_until_event: calc.daysUntilEvent, is_force_majeure: isForceMajeure }); }
+            catch (e) { console.error('Cancellation email failed:', e.message); }
+            res.json({ success: true, message: 'Booking cancelled and client notified.', refund_due: refundDue, rule: policyRule });
         });
     });
 });
@@ -6701,7 +6713,7 @@ app.post('/api/admin/newsletter/subscribers/bulk-delete', requireAdmin, (req, re
 });
 
 // Bulk Import Subscribers via CSV
-app.post('/api/admin/newsletter/subscribers/import', requireAdmin, upload.single('csv'), (req, res) => {
+app.post('/api/admin/newsletter/subscribers/import', requireAdmin, upload.single('csv'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
@@ -6732,72 +6744,76 @@ app.post('/api/admin/newsletter/subscribers/import', requireAdmin, upload.single
         let errorCount = 0;
         let processedCount = 0;
 
-        db.serialize(() => {
-            db.run("BEGIN TRANSACTION");
-            
-            const stmtInsert = db.prepare(`
-                INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, source, created_by)
-                VALUES (?, ?, ?, ?, 'csv_import', ?)
-            `);
-            
-            const stmtUpdate = db.prepare(`
-                UPDATE newsletter_subscribers 
-                SET status = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ? 
-                WHERE LOWER(email) = LOWER(?)
-            `);
-
-            for (let i = 1; i < lines.length; i++) {
-                const line = lines[i].trim();
-                if (!line) continue;
-                
-                const cols = line.split(',');
-                const email = (cols[emailIdx] || '').trim();
-                let status = statusIdx !== -1 ? (cols[statusIdx] || '').trim().toLowerCase() : 'active';
-                
-                if (!status || (status !== 'active' && status !== 'inactive')) status = 'active';
-
-                if (!email || !email.includes('@')) {
-                     errorCount++;
-                     continue;
-                }
-
-                const unsubscribe_token = crypto.randomBytes(16).toString('hex');
-                const active = status === 'active' ? 1 : 0;
-
-                processedCount++;
-
-                stmtUpdate.run([status, adminId, email], function(err) {
-                    if (err) {
-                        errorCount++;
-                    } else if (this.changes > 0) {
-                        updateCount++;
-                    } else {
-                        stmtInsert.run([email, status, active, unsubscribe_token, adminId], function(err2) {
-                            if (err2) {
-                                errorCount++;
-                            } else {
-                                successCount++;
-                            }
-                        });
-                    }
-                });
+        // Queued behind the other guarded transactions on the shared connection: a CSV import that
+        // ran while a booking was mid-transaction used to fail with "cannot start a transaction
+        // within a transaction", and its statements could be swept into the booking's rollback.
+        const outcome = await withDbTransaction(async () => {
+            try {
+                await dbRun("BEGIN IMMEDIATE");
+            } catch (beginErr) {
+                console.error('[CSV Import] BEGIN IMMEDIATE failed:', beginErr.message);
+                return { status: 500, body: { success: false, message: 'Database busy. Please retry.' } };
             }
+            try {
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
 
-            stmtInsert.finalize();
-            stmtUpdate.finalize();
+                    const cols = line.split(',');
+                    const email = (cols[emailIdx] || '').trim();
+                    let status = statusIdx !== -1 ? (cols[statusIdx] || '').trim().toLowerCase() : 'active';
 
-            db.run("COMMIT", (err) => {
-                fs.unlinkSync(filePath);
-                
-                if (err) {
-                    return res.status(500).json({ success: false, message: 'Transaction failed: ' + err.message });
+                    if (!status || (status !== 'active' && status !== 'inactive')) status = 'active';
+
+                    if (!email || !email.includes('@')) {
+                        errorCount++;
+                        continue;
+                    }
+
+                    const unsubscribe_token = crypto.randomBytes(16).toString('hex');
+                    const active = status === 'active' ? 1 : 0;
+
+                    processedCount++;
+
+                    // A malformed row is counted and skipped, as before — one bad line must not
+                    // roll back an otherwise good import.
+                    try {
+                        const upd = await dbRun(
+                            `UPDATE newsletter_subscribers
+                             SET status = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ?
+                             WHERE LOWER(email) = LOWER(?)`,
+                            [status, adminId, email]
+                        );
+                        if (upd.changes > 0) {
+                            updateCount++;
+                        } else {
+                            await dbRun(
+                                `INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, source, created_by)
+                                 VALUES (?, ?, ?, ?, 'csv_import', ?)`,
+                                [email, status, active, unsubscribe_token, adminId]
+                            );
+                            successCount++;
+                        }
+                    } catch (rowErr) {
+                        errorCount++;
+                    }
                 }
-                
-                res.json({ 
-                    success: true, 
-                    message: `Import complete: ${successCount} added, ${updateCount} updated, ${errorCount} failed.`
-                });
-            });
+
+                await dbRun("COMMIT");
+                return { ok: true };
+            } catch (txErr) {
+                await dbRun("ROLLBACK").catch(() => {});
+                console.error('[CSV Import] Failed — rolled back, no subscribers imported:', txErr.message);
+                return { status: 500, body: { success: false, message: 'Transaction failed: ' + txErr.message } };
+            }
+        });
+
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+
+        res.json({
+            success: true,
+            message: `Import complete: ${successCount} added, ${updateCount} updated, ${errorCount} failed.`
         });
 
     } catch (e) {
@@ -8877,135 +8893,133 @@ app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'man
         const clientId = await findOrCreateClient(name, email, cell, company, null);
         const venueId = await findOrCreateVenueFromPlace(event_location, venue_address || null, city || null, country || null, venue_place_id || null);
 
-        db.run("BEGIN IMMEDIATE", async (beginErr) => {
-            if (beginErr) return res.status(500).json({ success: false, message: 'Database lock error: ' + beginErr.message });
-
-            if (!override_conflict) {
-                const lockedBusy = await hasCalendarConflict(startTime, endTime);
-                if (lockedBusy) {
-                    db.run("ROLLBACK");
-                    return res.status(409).json({
-                        success: false,
-                        conflict: true,
-                        message: "Scheduling Conflict Detected: Thabiso is busy or holds exist during this slot. Do you want to override and create this booking anyway?"
-                    });
-                }
+        const outcome = await withDbTransaction(async () => {
+            try {
+                await dbRun("BEGIN IMMEDIATE");
+            } catch (beginErr) {
+                console.error('[Admin] BEGIN IMMEDIATE failed:', beginErr.message);
+                return { status: 500, body: { success: false, message: 'Database lock error: ' + beginErr.message } };
             }
 
-            if (!override_duplicate) {
-                const lockedDuplicate = await new Promise(resolve =>
-                    db.get(
+            try {
+                // skipGoogle=true: the pre-lock check above already consulted Google free/busy.
+                // Repeating that network round-trip while holding the write lock would stall every
+                // other transaction for as long as Google takes to answer.
+                if (!override_conflict) {
+                    const lockedBusy = await hasCalendarConflict(startTime, endTime, null, true);
+                    if (lockedBusy) {
+                        await dbRun("ROLLBACK").catch(() => {});
+                        return {
+                            status: 409,
+                            body: {
+                                success: false,
+                                conflict: true,
+                                message: "Scheduling Conflict Detected: Thabiso is busy or holds exist during this slot. Do you want to override and create this booking anyway?"
+                            }
+                        };
+                    }
+                }
+
+                if (!override_duplicate) {
+                    const lockedDuplicate = await dbGet(
                         `SELECT id FROM bookings
                          WHERE lower(email) = lower(?) AND date = ? AND status NOT IN ('CANCELLED','EXPIRED')
                          LIMIT 1`,
-                        [email, event_date],
-                        (_, row) => resolve(row)
-                    )
+                        [email, event_date]
+                    );
+                    if (lockedDuplicate) {
+                        await dbRun("ROLLBACK").catch(() => {});
+                        return {
+                            status: 409,
+                            body: {
+                                success: false,
+                                duplicate: true,
+                                existing_id: lockedDuplicate.id,
+                                message: `An active booking (#${lockedDuplicate.id}) already exists for this client on this date. Do you want to override and create this booking anyway?`
+                            }
+                        };
+                    }
+                }
+
+                const initialQuoteAmountStr = `R ${calculatedBaseScope.toFixed(2)}`;
+                const initialTotalAmount = calculatedBaseScope;
+                const paymentStatus = 'UNPAID';
+                const defaultQuoteExpiry = moment(event_date).subtract(14, 'days').format('YYYY-MM-DD');
+                const consentVal = popia_consent !== undefined ? (popia_consent ? 1 : 0) : 1;
+
+                const ins = await dbRun(
+                    `INSERT INTO bookings
+                        (name, company, email, cell, event_name, date, event_start_time, performance_start_time,
+                         performance_end_time, performance_duration,
+                         event_type, event_location, city, venue_place_id, budget_range, message, status,
+                         popia_consent, consent_timestamp, client_id, venue_id,
+                         quote_amount, total_amount, amount_outstanding, payment_status, quote_expiry_date, policy_version, source, consent_source)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?,?,?,?,?, 'admin_recorded')`,
+                    [
+                        name, company || null, email, cell, event_name, event_date,
+                        event_start_time || null, event_start_time || null,
+                        perfEndTime, String(durationMins),
+                        event_type, event_location,
+                        city || null, venue_place_id || null,
+                        budget_range || null, message, bookingStatus,
+                        consentVal, clientId, venueId,
+                        initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, defaultQuoteExpiry, CURRENT_POLICY_VERSION, 'admin'
+                    ]
                 );
-                if (lockedDuplicate) {
-                    db.run("ROLLBACK");
-                    return res.status(409).json({
-                        success: false,
-                        duplicate: true,
-                        existing_id: lockedDuplicate.id,
-                        message: `An active booking (#${lockedDuplicate.id}) already exists for this client on this date. Do you want to override and create this booking anyway?`
-                    });
+                const bookingId = ins.lastID;
+
+                // The consent record, the services and the audit row are part of the booking, not an
+                // afterthought. These used to run AFTER `COMMIT` with their errors swallowed by a bare
+                // console.error, so a failed insert left a committed booking with no services — and the
+                // route still answered 200 success. They are now inside the transaction.
+                await dbRun(
+                    `INSERT INTO consent_audit (booking_id, ip_address, user_agent, policy_version, consent_source) VALUES (?, ?, ?, ?, 'admin_recorded')`,
+                    [bookingId, req.ip || null, req.headers['user-agent'] || null, CURRENT_POLICY_VERSION]
+                );
+
+                for (const srv of selectedServices) {
+                    await dbRun("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
+                        [bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price]);
+                    await dbRun("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
+                        [bookingId, srv.service_id, srv.name, srv.quantity_minutes, srv.unit_price]);
                 }
+
+                await dbRun(
+                    `INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, ip_address)
+                     VALUES ('bookings', ?, 'CREATE', ?, ?, ?)`,
+                    [
+                        bookingId,
+                        JSON.stringify({
+                            name, email, cell, event_name, event_type, date: event_date, budget_range, status: bookingStatus, client_id: clientId, venue_id: venueId,
+                            overrides: {
+                                conflict: !!override_conflict,
+                                duplicate: !!override_duplicate,
+                                working_hours: !!override_working_hours
+                            }
+                        }),
+                        req.session.username || 'admin',
+                        req.ip || null
+                    ]
+                );
+
+                await dbRun("COMMIT");
+                return { ok: true, bookingId };
+            } catch (dbErr) {
+                await dbRun("ROLLBACK").catch(() => {});
+                console.error('[Admin] Manual booking insert failed — rolled back, no partial booking saved:', dbErr.message);
+                return { status: 500, body: { success: false, message: 'Database error: ' + dbErr.message } };
             }
-
-            let initialQuoteAmountStr = `R ${calculatedBaseScope.toFixed(2)}`;
-            let initialTotalAmount = calculatedBaseScope;
-            let paymentStatus = 'UNPAID';
-            const defaultQuoteExpiry = moment(event_date).subtract(14, 'days').format('YYYY-MM-DD');
-
-            const consentVal = popia_consent !== undefined ? (popia_consent ? 1 : 0) : 1;
-
-            db.run(
-                `INSERT INTO bookings
-                    (name, company, email, cell, event_name, date, event_start_time, performance_start_time,
-                     performance_end_time, performance_duration,
-                     event_type, event_location, city, venue_place_id, budget_range, message, status,
-                     popia_consent, consent_timestamp, client_id, venue_id,
-                     quote_amount, total_amount, amount_outstanding, payment_status, quote_expiry_date, policy_version, source, consent_source)
-                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?,?,?,?,?, 'admin_recorded')`,
-                [
-                    name, company || null, email, cell, event_name, event_date,
-                    event_start_time || null, event_start_time || null,
-                    perfEndTime, String(durationMins),
-                    event_type, event_location,
-                    city || null, venue_place_id || null,
-                    budget_range || null, message, bookingStatus,
-                    consentVal, clientId, venueId,
-                    initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, defaultQuoteExpiry, CURRENT_POLICY_VERSION, 'admin'
-                ],
-                async function(err) {
-                    if (err) {
-                        db.run("ROLLBACK");
-                        console.error('[Admin] Manual booking insert error:', err.message);
-                        return res.status(500).json({ success: false, message: 'Database error: ' + err.message });
-                    }
-                    const bookingId = this.lastID;
-                    db.run("COMMIT");
-
-                    try {
-                        // Immutable consent audit record
-                        await new Promise((resolve, reject) => {
-                            db.run(
-                                `INSERT INTO consent_audit (booking_id, ip_address, user_agent, policy_version, consent_source) VALUES (?, ?, ?, ?, 'admin_recorded')`,
-                                [bookingId, req.ip || null, req.headers['user-agent'] || null, CURRENT_POLICY_VERSION],
-                                (err2) => { if (err2) reject(err2); else resolve(); }
-                            );
-                        });
-
-                        // Insert relational items
-                        for (const srv of selectedServices) {
-                            await new Promise((resolve, reject) => {
-                                db.run("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
-                                    [bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price],
-                                    (err2) => { if (err2) reject(err2); else resolve(); }
-                                );
-                            });
-                            await new Promise((resolve, reject) => {
-                                db.run("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
-                                    [bookingId, srv.service_id, srv.name, srv.quantity_minutes, srv.unit_price],
-                                    (err2) => { if (err2) reject(err2); else resolve(); }
-                                );
-                            });
-                        }
-
-                        // Insert audit log
-                        await new Promise((resolve, reject) => {
-                            db.run(
-                                `INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by)
-                                 VALUES ('bookings', ?, 'CREATE', ?, ?)`,
-                                [
-                                    bookingId,
-                                    JSON.stringify({ 
-                                        name, email, cell, event_name, event_type, date: event_date, budget_range, status: bookingStatus, client_id: clientId, venue_id: venueId,
-                                        overrides: {
-                                            conflict: !!override_conflict,
-                                            duplicate: !!override_duplicate,
-                                            working_hours: !!override_working_hours
-                                        }
-                                    }),
-                                    req.session.username || 'admin'
-                                ],
-                                (err2) => { if (err2) reject(err2); else resolve(); }
-                            );
-                        });
-                    } catch (dbErr) {
-                        console.error("[Admin] Async DB inserts failed:", dbErr.message);
-                    }
-
-                    // Sync to Google Calendar (non-blocking)
-                    syncBookingToCalendar(bookingId).catch(calErr => {
-                        console.error(`[Admin] Google Calendar sync failed for booking #${bookingId}:`, calErr.message);
-                    });
-
-                    res.json({ success: true, booking_id: bookingId, message: 'Booking created.' });
-                }
-            );
         });
+
+        if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+        const bookingId = outcome.bookingId;
+
+        // Sync to Google Calendar (non-blocking, after commit)
+        syncBookingToCalendar(bookingId).catch(calErr => {
+            console.error(`[Admin] Google Calendar sync failed for booking #${bookingId}:`, calErr.message);
+        });
+
+        res.json({ success: true, booking_id: bookingId, message: 'Booking created.' });
     } catch (err) {
         console.error('[Admin] Manual booking error:', err);
         return res.status(500).json({ success: false, message: 'Failed to create manual booking: ' + err.message });
@@ -9195,7 +9209,11 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                     // cascade as POST /api/admin/bookings/:id/cancel, so cancelling via the status
                     // API leaves an identical state (previously this path skipped payment_status,
                     // invoice void, schedule cancel and hold release).
-                    db.run("UPDATE bookings SET cancellation_reason = ?, cancelled_by = 'admin', payment_status = 'CANCELLED' WHERE id = ?", [reason, bookingId]);
+                    // Same trigger constraint as the dedicated cancel route: 'CANCELLED' is not a legal
+                    // payment_status, and this statement had no error callback — so the ABORT silently
+                    // discarded cancellation_reason and cancelled_by along with it.
+                    db.run("UPDATE bookings SET cancellation_reason = ?, cancelled_by = 'admin' WHERE id = ?", [reason, bookingId],
+                        (e) => { if (e) console.error('[Status Cancel] Failed to record cancellation attribution:', e.message); });
                     db.run("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [bookingId],
                         (e) => { if (e) console.error('[Status Cancel] Hold release failed:', e.message); });
                     db.run("UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [bookingId],
@@ -10084,118 +10102,100 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
             try {
                 const pdfResult = await pdfService.generateDocument('Quote', booking, items, pdfPath);
                 
-                // Start Transaction
-            db.serialize(() => {
-                db.run("BEGIN TRANSACTION");
+                // Archive the old quotation, restamp the booking, insert the new versioned quotation
+                // and rebuild its line-item snapshot — one atomic unit, queued behind every other
+                // guarded transaction on the shared connection.
+                //
+                // The two DELETEs below previously ran with their error callbacks issuing a ROLLBACK
+                // and a 500 while the insertNext() chain carried on regardless, so a failed clear
+                // could produce a second response on the same request.
+                const quoteResult = await withDbTransaction(async () => {
+                    try {
+                        await dbRun("BEGIN IMMEDIATE");
+                    } catch (beginErr) {
+                        console.error('[Quote] BEGIN IMMEDIATE failed:', beginErr.message);
+                        return { status: 500, body: { success: false, message: 'Database busy. Please retry.' } };
+                    }
+                    try {
+                        // Archive all previous active quotations for this booking
+                        await dbRun(
+                            "UPDATE quotations SET archived = 1, status = CASE WHEN status = 'sent' THEN 'archived' ELSE status END WHERE booking_id = ? AND archived = 0",
+                            [bookingId]
+                        );
 
-                // Archive all previous active quotations for this booking
-                db.run(
-                    "UPDATE quotations SET archived = 1, status = CASE WHEN status = 'sent' THEN 'archived' ELSE status END WHERE booking_id = ? AND archived = 0",
-                    [bookingId]
-                );
+                        // 1. Update Booking.
+                        // quote_amount is kept on bookings for backward-compat (legacy email templates + admin UI
+                        // fallback). The bookings SELECT query prefers quotations.total_amount when a quotations
+                        // row exists. We also update quote_details JSON for fallback/caching on details/invoice generation.
+                        const currentPaid = parseFloat(booking.amount_paid) || 0;
+                        const newOutstanding = Math.max(0, finalTotal - currentPaid);
+                        await dbRun(
+                            "UPDATE bookings SET quote_amount = ?, quote_details = ?, quote_expiry_date = ?, status = ?, quoted_at = CURRENT_TIMESTAMP, total_amount = ?, amount_outstanding = ? WHERE id = ?",
+                            [quote_amount, quote_details, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId]
+                        );
 
-                // 1. Update Booking
-                const currentPaid = parseFloat(booking.amount_paid) || 0;
-                const newOutstanding = Math.max(0, finalTotal - currentPaid);
-                
-                // quote_amount is kept on bookings for backward-compat (legacy email templates + admin UI
-                // fallback). The bookings SELECT query prefers quotations.total_amount when a quotations
-                // row exists. We also update quote_details JSON for fallback/caching on details/invoice generation.
-                db.run(
-                    "UPDATE bookings SET quote_amount = ?, quote_details = ?, quote_expiry_date = ?, status = ?, quoted_at = CURRENT_TIMESTAMP, total_amount = ?, amount_outstanding = ? WHERE id = ?",
-                    [quote_amount, quote_details, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId]
-                );
+                        // 2. Next version
+                        const vRow = await dbGet("SELECT COALESCE(MAX(version), 0) + 1 AS next_version FROM quotations WHERE booking_id = ?", [bookingId]);
+                        const nextVersion = vRow ? vRow.next_version : 1;
 
-                // 2. Get next version (runs after UPDATE due to serialize order)
-                db.get("SELECT COALESCE(MAX(version), 0) + 1 AS next_version FROM quotations WHERE booking_id = ?", [bookingId], (vErr, vRow) => {
-                    const nextVersion = vRow ? vRow.next_version : 1;
+                        // 3. Insert new versioned Quotation
+                        const qIns = await dbRun(
+                            "INSERT INTO quotations (booking_id, quote_number, client_id, quote_date, expiry_date, total_amount, status, file_path, version, archived, sent_at) VALUES (?, ?, ?, CURRENT_DATE, ?, ?, 'sent', ?, ?, 0, CURRENT_TIMESTAMP)",
+                            [bookingId, pdfResult.number, booking.client_id, quote_expiry_date, finalTotal, pdfFileName, nextVersion]
+                        );
+                        const quotationId = qIns.lastID;
 
-                    // 3. Insert new versioned Quotation
-                    db.run(
-                        "INSERT INTO quotations (booking_id, quote_number, client_id, quote_date, expiry_date, total_amount, status, file_path, version, archived, sent_at) VALUES (?, ?, ?, CURRENT_DATE, ?, ?, 'sent', ?, ?, 0, CURRENT_TIMESTAMP)",
-                        [bookingId, pdfResult.number, booking.client_id, quote_expiry_date, finalTotal, pdfFileName, nextVersion],
-                        function(err) {
-                            if (err) {
-                                console.error("Quotation Insert Error:", err.message);
-                                require('fs').writeFileSync(__dirname + '/scratch/quote-error.log', err.message);
-                                db.run("ROLLBACK");
-                                return res.status(500).json({ success: false, message: 'Database error: ' + err.message });
+                        // 4. Refresh line items (current snapshot)
+                        await dbRun("DELETE FROM booking_line_items WHERE booking_id = ?", [bookingId]);
+                        await dbRun("DELETE FROM booking_services WHERE booking_id = ?", [bookingId]);
+
+                        for (const it of items) {
+                            const q = parseFloat(it.quantity_minutes) || parseFloat(it.quantity) || 0;
+                            const p = parseFloat(it.unit_price) || 0;
+                            const desc = it.description || it.service_name || 'Service';
+                            await dbRun("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
+                                [bookingId, it.service_id || null, desc, q || 1, p]);
+                            if (it.service_id) {
+                                await dbRun("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
+                                    [bookingId, it.service_id, q, p, q * p]);
                             }
-                            const quotationId = this.lastID;
-
-                            // 4. Refresh line items (current-snapshot) — both DELETEs are inside the
-                            //    BEGIN TRANSACTION above, so a ROLLBACK below undoes them atomically.
-                            db.run("DELETE FROM booking_line_items WHERE booking_id = ?", [bookingId], (dliErr) => {
-                                if (dliErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: 'DB error clearing line items: ' + dliErr.message }));
-                            });
-                            db.run("DELETE FROM booking_services WHERE booking_id = ?", [bookingId], (dsErr) => {
-                                if (dsErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: 'DB error clearing services: ' + dsErr.message }));
-                            });
-
-                            const insertNext = (idx) => {
-                                if (idx >= items.length) {
-                                    db.run("COMMIT", (commitErr) => {
-                                        if (commitErr) {
-                                            console.error("Commit Error:", commitErr.message);
-                                            return res.status(500).json({ success: false, error: commitErr.message });
-                                        }
-                                        // P3-3: Audit log for quote generation
-                                        db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-                                                VALUES ('quotations', ?, 'QUOTE_GENERATED', ?, ?, CURRENT_TIMESTAMP)`,
-                                            [bookingId, JSON.stringify({ version: nextVersion, amount: finalTotal, expiry: quote_expiry_date }), req.session.adminId || 'admin'],
-                                            (aErr) => { if (aErr) console.error('[Audit] Quote generation log failed:', aErr.message); });
-                                        syncBookingToCalendar(booking).catch(e => console.error('[Quote] Calendar sync failed:', e.message));
-                                        sendQuoteEmail(booking, quote_amount, pdfPath, pdfFileName, items).catch(e => console.error("Quote email error:", e));
-                                        sendAdminQuoteSentNotification(booking, quote_amount).catch(e => console.error('[Quote] Admin notif failed:', e.message));
-                                        // Per-day availability warning (non-blocking for admins)
-                                        const perDaySvcIds = items.filter(i => i.service_id).map(i => i.service_id);
-                                        const sendResponse = (warnings) => res.json({ success: true, message: 'Quote generated and sent.', status: nextStatus, pdfUrl: `/docs/quotes/${pdfFileName}`, version: nextVersion, warnings: warnings.length ? warnings : undefined });
-                                        if (perDaySvcIds.length && !req.body.override_conflict) {
-                                            db.all(`SELECT name FROM services WHERE id IN (${perDaySvcIds.map(() => '?').join(',')}) AND availability_rule = 'per_day'`, perDaySvcIds, (_, perDayRows) => {
-                                                sendResponse((perDayRows || []).map(s => `"${s.name}" is limited to one booking per day — verify no date conflicts exist.`));
-                                            });
-                                        } else {
-                                            sendResponse([]);
-                                        }
-                                    });
-                                    return;
-                                }
-                                const it = items[idx];
-                                const q = parseFloat(it.quantity_minutes) || parseFloat(it.quantity) || 0;
-                                const p = parseFloat(it.unit_price) || 0;
-                                const desc = it.description || it.service_name || 'Service';
-                                db.run("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
-                                    [bookingId, it.service_id || null, desc, q || 1, p],
-                                    (bliErr) => {
-                                        if (bliErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: 'DB error: ' + bliErr.message }));
-                                        const afterSvc = () => {
-                                            db.run("INSERT INTO quote_line_items (quotation_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
-                                                [quotationId, it.service_id || null, desc, q, p],
-                                                (qliErr) => {
-                                                    if (qliErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: 'DB error: ' + qliErr.message }));
-                                                    insertNext(idx + 1);
-                                                }
-                                            );
-                                        };
-                                        if (it.service_id) {
-                                            db.run("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
-                                                [bookingId, it.service_id, q, p, q * p],
-                                                (svcErr) => {
-                                                    if (svcErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false, message: 'DB error: ' + svcErr.message }));
-                                                    afterSvc();
-                                                }
-                                            );
-                                        } else {
-                                            afterSvc();
-                                        }
-                                    }
-                                );
-                            };
-                            insertNext(0);
+                            await dbRun("INSERT INTO quote_line_items (quotation_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
+                                [quotationId, it.service_id || null, desc, q, p]);
                         }
-                    );
+
+                        // P3-3: Audit log for quote generation — inside the transaction, so a rollback
+                        // never leaves a log entry for a quote that was not issued.
+                        await dbRun(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+                                     VALUES ('quotations', ?, 'QUOTE_GENERATED', ?, ?, CURRENT_TIMESTAMP)`,
+                            [bookingId, JSON.stringify({ version: nextVersion, amount: finalTotal, expiry: quote_expiry_date }), req.session.adminId || 'admin']);
+
+                        await dbRun("COMMIT");
+                        return { ok: true, nextVersion };
+                    } catch (txErr) {
+                        await dbRun("ROLLBACK").catch(() => {});
+                        console.error("[Quote] Generation failed — rolled back, quote not issued:", txErr.message);
+                        return { status: 500, body: { success: false, message: 'Database error: ' + txErr.message } };
+                    }
                 });
-            });
+
+                if (!quoteResult.ok) return res.status(quoteResult.status).json(quoteResult.body);
+                const nextVersion = quoteResult.nextVersion;
+
+                // ---- Side effects, after the commit ----
+                syncBookingToCalendar(booking).catch(e => console.error('[Quote] Calendar sync failed:', e.message));
+                sendQuoteEmail(booking, quote_amount, pdfPath, pdfFileName, items).catch(e => console.error("Quote email error:", e));
+                sendAdminQuoteSentNotification(booking, quote_amount).catch(e => console.error('[Quote] Admin notif failed:', e.message));
+
+                // Per-day availability warning (non-blocking for admins)
+                const perDaySvcIds = items.filter(i => i.service_id).map(i => i.service_id);
+                const sendResponse = (warnings) => res.json({ success: true, message: 'Quote generated and sent.', status: nextStatus, pdfUrl: `/docs/quotes/${pdfFileName}`, version: nextVersion, warnings: warnings.length ? warnings : undefined });
+                if (perDaySvcIds.length && !req.body.override_conflict) {
+                    db.all(`SELECT name FROM services WHERE id IN (${perDaySvcIds.map(() => '?').join(',')}) AND availability_rule = 'per_day'`, perDaySvcIds, (_, perDayRows) => {
+                        sendResponse((perDayRows || []).map(s => `"${s.name}" is limited to one booking per day — verify no date conflicts exist.`));
+                    });
+                } else {
+                    sendResponse([]);
+                }
         } catch (pdfErr) {
             console.error("PDF/Quote Error:", pdfErr);
             res.status(500).json({ success: false, message: 'Failed to generate quote PDF.' });
@@ -10470,31 +10470,45 @@ app.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter, as
         if (!cancellable.includes(booking.status))
             return res.status(400).json({ success: false, message: `Booking cannot be cancelled at status ${booking.status}. Contact us directly.` });
 
-        db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", [], (e, policy) => {
+        db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", [], async (e, policy) => {
             const calc = calculateCancellationRefund(booking, policy ? policy.policy_value : '');
-            db.run("BEGIN TRANSACTION", () => {
-                db.run("UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [req.params.id], (upErr) => {
-                    if (upErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false }));
-                    db.run(`INSERT INTO cancellations (booking_id, cancelled_by, reason, reason_code, total_paid_to_date, refund_due, retention_amount, refund_status)
+
+            const outcome = await withDbTransaction(async () => {
+                try {
+                    await dbRun("BEGIN IMMEDIATE");
+                } catch (beginErr) {
+                    console.error('[Public Cancel] BEGIN IMMEDIATE failed:', beginErr.message);
+                    return { status: 500, body: { success: false, message: 'Database busy. Please retry.' } };
+                }
+                try {
+                    await dbRun("UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [req.params.id]);
+                    await dbRun(`INSERT INTO cancellations (booking_id, cancelled_by, reason, reason_code, total_paid_to_date, refund_due, retention_amount, refund_status)
                             VALUES (?, 'client', ?, ?, ?, ?, ?, 'pending')
                             ON CONFLICT(booking_id) DO UPDATE SET cancelled_by='client', reason=excluded.reason, reason_code=excluded.reason_code, refund_status='pending'`,
-                        [req.params.id, reason || 'Client request', reason_code || null, calc.totalPaid, calc.refund, calc.retention],
-                        (insErr) => {
-                            if (insErr) return db.run("ROLLBACK", () => res.status(500).json({ success: false }));
-                            db.run("COMMIT", async () => {
-                                db.run("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [req.params.id]);
-                                booking.name = booking.client_name || booking.name;
-                                try { await sendCancellationEmail(booking, { reason: reason || 'Client request', refund_due: calc.refund, rule: calc.rule, days_until_event: calc.daysUntilEvent }); } catch(ce) {}
-                                getNotificationEmail().then(notifEmail => {
-                                    sendEmail({ to: notifEmail, subject: `Client Cancelled – Booking #${req.params.id}`,
-                                        htmlContent: `<p>${booking.name} cancelled booking #${req.params.id}. Reason: ${reason || 'Not provided'}. Refund due: R${calc.refund.toFixed(2)}.</p>`,
-                                        titleOverride: 'Client Cancellation', trigger_event: 'Admin: Client Cancellation' }).catch(() => {});
-                                });
-                                res.json({ success: true, message: 'Booking cancelled.', refund_due: calc.refund, refund_policy: calc.rule });
-                            });
-                        });
-                });
+                        [req.params.id, reason || 'Client request', reason_code || null, calc.totalPaid, calc.refund, calc.retention]);
+                    // Released with the cancellation, not after it: this ran post-COMMIT and could
+                    // leave the date held against a booking that no longer holds it.
+                    await dbRun("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [req.params.id]);
+
+                    await dbRun("COMMIT");
+                    return { ok: true };
+                } catch (txErr) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    console.error('[Public Cancel] Failed — rolled back, booking unchanged:', txErr.message);
+                    return { status: 500, body: { success: false } };
+                }
             });
+
+            if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+
+            booking.name = booking.client_name || booking.name;
+            try { await sendCancellationEmail(booking, { reason: reason || 'Client request', refund_due: calc.refund, rule: calc.rule, days_until_event: calc.daysUntilEvent }); } catch(ce) {}
+            getNotificationEmail().then(notifEmail => {
+                sendEmail({ to: notifEmail, subject: `Client Cancelled – Booking #${req.params.id}`,
+                    htmlContent: `<p>${booking.name} cancelled booking #${req.params.id}. Reason: ${reason || 'Not provided'}. Refund due: R${calc.refund.toFixed(2)}.</p>`,
+                    titleOverride: 'Client Cancellation', trigger_event: 'Admin: Client Cancellation' }).catch(() => {});
+            });
+            res.json({ success: true, message: 'Booking cancelled.', refund_due: calc.refund, refund_policy: calc.rule });
         });
     });
 });
@@ -13399,65 +13413,85 @@ app.post('/api/admin/gdpr/delete', requireAdmin, requireRole(['administrator']),
 
     console.log(`[GDPR] Deletion request for ${email} initiated by Admin ID: ${adminId}`);
 
-    db.serialize(() => {
-        db.run("BEGIN TRANSACTION");
-
+    // Each step is awaited. The previous version wrapped callback-style db.run() calls in a
+    // try/catch, which cannot observe an async sqlite error — every statement error was dropped
+    // and the route reported success even when nothing was anonymized. `if (err) throw err` inside
+    // the COMMIT callback likewise threw past every handler.
+    const outcome = await withDbTransaction(async () => {
+        try {
+            await dbRun("BEGIN IMMEDIATE");
+        } catch (beginErr) {
+            console.error("[GDPR] BEGIN IMMEDIATE failed:", beginErr.message);
+            return { status: 500, body: { success: false, message: "Database busy. Please retry." } };
+        }
         try {
             // 1. Anonymize Client Record
-            db.run(`UPDATE clients SET 
-                    full_name = 'POPIA ANONYMIZED', 
-                    company_name = NULL, 
-                    phone = '0000000000', 
-                    billing_address = NULL, 
-                    tax_id = NULL, 
+            const clients = await dbRun(`UPDATE clients SET
+                    full_name = 'POPIA ANONYMIZED',
+                    company_name = NULL,
+                    phone = '0000000000',
+                    billing_address = NULL,
+                    tax_id = NULL,
                     vat_number = NULL,
                     email = 'deleted-' || id || '@po-pia.com',
                     updated_at = CURRENT_TIMESTAMP
                     WHERE LOWER(email) = LOWER(?)`, [email]);
 
             // 2. Anonymize Bookings
-            db.run(`UPDATE bookings SET 
-                    name = 'POPIA ANONYMIZED', 
-                    company = NULL, 
-                    email = 'deleted@po-pia.com', 
+            const bookings = await dbRun(`UPDATE bookings SET
+                    name = 'POPIA ANONYMIZED',
+                    company = NULL,
+                    email = 'deleted@po-pia.com',
                     cell = '0000000000',
                     message = 'Content removed per deletion request.',
                     status = 'CANCELLED'
                     WHERE LOWER(email) = LOWER(?)`, [email]);
 
             // 3. Anonymize Inquiries
-            db.run(`UPDATE inquiries SET 
-                    sender_name = 'POPIA ANONYMIZED', 
-                    sender_email = 'deleted@po-pia.com', 
-                    sender_phone = '0000000000', 
+            const inquiries = await dbRun(`UPDATE inquiries SET
+                    sender_name = 'POPIA ANONYMIZED',
+                    sender_email = 'deleted@po-pia.com',
+                    sender_phone = '0000000000',
                     message_body = 'Content removed per deletion request.'
                     WHERE LOWER(sender_email) = LOWER(?)`, [email]);
 
             // 4. Delete Newsletter Subscription
-            db.run(`DELETE FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)`, [email]);
+            const newsletter = await dbRun(`DELETE FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)`, [email]);
 
             // 5. Anonymize Communication Logs
-            db.run(`UPDATE communication_log SET 
-                    subject = '[DELETED]', 
+            const comms = await dbRun(`UPDATE communication_log SET
+                    subject = '[DELETED]',
                     content_snippet = '[DELETED]',
                     user_email = 'deleted@po-pia.com'
                     WHERE LOWER(user_email) = LOWER(?)`, [email]);
 
             // 6. Audit the deletion request itself
-            db.run(`INSERT INTO audit_log (table_name, record_id, action, user_email, ip_address, reason) 
-                    VALUES ('system', 0, 'DATA_ANONYMIZATION', ?, ?, ?)`, 
+            await dbRun(`INSERT INTO audit_log (table_name, record_id, action, user_email, ip_address, reason)
+                    VALUES ('system', 0, 'DATA_ANONYMIZATION', ?, ?, ?)`,
                     [req.session.username, ip, `Deleted all data for ${email}`]);
 
-            db.run("COMMIT", (err) => {
-                if (err) throw err;
-                res.json({ success: true, message: `All data associated with ${email} has been anonymized/deleted successfully.` });
-            });
-
-        } catch (err) {
-            db.run("ROLLBACK");
-            console.error("[GDPR] Deletion failed:", err);
-            res.status(500).json({ success: false, message: 'Anonymization failed. Transaction rolled back.' });
+            await dbRun("COMMIT");
+            return {
+                ok: true,
+                affected: {
+                    clients: clients.changes, bookings: bookings.changes, inquiries: inquiries.changes,
+                    newsletter_subscribers: newsletter.changes, communication_log: comms.changes
+                }
+            };
+        } catch (txErr) {
+            await dbRun("ROLLBACK").catch(() => {});
+            console.error("[GDPR] Deletion failed — rolled back, no data anonymized:", txErr.message);
+            return { status: 500, body: { success: false, message: "Anonymization failed. Transaction rolled back." } };
         }
+    });
+
+    if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+
+    console.log(`[GDPR] Anonymized for ${email}:`, outcome.affected);
+    res.json({
+        success: true,
+        message: `All data associated with ${email} has been anonymized/deleted successfully.`,
+        affected: outcome.affected
     });
 });
 
