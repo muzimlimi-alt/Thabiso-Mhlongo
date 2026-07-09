@@ -10924,8 +10924,12 @@
         function renderInlineContractPanel(id, c) {
             var $panel = $('#atl-contract-' + id);
             if (!$panel.length) return;
+            var genBtn = function(label) {
+                return '<button type="button" class="atl-btn atl-btn--ghost bk-gen-contract" data-id="' + id + '" style="margin-top:10px;">'
+                    + '<i class="fa-solid fa-file-circle-plus" style="margin-right:6px;"></i>' + label + '</button>';
+            };
             if (!c || c.error) {
-                $panel.html('<h5 class="atl-det-title">Contract</h5><p class="atl-det-empty">No contract on file.</p>');
+                $panel.html('<h5 class="atl-det-title">Contract</h5><p class="atl-det-empty">No contract on file.</p>' + genBtn('Generate Contract'));
                 return;
             }
             var states = {
@@ -10937,9 +10941,10 @@
             var html = '<h5 class="atl-det-title">Contract</h5>';
             html += '<p style="font-size:13px;margin:0 0 6px;">Status: <strong style="color:' + st.color + '">' + st.label + '</strong></p>';
             if (c.pdf_url) {
+                var href = /^https?:|^\//.test(c.pdf_url) ? c.pdf_url : ('/docs/contracts/' + c.pdf_url);
                 html += '<p style="font-size:12px;color:var(--atl-muted);margin:0 0 6px;">'
                     + '<i class="fa-solid fa-file-pdf" style="color:var(--atl-clay);margin-right:6px;"></i>'
-                    + '<a href="' + c.pdf_url + '" target="_blank" rel="noopener" class="atl-det-link">'
+                    + '<a href="' + href + '" target="_blank" rel="noopener" class="atl-det-link">'
                     + (c.pdf_url.split('/').pop() || 'contract.pdf') + '</a></p>';
             }
             if (c.signed_by) {
@@ -10948,10 +10953,35 @@
                     + (c.signed_date ? ' on ' + new Date(c.signed_date).toLocaleDateString('en-ZA') : '') + '</p>';
             }
             if (c.uploaded_by) {
-                html += '<p style="font-size:11px;color:var(--atl-muted);margin:0;">Uploaded by ' + c.uploaded_by + '</p>';
+                html += '<p style="font-size:11px;color:var(--atl-muted);margin:0;">' + (c.uploaded_by === 'system' ? 'Auto-generated' : 'Uploaded by ' + c.uploaded_by) + '</p>';
+            }
+            // Auto-generate / regenerate — hidden once the contract is signed & frozen.
+            if (c.status !== 'signed' && c.is_frozen !== 1) {
+                html += genBtn(c.pdf_url ? 'Regenerate Contract' : 'Generate Contract');
             }
             $panel.html(html);
         }
+
+        // Auto-generate a booking contract PDF (draft) on demand, then refresh the panel.
+        $(document).on('click', '.bk-gen-contract', async function() {
+            var id = $(this).data('id');
+            var $btn = $(this), orig = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Generating…');
+            try {
+                var res = await apiCall('/api/admin/bookings/' + id + '/contract/generate', 'POST', {});
+                if (res && res.success) {
+                    if (window.notificationService) window.notificationService.showSuccess('Contract generated as a draft.');
+                    var fresh = await fetch('/api/admin/bookings/' + id + '/contract', { credentials: 'same-origin' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+                    renderInlineContractPanel(id, fresh && fresh.contract);
+                } else {
+                    $btn.prop('disabled', false).html(orig);
+                    if (window.notificationService) window.notificationService.showError((res && res.message) || 'Could not generate the contract.');
+                }
+            } catch (e) {
+                $btn.prop('disabled', false).html(orig);
+                if (window.notificationService) window.notificationService.showError((e && e.message) || 'Could not generate the contract.');
+            }
+        });
 
         function renderInlineCancellationPanel(id, d) {
             var $panel = $('#atl-cancel-' + id);

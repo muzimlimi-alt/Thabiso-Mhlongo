@@ -5149,6 +5149,17 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
             async function(upErr) {
                 if (upErr) return res.status(500).json({ success: false, error: upErr.message });
 
+                // Also update the active quotation's status to 'accepted'
+                try {
+                    await new Promise((resolve, reject) => {
+                        db.run("UPDATE quotations SET status = 'accepted' WHERE booking_id = ? AND archived = 0", [req.params.id], (err) => {
+                            if (err) reject(err); else resolve();
+                        });
+                    });
+                } catch (qErr) {
+                    console.error('[Accept-Quote] Failed to update quotation status to accepted:', qErr.message);
+                }
+
                 // P3-3: Audit log for quote acceptance
                 db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
                         VALUES ('bookings', ?, 'QUOTE_ACCEPTED', ?, ?, CURRENT_TIMESTAMP)`,
@@ -5199,6 +5210,11 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
                 } catch(invErr) {
                     console.error('[Invoice] Auto-generation failed during acceptance (booking #' + req.params.id + '):', invErr);
                 }
+
+                // Auto-generate a DRAFT booking contract alongside the invoice. Non-blocking —
+                // acceptance must never fail because of contract generation; it's a draft for admin review.
+                try { await generateContract(req.params.id); }
+                catch(cErr) { console.error('[Auto-Contract] Generation failed during acceptance (booking #' + req.params.id + '):', cErr.message); }
 
                 await sendQuoteAcceptedEmail({ ...row, status: 'ACCEPTED' }, { invoiceGenerated });
                 sendAdminQuoteAcceptedNotification({ ...row, status: 'ACCEPTED' })
@@ -5915,6 +5931,101 @@ const contractUpload = multer({
         }
     },
     limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+// Auto-generate a branded booking contract PDF from booking data (mirrors generateInvoice).
+// Saves as a DRAFT; never overwrites a signed/frozen contract. Returns { success, contract } or { skipped }.
+async function generateContract(bookingId) {
+    const existing = await new Promise(r => db.get("SELECT status, is_frozen FROM contracts WHERE booking_id = ?", [bookingId], (e, row) => r(row || null)));
+    if (existing && (existing.status === 'signed' || existing.is_frozen === 1)) {
+        return { skipped: true, reason: 'signed' };
+    }
+
+    const booking = await new Promise((res, rej) => db.get(
+        `SELECT b.*, c.vat_number AS client_vat_number FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
+        [bookingId], (e, row) => e ? rej(e) : (row ? res(row) : rej(new Error('Booking not found')))));
+
+    const vatRate = await getVatRate();
+
+    // Resolve line items + fee the same way generateInvoice does (quotations → quote_line_items, fallback quote_details).
+    const activeQuote = await new Promise(r => db.get(
+        `SELECT * FROM quotations WHERE booking_id = ? AND archived = 0 AND status NOT IN ('void','archived') ORDER BY version DESC LIMIT 1`,
+        [bookingId], (e, row) => r(e ? null : row)));
+
+    let items = [];
+    let quoteData = {};
+    try { quoteData = JSON.parse(booking.quote_details || '{}'); } catch (ex) {}
+    if (activeQuote) {
+        const qLines = await new Promise(r => db.all("SELECT * FROM quote_line_items WHERE quotation_id = ? ORDER BY id ASC",
+            [activeQuote.id], (e, rows) => r(e ? [] : (rows || []))));
+        if (qLines.length) items = qLines.map(li => ({ description: li.description, quantity: parseFloat(li.quantity) || 1, unit_price: parseFloat(li.unit_price) || 0, service_id: li.service_id }));
+    }
+    if (items.length === 0 && Array.isArray(quoteData.items)) items = quoteData.items;
+    await resolveLineTaxClasses(items);
+    const applyVat = !!quoteData.apply_vat;
+    const discount = parseFloat(quoteData.discount) || 0;
+
+    let total;
+    if (items.length > 0) {
+        total = computeDocumentTotals(items, { discount, applyVat, vatRate }).total;
+    } else {
+        const subtotal = parseFloat((booking.quote_amount || '0').replace(/[^0-9.]/g, '')) || parseFloat(booking.total_amount) || 0;
+        total = subtotal;
+        items = [{ description: 'Performance Booking Service', quantity: 1, unit_price: subtotal }];
+    }
+
+    const schedules = await new Promise(r => db.all(
+        "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
+        [bookingId], (e, rows) => r(e ? [] : (rows || []))));
+
+    const policyRows = await new Promise(r => db.all("SELECT policy_key, policy_value FROM policies", [], (e, rows) => r(e ? [] : (rows || []))));
+    const policies = {};
+    policyRows.forEach(p => { policies[p.policy_key] = p.policy_value; });
+
+    const contractNo = `AGR-${moment().format('YYYY')}-${String(bookingId).padStart(4, '0')}`;
+    const pdfFileName = `${contractNo}-${moment().format('YYYYMMDDHHmmss')}.pdf`;
+    const contractsDir = path.join(__dirname, 'docs', 'contracts');
+    if (!fs.existsSync(contractsDir)) fs.mkdirSync(contractsDir, { recursive: true });
+    const pdfPath = path.join(contractsDir, pdfFileName);
+
+    await pdfService.generateContract(booking, items, pdfPath, { policies, schedules, totals: { total, applyVat }, contractNo });
+
+    const contentHash = crypto.createHash('sha256')
+        .update(`${bookingId}|${total}|${contractNo}|${policies.cancellation_policy || ''}|${policies.payment_terms || ''}`)
+        .digest('hex');
+
+    await new Promise((res, rej) => db.run(
+        `INSERT INTO contracts (booking_id, template_version, pdf_url, content_hash, status, uploaded_by, updated_at)
+         VALUES (?, 'auto-v1', ?, ?, 'draft', 'system', CURRENT_TIMESTAMP)
+         ON CONFLICT(booking_id) DO UPDATE SET
+            pdf_url = excluded.pdf_url,
+            template_version = excluded.template_version,
+            content_hash = excluded.content_hash,
+            status = 'draft',
+            uploaded_by = 'system',
+            is_frozen = 0,
+            updated_at = CURRENT_TIMESTAMP`,
+        [bookingId, pdfFileName, contentHash], (e) => e ? rej(e) : res()));
+
+    db.run(`INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json) VALUES ('contracts', ?, 'GENERATE', 'system', ?)`,
+        [bookingId, JSON.stringify({ file: pdfFileName, contract_no: contractNo, status: 'draft' })], () => {});
+
+    const row = await new Promise(r => db.get("SELECT * FROM contracts WHERE booking_id = ?", [bookingId], (e, r2) => r(r2 || null)));
+    return { success: true, contract: row };
+}
+
+// POST — auto-generate a booking contract PDF (admin, on demand). Signed contracts are protected.
+app.post('/api/admin/bookings/:id/contract/generate', requireAdmin, async (req, res) => {
+    try {
+        const result = await generateContract(req.params.id);
+        if (result.skipped) {
+            return res.status(400).json({ success: false, message: 'This contract has already been signed and cannot be regenerated. Create a separate amendment instead.' });
+        }
+        res.json({ success: true, message: 'Contract generated.', contract: result.contract });
+    } catch (e) {
+        console.error('[Contract Generate] Failed for booking #' + req.params.id + ':', e.message);
+        res.status(500).json({ success: false, message: 'Failed to generate contract: ' + e.message });
+    }
 });
 
 // GET — fetch contract details for a booking
@@ -8984,7 +9095,19 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                     await syncBookingToCalendar(b);
                 }
                 if (requestedStatus === 'PENDING') sendBookingUnderReviewEmail(b).catch(e => console.error('Under-review email failed:', e.message));
-                if (requestedStatus === 'ACCEPTED') sendQuoteAcceptedEmail(b).catch(e => console.error('Invoiced email failed:', e.message));
+                if (requestedStatus === 'ACCEPTED') {
+                    // Update active quotation's status to 'accepted'
+                    db.run("UPDATE quotations SET status = 'accepted' WHERE booking_id = ? AND archived = 0", [bookingId], (err) => {
+                        if (err) console.error('[Status Change] Failed to update quotation status to accepted:', err.message);
+                    });
+                    sendQuoteAcceptedEmail(b).catch(e => console.error('Invoiced email failed:', e.message));
+                }
+                if (requestedStatus === 'QUOTED') {
+                    // Revert active quotation's status to 'sent'
+                    db.run("UPDATE quotations SET status = 'sent' WHERE booking_id = ? AND archived = 0", [bookingId], (err) => {
+                        if (err) console.error('[Status Change] Failed to revert quotation status to sent:', err.message);
+                    });
+                }
                 if (requestedStatus === 'CONFIRMED') {
                     sendBookingConfirmedEmail(b).catch(e => console.error('Confirmed email failed:', e.message));
                     // Auto-create an events row if none exists yet for this booking

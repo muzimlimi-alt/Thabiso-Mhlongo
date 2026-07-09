@@ -518,6 +518,130 @@ class PDFService {
             stream.on('error', reject);
         });
     }
+
+    // Branded booking contract, generated from booking data. Reuses the same header/
+    // wordmark/brand palette as invoices & quotes; renders a legal-document body
+    // (parties, engagement, fee & schedule, terms, signatures). opts:
+    //   { policies:{cancellation_policy,payment_terms,deposit_percentage}, schedules:[], totals:{total,applyVat}, contractNo }
+    async generateContract(booking, lineItems, outputPath, opts = {}) {
+        return new Promise((resolve, reject) => {
+            try {
+                const doc = new PDFDocument({ margin: 28 });
+                const stream = fs.createWriteStream(outputPath);
+                doc.pipe(stream);
+
+                const policies   = opts.policies || {};
+                const schedules  = opts.schedules || [];
+                const totals     = opts.totals || {};
+                const contractNo = opts.contractNo || `AGR-${booking.id}`;
+                const LEFT = 28, WIDTH = 556;
+                const money = n => 'R ' + (parseFloat(n) || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                const fee = (parseFloat(totals.total) || 0) || (lineItems || []).reduce((s, i) => {
+                    const tot = parseFloat(i.total_price);
+                    if (!isNaN(tot)) return s + tot;
+                    return s + (parseFloat(i.quantity || i.quantity_minutes || 1) * parseFloat(i.unit_price || 0));
+                }, 0);
+                const depositPct = parseFloat(policies.deposit_percentage) || 50;
+                const depositAmt = Math.round(fee * depositPct) / 100;
+                const balanceAmt = Math.max(0, fee - depositAmt);
+                const clientLine = `${booking.name || ''}${booking.company ? ' / ' + booking.company : ''}`;
+
+                // Header (reused)
+                this._drawHeader(doc, 'Agreement', contractNo, false);
+
+                const pageBreakGuard = () => { if (doc.y > doc.page.height - 110) doc.addPage(); };
+                const sectionTitle = (t) => {
+                    pageBreakGuard();
+                    doc.moveDown(0.7);
+                    doc.font('Helvetica-Bold').fontSize(11).fillColor(DARK).text(t, LEFT, doc.y, { width: WIDTH });
+                    const yy = doc.y + 2;
+                    doc.rect(LEFT, yy, 42, 1.5).fillColor(GOLD).fill();
+                    doc.moveDown(0.7);
+                };
+                const para = (t, o = {}) => {
+                    pageBreakGuard();
+                    doc.font(o.font || 'Helvetica').fontSize(o.size || 9).fillColor(o.color || '#333333')
+                       .text(t, LEFT, doc.y, { width: WIDTH, align: o.align || 'left', lineGap: 1.5 });
+                };
+                const kv = (k, v) => {
+                    pageBreakGuard();
+                    doc.font('Helvetica-Bold').fontSize(9).fillColor(DARK).text(k + ':  ', LEFT, doc.y, { continued: true });
+                    doc.font('Helvetica').fillColor('#333333').text(String(v == null || v === '' ? 'TBC' : v));
+                };
+
+                // Title
+                doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Performance Engagement Agreement', LEFT, 150, { width: WIDTH });
+                doc.font('Helvetica').fontSize(9).fillColor(GREY).text(`Agreement ${contractNo}  ·  Prepared ${moment().format('DD MMMM YYYY')}`, LEFT, doc.y + 2, { width: WIDTH });
+                doc.moveDown(0.5);
+                para('This Agreement records the terms on which the Artist will provide the engagement described below to the Client. It becomes binding once signed by both parties.', { color: GREY, size: 8.5 });
+
+                sectionTitle('1. Parties');
+                kv('The Artist', `${this.companyInfo.name}  (${this.companyInfo.email})`);
+                kv('The Client', `${clientLine}  (${booking.email || ''}${booking.cell ? ' · ' + booking.cell : ''})`);
+                if (booking.vat_number || booking.client_vat_number) kv('Client VAT No', booking.vat_number || booking.client_vat_number);
+
+                sectionTitle('2. Engagement Details');
+                kv('Event', booking.event_name || booking.event_type);
+                kv('Type', booking.event_type);
+                kv('Date', booking.date);
+                kv('Performance slot', booking.performance_slot);
+                kv('Duration', booking.performance_duration ? this.formatDuration(parseInt(booking.performance_duration)) : 'TBC');
+                kv('Venue', booking.event_location);
+
+                sectionTitle('3. Fee & Payment');
+                para(`Total engagement fee: ${money(fee)}${totals.applyVat ? ' (VAT inclusive)' : ''}.`, { size: 9.5, color: DARK, font: 'Helvetica-Bold' });
+                para(`A deposit of ${depositPct}% (${money(depositAmt)}) secures the booking; the balance of ${money(balanceAmt)} is payable per the schedule below.`);
+                if (policies.payment_terms) para(policies.payment_terms, { color: GREY, size: 8.5 });
+                if (schedules.length) {
+                    doc.moveDown(0.3);
+                    schedules.forEach((s, i) => {
+                        pageBreakGuard();
+                        doc.font('Helvetica').fontSize(8.5).fillColor('#333333')
+                           .text(`${i + 1}. ${s.description || 'Milestone'} — due ${s.due_date || 'TBC'}`, LEFT + 6, doc.y, { continued: true })
+                           .font('Helvetica-Bold').fillColor(DARK).text('   ' + money(s.expected_amount));
+                    });
+                }
+
+                sectionTitle('4. Cancellation Policy');
+                para(policies.cancellation_policy || 'Cancellations are subject to the standard cancellation policy; the deposit may be non-refundable depending on the notice given before the event date.', { size: 8.5 });
+
+                sectionTitle('5. General Terms');
+                [
+                    'The Artist will perform professionally and to the best of their ability for the agreed duration. The Client will provide a safe, suitable performance environment and any technical requirements agreed in advance.',
+                    'Force majeure: neither party is liable for a failure to perform caused by events beyond reasonable control (illness, extreme weather, disaster, or lawful restriction); the parties will act in good faith to reschedule or refund fairly.',
+                    'This Agreement is governed by and construed under the laws of the Republic of South Africa.'
+                ].forEach((c, i) => para(`${i + 1}. ${c}`, { size: 8.5 }));
+
+                sectionTitle('6. Signatures');
+                if (doc.y > doc.page.height - 150) doc.addPage();
+                doc.moveDown(1.2);
+                const sigY = doc.y;
+                const colW = (WIDTH - 40) / 2;
+                const sigBlock = (x, role, name) => {
+                    doc.font('Helvetica-Bold').fontSize(9).fillColor(DARK).text(role, x, sigY, { width: colW });
+                    if (name) doc.font('Helvetica').fontSize(8.5).fillColor('#333333').text(name, x, sigY + 12, { width: colW });
+                    doc.rect(x, sigY + 44, colW, 1).fillColor(MID_GREY).fill();
+                    doc.font('Helvetica').fontSize(8).fillColor(GREY).text('Signature', x, sigY + 48, { width: colW });
+                    doc.rect(x, sigY + 80, colW, 1).fillColor(MID_GREY).fill();
+                    doc.text('Name / Date', x, sigY + 84, { width: colW });
+                };
+                sigBlock(LEFT, 'The Client', clientLine);
+                sigBlock(LEFT + colW + 40, 'The Artist', this.companyInfo.name);
+
+                // Contract footer (dedicated — the shared footer is quote-worded)
+                const bottom = doc.page.height - 66;
+                doc.rect(28, bottom, 556, 1.5).fillColor(GOLD).fill();
+                doc.fillColor(GREY).font('Helvetica').fontSize(7.5)
+                   .text(`${this.companyInfo.name}  ·  ${this.companyInfo.email}  ·  ${this.companyInfo.website}`, 28, bottom + 8, { align: 'center', width: 556 })
+                   .text('This document was generated by the Thabiso Mhlongo Official Booking System.', 28, bottom + 19, { align: 'center', width: 556 });
+
+                doc.end();
+                stream.on('finish', () => resolve({ success: true, path: outputPath, number: contractNo }));
+                stream.on('error', reject);
+            } catch (e) { reject(e); }
+        });
+    }
 }
 
 module.exports = new PDFService();
