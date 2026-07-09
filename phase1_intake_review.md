@@ -1,7 +1,7 @@
 # Phase 1 — Booking Request Intake: Architecture, QA & Optimisation Review
 
 **Scope:** `POST /api/public/bookings` (server.js), the booking wizard in `index.html` / `js/myscript.js`, and the `bookings` / `clients` / `venues` / `consent_audit` / `audit_log` / `abandoned_bookings` tables.
-**Date:** 2026-07-09
+**Date:** 2026-07-09 (revised — see the correction in §3, G12)
 **Method:** static review of the implementation, schema inspection against the live `database.sqlite`, and behavioural testing of the endpoint against a running server — each defect reproduced on the pre-fix build and re-tested after the fix.
 
 ---
@@ -165,18 +165,21 @@ The column exists and was never populated on the intake path. Now stamped from `
 
 These are reported rather than changed: each either touches financial reporting semantics, crosses into another phase, or is a schema migration that deserves its own change window.
 
-### G1 — Unquoted enquiries inflate outstanding revenue
+### G1 — Unquoted enquiries inflate outstanding revenue — **FIXED (commit `dde0a4a`)**
 
-Intake writes `amount_outstanding = calculatedBaseScope` on a `NEW` booking that has never been quoted. `server.js:11524` computes all-time outstanding as:
+Intake writes `amount_outstanding = calculatedBaseScope` on a `NEW` booking that has never been quoted, and `server.js:11524` summed every booking `NOT IN ('CANCELLED','EXPIRED')` into the all-time outstanding KPI. So every unquoted enquiry counted as a receivable. Impact was muted because `base_price` is `NULL` for most `flat_fee` services (→ 0), but a `per_hour` service such as *MC & Host – Hourly Rate* (R2 950) added its full estimate the moment someone submitted the form.
+
+The query is now an allowlist of statuses that represent an accepted commitment:
 
 ```sql
-SELECT COALESCE(SUM(amount_outstanding), 0) AS total_outstanding
-FROM bookings WHERE status NOT IN ('CANCELLED', 'EXPIRED')
+WHERE status IN ('ACCEPTED', 'CONFIRMED', 'COMPLETED')
 ```
 
-So every unquoted enquiry is counted as receivable. Impact is currently muted because `base_price` is `NULL` for most `flat_fee` services (→ 0), but a `per_hour` service such as *MC & Host – Hourly Rate* (R2 950) adds its full estimate to "outstanding" the moment someone submits a form.
+Today's figure is **unchanged at R138,925.01** — no `NEW`/`PENDING`/`QUOTED` bookings currently exist, so the change is zero-diff now and correct going forward. A `QUOTED` booking is deliberately excluded: a quote that has been sent but not accepted is not money owed.
 
-**Recommendation:** either exclude `NEW`/`PENDING` from the outstanding aggregate, or leave `amount_outstanding = 0` until a quote is issued. Coordinate with the financial-audit workstream before changing.
+The intake columns (`total_amount`, `amount_outstanding`) are left as written, so the admin pipeline still shows the catalogue estimate. Only the receivables aggregate changed.
+
+The pre-event balance-reminder job was checked and is safe: it filters `status = 'CONFIRMED'` (server.js:1482), so no client was ever emailed about a balance on an unquoted enquiry.
 
 ### G2 — `quote_amount` is a formatted string
 
@@ -192,9 +195,11 @@ So every unquoted enquiry is counted as receivable. Impact is currently muted be
 * The duplicate check filters on `lower(email)`, which cannot use `idx_bookings_email` on `bookings(email)`. It is a full scan today (46 rows). Add `CREATE INDEX idx_bookings_email_lower_date ON bookings(lower(email), date)`.
 * `bookings(created_at)` for the intake-volume analytics queries.
 
-### G5 — `policy_version` is client-supplied
+### G5 — `policy_version` is client-supplied — **FIXED (commit `dde0a4a`)**
 
-The browser tells the server which privacy-policy version the user consented to, and that value is written verbatim into `bookings.policy_version` **and** `consent_audit.policy_version`. A stale cached page — or a crafted request — records consent against the wrong policy text. For POPIA defensibility the server should stamp its own current version and ignore the client's.
+The browser told the server which privacy-policy version the user consented to, and that value was written verbatim into `bookings.policy_version` **and** `consent_audit.policy_version` — the artefact you would hand a regulator. A stale cached page, or a crafted request, recorded consent against a policy the user never saw.
+
+Now stamped from a server-owned `CURRENT_POLICY_VERSION` constant (server.js:215), which also replaces the three other hardcoded `'v2.2'` literals (newsletter signup, admin booking creation, admin consent audit). `req.body.policy_version` is ignored. Verified: a submission carrying `policy_version: "ATTACKER-CONTROLLED-v9.9"` persists `v2.2` in both tables.
 
 ### G6 — Conflict detection fails open
 
@@ -220,16 +225,36 @@ Every `moment()` call parses in server-local time. There is no timezone column o
 
 `POST /api/public/bookings/draft` uses only `ipRateLimiter` (100/hr) by design, so debounced autosaves aren't blocked. But `abandoned_bookings.draft_token` is client-generated, so one IP can create 100 draft rows per hour, each holding an email address. The 30-day purge bounds it, but a dedicated per-token limit would be better.
 
-### G12 — The consent audit trail has integrity problems in the existing data
+### G12 — Booking deletion was broken by the missing cascades — **FIXED (commit `dde0a4a`)**
 
-The `consent_audit` table is the artefact you would hand a regulator. Its current state:
+> **Correction.** An earlier revision of this document said "something deletes bookings with foreign keys disabled." That was wrong, and the truth is more actionable.
 
-* **24 of 41** bookings with `popia_consent = 1` have **no** `consent_audit` row.
-* **18 of 35** `consent_audit` rows point at a `booking_id` that no longer exists in `bookings`.
+`PRAGMA foreign_keys = ON` **is** enforced at runtime (verified: `PRAGMA foreign_keys` returns `1` on the app's connection). Five tables declare a FK to `bookings(id)` with `ON DELETE NO ACTION` and were **not** cascaded by `DELETE /api/admin/bookings/:id`: `consent_audit`, `payment_logs`, `reminders_log`, `expenses`, `bank_statement_lines`.
 
-The current code writes the consent row unconditionally inside the booking transaction, so new bookings are covered. These are legacy rows — but note that `consent_audit` declares `FOREIGN KEY (booking_id) REFERENCES bookings(id)` with no `ON DELETE` action, and `database.js` sets `PRAGMA foreign_keys = ON`. Deleting a booking that has a consent row should therefore have been *rejected*. That 18 orphans exist means either they predate FK enforcement, or something deletes bookings with foreign keys disabled. Worth establishing which before the next compliance review, because the same path would silently break any other audit relationship.
+So deletion never orphaned anything. It **failed**. Measured on booking #77 — which has a `consent_audit` row, no payments, and is therefore deletable per the business rules:
 
-**Recommendation:** backfill what can be reconstructed, document the rest as pre-audit-table records, and add `ON DELETE RESTRICT` explicitly so the intent is visible in the schema.
+```
+DELETE /api/admin/bookings/77
+  → 500  {"error":"SQLITE_CONSTRAINT: FOREIGN KEY constraint failed"}
+  booking still present:                    YES
+  audit_log rows claiming it was DELETED:   1
+```
+
+**15 of the 33** deletable bookings were undeletable this way. And two side effects ran *before* `BEGIN TRANSACTION`, so a failed delete still:
+
+* wrote an `audit_log` `DELETE` entry for a booking that still exists (observed above), and
+* executed `UPDATE bookings SET event_id = NULL`, permanently unlinking the calendar event — **4 deletable bookings currently have a linked event**.
+
+`deleteGoogleEvent()` also ran before the transaction, destroying the Google Calendar event of a booking the delete then failed to remove.
+
+**Fixed.** `consent_audit`, `payment_logs` and `reminders_log` now cascade. `consent_audit` is purged deliberately: deleting a booking erases the personal data captured with it (IP, user agent), so retaining its consent proof would recreate exactly the orphans below. `expenses` and `bank_statement_lines` are **unlinked, not deleted** — a cost the business incurred and a bank's own record both outlive the booking, and both columns are nullable. The audit entry, the `event_id` clear and the Google cleanup all moved inside/after the transaction, and the route now runs under `withDbTransaction()`.
+
+**Remaining data issue (not code).** The existing rows still show:
+
+* **24 of 41** bookings with `popia_consent = 1` have no `consent_audit` row.
+* **18 of 35** `consent_audit` rows point at a `booking_id` that no longer exists.
+
+Both are residue from before FK enforcement. New bookings are covered — the consent row is written inside the booking transaction, so a booking can never exist without one. These 18 orphans need a decision: backfill what can be reconstructed and document the rest as pre-audit-table records, or purge them. Adding `ON DELETE CASCADE` explicitly to the schema would make the new intent visible rather than relying on the route's cascade list.
 
 ---
 
@@ -403,14 +428,20 @@ The step bar already carries `aria`/`role` attributes, and focus is moved to the
 8. Unified occupancy window (B9); `performance_start_time` (B10); `travel_accommodation` (B11); audit IP (B12).
 9. `source` / `referrer` output-encoding.
 
+### Quick wins — done in commit `dde0a4a` (follow-up)
+
+10. Booking deletion: the five missing FK cascades, `expenses`/`bank_statement_lines` unlinked rather than deleted, audit entry + `event_id` clear + Google cleanup moved inside/after the transaction, route migrated onto `withDbTransaction()` (G12).
+11. Server-authoritative `policy_version` (G5).
+12. Outstanding-revenue KPI restricted to accepted commitments — zero-diff today (G1).
+
 ### Medium priority — next change window
 
-10. Migrate `POST /api/admin/bookings` and the ~10 other `BEGIN TRANSACTION` sites onto `withDbTransaction()`. **Until this is done, an admin creating a booking concurrently with a public submission can still collide.**
-11. Server-authoritative `policy_version` (G5).
-12. The four indexes in §8.
-13. Accessibility: `autocomplete`, `inputmode`, `role="alert"`, `aria-describedby`.
-14. `409` reason discriminator + "track that booking" button on the duplicate path.
-15. Decide the `amount_outstanding`-on-`NEW` question with the financial-audit workstream (G1).
+13. Migrate `POST /api/admin/bookings` and the remaining `BEGIN TRANSACTION` sites onto `withDbTransaction()`. **Until this is done, an admin creating a booking concurrently with a public submission can still collide.**
+14. The four indexes in §8.
+15. Accessibility: `autocomplete`, `inputmode`, `role="alert"`, `aria-describedby`.
+16. `409` reason discriminator + "track that booking" button on the duplicate path.
+17. Decide backfill vs purge for the 18 orphan `consent_audit` rows, and declare `ON DELETE CASCADE` in the schema (G12).
+18. Instrument `hasCalendarConflict()`'s fail-open paths so a broken Google credential is visible rather than silently degrading conflict detection to local-only (G6) — it is degraded right now.
 
 ### Long-term
 
