@@ -280,18 +280,20 @@ Every `moment()` call parses in server-local time. There is no timezone column o
 
 `POST /api/public/bookings/draft` uses only `ipRateLimiter` (100/hr) by design, so debounced autosaves aren't blocked. But `abandoned_bookings.draft_token` is client-generated, so one IP can create 100 draft rows per hour, each holding an email address. The 30-day purge bounds it, but a dedicated per-token limit would be better.
 
-### G13 — Document numbering collides on regeneration *(open — needs a finance decision)*
+### G13 — Document numbering collides on regeneration — **invoice half FIXED (commit `3310254`)**
 
 Both document numbers are derived from a timestamp, and both columns are `UNIQUE`:
 
-| Column | Format | Collides when |
-|---|---|---|
-| `invoices.invoice_number` | `INV-<YYYY>-<bookingId>` | any regeneration in the same **year** |
-| `quotations.quote_number` | `QT-<id>-<YYMMDDHHmmss>` | two quotes in the same **second** (a double-click on *Generate Quote*) |
+| Column | Format | Collides when | Status |
+|---|---|---|---|
+| `invoices.invoice_number` | `INV-<YYYY>-<bookingId>` | any regeneration in the same **year** | **fixed** — revision suffix |
+| `quotations.quote_number` | `QT-<id>-<YYMMDDHHmmss>` | two quotes in the same **second** (a double-click on *Generate Quote*) | open |
 
-The invoice case means `POST /api/admin/bookings/:id/invoice/generate` can effectively be called once per booking per year; no booking in the database has ever had a second invoice. Since B14 the failure is at least safe — it rolls back and leaves the live invoice intact — but it is still a 500 to the admin.
+The invoice case turned out to be far more serious than "a 500 to the admin". Phase 2 proved it silently breaks a normal workflow: re-quoting an `ACCEPTED` booking voids its invoice, and the replacement could then never be inserted — the booking could not be invoiced again for the rest of the year. See `phase2_quote_acceptance_review.md`, P2-1.
 
-Fixing this means choosing a numbering scheme, and invoice numbers carry statutory requirements (sequential, unique, never reused). **Do not change this without the accountant.** The likely answer is a monotonic counter table plus a revision suffix on regeneration.
+Invoices now take a revision suffix on regeneration (`INV-2026-0044`, then `-R2`, `-R3`), chosen with the owner. A number is never reused and the voided original stays in the audit trail. The 19 existing invoices are untouched.
+
+The quote-number case remains open. It is a genuinely narrow window and the rollback is now clean.
 
 ### G12 — Booking deletion was broken by the missing cascades — **FIXED (commit `dde0a4a`)**
 
@@ -516,7 +518,7 @@ The step bar already carries `aria`/`role` attributes, and focus is moved to the
 19. `409` reason discriminator + "track that booking" button on the duplicate path.
 20. Decide backfill vs purge for the 18 orphan `consent_audit` rows, and declare `ON DELETE CASCADE` in the schema (G12).
 21. Instrument `hasCalendarConflict()`'s fail-open paths so a broken Google credential is visible rather than silently degrading conflict detection to local-only (G6) — it is degraded right now.
-22. Decide a document-numbering scheme with the accountant (G13).
+22. Apply the invoice revision-suffix treatment to `quotations.quote_number`, which still collides on a double-click (G13, remaining half).
 
 > **Audit the other CHECK triggers.** B13 was a value the schema forbids, written by code that never checked. The same class already bit `notifications.status`, `cancelled_by` and `payment_method`. A short script that enumerates every `chk_*` trigger's allowed set and greps the codebase for literals written to that column would find the rest in one pass. Worth doing before the next release.
 
