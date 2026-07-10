@@ -239,7 +239,13 @@ class PDFService {
         return `${m}m`;
     }
 
-    async generateDocument(type, booking, lineItems, outputPath, schedules = []) {
+    /**
+     * @param {string} [docNumberOverride] - Render this exact document number on the PDF instead of
+     *   deriving one. Invoices must pass it: generateInvoice() allocates `invoices.invoice_number`
+     *   itself, and the derived `INV-<bookingId>-<YYMM>` below never matched the stored number, so
+     *   the number on the client's PDF disagreed with the ledger.
+     */
+    async generateDocument(type, booking, lineItems, outputPath, schedules = [], docNumberOverride = null) {
         return new Promise((resolve, reject) => {
             const doc = new PDFDocument({ margin: 28 });
             const stream = fs.createWriteStream(outputPath);
@@ -257,9 +263,9 @@ class PDFService {
             const clientVat    = booking.vat_number || booking.client_vat_number || '';
             const isTaxInvoice = type === 'Invoice' && (lineTotal >= TAX_INVOICE_THRESHOLD || !!clientVat);
 
-            const docNumber = type === 'Quote'
+            const docNumber = docNumberOverride || (type === 'Quote'
                 ? `QT-${booking.id}-${moment().format('YYMMDDHHmmss')}`
-                : `INV-${booking.id}-${moment().format('YYMM')}`;
+                : `INV-${booking.id}-${moment().format('YYMM')}`);
 
             // 1. Header
             this._drawHeader(doc, type, docNumber, isTaxInvoice);
