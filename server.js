@@ -1571,15 +1571,18 @@ startDataRetentionCaretaker();
 // Flag invoices and payment milestones as OVERDUE/overdue when past their due dates
 function runDailyOverdueFlaggingSweep() {
     console.log('[cron] Starting daily overdue flagging sweep...');
+    // Africa/Johannesburg, not UTC — SQLite's DATE('now') is UTC and SA is UTC+2, so an invoice due
+    // "today" was flagged overdue up to two hours before the local business day ended.
+    const todayLocal = moment().tz('Africa/Johannesburg').format('YYYY-MM-DD');
     db.serialize(() => {
         // 1. Flag invoices as OVERDUE
         db.run(
-            `UPDATE invoices 
-             SET status = 'OVERDUE', updated_at = CURRENT_TIMESTAMP 
-             WHERE status = 'SENT' 
-               AND due_date IS NOT NULL 
-               AND due_date < DATE('now')`,
-            [],
+            `UPDATE invoices
+             SET status = 'OVERDUE', updated_at = CURRENT_TIMESTAMP
+             WHERE status = 'SENT'
+               AND due_date IS NOT NULL
+               AND due_date < ?`,
+            [todayLocal],
             function(err) {
                 if (err) {
                     console.error('[cron] Invoice overdue flagging error:', err.message);
@@ -1591,12 +1594,12 @@ function runDailyOverdueFlaggingSweep() {
 
         // 2. Flag payment schedules as overdue
         db.run(
-            `UPDATE payment_schedules 
-             SET status = 'overdue', updated_at = CURRENT_TIMESTAMP 
-             WHERE status = 'pending' 
-               AND due_date IS NOT NULL 
-               AND due_date < DATE('now')`,
-            [],
+            `UPDATE payment_schedules
+             SET status = 'overdue', updated_at = CURRENT_TIMESTAMP
+             WHERE status = 'pending'
+               AND due_date IS NOT NULL
+               AND due_date < ?`,
+            [todayLocal],
             function(err) {
                 if (err) {
                     console.error('[cron] Payment schedule overdue flagging error:', err.message);
@@ -4512,8 +4515,12 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
         }
 
         // ── B. Source IP Validation ──
-        const sourceIp = (req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress || '').split(',')[0].trim().replace('::ffff:', '');
-        
+        // Use req.ip, not the raw X-Forwarded-For header. `app.set('trust proxy', 1)` is configured,
+        // so Express resolves req.ip from the trusted proxy hop. Reading X-Forwarded-For directly and
+        // taking its leftmost value let a caller spoof an allowlisted PayFast IP with a header, which
+        // would defeat this check entirely.
+        const sourceIp = (req.ip || req.connection.remoteAddress || '').split(',')[0].trim().replace('::ffff:', '');
+
         if (!isSandbox && !PAYFAST_VALID_IPS.includes(sourceIp)) {
             console.error(`[PayFast ITN] INVALID SOURCE IP: ${sourceIp}`);
             logPaymentEvent(bookingId, 'FAILED_IP', pfData, true);
@@ -4612,18 +4619,6 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
             return;
         }
 
-        // Mark as verified — inserts into transactions so future PayFast retries are caught above
-        logPaymentEvent(bookingId, 'VERIFIED_OK', pfData, true, itnRef);
-
-        // Populate PayFast-specific transaction columns (is_verified, pf_status, pf_signature)
-        // logPaymentEvent only inserts core columns; these are set here where the values are in scope
-        db.run(
-            `UPDATE transactions SET is_verified = 1, pf_status = ?, pf_signature = ?
-             WHERE reference = ? AND source = 'payfast' AND is_verified = 0`,
-            [pfData.payment_status, receivedSignature, itnRef],
-            (err) => { if (err) console.error(`[Transactions] PayFast field update failed for booking #${bookingId}:`, err.message); }
-        );
-
         // ══════════════════════════════════════════
         // Ledger Execution Engine
         // ══════════════════════════════════════════
@@ -4646,43 +4641,94 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
                 }).catch(e => console.error('[ITN] Admin alert failed:', e.message));
                 return;
             }
-            // F4: credit the payment with a SINGLE atomic UPDATE. The increment
-            // (amount_paid = amount_paid + ?), the outstanding/status derivation, and the
-            // overpayment guard (WHERE new_total <= total + 1 Rand) all happen in one statement,
-            // so two DISTINCT concurrent ITNs for the same booking cannot lose an update.
-            // Previously amount_paid was read at the top of the handler (before the ~8s PayFast
-            // postback), computed in JS, then written back — a classic read-modify-write race.
-            // Column refs in the SET/WHERE expressions read the pre-update row, so
-            // (amount_paid + ?) is the post-credit total consistently across every clause.
-            const creditResult = await new Promise((resolve) => {
-                db.run(
-                    `UPDATE bookings SET
-                        amount_paid = COALESCE(amount_paid,0) + ?,
-                        total_amount = ?,
-                        amount_outstanding = MAX(0, ? - (COALESCE(amount_paid,0) + ?)),
-                        payment_status = CASE
-                            WHEN (COALESCE(amount_paid,0) + ?) >= ? THEN 'PAID'
-                            WHEN ? = 'DEPOSIT' THEN 'DEPOSIT_PAID'
-                            ELSE 'PARTIALLY_PAID' END,
-                        status = CASE WHEN status IN ('ACCEPTED','CONFIRMED') THEN 'CONFIRMED' ELSE status END,
-                        payment_reference = ?, payment_signature = ?, payment_raw_data = ?, payment_method = ?,
-                        confirmed_at = CURRENT_TIMESTAMP, last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP
-                    WHERE id = ? AND (COALESCE(amount_paid,0) + ?) <= ? + 1.0`,
-                    [
-                        itnAmount, currentTotal, currentTotal, itnAmount, itnAmount, currentTotal, paymentType,
-                        pfData.pf_payment_id || null, receivedSignature, JSON.stringify(pfData), pfData.payment_method || 'payfast',
-                        bookingId, itnAmount, currentTotal
-                    ],
-                    function (err) { resolve({ err, changes: this ? this.changes : 0 }); }
-                );
+
+            const rawMethod = (pfData.payment_method || '').toLowerCase();
+            const PF_METHOD_MAP = { cc: 'credit_card', dc: 'credit_card', ef: 'bank_transfer', mp: 'payfast',
+                bc: 'payfast', payfast: 'payfast', mc: 'payfast', sc: 'payfast', cd: 'payfast', mt: 'payfast',
+                cf: 'payfast', zp: 'payfast', rp: 'payfast' };
+            const mappedMethod = PF_METHOD_MAP[rawMethod] || 'payfast';
+
+            // The transactions row, the ledger credit and the invoice→PAID sync are ONE atomic unit.
+            //
+            // Idempotency is enforced by the DB, not by the check-then-act SELECT above. transactions
+            // .pf_payment_id is UNIQUE and was never populated on this path, so a replayed or
+            // concurrent duplicate ITN could pass the pre-check and credit twice. We now write
+            // pf_payment_id inside the transaction; a duplicate ITN fails the UNIQUE constraint and
+            // the whole credit rolls back. Legacy/manual rows have NULL pf_payment_id, and SQLite
+            // permits many NULLs in a UNIQUE column, so no backfill is needed.
+            //
+            // F4: the credit is a single atomic UPDATE — increment, outstanding/status derivation and
+            // the overpayment guard (WHERE new_total <= total + R1) in one statement. Column refs read
+            // the pre-update row, so (amount_paid + ?) is the post-credit total across every clause.
+            const outcome = await withDbTransaction(async () => {
+                try {
+                    await dbRun("BEGIN IMMEDIATE");
+                } catch (beginErr) {
+                    console.error(`[PayFast ITN] BEGIN IMMEDIATE failed for booking #${bookingId}:`, beginErr.message);
+                    return { retry: true };
+                }
+                try {
+                    await dbRun(
+                        `INSERT INTO transactions (booking_id, amount, transaction_type, payment_method, reference,
+                             transaction_date, status, source, pf_payment_id, pf_status, pf_signature, is_verified)
+                         VALUES (?, ?, 'payment', ?, ?, CURRENT_TIMESTAMP, 'completed', 'payfast', ?, ?, ?, 1)`,
+                        [bookingId, itnAmount, mappedMethod, itnRef, pfData.pf_payment_id || null, pfData.payment_status, receivedSignature]);
+
+                    const credit = await dbRun(
+                        `UPDATE bookings SET
+                            amount_paid = COALESCE(amount_paid,0) + ?,
+                            total_amount = ?,
+                            amount_outstanding = MAX(0, ? - (COALESCE(amount_paid,0) + ?)),
+                            payment_status = CASE
+                                WHEN (COALESCE(amount_paid,0) + ?) >= ? THEN 'PAID'
+                                WHEN ? = 'DEPOSIT' THEN 'DEPOSIT_PAID'
+                                ELSE 'PARTIALLY_PAID' END,
+                            status = CASE WHEN status IN ('ACCEPTED','CONFIRMED') THEN 'CONFIRMED' ELSE status END,
+                            payment_reference = ?, payment_signature = ?, payment_raw_data = ?, payment_method = ?,
+                            confirmed_at = CURRENT_TIMESTAMP, last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP
+                        WHERE id = ? AND (COALESCE(amount_paid,0) + ?) <= ? + 1.0`,
+                        [
+                            itnAmount, currentTotal, currentTotal, itnAmount, itnAmount, currentTotal, paymentType,
+                            pfData.pf_payment_id || null, receivedSignature, JSON.stringify(pfData), pfData.payment_method || 'payfast',
+                            bookingId, itnAmount, currentTotal
+                        ]);
+                    if (credit.changes === 0) {
+                        await dbRun("ROLLBACK").catch(() => {}); // overpayment guard blocked it — undo the tx insert too
+                        return { overpayment: true };
+                    }
+
+                    const fresh = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
+                    if (fresh && fresh.payment_status === 'PAID') {
+                        await dbRun(`UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')`, [bookingId]);
+                    }
+
+                    await dbRun("COMMIT");
+                    return { ok: true, fresh };
+                } catch (txErr) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    if (/UNIQUE constraint/i.test(txErr.message || '')) return { duplicate: true };
+                    return { error: txErr };
+                }
             });
 
-            if (creditResult.err) {
-                console.error(`[PayFast ITN] DB UPDATE ERROR for booking #${bookingId}:`, creditResult.err.message);
+            // res.sendStatus(200) was already sent (correct for PayFast), so nothing can be returned to
+            // the caller — every outcome is logged and, where it matters, an admin is alerted.
+            if (outcome.retry) { logPaymentEvent(bookingId, 'DEFERRED_DB_BUSY', pfData, true); return; }
+            if (outcome.duplicate) {
+                console.warn(`[PayFast ITN] Duplicate pf_payment_id for booking #${bookingId} — rejected by UNIQUE constraint.`);
+                logPaymentEvent(bookingId, 'IGNORED_DUPLICATE', pfData, true, itnRef, { auditOnly: true });
                 return;
             }
-            if (creditResult.changes === 0) {
-                // The overpayment guard in the WHERE blocked the credit (booking exists — checked earlier).
+            if (outcome.error) {
+                console.error(`[PayFast ITN] Credit transaction failed for booking #${bookingId}:`, outcome.error.message);
+                logPaymentEvent(bookingId, 'CRITICAL_ERROR', pfData, false);
+                getNotificationEmail().then(notifEmail => notifEmail && sendEmail({ to: notifEmail,
+                    subject: `PayFast ITN Failed – Booking #${bookingId}`,
+                    htmlContent: `<p>A verified PayFast payment for booking <strong>#${bookingId}</strong> (R${itnAmount.toFixed(2)}) could not be recorded: ${outcome.error.message}. The booking ledger is unchanged. Replay manually.</p>`,
+                    titleOverride: 'ITN Processing Failed', trigger_event: 'Admin: ITN Failure' })).catch(() => {});
+                return;
+            }
+            if (outcome.overpayment) {
                 console.warn(`[PayFast ITN] OVERPAYMENT REJECTED for booking #${bookingId} (atomic guard). Total: ${currentTotal}, ITN amount: ${itnAmount}`);
                 logPaymentEvent(bookingId, 'OVERPAYMENT_REJECTED', pfData, true);
                 getNotificationEmail().then(notifEmail => {
@@ -4693,21 +4739,22 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
                 }).catch((emailErr) => {
                     console.error(`[PayFast ITN] CRITICAL: Overpayment admin notification failed for booking #${bookingId}:`, emailErr.message);
                 });
-                return; // res already sent at top of handler; stop processing
+                return;
             }
 
-            // Credited atomically. Re-read the fresh ledger to drive status-specific side effects.
-            const updatedRow = await new Promise(resolve => db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (e, r) => resolve(e ? null : r)));
-            if (!updatedRow) return;
+            // ── Committed. The transactions row exists; log the payment_logs audit entries only. ──
+            logPaymentEvent(bookingId, 'VERIFIED_OK', pfData, true, itnRef, { auditOnly: true });
+            const updatedRow = outcome.fresh;
             const newAmountPaid = parseFloat(updatedRow.amount_paid) || 0;
             const newOutstanding = parseFloat(updatedRow.amount_outstanding) || 0;
             const newPaymentStatus = updatedRow.payment_status;
 
             console.log(`[PayFast ITN] ✅ Booking #${bookingId} Ledger Updated: Paid=R${newAmountPaid.toFixed(2)}, Remaining=R${newOutstanding.toFixed(2)}, Status=${newPaymentStatus}`);
-            logPaymentEvent(bookingId, 'LEDGER_UPDATED_COMPLETE', pfData, true);
+            logPaymentEvent(bookingId, 'LEDGER_UPDATED_COMPLETE', pfData, true, itnRef, { auditOnly: true });
 
-            await syncBookingToCalendar(updatedRow);
-            await sendPaymentReceivedEmail(updatedRow, newAmountPaid, newOutstanding, newPaymentStatus);
+            // ── Side effects, all after the commit. None may re-enter the transaction queue. ──
+            await syncBookingToCalendar(updatedRow).catch(e => console.error('[PayFast ITN] Calendar sync failed:', e.message));
+            await sendPaymentReceivedEmail(updatedRow, newAmountPaid, newOutstanding, newPaymentStatus).catch(e => console.error('Payment-received email failed:', e.message));
             sendAdminPaymentNotification(updatedRow, newAmountPaid, newPaymentStatus)
                 .catch(e => console.error('Admin payment notification failed:', e.message));
             if (newPaymentStatus === 'DEPOSIT_PAID' && newOutstanding > 0) {
@@ -4715,15 +4762,8 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
             }
             if (newPaymentStatus === 'PAID') {
                 sendBookingConfirmedEmail(updatedRow).catch(e => console.error('Confirmed email after payment failed:', e.message));
-                db.run(
-                    `UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')`,
-                    [bookingId],
-                    (invErr) => {
-                        if (invErr) { console.error(`[Invoices] Status sync failed for booking #${bookingId}:`, invErr.message); return; }
-                        // P3-7: Send paid invoice as receipt
-                        sendPaidReceiptEmail(updatedRow).catch(e => console.error('Paid receipt email (ITN) failed:', e.message));
-                    }
-                );
+                // Invoice was set PAID inside the transaction; just send the receipt.
+                sendPaidReceiptEmail(updatedRow).catch(e => console.error('Paid receipt email (ITN) failed:', e.message));
                 // Auto-create events row when fully paid (booking is now CONFIRMED)
                 if (!updatedRow.event_id) {
                     const evDatetime = updatedRow.date + (updatedRow.event_start_time ? ' ' + updatedRow.event_start_time : ' 00:00:00');
@@ -4778,10 +4818,13 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
     }
 });
 
-// Helper for comprehensive audit logging into the payment_logs table
-function logPaymentEvent(bookingId, eventType, pfData, sigValid = true, referenceOverride = null) {
+// Helper for comprehensive audit logging into the payment_logs table.
+// opts.auditOnly: write only the payment_logs row, not the transactions row. The PayFast ITN path
+// inserts its transactions row itself, inside a transaction and with pf_payment_id set, so it passes
+// auditOnly for its VERIFIED_OK audit entry to avoid a second, un-deduped transactions insert.
+function logPaymentEvent(bookingId, eventType, pfData, sigValid = true, referenceOverride = null, opts = {}) {
     const amount = parseFloat(pfData.amount_gross) || 0;
-    
+
     // 1. Log to generic payment_logs for ITN history
     db.run(
         `INSERT INTO payment_logs (booking_id, event_type, raw_payload, signature_valid, amount) VALUES (?, ?, ?, ?, ?)`,
@@ -4792,7 +4835,7 @@ function logPaymentEvent(bookingId, eventType, pfData, sigValid = true, referenc
     );
 
     // 2. If it's a successful verified payment, also log to the official transactions table
-    if (eventType === 'VERIFIED_OK' || eventType === 'MANUAL_PAYMENT_RECORDED') {
+    if (!opts.auditOnly && (eventType === 'VERIFIED_OK' || eventType === 'MANUAL_PAYMENT_RECORDED')) {
         const pfMethodMap = {
             cc: 'credit_card', dc: 'credit_card',          // Visa/MC credit & debit
             ef: 'bank_transfer',                            // Instant EFT
@@ -4910,8 +4953,11 @@ app.get('/api/bookings/:id/payment-logs', (req, res) => {
 // Admin: manually record a payment when the PayFast ITN was not received
 app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
     const { payment_status, amount_paid, force } = req.body;
+    // payment_status is advisory now — processManualPayment derives the real value from the amount
+    // (an admin could otherwise record R1 as PAID). Still reject a garbage value if one is supplied,
+    // but do not require it.
     const valid = ['UNPAID', 'DEPOSIT_PAID', 'PARTIALLY_PAID', 'PAID', 'FAILED'];
-    if (!valid.includes(payment_status)) {
+    if (payment_status != null && payment_status !== '' && !valid.includes(payment_status)) {
         return res.status(400).json({ success: false, message: 'Invalid payment_status.' });
     }
     db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
@@ -4947,8 +4993,25 @@ app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole(['ad
     });
 });
 
+// The single rule for how a recorded payment moves bookings.status. Owner decision (2026-07-10):
+// a deposit confirms. Any real payment on a booking the client has committed to (ACCEPTED or
+// CONFIRMED) moves it to CONFIRMED; a full payment on a booking that never got a formal acceptance
+// advances it to ACCEPTED so the acceptance step isn't skipped; anything else leaves status alone.
+//
+// The PayFast ITN encodes the same rule as a race-free SQL CASE and is deliberately NOT routed
+// through this helper — reading the status into JS first would reintroduce a read-then-write window.
+// Keep the two in sync by meaning, not by shared code.
+function deriveBookingStatusAfterPayment(currentStatus, paymentStatus) {
+    const cur = String(currentStatus || '').toUpperCase();
+    const pay = String(paymentStatus || '').toUpperCase();
+    const isRealPayment = ['DEPOSIT_PAID', 'PARTIALLY_PAID', 'PAID'].includes(pay);
+    if (isRealPayment && ['ACCEPTED', 'CONFIRMED'].includes(cur)) return 'CONFIRMED';
+    if (pay === 'PAID') return 'ACCEPTED';
+    return currentStatus;
+}
+
 function processManualPayment(req, res, row) {
-    const { payment_status, amount_paid } = req.body;
+    const { amount_paid } = req.body;
 
         const total = parseFloat(row.total_amount) ||
                       parseFloat((row.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
@@ -4967,12 +5030,16 @@ function processManualPayment(req, res, row) {
             });
         }
         const outstanding = Math.max(0, total - paid);
-        // Any real payment on an ACCEPTED/CONFIRMED booking → CONFIRMED (mirrors PayFast ITN behaviour).
-        // Full PAID on a not-yet-accepted booking → ACCEPTED (so quote-acceptance step isn't skipped).
-        const isActualPayment = ['DEPOSIT_PAID', 'PARTIALLY_PAID', 'PAID'].includes(payment_status);
-        const newStatus = (isActualPayment && ['ACCEPTED', 'CONFIRMED'].includes(row.status))
-            ? 'CONFIRMED'
-            : (payment_status === 'PAID' ? 'ACCEPTED' : row.status);
+        // Derive payment_status from the amount rather than trusting the request body. The body field
+        // is now advisory — an admin could otherwise record R1 as 'PAID'. Same thresholds as
+        // /transactions/manual: >= total → PAID, >= half → DEPOSIT_PAID, > 0 → PARTIALLY_PAID.
+        let payment_status;
+        if (total > 0 && paid >= total)        payment_status = 'PAID';
+        else if (total > 0 && paid >= total * 0.5) payment_status = 'DEPOSIT_PAID';
+        else if (paid > 0)                     payment_status = 'PARTIALLY_PAID';
+        else                                   payment_status = 'UNPAID';
+
+        const newStatus = deriveBookingStatusAfterPayment(row.status, payment_status);
 
         db.run(
             `UPDATE bookings SET
@@ -6143,14 +6210,32 @@ app.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administra
                             db.run(`INSERT OR IGNORE INTO audit_log (table_name, record_id, action, new_values) VALUES ('cancellations', ?, 'REFUND_ISSUED', ?)`,
                                 [bookingId, JSON.stringify({ refund_amount: amt, refund_reference })]);
 
+                            // Re-derive payment_status from the recomputed ledger. This route recomputed
+                            // amount_paid/amount_outstanding but left payment_status stale, so a fully
+                            // refunded booking stayed marked PAID. Same derivation the /transactions/manual
+                            // refund branch uses. (trg_auto_payment_status only ever forces PAID when
+                            // outstanding hits 0, so it cannot demote a refunded booking on its own.)
                             db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (bErr2, bRow) => {
-                                if (!bErr2 && bRow) {
-                                    sendRefundProcessedEmail(bRow, amt, refund_reference)
-                                        .catch(e => console.error('[Refund] Client email failed:', e.message));
+                                if (bErr2 || !bRow) {
+                                    return res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.` });
                                 }
-                            });
+                                const total = parseFloat(bRow.total_amount) || 0;
+                                const newPaid = parseFloat(bRow.amount_paid) || 0;
+                                let payment_status;
+                                if (total > 0 && newPaid >= total)      payment_status = 'PAID';
+                                else if (newPaid <= 0)                   payment_status = 'UNPAID';
+                                else if (total > 0 && newPaid >= total * 0.5) payment_status = 'DEPOSIT_PAID';
+                                else                                     payment_status = 'PARTIALLY_PAID';
+                                db.run("UPDATE bookings SET payment_status = ? WHERE id = ?", [payment_status, bookingId],
+                                    (psErr) => { if (psErr) console.error('[Refund] payment_status re-derivation failed:', psErr.message); });
+                                // amount_paid dropped — re-run the milestone waterfall so covered rows
+                                // that are no longer covered fall back to pending.
+                                alignMilestonePayments(bookingId, newPaid, () => {});
 
-                            res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.` });
+                                sendRefundProcessedEmail(bRow, amt, refund_reference)
+                                    .catch(e => console.error('[Refund] Client email failed:', e.message));
+                                res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.`, payment_status });
+                            });
                         });
                     });
             }
@@ -6394,20 +6479,40 @@ app.get('/api/admin/bookings/:id/contract/download', requireAdmin, (req, res) =>
 });
 
 // Gap 8: POST — send contract signature reminder email to client
-app.post('/api/admin/bookings/:id/contract/remind', requireAdmin, (req, res) => {
-    db.get(`SELECT id, name, email, event_name, date FROM bookings WHERE id = ?`, [req.params.id], (err, b) => {
+app.post('/api/admin/bookings/:id/contract/remind', requireAdmin, mutateRateLimiter, (req, res) => {
+    const bookingId = req.params.id;
+    db.get(`SELECT id, name, email, event_name, date FROM bookings WHERE id = ?`, [bookingId], (err, b) => {
         if (err || !b) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        sendEmail({
-            to: b.email,
-            subject: `Action Required: Please sign your booking contract — ${b.event_name}`,
-            htmlContent: `<p>Hi ${b.name},</p>
-                          <p>A friendly reminder that your booking contract for <strong>${b.event_name}</strong> on ${b.date} is awaiting your signature.</p>
-                          <p>Please contact us at your earliest convenience to arrange signing.</p>
-                          <p>Thank you,<br>Thabiso Mhlongo Management</p>`,
-            titleOverride: 'Contract Signature Reminder',
-            trigger_event: 'Admin: Contract Remind'
-        }).then(() => res.json({ success: true, message: 'Reminder sent.' }))
-          .catch(e => res.status(500).json({ success: false, message: e.message }));
+
+        // Idempotency: this route wrote nothing and had no throttle, so the reminder could be sent
+        // repeatedly. contracts.sent_to_client_at is the natural "last contacted about signing"
+        // timestamp and was never populated; use it to refuse a repeat within 24h and to record sends.
+        db.get("SELECT sent_to_client_at FROM contracts WHERE booking_id = ?", [bookingId], (cErr, contract) => {
+            const lastSent = contract && contract.sent_to_client_at ? moment(contract.sent_to_client_at) : null;
+            if (lastSent && moment().diff(lastSent, 'hours') < 24 && !(req.body && req.body.force === true)) {
+                return res.status(429).json({
+                    success: false,
+                    message: `A contract reminder was already sent on ${lastSent.format('YYYY-MM-DD HH:mm')}. Wait 24 hours, or resend with { force: true }.`,
+                    last_sent_at: contract.sent_to_client_at
+                });
+            }
+
+            sendEmail({
+                to: b.email,
+                subject: `Action Required: Please sign your booking contract — ${b.event_name}`,
+                htmlContent: `<p>Hi ${b.name},</p>
+                              <p>A friendly reminder that your booking contract for <strong>${b.event_name}</strong> on ${b.date} is awaiting your signature.</p>
+                              <p>Please contact us at your earliest convenience to arrange signing.</p>
+                              <p>Thank you,<br>Thabiso Mhlongo Management</p>`,
+                titleOverride: 'Contract Signature Reminder',
+                trigger_event: 'Admin: Contract Remind'
+            }).then(() => {
+                // Only stamp a contract row that already exists; the reminder can predate the upload.
+                db.run("UPDATE contracts SET sent_to_client_at = CURRENT_TIMESTAMP WHERE booking_id = ?", [bookingId],
+                    (uErr) => { if (uErr) console.error('[Contract Remind] timestamp update failed:', uErr.message); });
+                res.json({ success: true, message: 'Reminder sent.' });
+            }).catch(e => res.status(500).json({ success: false, message: e.message }));
+        });
     });
 });
 
@@ -10467,10 +10572,9 @@ app.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['a
                     }
                 }
                 
-                const newStatus = payment_status === 'PAID'
-                    ? (['ACCEPTED','CONFIRMED'].includes(booking.status) ? 'CONFIRMED' : 'ACCEPTED')
-                    : booking.status;
-                
+                // A deposit confirms, same as every other payment path.
+                const newStatus = deriveBookingStatusAfterPayment(booking.status, payment_status);
+
                 const adminUser = req.session.username || 'system';
                 
                 db.run(
@@ -11463,10 +11567,8 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                             }
                         }
 
-                        // Determine new status (move to CONFIRMED or ACCEPTED if fully paid)
-                        const newStatus = payment_status === 'PAID'
-                            ? (['ACCEPTED','CONFIRMED'].includes(row.status) ? 'CONFIRMED' : 'ACCEPTED')
-                            : row.status;
+                        // A deposit confirms, same as every other payment path.
+                        const newStatus = deriveBookingStatusAfterPayment(row.status, payment_status);
 
                         db.run(
                             `UPDATE bookings SET
@@ -11584,10 +11686,8 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                             }
                         }
 
-                        // Determine new status (move to CONFIRMED or ACCEPTED if fully paid)
-                        const newStatus = payment_status === 'PAID'
-                            ? (['ACCEPTED','CONFIRMED'].includes(row.status) ? 'CONFIRMED' : 'ACCEPTED')
-                            : row.status;
+                        // A deposit confirms, same as every other payment path.
+                        const newStatus = deriveBookingStatusAfterPayment(row.status, payment_status);
 
                         db.run(
                             `UPDATE bookings SET
@@ -14186,21 +14286,29 @@ setTimeout(() => {
     }, 24 * 60 * 60 * 1000);
 }, 40000);
 
-// S4-3: Overdue invoice sweep — sends overdue notice for SENT invoices past their due_date
+// S4-3: Overdue invoice sweep — sends the overdue notice for invoices past their due_date
 async function runOverdueInvoiceSweepJob() {
+    // Africa/Johannesburg, not UTC. SQLite's DATE('now') is UTC, and SA is UTC+2, so for the two
+    // hours after local midnight an invoice due "today" was treated as already overdue.
+    const todayLocal = moment().tz('Africa/Johannesburg').format('YYYY-MM-DD');
     const invoices = await new Promise(resolve =>
         db.all(
+            // Match SENT *and* OVERDUE. runDailyOverdueFlaggingSweep() runs at startup + 00:05 and
+            // flips SENT → OVERDUE, so by the time this reminder ran the invoices it should chase were
+            // already OVERDUE and this WHERE — which only matched SENT — found nothing. The result was
+            // that the overdue reminder had NEVER fired (measured: 7 OVERDUE invoices, 0 with
+            // overdue_reminded_at set). overdue_reminded_at IS NULL keeps it idempotent.
             `SELECT i.id, i.invoice_number, i.due_date, i.total_amount,
                     b.id AS booking_id, b.name, b.email, b.event_name, b.event_type, b.date
              FROM invoices i
              JOIN bookings b ON b.id = i.booking_id
-             WHERE UPPER(i.status) = 'SENT'
+             WHERE UPPER(i.status) IN ('SENT','OVERDUE')
                AND i.due_date IS NOT NULL
-               AND i.due_date < DATE('now')
+               AND i.due_date < ?
                AND i.overdue_reminded_at IS NULL
                AND b.status = 'CONFIRMED'
                AND b.payment_status NOT IN ('PAID')`,
-            [],
+            [todayLocal],
             (err, rows) => resolve(err ? [] : (rows || []))
         )
     );
