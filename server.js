@@ -610,7 +610,10 @@ async function hasCalendarConflict(startTime, endTime, excludeBookingId, skipGoo
                  AND (hold_expires_at IS NULL OR hold_expires_at > datetime('now'))`,
                 [targetDate],
                 (err, holds) => {
-                    if (err || !holds) return resolve(false);
+                    // Fail-open on a DB error, but no longer SILENTLY — a failed holds read means the
+                    // hold half of conflict detection didn't run, so a double-booking could slip through.
+                    if (err) { console.error(`[hasCalendarConflict] date_holds read failed for ${targetDate} — conflict check degraded (failing open):`, err.message); return resolve(false); }
+                    if (!holds) return resolve(false);
                     for (const h of holds) {
                         if (!h.start_time) return resolve(true); // all-day hold blocks entire day
                         const hEnd = h.end_time || addMinutesToTime(h.start_time, 60);
@@ -634,7 +637,10 @@ async function hasCalendarConflict(startTime, endTime, excludeBookingId, skipGoo
                  WHERE date = ? AND status NOT IN ('CANCELLED','EXPIRED')${excludeClause}`,
                 params,
                 (err, bookings) => {
-                    if (err || !bookings) return resolve(false);
+                    // Same fail-open, now logged: a failed bookings read means the booking-overlap half
+                    // of conflict detection didn't run.
+                    if (err) { console.error(`[hasCalendarConflict] bookings read failed for ${targetDate} — conflict check degraded (failing open):`, err.message); return resolve(false); }
+                    if (!bookings) return resolve(false);
                     for (const b of bookings) {
                         if (!b.event_start_time) continue;
                         const bEnd = b.performance_end_time ||
@@ -675,7 +681,10 @@ async function hasCalendarConflict(startTime, endTime, excludeBookingId, skipGoo
 
         return false;
     } catch (error) {
-        console.error('Error checking calendar conflicts:', error);
+        // Fail open, but loudly: an unexpected error here means NO conflict check ran, so the caller
+        // will treat the slot as free. Better to occasionally double-book than to block all bookings,
+        // but the operator needs to know conflict detection degraded.
+        console.error('[hasCalendarConflict] check failed entirely — treating slot as FREE (failing open). Double-booking possible until resolved:', error && error.message);
         return false;
     }
 }
