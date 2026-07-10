@@ -940,7 +940,7 @@
 									<label class="bk-label">Full Name <span class="bk-required" aria-hidden="true">*</span></label>
 									<div class="bk-field">
 										<i class="fa-solid fa-user bk-field-ico"></i>
-										<input type="text" id="bookName" class="bk-input form-control bk-ico-input" placeholder="Your full name">
+										<input type="text" id="bookName" class="bk-input form-control bk-ico-input" placeholder="Your full name" autocomplete="name">
 									</div>
 									<div class="bk-step-err" id="err-bookName"><i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i>Please enter your full name (first and last name, at least 3 characters).</div>
 								</div>
@@ -948,7 +948,7 @@
 									<label class="bk-label">Contact Email <span class="bk-required" aria-hidden="true">*</span></label>
 									<div class="bk-field">
 										<i class="fa-solid fa-envelope bk-field-ico"></i>
-										<input type="email" id="bookEmail" class="bk-input form-control bk-ico-input" placeholder="you@example.com">
+										<input type="email" id="bookEmail" class="bk-input form-control bk-ico-input" placeholder="you@example.com" autocomplete="email" inputmode="email">
 									</div>
 									<div class="bk-step-err" id="err-bookEmail"><i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i>Please enter a valid email address (e.g. name@company.com). This is where your quote and booking updates will be sent.</div>
 								</div>
@@ -956,7 +956,7 @@
 									<label class="bk-label">Phone Number <span class="bk-required" aria-hidden="true">*</span></label>
 									<div class="bk-field">
 										<i class="fa-solid fa-phone bk-field-ico"></i>
-										<input type="tel" id="bookCell" class="bk-input form-control bk-ico-input" placeholder="+27 ...">
+										<input type="tel" id="bookCell" class="bk-input form-control bk-ico-input" placeholder="+27 ..." autocomplete="tel" inputmode="tel">
 									</div>
 									<div class="bk-step-err" id="err-bookCell"><i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i>Please enter a valid phone number (9–15 digits). Include your country code if outside South Africa.</div>
 								<small class="bk-step-hint">e.g 082 123 4567 or +27 82 123 4567</small>
@@ -967,7 +967,7 @@
 									<label class="bk-label">Company / Organization</label>
 									<div class="bk-field">
 										<i class="fa-solid fa-building bk-field-ico"></i>
-										<input type="text" id="bookCompany" class="bk-input form-control bk-ico-input" placeholder="Legal company name (Optional)">
+										<input type="text" id="bookCompany" class="bk-input form-control bk-ico-input" placeholder="Legal company name (Optional)" autocomplete="organization">
 									</div>
 								</div>
 							</div>
@@ -1029,14 +1029,14 @@
 									<label class="bk-label">City</label>
 									<div class="bk-field">
 										<i class="fa-solid fa-city bk-field-ico"></i>
-										<input type="text" id="bookCity" class="bk-input form-control bk-ico-input" placeholder="City">
+										<input type="text" id="bookCity" class="bk-input form-control bk-ico-input" placeholder="City" autocomplete="address-level2">
 									</div>
 								</div>
 								<div class="col-md-3 form-group">
 									<label class="bk-label">Country</label>
 									<div class="bk-field">
 										<i class="fa-solid fa-earth-africa bk-field-ico"></i>
-										<input type="text" id="bookCountry" class="bk-input form-control bk-ico-input" placeholder="Country">
+										<input type="text" id="bookCountry" class="bk-input form-control bk-ico-input" placeholder="Country" autocomplete="country-name">
 									</div>
 								</div>
 							</div>
@@ -1156,7 +1156,7 @@
 								</label>
 							</div>
 
-							<div id="bookingFormError" class="alert alert-danger" style="display:none;"></div>
+							<div id="bookingFormError" class="alert alert-danger" style="display:none;" role="alert" aria-live="assertive"></div>
 							<div class="bk-nav-row">
 								<button type="button" class="btn-bk-nav btn-bk-back" id="bookBack4"><i class="fa-solid fa-arrow-left"></i> Edit Details</button>
 								<button type="submit" id="bookSubmitBtn" class="btn-bk-nav btn-bk-next btn-bk-submit">
