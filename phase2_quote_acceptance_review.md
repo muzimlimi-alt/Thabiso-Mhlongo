@@ -116,23 +116,27 @@ Anyone who knows a client's email address and booking ID can accept a quote on t
 
 Revisit if booking IDs ever become externally enumerable, or if acceptance starts triggering an irreversible action (a payment capture, say).
 
-### Q1 — `quote_number` collides on same-second regeneration
+### Q1 — `quote_number` collides on same-second regeneration — **FIXED (commit `0ee1df4`)**
 
-`quotations.quote_number` is `QT-<id>-<YYMMDDHHmmss>` and `UNIQUE`. Two quotes for one booking inside the same second — a double-click on *Generate Quote* — collide and the second rolls back with a 500. Unlike the invoice case this is a narrow window and the rollback is now clean, but the same revision-suffix treatment would close it.
+`quotations.quote_number` was `QT-<id>-<YYMMDDHHmmss>` and `UNIQUE`; two quotes for one booking inside the same second — a double-click on *Generate Quote* — collided and the second rolled back with a 500. Now takes a revision suffix (`-R2`, `-R3`), the same scheme as invoices, via the `docNumberOverride` argument `pdfService.generateDocument` already accepts — which also makes the PDF header match `quotations.quote_number`. Verified: two quotes in the same second both succeed, the second numbered `-R2`, each with its own PDF file.
 
-### Q2 — The quote route trusts `service_id`
+### Q2 — The quote route trusts `service_id` — **FIXED (commit `0ee1df4`)**
 
-The structured branch takes `items[].service_id` on trust and inserts straight into `booking_services`, which has a foreign key to `services`. An unknown id produces a 500 rather than a 400. Admin-only, so low severity — but the 400 is free, and I used this as the rollback lever in testing. `unit_price` is deliberately free-form (the quote builder exists to override catalogue prices).
+The structured branch takes `items[].service_id` on trust and inserts into `booking_services`, which has a foreign key to `services`. An unknown id used to surface as a 500. The quote transaction's `catch` now detects the `SQLITE_CONSTRAINT` + `FOREIGN KEY` combination and returns a 400 ("One or more selected services no longer exist"). The insert is still what fails — deliberately, so the deterministic rollback lever the test suite relies on is preserved — only the surfaced status changed. `unit_price` remains free-form (the quote builder exists to override catalogue prices).
 
 ### Q3 — Two expiry sweeps do the same job
 
 The hourly cron's step 2 and `runQuoteExpirySweep()` both expire overdue quotes. Harmless now that they agree on the date, but they should be consolidated. Both write `status = 'EXPIRED'` directly rather than going through `applyStatusChange`, bypassing `ALLOWED_TRANSITIONS` — the state-machine bypass the phase brief flags for Phase 4.
 
-### Q4 — Re-quote reconciliation is destructive by design
+### Q4 — Re-quote reconciliation arithmetic — **FIXED (commit `0ee1df4`)**
 
-Re-quoting an accepted booking supersedes every non-paid schedule row and voids the live invoice, forcing the client to re-accept. That is a defensible policy and the brief asks for it. Worth confirming it is the intended one when a deposit has already been paid: the paid schedule row survives (`!= 'paid'`), but the new 50/50 split is computed on the **full** new total, not the outstanding balance. A client who paid a R500 deposit on a R1000 quote, then agrees a R5000 total, gets a fresh R2500/R2500 split — R500 already paid, so R4500 outstanding against R5000 of scheduled milestones.
+Re-quoting a committed booking supersedes every non-paid schedule row and voids the live invoice, forcing the client to re-accept. This turned out to be worse than "the split is computed on the wrong base": the surviving *paid* row was counted as an existing custom plan, so on re-acceptance **no schedule was created for the outstanding balance at all**. R500 paid on R1000, re-quoted to R5000 → one paid R500 milestone and R4500 owed against nothing.
 
-That is a real arithmetic inconsistency, but fixing it means deciding what a re-quote *means* financially. Left for the Phase 3 payments audit.
+Fixed: the "does a live plan exist?" check now excludes `paid` rows, and the auto split covers `total − SUM(paid milestones' expected_amount)`, labelled *Outstanding Balance – Deposit/Final*. Invariant now holds: `SUM(expected_amount over live rows) == total_amount`.
+
+Two things the fix exposed and also resolved:
+* A deposit confirms a booking, and the re-quote cascade only fired on `ACCEPTED` — so re-quoting a `CONFIRMED` (deposit-paid) booking moved `total_amount` while leaving the invoice and plan on the old figure, and the client could not re-accept (`accept-quote` requires `QUOTED`), stranding the booking. The cascade now covers `CONFIRMED`, and re-acceptance lands back on `CONFIRMED` when a deposit exists (a race-free `CASE` in the compare-and-swap). **Owner decision: push back to QUOTED and require explicit re-acceptance of the new total.**
+* `alignMilestonePayments` was rewriting *every* schedule row including superseded ones, so a payment after a re-quote would have resurrected them. Now operates on live rows only. See `phase3_contract_invoice_payment_review.md`.
 
 ---
 
