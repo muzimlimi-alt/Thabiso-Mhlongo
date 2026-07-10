@@ -1378,6 +1378,20 @@ function initializeDatabase() {
         db.run(`CREATE INDEX IF NOT EXISTS idx_events_venue ON events(venue_id)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_events_gcal ON events(google_calendar_event_id)`);
 
+        // booking_services had NO index despite ON DELETE CASCADE from bookings and frequent
+        // joins on booking_id (invoice/quote generation, milestone reads).
+        db.run(`CREATE INDEX IF NOT EXISTS idx_booking_services_booking ON booking_services(booking_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_booking_line_items_booking ON booking_line_items(booking_id)`);
+        // The public-intake duplicate check filters on lower(email), which idx_bookings_email(email)
+        // cannot serve — it was a full scan. This expression index matches the (lower(email), date) predicate.
+        db.run(`CREATE INDEX IF NOT EXISTS idx_bookings_email_lower_date ON bookings(lower(email), date)`);
+        // Intake-volume analytics and the recency ordering used across admin lists.
+        db.run(`CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at)`);
+        // Milestone reads/writes on the payment path.
+        db.run(`CREATE INDEX IF NOT EXISTS idx_payment_schedules_booking ON payment_schedules(booking_id)`);
+        // pf_payment_id is UNIQUE (auto-indexed), but the ITN dedupe pre-check also queries by reference+source.
+        db.run(`CREATE INDEX IF NOT EXISTS idx_transactions_booking_source ON transactions(booking_id, source)`);
+
         // ==========================================
         // SEEDING DEFAULT DATA
         // ==========================================
