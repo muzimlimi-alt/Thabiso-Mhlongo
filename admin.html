@@ -15090,7 +15090,13 @@
         });
 
         async function apiCall(url, method = 'GET', body = null) {
-            const options = { method, headers: { 'Content-Type': 'application/json' }, cache: 'no-store', credentials: 'same-origin' };
+            const options = { 
+                method, 
+                headers: { 'Content-Type': 'application/json' }, 
+                cache: 'no-store', 
+                credentials: 'same-origin',
+                bypassInterceptor: true // Prevent double toast from global fetch interceptor
+            };
             if (body) options.body = JSON.stringify(body);
             try {
                 const res = await fetch(url, options);
@@ -15108,7 +15114,7 @@
             } catch (err) {
                 console.error("API Error: ", err);
                 if (err.message !== 'Session expired. Please log in.') {
-                    window.notificationService.showError("API Error: " + err.message);
+                    window.notificationService.showError(err.message);
                 }
                 throw err;
             }
@@ -15992,7 +15998,9 @@
                     ${s === 'CANCELLED' ? `<button type="button" class="atl-actions-dropdown-item bk-action-book-again" data-id="${row.id}"><i class="fa-solid fa-rotate-right" style="color:var(--atl-amber);width:14px;"></i> Book Again</button>` : ''}
                     <div class="atl-actions-dropdown-sep"></div>
                     ${s!=='CANCELLED'?`<button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger cancel-booking-btn" data-id="${row.id}"><i class="fa-solid fa-ban" style="width:14px;"></i> Cancel Booking</button>`:''}
-                    <button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger delete-btn" data-type="bookings" data-id="${row.id}"><i class="fa fa-trash" style="width:14px;"></i> Delete Booking</button>
+                    ${(parseFloat(row.amount_paid || 0) > 0 || hasInvoice || row.quoted_at) ? 
+                    `<button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger" style="opacity:0.5; cursor:not-allowed;" title="Cannot delete a booking with financial or quotation records. Cancel it instead." disabled><i class="fa fa-trash" style="width:14px;"></i> Delete Booking</button>` :
+                    `<button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger delete-btn" data-type="bookings" data-id="${row.id}"><i class="fa fa-trash" style="width:14px;"></i> Delete Booking</button>`}
                   </div>
                 </div>`;
 
@@ -19291,18 +19299,23 @@
 
         $(document).on('click', '.delete-btn', async function() {
             if(!(await window.notificationService.showConfirm({ message: "Are you sure you want to permanently delete this record?", isDestructive: true }))) return;
-            const $row = $(this).closest('tr');
+            const $row = $(this).closest('tr, .atl-booking-card');
             const type = $(this).data('type');
             const id = $(this).data('id');
             
             if ($row.length) $row.css('opacity', '0.5'); // Instant UX Feedback
             
-            const res = await apiCall('/api/admin/' + type + '/' + id, 'DELETE');
-            if (res && res.success) {
-                 if ($row.length) $row.remove(); // Force instant visual clear
+            try {
+                const res = await apiCall('/api/admin/' + type + '/' + id, 'DELETE');
+                if (res && res.success) {
+                     if ($row.length) $row.remove(); // Force instant visual clear
+                }
+            } catch (err) {
+                if ($row.length) $row.css('opacity', '1');
+            } finally {
+                if (type === 'inquiries') loadInquiries();
+                else if (type === 'bookings') loadBookings();
             }
-            if (type === 'inquiries') loadInquiries();
-            else if (type === 'bookings') loadBookings();
         });
 
 
