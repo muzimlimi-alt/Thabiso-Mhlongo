@@ -96,26 +96,26 @@ No rate limit, no DB write, no timestamp — the reminder could be sent on a loo
 
 ## 3. Discovered, reported — **not** fixed
 
-### D1 — The pre-event balance-due reminder is broken and may re-send hourly
+### D1 — The pre-event balance-due reminder re-sent every hour — **FIXED (commit `7d75552`+1)**
 
-The hourly cron's balance-due reminder (server.js ~1506) queries and inserts `reminders_log` by a `reminder_type` column that **does not exist** in the table:
+The hourly cron's balance-due reminder (server.js ~1506) queried and inserted `reminders_log` by a `reminder_type` column that **does not exist** in the table:
 
 ```sql
 SELECT id FROM reminders_log WHERE booking_id = ? AND reminder_type = ?
 INSERT INTO reminders_log (booking_id, reminder_type, status) VALUES (?, ?, 'sent')
 ```
 
-`reminders_log` has no `reminder_type` column (it keys on `days_before` and has `days_before`, `due_date`, `recipient_email` as `NOT NULL`). So the `SELECT` errors → the idempotency guard sees no prior row → it sends → the `INSERT` also errors and records nothing. For a `CONFIRMED` booking with an outstanding balance on the 7/3/1-day marks before its event, this can re-send **every hour**.
+`reminders_log` has no `reminder_type` column. So the `SELECT` errored → the idempotency guard saw no prior row → it sent → the `INSERT` errored too and recorded nothing. For a `CONFIRMED` booking with an outstanding balance on the 7/3/1-day marks before its event, this re-sent **every hour** the cron ran.
 
-I did not fix this in the Phase 3 batch: it is outside the contract/invoice/payment surface, and the fix is a schema decision — either add a `reminder_type` column (and rework the `UNIQUE(booking_id, schedule_id, days_before)` constraint), or move these reminders onto the `days_before`/`due_date` shape the table already has. It deserves its own change with that decision made explicitly. **Flagagged for a follow-up.**
+**Fix (no schema change).** These reminders are event-based, not tied to a `payment_schedules` milestone, so they use the table's real columns with `schedule_id = NULL` and `days_before` (7/3/1) as the discriminator — exactly the shape the milestone-reminder path (server.js ~13957) already uses. Idempotency is the `SELECT ... WHERE booking_id=? AND schedule_id IS NULL AND days_before=?` guard, and the `INSERT` now supplies the `NOT NULL` columns (`due_date`, `recipient_email`). Milestone reminders always carry a non-`NULL` `schedule_id`, so they can never collide with this key. A `SELECT` error now aborts the send instead of falling through to it. Verified at the SQL level against the real schema (the old statements error, the new ones work and dedupe, the two reminder families don't cross-talk).
 
-### D2 — `quotations.quote_number` still collides on a same-second double-click
+### D2 — `quotations.quote_number` collided on a same-second double-click — **already FIXED in Part A (commit `0ee1df4`)**
 
-Carried from Phase 2. The invoice half of this (`invoice_number`) was fixed with a revision suffix; the same treatment should be applied to `quote_number`. Narrow window, clean rollback.
+This was resolved in the Phase 2 close-out, not left open — an earlier draft of this section was stale. `quote_number` takes a `-R2` revision suffix exactly as `invoice_number` does ([server.js:10312](server.js#L10312)), and the Phase 2 close-out suite verifies two quotes in the same second both succeed with the second numbered `-R2`.
 
-### D3 — The ITN `+R1` overpayment guard is amount-blind to split deposits
+### D3 — The ITN `+R1` overpayment guard is amount-blind — **not a real risk (mitigated by the signature)**
 
-The guard rejects a credit that would exceed `total + R1`. It correctly stops a doubled full payment, and P3-3 now stops an exact ITN replay. But it does not verify that an ITN's amount matches the *expected* milestone — a tampered-but-smaller amount that passes signature and postback is still credited as sent. Low priority (signature + postback are the real gate), noted for completeness.
+The guard rejects a credit that would exceed `total + R1`. It does not separately verify that an ITN's amount matches an expected milestone. But `amount_gross` is one of the fields `generatePayFastSignature` signs (it iterates every posted field), so a **tampered** amount changes the signature and fails validation in production. The only case the guard would need to catch — a smaller amount forged past validation — cannot occur while signature checking is on. A genuinely smaller payment (a real partial) is legitimate and must be accepted. No code change; recorded here so it isn't re-raised as a gap.
 
 ---
 

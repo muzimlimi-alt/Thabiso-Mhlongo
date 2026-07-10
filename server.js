@@ -1492,7 +1492,6 @@ function startBackgroundClerk() {
         // 5. Pre-event balance reminders: 7, 3, 1 days before event for CONFIRMED bookings with outstanding balance
         for (const daysBefore of [7, 3, 1]) {
             const targetStr = moment().tz('Africa/Johannesburg').add(daysBefore, 'days').format('YYYY-MM-DD');
-            const reminderKey = `balance_due_${daysBefore}d`;
 
             db.all(`SELECT b.id, COALESCE(c.full_name, b.name) as name, COALESCE(c.email, b.email) as email,
                            b.event_name, b.event_type, b.date, b.amount_outstanding, b.total_amount
@@ -1503,13 +1502,22 @@ function startBackgroundClerk() {
                 [targetStr], (err, rows) => {
                     if (err || !rows || rows.length === 0) return;
                     rows.forEach(row => {
-                        db.get("SELECT id FROM reminders_log WHERE booking_id = ? AND reminder_type = ?",
-                            [row.id, reminderKey], (e, existing) => {
-                                if (existing) return;
+                        // Idempotency keyed on the table's real columns. This used to SELECT and INSERT a
+                        // `reminder_type` column that does not exist on reminders_log — the SELECT errored,
+                        // its callback saw no prior row, so the reminder was RE-SENT every hour, and the
+                        // INSERT errored too so nothing was ever recorded. These are event-based (not tied
+                        // to a payment_schedules milestone), so schedule_id is NULL and days_before (7/3/1)
+                        // distinguishes them; the milestone reminders (which always carry a non-NULL
+                        // schedule_id) can never collide with this key.
+                        db.get("SELECT id FROM reminders_log WHERE booking_id = ? AND schedule_id IS NULL AND days_before = ?",
+                            [row.id, daysBefore], (e, existing) => {
+                                if (e) { console.error(`Balance-due reminder lookup failed for #${row.id}:`, e.message); return; }
+                                if (existing) return; // already sent this window — do not re-send
                                 sendDepositBalanceDueEmail(row, row.amount_outstanding)
                                     .then(() => {
-                                        db.run("INSERT OR IGNORE INTO reminders_log (booking_id, reminder_type, status) VALUES (?, ?, 'sent')",
-                                            [row.id, reminderKey]);
+                                        db.run("INSERT OR IGNORE INTO reminders_log (booking_id, schedule_id, days_before, due_date, amount_due, recipient_email, status) VALUES (?, NULL, ?, ?, ?, ?, 'sent')",
+                                            [row.id, daysBefore, row.date, row.amount_outstanding, row.email],
+                                            (insErr) => { if (insErr) console.error(`Balance-due reminder log failed for #${row.id}:`, insErr.message); });
                                         console.log(`✓ Balance-due reminder (${daysBefore}d) sent for booking #${row.id}`);
                                     })
                                     .catch(e => console.error(`Balance-due reminder failed for #${row.id}:`, e.message));
