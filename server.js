@@ -4772,20 +4772,28 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
                 sendBookingConfirmedEmail(updatedRow).catch(e => console.error('Confirmed email after payment failed:', e.message));
                 // Invoice was set PAID inside the transaction; just send the receipt.
                 sendPaidReceiptEmail(updatedRow).catch(e => console.error('Paid receipt email (ITN) failed:', e.message));
-                // Auto-create events row when fully paid (booking is now CONFIRMED)
-                if (!updatedRow.event_id) {
-                    const evDatetime = updatedRow.date + (updatedRow.event_start_time ? ' ' + updatedRow.event_start_time : ' 00:00:00');
-                    db.run(
-                        `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
-                         VALUES (?, ?, ?, ?, ?, 'upcoming', 'system')`,
-                        [updatedRow.event_name || updatedRow.event_type || 'Booking Event', evDatetime,
-                         updatedRow.event_location || null, updatedRow.venue_id || null, bookingId],
-                        function(evErr) {
-                            if (evErr) { console.error('[Auto-Event] PayFast: Insert failed for booking #' + bookingId + ':', evErr.message); return; }
-                            db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [this.lastID, bookingId]);
-                        }
-                    );
-                }
+            }
+            // Auto-create the events row whenever the payment CONFIRMED the booking — deposit or full.
+            // This used to be gated on newPaymentStatus === 'PAID', so a PayFast deposit that confirmed
+            // the booking got no events row, while the identical deposit recorded via the manual-payment
+            // route (processManualPayment) and an admin status-change (applyStatusChange) both do create
+            // one. Gating on the resulting CONFIRMED status makes all three paths consistent.
+            // created_by is NULL, not 'system': events.created_by is an INTEGER FK to admins(id), so the
+            // string 'system' failed the FK constraint every time — which is why this auto-create had
+            // NEVER produced a row on any of the three paths. NULL is the system-created marker (existing
+            // rows already use it) and is what admins(id) FK allows for an event no admin authored.
+            if (updatedRow.status === 'CONFIRMED' && !updatedRow.event_id) {
+                const evDatetime = updatedRow.date + (updatedRow.event_start_time ? ' ' + updatedRow.event_start_time : ' 00:00:00');
+                db.run(
+                    `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
+                     VALUES (?, ?, ?, ?, ?, 'upcoming', NULL)`,
+                    [updatedRow.event_name || updatedRow.event_type || 'Booking Event', evDatetime,
+                     updatedRow.event_location || null, updatedRow.venue_id || null, bookingId],
+                    function(evErr) {
+                        if (evErr) { console.error('[Auto-Event] PayFast: Insert failed for booking #' + bookingId + ':', evErr.message); return; }
+                        db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [this.lastID, bookingId]);
+                    }
+                );
             }
             // Mark payment schedule items as paid based on total amount now credited
             alignMilestonePayments(bookingId, newAmountPaid, (psErr) => {
@@ -5089,7 +5097,7 @@ function processManualPayment(req, res, row) {
                         const evDatetime = bRow.date + (bRow.event_start_time ? ' ' + bRow.event_start_time : ' 00:00:00');
                         db.run(
                             `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
-                             VALUES (?, ?, ?, ?, ?, 'upcoming', 'system')`,
+                             VALUES (?, ?, ?, ?, ?, 'upcoming', NULL)`,
                             [bRow.event_name || bRow.event_type || 'Booking Event', evDatetime, bRow.event_location || null, bRow.venue_id || null, req.params.id],
                             function(evErr) {
                                 if (evErr) { console.error('[Auto-Event] ManualPayment: Insert failed for booking #' + req.params.id + ':', evErr.message); return; }
@@ -9481,7 +9489,7 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                         const eventDatetime = b.date + (b.event_start_time ? ' ' + b.event_start_time : ' 00:00:00');
                         db.run(
                             `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
-                             VALUES (?, ?, ?, ?, ?, 'upcoming', 'system')`,
+                             VALUES (?, ?, ?, ?, ?, 'upcoming', NULL)`,
                             [b.event_name || b.event_type || 'Booking Event', eventDatetime, b.event_location || null, b.venue_id || null, b.id],
                             function(evInsErr) {
                                 if (evInsErr) { console.error('[Auto-Event] Insert failed for booking #' + b.id + ':', evInsErr.message); return; }
