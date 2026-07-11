@@ -8807,7 +8807,7 @@
                                 <button type="button" class="atl-btn atl-btn--primary" onclick="openSocialLinkDrawer()"><i class="fa-solid fa-plus"></i> Add Social Link</button>
                             </div>
                             <div class="um-search-wrap" style="margin-bottom:12px;">
-                                <div class="um-input-wrap" style="flex:1 1 200px;">
+                                <div class="um-input-wrap" style="flex:1 1 auto;">
                                     <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
                                     <input type="text" id="socialLinkSearch" class="um-input" placeholder="Search links by platform…">
                                 </div>
@@ -8829,7 +8829,7 @@
                                 <button type="button" class="atl-btn atl-btn--primary" onclick="openSocialEmbedDrawer()"><i class="fa-solid fa-plus"></i> Add Media Embed</button>
                             </div>
                             <div class="um-search-wrap" style="margin-bottom:12px;">
-                                <div class="um-input-wrap" style="flex:1 1 200px;">
+                                <div class="um-input-wrap" style="flex:1 1 auto;">
                                     <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
                                     <input type="text" id="socialEmbedSearch" class="um-input" placeholder="Search embeds by platform…">
                                 </div>
@@ -8842,6 +8842,17 @@
                     
                     <!-- Panel: Dashboard KPIs -->
                     <div id="socialKpiPanel" class="um-panel">
+                        <!-- Show / hide the Social Media Channels cards on the admin dashboard -->
+                        <div class="atl-card" style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:16px;">
+                            <div style="min-width:0;">
+                                <h4 class="um-section-label" style="margin:0 0 4px 0;">Social Media cards on the dashboard</h4>
+                                <p class="um-section-desc" style="margin:0;">Show or hide the <strong style="color:var(--atl-ink);">Social Media Channels</strong> cards on your admin dashboard.</p>
+                            </div>
+                            <label class="um-toggle" title="Show or hide the Social Media cards on the dashboard" aria-label="Show Social Media cards on the dashboard">
+                                <input type="checkbox" id="dashSocialCardsToggle" checked>
+                                <span class="um-toggle__track"><span class="um-toggle__thumb"></span></span>
+                            </label>
+                        </div>
                         <div class="atl-card">
                             <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--atl-line);">
                                 <div>
@@ -29105,8 +29116,44 @@
             dbLoadTopPages();
             dbLoadBookingsChart();
             dbLoadSocialKPIs();
+            applyDashboardSocialVisibility();
             // Schedule is loaded separately via loadTodaysSchedule() hook in switchTab
         }
+
+        // ── Dashboard "Social Media cards" show/hide preference (Social → Dashboard KPIs) ──
+        // Persisted in the generic settings KV so it survives reloads; applied to the
+        // dashboard's .db-social-grid. Default: shown.
+        window.__dashShowSocial = (window.__dashShowSocial !== false);
+        function applyDashboardSocialVisibility() {
+            var show = window.__dashShowSocial !== false;
+            document.querySelectorAll('#dashboardAdmin .db-social-grid').forEach(function (el) {
+                el.style.display = show ? '' : 'none';
+            });
+        }
+        async function initDashboardSocialPref() {
+            try {
+                const r = await apiCall('/api/admin/settings');
+                if (r && r.settings && typeof r.settings.dashboard_show_social_cards !== 'undefined') {
+                    window.__dashShowSocial = String(r.settings.dashboard_show_social_cards) !== '0';
+                }
+            } catch (e) { /* keep default (shown) on failure */ }
+            var cb = document.getElementById('dashSocialCardsToggle');
+            if (cb) cb.checked = (window.__dashShowSocial !== false);
+            applyDashboardSocialVisibility();
+        }
+        $(document).on('change', '#dashSocialCardsToggle', async function () {
+            var show = this.checked;
+            window.__dashShowSocial = show;
+            applyDashboardSocialVisibility();
+            try {
+                await apiCall('/api/admin/settings', 'PUT', { settings: { dashboard_show_social_cards: show ? '1' : '0' } });
+                if (window.notificationService) {
+                    window.notificationService.showSuccess(show ? 'Social Media cards shown on the dashboard.' : 'Social Media cards hidden from the dashboard.');
+                }
+            } catch (e) {
+                if (window.notificationService) window.notificationService.showError('Could not save the setting. Please try again.');
+            }
+        });
 
         // Init on DOMContentLoaded in case dashboard is the default active section
         document.addEventListener('DOMContentLoaded', function () {
@@ -29119,6 +29166,8 @@
                     loadAnalyticsDashboard();
                     loadTodaysSchedule();
                 }
+                // Load the saved "show Social Media cards" preference and apply it (also syncs the toggle).
+                if (typeof initDashboardSocialPref === 'function') initDashboardSocialPref();
             }, 400);
 
             // Social progress bars: set CSS custom property from data-percent
