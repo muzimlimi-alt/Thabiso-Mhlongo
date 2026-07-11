@@ -4290,8 +4290,8 @@
         /* Bio live-preview body text — match the interface body font/size/rhythm
            (drop the thin 300-weight lead and the mixed inline sizes). */
         #collapseAboutPreview { color: var(--atl-ink-dim); }
-        #collapseAboutPreview .about-preview-lead { font-size: 16px; line-height: 1.6; font-weight: 400; margin: 0 0 14px; }
-        #collapseAboutPreview .about-preview-body { font-size: 14.5px; line-height: 1.7; margin: 0 0 12px; }
+        #collapseAboutPreview .about-preview-lead { font-size: 16px; line-height: 1.7; font-weight: 400; margin: 0 0 14px; text-align: justify; }
+        #collapseAboutPreview .about-preview-body { font-size: 16px; line-height: 1.7; margin: 0 0 12px; text-align: justify;}
         #collapseAboutPreview .about-preview-body:last-child { margin-bottom: 0; }
         @media (max-width: 575px) {
             #aboutAdmin .um-icon-header > .atl-btn { width: 100%; margin-left: 0; justify-content: center; }
@@ -4378,6 +4378,10 @@
             background: var(--atl-input-bg) !important;
         }
         .adm-search__icon { left: 13px !important; top: 50% !important; transform: translateY(-50%) !important; color: #555 !important; font-size: 13px !important; }
+        /* The mobile panel wrapper adds 12px side padding, and the icon is positioned
+           against that wrapper — so add 12px to keep it the same 13px inside the input
+           (aligned with the text) as on desktop and the events search. */
+        .adm-mobile-search-inner .adm-search__icon { left: 25px !important; }
         .adm-search:focus-within .adm-search__icon { color: #D4AF37 !important; }
         /* Filter selects share the 40px search height for tidy, aligned toolbar rows. */
         .atl-filter-select { min-height: 40px !important; }
