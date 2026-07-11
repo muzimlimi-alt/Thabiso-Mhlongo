@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -nE \"subject:\\\\s*[\\\\`'\\\\\"]\" server.js)",
+      "Bash(git status *)",
+      "Bash(node --check js/emailService.js)"
+    ]
+  }
+}

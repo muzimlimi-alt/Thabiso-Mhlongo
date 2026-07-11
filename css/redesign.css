@@ -4843,14 +4843,78 @@ h1, h2, h3, h4, h5, h6 {
     .inq-nav {
         border-right: none;
         border-bottom: 1px solid #2a2a2a;
-        flex-direction: row;
-        flex-wrap: wrap;
-        padding: 10px;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: 10px !important;
+        padding: 12px !important;
         overflow: visible;
+        background: #111;
     }
-    .inq-folders { flex-direction: row; flex-wrap: wrap; gap: 4px; }
-    .inq-folder { padding: 5px 8px; font-size: 11px; }
-    .inq-compose-btn { width: auto; padding: 8px 12px; font-size: 11px; margin-bottom: 0; }
+    .inq-compose-btn {
+        width: auto !important;
+        flex: 0 0 auto !important;
+        margin: 0 !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        padding: 0 16px !important;
+        font-size: 13px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 6px !important;
+    }
+    .inq-nav .um-input-wrap {
+        flex: 1 1 0% !important;
+        margin: 0 !important;
+        height: 38px !important;
+        min-width: 150px;
+    }
+    .inq-nav .um-input-wrap .um-input {
+        height: 38px !important;
+        font-size: 13px !important;
+        padding: 0 12px 0 34px !important;
+    }
+    .inq-folders {
+        width: 100% !important;
+        flex: 0 0 100% !important;
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        gap: 8px !important;
+        padding: 4px 0 !important;
+        margin-top: 4px !important;
+        scrollbar-width: none !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    .inq-folders::-webkit-scrollbar {
+        display: none !important;
+    }
+    .inq-folder {
+        flex-shrink: 0 !important;
+        white-space: nowrap !important;
+        padding: 6px 12px !important;
+        font-size: 12px !important;
+        background: rgba(255,255,255,0.03) !important;
+        border: 1px solid rgba(255,255,255,0.06) !important;
+        border-radius: 20px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 6px !important;
+    }
+    .inq-folder.active {
+        background: rgba(212, 175, 55, 0.15) !important;
+        border-color: rgba(212, 175, 55, 0.3) !important;
+        color: #D4AF37 !important;
+        font-weight: 600 !important;
+    }
+    .inq-folder-count {
+        margin-left: 4px !important;
+        font-size: 9px !important;
+        padding: 2px 6px !important;
+    }
     .inq-search-wrap { flex: 1; min-width: 100%; }
     .inq-list-panel { border-right: none; }
     .inq-send-btn, .inq-cancel-btn { font-size: 11px; padding: 8px 12px; }
@@ -5026,27 +5090,64 @@ h1, h2, h3, h4, h5, h6 {
 /* ---- Dropdown shell ---- */
 .adm-dropdown { position: relative; }
 
-.adm-dropdown__menu {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    background: #141414;
-    border: 1px solid #2a2a2a;
-    border-radius: 12px;
-    box-shadow: 0 16px 48px rgba(0,0,0,0.7);
-    min-width: 220px;
-    overflow: hidden;
-    display: none;
-    z-index: 2000;
-    animation: admFadeIn 0.15s ease;
-}
-.adm-dropdown__menu--wide { min-width: 300px; }
+.adm-dropdown__menu { position: absolute; top: calc(100% + 8px); right: 0; background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.7); min-width: 220px; overflow: hidden; display: none; z-index: 2000; animation: admFadeIn 0.15s ease; }
+.adm-dropdown__menu--wide  { min-width: 300px; }
 .adm-dropdown__menu--right { right: 0; left: auto; }
-.adm-dropdown__menu.open { display: block; }
+.adm-dropdown__menu.open   { display: block; }
 
-.adm-dropdown__header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 8px; font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.7px; border-bottom: 1px solid #1e1e1e; }
-.adm-dropdown__header-action { background: transparent; border: none; color: #555; cursor: pointer; padding: 2px 4px; border-radius: 4px; font-size: 12px; transition: color 0.15s; }
-.adm-dropdown__header-action:hover { color: #D4AF37; }
+/* ── Unified profile panel ── */
+.adm-dropdown__menu--unified {
+    min-width: 320px;
+    max-width: min(380px, calc(100vw - 16px));
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    right: 0;
+    left: auto;
+    border-radius: 14px;
+    scrollbar-width: thin;
+    scrollbar-color: #2a2a2a transparent;
+}
+.adm-dropdown__menu--unified::-webkit-scrollbar { width: 3px; }
+.adm-dropdown__menu--unified::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+
+/* ── Section label (like a group heading) ── */
+.adm-dropdown__section-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px 4px;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: #444;
+    pointer-events: none;
+    user-select: none;
+}
+.adm-dropdown__section-label > i { font-size: 10px; color: #D4AF37; opacity: 0.7; }
+
+/* ── Badge positioned on the profile trigger button ── */
+.adm-profile-btn { position: relative; }
+.adm-badge--profile {
+    /* Overrides absolute positioning to sit top-right of the avatar */
+    position: absolute !important;
+    top: -4px !important;
+    right: -4px !important;
+    left: auto !important;
+    /* Smaller size so it doesn't cover the avatar */
+    min-width: 14px !important;
+    height: 14px !important;
+    font-size: 8px !important;
+    z-index: 2;
+}
+
+.adm-dropdown__header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 8px; font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.7px; border-bottom: 1px solid #1e1e1e; gap: 8px; }
+.adm-dropdown__header > span { display: flex; align-items: center; gap: 6px; }
+.adm-dropdown__header > span > i { color: #D4AF37; font-size: 11px; }
+.adm-dropdown__header-action { background: transparent; border: none; color: #555; cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 13px; transition: color 0.15s, background 0.15s; min-width: 28px; min-height: 28px; display: flex; align-items: center; justify-content: center; }
+.adm-dropdown__header-action:hover { color: #D4AF37; background: rgba(212,175,55,0.1); }
+
 
 .adm-dropdown__item {
     display: flex; align-items: center; gap: 12px; padding: 10px 16px;
@@ -5195,6 +5296,8 @@ h1, h2, h3, h4, h5, h6 {
         border: none !important;
         border-bottom: 1px solid rgba(255,255,255,0.06) !important;
         box-shadow: 0 2px 16px rgba(0,0,0,0.4) !important;
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
     }
 
     .adm-header__inner {
@@ -5256,9 +5359,9 @@ h1, h2, h3, h4, h5, h6 {
     .adm-header__right {
         display: flex !important;
         align-items: center !important;
-        gap: 2px !important;
+        gap: 6px !important;
         flex-shrink: 0 !important;
-        margin-left: 4px !important;
+        margin-left: auto !important;
     }
 
     /* ── Dividers: hidden on mobile ── */
@@ -5285,21 +5388,10 @@ h1, h2, h3, h4, h5, h6 {
         display: flex !important;
     }
 
-    /* ── Create / Quick-add button ── */
-    .adm-create-btn {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 40px !important;
-        height: 44px !important;
-        min-width: 40px !important;
-        border-radius: 8px !important;
-        padding: 0 !important;
-        flex-shrink: 0 !important;
-    }
-    .adm-create-btn i { font-size: 16px !important; margin: 0 !important; }
-    .adm-create-btn .adm-caret,
+    /* ── Profile btn on mobile: hide name, show avatar + caret ── */
     .adm-btn-label { display: none !important; }
+    .adm-profile-name { display: none !important; }
+    .adm-profile-btn .adm-caret { display: flex !important; font-size: 10px !important; margin-left: 2px !important; }
 
     /* ── Theme toggle ── */
     .atl-theme-toggle,
@@ -5384,8 +5476,8 @@ h1, h2, h3, h4, h5, h6 {
     }
     .adm-mobile-search-close:hover { color: #D4AF37; }
 
-    /* ── Bottom sheet dropdowns ── */
-    #admNotiMenu, #admCreateMenu, #admProfileMenu {
+    /* ── Bottom sheet: unified profile panel ── */
+    #admProfileMenu {
         position: fixed !important;
         top: auto !important;
         bottom: 0 !important;
@@ -5394,29 +5486,35 @@ h1, h2, h3, h4, h5, h6 {
         width: 100% !important;
         min-width: 0 !important;
         max-width: none !important;
+        max-height: 85vh !important;
         margin: 0 !important;
+        /* Start off-screen below viewport */
         transform: translateY(105%) !important;
-        transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1);
+        transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1), visibility 0s linear 0.4s;
         border-radius: 24px 24px 0 0 !important;
-        border: 1px solid var(--border-default) !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
         border-bottom: none !important;
         z-index: 20000 !important;
         display: block !important;
         visibility: hidden !important;
         pointer-events: none;
-        background: #0f0f0f !important;
+        background: #111 !important;
         box-shadow: 0 -15px 50px rgba(0,0,0,0.95) !important;
         padding-bottom: calc(20px + env(safe-area-inset-bottom));
         color: #fff !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
     }
 
-    #admNotiMenu.open, #admCreateMenu.open, #admProfileMenu.open {
+    #admProfileMenu.open {
         transform: translateY(0) !important;
         visibility: visible !important;
         pointer-events: auto !important;
+        transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1), visibility 0s linear 0s;
     }
 
-    .adm-noti-list { max-height: 60vh !important; }
+    /* On mobile bottom-sheet, notification list is limited so other sections remain reachable */
+    .adm-noti-list { max-height: 30vh !important; }
 
     /* ── Global search results: full-screen overlay ── */
     .adm-search__results {

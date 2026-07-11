@@ -4646,76 +4646,21 @@
                         </button>
                         <div class="adm-header__divider"></div>
 
-                        <!-- Create / Add New -->
-                        <div class="adm-dropdown" id="admCreateDropdown">
-                            <button class="adm-create-btn" id="admCreateTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="admCreateMenu" title="Create new record">
-                                <i class="fa-solid fa-plus" aria-hidden="true"></i>
-                                <span class="adm-btn-label">New</span>
-                                <i class="fa-solid fa-chevron-down adm-caret" aria-hidden="true"></i>
-                            </button>
-                            <div class="adm-dropdown__menu" id="admCreateMenu" role="menu" aria-label="Create new">
-                                <div class="adm-dropdown__header">Create New</div>
-                                <button class="adm-dropdown__item" role="menuitem" id="admNewBooking">
-                                    <i class="fa-solid fa-calendar-check" aria-hidden="true"></i>
-                                    <div>
-                                        <span class="adm-dropdown__item-title">Booking</span>
-                                        <span class="adm-dropdown__item-sub">Schedule a new gig</span>
-                                    </div>
-                                </button>
-                                <button class="adm-dropdown__item" role="menuitem" id="admNewInquiry">
-                                    <i class="fa-solid fa-envelope-open-text" aria-hidden="true"></i>
-                                    <div>
-                                        <span class="adm-dropdown__item-title">Inquiry</span>
-                                        <span class="adm-dropdown__item-sub">Compose a new message</span>
-                                    </div>
-                                </button>
-                                <button class="adm-dropdown__item" role="menuitem" id="admNewEvent">
-                                    <i class="fa-regular fa-calendar-days" aria-hidden="true"></i>
-                                    <div>
-                                        <span class="adm-dropdown__item-title">Event</span>
-                                        <span class="adm-dropdown__item-sub">Add upcoming event</span>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-
-                        <!-- Notifications -->
-                        <div class="adm-dropdown" id="admNotiDropdown">
-                            <button class="adm-icon-btn" id="admNotiTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="admNotiMenu" title="Notifications">
-                                <i class="fa-solid fa-bell" aria-hidden="true"></i>
-                                <span class="adm-badge" id="admNotiBadge" style="display:none;" aria-label="unread notifications"></span>
-                            </button>
-                            <div class="adm-dropdown__menu adm-dropdown__menu--wide" id="admNotiMenu" role="menu" aria-label="Recent activity">
-                                <div class="adm-dropdown__header">
-                                    <span>Recent Activity</span>
-                                    <button class="adm-dropdown__header-action" id="admNotiRefresh" title="Refresh">
-                                        <i class="fa-solid fa-rotate-right" aria-hidden="true"></i>
-                                    </button>
-                                </div>
-                                <div id="admNotiList" class="adm-noti-list">
-                                    <!-- Rendered by JS -->
-                                    <div class="adm-noti-empty">
-                                        <i class="fa-regular fa-bell-slash"></i>
-                                        <p>No recent activity</p>
-                                    </div>
-                                </div>
-                                <div class="adm-dropdown__footer">
-                                    <a href="#" id="admNotiViewAll" class="adm-dropdown__footer-link">View all activity</a>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Divider -->
-                        <div class="adm-header__divider" aria-hidden="true"></div>
-
-                        <!-- Admin Profile -->
+                        <!-- Unified Admin Profile Dropdown -->
                         <div class="adm-dropdown" id="admProfileDropdown">
-                            <button class="adm-profile-btn" id="admProfileTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="admProfileMenu" title="Admin profile">
+                            <button class="adm-profile-btn" id="admProfileTrigger"
+                                    aria-haspopup="true" aria-expanded="false"
+                                    aria-controls="admProfileMenu" title="Account &amp; actions">
                                 <span class="adm-avatar" id="admAvatar" aria-hidden="true">A</span>
                                 <span class="adm-profile-name adm-btn-label" id="admProfileName">Admin</span>
                                 <i class="fa-solid fa-chevron-down adm-caret" aria-hidden="true"></i>
                             </button>
-                            <div class="adm-dropdown__menu adm-dropdown__menu--right" id="admProfileMenu" role="menu" aria-label="Admin profile menu">
+
+                            <!-- ── Unified panel ── -->
+                            <div class="adm-dropdown__menu adm-dropdown__menu--unified"
+                                 id="admProfileMenu" role="menu" aria-label="Account and actions menu">
+
+                                <!-- § 1 — PROFILE CARD -->
                                 <div class="adm-profile-card" id="admProfileCard">
                                     <span class="adm-avatar adm-avatar--lg" aria-hidden="true">A</span>
                                     <div>
@@ -4724,16 +4669,57 @@
                                     </div>
                                 </div>
                                 <div class="adm-dropdown__divider"></div>
-                                <a href="index.html" target="_blank" class="adm-dropdown__item" role="menuitem">
-                                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
-                                    <div><span class="adm-dropdown__item-title">Live Site</span></div>
-                                </a>
-                                <button class="adm-dropdown__item adm-dropdown__item--danger" role="menuitem" id="admLogoutBtn">
-                                    <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
-                                    <div><span class="adm-dropdown__item-title">Logout</span></div>
+
+                                <!-- § 2 — QUICK ACTIONS -->
+                                <div class="adm-dropdown__section-label" aria-hidden="true">
+                                    <i class="fa-solid fa-bolt" aria-hidden="true"></i> Quick Actions
+                                </div>
+                                <button class="adm-dropdown__item" role="menuitem" id="admNewBooking">
+                                    <i class="fa-solid fa-calendar-check" aria-hidden="true"></i>
+                                    <div>
+                                        <span class="adm-dropdown__item-title">New Booking</span>
+                                        <span class="adm-dropdown__item-sub">Schedule a new gig</span>
+                                    </div>
                                 </button>
-                            </div>
-                        </div>
+                                <button class="adm-dropdown__item" role="menuitem" id="admNewInquiry">
+                                    <i class="fa-solid fa-envelope-open-text" aria-hidden="true"></i>
+                                    <div>
+                                        <span class="adm-dropdown__item-title">New Inquiry</span>
+                                        <span class="adm-dropdown__item-sub">Compose a new message</span>
+                                    </div>
+                                </button>
+                                <button class="adm-dropdown__item" role="menuitem" id="admNewEvent">
+                                    <i class="fa-regular fa-calendar-days" aria-hidden="true"></i>
+                                    <div>
+                                        <span class="adm-dropdown__item-title">New Event</span>
+                                        <span class="adm-dropdown__item-sub">Add an upcoming event</span>
+                                    </div>
+                                </button>
+                                <div class="adm-dropdown__divider"></div>
+
+                                <!-- § 3 — ACCOUNT -->
+                                <div class="adm-dropdown__section-label" aria-hidden="true">
+                                    <i class="fa-solid fa-circle-user" aria-hidden="true"></i> Account
+                                </div>
+                                <a href="index.html" target="_blank" rel="noopener"
+                                   class="adm-dropdown__item" role="menuitem">
+                                    <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                                    <div>
+                                        <span class="adm-dropdown__item-title">Live Site</span>
+                                        <span class="adm-dropdown__item-sub">View public website</span>
+                                    </div>
+                                </a>
+                                <button class="adm-dropdown__item adm-dropdown__item--danger"
+                                        role="menuitem" id="admLogoutBtn">
+                                    <i class="fa-solid fa-right-from-bracket" aria-hidden="true"></i>
+                                    <div>
+                                        <span class="adm-dropdown__item-title">Sign Out</span>
+                                        <span class="adm-dropdown__item-sub">End your session</span>
+                                    </div>
+                                </button>
+
+                            </div><!-- /.adm-dropdown__menu--unified -->
+                        </div><!-- /#admProfileDropdown -->
 
                     </div><!-- /.adm-header__right -->
                 </div><!-- /.adm-header__inner -->
@@ -8873,7 +8859,7 @@
                             <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--atl-line);">
                                 <div>
                                     <h4 class="um-section-label" style="margin:0 0 4px 0;">Media Embeds</h4>
-                                    <p class="um-section-desc" style="margin:0;">Embedded videos and posts shown on your public site.</p>
+                                    <p class="um-section-desc" style="margin:0;">Videos shown on your public site.</p>
                                 </div>
                                 <button type="button" class="atl-btn atl-btn--primary" onclick="openSocialEmbedDrawer()"><i class="fa-solid fa-plus"></i> Add Media Embed</button>
                             </div>
@@ -22856,12 +22842,37 @@
         return Math.floor(diff/86400) + 'd ago';
     }
 
-    /* ---- Dropdown manager ---- */
+    /* ---- Unified Dropdown Manager ---- */
     const dropdowns = [
-        { trigger: 'admCreateTrigger', menu: 'admCreateMenu', wrapper: 'admCreateDropdown' },
-        { trigger: 'admNotiTrigger',   menu: 'admNotiMenu',   wrapper: 'admNotiDropdown' },
-        { trigger: 'admProfileTrigger',menu: 'admProfileMenu', wrapper: 'admProfileDropdown' },
+        { trigger: 'admProfileTrigger', menu: 'admProfileMenu', wrapper: 'admProfileDropdown' },
     ];
+
+    /**
+     * Reposition the menu so it never overflows the viewport.
+     * On very narrow viewports (≤480px) the menu is a bottom-sheet (CSS handles it).
+     */
+    function positionDropdown(menu) {
+        if (window.innerWidth <= 768) {
+            menu.style.position = '';
+            menu.style.left = '';
+            menu.style.right = '';
+            menu.style.top = '';
+            menu.style.bottom = '';
+            menu.style.width = '';
+            return;
+        }
+
+        var trigger = document.getElementById('admProfileTrigger');
+        if (!trigger) return;
+        var rect = trigger.getBoundingClientRect();
+
+        menu.style.position = 'fixed';
+        menu.style.top = (rect.bottom + 8) + 'px';
+        menu.style.left = 'auto';
+        menu.style.right = (document.documentElement.clientWidth - rect.right) + 'px';
+        menu.style.bottom = 'auto';
+        menu.style.width = '';
+    }
 
     function closeAllDropdowns(except) {
         dropdowns.forEach(function(d) {
@@ -22873,11 +22884,29 @@
         });
     }
 
+    /** Return focusable items inside a menu */
+    function menuItems(menu) {
+        return Array.from(menu.querySelectorAll(
+            'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )).filter(function(el) {
+            return !el.closest('.adm-dropdown__section-label') &&
+                   !el.closest('.adm-profile-card') &&
+                   el.offsetParent !== null; // visible
+        });
+    }
+
+    // Move the unified profile menu to body to avoid containing block issues
+    var pm = qs('#admProfileMenu');
+    if (pm) {
+        document.body.appendChild(pm);
+    }
+
     dropdowns.forEach(function(d) {
         var trigger = qs('#' + d.trigger);
         var menu    = qs('#' + d.menu);
         if (!trigger || !menu) return;
 
+        /* Toggle on trigger click */
         trigger.addEventListener('click', function(e) {
             e.stopPropagation();
             var isOpen = menu.classList.contains('open');
@@ -22888,14 +22917,52 @@
             } else {
                 menu.classList.add('open');
                 trigger.setAttribute('aria-expanded', 'true');
+                positionDropdown(menu);
+                // Focus first item for keyboard users
+                var items = menuItems(menu);
+                if (items.length) setTimeout(function() { items[0].focus(); }, 50);
+            }
+        });
+
+        /* Prevent closing when clicking inside the menu */
+        menu.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+
+        /* Keyboard navigation inside the menu */
+        menu.addEventListener('keydown', function(e) {
+            var items = menuItems(menu);
+            var idx   = items.indexOf(document.activeElement);
+
+            if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
+                e.preventDefault();
+                var next = (idx + 1) % items.length;
+                items[next].focus();
+            } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
+                e.preventDefault();
+                var prev = (idx - 1 + items.length) % items.length;
+                items[prev].focus();
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                items[0].focus();
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                items[items.length - 1].focus();
+            } else if (e.key === 'Escape') {
+                menu.classList.remove('open');
+                trigger.setAttribute('aria-expanded', 'false');
+                trigger.focus();
+            } else if (e.key === 'Tab') {
+                // Close on Tab-out so focus leaves the menu naturally
+                menu.classList.remove('open');
+                trigger.setAttribute('aria-expanded', 'false');
             }
         });
     });
 
-    // Close on outside click
-    document.addEventListener('click', function() {
-        closeAllDropdowns(null);
-    });
+    /* Close on outside click or scroll */
+    document.addEventListener('click', function() { closeAllDropdowns(null); });
+    window.addEventListener('scroll', function() { closeAllDropdowns(null); }, true);
 
     /* ---- Logout shortcut ---- */
     var admLogoutBtn = qs('#admLogoutBtn');

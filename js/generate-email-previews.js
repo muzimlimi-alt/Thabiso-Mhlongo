@@ -108,6 +108,69 @@ const files = {
     'sample-system.html': sampleSystem()
 };
 
+/* ── Prompt 3, Batch 1 — representative renders of the rebuilt PREMIUM emails ──
+   (Mirrors the server.js builders; the live functions add DB-resolved social links
+   and real booking data.) */
+const P = (o) => C.renderPremiumEmail(Object.assign({ socialLinks: SAMPLE_SOCIAL }, o));
+const premium = {
+    'booking-received-client.html': P({
+        preheaderText: "We've received your booking request — Ref #100045.",
+        headline: "We've Received Your Request", greeting: 'Hi Naledi,',
+        bodyHtml: `Thank you for reaching out to book Thabiso Mhlongo for your upcoming <strong style="color:#D4AF37;">Corporate Year-End</strong> on <strong style="color:#D4AF37;">Sat, 14 Aug 2026</strong>. Our management team has received your enquiry and will be in touch shortly to confirm availability and discuss pricing.<br><br><span style="color:#B0B0B0; font-size:13px;">Keep your booking reference <strong style="color:#D4AF37;">#100045</strong> safe — you'll need it to track your booking status.</span>`,
+        cards: [{ title: 'Booking Summary · Ref #100045', rows: [
+            { label: 'Event Type', value: 'Corporate Year-End', mono: false },
+            { label: 'Event Date', value: 'Sat, 14 Aug 2026 at 19:00' },
+            { label: 'Venue', value: 'The Venue, Sandton', mono: false },
+            { label: 'Audience', value: '250 (corporate)', mono: false }
+        ]}],
+        cta: { label: 'Track Your Booking', url: '#' }
+    }),
+    'booking-under-review.html': P({
+        preheaderText: 'Ref #100045 — your booking is now with our management team.',
+        headline: 'Your Booking Is Under Review', greeting: 'Hi Naledi,',
+        bodyHtml: `Great news — your request for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> is now being actively reviewed by our management team. We're confirming availability and preparing a tailored quotation.`,
+        cards: [{ title: 'Booking · Ref #100045', rows: [
+            { label: 'Event', value: 'Corporate Year-End', mono: false },
+            { label: 'Date', value: 'Sat, 14 Aug 2026' },
+            { label: 'Reference', value: '#100045' }
+        ]}],
+        cta: { label: 'Track Your Booking', url: '#' }
+    }),
+    'quote.html': P({
+        preheaderText: 'Your quotation for booking #100045 is ready to review.',
+        headline: 'Your Quotation', greeting: 'Hi Naledi,',
+        bodyHtml: `We've prepared a formal quotation for your upcoming event, <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>. The full breakdown of services and terms is attached as a PDF.` +
+            `<br><br><strong style="color:#D4AF37;">Terms &amp; Policies:</strong><br>Standard cancellation policy applies.` +
+            `<p style="margin:14px 0 0;"><strong style="color:#FAFAFA;">Total Quote: R 18,500.00</strong></p>`,
+        cta: { label: 'Review & Accept Quote', url: '#' }
+    }),
+    'quote-accepted.html': P({
+        preheaderText: 'Booking #100045 accepted — invoice issued.',
+        headline: 'Invoice Sent — Awaiting Payment', greeting: 'Hi Naledi,',
+        bodyHtml: `We've received your acceptance of the quote for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>. Your booking reference is <strong style="color:#D4AF37;">#100045</strong>, and our team will formally confirm your booking shortly.`,
+        cards: [{ title: 'Payment Schedule', rows: [
+            { label: '50% Deposit · due 20 Jul 2026', value: 'R 9,250.00', highlight: true },
+            { label: '50% Balance · due 07 Aug 2026', value: 'R 9,250.00', highlight: true }
+        ]}],
+        cta: { label: 'View Your Booking', url: '#' }
+    }),
+    'quote-expired.html': P({
+        preheaderText: 'Your quote for booking #100045 has expired.',
+        headline: 'Your Quote Has Expired', greeting: 'Hi Naledi,',
+        bodyHtml: `Your quote for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> has expired and is no longer valid.<br><br>If you're still interested in booking Thabiso Mhlongo, we'd be glad to prepare a fresh quote — just submit a new enquiry.`,
+        cta: { label: 'Submit a New Enquiry', url: '#' }
+    }),
+    'quote-expiry-warning.html': P({
+        preheaderText: 'Your quote for booking #100045 expires tomorrow.',
+        headline: 'Your Quote Expires Tomorrow', greeting: 'Hi Naledi,',
+        bodyHtml: `Your quote for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> expires <strong style="color:#D4AF37;">tomorrow (13 Jul 2026)</strong>. Accept it now via your booking tracker before it lapses.`,
+        cta: { label: 'Accept Your Quote', url: '#' }
+    })
+};
+
+const PREMIUM_DIR = path.join(OUT_DIR, 'premium');
+if (!fs.existsSync(PREMIUM_DIR)) fs.mkdirSync(PREMIUM_DIR, { recursive: true });
+
 let ok = 0;
 for (const [name, html] of Object.entries(files)) {
     const p = path.join(OUT_DIR, name);
@@ -116,5 +179,12 @@ for (const [name, html] of Object.entries(files)) {
     console.log(`✓ ${path.relative(path.join(__dirname, '..'), p)}  (${kb} KB)`);
     ok++;
 }
-console.log(`\nRendered ${ok} preview file(s) → email-previews/`);
+for (const [name, html] of Object.entries(premium)) {
+    const p = path.join(PREMIUM_DIR, name);
+    fs.writeFileSync(p, html, 'utf8');
+    const kb = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1);
+    console.log(`✓ ${path.relative(path.join(__dirname, '..'), p)}  (${kb} KB)`);
+    ok++;
+}
+console.log(`\nRendered ${ok} preview file(s) → email-previews/ (+ premium/)`);
 console.log('Open them in a browser to review the component system.');

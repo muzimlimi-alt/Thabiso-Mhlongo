@@ -101,7 +101,8 @@ async function sendEmail({
     titleOverride = null,
     trigger_event = 'System Communication',
     related_entity = null,
-    related_id = null
+    related_id = null,
+    preWrapped = false
 }) {
     try {
         let attachmentPathsString = null;
@@ -119,7 +120,8 @@ async function sendEmail({
             replyTo,
             skipBrandAttachments,
             titleOverride,
-            trigger_event
+            trigger_event,
+            preWrapped
         };
 
         await new Promise((resolve, reject) => {
@@ -154,7 +156,8 @@ async function sendEmailDirectly({
     replyTo = null,
     skipBrandAttachments = false,
     titleOverride = null,
-    trigger_event = 'System Communication'
+    trigger_event = 'System Communication',
+    preWrapped = false
 }) {
     const isOverhaulEnabled = process.env.EMAIL_OVERHAUL_ENABLED === 'true';
 
@@ -205,7 +208,11 @@ async function sendEmailDirectly({
         
         const hasBanner = brandAttachments.some(a => a.cid === 'thabisoBanner');
         const bannerSrc = hasBanner ? 'cid:thabisoBanner' : (process.env.EMAIL_BANNER || null);
-        const finalHtml = emailTemplates.createEmailWrapper(emailBody, titleOverride || subject, unsubscribeUrl, bannerSrc, socialLinks);
+        // preWrapped emails (Prompt 3 rebuild) already contain their full shell via
+        // js/emailComponents.js — do NOT wrap again or they double-nest.
+        const finalHtml = preWrapped
+            ? emailBody
+            : emailTemplates.createEmailWrapper(emailBody, titleOverride || subject, unsubscribeUrl, bannerSrc, socialLinks);
         const finalPlainText = plainTextAlternative || htmlToPlainText(emailBody);
 
         const mailOptions = {

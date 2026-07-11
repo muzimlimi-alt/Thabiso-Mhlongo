@@ -9,6 +9,7 @@ const emailService = require('./js/emailService');
 const sendEmail = emailService.sendEmail;
 const transporter = emailService.transporter;
 const emailTemplates = require('./js/emailTemplates');
+const emailComponents = require('./js/emailComponents');
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
 const db = require('./database');
@@ -943,7 +944,8 @@ async function processNotificationQueue() {
                     replyTo: emailDetails.replyTo,
                     skipBrandAttachments: emailDetails.skipBrandAttachments,
                     titleOverride: emailDetails.titleOverride,
-                    trigger_event: emailDetails.trigger_event || 'Notification Queue Dispatch'
+                    trigger_event: emailDetails.trigger_event || 'Notification Queue Dispatch',
+                    preWrapped: emailDetails.preWrapped
                 });
 
                 if (result.success) {
@@ -2465,6 +2467,26 @@ function encodeUserHtml(s) {
     return String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// ── Prompt 3 email rebuild: shared footer context ──
+// Rebuilt PREMIUM emails render their own full shell (js/emailComponents.js) and are queued
+// with preWrapped:true, so they resolve their own footer social links here rather than via the
+// central createEmailWrapper path. Cached briefly (emails are low-frequency).
+let _emailFooterCache = { at: 0, socialLinks: [] };
+async function getEmailFooterContext() {
+    if (Date.now() - _emailFooterCache.at < 60000) return { socialLinks: _emailFooterCache.socialLinks };
+    const socialLinks = await new Promise((resolve) => {
+        db.all("SELECT platform_name, platform_url FROM social_links WHERE is_active = 1 ORDER BY display_order ASC",
+            [], (err, rows) => resolve(err ? [] : (rows || [])));
+    });
+    _emailFooterCache = { at: Date.now(), socialLinks };
+    return { socialLinks };
+}
+
+// Base tracking/portal URL used by client email CTAs (matches the existing link defaults).
+function emailBaseUrl() {
+    return (process.env.BASE_URL || process.env.SITE_URL || 'https://www.thabisomhlongo.com').replace(/\/$/, '');
+}
+
 async function sendBookingReceivedEmail(bookingId, data) {
     data = escapeEmailFields(data);
     const { 
@@ -2518,48 +2540,16 @@ async function sendBookingReceivedEmail(bookingId, data) {
         </div>
     `;
 
-    const clientHtmlTemplate = `
-        <p style="color: #e8e8e8;">Hi <strong>${name}</strong>,</p>
-        <p style="color: #b0b0b0;">Thank you for reaching out to book Thabiso Mhlongo for your upcoming <strong style="color:#D4AF37;">${event_type}</strong> on <strong style="color:#D4AF37;">${event_date}</strong>. Our management team has received your enquiry and will be in touch shortly to confirm availability and discuss pricing.</p>
-
-        <table style="width:100%;border-collapse:collapse;margin:25px 0;background-color:#1a1a1a;">
-            <tr>
-                <td colspan="2" style="padding:12px 16px;background-color:#1e1a0e;border-bottom:1px solid rgba(212,175,55,0.3);">
-                    <strong style="color:#D4AF37;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Booking Summary &bull; Ref #${bookingId}</strong>
-                </td>
-            </tr>
-            <tr>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#888;font-size:13px;width:40%;">Event Type</td>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:13px;">${event_type}</td>
-            </tr>
-            <tr>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#888;font-size:13px;">Event Date</td>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:13px;">${event_date}${event_start_time ? ' at ' + event_start_time : ''}</td>
-            </tr>
-            ${performance_slot ? `<tr>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#888;font-size:13px;">Performance Slot</td>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:13px;">${performance_slot}</td>
-            </tr>` : ''}
-            ${performance_duration ? `<tr>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#888;font-size:13px;">Duration</td>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:13px;">${performance_duration}</td>
-            </tr>` : ''}
-            <tr>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#888;font-size:13px;">Venue</td>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:13px;">${event_location}${city ? ', ' + city : ''}</td>
-            </tr>
-            ${audience_size ? `<tr>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#888;font-size:13px;">Audience</td>
-                <td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:13px;">${audience_size}${audience_demographic ? ' (' + audience_demographic + ')' : ''}</td>
-            </tr>` : ''}
-            ${budget_range ? `<tr>
-                <td style="padding:10px 16px;color:#888;font-size:13px;">Budget Range</td>
-                <td style="padding:10px 16px;color:#fff;font-size:13px;">${budget_range}</td>
-            </tr>` : ''}
-        </table>
-
-        <p style="color:#707070;font-size:12px;text-align:center;"><em>Keep your Booking Reference <strong style="color:#D4AF37;">#${bookingId}</strong> safe &mdash; you will need it to track your booking status.</em></p>
-    `;
+    // Client receipt (PREMIUM, Prompt 3 rebuild) — booking summary as an info card.
+    const clientCardRows = [
+        { label: 'Event Type', value: event_type, mono: false },
+        { label: 'Event Date', value: `${event_date}${event_start_time ? ' at ' + event_start_time : ''}` }
+    ];
+    if (performance_slot) clientCardRows.push({ label: 'Performance Slot', value: performance_slot, mono: false });
+    if (performance_duration) clientCardRows.push({ label: 'Duration', value: performance_duration, mono: false });
+    clientCardRows.push({ label: 'Venue', value: `${event_location}${city ? ', ' + city : ''}`, mono: false });
+    if (audience_size) clientCardRows.push({ label: 'Audience', value: `${audience_size}${audience_demographic ? ' (' + audience_demographic + ')' : ''}`, mono: false });
+    if (budget_range) clientCardRows.push({ label: 'Budget Range', value: budget_range, mono: false });
 
     const siteUrl = process.env.SITE_URL || 'https://www.thabisomhlongo.com';
     const adminBookingLink = `${siteUrl}/admin#bookingsAdmin`;
@@ -2587,6 +2577,17 @@ async function sendBookingReceivedEmail(bookingId, data) {
             contentType: 'text/calendar; method=REQUEST'
         }] : [];
 
+        const { socialLinks } = await getEmailFooterContext();
+        const clientHtml = emailComponents.renderPremiumEmail({
+            preheaderText: `We've received your booking request — Ref #${bookingId}.`,
+            headline: "We've Received Your Request",
+            greeting: `Hi ${name},`,
+            bodyHtml: `Thank you for reaching out to book Thabiso Mhlongo for your upcoming <strong style="color:#D4AF37;">${event_type}</strong> on <strong style="color:#D4AF37;">${event_date}</strong>. Our management team has received your enquiry and will be in touch shortly to confirm availability and discuss pricing.<br><br><span style="color:#B0B0B0; font-size:13px;">Keep your booking reference <strong style="color:#D4AF37;">#${bookingId}</strong> safe — you'll need it to track your booking status.</span>`,
+            cards: [{ title: `Booking Summary · Ref #${bookingId}`, rows: clientCardRows }],
+            cta: { label: 'Track Your Booking', url: `${emailBaseUrl()}/?track=${bookingId}&email=${encodeURIComponent(email)}` },
+            socialLinks
+        });
+
         const [adminInfo, clientInfo] = await Promise.all([
             sendEmail({
                 to: notifEmail,
@@ -2600,7 +2601,8 @@ async function sendBookingReceivedEmail(bookingId, data) {
             sendEmail({
                 to: email,
                 subject: `Booking Request Confirmation: Thabiso Mhlongo`,
-                htmlContent: clientHtmlTemplate,
+                htmlContent: clientHtml,
+                preWrapped: true,
                 attachments: icsAttachments,
                 titleOverride: "We've Received Your Booking Request!",
                 trigger_event: 'Booking: Client Receipt'
@@ -2617,21 +2619,30 @@ async function sendBookingReceivedEmail(bookingId, data) {
 // S2-1: Notify client when their booking moves to PENDING (under review)
 async function sendBookingUnderReviewEmail(booking) {
     booking = escapeEmailFields(booking);
-    const { id, name, email, event_type, date } = booking;
-    const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>Great news — your booking request for <strong style="color:#ffffff;">${event_name}</strong> on <strong style="color:#ffffff;">${date}</strong> is now being actively reviewed by our management team.</p>
-        <p style="color:#b0b0b0;">We are confirming availability, reviewing your event details, and preparing a tailored quotation. You can expect to hear from us shortly.</p>
-        <p style="margin:20px 0;">
-            <a href="${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}" style="display:inline-block;padding:12px 24px;background:#D4AF37;color:#000;text-decoration:none;font-weight:bold;border-radius:4px;">Track Your Booking</a>
-        </p>
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-    `;
+    const { id, name, email, event_type, date, event_name } = booking;
+    const eventLabel = event_name || event_type;
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Ref #${id} — your booking is now with our management team.`,
+        headline: 'Your Booking Is Under Review',
+        greeting: `Hi ${name},`,
+        bodyHtml: `Great news — your request for <strong style="color:#FAFAFA;">${eventLabel}</strong> on <strong style="color:#FAFAFA;">${date}</strong> is now being actively reviewed by our management team. We're confirming availability, going through your event details, and preparing a tailored quotation. You can expect to hear from us shortly.`,
+        cards: [{
+            title: `Booking · Ref #${id}`,
+            rows: [
+                { label: 'Event', value: eventLabel, mono: false },
+                { label: 'Date', value: date },
+                { label: 'Reference', value: `#${id}` }
+            ]
+        }],
+        cta: { label: 'Track Your Booking', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
+        socialLinks
+    });
     const result = await sendEmail({
         to: email,
         subject: `Your Booking Is Under Review — Ref #${id}`,
-        htmlContent: emailBody,
+        htmlContent: html,
+        preWrapped: true,
         titleOverride: 'Booking Under Review',
         trigger_event: 'Booking: Under Review'
     });
@@ -2727,25 +2738,29 @@ async function sendQuoteEmail(booking, amount, pdfPath, pdfFileName, items = [])
         itemsHtml += '</table></div>';
     }
 
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>We've prepared a formal quotation for your upcoming event: <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong>.</p>
-        <p>Please find the attached PDF for the full breakdown of services and terms.</p>
-        <p><strong>Terms & Policies:</strong><br/>
-        ${booking.terms || 'Standard cancellation policy applies.'}</p>
-        ${itemsHtml}
-        <p><strong style="color:#ffffff;">Total Quote: ${amount || booking.quote_amount}</strong></p>
-        <p>To secure this date, please review and accept the quotation via your booking portal. The PDF quote is attached for your records.</p>
-        <p style="margin: 20px 0;">
-            <a href="${process.env.BASE_URL || 'https://www.thabisomhlongo.com'}/?track=${id}&email=${encodeURIComponent(email)}&action=accept" style="display:inline-block; padding:12px 24px; background:#D4AF37; color:#000; text-decoration:none; font-weight:bold; border-radius:4px;">Review &amp; Accept Quote</a>
-        </p>
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-    `;
+    // NOTE: itemsHtml + `${amount || booking.quote_amount}` carry computed figures — kept verbatim.
+    const { socialLinks } = await getEmailFooterContext();
+    const acceptUrl = `${process.env.BASE_URL || 'https://www.thabisomhlongo.com'}/?track=${id}&email=${encodeURIComponent(email)}&action=accept`;
+    const bodyHtml =
+        `We've prepared a formal quotation for your upcoming event, <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>. The full breakdown of services and terms is attached as a PDF for your records.` +
+        `<br><br><strong style="color:#D4AF37;">Terms &amp; Policies:</strong><br>${booking.terms || 'Standard cancellation policy applies.'}` +
+        itemsHtml +
+        `<p style="margin:14px 0 0;"><strong style="color:#FAFAFA;">Total Quote: ${amount || booking.quote_amount}</strong></p>` +
+        `<p style="margin:10px 0 0; color:#E6E6E6;">To secure this date, please review and accept the quotation via your booking portal.</p>`;
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Your quotation for booking #${id} is ready to review.`,
+        headline: 'Your Quotation',
+        greeting: `Hi ${name},`,
+        bodyHtml,
+        cta: { label: 'Review & Accept Quote', url: acceptUrl },
+        socialLinks
+    });
 
     const result = await sendEmail({
         to: email,
         subject: `Quotation for Booking #${id}`,
-        htmlContent: emailBody,
+        htmlContent: html,
+        preWrapped: true,
         attachments: attachments,
         titleOverride: 'Your Quotation',
         trigger_event: 'Booking: Quote Generated'
@@ -3008,13 +3023,19 @@ async function sendQuoteAcceptedEmail(booking, options = {}) {
             </table>
         </div>`;
 
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>We've received your acceptance of the quote for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong>.</p>
-        <p>Your booking reference is <strong style="color:#D4AF37;">#${id}</strong>. Our team will formally confirm your booking shortly.</p>
-        ${paymentScheduleHtml}
-        <p style="font-size:12px;color:#888;margin-top:16px;">Please ensure each payment is made by its due date to keep your booking active. Contact us if you have any questions.</p>
-    `;
+    // NOTE: paymentScheduleHtml carries the scheduled amounts — kept verbatim.
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: invoiceGenerated ? `Booking #${id} accepted — invoice issued.` : `Booking #${id} — quote accepted.`,
+        headline: invoiceGenerated ? 'Invoice Sent — Awaiting Payment' : 'Quote Accepted',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `We've received your acceptance of the quote for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>. Your booking reference is <strong style="color:#D4AF37;">#${id}</strong>, and our team will formally confirm your booking shortly.` +
+            paymentScheduleHtml +
+            `<p style="font-size:12px; color:#B0B0B0; margin-top:8px;">Please ensure each payment is made by its due date to keep your booking active. Contact us if you have any questions.</p>`,
+        cta: { label: 'View Your Booking', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
+        socialLinks
+    });
 
     // E3: ICS calendar invite attached to quote acceptance confirmation
     const icsContent = generateBookingICS(booking);
@@ -3028,7 +3049,8 @@ async function sendQuoteAcceptedEmail(booking, options = {}) {
         to: email,
         // Gap 2: Subject and title reflect whether the invoice was actually generated (honest messaging).
         subject: invoiceGenerated ? `Invoice Issued – Booking #${id}` : `Quote Accepted – Booking #${id}`,
-        htmlContent: emailBody,
+        htmlContent: html,
+        preWrapped: true,
         attachments: icsAttachments,
         titleOverride: invoiceGenerated ? 'Invoice Sent – Awaiting Payment' : 'Quote Accepted – Awaiting Payment',
         trigger_event: 'Booking: Quote Accepted Receipt'
@@ -3280,15 +3302,18 @@ async function sendBookingCompletedEmail(booking) {
 async function sendQuoteExpiredEmail(booking) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>Your quote for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong> has expired and is no longer valid.</p>
-        <p>If you are still interested in booking Thabiso Mhlongo for your event, please don't hesitate to <a href="${process.env.SITE_URL || ''}/index.html#booking" style="color:#D4AF37;">submit a new enquiry</a> and we'll be happy to prepare a fresh quote for you.</p>
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-    `;
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Your quote for booking #${id} has expired.`,
+        headline: 'Your Quote Has Expired',
+        greeting: `Hi ${name},`,
+        bodyHtml: `Your quote for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> has expired and is no longer valid.<br><br>If you're still interested in booking Thabiso Mhlongo for your event, we'd be glad to prepare a fresh quote — just submit a new enquiry and we'll take it from there. <span style="color:#B0B0B0; font-size:13px;">(Booking reference #${id})</span>`,
+        cta: { label: 'Submit a New Enquiry', url: `${process.env.SITE_URL || ''}/index.html#booking` },
+        socialLinks
+    });
     const result = await sendEmail({
         to: email, subject: `Your Quote Has Expired – Booking #${id}`,
-        htmlContent: emailBody, titleOverride: 'Quote Expired',
+        htmlContent: html, preWrapped: true, titleOverride: 'Quote Expired',
         trigger_event: 'Booking: Quote Expired'
     });
     return result.success;
@@ -3446,11 +3471,17 @@ async function sendAdminQuoteAcceptedNotification(booking) {
 async function sendQuoteExpiryWarningEmail(booking) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, quote_expiry_date } = booking;
-    const body = `<p>Hi <strong>${name}</strong>,</p>
-        <p>Your quote for <strong>${event_name || event_type}</strong> on <strong>${date}</strong> expires <strong>tomorrow (${quote_expiry_date})</strong>.</p>
-        <p>Accept it now via your <a href="${process.env.SITE_URL || ''}/index.html#track" style="color:#D4AF37;">booking tracker</a> before it expires.</p>`;
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Your quote for booking #${id} expires tomorrow.`,
+        headline: 'Your Quote Expires Tomorrow',
+        greeting: `Hi ${name},`,
+        bodyHtml: `Your quote for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> expires <strong style="color:#D4AF37;">tomorrow (${quote_expiry_date})</strong>. Accept it now via your booking tracker before it lapses.`,
+        cta: { label: 'Accept Your Quote', url: `${process.env.SITE_URL || ''}/index.html#track` },
+        socialLinks
+    });
     return sendEmail({ to: email, subject: `Your Quote Expires Tomorrow – Booking #${id}`,
-        htmlContent: body, titleOverride: 'Quote Expiring Soon', trigger_event: 'Booking: Quote Expiry Warning' });
+        htmlContent: html, preWrapped: true, titleOverride: 'Quote Expiring Soon', trigger_event: 'Booking: Quote Expiry Warning' });
 }
 
 async function sendReviewRequestEmail(booking) {
