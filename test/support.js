@@ -14,6 +14,7 @@ const ADMIN = { email: 'test.runner@example.invalid', password: 'TestRunnerPass1
 
 let child = null;
 let cookie = '';
+let runStartedAt = 0; // used to sweep docs/ PDFs this run generated
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -37,6 +38,7 @@ async function seedAdmin() {
 }
 
 async function start() {
+    runStartedAt = Date.now();
     // Fresh throwaway DB from the current schema+data.
     for (const suffix of ['', '-wal', '-shm']) {
         const src = path.join(ROOT, 'database.sqlite' + suffix);
@@ -88,14 +90,14 @@ async function stop() {
     for (const suffix of ['', '-wal', '-shm']) {
         try { fs.unlinkSync(TEST_DB + suffix); } catch (e) {}
     }
-    // Remove any documents the run generated (booking ids above the fixture max).
+    // The app writes quote/invoice/contract PDFs into docs/ regardless of DB_PATH, so the run leaves
+    // artifacts there. Delete exactly the files this run created (mtime at/after run start).
     for (const dir of ['quotes', 'invoices', 'contracts']) {
         const d = path.join(ROOT, 'docs', dir);
         if (!fs.existsSync(d)) continue;
         for (const f of fs.readdirSync(d)) {
-            if (/-(20\d{6}|\d{12,14})/.test(f) && fs.statSync(path.join(d, f)).mtimeMs > Date.now() - 3600e3) {
-                // only files this run just created — belt-and-braces mtime guard
-            }
+            const fp = path.join(d, f);
+            try { if (fs.statSync(fp).mtimeMs >= runStartedAt) fs.unlinkSync(fp); } catch (e) {}
         }
     }
 }

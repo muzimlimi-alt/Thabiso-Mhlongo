@@ -13,3 +13,7 @@ scratch/
 *.log
 puppeteer_verify.js
 verify_login_logs.js
+
+# integration test throwaway DB
+test/.test.sqlite
+test/.test.sqlite-*
