@@ -1406,6 +1406,24 @@
 							</div>
 						</div>
 
+						<!-- Contract e-signature (shown when a contract has been sent and the client hasn't signed yet) -->
+						<div id="contractSignSection" style="display:none;padding:16px;background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.3);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;">
+							<div style="font-weight:700;color:#D4AF37;margin-bottom:6px;"><i class="fa-solid fa-signature" style="margin-right:6px;"></i>Sign your contract</div>
+							<p style="font-size:12px;color:#bbb;margin:0 0 12px;">Please download and review the contract above. To sign, type your full legal name and confirm your agreement below. Our team will then countersign to finalise it.</p>
+							<label for="contractSignName" style="display:block;font-size:11px;color:#999;margin-bottom:4px;">Full legal name</label>
+							<input type="text" id="contractSignName" autocomplete="name" placeholder="Your full legal name" style="width:100%;box-sizing:border-box;padding:9px 12px;background:#111;border:1px solid #333;border-radius:8px;color:#fff;font-size:13px;margin-bottom:10px;">
+							<label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#ccc;margin-bottom:12px;cursor:pointer;">
+								<input type="checkbox" id="contractSignAgree" style="margin-top:2px;">
+								<span>I have read the contract and agree to its terms. I intend this typed name to be my electronic signature.</span>
+							</label>
+							<button type="button" id="contractSignBtn" style="width:100%;padding:11px 16px;background:#D4AF37;color:#000;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Sign contract</button>
+							<div id="contractSignError" style="display:none;margin-top:8px;font-size:12px;color:#EF5350;" role="alert" aria-live="assertive"></div>
+						</div>
+						<!-- Contract signed confirmation -->
+						<div id="contractSignedNotice" style="display:none;padding:14px 16px;background:rgba(76,175,80,0.10);border:1px solid rgba(76,175,80,0.3);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;color:#66bb6a;font-size:13px;">
+							<i class="fa-solid fa-circle-check" style="margin-right:6px;"></i><span id="contractSignedText">You've signed this contract. It's now awaiting our countersignature.</span>
+						</div>
+
 						<!-- Cancelled Notice -->
 						<div id="cancelledNotice" style="display:none;padding:16px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;color:var(--error);font-weight:500;">
 							<i class="fa-solid fa-ban" style="color:var(--error);margin-right:6px;"></i>
@@ -2017,6 +2035,29 @@ $(document).ready(function() {
                     $('#contractDownloadSection').hide();
                 }
 
+                // Contract e-signature state (C4): show the sign form when a contract was sent and the
+                // client hasn't signed; show a confirmation once they have; hide both otherwise.
+                var contract = data.contract || null;
+                $('#contractSignError').hide().text('');
+                if (contract && contract.status === 'sent' && !contract.signed_by_client_at && contract.is_frozen !== 1) {
+                    window._contractSignBookingId = data.booking.id;
+                    window._contractSignEmail = $('#trackEmail').val() || '';
+                    $('#contractSignAgree').prop('checked', false);
+                    $('#contractSignName').val('');
+                    $('#contractSignSection').show();
+                    $('#contractSignedNotice').hide();
+                } else if (contract && contract.signed_by_client_at) {
+                    var when = String(contract.signed_by_client_at).slice(0, 10);
+                    $('#contractSignedText').text(contract.is_frozen === 1 || contract.status === 'signed'
+                        ? 'This contract is fully signed.'
+                        : 'You signed this contract on ' + when + '. It\'s now awaiting our countersignature.');
+                    $('#contractSignSection').hide();
+                    $('#contractSignedNotice').show();
+                } else {
+                    $('#contractSignSection').hide();
+                    $('#contractSignedNotice').hide();
+                }
+
                 // Quote PDF download button
                 if (isQuotedOrActive && ['QUOTED','ACCEPTED','CONFIRMED','COMPLETED'].includes(bStatus)) {
                     $('#quotePdfSection').css('display', 'flex');
@@ -2303,6 +2344,37 @@ $(document).ready(function() {
         }
     });
 
+    // Contract e-signature — typed-name acknowledgement (C4)
+    $(document).on('click', '#contractSignBtn', async function() {
+        var $err = $('#contractSignError').hide().text('');
+        var name = ($('#contractSignName').val() || '').trim();
+        var agreed = $('#contractSignAgree').is(':checked');
+        var bookingId = window._contractSignBookingId;
+        var email = window._contractSignEmail || $('#trackEmail').val() || '';
+        if (name.length < 2) { $err.text('Please enter your full legal name.').show(); return; }
+        if (!agreed) { $err.text('Please confirm your agreement to sign.').show(); return; }
+        var $btn = $(this).prop('disabled', true).text('Signing...');
+        try {
+            var res = await fetch('/api/public/bookings/' + bookingId + '/contract/sign', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email, signatory_name: name, agreed: true })
+            });
+            var result = await res.json();
+            if (res.ok && result.success) {
+                $('#contractSignSection').hide();
+                $('#contractSignedText').text('Thank you — your signature has been recorded. It\'s now awaiting our countersignature.');
+                $('#contractSignedNotice').show();
+                if (window.notificationService) window.notificationService.showSuccess('Contract signed. Thank you!');
+            } else {
+                $err.text(result.message || 'Could not record your signature.').show();
+            }
+        } catch (e) {
+            $err.text('Network error. Please try again.').show();
+        } finally {
+            $btn.prop('disabled', false).text('Sign contract');
+        }
+    });
+
     $('#trkBackBtn').on('click', function(e) {
         e.preventDefault();
         resetTracker();
@@ -2312,7 +2384,7 @@ $(document).ready(function() {
         $('#trackingDetails').hide();
         $('#trackingAuth').show();
         $('#quoteSection, #noQuoteSection, #paymentSuccess, #acceptQuoteSection').hide();
-        $('#cancelledNotice, #completedNotice, #expiredNotice, #clientCancelSection, #quotePdfSection, #invoiceSection, #paymentScheduleSection, #contractDownloadSection').hide();
+        $('#cancelledNotice, #completedNotice, #expiredNotice, #clientCancelSection, #quotePdfSection, #invoiceSection, #paymentScheduleSection, #contractDownloadSection, #contractSignSection, #contractSignedNotice').hide();
         $('#paymentSection').show();
         $('#paymentSection p').text('Choose a payment option to confirm your booking:');
         $('.pay-btn[data-type="DEPOSIT"]').show();

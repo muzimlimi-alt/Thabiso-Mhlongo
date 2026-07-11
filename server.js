@@ -2890,6 +2890,40 @@ async function sendInvoicePreDueEmail(booking, invoice, daysUntilDue) {
     return result.success;
 }
 
+// Emails the generated contract PDF to the client with a link to the tracking page, where they can
+// review and sign it online. Mirrors sendInvoicePreDueEmail's structure.
+async function sendContractEmail(booking, contractPdfPath) {
+    booking = escapeEmailFields(booking);
+    const { id, name, email, event_name, event_type, date } = booking;
+    const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
+    const signUrl = `${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}`;
+
+    const attachments = [];
+    if (contractPdfPath && fs.existsSync(contractPdfPath)) {
+        attachments.push({ filename: `Contract_${id}_Thabiso_Mhlongo.pdf`, path: contractPdfPath, contentType: 'application/pdf' });
+    }
+
+    const htmlContent = `
+        <p>Hi <strong>${name}</strong>,</p>
+        <p>Your booking contract for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong> is ready. Please review the attached PDF and sign it online at your convenience.</p>
+        <p style="margin:20px 0;text-align:center;">
+            <a href="${signUrl}" style="display:inline-block;padding:12px 28px;background:#D4AF37;color:#000;text-decoration:none;font-weight:bold;border-radius:4px;font-size:14px;">Review &amp; Sign Contract</a>
+        </p>
+        <p style="font-size:12px;color:#888;">Once you've signed, our team will countersign to finalise the agreement. If you have any questions about the terms, just reply to this email.</p>
+        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
+    `;
+
+    const result = await sendEmail({
+        to: email,
+        subject: `Your booking contract — ${event_name || event_type} (Booking #${id})`,
+        htmlContent,
+        attachments,
+        titleOverride: 'Your Booking Contract',
+        trigger_event: 'Booking: Contract Sent'
+    });
+    return result.success;
+}
+
 async function sendOverdueInvoiceEmail(booking, invoice) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
@@ -5335,7 +5369,7 @@ app.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, (req
                         [row.id, row.id], (qvErr, qv) => {
                             db.get("SELECT refund_due, refund_amount, refund_status, refunded_at, reason FROM cancellations WHERE booking_id = ?",
                                 [row.id], (cErr, cancRow) => {
-                                    db.get("SELECT pdf_url, status FROM contracts WHERE booking_id = ?", [row.id], (contractErr, contractRow) => {
+                                    db.get("SELECT pdf_url, status, sent_to_client_at, signed_by_client_at, signed_by_comedian_at, is_frozen FROM contracts WHERE booking_id = ?", [row.id], (contractErr, contractRow) => {
                                         // Strip gateway-internal fields — not needed by the public tracker
                                         const publicBooking = { ...row };
                                         delete publicBooking.payment_raw_data;
@@ -6456,11 +6490,21 @@ app.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => {
         return res.status(400).json({ success: false, message: 'Signatory name is required to mark as signed.' });
     }
 
-    db.get("SELECT status, is_frozen FROM contracts WHERE booking_id = ?", [bookingId], (checkErr, existing) => {
+    const forceCountersign = req.body && req.body.force === true;
+    db.get("SELECT status, is_frozen, signed_by_client_at FROM contracts WHERE booking_id = ?", [bookingId], (checkErr, existing) => {
         if (checkErr) return res.status(500).json({ success: false, message: checkErr.message });
         if (!existing) return res.status(404).json({ success: false, message: 'No contract found for this booking. Upload a PDF first.' });
         if (existing.is_frozen === 1 || existing.status === 'signed') {
             return res.status(400).json({ success: false, message: 'This contract has already been signed and cannot be re-signed.' });
+        }
+        // Two-party model: the client signs online first, then the admin/comedian countersigns to
+        // finalise. Block the countersign until the client has signed, unless explicitly overridden.
+        if (!existing.signed_by_client_at && !forceCountersign) {
+            return res.status(400).json({
+                success: false,
+                requires_client_signature: true,
+                message: 'The client has not signed this contract yet. Send it for signing first, or pass { force: true } to countersign anyway.'
+            });
         }
 
         db.run(
@@ -6503,6 +6547,48 @@ app.get('/api/admin/bookings/:id/contract/download', requireAdmin, (req, res) =>
     });
 });
 
+// POST — send the generated contract to the client for online signing.
+// Draft-only generation means this is the explicit "deliver it" step; it stamps sent_to_client_at
+// and advances draft -> sent so the client tracking page exposes the review-and-sign flow.
+app.post('/api/admin/bookings/:id/contract/send', requireAdmin, mutateRateLimiter, (req, res) => {
+    const bookingId = req.params.id;
+    db.get(`SELECT b.id, b.name, COALESCE(c.email, b.email) AS email, b.event_name, b.event_type, b.date
+            FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`, [bookingId], (err, booking) => {
+        if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        db.get("SELECT pdf_url, status, is_frozen FROM contracts WHERE booking_id = ?", [bookingId], async (cErr, contract) => {
+            if (cErr) return res.status(500).json({ success: false, message: cErr.message });
+            if (!contract || !contract.pdf_url) return res.status(404).json({ success: false, message: 'No contract on file. Generate or upload one first.' });
+            if (contract.status === 'signed' || contract.is_frozen === 1) {
+                return res.status(400).json({ success: false, message: 'This contract is already signed and finalised.' });
+            }
+            const pdfPath = path.join(__dirname, 'docs', 'contracts', contract.pdf_url);
+            if (!fs.existsSync(pdfPath)) return res.status(404).json({ success: false, message: 'Contract file not found on server. Regenerate it first.' });
+
+            try {
+                await sendContractEmail(booking, pdfPath);
+            } catch (e) {
+                console.error('[Contract Send] email failed for booking #' + bookingId + ':', e.message);
+                return res.status(500).json({ success: false, message: 'Could not email the contract: ' + e.message });
+            }
+            // Only advance a draft to sent; a re-send of an already-sent (possibly client-signed)
+            // contract just refreshes the timestamp without downgrading its status.
+            db.run(
+                `UPDATE contracts SET status = CASE WHEN status = 'draft' THEN 'sent' ELSE status END,
+                        sent_to_client_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                 WHERE booking_id = ?`,
+                [bookingId],
+                (uErr) => {
+                    if (uErr) console.error('[Contract Send] status update failed:', uErr.message);
+                    db.run(`INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json)
+                            VALUES ('contracts', ?, 'SENT', ?, ?)`,
+                        [bookingId, req.session.username || 'admin', JSON.stringify({ to: booking.email })], () => {});
+                    res.json({ success: true, message: 'Contract sent to the client for signing.' });
+                }
+            );
+        });
+    });
+});
+
 // Gap 8: POST — send contract signature reminder email to client
 app.post('/api/admin/bookings/:id/contract/remind', requireAdmin, mutateRateLimiter, (req, res) => {
     const bookingId = req.params.id;
@@ -6537,6 +6623,161 @@ app.post('/api/admin/bookings/:id/contract/remind', requireAdmin, mutateRateLimi
                     (uErr) => { if (uErr) console.error('[Contract Remind] timestamp update failed:', uErr.message); });
                 res.json({ success: true, message: 'Reminder sent.' });
             }).catch(e => res.status(500).json({ success: false, message: e.message }));
+        });
+    });
+});
+
+// State-aware per-booking reminder. Picks the reminder appropriate to where the booking is in the
+// lifecycle and returns what it did. Shared by the single-booking route and the bulk action.
+// Throttling reuses existing state: the contract reminder is gated by contracts.sent_to_client_at,
+// the balance reminder by a reminders_log row (schedule_id NULL, days_before=0 sentinel — distinct
+// from the 7/3/1 pre-event reminders and the milestone reminders which carry a non-NULL schedule_id).
+async function remindBooking(bookingId) {
+    const b = await dbGet(
+        `SELECT b.id, COALESCE(c.full_name, b.name) AS name, COALESCE(c.email, b.email) AS email,
+                b.event_name, b.event_type, b.date, b.status, b.amount_outstanding, b.quote_expiry_date
+         FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`, [bookingId]);
+    if (!b) return { booking_id: bookingId, sent: false, skipped: 'not found' };
+
+    const status = (b.status || '').toUpperCase();
+    const todayLocal = moment().tz('Africa/Johannesburg').format('YYYY-MM-DD');
+
+    // 1. QUOTED and not expired → quote follow-up.
+    if (status === 'QUOTED' && (!b.quote_expiry_date || b.quote_expiry_date >= todayLocal)) {
+        await sendQuoteExpiryWarningEmail(b);
+        return { booking_id: bookingId, sent: true, type: 'quote' };
+    }
+
+    // 2. Committed with a contract sent but not yet client-signed → contract signing reminder.
+    if (['ACCEPTED', 'CONFIRMED'].includes(status)) {
+        const contract = await dbGet("SELECT status, is_frozen, sent_to_client_at, signed_by_client_at FROM contracts WHERE booking_id = ?", [bookingId]);
+        if (contract && contract.status === 'sent' && !contract.signed_by_client_at && contract.is_frozen !== 1) {
+            const last = contract.sent_to_client_at ? moment(contract.sent_to_client_at) : null;
+            if (last && moment().diff(last, 'hours') < 24) return { booking_id: bookingId, sent: false, skipped: 'contract reminded <24h ago' };
+            await sendEmail({
+                to: b.email,
+                subject: `Action Required: Please sign your booking contract — ${b.event_name || b.event_type}`,
+                htmlContent: `<p>Hi ${b.name},</p><p>A friendly reminder that your booking contract for <strong>${b.event_name || b.event_type}</strong> on ${b.date} is awaiting your signature. You can review and sign it from your booking page.</p><p>Thank you,<br>Thabiso Mhlongo Management</p>`,
+                titleOverride: 'Contract Signature Reminder',
+                trigger_event: 'Admin: Contract Remind'
+            });
+            await dbRun("UPDATE contracts SET sent_to_client_at = CURRENT_TIMESTAMP WHERE booking_id = ?", [bookingId]);
+            return { booking_id: bookingId, sent: true, type: 'contract' };
+        }
+    }
+
+    // 3. CONFIRMED with an outstanding balance → balance-due reminder.
+    if (status === 'CONFIRMED' && (parseFloat(b.amount_outstanding) || 0) > 0.01) {
+        const recent = await dbGet(
+            "SELECT id FROM reminders_log WHERE booking_id = ? AND schedule_id IS NULL AND days_before = 0 AND sent_at > datetime('now','-24 hours')",
+            [bookingId]);
+        if (recent) return { booking_id: bookingId, sent: false, skipped: 'balance reminded <24h ago' };
+        await sendDepositBalanceDueEmail(b, b.amount_outstanding);
+        await dbRun(
+            "INSERT INTO reminders_log (booking_id, schedule_id, days_before, due_date, amount_due, recipient_email, status) VALUES (?, NULL, 0, ?, ?, ?, 'sent')",
+            [bookingId, b.date || todayLocal, b.amount_outstanding, b.email]);
+        return { booking_id: bookingId, sent: true, type: 'balance' };
+    }
+
+    return { booking_id: bookingId, sent: false, skipped: 'nothing due' };
+}
+
+// POST — send the state-appropriate reminder for one booking.
+app.post('/api/admin/bookings/:id/remind', requireAdmin, async (req, res) => {
+    try {
+        const result = await remindBooking(req.params.id);
+        res.json({ success: true, ...result });
+    } catch (e) {
+        console.error('[Remind] failed for booking #' + req.params.id + ':', e.message);
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// POST — bulk "Send reminder": each selected booking gets the reminder appropriate to its state.
+app.post('/api/admin/bookings/bulk-remind', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids.map(n => parseInt(n, 10)).filter(n => !isNaN(n)) : [];
+    if (ids.length === 0) return res.status(400).json({ success: false, message: 'No bookings selected.' });
+    if (ids.length > 200) return res.status(400).json({ success: false, message: 'Too many bookings selected (max 200).' });
+
+    let sent = 0, skipped = 0, failed = 0;
+    const breakdown = { quote: 0, contract: 0, balance: 0 };
+    const errors = [];
+    for (const id of ids) {
+        try {
+            const r = await remindBooking(id);
+            if (r.sent) { sent++; if (breakdown[r.type] !== undefined) breakdown[r.type]++; }
+            else skipped++;
+        } catch (e) { failed++; errors.push(`#${id}: ${e.message}`); }
+    }
+    res.json({ success: true, sent, skipped, failed, breakdown, errors: errors.length ? errors : undefined });
+});
+
+// PUBLIC — client e-signs the contract online (typed-name acknowledgement, two-party model).
+// Email-verified like accept-quote (Gap 1 accepted risk). Records the client signature; the admin
+// then countersigns via PUT /contract/sign to finalise. The contract PDF is already served
+// statically, so this endpoint only captures intent + attribution.
+app.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateLimiter, (req, res) => {
+    const bookingId = req.params.id;
+    const email = asBookingText(req.body.email);
+    const signatoryName = asBookingText(req.body.signatory_name);
+    const agreed = req.body.agreed === true || req.body.agreed === 'true';
+
+    if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
+    if (!agreed) return res.status(400).json({ success: false, message: 'You must confirm your agreement to sign.' });
+    if (signatoryName.length < 2 || signatoryName.length > 120) {
+        return res.status(400).json({ success: false, message: 'Please enter your full legal name.' });
+    }
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+
+    db.get("SELECT id, email FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
+        if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        if ((booking.email || '').trim().toLowerCase() !== email.trim().toLowerCase()) {
+            return res.status(401).json({ success: false, message: 'Email does not match our records.' });
+        }
+        db.get("SELECT status, is_frozen, signed_by_client_at FROM contracts WHERE booking_id = ?", [bookingId], (cErr, contract) => {
+            if (cErr) return res.status(500).json({ success: false, message: cErr.message });
+            if (!contract) return res.status(404).json({ success: false, message: 'No contract is available for this booking yet.' });
+            if (contract.is_frozen === 1 || contract.status === 'signed') {
+                return res.status(400).json({ success: false, message: 'This contract has already been finalised.' });
+            }
+            if (contract.status !== 'sent') {
+                return res.status(400).json({ success: false, message: 'This contract is not ready for signing yet. Please wait for it to be sent to you.' });
+            }
+            if (contract.signed_by_client_at) {
+                return res.status(409).json({ success: false, message: 'You have already signed this contract. It is now awaiting our countersignature.' });
+            }
+
+            // Signature = intent + attribution. Store the typed name, server-stamped time, IP and UA.
+            const signatureData = JSON.stringify({
+                name: signatoryName,
+                signed_at: new Date().toISOString(),
+                ip: clientIp,
+                user_agent: (req.headers['user-agent'] || '').slice(0, 300)
+            });
+            db.run(
+                `UPDATE contracts
+                 SET client_signature_data = ?, signed_by_client_at = CURRENT_TIMESTAMP, client_ip_address = ?, updated_at = CURRENT_TIMESTAMP
+                 WHERE booking_id = ? AND signed_by_client_at IS NULL`,
+                [signatureData, clientIp, bookingId],
+                function (uErr) {
+                    if (uErr) return res.status(500).json({ success: false, message: uErr.message });
+                    if (this.changes === 0) {
+                        return res.status(409).json({ success: false, message: 'You have already signed this contract.' });
+                    }
+                    db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, ip_address)
+                            VALUES ('contracts', ?, 'CLIENT_SIGNED', ?, ?, ?)`,
+                        [bookingId, JSON.stringify({ signatory_name: signatoryName }), email, clientIp], () => {});
+                    // Notify the admin that the client signed and a countersignature is due.
+                    getNotificationEmail().then(notifEmail => notifEmail && sendEmail({
+                        to: notifEmail,
+                        subject: `Contract signed by client — Booking #${bookingId}`,
+                        htmlContent: `<p><strong>${signatoryName}</strong> has signed the contract for booking <strong>#${bookingId}</strong> online.</p><p>Log in to the admin panel to countersign and finalise it.</p>`,
+                        titleOverride: 'Client Signed Contract',
+                        trigger_event: 'Admin: Client Signed Contract'
+                    })).catch(() => {});
+                    res.json({ success: true, message: 'Thank you — your signature has been recorded. Our team will countersign to finalise the contract.' });
+                }
+            );
         });
     });
 });
@@ -10557,6 +10798,58 @@ app.get('/api/admin/bookings/:id/reconcile', requireAdmin, (req, res) => {
                 transactions: { total_paid: row.tx_paid, count: row.tx_count },
                 drift,
                 drift_amount: drift ? ((row.ledger_paid || 0) - (row.tx_paid || 0)).toFixed(2) : '0.00'
+            });
+        }
+    );
+});
+
+// Reconciliation overview — every money-bearing booking with its three independent views of what has
+// been paid: the booking ledger (amount_paid), the transaction sum (PayFast ITN + manual + refunds),
+// and the paid payment_schedules milestones. Any two disagreeing by > 1c flags drift. Reuses the exact
+// tx_paid CASE from the per-booking /reconcile route above. The frontend drives the existing
+// /reconcile/sync and /transactions/:id/reconcile actions off this list — no new mutations here.
+app.get('/api/admin/financials/reconciliation', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    db.all(
+        `SELECT
+            b.id, COALESCE(c.full_name, b.name) AS name, b.event_name, b.date, b.status, b.payment_status,
+            b.total_amount AS ledger_total, b.amount_paid AS ledger_paid, b.amount_outstanding AS ledger_outstanding,
+            COALESCE(SUM(CASE WHEN (t.source != 'payfast' OR t.is_verified = 1) AND COALESCE(t.is_duplicate, 0) = 0 AND t.status = 'completed'
+                THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS tx_paid,
+            COUNT(t.id) AS tx_count,
+            COALESCE(SUM(CASE WHEN t.source = 'payfast' THEN 1 ELSE 0 END), 0) AS tx_payfast,
+            COALESCE(SUM(CASE WHEN t.source = 'manual' THEN 1 ELSE 0 END), 0) AS tx_manual,
+            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0) = 1 THEN 1 ELSE 0 END), 0) AS tx_duplicates,
+            (SELECT COALESCE(SUM(ps.expected_amount), 0) FROM payment_schedules ps
+                WHERE ps.booking_id = b.id AND LOWER(COALESCE(ps.status,'pending')) = 'paid') AS schedule_paid
+         FROM bookings b
+         LEFT JOIN clients c ON b.client_id = c.id
+         LEFT JOIN transactions t ON t.booking_id = b.id
+         WHERE b.status NOT IN ('CANCELLED','EXPIRED')
+         GROUP BY b.id
+         HAVING tx_count > 0 OR COALESCE(b.amount_paid,0) > 0 OR COALESCE(b.total_amount,0) > 0`,
+        [],
+        (err, rows) => {
+            if (err) return res.status(500).json({ success: false, message: err.message });
+            const near = (a, b2) => Math.abs((a || 0) - (b2 || 0)) <= 0.01;
+            const list = (rows || []).map(r => {
+                const ledgerVsTx = !near(r.ledger_paid, r.tx_paid);
+                const ledgerVsSchedule = !near(r.ledger_paid, r.schedule_paid);
+                const drift = ledgerVsTx || ledgerVsSchedule;
+                return {
+                    booking_id: r.id, name: r.name, event_name: r.event_name, date: r.date,
+                    status: r.status, payment_status: r.payment_status,
+                    ledger_total: r.ledger_total, ledger_paid: r.ledger_paid, ledger_outstanding: r.ledger_outstanding,
+                    tx_paid: r.tx_paid, schedule_paid: r.schedule_paid,
+                    sources: { payfast: r.tx_payfast, manual: r.tx_manual, duplicates: r.tx_duplicates },
+                    drift, ledger_vs_tx: ledgerVsTx, ledger_vs_schedule: ledgerVsSchedule,
+                    drift_amount: ((r.ledger_paid || 0) - (r.tx_paid || 0)).toFixed(2)
+                };
+            }).sort((a, b2) => (b2.drift - a.drift) || (b2.booking_id - a.booking_id));
+            res.json({
+                success: true,
+                total: list.length,
+                drift_count: list.filter(x => x.drift).length,
+                bookings: list
             });
         }
     );
