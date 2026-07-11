@@ -1334,15 +1334,11 @@
         }
         .atl-tag-more-btn:hover { border-color: var(--atl-amber); color: var(--atl-ink); }
 
-        /* Event-card meta (date · location): one ellipsised line on wide screens, but on
-           phones stack the two so neither the date nor the venue is ever clipped. */
-        .evt-card-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        @media (max-width: 575px) {
-            /* Let the date and venue flow inline and wrap naturally (using the full width)
-               rather than truncating — neither is ever clipped, no forced stacking. */
-            .evt-card-meta { white-space: normal; overflow: visible; text-overflow: clip; }
-            .evt-card-meta__item { display: inline; }
-        }
+        /* Event-card meta — date and venue each on their own line (separator hidden),
+           icons top-aligned, nothing truncated. */
+        .evt-card-meta { display: flex; flex-direction: column; gap: 3px; white-space: normal; }
+        .evt-card-meta__sep { display: none; }
+        .evt-card-meta__item { display: inline-flex; align-items: flex-start; gap: 6px; min-width: 0; }
 
         /* Calendar sidebar gap when columns stack below lg breakpoint */
         @media (max-width: 1199px) {
