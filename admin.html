@@ -1334,6 +1334,15 @@
         }
         .atl-tag-more-btn:hover { border-color: var(--atl-amber); color: var(--atl-ink); }
 
+        /* Event-card meta (date · location): one ellipsised line on wide screens, but on
+           phones stack the two so neither the date nor the venue is ever clipped. */
+        .evt-card-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        @media (max-width: 575px) {
+            .evt-card-meta { white-space: normal; overflow: visible; text-overflow: clip; display: flex; flex-direction: column; gap: 3px; }
+            .evt-card-meta__sep { display: none; }
+            .evt-card-meta__item { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+        }
+
         /* Calendar sidebar gap when columns stack below lg breakpoint */
         @media (max-width: 1199px) {
             #calendarAdmin .col-lg-4 { margin-top: 20px; }
@@ -3513,7 +3522,15 @@
         }
         .atl-save-dock__hint { font-size: 12.5px; color: var(--atl-muted); margin-right: auto; }
         @media (max-width: 600px) {
-            .atl-save-dock { justify-content: stretch; }
+            /* On phones the sticky dock overlaps the cards it floats over (e.g. Branding).
+               Settle it into normal flow at the section's end so it never overlays content. */
+            .atl-save-dock {
+                justify-content: stretch;
+                position: static;
+                box-shadow: none;
+                -webkit-backdrop-filter: none;
+                backdrop-filter: none;
+            }
             .atl-save-dock__hint { display: none; }
             .atl-save-dock .atl-btn { width: 100%; justify-content: center; }
         }
@@ -4246,7 +4263,59 @@
 
         .um-upload-zone--dragging { border-color: var(--atl-amber) !important; background: rgba(212,175,55,0.06) !important; }
 
-    </style>
+        /* ═══════════════════════════════════════════════════════════════════════
+           MOBILE UI/UX POLISH — additive & admin-scoped. Phone tiers reuse the
+           file's existing breakpoints (767 / 479). Nothing here touches ≥768px.
+           ═══════════════════════════════════════════════════════════════════════ */
+
+        /* Defect: the About-Me live preview shows a grey highlight behind the bio
+           text — it inherits a background carried on the HTML injected from the Quill
+           editors. Strip any background so the preview renders clean (colour/weight kept). */
+        #collapseAboutPreview p,
+        #collapseAboutPreview p * {
+            background: transparent !important;
+            background-color: transparent !important;
+        }
+
+        /* Textareas — a comfortable default writing area everywhere. The compact inline
+           note field (.bk-note-input) keeps its own smaller height. */
+        .atl-textarea:not(.bk-note-input),
+        textarea.um-input:not(.bk-note-input),
+        textarea.atl-input:not(.bk-note-input),
+        .atl-modal-body textarea:not(.bk-note-input) {
+            min-height: 120px;
+            line-height: 1.5;
+            resize: vertical;
+        }
+
+        @media (max-width: 767px) {
+            /* 16px inputs stop iOS Safari auto-zooming the page on focus (a11y + no reflow). */
+            .atl-input, .atl-search, .atl-textarea, .um-input, .tm-form-input,
+            .atl-filter-select, select.um-input, select.atl-input,
+            .atl-modal-body input, .atl-modal-body select, .atl-modal-body textarea,
+            input.form-control, textarea.form-control {
+                font-size: 16px !important;
+            }
+            /* Keep leading icons optically centred against the taller inputs. */
+            .um-input-icon,
+            .atl-search-wrap > i { top: 50%; transform: translateY(-50%); line-height: 1; }
+
+            /* Touch targets for the secondary button system; no button overruns its row. */
+            .um-btn { min-height: 44px; }
+            .atl-btn, .um-btn, .bk-btn { max-width: 100%; }
+
+            /* Bulk-action bars: buttons share the row and wrap instead of overflowing. */
+            .bk-bulk-bar .atl-btn { flex: 1 1 auto; justify-content: center; }
+
+            /* Wide tables scroll inside their card rather than pushing the page sideways. */
+            .table-responsive,
+            .lc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        }
+
+        @media (max-width: 479px) {
+            /* Bulk-bar buttons pair up two-per-row on the smallest screens. */
+            .bk-bulk-bar .atl-btn { flex-basis: calc(50% - 4px); }
+        }
 </head>
 
 <body class="admin-body">
@@ -12319,9 +12388,7 @@
                           ${badgeTimeline}${badgeDraft}${badgeLinked}${badgeGcal}${badgeVideo}${badgeCategory}
                         </div>
                         <h3 class="atl-event-title" style="margin:0 0 4px; font-family:'Cormorant Garamond',Georgia,serif; font-size:clamp(18px,2.5vw,24px); font-weight:500; line-height:1.15; color:var(--atl-ink);">${displayTitle}</h3>
-                        <p style="color:var(--atl-muted); font-size:13px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                          <i class="fa-regular fa-calendar-check"></i> ${displayDateStr} &nbsp;&middot;&nbsp; <i class="fa-solid fa-location-dot"></i> ${displayVenue}
-                        </p>
+                        <p class="evt-card-meta" style="color:var(--atl-muted); font-size:13px; margin:0;"><span class="evt-card-meta__item"><i class="fa-regular fa-calendar-check"></i> ${displayDateStr}</span><span class="evt-card-meta__sep">&nbsp;&middot;&nbsp;</span><span class="evt-card-meta__item"><i class="fa-solid fa-location-dot"></i> ${displayVenue}</span></p>
                       </div>
                       <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; align-self:flex-start; flex-wrap:wrap;">
                         <button type="button" class="atl-btn atl-btn--ghost evt-expand-btn" data-id="${item.event_id}" title="Edit event" aria-label="Edit event: ${displayTitle}" aria-expanded="false" aria-controls="eventDetail-${item.event_id}" style="padding:6px 10px; min-width:0;">
@@ -15949,7 +16016,14 @@
                 </div>` : '';
 
                 // Header actions / action buttons HTML
+                // Inline bar carries the primary next-step CTA; secondary actions are demoted
+                // into the existing "More" menu (below) to cut mobile clutter. Handlers are
+                // class-delegated, so a demoted item keeps its exact behaviour.
                 let actionButtonsHtml = '';
+                let demotedMoreItems = '';
+                const moreConfirm  = `<button type="button" class="atl-actions-dropdown-item bk-action-status" data-id="${row.id}" data-status="CONFIRMED"><i class="fa-solid fa-circle-check" style="color:var(--atl-sage);width:14px;"></i> Confirm Booking</button>`;
+                const morePayment  = `<button type="button" class="atl-actions-dropdown-item bk-action-record-payment" data-id="${row.id}" data-quote="${row.quote_amount||''}"><i class="fa-solid fa-money-bill-wave" style="color:var(--atl-amber);width:14px;"></i> Record Payment</button>`;
+                const moreComplete = `<button type="button" class="atl-actions-dropdown-item bk-action-complete" data-id="${row.id}"><i class="fa-solid fa-flag-checkered" style="color:var(--atl-sage);width:14px;"></i> Mark Completed</button>`;
                 if ((s === 'NEW' || s === 'PENDING') && !row.quote_amount) {
                     actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-quote" data-id="${row.id}"><i class="fa-solid fa-file-invoice-dollar" style="margin-right:6px;"></i>Send Quote</button>`;
                 }
@@ -15962,27 +16036,26 @@
                 if (s === 'ACCEPTED') {
                     if (acceptedStage === 'none') {
                         actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-gen-invoice" data-id="${row.id}"><i class="fa-solid fa-file-invoice-dollar" style="margin-right:6px;"></i>Generate Invoice</button>`;
-                        actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-status" data-id="${row.id}" data-status="CONFIRMED"><i class="fa-solid fa-circle-check" style="margin-right:6px;"></i>Confirm</button>`;
-                        actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-record-payment" data-id="${row.id}" data-quote="${row.quote_amount||''}"><i class="fa-solid fa-money-bill-wave" style="margin-right:6px;"></i>Payment</button>`;
+                        demotedMoreItems += moreConfirm + morePayment;
                     } else if (acceptedStage === 'invoiced') {
                         actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-record-payment" data-id="${row.id}" data-quote="${row.quote_amount||''}"><i class="fa-solid fa-money-bill-wave" style="margin-right:6px;"></i>Record Payment</button>`;
-                        actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-status" data-id="${row.id}" data-status="CONFIRMED"><i class="fa-solid fa-circle-check" style="margin-right:6px;"></i>Confirm</button>`;
+                        demotedMoreItems += moreConfirm;
                     } else {
                         actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-status" data-id="${row.id}" data-status="CONFIRMED"><i class="fa-solid fa-circle-check" style="margin-right:6px;"></i>Confirm</button>`;
-                        actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-info" data-id="${row.id}"><i class="fa-solid fa-folder-open" style="margin-right:6px;"></i>Open Booking</button>`;
+                        // "Open Booking" dropped from inline — the More menu's "Booking Info" (bk-action-info) is the same action.
                     }
                 }
                 if (s === 'CONFIRMED' && !hasInvoice && ps !== 'PAID') {
                     actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-gen-invoice" data-id="${row.id}"><i class="fa-solid fa-file-circle-plus" style="margin-right:6px;"></i>Generate Invoice</button>`;
-                    actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-record-payment" data-id="${row.id}" data-quote="${row.quote_amount||''}"><i class="fa-solid fa-money-bill-wave" style="margin-right:6px;"></i>Record Payment</button>`;
+                    demotedMoreItems += morePayment;
                 }
                 if (s === 'CONFIRMED' && hasInvoice && !invoiceSent && ps !== 'PAID') {
                     actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-send-invoice" data-id="${row.id}" data-invoice-id="${row.invoice_id}"><i class="fa-solid fa-paper-plane" style="margin-right:6px;"></i>Send Invoice</button>`;
-                    actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-record-payment" data-id="${row.id}" data-quote="${row.quote_amount||''}"><i class="fa-solid fa-money-bill-wave" style="margin-right:6px;"></i>Record Payment</button>`;
+                    demotedMoreItems += morePayment;
                 }
                 if (s === 'CONFIRMED' && hasInvoice && invoiceSent && ps !== 'PAID') {
                     actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-record-payment" data-id="${row.id}" data-quote="${row.quote_amount||''}"><i class="fa-solid fa-money-bill-wave" style="margin-right:6px;"></i>Record Payment</button>`;
-                    actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-complete" data-id="${row.id}"><i class="fa-solid fa-flag-checkered" style="margin-right:6px;"></i>Mark Completed</button>`;
+                    demotedMoreItems += moreComplete;
                 }
                 if (s === 'CONFIRMED' && ps === 'PAID') {
                     actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-complete" data-id="${row.id}"><i class="fa-solid fa-flag-checkered" style="margin-right:6px;"></i>Mark Completed</button>`;
@@ -15995,7 +16068,7 @@
                 }
                 if (s === 'CANCELLED') {
                     actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-refund" data-id="${row.id}"><i class="fa-solid fa-rotate-left" style="margin-right:6px;"></i>Record Refund</button>`;
-                    actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--ghost bk-action-book-again" data-id="${row.id}"><i class="fa-solid fa-rotate-right" style="margin-right:6px;"></i>Book Again</button>`;
+                    // "Book Again" dropped from inline — it already lives in the More menu below (bk-action-book-again).
                 }
 
                 // Add "More" dropdown
@@ -16008,6 +16081,7 @@
                     <button type="button" class="atl-actions-dropdown-item bk-action-info" data-id="${row.id}"><i class="fa-solid fa-id-card" style="color:var(--atl-blue);width:14px;"></i> Booking Info</button>
                     <button type="button" class="atl-actions-dropdown-item bk-action-financials" data-id="${row.id}"><i class="fa-solid fa-chart-line" style="color:var(--atl-amber);width:14px;"></i> Financial Controls</button>
                     <button type="button" class="atl-actions-dropdown-item bk-action-email" data-id="${row.id}"><i class="fa-solid fa-envelope" style="color:var(--atl-sage);width:14px;"></i> Email Client</button>
+                    ${demotedMoreItems}
                     ${s === 'ACCEPTED' ? `<button type="button" class="atl-actions-dropdown-item bk-action-status" data-id="${row.id}" data-status="QUOTED"><i class="fa-solid fa-rotate-left" style="color:var(--atl-amber-light);width:14px;"></i> Rescind Acceptance</button>` : ''}
                     ${s === 'ACCEPTED' && acceptedStage === 'none' ? `<button type="button" class="atl-actions-dropdown-item bk-action-gen-invoice" data-id="${row.id}"><i class="fa-solid fa-file-invoice-dollar" style="color:var(--atl-blue);width:14px;"></i> Generate Invoice</button>` : ''}
                     ${s === 'ACCEPTED' && (acceptedStage === 'invoiced' || acceptedStage === 'paid') ? `<button type="button" class="atl-actions-dropdown-item bk-action-send-invoice" data-id="${row.id}" data-invoice-id="${row.invoice_id}"><i class="fa-solid fa-rotate-right" style="color:var(--atl-blue);width:14px;"></i> Resend Invoice</button>` : ''}
