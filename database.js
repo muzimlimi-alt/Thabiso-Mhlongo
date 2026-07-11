@@ -3,7 +3,11 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 
-const dbPath = path.resolve(__dirname, 'database.sqlite');
+// DB_PATH lets the integration tests point the whole app at a throwaway copy of the database
+// instead of the real database.sqlite. Production/dev leave it unset and use the repo-root file.
+const dbPath = process.env.DB_PATH
+    ? path.resolve(process.env.DB_PATH)
+    : path.resolve(__dirname, 'database.sqlite');
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('Error opening database', err.message);
