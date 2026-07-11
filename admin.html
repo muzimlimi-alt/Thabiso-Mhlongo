@@ -3786,8 +3786,7 @@
             .tm-admin-main { margin-left: 0 !important; width: 100% !important; }
         }
         @media (max-width: 599px) {
-            .adm-header__inner { flex-wrap: wrap; gap: 8px; }
-            .adm-header__centre { order: 3; width: 100%; max-width: none; }
+            /* Single-row navbar: no wrapping, no re-ordering here — handled by redesign.css */
             .adm-btn-label { display: none; }
         }
         .db-summary-grid {
@@ -4447,16 +4446,16 @@
 
         <!-- Main Content Area -->
         <main class="tm-admin-main admin-layout">
-            <button type="button" class="tm-mobile-admin-open" id="tmMobileAdminOpen">
-                <i class="fa-solid fa-bars"></i> Menu
-            </button>
 
             <!-- ============== ADMIN CONTROL BAR ============== -->
             <header class="adm-header" id="adminControlBar" role="banner" aria-label="Admin control bar">
                 <div class="adm-header__inner">
+                    <!-- Mobile Hamburger (inside navbar, mobile only) -->
+                    <button type="button" class="adm-hamburger-btn" id="tmMobileAdminOpen" aria-label="Open navigation menu" title="Menu">
+                        <i class="fa-solid fa-bars" aria-hidden="true"></i>
+                    </button>
                     <!-- Logo -->
                     <img src="images/logo4.png" href="index.html" alt="Thabiso Mhlongo" class="adm-header__logo">
-                    <br>
                     <!-- LEFT: Breadcrumb -->
                     <div class="adm-header__left">
                         <div class="adm-breadcrumb" id="admBreadcrumb" aria-live="polite">
@@ -4467,7 +4466,7 @@
                         </div>
                     </div> 
 
-                    <!-- CENTRE: Global Search -->
+                    <!-- CENTRE: Global Search (hidden on mobile, shown via search icon) -->
                     <div class="adm-header__centre">
                         <div class="adm-search" role="search">
                             <i class="fa-solid fa-magnifying-glass adm-search__icon" aria-hidden="true"></i>
@@ -4489,6 +4488,13 @@
 
                     <!-- RIGHT: Utility Cluster -->
                     <div class="adm-header__right">
+
+                        <!-- Mobile Search Trigger (visible only on mobile) -->
+                        <button type="button" class="adm-icon-btn adm-mobile-search-btn" id="admMobileSearchBtn"
+                                aria-label="Search" title="Search"
+                                aria-expanded="false" aria-controls="admMobileSearchPanel">
+                            <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                        </button>
 
                         <!-- Theme Toggle -->
                         <button id="atlThemeToggle" type="button" class="atl-theme-toggle adm-theme-toggle"
@@ -4607,6 +4613,24 @@
             </header>
             <!-- ============== END ADMIN CONTROL BAR ============== -->
 
+            <!-- Mobile Search Panel (slides down below navbar on mobile) -->
+            <div class="adm-mobile-search-panel" id="admMobileSearchPanel" aria-hidden="true">
+                <div class="adm-search adm-mobile-search-inner" role="search">
+                    <i class="fa-solid fa-magnifying-glass adm-search__icon" aria-hidden="true"></i>
+                    <input
+                        type="search"
+                        id="admMobileSearchInput"
+                        class="adm-search__input"
+                        placeholder="Search bookings, inquiries, events…"
+                        autocomplete="off"
+                        aria-label="Search across all sections"
+                    >
+                    <button type="button" class="adm-mobile-search-close" id="admMobileSearchClose" aria-label="Close search">
+                        <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+
             <!-- Tab panes -->
             <div class="tab-content">
 
@@ -4628,10 +4652,10 @@
                             <div class="db-social-header">
                                 <i class="fa-brands fa-facebook db-icon-fb"></i>
                                 <span class="db-social-name">Facebook</span>
-                                <span class="db-social-trend" id="dbSocial-fb-trend">+22.9%</span>
+                                <span class="db-social-trend" id="dbSocial-fb-trend">+0%</span>
                             </div>
                             <div class="db-social-body">
-                                <span class="db-social-count" id="dbSocial-fb-count">12,098</span>
+                                <span class="db-social-count" id="dbSocial-fb-count">0</span>
                                 <span class="db-social-label">Followers</span>
                                 <div class="db-social-progress" id="dbSocial-fb-progress" data-percent="78"></div>
                             </div>

@@ -3852,33 +3852,44 @@ h1, h2, h3, h4, h5, h6 {
     --sidebar-active-border: #D4AF37;
 }
 
+/* ── Hamburger button — now inside the navbar on mobile ── */
 .tm-mobile-admin-open {
-    display: none;
+    display: none;  /* legacy button removed from HTML; hide if ever present */
+}
+
+/* New in-navbar hamburger (mobile only) */
+.adm-hamburger-btn {
+    display: none;  /* hidden on desktop */
     align-items: center;
-    gap: 10px;
-    padding: 10px 20px;
-    background: #111;
-    border: 1px solid #D4AF37;
-    color: #D4AF37;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: 700;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--atl-muted, #888);
     cursor: pointer;
-    transition: all 0.25s ease;
-    box-shadow: 0 4px 15px rgba(212,175,55,0.15);
-    z-index: 1000;
+    padding: 6px 8px;
+    font-size: 18px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    transition: color 0.2s ease, background 0.2s ease;
+    margin-right: 4px;
+    line-height: 1;
 }
 
-.tm-mobile-admin-open:hover {
-    background: #D4AF37;
-    color: #111;
-    box-shadow: 0 6px 20px rgba(212,175,55,0.3);
-    transform: translateY(-2px);
+.adm-hamburger-btn:hover {
+    color: #D4AF37;
+    background: rgba(212, 175, 55, 0.1);
 }
 
-.tm-mobile-admin-open i {
-    font-size: 16px;
+/* Mobile search trigger — desktop hidden, mobile shown via @media */
+.adm-mobile-search-btn {
+    display: none;
 }
+
+/* Mobile search expand panel — hidden everywhere on desktop */
+.adm-mobile-search-panel {
+    display: none;
+}
+
 
 .tm-admin-wrapper {
     display: flex;
@@ -4259,7 +4270,7 @@ h1, h2, h3, h4, h5, h6 {
     .tm-admin-main {
         padding-left: 15px !important;
         padding-right: 15px !important;
-        padding-top: 20px !important;
+        padding-top: 0 !important;
         margin-left: 0 !important;
         margin-right: 0 !important;
         width: 100% !important;
@@ -4281,10 +4292,9 @@ h1, h2, h3, h4, h5, h6 {
         opacity: 1 !important;
     }
 
+    /* Legacy standalone open button — hidden */
     .tm-mobile-admin-open {
-        display: flex !important;
-        margin-bottom: 20px;
-        width: fit-content;
+        display: none !important;
     }
 }
 
@@ -5173,29 +5183,208 @@ h1, h2, h3, h4, h5, h6 {
     .adm-header__centre { max-width: 100%; }
 }
 
-@media (max-width: 640px) {
-    .adm-header { border-radius: 0; margin-bottom: 20px; position: relative !important; width: calc(100% + 30px); margin-left: -15px; margin-right: -15px; top: auto !important; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2) !important; }
-    .adm-header__inner { padding: 8px 12px; gap: 8px; flex-wrap: wrap; height: auto; min-height: 0; display: flex; align-items: center; }
-    .adm-header__left { display: none; }
-    .adm-header__right { order: 2; margin-left: auto; gap: 6px; flex: 1; justify-content: flex-end; align-items: center; display: flex; }
-    .adm-header__centre { order: 3; width: 100%; max-width: none; flex: none; margin: 0; padding-top: 4px; }
-    
-    .adm-search { background: var(--bg-surface); border-radius: 8px; width: 100%; position: relative; }
-    .adm-search__input { font-size: 15px; padding: 10px 12px 10px 36px; height: 40px; border-radius: 8px; width: 100%; border: 1px solid #333; }
-    .adm-search__icon { left: 12px; font-size: 14px; }
-    .adm-search__shortcut { display: none; }
-    
-    .adm-btn-label { display: none; }
-    .adm-create-btn { width: 38px; height: 38px; padding: 0; justify-content: center; border-radius: 8px; flex-shrink: 0; }
-    .adm-create-btn i { font-size: 16px; margin: 0; }
-    .adm-create-btn .adm-caret { display: none; }
-    
-    .adm-icon-btn { width: 38px; height: 38px; border-radius: 8px; font-size: 15px; flex-shrink: 0; }
-    .adm-avatar { width: 32px; height: 32px; font-size: 13px; }
-    .adm-profile-btn { padding: 0; border: none; background: transparent; display: flex; align-items: center; gap: 0; flex-shrink: 0; }
-    .adm-profile-btn .adm-caret { display: none; }
-    .adm-header__divider { display: none; }
-    
+@media (max-width: 768px) {
+    /* ── Header: single-row, no-wrap ── */
+    .adm-header {
+        border-radius: 0 !important;
+        position: sticky !important;
+        top: 0 !important;
+        z-index: 300 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        border: none !important;
+        border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+        box-shadow: 0 2px 16px rgba(0,0,0,0.4) !important;
+    }
+
+    .adm-header__inner {
+        display: flex !important;
+        flex-wrap: nowrap !important;     /* ← CRITICAL: single row always */
+        align-items: center !important;
+        height: 56px !important;
+        min-height: 56px !important;
+        padding: 0 8px !important;
+        gap: 0 !important;
+    }
+
+    /* ── Hamburger button ── */
+    .adm-hamburger-btn {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        flex-shrink: 0 !important;
+        font-size: 18px !important;
+        color: #aaa !important;
+        background: none !important;
+        border: none !important;
+        border-radius: 8px !important;
+        cursor: pointer !important;
+        padding: 0 !important;
+        margin-right: 2px !important;
+        transition: color 0.2s, background 0.2s !important;
+    }
+    .adm-hamburger-btn:hover,
+    .adm-hamburger-btn:focus-visible {
+        color: #D4AF37 !important;
+        background: rgba(212,175,55,0.1) !important;
+    }
+
+    /* ── Logo: fills available space ── */
+    .adm-header__logo {
+        flex: 1 1 auto !important;
+        min-width: 0 !important;
+        max-height: 28px !important;
+        width: auto !important;
+        object-fit: contain !important;
+        object-position: left center !important;
+    }
+
+    /* ── Breadcrumb: hidden on mobile (logo is the identifier) ── */
+    .adm-header__left {
+        display: none !important;
+    }
+
+    /* ── Search centre: hidden from navbar on mobile ── */
+    .adm-header__centre {
+        display: none !important;
+    }
+
+    /* ── Right cluster ── */
+    .adm-header__right {
+        display: flex !important;
+        align-items: center !important;
+        gap: 2px !important;
+        flex-shrink: 0 !important;
+        margin-left: 4px !important;
+    }
+
+    /* ── Dividers: hidden on mobile ── */
+    .adm-header__divider {
+        display: none !important;
+    }
+
+    /* ── All icon buttons: 44×44px touch targets ── */
+    .adm-icon-btn {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 40px !important;
+        height: 44px !important;
+        min-width: 40px !important;
+        border-radius: 8px !important;
+        font-size: 16px !important;
+        flex-shrink: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* ── Mobile search trigger: visible only on mobile ── */
+    .adm-mobile-search-btn {
+        display: flex !important;
+    }
+
+    /* ── Create / Quick-add button ── */
+    .adm-create-btn {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 40px !important;
+        height: 44px !important;
+        min-width: 40px !important;
+        border-radius: 8px !important;
+        padding: 0 !important;
+        flex-shrink: 0 !important;
+    }
+    .adm-create-btn i { font-size: 16px !important; margin: 0 !important; }
+    .adm-create-btn .adm-caret,
+    .adm-btn-label { display: none !important; }
+
+    /* ── Theme toggle ── */
+    .atl-theme-toggle,
+    .adm-theme-toggle {
+        flex-shrink: 0 !important;
+        height: 44px !important;
+        display: flex !important;
+        align-items: center !important;
+        padding: 0 4px !important;
+    }
+    .atl-theme-toggle__label,
+    .adm-theme-toggle .adm-btn-label { display: none !important; }
+
+    /* ── User avatar / profile button ── */
+    .adm-avatar {
+        width: 32px !important;
+        height: 32px !important;
+        font-size: 13px !important;
+        flex-shrink: 0 !important;
+    }
+    .adm-profile-btn {
+        display: flex !important;
+        align-items: center !important;
+        height: 44px !important;
+        padding: 0 4px !important;
+        border: none !important;
+        background: transparent !important;
+        gap: 0 !important;
+        flex-shrink: 0 !important;
+    }
+    .adm-profile-btn .adm-caret { display: none !important; }
+
+    /* ── Mobile Search Panel ── */
+    .adm-mobile-search-panel {
+        display: flex !important;
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease;
+        opacity: 0;
+        background: var(--bg-header, #0f0f0f);
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+        position: sticky;
+        top: 56px;
+        z-index: 299;
+        width: 100%;
+    }
+    .adm-mobile-search-panel.open {
+        max-height: 80px;
+        opacity: 1;
+    }
+    .adm-mobile-search-inner {
+        width: 100%;
+        padding: 8px 12px;
+        position: relative;
+    }
+    .adm-mobile-search-inner .adm-search__input {
+        font-size: 15px;
+        padding: 10px 40px 10px 36px;
+        height: 42px;
+        border-radius: 10px;
+        width: 100%;
+        border: 1px solid rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.06);
+        color: #fff;
+    }
+    .adm-mobile-search-close {
+        position: absolute;
+        right: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        color: #888;
+        font-size: 16px;
+        cursor: pointer;
+        width: 32px;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+    }
+    .adm-mobile-search-close:hover { color: #D4AF37; }
+
+    /* ── Bottom sheet dropdowns ── */
     #admNotiMenu, #admCreateMenu, #admProfileMenu {
         position: fixed !important;
         top: auto !important;
@@ -5206,29 +5395,30 @@ h1, h2, h3, h4, h5, h6 {
         min-width: 0 !important;
         max-width: none !important;
         margin: 0 !important;
-        transform: translateY(105%) !important; /* Slightly more pushback */
-        transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1); /* Smoother bounce */
+        transform: translateY(105%) !important;
+        transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1);
         border-radius: 24px 24px 0 0 !important;
         border: 1px solid var(--border-default) !important;
         border-bottom: none !important;
-        z-index: 20000 !important; /* Must be ABOVE sidebar overlay */
+        z-index: 20000 !important;
         display: block !important;
-        visibility: hidden !important; 
+        visibility: hidden !important;
         pointer-events: none;
-        background: #0f0f0f !important; /* Deep matte black */
+        background: #0f0f0f !important;
         box-shadow: 0 -15px 50px rgba(0,0,0,0.95) !important;
         padding-bottom: calc(20px + env(safe-area-inset-bottom));
         color: #fff !important;
     }
-    
+
     #admNotiMenu.open, #admCreateMenu.open, #admProfileMenu.open {
         transform: translateY(0) !important;
         visibility: visible !important;
         pointer-events: auto !important;
     }
-    
+
     .adm-noti-list { max-height: 60vh !important; }
-    
+
+    /* ── Global search results: full-screen overlay ── */
     .adm-search__results {
         position: fixed !important;
         top: 0 !important;
@@ -5242,6 +5432,17 @@ h1, h2, h3, h4, h5, h6 {
         background: var(--bg-page) !important;
     }
 }
+
+/* Fine-tune for very small screens (≤360px) */
+@media (max-width: 360px) {
+    .adm-header__inner { padding: 0 4px !important; }
+    .adm-hamburger-btn { width: 40px !important; min-width: 40px !important; }
+    .adm-icon-btn { width: 36px !important; min-width: 36px !important; }
+    .adm-create-btn { width: 36px !important; min-width: 36px !important; }
+    .adm-header__logo { max-height: 24px !important; }
+}
+
+
 
 
 

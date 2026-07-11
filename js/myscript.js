@@ -2904,6 +2904,47 @@ $bookingForm.on('blur', '#bookName', function() {
         });
     }
 
+    /* ── Mobile Search Panel Toggle ── */
+    (function() {
+        var $searchBtn   = $('#admMobileSearchBtn');
+        var $searchClose = $('#admMobileSearchClose');
+        var $panel       = $('#admMobileSearchPanel');
+        var $input       = $('#admMobileSearchInput');
+
+        function openSearch() {
+            $panel.addClass('open').attr('aria-hidden', 'false');
+            $searchBtn.attr('aria-expanded', 'true');
+            // Slight delay so the CSS transition plays before focus
+            setTimeout(function() { $input.focus(); }, 100);
+        }
+
+        function closeSearch() {
+            $panel.removeClass('open').attr('aria-hidden', 'true');
+            $searchBtn.attr('aria-expanded', 'false');
+            $input.val('');
+        }
+
+        $searchBtn.on('click', function() {
+            if ($panel.hasClass('open')) { closeSearch(); } else { openSearch(); }
+        });
+
+        $searchClose.on('click', closeSearch);
+
+        // Close on Escape
+        $(document).on('keydown', function(e) {
+            if (e.key === 'Escape' && $panel.hasClass('open')) { closeSearch(); }
+        });
+
+        // Close when clicking outside the panel (but not on the trigger)
+        $(document).on('click', function(e) {
+            if ($panel.hasClass('open') &&
+                !$(e.target).closest('#admMobileSearchPanel').length &&
+                !$(e.target).closest('#admMobileSearchBtn').length) {
+                closeSearch();
+            }
+        });
+    })();
+
 });
 window.onbeforeunload = function() {
     sessionStorage.setItem('index_scrollpos', window.scrollY);
