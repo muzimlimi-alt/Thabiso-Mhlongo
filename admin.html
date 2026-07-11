@@ -6079,6 +6079,7 @@
                         <label class="bk-bulk-selectall"><input type="checkbox" id="bkSelectAll"> Select all shown</label>
                         <div class="bk-bulk-actions">
                             <button type="button" id="bkBulkExport" class="atl-btn atl-btn--ghost"><i class="fa-solid fa-file-csv" style="margin-right:5px;"></i>Export CSV</button>
+                            <button type="button" id="bkBulkRemind" class="atl-btn atl-btn--ghost" style="color:var(--atl-amber);"><i class="fa-solid fa-bell" style="margin-right:5px;"></i>Send reminder</button>
                             <button type="button" id="bkBulkCancel" class="atl-btn atl-btn--ghost" style="color:var(--atl-clay);"><i class="fa-solid fa-ban" style="margin-right:5px;"></i>Cancel selected</button>
                         </div>
                     </div>
@@ -17655,7 +17656,7 @@
     function renderContractStatus(c) {
         if (!c) {
             $('#contractCurrentStatus').html('<span style="color: var(--atl-muted);"><i class="fa-solid fa-file-circle-question" style="margin-right:6px;"></i>No contract on file for this booking.</span>');
-            $('#contractSignForm, #contractDownloadBtn').hide();
+            $('#contractSignForm, #contractDownloadBtn, #contractSendBtn').hide();
             return;
         }
         const statusMap = {
@@ -17675,6 +17676,7 @@
                     <i class="${s.icon}" style="margin-right:4px;"></i>${s.label}
                 </span>
             </div>`;
+        if (c.signed_by_client_at) html += `<div style="font-size:12px;color: var(--atl-muted);margin-top:8px;"><i class="fa-solid fa-user-check" style="margin-right:5px;color:var(--atl-green);"></i>Client signed online on ${new Date(c.signed_by_client_at).toLocaleDateString('en-ZA', {day:'2-digit',month:'short',year:'numeric'})}${c.status !== 'signed' ? ' &mdash; awaiting your countersignature' : ''}</div>`;
         if (c.signed_by) html += `<div style="font-size:12px;color: var(--atl-muted);margin-top:8px;"><i class="fa-solid fa-signature" style="margin-right:5px;color:var(--atl-green);"></i>Signed by <strong style="color: var(--atl-ink-dim);">${c.signed_by}</strong>${c.signed_date ? ` on ${new Date(c.signed_date).toLocaleDateString('en-ZA', {day:'2-digit',month:'short',year:'numeric'})}` : ''}</div>`;
         if (c.created_at) html += `<div style="font-size:11px;color:#555;margin-top:4px;"><i class="fa-regular fa-clock" style="margin-right:4px;"></i>Uploaded ${new Date(c.created_at).toLocaleDateString('en-ZA')}</div>`;
         $('#contractCurrentStatus').html(html);
@@ -17682,11 +17684,34 @@
         if (c.status !== 'signed') {
             $('#contractSignForm').show();
             $('#contractRemindBtn').show();
+            // Send-to-client is the delivery step; offer it while the contract isn't finalised.
+            $('#contractSendBtn').show().html('<i class="fa-solid fa-paper-plane" style="margin-right:5px;"></i>' + (c.status === 'draft' ? 'Send to client' : 'Re-send to client'));
         } else {
             $('#contractSignForm').hide();
             $('#contractRemindBtn').hide();
+            $('#contractSendBtn').hide();
         }
     }
+
+    // Send the contract to the client for online signing (advances draft -> sent)
+    $(document).off('click.bkcontractsend').on('click.bkcontractsend', '#contractSendBtn', async function() {
+        const id = $('#contractBookingId').val();
+        if (!id) return;
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Sending…');
+        try {
+            const r = await fetch('/api/admin/bookings/' + id + '/contract/send', { method: 'POST', credentials: 'include' });
+            const d = await r.json();
+            if (r.ok && d.success) {
+                window.notificationService.showSuccess('Contract Sent', 'The client can now review and sign it online.');
+                if (typeof window.loadContractForBooking === 'function') window.loadContractForBooking(id);
+                else { const cr = await fetch('/api/admin/bookings/' + id + '/contract', { credentials: 'include' }); const cj = await cr.json(); renderContractStatus(cj.contract); }
+            } else {
+                window.notificationService.showError('Failed to send contract: ' + (d.message || ''));
+            }
+        } catch(e) { window.notificationService.showError('Failed to send contract.'); }
+        $btn.prop('disabled', false).html('<i class="fa-solid fa-paper-plane" style="margin-right:5px;"></i>Send to client');
+    });
 
     // Gap 8: Send contract signature reminder email
     $(document).off('click.bkcontractremind').on('click.bkcontractremind', '#contractRemindBtn', async function() {
@@ -18950,7 +18975,26 @@
             }
             if (typeof loadBookings === 'function') loadBookings();
         });
-        
+        // Bulk "Send reminder" — each selected booking gets the reminder appropriate to its state
+        // (quote follow-up / contract signing / balance due); nothing-due bookings are skipped.
+        $('#bkBulkRemind').on('click', async function() {
+            var ids = bkSelectedIds();
+            if (!ids.length) { window.notificationService && window.notificationService.showWarning('Nothing selected', 'Select one or more bookings to remind.'); return; }
+            var $btn = $(this); $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Sending…');
+            try {
+                var res = await apiCall('/api/admin/bookings/bulk-remind', 'POST', { ids: ids });
+                if (res && res.success) {
+                    var b = res.breakdown || {};
+                    var detail = res.sent + ' sent (' + (b.quote||0) + ' quote, ' + (b.contract||0) + ' contract, ' + (b.balance||0) + ' balance), ' + res.skipped + ' skipped' + (res.failed ? ', ' + res.failed + ' failed' : '');
+                    if (res.failed) window.notificationService.showWarning('Reminders sent', detail);
+                    else window.notificationService.showSuccess('Reminders sent', detail);
+                } else {
+                    window.notificationService.showError(res && res.message ? res.message : 'Could not send reminders.');
+                }
+            } catch (e) { window.notificationService.showError('Could not send reminders.'); }
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-bell" style="margin-right:5px;"></i>Send reminder');
+        });
+
         // More dropdown — opens below by default, flips upward only when near viewport bottom
         $(document).on('click', '.bk-action-more', function(e) {
             e.stopPropagation();
@@ -21692,6 +21736,10 @@
         </div>
         <div class="atl-drawer__footer">
                     <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('contractDrawer')">Close</button>
+                    <!-- Send the contract to the client for online signing -->
+                    <button type="button" id="contractSendBtn" class="atl-btn atl-btn--ghost" style="display:none;font-size:12px;color:var(--atl-amber);border-color:var(--atl-amber-border);">
+                        <i class="fa-solid fa-paper-plane" style="margin-right:5px;"></i>Send to client
+                    </button>
                     <!-- Gap 8: Contract reminder email -->
                     <button type="button" id="contractRemindBtn" class="atl-btn atl-btn--ghost" style="display:none;font-size:12px;color:var(--atl-amber);border-color:var(--atl-amber-border);">
                         <i class="fa-solid fa-bell" style="margin-right:5px;"></i>Send Reminder
