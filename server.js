@@ -10803,58 +10803,6 @@ app.get('/api/admin/bookings/:id/reconcile', requireAdmin, (req, res) => {
     );
 });
 
-// Reconciliation overview — every money-bearing booking with its three independent views of what has
-// been paid: the booking ledger (amount_paid), the transaction sum (PayFast ITN + manual + refunds),
-// and the paid payment_schedules milestones. Any two disagreeing by > 1c flags drift. Reuses the exact
-// tx_paid CASE from the per-booking /reconcile route above. The frontend drives the existing
-// /reconcile/sync and /transactions/:id/reconcile actions off this list — no new mutations here.
-app.get('/api/admin/financials/reconciliation', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    db.all(
-        `SELECT
-            b.id, COALESCE(c.full_name, b.name) AS name, b.event_name, b.date, b.status, b.payment_status,
-            b.total_amount AS ledger_total, b.amount_paid AS ledger_paid, b.amount_outstanding AS ledger_outstanding,
-            COALESCE(SUM(CASE WHEN (t.source != 'payfast' OR t.is_verified = 1) AND COALESCE(t.is_duplicate, 0) = 0 AND t.status = 'completed'
-                THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS tx_paid,
-            COUNT(t.id) AS tx_count,
-            COALESCE(SUM(CASE WHEN t.source = 'payfast' THEN 1 ELSE 0 END), 0) AS tx_payfast,
-            COALESCE(SUM(CASE WHEN t.source = 'manual' THEN 1 ELSE 0 END), 0) AS tx_manual,
-            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0) = 1 THEN 1 ELSE 0 END), 0) AS tx_duplicates,
-            (SELECT COALESCE(SUM(ps.expected_amount), 0) FROM payment_schedules ps
-                WHERE ps.booking_id = b.id AND LOWER(COALESCE(ps.status,'pending')) = 'paid') AS schedule_paid
-         FROM bookings b
-         LEFT JOIN clients c ON b.client_id = c.id
-         LEFT JOIN transactions t ON t.booking_id = b.id
-         WHERE b.status NOT IN ('CANCELLED','EXPIRED')
-         GROUP BY b.id
-         HAVING tx_count > 0 OR COALESCE(b.amount_paid,0) > 0 OR COALESCE(b.total_amount,0) > 0`,
-        [],
-        (err, rows) => {
-            if (err) return res.status(500).json({ success: false, message: err.message });
-            const near = (a, b2) => Math.abs((a || 0) - (b2 || 0)) <= 0.01;
-            const list = (rows || []).map(r => {
-                const ledgerVsTx = !near(r.ledger_paid, r.tx_paid);
-                const ledgerVsSchedule = !near(r.ledger_paid, r.schedule_paid);
-                const drift = ledgerVsTx || ledgerVsSchedule;
-                return {
-                    booking_id: r.id, name: r.name, event_name: r.event_name, date: r.date,
-                    status: r.status, payment_status: r.payment_status,
-                    ledger_total: r.ledger_total, ledger_paid: r.ledger_paid, ledger_outstanding: r.ledger_outstanding,
-                    tx_paid: r.tx_paid, schedule_paid: r.schedule_paid,
-                    sources: { payfast: r.tx_payfast, manual: r.tx_manual, duplicates: r.tx_duplicates },
-                    drift, ledger_vs_tx: ledgerVsTx, ledger_vs_schedule: ledgerVsSchedule,
-                    drift_amount: ((r.ledger_paid || 0) - (r.tx_paid || 0)).toFixed(2)
-                };
-            }).sort((a, b2) => (b2.drift - a.drift) || (b2.booking_id - a.booking_id));
-            res.json({
-                success: true,
-                total: list.length,
-                drift_count: list.filter(x => x.drift).length,
-                bookings: list
-            });
-        }
-    );
-});
-
 // 2.5 Ledger reconciliation sync — force aligns bookings totals to transactions
 app.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const bookingId = req.params.id;

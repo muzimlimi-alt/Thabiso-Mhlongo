@@ -93,17 +93,14 @@ module.exports = async function ({ check }) {
     check('bulk-remind returns a summary', bulk.status === 200 && typeof bulk.body.sent === 'number', `${bulk.status} ${JSON.stringify(bulk.body).slice(0,80)}`);
     check('bulk-remind counts skips (balId throttled, paidId nothing due)', bulk.body.skipped >= 2, JSON.stringify(bulk.body));
 
-    // ── Reconciliation overview ──
-    const recon = await api('GET', '/api/admin/financials/reconciliation');
-    check('reconciliation overview returns a booking list', recon.status === 200 && Array.isArray(recon.body.bookings), `${recon.status}`);
-    const balRow = recon.body.bookings.find(x => x.booking_id === balId);
-    check('a manually-paid booking reconciles (ledger == transactions, no drift)',
-        balRow && balRow.drift === false && Math.abs(balRow.ledger_paid - balRow.tx_paid) < 0.01, JSON.stringify(balRow));
-    check('reconciliation reports a source breakdown', balRow && balRow.sources && typeof balRow.sources.manual === 'number', JSON.stringify(balRow && balRow.sources));
+    // ── Reconciliation view (pre-existing /api/admin/reconciliation — the endpoint the UI uses) ──
+    const recon = await api('GET', '/api/admin/reconciliation');
+    check('reconciliation view returns rows + summary', recon.status === 200 && Array.isArray(recon.body.rows) && !!recon.body.summary, `${recon.status}`);
+    const balRow = recon.body.rows.find(x => x.booking_id === balId);
+    check('a manually-paid booking appears with its manual total', balRow && parseFloat(balRow.manual_total) >= 500, JSON.stringify(balRow && { manual: balRow.manual_total, eff: balRow.effective_received }));
+    check('reconciliation flags source overlap (has_both_sources)', balRow && (balRow.has_both_sources === 0 || balRow.has_both_sources === 1), JSON.stringify({ hbs: balRow && balRow.has_both_sources }));
 
-    // Force a ledger/transaction mismatch → drift must flip true.
-    await new Promise((res) => { const sq = require('sqlite3'); const db = new sq.Database(require('path').join(__dirname, '.test.sqlite')); db.run('UPDATE bookings SET amount_paid = amount_paid + 999 WHERE id = ?', [balId], () => { db.close(res); }); });
-    const recon2 = await api('GET', '/api/admin/financials/reconciliation');
-    const balRow2 = recon2.body.bookings.find(x => x.booking_id === balId);
-    check('injected ledger drift is detected', balRow2 && balRow2.drift === true, JSON.stringify(balRow2));
+    // Schedule-mismatch reconciliation (the payment_schedules dimension) — pre-existing endpoint.
+    const sched = await api('GET', '/api/admin/payment-schedules/mismatches');
+    check('schedule-mismatch reconciliation endpoint responds', sched.status === 200, `${sched.status}`);
 };
