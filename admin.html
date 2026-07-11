@@ -1338,9 +1338,10 @@
            phones stack the two so neither the date nor the venue is ever clipped. */
         .evt-card-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         @media (max-width: 575px) {
-            .evt-card-meta { white-space: normal; overflow: visible; text-overflow: clip; display: flex; flex-direction: column; gap: 3px; }
-            .evt-card-meta__sep { display: none; }
-            .evt-card-meta__item { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+            /* Let the date and venue flow inline and wrap naturally (using the full width)
+               rather than truncating — neither is ever clipped, no forced stacking. */
+            .evt-card-meta { white-space: normal; overflow: visible; text-overflow: clip; }
+            .evt-card-meta__item { display: inline; }
         }
 
         /* Calendar sidebar gap when columns stack below lg breakpoint */
@@ -1916,6 +1917,10 @@
         }
         [data-theme="dark"]  .atl-theme-toggle__knob { transform: translateX(26px); }
         [data-theme="light"] .atl-theme-toggle__knob { transform: translateX(0); }
+
+        /* Single-icon theme toggle (moon/sun) — smooth swap + playful hover nudge. */
+        .adm-theme-icon { transition: transform var(--atl-t-base), color var(--atl-t-base); }
+        #atlThemeToggle:hover .adm-theme-icon { transform: rotate(-18deg) scale(1.08); }
 
         /* ── ATELIER EXPANDED PANEL LAYOUTS ── */
         /* Panel container */
@@ -4277,6 +4282,25 @@
             background-color: transparent !important;
         }
 
+        /* ── About-section panels (Live Preview / Announcement / Hero / Features /
+           What I Do / Edit Biography / About): heading on its own line, description
+           directly beneath, consistent body typography, and headers that reflow
+           cleanly on small screens. Scoped to #aboutAdmin so no other section shifts. */
+        #aboutAdmin .um-icon-header { flex-wrap: wrap; row-gap: 10px; }
+        #aboutAdmin .um-icon-header > div { min-width: 0; }
+        #aboutAdmin .um-icon-header > .atl-btn { margin-left: auto; }
+        #aboutAdmin .um-section-label { display: block; font-size: 16px; line-height: 1.3; margin: 0 0 6px; }
+        #aboutAdmin .um-section-desc { line-height: 1.6; }
+        /* Bio live-preview body text — match the interface body font/size/rhythm
+           (drop the thin 300-weight lead and the mixed inline sizes). */
+        #collapseAboutPreview { color: var(--atl-ink-dim); }
+        #collapseAboutPreview .about-preview-lead { font-size: 16px; line-height: 1.6; font-weight: 400; margin: 0 0 14px; }
+        #collapseAboutPreview .about-preview-body { font-size: 14.5px; line-height: 1.7; margin: 0 0 12px; }
+        #collapseAboutPreview .about-preview-body:last-child { margin-bottom: 0; }
+        @media (max-width: 575px) {
+            #aboutAdmin .um-icon-header > .atl-btn { width: 100%; margin-left: 0; justify-content: center; }
+        }
+
         /* Textareas — a comfortable default writing area everywhere. The compact inline
            note field (.bk-note-input) keeps its own smaller height. */
         .atl-textarea:not(.bk-note-input),
@@ -4566,26 +4590,14 @@
                             <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
                         </button>
 
-                        <!-- Theme Toggle -->
-                        <button id="atlThemeToggle" type="button" class="atl-theme-toggle adm-theme-toggle"
-                                role="switch" aria-checked="false"
+                        <!-- Theme Toggle — single icon that reflects the active theme
+                             (moon = dark mode active, sun = light mode active). Matches the other
+                             navbar action icons via .adm-icon-btn. -->
+                        <button id="atlThemeToggle" type="button" class="adm-icon-btn"
                                 aria-label="Switch between light and dark theme"
+                                aria-pressed="false"
                                 title="Toggle light / dark theme">
-                            <span id="atlThemeToggleLabel" class="atl-theme-toggle__label adm-btn-label">Dark</span>
-                            <span class="atl-theme-toggle__track" aria-hidden="true">
-                                <!-- Sun icon (visible in light mode) -->
-                                <svg class="atl-toggle-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                                    <circle cx="12" cy="12" r="4"/>
-                                    <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
-                                </svg>
-                                <!-- Moon icon (visible in dark mode) -->
-                                <svg class="atl-toggle-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
-                                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                                </svg>
-                                <span class="atl-theme-toggle__knob"></span>
-                            </span>
+                            <i id="atlThemeToggleIcon" class="fa-solid fa-moon adm-theme-icon" aria-hidden="true"></i>
                         </button>
                         <div class="adm-header__divider"></div>
 
@@ -8349,9 +8361,9 @@
                                         <img id="previewAboutImg" class="img-responsive about-img" src="images/image-slider-1.jpg" alt="Preview" style="max-width:100%; height:auto; border-radius:5px; box-shadow:var(--atl-shadow-card);">
                                     </div>
                                     <div style="color: var(--atl-ink-dim);">
-                                        <p class="lead" id="previewAboutP1" style="font-size:16px; margin-bottom:15px; font-weight:300;"><em style="color:var(--atl-muted);">No lead text provided yet.</em></p>
-                                        <p id="previewAboutP2" style="margin-bottom:10px; font-size:14px;"></p>
-                                        <p id="previewAboutP3" style="font-size:14px;"></p>
+                                        <p class="lead about-preview-lead" id="previewAboutP1"><em style="color:var(--atl-muted);">No lead text provided yet.</em></p>
+                                        <p class="about-preview-body" id="previewAboutP2"></p>
+                                        <p class="about-preview-body" id="previewAboutP3"></p>
                                     </div>
                                 </div>
                             </div>
@@ -11006,10 +11018,10 @@
             document.documentElement.setAttribute('data-theme', nextTheme);
             localStorage.setItem('atl-theme', nextTheme);
             
-            // Update toggle UI
+            // Update toggle UI — swap the single icon to reflect the active theme
             const isLight = nextTheme === 'light';
-            $(this).attr('aria-checked', String(isLight));
-            $('#atlThemeToggleLabel').text(isLight ? 'Light' : 'Dark');
+            $(this).attr('aria-pressed', String(isLight));
+            $('#atlThemeToggleIcon').toggleClass('fa-sun', isLight).toggleClass('fa-moon', !isLight);
             
             // Update pills & load bookings to update statusColors dynamically
             if (typeof window.updatePills === 'function') window.updatePills();
@@ -11036,10 +11048,12 @@
             const isLight = currentTheme === 'light';
             const $toggle = $('#atlThemeToggle');
             if ($toggle.length) {
-                $toggle.attr('aria-checked', String(isLight));
-                $('#atlThemeToggleLabel').text(isLight ? 'Light' : 'Dark');
+                $toggle.attr('aria-pressed', String(isLight));
+                $('#atlThemeToggleIcon').toggleClass('fa-sun', isLight).toggleClass('fa-moon', !isLight);
             }
         }
+        // Reflect the saved theme in the toggle icon on load (the button precedes this script).
+        initThemeToggleUI();
 
         function renderInlineContractPanel(id, c) {
             var $panel = $('#atl-contract-' + id);
@@ -12392,9 +12406,7 @@
                         <p class="evt-card-meta" style="color:var(--atl-muted); font-size:13px; margin:0;"><span class="evt-card-meta__item"><i class="fa-regular fa-calendar-check"></i> ${displayDateStr}</span><span class="evt-card-meta__sep">&nbsp;&middot;&nbsp;</span><span class="evt-card-meta__item"><i class="fa-solid fa-location-dot"></i> ${displayVenue}</span></p>
                       </div>
                       <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; align-self:flex-start; flex-wrap:wrap;">
-                        <button type="button" class="atl-btn atl-btn--ghost evt-expand-btn" data-id="${item.event_id}" title="Edit event" aria-label="Edit event: ${displayTitle}" aria-expanded="false" aria-controls="eventDetail-${item.event_id}" style="padding:6px 10px; min-width:0;">
-                          <i class="fa-solid fa-chevron-down" style="transition:transform 0.2s;"></i>
-                        </button>
+                        <!-- Edit is triggered by clicking/expanding the card header (see click.evtcard) — no separate Edit button. -->
                         <button type="button" class="atl-btn atl-btn--ghost evt-duplicate-btn" data-id="${item.event_id}" title="Duplicate event as draft" aria-label="Duplicate event: ${displayTitle} as draft" style="padding:6px 10px; min-width:0; font-size:12px;">
                           <i class="fa-regular fa-copy"></i>
                         </button>
@@ -16149,7 +16161,7 @@
         </p>
         
         <!-- Submission Age -->
-        <p style="font-size:11px; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${ageLine}</p>
+        <p style="font-size:11px; margin:0;">${ageLine}</p>
         
         <!-- Tag badges -->
         <div class="atl-tag-badges-container" id="tag-badges-${row.id}" style="display:${hasAnyBadge ? 'flex' : 'none'}; flex-wrap:wrap; gap:6px; margin-top:10px;">
