@@ -4336,6 +4336,75 @@
             /* Bulk-bar buttons pair up two-per-row on the smallest screens. */
             .bk-bulk-bar .atl-btn { flex-basis: calc(50% - 4px); }
         }
+
+        /* ═══════════════════════════════════════════════════════════════════════
+           UNIFIED ATELIER SEARCH INPUTS — single source of truth so every search box
+           renders identically to the standard Atelier field: Global navbar
+           (.adm-search__input), #bookingsAdmin & #servicesAdmin (.atl-search), and
+           #inquiriesAdmin (.inq-search-input). Loads last, reconciling the older
+           per-section rules. No markup/JS change — styling only.
+           ═══════════════════════════════════════════════════════════════════════ */
+        .atl-search,
+        .adm-search__input,
+        .inq-search-input {
+            background: var(--atl-input-bg) !important;
+            border: 1px solid var(--atl-line) !important;
+            border-radius: var(--atl-r-md) !important;
+            padding: 8px 12px 8px 38px !important;
+            min-height: 40px !important;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 13px !important;
+            font-weight: 400 !important;
+            line-height: 1.4 !important;
+            color: var(--atl-ink) !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            box-shadow: none !important;
+            color-scheme: inherit;
+            transition: border-color var(--atl-t-base), box-shadow var(--atl-t-base) !important;
+        }
+        /* Global navbar search keeps room on the right for the "/" hint + clear/X button. */
+        .adm-search__input { padding-right: 40px !important; }
+        /* Adjacent filter selects share the search height for tidy, aligned toolbar rows. */
+        .atl-filter-select { min-height: 40px !important; }
+
+        .atl-search::placeholder,
+        .adm-search__input::placeholder,
+        .inq-search-input::placeholder { color: var(--atl-placeholder) !important; opacity: 1 !important; }
+
+        .atl-search:hover,
+        .adm-search__input:hover,
+        .inq-search-input:hover { border-color: var(--atl-line-strong) !important; }
+
+        .atl-search:focus,
+        .adm-search__input:focus,
+        .inq-search-input:focus {
+            outline: none !important;
+            border-color: var(--atl-amber) !important;
+            box-shadow: 0 0 0 2px rgba(212,175,55,0.22) !important;
+        }
+
+        .atl-search:disabled,
+        .adm-search__input:disabled,
+        .inq-search-input:disabled { opacity: 0.55 !important; cursor: not-allowed !important; }
+
+        /* Leading search icon — identical size, colour, position and focus tint everywhere. */
+        .atl-search-wrap i,
+        .adm-search__icon,
+        .inq-search-wrap i {
+            position: absolute !important;
+            left: 12px !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            font-size: 13px !important;
+            color: var(--atl-placeholder) !important;
+            pointer-events: none !important;
+            z-index: 1 !important;
+            transition: color var(--atl-t-base) !important;
+        }
+        .atl-search-wrap:focus-within i,
+        .adm-search:focus-within .adm-search__icon,
+        .inq-search-wrap:focus-within i { color: var(--atl-amber) !important; }
     </style>
 </head>
 
