@@ -405,8 +405,77 @@ const premium = {
     })
 };
 
+/* ── Prompt 4, Batch 1 — representative renders of the rebuilt SYSTEM emails ── */
+const S = (o) => C.renderSystemEmail(o);
+const system = {
+    'booking-received-admin.html': S({
+        preheaderText: 'New booking request #100045: Corporate Year-End on Sat, 14 Aug 2026.',
+        category: 'Booking Requests', severity: 'action',
+        leadFact: 'New booking request from <strong style="color:#FAFAFA;">Naledi Mokoena</strong> for <strong style="color:#FAFAFA;">Corporate</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>.',
+        bodyHtml: `<p style="margin:0 0 6px; color:#D4AF37; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px;">Additional Notes</p><div style="padding:14px 16px; background:#1A1A1A; border-left:3px solid #D4AF37; color:#E6E6E6; font-size:13px; line-height:1.6;">Looking for a 45-60 min set for our year-end function, ~250 guests.</div><p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">Log in to the Admin Dashboard to reply and manage this booking natively.</p><p style="margin:14px 0 0; text-align:center;"><a href="#" style="display:inline-block; background:#D4AF37; color:#0A0A0A; padding:10px 24px; border-radius:4px; text-decoration:none; font-weight:600; font-size:13px;">Open Booking #100045 in Admin &rarr;</a></p>`,
+        cards: [{ title: 'Client & Event', rows: [
+            { label: 'Client Name', value: 'Naledi Mokoena', mono: false },
+            { label: 'Email', rawValue: '<a href="mailto:naledi@example.com" style="color:#D4AF37; text-decoration:none;">naledi@example.com</a>' },
+            { label: 'Event Date & Time', value: 'Sat, 14 Aug 2026 at 19:00' },
+            { label: 'Budget', value: 'R15,000 - R20,000', mono: false }
+        ] }]
+    }),
+    'quote-sent-notification.html': S({
+        preheaderText: 'Quote sent to Naledi Mokoena for booking #100045.',
+        category: 'Quotes & Proposals', severity: 'info',
+        leadFact: 'A quotation has been dispatched to the client for Booking <strong style="color:#FAFAFA;">#100045</strong>.',
+        bodyHtml: `<p style="margin:0; color:#B0B0B0;">The client has been emailed their quote PDF and a direct link to accept it. Log in to the Admin Dashboard to track the response.</p>`,
+        cards: [{ title: 'Quote Details', rows: [
+            { label: 'Client', value: 'Naledi Mokoena', mono: false },
+            { label: 'Event', value: 'Corporate Year-End • Sat, 14 Aug 2026', mono: false },
+            { label: 'Quote Amount', value: 'R 18,500.00', highlight: true }
+        ] }]
+    }),
+    'payment-received-notification.html': S({
+        preheaderText: 'Payment received for booking #100045 — R9250.00.',
+        category: 'Payments & Invoices', severity: 'info',
+        leadFact: 'Payment received for booking <strong style="color:#FAFAFA;">#100045</strong>.',
+        cards: [{ rows: [
+            { label: 'Client', rawValue: 'Naledi Mokoena (<a href="mailto:naledi@example.com" style="color:#D4AF37; text-decoration:none;">naledi@example.com</a>)' },
+            { label: 'Event', value: 'Corporate Year-End on Sat, 14 Aug 2026', mono: false },
+            { label: 'Amount Paid', value: 'R9250.00', highlight: true },
+            { label: 'Payment Status', value: 'DEPOSIT_PAID' }
+        ] }]
+    }),
+    'quote-accepted-notification.html': S({
+        preheaderText: 'Naledi Mokoena accepted the quote for booking #100045 — invoice auto-generated.',
+        category: 'Quotes & Proposals', severity: 'action',
+        leadFact: '<strong style="color:#FAFAFA;">Naledi Mokoena</strong> (naledi@example.com) has accepted the quote for booking <strong style="color:#FAFAFA;">#100045</strong>.',
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">An invoice has been auto-generated. Log in to confirm the booking.</p>`,
+        cards: [{ rows: [{ label: 'Event', value: 'Corporate Year-End on Sat, 14 Aug 2026', mono: false }] }]
+    }),
+    'client-cancelled-notice.html': S({
+        preheaderText: 'Naledi Mokoena cancelled booking #100045.',
+        category: 'Booking Requests', severity: 'action',
+        leadFact: '<strong style="color:#FAFAFA;">Naledi Mokoena</strong> cancelled booking <strong style="color:#FAFAFA;">#100045</strong>.',
+        cards: [{ rows: [
+            { label: 'Reason', value: 'Venue no longer available', mono: false },
+            { label: 'Refund Due', value: 'R9250.00', highlight: true }
+        ] }]
+    }),
+    'new-review-notice.html': S({
+        preheaderText: 'Naledi Mokoena left a 5/5 review for booking #100045.',
+        category: 'Thank You & Reviews', severity: 'info',
+        leadFact: '<strong style="color:#FAFAFA;">Naledi Mokoena</strong> has submitted a <strong style="color:#D4AF37;">5/5</strong> review for Booking <strong style="color:#FAFAFA;">#100045</strong>.',
+        bodyHtml: `<blockquote style="border-left:3px solid #D4AF37; padding:10px 16px; margin:0 0 12px; color:#E6E6E6; background:#1A1A1A;">Thabiso was an absolute hit at our year-end function — professional and hilarious!</blockquote><p style="margin:0; color:#B0B0B0;">Log in to the admin panel to approve or manage reviews.</p>`
+    }),
+    'contract-signed-notice.html': S({
+        preheaderText: 'Naledi Mokoena signed the contract for booking #100045 — countersignature due.',
+        category: 'Contracts & Signatures', severity: 'action',
+        leadFact: '<strong style="color:#FAFAFA;">Naledi Mokoena</strong> has signed the contract for booking <strong style="color:#FAFAFA;">#100045</strong> online.',
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">Log in to the admin panel to countersign and finalise it.</p>`
+    })
+};
+
 const PREMIUM_DIR = path.join(OUT_DIR, 'premium');
 if (!fs.existsSync(PREMIUM_DIR)) fs.mkdirSync(PREMIUM_DIR, { recursive: true });
+const SYSTEM_DIR = path.join(OUT_DIR, 'system');
+if (!fs.existsSync(SYSTEM_DIR)) fs.mkdirSync(SYSTEM_DIR, { recursive: true });
 
 let ok = 0;
 for (const [name, html] of Object.entries(files)) {
@@ -423,5 +492,12 @@ for (const [name, html] of Object.entries(premium)) {
     console.log(`✓ ${path.relative(path.join(__dirname, '..'), p)}  (${kb} KB)`);
     ok++;
 }
-console.log(`\nRendered ${ok} preview file(s) → email-previews/ (+ premium/)`);
+for (const [name, html] of Object.entries(system)) {
+    const p = path.join(SYSTEM_DIR, name);
+    fs.writeFileSync(p, html, 'utf8');
+    const kb = (Buffer.byteLength(html, 'utf8') / 1024).toFixed(1);
+    console.log(`✓ ${path.relative(path.join(__dirname, '..'), p)}  (${kb} KB)`);
+    ok++;
+}
+console.log(`\nRendered ${ok} preview file(s) → email-previews/ (+ premium/, system/)`);
 console.log('Open them in a browser to review the component system.');

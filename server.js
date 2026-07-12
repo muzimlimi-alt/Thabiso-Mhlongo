@@ -2515,48 +2515,39 @@ async function sendBookingReceivedEmail(bookingId, data) {
     } = data;
 
     const logoFilePath = path.join(__dirname, 'images', 'logo4.png');
+    const siteUrl = process.env.SITE_URL || 'https://www.thabisomhlongo.com';
 
-    const adminHtmlTemplate = `
-        <div style="font-family: 'Outfit', Arial, sans-serif; padding: 40px 30px; background-color: #0a0a0a; color: #ffffff; max-width: 650px; border: 1px solid rgba(255,255,255,0.12); margin:0 auto;">
-            <div style="text-align: center; margin-bottom: 24px;">
-                <img src="cid:thabisoLogo" alt="Thabiso Mhlongo Logo" style="max-height: 80px; margin-bottom: 15px;" />
-            </div>
-            <hr style="border: 0; border-top: 2px solid #D4AF37; margin: 0 0 24px 0;">
-            <h2 style="color: #D4AF37; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: 1px; margin-top: 0;">New Booking Request #${bookingId}</h2>
-            <p style="color: #b0b0b0;">You have received a new booking request. Please review the details below:</p>
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0; width: 35%;"><strong>Client Name:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); width: 65%;">${name} ${company ? `(${company})` : ''}</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Email:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);"><a href="mailto:${email}" style="color: #D4AF37; text-decoration: none;">${email}</a></td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Phone:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${cell}</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Event Name:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${event_name || 'N/A'}</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Event Date &amp; Time:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${event_date} ${event_start_time ? `at ${event_start_time}` : ''}</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Performance Slot:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${performance_slot || 'N/A'}</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Duration:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${performance_duration || 'N/A'}</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Location Name:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${event_location}</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Full Address:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${venue_address ? venue_address + '<br>' : ''}${city ? city + ', ' : ''}${country || ''}</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Type:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${event_type} (${venue_type || 'Unspecified Venue Type'})</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Audience:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${audience_size || 'N/A'} ${audience_demographic ? `(${audience_demographic})` : ''}</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Travel/Accommodation:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${(!travel_accommodation || travel_accommodation === 0 || travel_accommodation === '0' || travel_accommodation === 'Not required') ? '<span style="color:#888;">Not required</span>' : '<strong style="color: #10b981;">' + (travel_accommodation === 1 || travel_accommodation === true ? 'Provided' : travel_accommodation) + '</strong>'}</td></tr>
-                <tr><td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08); color: #b0b0b0;"><strong>Budget:</strong></td>
-                    <td style="padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.08);">${budget_range || 'N/A'}</td></tr>
-            </table>
-            <h3 style="color: #D4AF37; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: 1px;">Additional Notes:</h3>
-            <div style="background-color: #1a1a1a; padding: 18px; border-left: 3px solid #D4AF37; white-space: pre-wrap; color: #e0e0e0; font-size: 14px; line-height: 1.6;">${message.replace(/\n/g, '<br>')}</div>
-            <p style="margin-top: 24px; color: #b0b0b0;">Log in to the Admin Dashboard to reply and manage this booking natively.</p>
-        </div>
-    `;
+    // SYSTEM (Prompt 4 rebuild): the travel/accommodation cell keeps its exact conditional wording.
+    const travelValue = (!travel_accommodation || travel_accommodation === 0 || travel_accommodation === '0' || travel_accommodation === 'Not required')
+        ? 'Not required'
+        : (travel_accommodation === 1 || travel_accommodation === true ? 'Provided' : travel_accommodation);
+    const adminHtmlTemplate = emailComponents.renderSystemEmail({
+        preheaderText: `New booking request #${bookingId}: ${event_type} on ${event_date}.`,
+        category: 'Booking Requests',
+        severity: 'action',
+        leadFact: `New booking request from <strong style="color:#FAFAFA;">${name}</strong> for <strong style="color:#FAFAFA;">${event_type}</strong> on <strong style="color:#FAFAFA;">${event_date}</strong>.`,
+        bodyHtml: `<p style="margin:0 0 6px; color:#D4AF37; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px;">Additional Notes</p><div style="padding:14px 16px; background:#1A1A1A; border-left:3px solid #D4AF37; white-space:pre-wrap; color:#E6E6E6; font-size:13px; line-height:1.6;">${message.replace(/\n/g, '<br>')}</div><p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">Log in to the Admin Dashboard to reply and manage this booking natively.</p><p style="margin:14px 0 0; text-align:center;"><a href="${siteUrl}/admin#bookingsAdmin" style="display:inline-block; background:#D4AF37; color:#0A0A0A; padding:10px 24px; border-radius:4px; text-decoration:none; font-weight:600; font-size:13px;">Open Booking #${bookingId} in Admin &rarr;</a></p>`,
+        cards: [
+            {
+                title: 'Client & Event',
+                rows: [
+                    { label: 'Client Name', value: `${name} ${company ? `(${company})` : ''}`, mono: false },
+                    { label: 'Email', rawValue: `<a href="mailto:${email}" style="color:#D4AF37; text-decoration:none;">${email}</a>` },
+                    { label: 'Phone', value: cell },
+                    { label: 'Event Name', value: event_name || 'N/A', mono: false },
+                    { label: 'Event Date & Time', value: `${event_date} ${event_start_time ? `at ${event_start_time}` : ''}` },
+                    { label: 'Performance Slot', value: performance_slot || 'N/A', mono: false },
+                    { label: 'Duration', value: performance_duration || 'N/A', mono: false },
+                    { label: 'Location Name', value: event_location, mono: false },
+                    { label: 'Full Address', value: `${venue_address ? venue_address + ', ' : ''}${city ? city + ', ' : ''}${country || ''}`, mono: false },
+                    { label: 'Type', value: `${event_type} (${venue_type || 'Unspecified Venue Type'})`, mono: false },
+                    { label: 'Audience', value: `${audience_size || 'N/A'} ${audience_demographic ? `(${audience_demographic})` : ''}`, mono: false },
+                    { label: 'Travel/Accommodation', value: travelValue, mono: false },
+                    { label: 'Budget', value: budget_range || 'N/A', mono: false }
+                ]
+            }
+        ]
+    });
 
     // Client receipt (PREMIUM, Prompt 3 rebuild) — booking summary as an info card.
     const clientCardRows = [
@@ -2568,10 +2559,6 @@ async function sendBookingReceivedEmail(bookingId, data) {
     clientCardRows.push({ label: 'Venue', value: `${event_location}${city ? ', ' + city : ''}`, mono: false });
     if (audience_size) clientCardRows.push({ label: 'Audience', value: `${audience_size}${audience_demographic ? ' (' + audience_demographic + ')' : ''}`, mono: false });
     if (budget_range) clientCardRows.push({ label: 'Budget Range', value: budget_range, mono: false });
-
-    const siteUrl = process.env.SITE_URL || 'https://www.thabisomhlongo.com';
-    const adminBookingLink = `${siteUrl}/admin#bookingsAdmin`;
-    const adminLinkHtml = `<p style="text-align:center;margin-top:20px;"><a href="${adminBookingLink}" style="background:#D4AF37;color:#000;padding:10px 24px;border-radius:4px;text-decoration:none;font-weight:600;font-size:14px;">Open Booking #${bookingId} in Admin →</a></p>`;
 
     try {
         const notifEmail = await getNotificationEmail();
@@ -2610,7 +2597,8 @@ async function sendBookingReceivedEmail(bookingId, data) {
             sendEmail({
                 to: notifEmail,
                 subject: `NEW BOOKING REQUEST: ${event_type} on ${event_date}`,
-                htmlContent: adminHtmlTemplate + adminLinkHtml,
+                htmlContent: adminHtmlTemplate,
+                preWrapped: true,
                 fromName: name,
                 replyTo: email,
                 titleOverride: `New Booking Request #${bookingId}`,
@@ -2794,20 +2782,27 @@ async function sendAdminQuoteSentNotification(booking, amount) {
     // admin has never actually received a "quote sent" notification.
     const { id, name, email, event_name, date } = booking;
     const notifEmail = await getNotificationEmail();
-    const emailBody = `
-        <p>A quotation has been dispatched to the client for Booking <strong>#${id}</strong>.</p>
-        <table style="width:100%;border-collapse:collapse;margin:16px 0;background:#1a1a1a;">
-            <tr><td style="padding:10px 16px;color:#888;font-size:13px;width:40%;">Client</td><td style="padding:10px 16px;color:#fff;font-size:13px;">${name}</td></tr>
-            <tr><td style="padding:10px 16px;color:#888;font-size:13px;">Client Email</td><td style="padding:10px 16px;color:#fff;font-size:13px;">${email}</td></tr>
-            <tr><td style="padding:10px 16px;color:#888;font-size:13px;">Event</td><td style="padding:10px 16px;color:#fff;font-size:13px;">${event_name} &bull; ${date}</td></tr>
-            <tr><td style="padding:10px 16px;color:#888;font-size:13px;">Quote Amount</td><td style="padding:10px 16px;color:#D4AF37;font-size:14px;font-weight:600;">${amount || booking.quote_amount}</td></tr>
-        </table>
-        <p style="color:#b0b0b0;font-size:13px;">The client has been emailed their quote PDF and a direct link to accept it. Log in to the Admin Dashboard to track the response.</p>
-    `;
+    const emailBody = emailComponents.renderSystemEmail({
+        preheaderText: `Quote sent to ${name} for booking #${id}.`,
+        category: 'Quotes & Proposals',
+        severity: 'info',
+        leadFact: `A quotation has been dispatched to the client for Booking <strong style="color:#FAFAFA;">#${id}</strong>.`,
+        bodyHtml: `<p style="margin:0; color:#B0B0B0;">The client has been emailed their quote PDF and a direct link to accept it. Log in to the Admin Dashboard to track the response.</p>`,
+        cards: [{
+            title: 'Quote Details',
+            rows: [
+                { label: 'Client', value: name, mono: false },
+                { label: 'Client Email', value: email },
+                { label: 'Event', value: `${event_name} • ${date}`, mono: false },
+                { label: 'Quote Amount', value: `${amount || booking.quote_amount}`, highlight: true }
+            ]
+        }]
+    });
     return sendEmail({
         to: notifEmail,
         subject: `Quote Sent — Booking #${id} (${name})`,
         htmlContent: emailBody,
+        preWrapped: true,
         titleOverride: `Quote Dispatched — #${id}`,
         trigger_event: 'Booking: Quote Sent (Admin Notification)'
     });
@@ -3427,13 +3422,22 @@ async function sendPendingExpiredEmail(booking) {
 async function sendAdminPaymentNotification(booking, amountPaid, paymentStatus) {
     const notifEmail = await getNotificationEmail();
     const { id, name, email, event_name, event_type, date } = booking;
-    const body = `<p>Payment received for booking <strong>#${id}</strong>.</p>
-        <p><strong>Client:</strong> ${name} (${email})<br>
-        <strong>Event:</strong> ${event_name || event_type} on ${date}<br>
-        <strong>Amount Paid:</strong> R${parseFloat(amountPaid).toFixed(2)}<br>
-        <strong>Payment Status:</strong> ${paymentStatus}</p>`;
+    const body = emailComponents.renderSystemEmail({
+        preheaderText: `Payment received for booking #${id} — R${parseFloat(amountPaid).toFixed(2)}.`,
+        category: 'Payments & Invoices',
+        severity: 'info',
+        leadFact: `Payment received for booking <strong style="color:#FAFAFA;">#${id}</strong>.`,
+        cards: [{
+            rows: [
+                { label: 'Client', rawValue: `${emailComponents.esc(name)} (<a href="mailto:${email}" style="color:#D4AF37; text-decoration:none;">${email}</a>)` },
+                { label: 'Event', value: `${event_name || event_type} on ${date}`, mono: false },
+                { label: 'Amount Paid', value: `R${parseFloat(amountPaid).toFixed(2)}`, highlight: true },
+                { label: 'Payment Status', value: paymentStatus }
+            ]
+        }]
+    });
     await sendEmail({ to: notifEmail, subject: `Payment Received – Booking #${id}`,
-        htmlContent: body, replyTo: email, titleOverride: 'Payment Received',
+        htmlContent: body, preWrapped: true, replyTo: email, titleOverride: 'Payment Received',
         trigger_event: 'Admin: Payment Notification' });
 }
 
@@ -3509,11 +3513,16 @@ async function sendAdminCompletionSummaryEmail(booking) {
 async function sendAdminQuoteAcceptedNotification(booking) {
     const notifEmail = await getNotificationEmail();
     const { id, name, email, event_name, event_type, date } = booking;
-    const body = `<p><strong>${name}</strong> (${email}) has accepted the quote for booking <strong>#${id}</strong>.</p>
-        <p><strong>Event:</strong> ${event_name || event_type} on ${date}</p>
-        <p>An invoice has been auto-generated. Log in to confirm the booking.</p>`;
+    const body = emailComponents.renderSystemEmail({
+        preheaderText: `${name} accepted the quote for booking #${id} — invoice auto-generated.`,
+        category: 'Quotes & Proposals',
+        severity: 'action',
+        leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(name)}</strong> (${email}) has accepted the quote for booking <strong style="color:#FAFAFA;">#${id}</strong>.`,
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">An invoice has been auto-generated. Log in to confirm the booking.</p>`,
+        cards: [{ rows: [{ label: 'Event', value: `${event_name || event_type} on ${date}`, mono: false }] }]
+    });
     await sendEmail({ to: notifEmail, subject: `Invoice Issued – Booking #${id} Awaiting Payment`,
-        htmlContent: body, replyTo: email, titleOverride: 'Invoice Issued – Action Required',
+        htmlContent: body, preWrapped: true, replyTo: email, titleOverride: 'Invoice Issued – Action Required',
         trigger_event: 'Admin: Quote Accepted Notification' });
 }
 
@@ -6890,7 +6899,14 @@ app.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateLimi
                     getNotificationEmail().then(notifEmail => notifEmail && sendEmail({
                         to: notifEmail,
                         subject: `Contract signed by client — Booking #${bookingId}`,
-                        htmlContent: `<p><strong>${signatoryName}</strong> has signed the contract for booking <strong>#${bookingId}</strong> online.</p><p>Log in to the admin panel to countersign and finalise it.</p>`,
+                        htmlContent: emailComponents.renderSystemEmail({
+                            preheaderText: `${signatoryName} signed the contract for booking #${bookingId} — countersignature due.`,
+                            category: 'Contracts & Signatures',
+                            severity: 'action',
+                            leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(signatoryName)}</strong> has signed the contract for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> online.`,
+                            bodyHtml: `<p style="margin:0; color:#E6E6E6;">Log in to the admin panel to countersign and finalise it.</p>`
+                        }),
+                        preWrapped: true,
                         titleOverride: 'Client Signed Contract',
                         trigger_event: 'Admin: Client Signed Contract'
                     })).catch(() => {});
@@ -11182,7 +11198,17 @@ app.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter, as
             try { await sendCancellationEmail(booking, { reason: reason || 'Client request', refund_due: calc.refund, rule: calc.rule, days_until_event: calc.daysUntilEvent }); } catch(ce) {}
             getNotificationEmail().then(notifEmail => {
                 sendEmail({ to: notifEmail, subject: `Client Cancelled – Booking #${req.params.id}`,
-                    htmlContent: `<p>${booking.name} cancelled booking #${req.params.id}. Reason: ${reason || 'Not provided'}. Refund due: R${calc.refund.toFixed(2)}.</p>`,
+                    htmlContent: emailComponents.renderSystemEmail({
+                        preheaderText: `${booking.name} cancelled booking #${req.params.id}.`,
+                        category: 'Booking Requests',
+                        severity: 'action',
+                        leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(booking.name)}</strong> cancelled booking <strong style="color:#FAFAFA;">#${req.params.id}</strong>.`,
+                        cards: [{ rows: [
+                            { label: 'Reason', value: reason || 'Not provided', mono: false },
+                            { label: 'Refund Due', value: `R${calc.refund.toFixed(2)}`, highlight: true }
+                        ] }]
+                    }),
+                    preWrapped: true,
                     titleOverride: 'Client Cancellation', trigger_event: 'Admin: Client Cancellation' }).catch(() => {});
             });
             res.json({ success: true, message: 'Booking cancelled.', refund_due: calc.refund, refund_policy: calc.rule });
@@ -11217,7 +11243,16 @@ app.post('/api/public/bookings/:id/review', mutateRateLimiter, ipRateLimiter, (r
                 getNotificationEmail().then(notifEmail => sendEmail({
                     to: notifEmail,
                     subject: `New Review Submitted – Booking #${req.params.id} (${ratingNum}★)`,
-                    htmlContent: `<p><strong>${clientName}</strong> has submitted a <strong>${ratingNum}/5</strong> review for Booking <strong>#${req.params.id}</strong>.</p>${review_text ? `<blockquote style="border-left:3px solid #D4AF37;padding:8px 16px;margin:12px 0;color:#ccc;">${review_text}</blockquote>` : ''}<p>Log in to the admin panel to approve or manage reviews.</p>`,
+                    htmlContent: emailComponents.renderSystemEmail({
+                        preheaderText: `${clientName} left a ${ratingNum}/5 review for booking #${req.params.id}.`,
+                        category: 'Thank You & Reviews',
+                        severity: 'info',
+                        leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(clientName)}</strong> has submitted a <strong style="color:#D4AF37;">${ratingNum}/5</strong> review for Booking <strong style="color:#FAFAFA;">#${req.params.id}</strong>.`,
+                        bodyHtml:
+                            (review_text ? `<blockquote style="border-left:3px solid #D4AF37; padding:10px 16px; margin:0 0 12px; color:#E6E6E6; background:#1A1A1A;">${review_text}</blockquote>` : '') +
+                            `<p style="margin:0; color:#B0B0B0;">Log in to the admin panel to approve or manage reviews.</p>`
+                    }),
+                    preWrapped: true,
                     titleOverride: 'New Client Review',
                     trigger_event: 'Admin: New Review Submitted'
                 })).catch(() => {});

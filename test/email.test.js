@@ -78,7 +78,11 @@ module.exports = async function ({ check }) {
     }
 
     // ── Guard 4: isolation — un-migrated (SYSTEM) emails are NOT pre-wrapped ──
-    const adminMail = await queued('NEW BOOKING REQUEST:%');
+    // Target rotates as Prompt 4 batches migrate more SYSTEM emails; currently the two security
+    // emails (dashboard invite, password reset) are the last un-migrated ones (Batch 5).
+    await pub('POST', '/api/admin/forgot-password', { email: 'test.runner@example.invalid' });
+    await sleep(150);
+    const adminMail = await queued('Password Reset Request%');
     check('un-migrated admin email stays legacy (no preWrapped, no full shell)',
         !!adminMail && adminMail.preWrapped === false && count(adminMail.html, '<!DOCTYPE') === 0,
         adminMail && `pre=${adminMail.preWrapped} doctypes=${count(adminMail.html, '<!DOCTYPE')}`);

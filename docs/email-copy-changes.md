@@ -204,3 +204,38 @@ Same rule as Batch 3: figures/references/links byte-identical, locked by the ext
 New guard in `test/email.test.js` (Guard 7): subscribes a fresh test address, confirms the welcome
 email is queued pre-wrapped and its unsubscribe link contains **that exact subscriber's token** — not
 a shared or missing one. Suite: 68/68.
+
+---
+---
+
+# Prompt 4 — SYSTEM-track rebuild (internal admin/ops)
+
+SYSTEM emails use `renderSystemEmail` (compact mono `systemHeader`, no photographic banner, no
+social/unsubscribe footer — internal mail) instead of `renderPremiumEmail`. Structure: header → an
+`alertStrip` leading with the key fact → body → `infoCard`(s) → minimal footer. Rendered samples:
+`email-previews/system/*.html`.
+
+## Batch 1 — booking lifecycle notices
+
+All seven use the exact prose from their originals; the change is presentation (proper table-based
+`infoCard`s instead of ad-hoc inline tables/paragraphs) and — same defect class found repeatedly in
+Prompt 3 — most of these bodies previously relied on styling that only existed in the legacy
+`createEmailWrapper`'s `<style>` block, which is **not present at all** on the live raw path.
+
+- **Booking Received (admin half)** — *most-changed.* The 13-row details table becomes a proper
+  `infoCard`; "Additional Notes" and the "Open in Admin" button are preserved verbatim in content and
+  URL. **Bug fixed:** the admin body and the separate "Open Booking in Admin" button HTML were
+  concatenated as two strings (`adminHtmlTemplate + adminLinkHtml`) — now that the body is a complete
+  HTML document, the button is folded inside it instead of appended after `</html>`, where it would
+  have been silently dropped by every email client.
+- **Quote Sent, Payment Received, Quote Accepted notifications** — same content, now `infoCard` tables
+  instead of inline `<table>`/`<p>` markup. Figures (quote amount, amount paid) kept verbatim.
+- **Client Cancelled notice** — reason + `R{refund_due}` figure kept verbatim, now in a card.
+- **New Review notice** — rating and review text (already HTML-safe via `encodeUserHtml` at intake)
+  unchanged; review quote becomes a styled blockquote.
+- **Contract Signed notice** — same two-sentence message, componentised.
+
+`test/email.test.js` Guard 4 (isolation) retargeted from the now-migrated "NEW BOOKING REQUEST" to
+`/api/admin/forgot-password` (still legacy until Batch 5) so it keeps proving un-migrated SYSTEM email
+stay byte-identical. Suite: 68/68 (unchanged count — no new live-triggerable paths this batch beyond
+what's already exercised).
