@@ -112,11 +112,11 @@ ${preheader(preheaderText)}
 }
 
 /* ── 2. header ── text wordmark (always renders) + optional banner ── */
-function header({ bannerSrc = null, headline = '', subtitle = '' } = {}) {
+function header({ bannerSrc = null, alt = 'Thabiso Mhlongo', headline = '', subtitle = '' } = {}) {
     const wordmark = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${TOKENS.obsidian}" style="background-color:${TOKENS.obsidian};"><tr><td align="center" style="padding:26px 24px 18px;">
     <span style="font-family:${TOKENS.serif}; font-size:20px; letter-spacing:3px; color:${TOKENS.ink}; text-transform:uppercase;">Thabiso <span style="color:${TOKENS.gold};">Mhlongo</span></span>
   </td></tr></table>`;
-    return wordmark + bannerSlot({ bannerSrc, headline, subtitle });
+    return wordmark + bannerSlot({ bannerSrc, alt, headline, subtitle });
 }
 
 /* ── 3. banner_slot ── image by src, or graceful text-headline fallback ── */
@@ -220,7 +220,7 @@ function systemHeader({ category = 'System Notification', timestamp = null, seve
 
 /* ── Composer: PREMIUM email (client/visitor/subscriber) ── */
 function renderPremiumEmail({
-    preheaderText = '', bannerSrc = null, headline = '', greeting = '',
+    preheaderText = '', bannerSrc = null, bannerAlt = 'Thabiso Mhlongo', headline = '', subtitle = '', greeting = '',
     bodyHtml = '', cards = [], cta = null, unsubscribeUrl = null, socialLinks = [], title = null
 } = {}) {
     const cardsHtml = (cards || []).map(c => infoCard(c)).join(spacer(8));
@@ -229,7 +229,7 @@ function renderPremiumEmail({
         (bodyHtml ? `<div style="font-family:${TOKENS.body}; font-size:16px; line-height:1.6; color:${TOKENS.text};">${bodyHtml}</div>` : '') +
         (cardsHtml ? spacer(18) + cardsHtml : '') +
         (cta ? spacer(22) + ctaButton(cta) : '');
-    const content = header({ bannerSrc, headline }) + contentBlock(inner);
+    const content = header({ bannerSrc, alt: bannerAlt, headline, subtitle }) + contentBlock(inner);
     return baseLayout({
         preheaderText, contentHtml: content,
         footerHtml: footer({ unsubscribeUrl, socialLinks }),

@@ -127,5 +127,46 @@ module.exports = async function ({ check }) {
 
         const dbRow = await one('SELECT status FROM banners WHERE id = ?', [bannerId]);
         check('db: banner row still exists (archive/restore never hard-deletes)', !!dbRow && dbRow.status === 'active', JSON.stringify(dbRow));
+
+        // ── End-to-end: assign to a real wired call site (sendQuoteEmail / 'quote') and confirm the
+        // banner's own image actually appears in a real queued email, not just the isolated resolver ──
+        const { pub, future, sleep } = support;
+        const assignQuote = await api('PUT', '/api/admin/email-templates/assign', { template_keys: ['quote'], banner_id: bannerId });
+        check('assign banner to "quote" template_key -> 200', assignQuote.status === 200 && assignQuote.body.updated === 1, JSON.stringify(assignQuote.body));
+
+        const em = `eg.banner.${Date.now()}@example.invalid`;
+        const bookingRes = await api('POST', '/api/admin/bookings', {
+            name: 'Banner E2E', email: em, cell: '+27821234567', event_date: future(260),
+            event_name: 'Banner E2E Event', event_type: 'Corporate', event_location: 'Hall',
+            message: 'Banner wiring end-to-end test booking.',
+            services: [{ service_id: 15 }], status: 'NEW', override_working_hours: true,
+        });
+        const bookingId = bookingRes.body && bookingRes.body.booking_id;
+        check('e2e fixture booking created', bookingRes.status === 200 && !!bookingId, JSON.stringify(bookingRes.body));
+
+        if (bookingId) {
+            await sleep(40);
+            const bk = await one('SELECT date FROM bookings WHERE id=?', [bookingId]);
+            const expiry = new Date(Date.parse(bk.date) - 10 * 86400000).toISOString().slice(0, 10);
+            const quoteRes = await api('POST', `/api/admin/bookings/${bookingId}/quote`, {
+                quote_expiry_date: expiry, terms: 'T', apply_vat: false, discount: 0,
+                items: [{ service_id: 15, description: 'Banner E2E Service', quantity: 1, unit_price: 500 }],
+            });
+            check('quote endpoint 200 (triggers sendQuoteEmail)', quoteRes.status === 200, `${quoteRes.status}`);
+            await sleep(150);
+
+            const quoteMail = await one(
+                "SELECT body FROM notifications WHERE type='email' AND subject = ? ORDER BY id DESC LIMIT 1",
+                [`Quotation for Booking #${bookingId}`]
+            );
+            let quoteHtml = '';
+            try { quoteHtml = JSON.parse((quoteMail && quoteMail.body) || '{}').htmlContent || ''; } catch (e) {}
+            check('e2e: assigned banner image renders in the real queued quote email',
+                quoteHtml.includes(created.body.banner.image_url) && quoteHtml.includes('Guard banner alt text'),
+                `hasImg=${quoteHtml.includes(created.body.banner.image_url)} hasAlt=${quoteHtml.includes('Guard banner alt text')}`);
+        }
+
+        const unassignQuote = await api('PUT', '/api/admin/email-templates/assign', { template_keys: ['quote'], banner_id: null });
+        check('cleanup: unassign "quote" template_key', unassignQuote.status === 200, JSON.stringify(unassignQuote.body));
     }
 };

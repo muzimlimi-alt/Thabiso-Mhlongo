@@ -28,10 +28,15 @@ const run = (sql, p = []) => new Promise((res, rej) => db.run(sql, p, function (
 
 // template_key -> category. One entry per renderPremiumEmail call site across Prompt 3 Batches 1-6.
 // contract_sign_reminder and newsletter_campaign each cover 2 call sites that share one template.
+// booking_cancelled and booking_date_changed (sendCancellationEmail / sendDateChangedEmail, both
+// Batch 2) were missing from the original Prompt 5 plan's map — audit gap closed while wiring Batch A.
 const TEMPLATE_MAP = {
     booking_received_client: 'Booking Requests',
     booking_under_review: 'Booking Requests',
     pending_expired: 'Booking Requests',
+
+    booking_cancelled: 'Booking Confirmations',
+    booking_date_changed: 'Booking Confirmations',
 
     quote: 'Quotes & Proposals',
     quote_accepted: 'Quotes & Proposals',

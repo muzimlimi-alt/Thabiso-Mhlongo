@@ -2618,9 +2618,11 @@ async function sendBookingReceivedEmail(bookingId, data) {
         }] : [];
 
         const { socialLinks } = await getEmailFooterContext();
+        const banner = await bannerRegistry.resolveBanner('booking_received_client');
         const clientHtml = emailComponents.renderPremiumEmail({
             preheaderText: `We've received your booking request — Ref #${bookingId}.`,
-            headline: "We've Received Your Request",
+            bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+            headline: banner?.headline || "We've Received Your Request",
             greeting: `Hi ${name},`,
             bodyHtml: `Thank you for reaching out to book Thabiso Mhlongo for your upcoming <strong style="color:#D4AF37;">${event_type}</strong> on <strong style="color:#D4AF37;">${event_date}</strong>. Our management team has received your enquiry and will be in touch shortly to confirm availability and discuss pricing.<br><br><span style="color:#B0B0B0; font-size:13px;">Keep your booking reference <strong style="color:#D4AF37;">#${bookingId}</strong> safe — you'll need it to track your booking status.</span>`,
             cards: [{ title: `Booking Summary · Ref #${bookingId}`, rows: clientCardRows }],
@@ -2663,9 +2665,11 @@ async function sendBookingUnderReviewEmail(booking) {
     const { id, name, email, event_type, date, event_name } = booking;
     const eventLabel = event_name || event_type;
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('booking_under_review');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Ref #${id} — your booking is now with our management team.`,
-        headline: 'Your Booking Is Under Review',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Your Booking Is Under Review',
         greeting: `Hi ${name},`,
         bodyHtml: `Great news — your request for <strong style="color:#FAFAFA;">${eventLabel}</strong> on <strong style="color:#FAFAFA;">${date}</strong> is now being actively reviewed by our management team. We're confirming availability, going through your event details, and preparing a tailored quotation. You can expect to hear from us shortly.`,
         cards: [{
@@ -2781,6 +2785,7 @@ async function sendQuoteEmail(booking, amount, pdfPath, pdfFileName, items = [])
 
     // NOTE: itemsHtml + `${amount || booking.quote_amount}` carry computed figures — kept verbatim.
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('quote');
     const acceptUrl = `${process.env.BASE_URL || 'https://www.thabisomhlongo.com'}/?track=${id}&email=${encodeURIComponent(email)}&action=accept`;
     const bodyHtml =
         `We've prepared a formal quotation for your upcoming event, <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>. The full breakdown of services and terms is attached as a PDF for your records.` +
@@ -2790,7 +2795,8 @@ async function sendQuoteEmail(booking, amount, pdfPath, pdfFileName, items = [])
         `<p style="margin:10px 0 0; color:#E6E6E6;">To secure this date, please review and accept the quotation via your booking portal.</p>`;
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Your quotation for booking #${id} is ready to review.`,
-        headline: 'Your Quotation',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Your Quotation',
         greeting: `Hi ${name},`,
         bodyHtml,
         cta: { label: 'Review & Accept Quote', url: acceptUrl },
@@ -2890,9 +2896,11 @@ async function sendInvoiceEmail(booking, invoicePdfPath) {
 
     // PAYMENT-CRITICAL: paymentScheduleHtml (amounts/due dates) kept verbatim; PDF + reference unchanged.
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('invoice');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Your invoice for booking #${id} is attached.`,
-        headline: 'Your Invoice',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Your Invoice',
         greeting: `Hi ${name},`,
         bodyHtml:
             `Your formal invoice is ready for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>. Please find the attached PDF for the full service breakdown.` +
@@ -2928,9 +2936,11 @@ async function sendInvoicePreDueEmail(booking, invoice, daysUntilDue) {
     // PAYMENT-CRITICAL: invoice number, due date, `R ${amount}` and payUrl kept verbatim.
     // (The old card used display:flex, which many email clients ignore — infoCard is table-based.)
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('invoice_pre_due');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Invoice ${invoice.invoice_number || id} is due in ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}.`,
-        headline: 'Invoice Payment Reminder',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Invoice Payment Reminder',
         greeting: `Hi ${name},`,
         bodyHtml:
             `This is a friendly reminder that your invoice for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> is due in <strong style="color:#D4AF37;">${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}</strong>.` +
@@ -2972,9 +2982,11 @@ async function sendContractEmail(booking, contractPdfPath) {
     }
 
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('contract_sent');
     const htmlContent = emailComponents.renderPremiumEmail({
         preheaderText: `Your booking contract for #${id} is ready to review and sign.`,
-        headline: 'Your Booking Contract',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Your Booking Contract',
         greeting: `Hi ${name},`,
         bodyHtml:
             `Your booking contract for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> is ready. Please review the attached PDF and sign it online at your convenience.` +
@@ -3006,9 +3018,11 @@ async function sendOverdueInvoiceEmail(booking, invoice) {
     // PAYMENT-CRITICAL: invoice number, due date, `R ${amount}` and payUrl kept verbatim.
     // Red (#ef4444) replaced with the design system's amber alert (no red-on-black per HARD RULES).
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('invoice_overdue');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Invoice ${invoice.invoice_number || id} is overdue — R ${amount} outstanding.`,
-        headline: 'Invoice Overdue',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Invoice Overdue',
         greeting: `Hi ${name},`,
         bodyHtml:
             `Your invoice for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> was due on <strong style="color:#E8A83E;">${dueDate}</strong> and is now <strong style="color:#E8A83E;">overdue</strong>.` +
@@ -3081,9 +3095,11 @@ async function sendQuoteAcceptedEmail(booking, options = {}) {
 
     // NOTE: paymentScheduleHtml carries the scheduled amounts — kept verbatim.
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('quote_accepted');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: invoiceGenerated ? `Booking #${id} accepted — invoice issued.` : `Booking #${id} — quote accepted.`,
-        headline: invoiceGenerated ? 'Invoice Sent — Awaiting Payment' : 'Quote Accepted',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || (invoiceGenerated ? 'Invoice Sent — Awaiting Payment' : 'Quote Accepted'),
         greeting: `Hi ${name},`,
         bodyHtml:
             `We've received your acceptance of the quote for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>. Your booking reference is <strong style="color:#D4AF37;">#${id}</strong>, and our team will formally confirm your booking shortly.` +
@@ -3132,9 +3148,11 @@ async function sendCancellationEmail(booking, cancellationData) {
     const refundHtml = parseFloat(refund_due) > 0
         ? `<p style="margin:14px 0 0;"><strong style="color:#D4AF37;">Refund Due: R ${parseFloat(refund_due).toFixed(2)}</strong><br><span style="color:#B0B0B0;">Your refund will be processed within 5&ndash;7 business days.</span></p>`
         : `<p style="margin:14px 0 0; color:#B0B0B0;">No refund is applicable for this cancellation per our cancellation policy.</p>`;
+    const banner = await bannerRegistry.resolveBanner('booking_cancelled');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Booking #${id} has been cancelled.`,
-        headline: 'Booking Cancelled',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Booking Cancelled',
         greeting: `Hi ${name},`,
         bodyHtml:
             `We regret to inform you that your booking for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> has been cancelled.` +
@@ -3165,9 +3183,11 @@ async function sendPaymentReceivedEmail(booking, newAmountPaid, newOutstanding, 
 
     // PAYMENT-CRITICAL: the exact figure strings (R${...} — no space, as before) are unchanged.
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('payment_received');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `${titleStatus} for booking #${id} — R${newAmountPaid.toFixed(2)}.`,
-        headline: titleStatus,
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || titleStatus,
         greeting: `Hi ${name},`,
         bodyHtml:
             `We've successfully processed a payment for the booking of <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>.` +
@@ -3251,9 +3271,11 @@ async function sendBookingConfirmedEmail(booking) {
     if (performance_duration) cardRows.push({ label: 'Duration', value: performance_duration, mono: false });
     cardRows.push({ label: 'Reference', value: `#${id}` });
 
+    const banner = await bannerRegistry.resolveBanner('booking_confirmed');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Booking #${id} is confirmed — see you on ${date}!`,
-        headline: 'Your Booking Is Confirmed',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Your Booking Is Confirmed',
         greeting: `Hi ${name},`,
         bodyHtml:
             `Wonderful news — your booking for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> at <strong style="color:#FAFAFA;">${event_location || 'TBD'}</strong> is now fully <strong style="color:#D4AF37;">CONFIRMED</strong>.<br><br>Thabiso Mhlongo is excited to be part of your event, and our team will be in touch with any final logistics closer to the date.<br><br><span style="color:#B0B0B0; font-size:13px;">We've attached a calendar invite (.ics) so you can save the event to your calendar.</span>`,
@@ -3344,9 +3366,11 @@ async function sendBookingCompletedEmail(booking) {
         ]
     });
 
+    const banner = await bannerRegistry.resolveBanner('booking_completed');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Thank you — booking #${id} is complete. We hope it was a blast!`,
-        headline: 'Event Completed — Thank You!',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Event Completed — Thank You!',
         greeting: `Hi ${name},`,
         bodyHtml:
             `We hope you had an absolutely wonderful time! Your event — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> at <strong style="color:#FAFAFA;">${event_location || 'your venue'}</strong> — has been marked as completed.<br><br>It was a pleasure working with you. Here's a summary of your booking <span style="color:#B0B0B0; font-size:13px;">(reference #${id})</span>:`,
@@ -3365,9 +3389,11 @@ async function sendQuoteExpiredEmail(booking) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('quote_expired');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Your quote for booking #${id} has expired.`,
-        headline: 'Your Quote Has Expired',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Your Quote Has Expired',
         greeting: `Hi ${name},`,
         bodyHtml: `Your quote for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> has expired and is no longer valid.<br><br>If you're still interested in booking Thabiso Mhlongo for your event, we'd be glad to prepare a fresh quote — just submit a new enquiry and we'll take it from there. <span style="color:#B0B0B0; font-size:13px;">(Booking reference #${id})</span>`,
         cta: { label: 'Submit a New Enquiry', url: `${process.env.SITE_URL || ''}/index.html#booking` },
@@ -3387,9 +3413,11 @@ async function sendPaymentFailedEmail(booking) {
     const displayTotal = total_amount || (quote_amount ? parseFloat((quote_amount || '0').replace(/[^0-9.]/g, '')) : 0);
     // PAYMENT-CRITICAL: `R${...}` amount format kept verbatim (no space).
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('payment_failed');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `We couldn't complete your payment for booking #${id}.`,
-        headline: 'Payment Not Completed',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Payment Not Completed',
         greeting: `Hi ${name},`,
         bodyHtml:
             `We noticed that your payment for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> was not completed successfully.` +
@@ -3412,9 +3440,11 @@ async function sendDepositBalanceDueEmail(booking, outstanding) {
     const { id, name, email, event_name, event_type, date, event_location } = booking;
     // PAYMENT-CRITICAL: `R${parseFloat(outstanding).toFixed(2)}` kept verbatim (subject + body).
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('deposit_balance_due');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Deposit received — balance of R${parseFloat(outstanding).toFixed(2)} due for booking #${id}.`,
-        headline: 'Deposit Received',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Deposit Received',
         greeting: `Hi ${name},`,
         bodyHtml:
             `Thank you for your deposit payment for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>. Your booking is confirmed.` +
@@ -3438,9 +3468,11 @@ async function sendPendingExpiredEmail(booking) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('pending_expired');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Enquiry #${id} has expired — you can submit a new one any time.`,
-        headline: 'Your Enquiry Has Expired',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Your Enquiry Has Expired',
         greeting: `Hi ${name},`,
         bodyHtml: `Your booking enquiry for <strong style="color:#FAFAFA;">${event_name || event_type}</strong>${date ? ` on <strong style="color:#FAFAFA;">${date}</strong>` : ''} has expired due to inactivity.<br><br>If you're still interested, we'd love to help make your event special — just submit a new enquiry. <span style="color:#B0B0B0; font-size:13px;">(Original reference #${id})</span>`,
         cta: { label: 'Submit a New Enquiry', url: `${process.env.SITE_URL || ''}/index.html#booking` },
@@ -3560,9 +3592,11 @@ async function sendQuoteExpiryWarningEmail(booking) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, quote_expiry_date } = booking;
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('quote_expiry_warning');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Your quote for booking #${id} expires tomorrow.`,
-        headline: 'Your Quote Expires Tomorrow',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Your Quote Expires Tomorrow',
         greeting: `Hi ${name},`,
         bodyHtml: `Your quote for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> expires <strong style="color:#D4AF37;">tomorrow (${quote_expiry_date})</strong>. Accept it now via your booking tracker before it lapses.`,
         cta: { label: 'Accept Your Quote', url: `${process.env.SITE_URL || ''}/index.html#track` },
@@ -3576,9 +3610,11 @@ async function sendReviewRequestEmail(booking) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('review_request');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `How was your event? We'd love your feedback on booking #${id}.`,
-        headline: "We'd Love Your Feedback",
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || "We'd Love Your Feedback",
         greeting: `Hi ${name},`,
         bodyHtml: `We hope your event — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> — was everything you imagined!<br><br>If you enjoyed working with Thabiso, a short review or testimonial would mean the world to us.`,
         cta: { label: 'Send Your Review', url: `mailto:info@thabisomhlongo.com?subject=Review for Booking %23${id}` },
@@ -3597,9 +3633,11 @@ async function sendRefundProcessedEmail(booking, refundAmount, refundReference) 
     const { socialLinks } = await getEmailFooterContext();
     const rows = [{ label: 'Refund Amount', value: amtFormatted, highlight: true }];
     if (refundReference) rows.push({ label: 'Reference', value: `${refundReference}` });
+    const banner = await bannerRegistry.resolveBanner('refund_processed');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Your refund of ${amtFormatted} for booking #${id} has been processed.`,
-        headline: 'Refund Confirmation',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Refund Confirmation',
         greeting: `Hi ${name},`,
         bodyHtml:
             `We are writing to confirm that your refund for Booking <strong style="color:#FAFAFA;">#${id}</strong> — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> — has been processed.` +
@@ -3618,9 +3656,11 @@ async function sendDateChangedEmail(booking, oldDate, newDate) {
     const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
     const trackUrl = `${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}`;
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('booking_date_changed');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: `Booking #${id}: the event date changed to ${newDate}.`,
-        headline: 'Event Date Updated',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Event Date Updated',
         greeting: `Hi ${name},`,
         bodyHtml: `Please note that the date for your booking <strong style="color:#FAFAFA;">#${id}</strong> — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> — has been updated. Please update your calendar accordingly.<br><br><span style="color:#B0B0B0; font-size:13px;">If this change was made in error or you have any concerns, please contact us immediately at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</span>`,
         cards: [{
@@ -4219,9 +4259,11 @@ async function sendAbandonedBookingReminderEmail(draft) {
     ].filter(r => r[1]).map(r => ({ label: r[0], value: r[1], mono: false }));
 
     const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('abandoned_booking_recovery');
     const html = emailComponents.renderPremiumEmail({
         preheaderText: "You started a booking request — pick up right where you left off.",
-        headline: 'Finish Your Booking Request',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Finish Your Booking Request',
         greeting: `Hi ${esc(draft.name || 'there')},`,
         bodyHtml:
             `It looks like you started a booking request for <strong style="color:#D4AF37;">Thabiso Mhlongo</strong> but didn't quite finish. Good news — your details are saved, so you can pick up right where you left off.` +
@@ -5830,22 +5872,26 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
                 trigger_event: 'Booking: Quote Revision Request'
             }).catch(e => console.error('[Quote Revision Request] Admin email notification failed:', e.message));
 
-            getEmailFooterContext().then(({ socialLinks }) => sendEmail({
-                to: row.email,
-                subject: `We've Received Your Request – Booking #${row.id}`,
-                htmlContent: emailComponents.renderPremiumEmail({
-                    preheaderText: `We've received your request for booking #${row.id}.`,
-                    headline: 'Request Received',
-                    greeting: `Hi ${row.name},`,
-                    bodyHtml:
-                        `We've received your <strong style="color:#D4AF37;">${typeLabel.toLowerCase()}</strong> request for booking <strong style="color:#FAFAFA;">#${row.id}</strong>. Our team will review your request and get back to you shortly.` +
-                        `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">Your request: "${message.trim()}"</p>`,
-                    socialLinks
-                }),
-                preWrapped: true,
-                titleOverride: 'Request Received',
-                trigger_event: 'Booking: Quote Revision Acknowledgement'
-            })).catch(e => console.error('[Quote Revision Request] Client email acknowledgement failed:', e.message));
+            getEmailFooterContext().then(async ({ socialLinks }) => {
+                const banner = await bannerRegistry.resolveBanner('custom_response');
+                return sendEmail({
+                    to: row.email,
+                    subject: `We've Received Your Request – Booking #${row.id}`,
+                    htmlContent: emailComponents.renderPremiumEmail({
+                        preheaderText: `We've received your request for booking #${row.id}.`,
+                        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+                        headline: banner?.headline || 'Request Received',
+                        greeting: `Hi ${row.name},`,
+                        bodyHtml:
+                            `We've received your <strong style="color:#D4AF37;">${typeLabel.toLowerCase()}</strong> request for booking <strong style="color:#FAFAFA;">#${row.id}</strong>. Our team will review your request and get back to you shortly.` +
+                            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">Your request: "${message.trim()}"</p>`,
+                        socialLinks
+                    }),
+                    preWrapped: true,
+                    titleOverride: 'Request Received',
+                    trigger_event: 'Booking: Quote Revision Acknowledgement'
+                });
+            }).catch(e => console.error('[Quote Revision Request] Client email acknowledgement failed:', e.message));
 
             res.json({ success: true, message: 'Your request has been recorded. We will be in touch shortly.' });
         } catch (dbErr) {
@@ -6797,22 +6843,26 @@ app.post('/api/admin/bookings/:id/contract/remind', requireAdmin, mutateRateLimi
                 });
             }
 
-            getEmailFooterContext().then(({ socialLinks }) => sendEmail({
-                to: b.email,
-                subject: `Action Required: Please sign your booking contract — ${b.event_name}`,
-                htmlContent: emailComponents.renderPremiumEmail({
-                    preheaderText: `Your booking contract for ${b.event_name} is awaiting your signature.`,
-                    headline: 'Contract Signature Reminder',
-                    greeting: `Hi ${b.name},`,
-                    bodyHtml:
-                        `A friendly reminder that your booking contract for <strong style="color:#FAFAFA;">${b.event_name}</strong> on ${b.date} is awaiting your signature.` +
-                        `<p style="margin:10px 0 0; color:#E6E6E6;">Please contact us at your earliest convenience to arrange signing.</p>`,
-                    socialLinks
-                }),
-                preWrapped: true,
-                titleOverride: 'Contract Signature Reminder',
-                trigger_event: 'Admin: Contract Remind'
-            })).then(() => {
+            getEmailFooterContext().then(async ({ socialLinks }) => {
+                const banner = await bannerRegistry.resolveBanner('contract_sign_reminder');
+                return sendEmail({
+                    to: b.email,
+                    subject: `Action Required: Please sign your booking contract — ${b.event_name}`,
+                    htmlContent: emailComponents.renderPremiumEmail({
+                        preheaderText: `Your booking contract for ${b.event_name} is awaiting your signature.`,
+                        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+                        headline: banner?.headline || 'Contract Signature Reminder',
+                        greeting: `Hi ${b.name},`,
+                        bodyHtml:
+                            `A friendly reminder that your booking contract for <strong style="color:#FAFAFA;">${b.event_name}</strong> on ${b.date} is awaiting your signature.` +
+                            `<p style="margin:10px 0 0; color:#E6E6E6;">Please contact us at your earliest convenience to arrange signing.</p>`,
+                        socialLinks
+                    }),
+                    preWrapped: true,
+                    titleOverride: 'Contract Signature Reminder',
+                    trigger_event: 'Admin: Contract Remind'
+                });
+            }).then(() => {
                 // Only stamp a contract row that already exists; the reminder can predate the upload.
                 db.run("UPDATE contracts SET sent_to_client_at = CURRENT_TIMESTAMP WHERE booking_id = ?", [bookingId],
                     (uErr) => { if (uErr) console.error('[Contract Remind] timestamp update failed:', uErr.message); });
@@ -6850,12 +6900,14 @@ async function remindBooking(bookingId) {
             const last = contract.sent_to_client_at ? moment(contract.sent_to_client_at) : null;
             if (last && moment().diff(last, 'hours') < 24) return { booking_id: bookingId, sent: false, skipped: 'contract reminded <24h ago' };
             const { socialLinks: remindSocialLinks } = await getEmailFooterContext();
+            const remindBanner = await bannerRegistry.resolveBanner('contract_sign_reminder');
             await sendEmail({
                 to: b.email,
                 subject: `Action Required: Please sign your booking contract — ${b.event_name || b.event_type}`,
                 htmlContent: emailComponents.renderPremiumEmail({
                     preheaderText: `Your booking contract for ${b.event_name || b.event_type} is awaiting your signature.`,
-                    headline: 'Contract Signature Reminder',
+                    bannerSrc: remindBanner?.src, bannerAlt: remindBanner?.alt, subtitle: remindBanner?.subtitle,
+                    headline: remindBanner?.headline || 'Contract Signature Reminder',
                     greeting: `Hi ${b.name},`,
                     bodyHtml:
                         `A friendly reminder that your booking contract for <strong style="color:#FAFAFA;">${b.event_name || b.event_type}</strong> on ${b.date} is awaiting your signature. You can review and sign it from your booking page.`,
@@ -7109,9 +7161,11 @@ app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
 
         // 2. Receipt to Visitor
         const { socialLinks: contactSocialLinks } = await getEmailFooterContext();
+        const contactBanner = await bannerRegistry.resolveBanner('contact_auto_reply');
         const visitorBody = emailComponents.renderPremiumEmail({
             preheaderText: `We've received your message — thanks for reaching out, ${name}!`,
-            headline: "We've Received Your Message",
+            bannerSrc: contactBanner?.src, bannerAlt: contactBanner?.alt, subtitle: contactBanner?.subtitle,
+            headline: contactBanner?.headline || "We've Received Your Message",
             greeting: `Hi ${name},`,
             bodyHtml:
                 `Thank you for reaching out to Thabiso Mhlongo Management. We have successfully received your inquiry regarding <strong style="color:#D4AF37;">"${subject || 'General Inquiry'}"</strong> and our team will review it shortly.` +
@@ -7179,9 +7233,11 @@ app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
         (async () => {
             const { socialLinks } = await getEmailFooterContext();
             const unsubscribeUrl = `${emailBaseUrl()}/unsubscribe.html?token=${unsubscribe_token}&email=${encodeURIComponent(email)}`;
+            const banner = await bannerRegistry.resolveBanner('newsletter_welcome');
             const emailBody = emailComponents.renderPremiumEmail({
                 preheaderText: "You're on the list — welcome to the newsletter!",
-                headline: "You're On The List!",
+                bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+                headline: banner?.headline || "You're On The List!",
                 bodyHtml:
                     `<p style="text-align:center;">Thank you for subscribing to my official newsletter. I truly appreciate your support. You will now be the first to know about my upcoming stand-up tour dates, new video releases, and exclusive content.</p>` +
                     `<p style="text-align:center; color:#B0B0B0;">Rest assured, your email address will be used responsibly and will never be shared with third parties.</p>` +
@@ -7628,6 +7684,7 @@ function scheduleNewsletterSend(schedItem) {
                 // just wrapped with the brand shell + a per-recipient unsubscribe link (preWrapped
                 // bypasses sendEmailDirectly's own subscriber lookup, so it's built here instead).
                 const { socialLinks: schedSocialLinks } = await getEmailFooterContext();
+                const campaignBanner = await bannerRegistry.resolveBanner('newsletter_campaign');
                 let successCount = 0;
                 let failCount = 0;
                 for (const sub of subscribers) {
@@ -7637,6 +7694,7 @@ function scheduleNewsletterSend(schedItem) {
                             : null;
                         const html = emailComponents.renderPremiumEmail({
                             preheaderText: schedItem.subject,
+                            bannerSrc: campaignBanner?.src, bannerAlt: campaignBanner?.alt, subtitle: campaignBanner?.subtitle,
                             headline: schedItem.subject,
                             bodyHtml: schedItem.content,
                             unsubscribeUrl,
@@ -7819,6 +7877,7 @@ app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachmen
         // Campaign content is the admin's own authored HTML — rendered verbatim as bodyHtml, just
         // wrapped with the brand shell + a per-recipient unsubscribe link.
         const { socialLinks: campaignSocialLinks } = await getEmailFooterContext();
+        const campaignBanner = await bannerRegistry.resolveBanner('newsletter_campaign');
         for (const sub of rows) {
             const recipientEmail = sub.email;
             try {
@@ -7827,6 +7886,7 @@ app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachmen
                     : null;
                 const html = emailComponents.renderPremiumEmail({
                     preheaderText: subject,
+                    bannerSrc: campaignBanner?.src, bannerAlt: campaignBanner?.alt, subtitle: campaignBanner?.subtitle,
                     headline: subject,
                     bodyHtml: message,
                     unsubscribeUrl,
@@ -13124,9 +13184,11 @@ app.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
     // Audit gap closed: this admin->client responder wasn't in the original email inventory.
     // It already used its own self-built shell correctly (unlike the dead-template bug found in
     // inquiry-reply/compose) — migrated to the shared component system for consistency.
+    bannerRegistry.resolveBanner('booking_management_response').then(banner => {
     const htmlTemplate = emailComponents.renderPremiumEmail({
         preheaderText: `Re: Booking Request #${bookingId}`,
-        headline: 'Management Response',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Management Response',
         bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Booking Request #${bookingId}</p>` + message.replace(/\n/g, '<br>')
     });
 
@@ -13158,6 +13220,7 @@ app.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
     }).catch(error => {
         console.error('Error dispatching admin response email:', error);
         res.status(500).json({ success: false, message: 'Failed to dispatch email.', error: error.toString() });
+    });
     });
 });
 
@@ -13581,9 +13644,11 @@ app.post('/api/admin/inquiries/:id/reply', requireAdmin, (req, res) => {
         // Bug fixed in passing: htmlTemplate was built here but never used — the send below passed
         // the raw replyMessage, so inquiry replies went out with NO wrapper/logo/shell at all.
         const { socialLinks } = await getEmailFooterContext();
+        const inquiryBanner = await bannerRegistry.resolveBanner('inquiry_reply');
         const htmlTemplate = emailComponents.renderPremiumEmail({
             preheaderText: `Re: ${inquiry.subject}`,
-            headline: 'Management Response',
+            bannerSrc: inquiryBanner?.src, bannerAlt: inquiryBanner?.alt, subtitle: inquiryBanner?.subtitle,
+            headline: inquiryBanner?.headline || 'Management Response',
             bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Inquiry #${inquiry.subject}</p>` + replyMessage.replace(/\n/g, '<br>'),
             socialLinks
         });
@@ -13616,9 +13681,11 @@ app.post('/api/admin/compose', requireAdmin, async (req, res) => {
     // Bug fixed in passing: htmlTemplate was built here but never used — the send below passed the
     // raw body, so composed messages went out with NO wrapper/logo/shell at all.
     const { socialLinks } = await getEmailFooterContext();
+    const composeBanner = await bannerRegistry.resolveBanner('direct_compose');
     const htmlTemplate = emailComponents.renderPremiumEmail({
         preheaderText: subject || 'A message from Thabiso Mhlongo Management.',
-        headline: 'Direct Message',
+        bannerSrc: composeBanner?.src, bannerAlt: composeBanner?.alt, subtitle: composeBanner?.subtitle,
+        headline: composeBanner?.headline || 'Direct Message',
         bodyHtml: body.replace(/\n/g, '<br>'),
         socialLinks
     });
@@ -15036,9 +15103,11 @@ async function runPaymentReminderJob() {
             const paymentUrl = `${process.env.SITE_URL || 'http://localhost:3000'}/?track=${sched.booking_id}&email=${encodeURIComponent(sched.client_email)}`;
             // PAYMENT-CRITICAL: `R ${parseFloat(sched.expected_amount).toFixed(2)}` kept verbatim.
             const { socialLinks: schedSocialLinks } = await getEmailFooterContext();
+            const banner = await bannerRegistry.resolveBanner('schedule_payment_reminder');
             const htmlContent = emailComponents.renderPremiumEmail({
                 preheaderText: `Payment reminder: ${sched.description} due ${sched.due_date}.`,
-                headline: 'Payment Reminder',
+                bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+                headline: banner?.headline || 'Payment Reminder',
                 greeting: `Hi ${sched.client_name},`,
                 bodyHtml: `This is a friendly reminder that a payment is due in <strong style="color:#D4AF37;">${daysBefore} day${daysBefore !== 1 ? 's' : ''}</strong> for your upcoming event booking.`,
                 cards: [{
@@ -15117,9 +15186,11 @@ async function runQuoteFollowUpJob() {
                 ? ` Please note your quote expires on <strong style="color:#D4AF37;">${b.quote_expiry_date}</strong>.`
                 : '';
             const { socialLinks: followUpSocialLinks } = await getEmailFooterContext();
+            const banner = await bannerRegistry.resolveBanner('quote_still_open');
             const emailBody = emailComponents.renderPremiumEmail({
                 preheaderText: `Your quote for booking #${b.id} is still open.`,
-                headline: 'Your Quote Awaits',
+                bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+                headline: banner?.headline || 'Your Quote Awaits',
                 greeting: `Hi ${b.name},`,
                 bodyHtml:
                     `This is a friendly reminder that you have an open quotation for your upcoming <strong style="color:#FAFAFA;">${b.event_type}</strong> on <strong style="color:#FAFAFA;">${b.date}</strong>.` +
@@ -15303,9 +15374,11 @@ async function runDepositBalanceReminderJob() {
 
         // PAYMENT-CRITICAL: `R ${outstanding.toFixed(2)}` kept verbatim (both mentions).
         const { socialLinks: balanceSocialLinks } = await getEmailFooterContext();
+        const banner = await bannerRegistry.resolveBanner('balance_payment_reminder');
         const emailBody = emailComponents.renderPremiumEmail({
             preheaderText: `Balance of R ${outstanding.toFixed(2)} due — event in ${daysUntilEvent} day${daysUntilEvent !== 1 ? 's' : ''}.`,
-            headline: 'Balance Due — Event Approaching',
+            bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+            headline: banner?.headline || 'Balance Due — Event Approaching',
             greeting: `Hi ${b.name},`,
             bodyHtml:
                 `Your event <strong style="color:#FAFAFA;">${b.event_name || b.event_type}</strong> is coming up in <strong style="color:#D4AF37;">${daysUntilEvent} day${daysUntilEvent !== 1 ? 's' : ''}</strong>!` +
