@@ -257,3 +257,25 @@ what's already exercised).
   built-in timestamp slot.
 
 Suite: 68/68 (unchanged — no new live-triggerable paths this batch beyond what's already exercised).
+
+## Batch 3 — digests (table-in-card rebuild)
+
+Per the pack's Prompt 4 requirement: digest-style emails get "a compact table layout inside info_card,
+one row per item." All five previously built either a `<br>`-joined `<p>` list or a bespoke multi-column
+`<table>` with light-on-dark styling; all now use a real `infoCard`. **Every count/total in the subject
+line and every per-row figure is kept verbatim.**
+
+- **Enquiries Expiring** — `<br>`-joined list → one card row per enquiry.
+- **Overdue Payments** — `<br>`-joined list → one card row per booking; `R{total}` in the subject and
+  each row's `R{amount} outstanding` unchanged.
+- **Stalled Bookings** — was a genuine 5-column `<table>`; condensed to `infoCard`'s label/value shape
+  (`#id — client` / `event · Event: date · Accepted: date`) — no column header is lost, just reflowed.
+- **Ledger Discrepancy** — was a 6-column `<table>` (booking/client/event/recorded/tx-sum/drift); same
+  condensation, one row per booking, all three dollar figures (`Recorded`, `Tx Sum`, `Drift`) verbatim.
+- **PayFast Pending Timeout** — was a 4-column `<table>`; one row per stuck transaction, amount and
+  start timestamp verbatim.
+
+New Guard 8 in `test/email.test.js`: since these are cron-only jobs with no admin-triggerable endpoint,
+the guard renders through the *exact* `renderSystemEmail`/`infoCard` row-shape used in the server.js
+rebuild and asserts (a) the output is a real `<table>`, not a `<br>`-joined list, (b) each row's figure
+string appears verbatim, (c) the shell is single and dark-mode-safe. Suite: 71/71.

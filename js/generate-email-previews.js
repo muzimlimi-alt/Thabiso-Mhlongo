@@ -540,6 +540,53 @@ const system = {
         category: 'System', severity: 'info',
         leadFact: 'This is a test email confirming that admin notifications are correctly routed to <strong style="color:#FAFAFA;">admin@thabisomhlongo.com</strong>.',
         timestamp: '2026-07-12 08:00 UTC'
+    }),
+
+    /* ── Batch 3: digests (table-in-card) ── */
+    'digest-enquiries-expiring.html': S({
+        preheaderText: '2 enquiry(ies) expiring within ~24 hours.',
+        category: 'Booking Requests', severity: 'action',
+        leadFact: 'The following enquiries will <strong style="color:#FAFAFA;">auto-expire within the next ~24 hours</strong> unless a quote is sent — after which the client is notified their request lapsed.',
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">Open the Bookings pipeline and send a quote to keep them alive.</p>`,
+        cards: [{ title: 'Expiring Enquiries', rows: [
+            { label: '#100050 — Priya Naidoo', value: 'Corporate (event 2026-08-20)', mono: false },
+            { label: '#100051 — Sipho Zulu', value: 'Birthday Party (event 2026-08-22)', mono: false }
+        ] }]
+    }),
+    'digest-overdue-payments.html': S({
+        preheaderText: '2 overdue booking(s), R5150.49 outstanding.',
+        category: 'Payments & Invoices', severity: 'alert',
+        leadFact: 'The following confirmed bookings have unpaid balances with past event dates.',
+        cards: [{ title: 'Overdue Bookings', rows: [
+            { label: '#100050 — Priya Naidoo', value: 'R3250.50 outstanding', mono: false },
+            { label: '#100051 — Sipho Zulu', value: 'R1899.99 outstanding', mono: false }
+        ] }]
+    }),
+    'digest-stalled-bookings.html': S({
+        preheaderText: '2 ACCEPTED booking(s) missing an invoice.',
+        category: 'Payments & Invoices', severity: 'action',
+        leadFact: 'The following bookings have been in <strong style="color:#D4AF37;">ACCEPTED</strong> status for more than 3 days with no invoice generated.',
+        bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Log in to the admin portal to generate invoices for these bookings.</p>`,
+        cards: [{ title: 'Stalled Bookings', rows: [
+            { label: '#100050 — Priya Naidoo', value: 'Corporate · Event: 2026-08-20 · Accepted: 2026-07-08', mono: false },
+            { label: '#100051 — Sipho Zulu', value: 'Birthday Party · Event: 2026-08-22 · Accepted: 2026-07-07', mono: false }
+        ] }]
+    }),
+    'digest-ledger-discrepancy.html': S({
+        preheaderText: '1 booking(s) with a payment ledger discrepancy.',
+        category: 'Payments & Invoices', severity: 'alert',
+        leadFact: 'The following bookings have a mismatch between <strong style="color:#FAFAFA;">bookings.amount_paid</strong> and the <strong style="color:#FAFAFA;">sum of completed non-duplicate transactions</strong>. Please investigate and correct manually.',
+        cards: [{ title: 'Payment Ledger Discrepancies', rows: [
+            { label: '#100045 — Naledi Mokoena · Corporate Year-End', value: 'Recorded R 18500.00 · Tx Sum R 17500.00 · Drift R 1000.00', mono: false }
+        ] }]
+    }),
+    'digest-payfast-stuck.html': S({
+        preheaderText: '1 PayFast transaction(s) stuck in PENDING for over 1 hour.',
+        category: 'Payments & Invoices', severity: 'alert',
+        leadFact: 'The following PayFast transactions have been in <strong style="color:#FAFAFA;">PENDING</strong> status for more than 1 hour. PayFast may have not sent an ITN. Please check the PayFast dashboard and confirm or void manually.',
+        cards: [{ title: 'Stuck PayFast Transactions', rows: [
+            { label: '#100050 — Priya Naidoo', value: 'R3250.50 · Started 2026-07-12 06:45:00', mono: false }
+        ] }]
     })
 };
 

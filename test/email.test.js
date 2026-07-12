@@ -3,6 +3,7 @@
 // (a) carry their full pre-wrapped shell exactly once, and (b) render every amount /
 // reference string VERBATIM. Styling may change; figures may not.
 const { api, pub, one, q, future, sleep } = require('./support');
+const emailComponents = require('../js/emailComponents');
 
 const SVC = 15;
 const email = () => `eg.${Date.now()}.${Math.floor(Math.random() * 1e4)}@example.invalid`;
@@ -153,4 +154,32 @@ module.exports = async function ({ check }) {
         check('welcome email: real unsubscribe link with this subscriber\'s token', welcomeMail.html.includes(sub.unsubscribe_token) && welcomeMail.html.includes('unsubscribe.html'),
             `hasToken=${welcomeMail.html.includes(sub.unsubscribe_token)} hasPath=${welcomeMail.html.includes('unsubscribe.html')}`);
     }
+
+    // ── Guard 8 (Batch 3): SYSTEM digests render as tables, figures verbatim ──
+    // Digests are cron-only (no admin-triggerable endpoint), so this renders through the exact
+    // renderSystemEmail/infoCard row-shape used in server.js's digest rebuilds directly, proving
+    // the real component pipeline turns digest rows into a table (not a <br>-joined list) and
+    // keeps each item's exact figure string.
+    const digestRows = [
+        { id: 100050, name: 'Priya Naidoo', outstanding: 3250.5 },
+        { id: 100051, name: 'Sipho Zulu', outstanding: 1899.99 }
+    ];
+    const digestHtml = emailComponents.renderSystemEmail({
+        preheaderText: `${digestRows.length} overdue booking(s).`,
+        category: 'Payments & Invoices',
+        severity: 'alert',
+        leadFact: 'The following confirmed bookings have unpaid balances with past event dates.',
+        cards: [{
+            title: 'Overdue Bookings',
+            rows: digestRows.map(r => ({ label: `#${r.id} — ${r.name}`, value: `R${r.outstanding.toFixed(2)} outstanding`, mono: false }))
+        }]
+    });
+    check('digest renders a real table (not a <br>-joined list)',
+        /<table[^>]*role="presentation"/.test(digestHtml) && !digestHtml.includes('<br>'),
+        `hasTable=${/<table/.test(digestHtml)} hasBr=${digestHtml.includes('<br>')}`);
+    check('digest: every row figure renders verbatim',
+        digestHtml.includes('R3250.50 outstanding') && digestHtml.includes('R1899.99 outstanding'),
+        `r1=${digestHtml.includes('R3250.50 outstanding')} r2=${digestHtml.includes('R1899.99 outstanding')}`);
+    check('digest: single shell, dark color-scheme meta', count(digestHtml, '<!DOCTYPE') === 1 && /name="color-scheme" content="dark"/.test(digestHtml),
+        `doctypes=${count(digestHtml, '<!DOCTYPE')}`);
 };

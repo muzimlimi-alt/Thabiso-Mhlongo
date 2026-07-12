@@ -1498,9 +1498,19 @@ function startBackgroundClerk() {
                 rows.forEach(row => {
                     db.run("UPDATE bookings SET pending_expiry_warned = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
                 });
-                const list = rows.map(r => `#${r.id} – ${r.name} – ${r.event_name || r.event_type || 'Event'}${r.date ? ' (event ' + r.date + ')' : ''}`).join('<br>');
+                const digestBody = emailComponents.renderSystemEmail({
+                    preheaderText: `${rows.length} enquiry(ies) expiring within ~24 hours.`,
+                    category: 'Booking Requests',
+                    severity: 'action',
+                    leadFact: `The following enquiries will <strong style="color:#FAFAFA;">auto-expire within the next ~24 hours</strong> unless a quote is sent — after which the client is notified their request lapsed.`,
+                    bodyHtml: `<p style="margin:0; color:#E6E6E6;">Open the Bookings pipeline and send a quote to keep them alive.</p>`,
+                    cards: [{
+                        title: 'Expiring Enquiries',
+                        rows: rows.map(r => ({ label: `#${r.id} — ${r.name}`, value: `${r.event_name || r.event_type || 'Event'}${r.date ? ' (event ' + r.date + ')' : ''}`, mono: false }))
+                    }]
+                });
                 sendEmail({ to: notifEmail, subject: `Enquiries expiring soon – ${rows.length} pending request(s) need a quote`,
-                    htmlContent: `<p>The following enquiries will <strong>auto-expire within the next ~24 hours</strong> unless a quote is sent — after which the client is notified their request lapsed:</p><p>${list}</p><p>Open the Bookings pipeline and send a quote to keep them alive.</p>`,
+                    htmlContent: digestBody, preWrapped: true,
                     titleOverride: 'Enquiries Expiring Soon', trigger_event: 'Admin: Pending Expiry Warning' }).catch(() => {});
                 console.log(`✓ [3b] Warned admin about ${rows.length} pending enquiry(ies) nearing auto-expiry.`);
             }
@@ -1518,10 +1528,19 @@ function startBackgroundClerk() {
                 rows.forEach(row => {
                     db.run("UPDATE bookings SET overdue_reminded_at = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
                 });
-                const list = rows.map(r => `#${r.id} – ${r.name} – R${parseFloat(r.amount_outstanding||0).toFixed(2)} outstanding`).join('<br>');
                 const totalOverdue = rows.reduce((sum, r) => sum + parseFloat(r.amount_outstanding || 0), 0);
+                const digestBody = emailComponents.renderSystemEmail({
+                    preheaderText: `${rows.length} overdue booking(s), R${totalOverdue.toFixed(2)} outstanding.`,
+                    category: 'Payments & Invoices',
+                    severity: 'alert',
+                    leadFact: `The following confirmed bookings have unpaid balances with past event dates.`,
+                    cards: [{
+                        title: 'Overdue Bookings',
+                        rows: rows.map(r => ({ label: `#${r.id} — ${r.name}`, value: `R${parseFloat(r.amount_outstanding || 0).toFixed(2)} outstanding`, mono: false }))
+                    }]
+                });
                 sendEmail({ to: notifEmail, subject: `Overdue Payments – ${rows.length} booking(s), R${totalOverdue.toFixed(2)} due`,
-                    htmlContent: `<p>The following confirmed bookings have unpaid balances with past event dates:</p><p>${list}</p>`,
+                    htmlContent: digestBody, preWrapped: true,
                     titleOverride: 'Overdue Payment Alert', trigger_event: 'Admin: Overdue Payment Digest' }).catch(() => {});
             }
         });
@@ -14890,32 +14909,27 @@ async function runStalledBookingAdminAlertJob() {
     const adminEmail = await getNotificationEmail();
     if (!adminEmail) return;
 
-    const rows = stalled.map(b =>
-        `<tr><td style="padding:6px 10px;color:#ccc;">#${b.id}</td><td style="padding:6px 10px;color:#ccc;">${b.name}</td>` +
-        `<td style="padding:6px 10px;color:#ccc;">${b.event_name || b.event_type}</td>` +
-        `<td style="padding:6px 10px;color:#D4AF37;">${b.date}</td>` +
-        `<td style="padding:6px 10px;color:#aaa;">${b.accepted_at ? b.accepted_at.slice(0,10) : 'N/A'}</td></tr>`
-    ).join('');
-
-    const body = `
-        <p style="color:#ccc;">The following bookings have been in <strong style="color:#D4AF37;">ACCEPTED</strong> status for more than 3 days with no invoice generated:</p>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-            <thead><tr style="border-bottom:1px solid rgba(255,255,255,0.1);">
-                <th style="padding:6px 10px;text-align:left;color:#888;">Booking</th>
-                <th style="padding:6px 10px;text-align:left;color:#888;">Client</th>
-                <th style="padding:6px 10px;text-align:left;color:#888;">Event</th>
-                <th style="padding:6px 10px;text-align:left;color:#888;">Event Date</th>
-                <th style="padding:6px 10px;text-align:left;color:#888;">Accepted</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-        </table>
-        <p style="margin-top:16px;color:#aaa;font-size:12px;">Log in to the admin portal to generate invoices for these bookings.</p>
-    `;
+    const body = emailComponents.renderSystemEmail({
+        preheaderText: `${stalled.length} ACCEPTED booking(s) missing an invoice.`,
+        category: 'Payments & Invoices',
+        severity: 'action',
+        leadFact: `The following bookings have been in <strong style="color:#D4AF37;">ACCEPTED</strong> status for more than 3 days with no invoice generated.`,
+        bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Log in to the admin portal to generate invoices for these bookings.</p>`,
+        cards: [{
+            title: 'Stalled Bookings',
+            rows: stalled.map(b => ({
+                label: `#${b.id} — ${b.name}`,
+                value: `${b.event_name || b.event_type} · Event: ${b.date} · Accepted: ${b.accepted_at ? b.accepted_at.slice(0, 10) : 'N/A'}`,
+                mono: false
+            }))
+        }]
+    });
 
     await sendEmail({
         to: adminEmail,
         subject: `Action Required: ${stalled.length} ACCEPTED booking(s) missing invoice`,
         htmlContent: body,
+        preWrapped: true,
         titleOverride: 'Stalled Bookings Alert',
         trigger_event: 'Admin: Stalled Booking Alert'
     }).catch(e => console.error('[Stalled Booking Alert] Email failed:', e.message));
@@ -15220,36 +15234,26 @@ async function runLedgerReconciliationJob() {
     const adminEmail = await getNotificationEmail();
     if (!adminEmail) return;
 
-    const rows = discrepancies.map(d =>
-        `<tr>
-          <td style="padding:4px 8px; border-bottom:1px solid #333;">#${d.id}</td>
-          <td style="padding:4px 8px; border-bottom:1px solid #333;">${d.name || ''}</td>
-          <td style="padding:4px 8px; border-bottom:1px solid #333;">${d.event_name || ''}</td>
-          <td style="padding:4px 8px; border-bottom:1px solid #333; color:#D4AF37;">R ${parseFloat(d.recorded).toFixed(2)}</td>
-          <td style="padding:4px 8px; border-bottom:1px solid #333; color:#ff4d4d;">R ${parseFloat(d.actual).toFixed(2)}</td>
-          <td style="padding:4px 8px; border-bottom:1px solid #333; color:#ff4d4d;">R ${(parseFloat(d.recorded) - parseFloat(d.actual)).toFixed(2)}</td>
-        </tr>`
-    ).join('');
+    const body = emailComponents.renderSystemEmail({
+        preheaderText: `${discrepancies.length} booking(s) with a payment ledger discrepancy.`,
+        category: 'Payments & Invoices',
+        severity: 'alert',
+        leadFact: `The following bookings have a mismatch between <strong style="color:#FAFAFA;">bookings.amount_paid</strong> and the <strong style="color:#FAFAFA;">sum of completed non-duplicate transactions</strong>. Please investigate and correct manually.`,
+        cards: [{
+            title: 'Payment Ledger Discrepancies',
+            rows: discrepancies.map(d => ({
+                label: `#${d.id} — ${d.name || ''}${d.event_name ? ' · ' + d.event_name : ''}`,
+                value: `Recorded R ${parseFloat(d.recorded).toFixed(2)} · Tx Sum R ${parseFloat(d.actual).toFixed(2)} · Drift R ${(parseFloat(d.recorded) - parseFloat(d.actual)).toFixed(2)}`,
+                mono: false
+            }))
+        }]
+    });
 
     await sendEmail({
         to: adminEmail,
         subject: `[Ledger Alert] ${discrepancies.length} booking(s) with payment discrepancy`,
-        htmlContent: `<div style="font-family:sans-serif;color:#ccc;background:#1a1a1a;padding:20px;">
-            <h2 style="color:#D4AF37;">Payment Ledger Discrepancy Report</h2>
-            <p>The following bookings have a mismatch between <strong>bookings.amount_paid</strong> and the
-            <strong>sum of completed non-duplicate transactions</strong>. Please investigate and correct manually.</p>
-            <table style="width:100%;border-collapse:collapse;font-size:13px;">
-              <thead><tr style="color:#D4AF37;">
-                <th style="padding:4px 8px;text-align:left;">Booking</th>
-                <th style="padding:4px 8px;text-align:left;">Client</th>
-                <th style="padding:4px 8px;text-align:left;">Event</th>
-                <th style="padding:4px 8px;text-align:left;">Recorded</th>
-                <th style="padding:4px 8px;text-align:left;">Tx Sum</th>
-                <th style="padding:4px 8px;text-align:left;">Drift</th>
-              </tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-        </div>`,
+        htmlContent: body,
+        preWrapped: true,
         titleOverride: 'Ledger Discrepancy Alert',
         trigger_event: 'Admin: Ledger Reconciliation'
     });
@@ -15283,32 +15287,26 @@ async function runPayFastPendingTimeoutJob() {
     const adminEmail = await getNotificationEmail();
     if (!adminEmail) return;
 
-    const rowsHtml = stuckTx.map(t =>
-        `<tr>
-          <td style="padding:4px 8px;border-bottom:1px solid #333;">#${t.booking_id}</td>
-          <td style="padding:4px 8px;border-bottom:1px solid #333;">${t.name || ''}</td>
-          <td style="padding:4px 8px;border-bottom:1px solid #333;">R${parseFloat(t.amount).toFixed(2)}</td>
-          <td style="padding:4px 8px;border-bottom:1px solid #333;">${t.created_at}</td>
-        </tr>`
-    ).join('');
+    const body = emailComponents.renderSystemEmail({
+        preheaderText: `${stuckTx.length} PayFast transaction(s) stuck in PENDING for over 1 hour.`,
+        category: 'Payments & Invoices',
+        severity: 'alert',
+        leadFact: `The following PayFast transactions have been in <strong style="color:#FAFAFA;">PENDING</strong> status for more than 1 hour. PayFast may have not sent an ITN. Please check the PayFast dashboard and confirm or void manually.`,
+        cards: [{
+            title: 'Stuck PayFast Transactions',
+            rows: stuckTx.map(t => ({
+                label: `#${t.booking_id} — ${t.name || ''}`,
+                value: `R${parseFloat(t.amount).toFixed(2)} · Started ${t.created_at}`,
+                mono: false
+            }))
+        }]
+    });
 
     await sendEmail({
         to: adminEmail,
         subject: `[PayFast Alert] ${stuckTx.length} transaction(s) stuck in PENDING for >1 hour`,
-        htmlContent: `<div style="font-family:sans-serif;color:#ccc;background:#1a1a1a;padding:20px;">
-            <h2 style="color:#D4AF37;">PayFast Pending Timeout Alert</h2>
-            <p>The following PayFast transactions have been in <strong>PENDING</strong> status for more than 1 hour.
-            PayFast may have not sent an ITN. Please check the PayFast dashboard and confirm or void manually.</p>
-            <table style="width:100%;border-collapse:collapse;font-size:13px;">
-              <thead><tr style="color:#D4AF37;">
-                <th style="padding:4px 8px;text-align:left;">Booking</th>
-                <th style="padding:4px 8px;text-align:left;">Client</th>
-                <th style="padding:4px 8px;text-align:left;">Amount</th>
-                <th style="padding:4px 8px;text-align:left;">Started</th>
-              </tr></thead>
-              <tbody>${rowsHtml}</tbody>
-            </table>
-        </div>`,
+        htmlContent: body,
+        preWrapped: true,
         titleOverride: 'PayFast Pending Timeout',
         trigger_event: 'Admin: PayFast Pending Timeout'
     });
