@@ -239,3 +239,21 @@ Prompt 3 — most of these bodies previously relied on styling that only existed
 `/api/admin/forgot-password` (still legacy until Batch 5) so it keeps proving un-migrated SYSTEM email
 stay byte-identical. Suite: 68/68 (unchanged count — no new live-triggerable paths this batch beyond
 what's already exercised).
+
+## Batch 2 — ops alerts & completion
+
+- **Calendar Sync Failure, Custom Request Alert, Website Inquiry (admin)** — same prose and figures,
+  now `infoCard`s. Website Inquiry also drops the `class="text-gold"`/`class="text-muted"` dead-styling
+  pattern (same class of bug as elsewhere).
+- **Completion Summary** — *most-changed.* Services / Expenses / Profit & Loss become three separate
+  `infoCard`s instead of three ad-hoc inline `<table>`s; all figures (quoted, collected, expenses, net
+  revenue) render with the exact same computed strings.
+- **Stuck-Notification Alert** — the `<ul><li>` list of stuck notification IDs becomes a proper
+  `infoCard` table (`#id — status` / `To email · timestamp`), the digest-table pattern the pack asks
+  for in Prompt 4. Still dispatched via `sendEmailDirectly` (bypassing the queue — a queue watchdog
+  can't queue behind a possibly-stuck queue) with `skipBrandAttachments` preserved.
+- **Test Notification** — the old bespoke Arial `<div>` (audit's own example of inconsistent styling)
+  is now a standard `renderSystemEmail` call; the "Sent at" timestamp becomes the `systemHeader`'s
+  built-in timestamp slot.
+
+Suite: 68/68 (unchanged — no new live-triggerable paths this batch beyond what's already exercised).

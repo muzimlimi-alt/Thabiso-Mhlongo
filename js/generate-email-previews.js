@@ -469,6 +469,77 @@ const system = {
         category: 'Contracts & Signatures', severity: 'action',
         leadFact: '<strong style="color:#FAFAFA;">Naledi Mokoena</strong> has signed the contract for booking <strong style="color:#FAFAFA;">#100045</strong> online.',
         bodyHtml: `<p style="margin:0; color:#E6E6E6;">Log in to the admin panel to countersign and finalise it.</p>`
+    }),
+
+    /* ── Batch 2: ops alerts & completion ── */
+    'calendar-sync-failure.html': S({
+        preheaderText: 'Booking #100045 saved but its Google Calendar event failed.',
+        category: 'System', severity: 'alert',
+        leadFact: 'Booking <strong style="color:#FAFAFA;">#100045</strong> was saved successfully but the Google Calendar event could not be created.',
+        bodyHtml: `<p style="margin:0 0 10px; color:#B0B0B0; font-size:12px;">Error: Request had insufficient authentication scopes.</p><p style="margin:0; color:#E6E6E6;">Please create the calendar entry manually to avoid a scheduling conflict.</p>`
+    }),
+    'custom-request-alert.html': S({
+        preheaderText: 'Quote Revision request from Naledi Mokoena for booking #100045.',
+        category: 'Quotes & Proposals', severity: 'action',
+        leadFact: 'A client has submitted a <strong style="color:#D4AF37;">Quote Revision</strong> request for booking <strong style="color:#FAFAFA;">#100045</strong>.',
+        bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Please review this request in the admin panel and respond to the client accordingly.</p>`,
+        cards: [{ rows: [
+            { label: 'Client', value: 'Naledi Mokoena', mono: false },
+            { label: 'Email', value: 'naledi@example.com' },
+            { label: 'Quote Amount', value: 'R 18,500.00', highlight: true },
+            { label: 'Request Type', value: 'Quote Revision', mono: false, highlight: true },
+            { label: 'Client Message', value: 'Could we push the start time to 8pm instead?', mono: false }
+        ] }]
+    }),
+    'completion-summary.html': S({
+        preheaderText: 'Booking #100045 completed — Corporate Year-End.',
+        category: 'Booking Confirmations', severity: 'info',
+        leadFact: '<strong style="color:#FAFAFA;">Booking #100045</strong> has been marked as <strong style="color:#D4AF37;">COMPLETED</strong>.',
+        bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Open the Financials modal for full transaction history and VAT breakdown.</p>`,
+        cards: [
+            { rows: [
+                { label: 'Client', rawValue: 'Naledi Mokoena (<a href="mailto:naledi@example.com" style="color:#D4AF37; text-decoration:none;">naledi@example.com</a>)' },
+                { label: 'Event', value: 'Corporate Year-End on Sat, 14 Aug 2026', mono: false },
+                { label: 'Venue', value: 'The Venue, Sandton', mono: false }
+            ] },
+            { title: 'Services', rows: [{ label: 'Stand-up Set (60 min)', value: 'R 15,000.00', mono: false }] },
+            { title: 'Profit & Loss', rows: [
+                { label: 'Total Quoted', value: 'R 18,500.00' },
+                { label: 'Amount Collected', value: 'R 18,500.00', highlight: true }
+            ] }
+        ]
+    }),
+    'stuck-notification-alert.html': S({
+        preheaderText: '3 notification(s) stuck in the queue for over 10 minutes.',
+        category: 'System', severity: 'alert',
+        leadFact: 'There are <strong style="color:#FAFAFA;">3</strong> notification(s) stuck in the queue for more than 10 minutes.',
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">This may indicate that the background queue processor is down, experiencing high latency, or has crashed.</p>`,
+        cards: [{ title: 'Stuck Notifications', rows: [
+            { label: '#4821 — pending', value: 'To naledi@example.com · 2026-07-12 08:14:02', mono: false },
+            { label: '#4820 — sending', value: 'To thabiso@example.com · 2026-07-12 08:10:41', mono: false },
+            { label: '#4819 — pending', value: 'To admin@example.com · 2026-07-12 08:09:55', mono: false }
+        ] }]
+    }),
+    'website-inquiry.html': S({
+        preheaderText: 'New website inquiry: Availability for a private event.',
+        category: 'Contact & Support', severity: 'action',
+        leadFact: 'You have received a new contact message through the Thabiso Mhlongo official website.',
+        bodyHtml:
+            `<p style="margin:14px 0 6px; color:#D4AF37; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px;">Message Body</p>` +
+            `<div style="padding:16px; background:#1A1A1A; border-left:3px solid #D4AF37; color:#E6E6E6; font-size:14px; line-height:1.6;">Hi, is Thabiso available for a private birthday event on 12 September?</div>` +
+            `<p style="margin:16px 0 0; color:#707070; font-size:11px; text-align:center;">This email was securely dispatched and logged in the CRM database.</p>`,
+        cards: [{ rows: [
+            { label: 'Name', value: 'Kagiso Dlamini', mono: false },
+            { label: 'Email', rawValue: '<a href="mailto:kagiso@example.com" style="color:#D4AF37; text-decoration:none;">kagiso@example.com</a>' },
+            { label: 'Category', value: 'Private Event', mono: false, highlight: true },
+            { label: 'Subject', value: 'Availability for a private event', mono: false }
+        ] }]
+    }),
+    'test-notification.html': S({
+        preheaderText: 'Test notification — confirming admin routing.',
+        category: 'System', severity: 'info',
+        leadFact: 'This is a test email confirming that admin notifications are correctly routed to <strong style="color:#FAFAFA;">admin@thabisomhlongo.com</strong>.',
+        timestamp: '2026-07-12 08:00 UTC'
     })
 };
 

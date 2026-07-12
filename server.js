@@ -1348,15 +1348,23 @@ async function checkStuckNotifications() {
                     async (err2, details) => {
                         const notifEmail = await getNotificationEmail();
                         const { sendEmailDirectly } = require('./js/emailService');
-                        const list = (details || []).map(d => `<li>#${d.id}: To ${d.recipient_email} (${d.status}) - Created at: ${d.created_at}</li>`).join('');
-                        const body = `<p>There are <strong>${count}</strong> notification(s) stuck in the queue for more than 10 minutes.</p>
-                                      <p>This may indicate that the background queue processor is down, experiencing high latency, or has crashed.</p>
-                                      <ul>${list}</ul>`;
-                        
+                        const body = emailComponents.renderSystemEmail({
+                            preheaderText: `${count} notification(s) stuck in the queue for over 10 minutes.`,
+                            category: 'System',
+                            severity: 'alert',
+                            leadFact: `There are <strong style="color:#FAFAFA;">${count}</strong> notification(s) stuck in the queue for more than 10 minutes.`,
+                            bodyHtml: `<p style="margin:0; color:#E6E6E6;">This may indicate that the background queue processor is down, experiencing high latency, or has crashed.</p>`,
+                            cards: (details || []).length ? [{
+                                title: 'Stuck Notifications',
+                                rows: (details || []).map(d => ({ label: `#${d.id} — ${d.status}`, value: `To ${d.recipient_email} · ${d.created_at}`, mono: false }))
+                            }] : []
+                        });
+
                         await sendEmailDirectly({
                             to: notifEmail,
                             subject: `⚠️ Alert: ${count} Stuck Notification(s) in Queue`,
                             htmlContent: body,
+                            preWrapped: true,
                             titleOverride: 'Stuck Notification Alert',
                             trigger_event: 'System: Stuck Notification Alert',
                             skipBrandAttachments: true
@@ -3466,46 +3474,41 @@ async function sendAdminCompletionSummaryEmail(booking) {
     const totalExpenses = expenseRows.reduce((sum, ex) => sum + (parseFloat(ex.amount) || 0), 0);
     const netRevenue = paid - totalExpenses;
 
-    let servicesHtml = '';
+    const cards = [{
+        rows: [
+            { label: 'Client', rawValue: `${emailComponents.esc(name)} (<a href="mailto:${email}" style="color:#D4AF37; text-decoration:none;">${email}</a>)` },
+            { label: 'Event', value: `${event_name || event_type} on ${date}`, mono: false },
+            { label: 'Venue', value: event_location || '—', mono: false }
+        ]
+    }];
     if (services.length > 0) {
-        const sRows = services.map(s =>
-            `<tr><td style="padding:8px 12px;color:#ccc;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.06);">${s.service_name || 'Service'}</td>` +
-            `<td style="padding:8px 12px;color:#D4AF37;font-size:12px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">R ${(parseFloat(s.total_price) || 0).toFixed(2)}</td></tr>`
-        ).join('');
-        servicesHtml = `<div style="margin:12px 0 4px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#888;margin-bottom:6px;">Services</div>` +
-            `<table style="width:100%;border-collapse:collapse;background:#111;border-radius:4px;">${sRows}</table></div>`;
+        cards.push({ title: 'Services', rows: services.map(s => ({ label: s.service_name || 'Service', value: `R ${(parseFloat(s.total_price) || 0).toFixed(2)}`, mono: false })) });
     }
-
-    let expensesHtml = '';
     if (expenseRows.length > 0) {
-        const eRows = expenseRows.map(ex =>
-            `<tr><td style="padding:8px 12px;color:#ccc;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.06);">${ex.description}</td>` +
-            `<td style="padding:8px 12px;color:#ef5350;font-size:12px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">– R ${(parseFloat(ex.amount) || 0).toFixed(2)}</td></tr>`
-        ).join('');
-        expensesHtml = `<div style="margin:12px 0 4px;"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#888;margin-bottom:6px;">Expenses</div>` +
-            `<table style="width:100%;border-collapse:collapse;background:#111;border-radius:4px;">${eRows}</table></div>`;
+        cards.push({ title: 'Expenses', rows: expenseRows.map(ex => ({ label: ex.description, value: `– R ${(parseFloat(ex.amount) || 0).toFixed(2)}`, mono: false })) });
     }
+    cards.push({
+        title: 'Profit & Loss',
+        rows: [
+            { label: 'Total Quoted',     value: `R ${displayTotal.toFixed(2)}` },
+            { label: 'Amount Collected', value: `R ${paid.toFixed(2)}`, highlight: true },
+            ...(expenseRows.length > 0 ? [{ label: 'Total Expenses', value: `– R ${totalExpenses.toFixed(2)}` }] : []),
+            ...(expenseRows.length > 0 ? [{ label: 'Net Revenue',    value: `R ${netRevenue.toFixed(2)}`, highlight: netRevenue > 0 }] : [])
+        ]
+    });
 
-    const plRows = [
-        { label: 'Total Quoted',     value: `R ${displayTotal.toFixed(2)}` },
-        { label: 'Amount Collected', value: `R ${paid.toFixed(2)}`, highlight: true },
-        ...(expenseRows.length > 0 ? [{ label: 'Total Expenses', value: `– R ${totalExpenses.toFixed(2)}` }] : []),
-        ...(expenseRows.length > 0 ? [{ label: 'Net Revenue',    value: `R ${netRevenue.toFixed(2)}`, highlight: netRevenue > 0 }] : []),
-    ];
-
-    const body = `
-        <p><strong>Booking #${id}</strong> has been marked as <strong style="color:#10b981;">COMPLETED</strong>.</p>
-        <p><strong>Client:</strong> ${name} (${email})<br>
-        <strong>Event:</strong> ${event_name || event_type} on ${date}<br>
-        <strong>Venue:</strong> ${event_location || '—'}</p>
-        ${servicesHtml}
-        ${expensesHtml}
-        ${emailTemplates.createQuoteTable(plRows)}
-        <p style="font-size:12px;color:#888;margin-top:12px;">Open the Financials modal for full transaction history and VAT breakdown.</p>`;
+    const body = emailComponents.renderSystemEmail({
+        preheaderText: `Booking #${id} completed — ${event_name || event_type}.`,
+        category: 'Booking Confirmations',
+        severity: 'info',
+        leadFact: `<strong style="color:#FAFAFA;">Booking #${id}</strong> has been marked as <strong style="color:#D4AF37;">COMPLETED</strong>.`,
+        bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Open the Financials modal for full transaction history and VAT breakdown.</p>`,
+        cards
+    });
 
     await sendEmail({
         to: notifEmail, subject: `Booking #${id} Completed — ${event_name || event_type}`,
-        htmlContent: body, replyTo: email, titleOverride: 'Booking Completed',
+        htmlContent: body, preWrapped: true, replyTo: email, titleOverride: 'Booking Completed',
         trigger_event: 'Admin: Booking Completed Summary'
     });
 }
@@ -4107,7 +4110,14 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
             getNotificationEmail().then(notifEmail => sendEmail({
                 to: notifEmail,
                 subject: `⚠️ Google Calendar Sync Failed – New Booking #${bookingId}`,
-                htmlContent: `<p>Booking <strong>#${bookingId}</strong> was saved successfully but the Google Calendar event could not be created.</p><p style="color:#888;font-size:12px;">Error: ${calErr.message}</p><p>Please create the calendar entry manually to avoid a scheduling conflict.</p>`,
+                htmlContent: emailComponents.renderSystemEmail({
+                    preheaderText: `Booking #${bookingId} saved but its Google Calendar event failed.`,
+                    category: 'System',
+                    severity: 'alert',
+                    leadFact: `Booking <strong style="color:#FAFAFA;">#${bookingId}</strong> was saved successfully but the Google Calendar event could not be created.`,
+                    bodyHtml: `<p style="margin:0 0 10px; color:#B0B0B0; font-size:12px;">Error: ${calErr.message}</p><p style="margin:0; color:#E6E6E6;">Please create the calendar entry manually to avoid a scheduling conflict.</p>`
+                }),
+                preWrapped: true,
                 titleOverride: 'Calendar Sync Failed',
                 trigger_event: 'System: Calendar Sync Failure',
                 skipBrandAttachments: true
@@ -5719,19 +5729,24 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
         const typeLabel = request_type === 'extension' ? 'Quote Expiry Extension' : 'Quote Revision';
         const notifEmail = await getNotificationEmail();
 
-        const adminHtml = `
-            <p>A client has submitted a <strong style="color:#D4AF37;">${typeLabel}</strong> request for booking <strong>#${row.id}</strong>.</p>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#111;border:1px solid #333;margin:16px 0;">
-                <tr><td style="padding:8px 12px;color:#888;width:140px;">Client</td><td style="padding:8px 12px;color:#fff;">${row.name}</td></tr>
-                <tr><td style="padding:8px 12px;color:#888;">Email</td><td style="padding:8px 12px;color:#fff;">${row.email}</td></tr>
-                <tr><td style="padding:8px 12px;color:#888;">Event</td><td style="padding:8px 12px;color:#fff;">${row.event_name || row.event_type} on ${row.date}</td></tr>
-                <tr><td style="padding:8px 12px;color:#888;">Quote Amount</td><td style="padding:8px 12px;color:#D4AF37;">R ${parseFloat(row.quote_amount || 0).toFixed(2)}</td></tr>
-                <tr><td style="padding:8px 12px;color:#888;">Quote Expiry</td><td style="padding:8px 12px;color:#fff;">${row.quote_expiry_date || 'Not set'}</td></tr>
-                <tr><td style="padding:8px 12px;color:#888;">Request Type</td><td style="padding:8px 12px;color:#D4AF37;font-weight:600;">${typeLabel}</td></tr>
-                <tr><td style="padding:8px 12px;color:#888;">Client Message</td><td style="padding:8px 12px;color:#fff;">${message.trim()}</td></tr>
-            </table>
-            <p style="font-size:12px;color:#888;">Please review this request in the admin panel and respond to the client accordingly.</p>
-        `;
+        const adminHtml = emailComponents.renderSystemEmail({
+            preheaderText: `${typeLabel} request from ${row.name} for booking #${row.id}.`,
+            category: 'Quotes & Proposals',
+            severity: 'action',
+            leadFact: `A client has submitted a <strong style="color:#D4AF37;">${typeLabel}</strong> request for booking <strong style="color:#FAFAFA;">#${row.id}</strong>.`,
+            bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Please review this request in the admin panel and respond to the client accordingly.</p>`,
+            cards: [{
+                rows: [
+                    { label: 'Client', value: row.name, mono: false },
+                    { label: 'Email', value: row.email },
+                    { label: 'Event', value: `${row.event_name || row.event_type} on ${row.date}`, mono: false },
+                    { label: 'Quote Amount', value: `R ${parseFloat(row.quote_amount || 0).toFixed(2)}`, highlight: true },
+                    { label: 'Quote Expiry', value: row.quote_expiry_date || 'Not set' },
+                    { label: 'Request Type', value: typeLabel, mono: false, highlight: true },
+                    { label: 'Client Message', value: message.trim(), mono: false }
+                ]
+            }]
+        });
 
         try {
             // Log the client's request as a booking note first (critical operation)
@@ -5749,6 +5764,7 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
                 to: notifEmail,
                 subject: `[ACTION REQUIRED] ${typeLabel} Request – Booking #${row.id}`,
                 htmlContent: adminHtml,
+                preWrapped: true,
                 titleOverride: `${typeLabel} Request`,
                 trigger_event: 'Booking: Quote Revision Request'
             }).catch(e => console.error('[Quote Revision Request] Admin email notification failed:', e.message));
@@ -6999,27 +7015,24 @@ app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
 
     // 2. DISPATCH EMAIL
     const inquiryRows = [
-        { label: 'Name', value: name },
-        { label: 'Email', value: `<a href="mailto:${email}" style="color: #D4AF37; text-decoration: none;">${email}</a>` },
-        { label: 'Phone', value: cell ? `<a href="tel:${cell}" style="color: #D4AF37; text-decoration: none;">${cell}</a>` : 'N/A' },
-        { label: 'Category', value: `<strong class="text-gold">${category || 'General Inquiry'}</strong>` },
-        { label: 'Subject', value: subject || 'No Subject' }
+        { label: 'Name', value: name, mono: false },
+        { label: 'Email', rawValue: `<a href="mailto:${email}" style="color:#D4AF37; text-decoration:none;">${email}</a>` },
+        { label: 'Phone', rawValue: cell ? `<a href="tel:${cell}" style="color:#D4AF37; text-decoration:none;">${cell}</a>` : 'N/A' },
+        { label: 'Category', value: category || 'General Inquiry', mono: false, highlight: true },
+        { label: 'Subject', value: subject || 'No Subject', mono: false }
     ];
 
-    const emailBody = `
-        <p>You have received a new contact message through the Thabiso Mhlongo official website.</p>
-        
-        ${emailTemplates.createQuoteTable(inquiryRows)}
-
-        <h3 class="text-gold" style="font-size: 17px; margin-top: 30px;">Message Body:</h3>
-        <div style="background-color: #1a1a1a; padding: 25px; white-space: pre-wrap; font-size: 15px; line-height: 1.7; color: #ffffff; border-left: 4px solid #D4AF37; margin-bottom: 30px;">
-            ${message.replace(/\n/g, '<br>')}
-        </div>
-        
-        <p class="text-muted" style="font-size: 12px; text-align: center; margin-top: 40px;">
-            This email was securely dispatched and logged in the CRM database.
-        </p>
-    `;
+    const emailBody = emailComponents.renderSystemEmail({
+        preheaderText: `New website inquiry: ${subject || 'No Subject'}.`,
+        category: 'Contact & Support',
+        severity: 'action',
+        leadFact: `You have received a new contact message through the Thabiso Mhlongo official website.`,
+        bodyHtml:
+            `<p style="margin:14px 0 6px; color:#D4AF37; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px;">Message Body</p>` +
+            `<div style="padding:16px; background:#1A1A1A; border-left:3px solid #D4AF37; white-space:pre-wrap; color:#E6E6E6; font-size:14px; line-height:1.6;">${message.replace(/\n/g, '<br>')}</div>` +
+            `<p style="margin:16px 0 0; color:#707070; font-size:11px; text-align:center;">This email was securely dispatched and logged in the CRM database.</p>`,
+        cards: [{ rows: inquiryRows }]
+    });
 
     try {
         // 1. Notification to Admin
@@ -7027,6 +7040,7 @@ app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
             to: receiver,
             subject: `Website Inquiry: ${subject || 'No Subject'}`,
             htmlContent: emailBody,
+            preWrapped: true,
             replyTo: email, // Allow admin to reply directly to the visitor
             titleOverride: 'New Website Inquiry',
             trigger_event: 'Contact Form: Admin Notification'
@@ -8880,11 +8894,14 @@ app.post('/api/admin/settings/test-notification', requireAdmin, requireRole(['ad
         await sendEmail({
             to,
             subject: 'Test Notification — Thabiso Mhlongo Admin',
-            htmlContent: `<div style="font-family:Arial,sans-serif;padding:30px;background:#0a0a0a;color:#fff;max-width:600px;margin:0 auto;border:1px solid rgba(255,255,255,0.1);">
-                <h2 style="color:#D4AF37;font-family:'Cormorant Garamond',Georgia,serif;font-weight:400;">Test Notification</h2>
-                <p style="color:#ccc;">This is a test email confirming that admin notifications are correctly routed to <strong style="color:#fff;">${to}</strong>.</p>
-                <p style="color:#555;font-size:12px;">Sent at ${new Date().toISOString()}</p>
-            </div>`,
+            htmlContent: emailComponents.renderSystemEmail({
+                preheaderText: `Test notification — confirming admin routing to ${to}.`,
+                category: 'System',
+                severity: 'info',
+                leadFact: `This is a test email confirming that admin notifications are correctly routed to <strong style="color:#FAFAFA;">${to}</strong>.`,
+                timestamp: new Date().toISOString()
+            }),
+            preWrapped: true,
             trigger_event: 'Admin: Test Notification'
         });
         res.json({ success: true, message: `Test email sent to ${to}` });
