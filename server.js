@@ -454,6 +454,21 @@ const newsletterAttachStorage = multer.diskStorage({
 });
 const newsletterUpload = multer({ storage: newsletterAttachStorage, limits: { fileSize: 10 * 1024 * 1024 } });
 
+// Direct email attachment storage
+const emailAttachStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const dir = path.join(__dirname, 'docs', 'email_attachments');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+    },
+    filename: (req, file, cb) => { cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`); }
+});
+const emailAttachUpload = multer({ 
+    storage: emailAttachStorage, 
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
+
+
 // Booking client attachments (posters, briefs, programmes)
 const bookingAttachUpload = multer({
     storage: multer.diskStorage({
@@ -945,7 +960,10 @@ async function processNotificationQueue() {
                     skipBrandAttachments: emailDetails.skipBrandAttachments,
                     titleOverride: emailDetails.titleOverride,
                     trigger_event: emailDetails.trigger_event || 'Notification Queue Dispatch',
-                    preWrapped: emailDetails.preWrapped
+                    preWrapped: emailDetails.preWrapped,
+                    cc: emailDetails.cc,
+                    bcc: emailDetails.bcc,
+                    branding: emailDetails.branding
                 });
 
                 if (result.success) {
@@ -3334,17 +3352,23 @@ async function sendPaymentFailedEmail(booking) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, total_amount, quote_amount } = booking;
     const displayTotal = total_amount || (quote_amount ? parseFloat((quote_amount || '0').replace(/[^0-9.]/g, '')) : 0);
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>We noticed that your payment for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong> was not completed successfully.</p>
-        ${displayTotal > 0 ? `<p><strong>Amount Due:</strong> R${parseFloat(displayTotal).toFixed(2)}</p>` : ''}
-        <p>Please try again via your booking tracker, or contact us directly if you need assistance.</p>
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-        <p style="font-size:13px;color:#888;">If this was a mistake, no action is needed — your booking remains active.</p>
-    `;
+    // PAYMENT-CRITICAL: `R${...}` amount format kept verbatim (no space).
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `We couldn't complete your payment for booking #${id}.`,
+        headline: 'Payment Not Completed',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `We noticed that your payment for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> was not completed successfully.` +
+            (displayTotal > 0 ? `<p style="margin:12px 0 0;"><strong style="color:#D4AF37;">Amount Due:</strong> R${parseFloat(displayTotal).toFixed(2)}</p>` : '') +
+            `<p style="margin:10px 0 0; color:#E6E6E6;">Please try again via your booking tracker, or contact us directly if you need assistance. <span style="color:#B0B0B0; font-size:13px;">(Booking reference #${id})</span></p>` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">If this was a mistake, no action is needed — your booking remains active.</p>`,
+        cta: { label: 'Try Payment Again', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
+        socialLinks
+    });
     const result = await sendEmail({
         to: email, subject: `Payment Unsuccessful – Booking #${id}`,
-        htmlContent: emailBody, titleOverride: 'Payment Not Completed',
+        htmlContent: html, preWrapped: true, titleOverride: 'Payment Not Completed',
         trigger_event: 'Booking: Payment Failed'
     });
     return result.success;
@@ -3353,17 +3377,25 @@ async function sendPaymentFailedEmail(booking) {
 async function sendDepositBalanceDueEmail(booking, outstanding) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, event_location } = booking;
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>Thank you for your deposit payment for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong>.</p>
-        <p>Your booking is confirmed. The remaining balance of <strong style="color:#D4AF37;">R${parseFloat(outstanding).toFixed(2)}</strong> is due before the event date.</p>
-        <p>You can settle the balance securely through your <a href="${process.env.SITE_URL || ''}/index.html#track" style="color:#D4AF37;">booking tracker</a>.</p>
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-        <p style="font-size:13px;color:#888;">Please ensure payment is received at least 48 hours before the event.</p>
-    `;
+    // PAYMENT-CRITICAL: `R${parseFloat(outstanding).toFixed(2)}` kept verbatim (subject + body).
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Deposit received — balance of R${parseFloat(outstanding).toFixed(2)} due for booking #${id}.`,
+        headline: 'Deposit Received',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `Thank you for your deposit payment for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>. Your booking is confirmed.` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">Please ensure payment is received at least 48 hours before the event. <span>(Booking reference #${id})</span></p>`,
+        cards: [{
+            title: 'Balance Due',
+            rows: [{ label: 'Remaining Balance', value: `R${parseFloat(outstanding).toFixed(2)}`, highlight: true }]
+        }],
+        cta: { label: 'Settle Your Balance', url: `${process.env.SITE_URL || ''}/index.html#track` },
+        socialLinks
+    });
     const result = await sendEmail({
         to: email, subject: `Deposit Received – Balance Due R${parseFloat(outstanding).toFixed(2)} | Booking #${id}`,
-        htmlContent: emailBody, titleOverride: 'Deposit Received – Balance Reminder',
+        htmlContent: html, preWrapped: true, titleOverride: 'Deposit Received – Balance Reminder',
         trigger_event: 'Booking: Deposit Received, Balance Due'
     });
     return result.success;
@@ -3517,17 +3549,25 @@ async function sendReviewRequestEmail(booking) {
 async function sendRefundProcessedEmail(booking, refundAmount, refundReference) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
+    // PAYMENT-CRITICAL: amtFormatted (`R {amount}`, space kept) and refundReference verbatim.
+    // (Old table used light-mode #f5f5f5 cells inside the dark email — same defect as date-changed.)
     const amtFormatted = `R ${parseFloat(refundAmount || 0).toFixed(2)}`;
-    const body = `<p>Hi <strong>${name}</strong>,</p>
-        <p>We are writing to confirm that your refund for Booking <strong>#${id}</strong> — <strong>${event_name || event_type}</strong> on <strong>${date}</strong> — has been processed.</p>
-        <table style="border-collapse:collapse;width:100%;max-width:480px;margin:16px 0;">
-            <tr><td style="padding:8px 12px;font-weight:700;background:#f5f5f5;">Refund Amount</td><td style="padding:8px 12px;">${amtFormatted}</td></tr>
-            ${refundReference ? `<tr><td style="padding:8px 12px;font-weight:700;background:#f5f5f5;">Reference</td><td style="padding:8px 12px;">${refundReference}</td></tr>` : ''}
-        </table>
-        <p>Please allow 3–5 business days for the funds to reflect in your account, depending on your bank or payment method.</p>
-        <p>If you have any questions, please reply to this email or contact us at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</p>`;
+    const { socialLinks } = await getEmailFooterContext();
+    const rows = [{ label: 'Refund Amount', value: amtFormatted, highlight: true }];
+    if (refundReference) rows.push({ label: 'Reference', value: `${refundReference}` });
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Your refund of ${amtFormatted} for booking #${id} has been processed.`,
+        headline: 'Refund Confirmation',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `We are writing to confirm that your refund for Booking <strong style="color:#FAFAFA;">#${id}</strong> — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> — has been processed.` +
+            `<p style="margin:14px 0 0; color:#E6E6E6;">Please allow 3&ndash;5 business days for the funds to reflect in your account, depending on your bank or payment method.</p>` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">If you have any questions, please reply to this email or contact us at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</p>`,
+        cards: [{ title: 'Refund Details', rows }],
+        socialLinks
+    });
     return sendEmail({ to: email, subject: `Refund Processed – Booking #${id}`,
-        htmlContent: body, titleOverride: 'Refund Confirmation', trigger_event: 'Booking: Refund Processed' });
+        htmlContent: html, preWrapped: true, titleOverride: 'Refund Confirmation', trigger_event: 'Booking: Refund Processed' });
 }
 
 async function sendDateChangedEmail(booking, oldDate, newDate) {
@@ -13289,17 +13329,28 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
     // Folder badge counts are global totals (independent of current filter/search).
     db.all("SELECT status, COUNT(*) AS c FROM inquiries GROUP BY status", [], (errC, countRows) => {
         if (errC) return res.status(500).json({ success: false, message: errC.message });
-        const counts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0 };
+        const counts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0, drafts: 0, scheduled: 0 };
         (countRows || []).forEach(r => {
             if (counts.hasOwnProperty(r.status)) counts[r.status] = r.c;
             counts.all += r.c;
         });
-        db.get(countSql, qp, (err, countRow) => {
-            if (err) return res.status(500).json({ success: false, message: err.message });
-            db.all(dataSql, [...qp, limit, offset], (err2, rows) => {
-                if (err2) return res.status(500).json({ success: false, message: err2.message });
-                const total = countRow.total;
-                res.json({ success: true, inquiries: rows, counts, total, page, pages: Math.ceil(total / limit) });
+
+        // Query direct_emails count for drafts & scheduled
+        db.all("SELECT status, COUNT(*) AS c FROM direct_emails GROUP BY status", [], (errD, directRows) => {
+            if (!errD && directRows) {
+                directRows.forEach(r => {
+                    if (r.status === 'draft') counts.drafts = r.c;
+                    if (r.status === 'scheduled') counts.scheduled = r.c;
+                });
+            }
+
+            db.get(countSql, qp, (err, countRow) => {
+                if (err) return res.status(500).json({ success: false, message: err.message });
+                db.all(dataSql, [...qp, limit, offset], (err2, rows) => {
+                    if (err2) return res.status(500).json({ success: false, message: err2.message });
+                    const total = countRow.total;
+                    res.json({ success: true, inquiries: rows, counts, total, page, pages: Math.ceil(total / limit) });
+                });
             });
         });
     });
@@ -13434,6 +13485,357 @@ app.post('/api/admin/compose', requireAdmin, async (req, res) => {
     } catch (error) {
         console.error("Error sending composed email:", error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+
+
+// =========================================================================
+// --- Direct Emails Upgrade: Scheduled sends and drafts ---
+// =========================================================================
+
+function scheduleDirectEmailSend(emailItem) {
+    const rawDt = emailItem.scheduled_at;
+    if (!rawDt) return;
+    const fireDate = new Date(rawDt.includes('T') ? rawDt : rawDt.replace(' ', 'T') + 'Z');
+    if (isNaN(fireDate.getTime())) return;
+    
+    if (fireDate <= new Date()) {
+        // past date, send immediately
+        sendDirectEmail(emailItem.id);
+        return;
+    }
+
+    const jobKey = `direct_${emailItem.id}`;
+    if (scheduledJobs[jobKey]) {
+        scheduledJobs[jobKey].cancel();
+    }
+
+    scheduledJobs[jobKey] = schedule.scheduleJob(fireDate, function() {
+        sendDirectEmail(emailItem.id);
+    });
+}
+
+async function sendDirectEmail(id) {
+    return new Promise((resolve, reject) => {
+        db.get("SELECT * FROM direct_emails WHERE id = ?", [id], async (err, emailItem) => {
+            if (err) return reject(err);
+            if (!emailItem) return reject(new Error('Email item not found'));
+            if (emailItem.status === 'sent') return resolve();
+
+            let toList = [];
+            try { toList = JSON.parse(emailItem.to_emails || '[]'); } catch(e) { toList = [emailItem.to_emails]; }
+            let ccList = [];
+            try { ccList = JSON.parse(emailItem.cc_emails || '[]'); } catch(e) { ccList = []; }
+            let bccList = [];
+            try { bccList = JSON.parse(emailItem.bcc_emails || '[]'); } catch(e) { bccList = []; }
+
+            const to = toList.join(', ');
+            const cc = ccList.length ? ccList.join(', ') : null;
+            const bcc = bccList.length ? bccList.join(', ') : null;
+
+            let attachments = [];
+            if (emailItem.attachment_paths) {
+                try {
+                    const paths = JSON.parse(emailItem.attachment_paths);
+                    paths.forEach(p => {
+                        if (p && p.path) {
+                            const resolvedPath = path.isAbsolute(p.path) ? p.path : path.join(__dirname, p.path);
+                            attachments.push({ filename: p.filename || path.basename(p.path), path: resolvedPath });
+                        }
+                    });
+                } catch (e) {
+                    console.error('Failed to parse attachments for direct email:', e);
+                }
+            }
+
+            try {
+                const result = await sendEmail({
+                    to,
+                    subject: emailItem.subject || 'Message from Thabiso Mhlongo Management',
+                    htmlContent: emailItem.body,
+                    replyTo: emailItem.reply_to || process.env.EMAIL_USER || 'admin@thabisomhlongo.com',
+                    cc,
+                    bcc,
+                    branding: emailItem.branding_option,
+                    attachments,
+                    trigger_event: emailItem.inquiry_id ? 'Admin: Inquiry Reply' : 'Admin: Direct Compose',
+                    related_entity: emailItem.inquiry_id ? 'inquiries' : null,
+                    related_id: emailItem.inquiry_id || null
+                });
+
+                if (result.success) {
+                    db.run("UPDATE direct_emails SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id], (updErr) => {
+                        if (emailItem.inquiry_id) {
+                            db.run("UPDATE inquiries SET status = 'replied' WHERE inquiry_id = ?", [emailItem.inquiry_id]);
+                        }
+                        resolve();
+                    });
+                } else {
+                    db.run("UPDATE direct_emails SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id], () => resolve());
+                }
+            } catch (error) {
+                console.error(`Failed to send direct email #${id}:`, error);
+                db.run("UPDATE direct_emails SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id], () => reject(error));
+            }
+
+            const jobKey = `direct_${id}`;
+            if (scheduledJobs[jobKey]) {
+                delete scheduledJobs[jobKey];
+            }
+        });
+    });
+}
+
+function loadPendingDirectEmails() {
+    db.all(
+        "SELECT * FROM direct_emails WHERE status = 'scheduled'",
+        (err, rows) => {
+            if (err) return console.error('Failed to load scheduled direct emails:', err);
+            rows.forEach(row => {
+                const rawDt = row.scheduled_at;
+                const fireDate = new Date(rawDt.includes('T') ? rawDt : rawDt.replace(' ', 'T') + 'Z');
+                if (isNaN(fireDate.getTime()) || fireDate <= new Date()) {
+                    sendDirectEmail(row.id).catch(e => console.error('Error sending immediate/expired direct email:', e.message));
+                } else {
+                    scheduleDirectEmailSend(row);
+                }
+            });
+        }
+    );
+}
+
+// Banners listing
+app.get('/api/admin/branding/banners', requireAdmin, (req, res) => {
+    const bannerDir = path.join(__dirname, 'images', 'banner');
+    if (!fs.existsSync(bannerDir)) {
+        return res.json({ success: true, banners: [] });
+    }
+    fs.readdir(bannerDir, (err, files) => {
+        if (err) return res.status(500).json({ error: err.message });
+        const banners = files
+            .filter(file => /\.(png|jpe?g|gif|svg|webp)$/i.test(file))
+            .map(file => `/images/banner/${file}`);
+        res.json({ success: true, banners });
+    });
+});
+
+// Attachment upload for direct emails
+app.post('/api/admin/direct-emails/upload', requireAdmin, emailAttachUpload.single('file'), (req, res) => {
+    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
+    res.json({
+        success: true,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        size: req.file.size,
+        path: `docs/email_attachments/${req.file.filename}`
+    });
+});
+
+// List drafts and scheduled direct emails
+app.get('/api/admin/direct-emails', requireAdmin, (req, res) => {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = 50;
+    const offset = (page - 1) * limit;
+    const statusFilter = req.query.status === 'scheduled' ? 'scheduled' : 'draft';
+    const search = (req.query.search || '').trim();
+
+    const conditions = ["status = ?"];
+    const qp = [statusFilter];
+    
+    if (search) {
+        conditions.push("(LOWER(to_emails) LIKE LOWER(?) OR LOWER(subject) LIKE LOWER(?) OR LOWER(body) LIKE LOWER(?))");
+        const term = `%${search}%`;
+        qp.push(term, term, term);
+    }
+    
+    const whereClause = `WHERE ${conditions.join(' AND ')}`;
+    const countSql = `SELECT COUNT(*) AS total FROM direct_emails ${whereClause}`;
+    const dataSql  = `SELECT * FROM direct_emails ${whereClause} ORDER BY updated_at DESC LIMIT ? OFFSET ?`;
+
+    db.get(countSql, qp, (err, countRow) => {
+        if (err) return res.status(500).json({ error: err.message });
+        db.all(dataSql, [...qp, limit, offset], (err2, rows) => {
+            if (err2) return res.status(500).json({ error: err2.message });
+            const total = countRow ? countRow.total : 0;
+            res.json({
+                success: true,
+                emails: rows || [],
+                total,
+                page,
+                pages: Math.ceil(total / limit)
+            });
+        });
+    });
+});
+
+// Get detail of single direct email
+app.get('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
+    db.get("SELECT * FROM direct_emails WHERE id = ?", [req.params.id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!row) return res.status(404).json({ error: 'Email item not found' });
+        res.json({ success: true, email: row });
+    });
+});
+
+// Create draft or scheduled direct email
+app.post('/api/admin/direct-emails', requireAdmin, (req, res) => {
+    const { inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
+    
+    if (!to_emails || !body) {
+        return res.status(400).json({ error: 'Recipient and body are required.' });
+    }
+
+    const emailStatus = status === 'scheduled' ? 'scheduled' : 'draft';
+    const cleanTo = Array.isArray(to_emails) ? JSON.stringify(to_emails) : JSON.stringify([to_emails]);
+    const cleanCc = cc_emails ? (Array.isArray(cc_emails) ? JSON.stringify(cc_emails) : JSON.stringify([cc_emails])) : '[]';
+    const cleanBcc = bcc_emails ? (Array.isArray(bcc_emails) ? JSON.stringify(bcc_emails) : JSON.stringify([bcc_emails])) : '[]';
+    const cleanAttachments = attachment_paths ? (typeof attachment_paths === 'string' ? attachment_paths : JSON.stringify(attachment_paths)) : '[]';
+
+    db.run(
+        `INSERT INTO direct_emails (inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [inquiry_id || null, cleanTo, cleanCc, cleanBcc, reply_to || null, subject || '', body, branding_option || 'logo', selected_banner_url || null, cleanAttachments, scheduled_at || null, emailStatus],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            const newId = this.lastID;
+            
+            db.get("SELECT * FROM direct_emails WHERE id = ?", [newId], (err2, row) => {
+                if (err2 || !row) return res.json({ success: true, id: newId });
+                if (row.status === 'scheduled') {
+                    scheduleDirectEmailSend(row);
+                }
+                res.json({ success: true, email: row });
+            });
+        }
+    );
+});
+
+// Update draft or scheduled direct email
+app.put('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
+    const { to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
+    const { id } = req.params;
+
+    if (!to_emails || !body) {
+        return res.status(400).json({ error: 'Recipient and body are required.' });
+    }
+
+    const emailStatus = status === 'scheduled' ? 'scheduled' : 'draft';
+    const cleanTo = Array.isArray(to_emails) ? JSON.stringify(to_emails) : JSON.stringify([to_emails]);
+    const cleanCc = cc_emails ? (Array.isArray(cc_emails) ? JSON.stringify(cc_emails) : JSON.stringify([cc_emails])) : '[]';
+    const cleanBcc = bcc_emails ? (Array.isArray(bcc_emails) ? JSON.stringify(bcc_emails) : JSON.stringify([bcc_emails])) : '[]';
+    const cleanAttachments = attachment_paths ? (typeof attachment_paths === 'string' ? attachment_paths : JSON.stringify(attachment_paths)) : '[]';
+
+    // Cancel existing schedule if there is one
+    const jobKey = `direct_${id}`;
+    if (scheduledJobs[jobKey]) {
+        scheduledJobs[jobKey].cancel();
+        delete scheduledJobs[jobKey];
+    }
+
+    db.run(
+        `UPDATE direct_emails 
+         SET to_emails = ?, cc_emails = ?, bcc_emails = ?, reply_to = ?, subject = ?, body = ?, branding_option = ?, selected_banner_url = ?, attachment_paths = ?, scheduled_at = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [cleanTo, cleanCc, cleanBcc, reply_to || null, subject || '', body, branding_option || 'logo', selected_banner_url || null, cleanAttachments, scheduled_at || null, emailStatus, id],
+        function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            
+            db.get("SELECT * FROM direct_emails WHERE id = ?", [id], (err2, row) => {
+                if (err2 || !row) return res.json({ success: true });
+                if (row.status === 'scheduled') {
+                    scheduleDirectEmailSend(row);
+                }
+                res.json({ success: true, email: row });
+            });
+        }
+    );
+});
+
+// Delete draft or cancel scheduled email
+app.delete('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
+    const { id } = req.params;
+    const jobKey = `direct_${id}`;
+    if (scheduledJobs[jobKey]) {
+        scheduledJobs[jobKey].cancel();
+        delete scheduledJobs[jobKey];
+    }
+
+    db.get("SELECT attachment_paths FROM direct_emails WHERE id = ?", [id], (err, row) => {
+        if (!err && row && row.attachment_paths) {
+            try {
+                const paths = JSON.parse(row.attachment_paths);
+                paths.forEach(p => {
+                    if (p && p.path && fs.existsSync(p.path)) {
+                        fs.unlink(p.path, () => {});
+                    }
+                });
+            } catch(e) {}
+        }
+        db.run("DELETE FROM direct_emails WHERE id = ?", [id], function(err2) {
+            if (err2) return res.status(500).json({ error: err2.message });
+            res.json({ success: true });
+        });
+    });
+});
+
+// Send direct email immediately
+app.post('/api/admin/direct-emails/:id/send', requireAdmin, (req, res) => {
+    const { id } = req.params;
+    
+    // Cancel schedule job if it exists
+    const jobKey = `direct_${id}`;
+    if (scheduledJobs[jobKey]) {
+        scheduledJobs[jobKey].cancel();
+        delete scheduledJobs[jobKey];
+    }
+
+    sendDirectEmail(id)
+        .then(() => res.json({ success: true, message: 'Message sending initiated.' }))
+        .catch(e => res.status(500).json({ error: e.message }));
+});
+
+// Preview direct email html
+app.post('/api/admin/direct-emails/preview', requireAdmin, async (req, res) => {
+    const { body, subject, branding_option, selected_banner_url } = req.body;
+    
+    let bannerSrc = null;
+    let finalBranding = branding_option || 'default';
+    
+    if (branding_option === 'banner' && selected_banner_url) {
+        bannerSrc = selected_banner_url;
+        finalBranding = 'banner';
+    }
+    
+    if (branding_option === 'default') {
+        db.get("SELECT email_banner FROM branding LIMIT 1", [], (err, row) => {
+            let defaultBanner = row ? row.email_banner : null;
+            renderPreview(defaultBanner);
+        });
+    } else {
+        renderPreview(bannerSrc);
+    }
+
+    async function renderPreview(bannerUrl) {
+        let finalBannerUrl = bannerUrl;
+        if (finalBannerUrl && finalBannerUrl.startsWith('/')) {
+            const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+            finalBannerUrl = baseUrl + finalBannerUrl;
+        }
+
+        const socialLinks = await new Promise((resolve) => {
+            db.all("SELECT platform_name, platform_url FROM social_links WHERE is_active = 1 ORDER BY display_order ASC", [], (err, rows) => resolve(err ? [] : (rows || [])));
+        });
+
+        const html = emailTemplates.createEmailWrapper(
+            body,
+            subject || 'Preview Email',
+            null, // unsubscribe
+            finalBannerUrl,
+            socialLinks,
+            finalBranding
+        );
+        res.json({ success: true, html });
     }
 });
 
@@ -14240,43 +14642,34 @@ async function runPaymentReminderJob() {
             if (alreadySent) { result.skipped++; continue; }
 
             const paymentUrl = `${process.env.SITE_URL || 'http://localhost:3000'}/?track=${sched.booking_id}&email=${encodeURIComponent(sched.client_email)}`;
-            const logoFilePath = path.join(__dirname, 'images', 'logo4.png');
-
-            const htmlContent = `
-                <div style="font-family:'Outfit',Arial,sans-serif;padding:40px 30px;background-color:#0a0a0a;color:#fff;max-width:650px;border:1px solid rgba(255,255,255,0.12);margin:0 auto;">
-                    <div style="text-align:center;margin-bottom:28px;">
-                        <img src="cid:thabisoLogo" alt="Thabiso Mhlongo" style="max-height:75px;margin-bottom:14px;" />
-                        <h2 style="color:#D4AF37;font-family:'Cormorant Garamond',Georgia,serif;font-weight:400;letter-spacing:1px;margin:0;">Payment Reminder</h2>
-                    </div>
-                    <hr style="border:0;border-top:1px solid rgba(255,255,255,0.1);margin:0 0 24px;">
-                    <p style="color:#ccc;font-size:15px;line-height:1.6;">Hi <strong style="color:#fff;">${sched.client_name}</strong>,</p>
-                    <p style="color:#ccc;font-size:14px;line-height:1.7;">This is a friendly reminder that a payment is due in <strong style="color:#D4AF37;">${daysBefore} day${daysBefore !== 1 ? 's' : ''}</strong> for your upcoming event booking.</p>
-                    <div style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.25);border-radius:8px;padding:20px;margin:20px 0;">
-                        <div style="font-size:13px;color:#888;text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">Payment Details</div>
-                        <div style="font-size:14px;color:#ddd;margin-bottom:6px;"><strong>Booking:</strong> ${sched.event_name || ('Booking #' + sched.booking_id)}</div>
-                        <div style="font-size:14px;color:#ddd;margin-bottom:6px;"><strong>Description:</strong> ${sched.description}</div>
-                        <div style="font-size:14px;color:#ddd;margin-bottom:6px;"><strong>Due Date:</strong> ${sched.due_date}</div>
-                        <div style="font-size:22px;font-weight:800;color:#4CAF50;margin-top:10px;">R ${parseFloat(sched.expected_amount).toFixed(2)}</div>
-                    </div>
-                    <div style="text-align:center;margin:28px 0;">
-                        <a href="${paymentUrl}" style="display:inline-block;background:linear-gradient(135deg,#D4AF37,#b8962e);color:#000;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:6px;letter-spacing:0.5px;">
-                            Make Payment Now
-                        </a>
-                    </div>
-                    <p style="color:#666;font-size:12px;line-height:1.6;">If you've already made this payment, please disregard this message. Questions? Reply to this email or visit your <a href="${paymentUrl}" style="color:#D4AF37;">booking portal</a>.</p>
-                    <hr style="border:0;border-top:1px solid rgba(255,255,255,0.08);margin:24px 0 16px;">
-                    <p style="color:#555;font-size:11px;text-align:center;">&copy; ${new Date().getFullYear()} Thabiso Mhlongo. All rights reserved.</p>
-                </div>
-            `;
+            // PAYMENT-CRITICAL: `R ${parseFloat(sched.expected_amount).toFixed(2)}` kept verbatim.
+            const { socialLinks: schedSocialLinks } = await getEmailFooterContext();
+            const htmlContent = emailComponents.renderPremiumEmail({
+                preheaderText: `Payment reminder: ${sched.description} due ${sched.due_date}.`,
+                headline: 'Payment Reminder',
+                greeting: `Hi ${sched.client_name},`,
+                bodyHtml: `This is a friendly reminder that a payment is due in <strong style="color:#D4AF37;">${daysBefore} day${daysBefore !== 1 ? 's' : ''}</strong> for your upcoming event booking.`,
+                cards: [{
+                    title: 'Payment Details',
+                    rows: [
+                        { label: 'Booking', value: sched.event_name || ('Booking #' + sched.booking_id), mono: false },
+                        { label: 'Description', value: sched.description, mono: false },
+                        { label: 'Due Date', value: sched.due_date },
+                        { label: 'Amount', value: `R ${parseFloat(sched.expected_amount).toFixed(2)}`, highlight: true }
+                    ]
+                }],
+                cta: { label: 'Make Payment Now', url: paymentUrl },
+                socialLinks: schedSocialLinks
+            });
 
             try {
                 await sendEmail({
                     to: sched.client_email,
                     subject: `Payment Reminder — ${sched.description} due ${sched.due_date}`,
                     htmlContent,
+                    preWrapped: true,
                     titleOverride: 'Payment Reminder',
-                    trigger_event: 'Payment Reminder',
-                    attachments: [{ filename: 'logo4.png', path: logoFilePath, cid: 'thabisoLogo' }]
+                    trigger_event: 'Payment Reminder'
                 });
                 db.run("INSERT OR IGNORE INTO reminders_log (booking_id, schedule_id, days_before, due_date, amount_due, recipient_email, status) VALUES (?,?,?,?,?,?,'sent')",
                     [sched.booking_id, sched.schedule_id, daysBefore, sched.due_date, sched.expected_amount, sched.client_email]);
@@ -14327,24 +14720,28 @@ async function runQuoteFollowUpJob() {
     let sent = 0, errors = 0;
     for (const b of bookings) {
         try {
+            // PAYMENT-CRITICAL: `R ${parseFloat(b.quote_amount || 0).toFixed(2)}` kept verbatim.
             const expiryNote = b.quote_expiry_date
                 ? ` Please note your quote expires on <strong style="color:#D4AF37;">${b.quote_expiry_date}</strong>.`
                 : '';
-            const emailBody = `
-                <p>Hi <strong>${b.name}</strong>,</p>
-                <p>This is a friendly reminder that you have an open quotation for your upcoming <strong style="color:#ffffff;">${b.event_type}</strong> on <strong style="color:#ffffff;">${b.date}</strong>.</p>
-                <p style="color:#b0b0b0;">Your quote of <strong style="color:#D4AF37;">R ${parseFloat(b.quote_amount || 0).toFixed(2)}</strong> is still awaiting your response.${expiryNote}</p>
-                <p>Use the button below to review and accept — the date is still available for you.</p>
-                <p style="margin:20px 0;">
-                    <a href="${baseUrl}/?track=${b.id}&email=${encodeURIComponent(b.email)}&action=accept" style="display:inline-block;padding:12px 24px;background:#D4AF37;color:#000;text-decoration:none;font-weight:bold;border-radius:4px;">Review &amp; Accept Quote</a>
-                </p>
-                <p style="color:#707070;font-size:12px;">If you no longer wish to proceed, simply reply to this email or contact us directly and we will close the enquiry.</p>
-                <p class="text-gold">Booking Reference: <strong>#${b.id}</strong></p>
-            `;
+            const { socialLinks: followUpSocialLinks } = await getEmailFooterContext();
+            const emailBody = emailComponents.renderPremiumEmail({
+                preheaderText: `Your quote for booking #${b.id} is still open.`,
+                headline: 'Your Quote Awaits',
+                greeting: `Hi ${b.name},`,
+                bodyHtml:
+                    `This is a friendly reminder that you have an open quotation for your upcoming <strong style="color:#FAFAFA;">${b.event_type}</strong> on <strong style="color:#FAFAFA;">${b.date}</strong>.` +
+                    `<p style="margin:10px 0 0; color:#B0B0B0;">Your quote of <strong style="color:#D4AF37;">R ${parseFloat(b.quote_amount || 0).toFixed(2)}</strong> is still awaiting your response.${expiryNote}</p>` +
+                    `<p style="margin:10px 0 0; color:#E6E6E6;">Use the button below to review and accept — the date is still available for you.</p>` +
+                    `<p style="margin:10px 0 0; color:#707070; font-size:12px;">If you no longer wish to proceed, simply reply to this email or contact us directly and we will close the enquiry. (Booking reference #${b.id})</p>`,
+                cta: { label: 'Review & Accept Quote', url: `${baseUrl}/?track=${b.id}&email=${encodeURIComponent(b.email)}&action=accept` },
+                socialLinks: followUpSocialLinks
+            });
             const result = await sendEmail({
                 to: b.email,
                 subject: `Reminder: Your Quote Is Still Open — Ref #${b.id}`,
                 htmlContent: emailBody,
+                preWrapped: true,
                 titleOverride: 'Your Quote Awaits',
                 trigger_event: 'Booking: Quote Follow-Up Reminder'
             });
@@ -14517,32 +14914,32 @@ async function runDepositBalanceReminderJob() {
         const daysUntilEvent = moment(b.event_date).diff(moment(), 'days');
         const payUrl = `${baseUrl}/?track=${b.id}&email=${encodeURIComponent(b.email)}`;
 
-        const emailBody = `
-            <p>Hi <strong>${b.name}</strong>,</p>
-            <p>Your event <strong style="color:#ffffff;">${b.event_name || b.event_type}</strong> is coming up in <strong style="color:#D4AF37;">${daysUntilEvent} day${daysUntilEvent !== 1 ? 's' : ''}</strong>!</p>
-            <p>We wanted to remind you that a <strong style="color:#D4AF37;">balance payment of R ${outstanding.toFixed(2)}</strong> is still outstanding for your booking.</p>
-            <div style="background:#111;border:1px solid #333;border-radius:4px;padding:14px;margin:16px 0;">
-                <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                    <span style="color:#888;font-size:13px;">Event Date</span>
-                    <span style="color:#fff;font-size:13px;font-weight:600;">${b.event_date}</span>
-                </div>
-                <div style="display:flex;justify-content:space-between;">
-                    <span style="color:#888;font-size:13px;">Balance Due</span>
-                    <span style="color:#D4AF37;font-size:15px;font-weight:700;">R ${outstanding.toFixed(2)}</span>
-                </div>
-            </div>
-            <p style="margin:20px 0;text-align:center;">
-                <a href="${payUrl}" style="display:inline-block;padding:12px 28px;background:#D4AF37;color:#000;text-decoration:none;font-weight:bold;border-radius:4px;font-size:14px;">Pay Balance Now</a>
-            </p>
-            <p style="font-size:12px;color:#888;">Please settle the balance before your event date to avoid any complications. Contact us if you have any questions.</p>
-            <p class="text-gold">Booking Reference: <strong>#${b.id}</strong></p>
-        `;
+        // PAYMENT-CRITICAL: `R ${outstanding.toFixed(2)}` kept verbatim (both mentions).
+        const { socialLinks: balanceSocialLinks } = await getEmailFooterContext();
+        const emailBody = emailComponents.renderPremiumEmail({
+            preheaderText: `Balance of R ${outstanding.toFixed(2)} due — event in ${daysUntilEvent} day${daysUntilEvent !== 1 ? 's' : ''}.`,
+            headline: 'Balance Due — Event Approaching',
+            greeting: `Hi ${b.name},`,
+            bodyHtml:
+                `Your event <strong style="color:#FAFAFA;">${b.event_name || b.event_type}</strong> is coming up in <strong style="color:#D4AF37;">${daysUntilEvent} day${daysUntilEvent !== 1 ? 's' : ''}</strong>!` +
+                `<p style="margin:10px 0 0; color:#E6E6E6;">We wanted to remind you that a <strong style="color:#D4AF37;">balance payment of R ${outstanding.toFixed(2)}</strong> is still outstanding for your booking.</p>`,
+            cards: [{
+                title: 'Balance Due',
+                rows: [
+                    { label: 'Event Date', value: b.event_date },
+                    { label: 'Balance Due', value: `R ${outstanding.toFixed(2)}`, highlight: true }
+                ]
+            }],
+            cta: { label: 'Pay Balance Now', url: payUrl },
+            socialLinks: balanceSocialLinks
+        });
 
         try {
             await sendEmail({
                 to: b.email,
                 subject: `Balance Payment Reminder — ${b.event_date} Event (Booking #${b.id})`,
                 htmlContent: emailBody,
+                preWrapped: true,
                 titleOverride: 'Balance Due — Event Approaching',
                 trigger_event: 'Booking: Deposit Balance Approaching Event Reminder'
             });
@@ -14838,6 +15235,9 @@ app.listen(PORT, () => {
 
     // Load pending scheduled newsletter jobs
     setTimeout(loadPendingScheduledJobs, 1000);
+
+    // Load pending scheduled direct emails
+    setTimeout(loadPendingDirectEmails, 1500);
 
     // Quote Amount Consistency Check
     setTimeout(() => {

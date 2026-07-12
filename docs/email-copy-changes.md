@@ -135,3 +135,25 @@ and prose only:
 - **Payment Received** (`sendPaymentReceivedEmail`) — the three figure strings keep their exact
   original format (`R{amount}` with **no space**, e.g. `R400.00`); conditional Partial/Full subject
   unchanged; remaining balance amber when > 0; gains the tracker CTA.
+
+---
+
+# Batch 4 — payment-critical B
+
+Same rule as Batch 3: figures/references/links byte-identical, locked by the extended
+`test/email.test.js` (now 64 assertions, incl. a live deposit → cancel → refund chain).
+
+- **Deposit Received — Balance Due** (`sendDepositBalanceDueEmail`) — `R{outstanding}` (no space,
+  in subject + body) verbatim; balance in an `infoCard`; **Settle Your Balance** CTA (same tracker link).
+- **Payment Unsuccessful** (`sendPaymentFailedEmail`) — `R{displayTotal}` (no space) verbatim; gains a
+  **Try Payment Again** CTA to the tracker (previously no CTA at all).
+- **Refund Processed** (`sendRefundProcessedEmail`) — *most-changed of the batch.* Same defect as the
+  earlier Date-Changed fix: the old table used **light-mode `#f5f5f5` cells inside the dark email**.
+  Now a dark `infoCard`; `amtFormatted` (`R {amount}`, **space kept**) and the reference render verbatim.
+- **Payment Reminder** (schedule cron, `runScheduleReminderJob`-family) — the old email built its
+  **entire standalone HTML shell** (own `<div>` wrapper + attached `logo4.png`) rather than a body for
+  the central wrapper; now uses `renderPremiumEmail` + `preWrapped:true`, so the CID logo attachment
+  is redundant and dropped (the component header already renders the wordmark). `R {amount}` verbatim.
+- **Quote Still Open** (`runQuoteFollowUpJob`) — `R {quote_amount}` verbatim; same accept-URL CTA.
+- **Balance Payment Reminder** (event-approaching cron) — same `display:flex` defect fixed as the
+  schedule reminder; `R {outstanding}` verbatim (both mentions); same Pay Balance Now URL.

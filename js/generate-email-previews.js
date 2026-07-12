@@ -275,6 +275,66 @@ const premium = {
             { label: 'Remaining Balance', rawValue: '<span style="color:#E8A83E;">R9250.00</span>' }
         ]}],
         cta: { label: 'View Your Booking', url: '#' }
+    }),
+
+    /* ── Batch 4: payment-critical B ── */
+    'deposit-balance-due.html': P({
+        preheaderText: 'Deposit received — balance of R9250.00 due for booking #100045.',
+        headline: 'Deposit Received', greeting: 'Hi Naledi,',
+        bodyHtml: `Thank you for your deposit payment for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>. Your booking is confirmed.` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">Please ensure payment is received at least 48 hours before the event. (Booking reference #100045)</p>`,
+        cards: [{ title: 'Balance Due', rows: [{ label: 'Remaining Balance', value: 'R9250.00', highlight: true }] }],
+        cta: { label: 'Settle Your Balance', url: '#' }
+    }),
+    'payment-failed.html': P({
+        preheaderText: "We couldn't complete your payment for booking #100045.",
+        headline: 'Payment Not Completed', greeting: 'Hi Naledi,',
+        bodyHtml: `We noticed that your payment for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> was not completed successfully.` +
+            `<p style="margin:12px 0 0;"><strong style="color:#D4AF37;">Amount Due:</strong> R18500.00</p>` +
+            `<p style="margin:10px 0 0; color:#E6E6E6;">Please try again via your booking tracker, or contact us directly if you need assistance. <span style="color:#B0B0B0; font-size:13px;">(Booking reference #100045)</span></p>` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">If this was a mistake, no action is needed — your booking remains active.</p>`,
+        cta: { label: 'Try Payment Again', url: '#' }
+    }),
+    'refund-processed.html': P({
+        preheaderText: 'Your refund of R 9250.00 for booking #100045 has been processed.',
+        headline: 'Refund Confirmation', greeting: 'Hi Naledi,',
+        bodyHtml: `We are writing to confirm that your refund for Booking <strong style="color:#FAFAFA;">#100045</strong> — <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> — has been processed.` +
+            `<p style="margin:14px 0 0; color:#E6E6E6;">Please allow 3&ndash;5 business days for the funds to reflect in your account, depending on your bank or payment method.</p>`,
+        cards: [{ title: 'Refund Details', rows: [
+            { label: 'Refund Amount', value: 'R 9250.00', highlight: true },
+            { label: 'Reference', value: 'PF-REF-88214' }
+        ]}]
+    }),
+    'schedule-payment-reminder.html': P({
+        preheaderText: 'Payment reminder: 50% Deposit due 2026-07-31.',
+        headline: 'Payment Reminder', greeting: 'Hi Naledi,',
+        bodyHtml: `This is a friendly reminder that a payment is due in <strong style="color:#D4AF37;">3 days</strong> for your upcoming event booking.`,
+        cards: [{ title: 'Payment Details', rows: [
+            { label: 'Booking', value: 'Corporate Year-End', mono: false },
+            { label: 'Description', value: '50% Deposit', mono: false },
+            { label: 'Due Date', value: '2026-07-31' },
+            { label: 'Amount', value: 'R 9250.00', highlight: true }
+        ]}],
+        cta: { label: 'Make Payment Now', url: '#' }
+    }),
+    'quote-still-open.html': P({
+        preheaderText: 'Your quote for booking #100045 is still open.',
+        headline: 'Your Quote Awaits', greeting: 'Hi Naledi,',
+        bodyHtml: `This is a friendly reminder that you have an open quotation for your upcoming <strong style="color:#FAFAFA;">Corporate</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>.` +
+            `<p style="margin:10px 0 0; color:#B0B0B0;">Your quote of <strong style="color:#D4AF37;">R 18500.00</strong> is still awaiting your response. Please note your quote expires on <strong style="color:#D4AF37;">2026-08-04</strong>.</p>` +
+            `<p style="margin:10px 0 0; color:#E6E6E6;">Use the button below to review and accept — the date is still available for you.</p>`,
+        cta: { label: 'Review & Accept Quote', url: '#' }
+    }),
+    'balance-payment-reminder.html': P({
+        preheaderText: 'Balance of R 9250.00 due — event in 5 days.',
+        headline: 'Balance Due — Event Approaching', greeting: 'Hi Naledi,',
+        bodyHtml: `Your event <strong style="color:#FAFAFA;">Corporate Year-End</strong> is coming up in <strong style="color:#D4AF37;">5 days</strong>!` +
+            `<p style="margin:10px 0 0; color:#E6E6E6;">We wanted to remind you that a <strong style="color:#D4AF37;">balance payment of R 9250.00</strong> is still outstanding for your booking.</p>`,
+        cards: [{ title: 'Balance Due', rows: [
+            { label: 'Event Date', value: 'Sat, 14 Aug 2026' },
+            { label: 'Balance Due', value: 'R 9250.00', highlight: true }
+        ]}],
+        cta: { label: 'Pay Balance Now', url: '#' }
     })
 };
 
