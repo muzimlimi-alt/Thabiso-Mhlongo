@@ -4215,6 +4215,7 @@
         }
         .um-status-badge--active    { color: var(--atl-sage); background: color-mix(in srgb, var(--atl-sage) 12%, transparent); }
         .um-status-badge--suspended { color: var(--atl-clay); background: color-mix(in srgb, var(--atl-clay) 12%, transparent); }
+        .um-status-badge--archived  { color: var(--atl-muted); background: var(--atl-surface2); }
         .um-status-badge--pending   { color: var(--atl-amber); background: var(--atl-amber-dim); border: 1px solid var(--atl-amber-border); }
         /* Create-mode invitation notice in the Add User drawer */
         .um-invite-notice {
@@ -10958,7 +10959,7 @@
 
                     <div class="atl-tab-bar" role="tablist">
                         <button class="atl-tab-btn active" data-um-tab="brandPanelIdentity" role="tab" aria-selected="true"><i class="fa-solid fa-fingerprint"></i> Identity</button>
-                        <button class="atl-tab-btn" data-um-tab="brandPanelEmail" role="tab" aria-selected="false"><i class="fa-solid fa-envelope-open-text"></i> Email</button>
+                        <button class="atl-tab-btn" data-um-tab="brandPanelEmail" role="tab" aria-selected="false"><i class="fa-solid fa-panorama"></i> Banners</button>
                         <button class="atl-tab-btn" data-um-tab="brandPanelSite" role="tab" aria-selected="false"><i class="fa-solid fa-globe"></i> Site</button>
                         <button class="atl-tab-btn" data-um-tab="brandPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
                     </div>
@@ -11105,37 +11106,43 @@
                     </div>
 
                     <div class="um-panel" id="brandPanelEmail">
-                    <!-- Card 3: Email Branding (moved from System Settings) -->
-                    <div class="atl-card" style="margin-bottom:20px;">
-                        <div class="um-icon-header" style="margin-bottom:16px;">
-                            <div class="um-icon-header__icon"><i class="fa-solid fa-envelope-open-text"></i></div>
-                            <div>
-                                <h4 class="um-section-label">Email Branding</h4>
-                                <p class="um-section-desc">This image appears in outgoing emails.</p>
-                            </div>
+                    <!-- Banner Management Centre (Prompt 6) — per-category banner registry wired to
+                         GET/POST/PUT /api/admin/banners* and GET/PUT /api/admin/email-templates*.
+                         Supersedes the old single global "Email Header Banner" field (email_banner
+                         setting) — that setting and js/emailAssets.js's CID logic are left untouched
+                         server-side, just no longer exposed here. -->
+                    <div class="atl-section-hd" style="margin-bottom:0;">
+                        <div>
+                            <p class="atl-section-eyebrow">Master Banner System</p>
+                            <h2 class="atl-section-heading" style="font-size:20px;"><i class="fa-solid fa-panorama"></i> Banner Library</h2>
+                            <p class="atl-section-sub">Manage banner images and assign them to email templates by category.</p>
                         </div>
-                        <hr class="um-divider" style="margin-top:0;">
-                        <div class="row">
-                            <div class="col-md-12" style="margin-bottom:16px;">
-                                <label class="um-label">Email Header Banner</label>
-                                <label for="brandEmailBannerFile" class="um-upload-zone" style="margin-bottom:8px;">
-                                    <i class="fa-solid fa-cloud-arrow-up um-upload-icon"></i>
-                                    <p class="um-upload-text">Drag &amp; drop or click to upload</p>
-                                    <input type="file" id="brandEmailBannerFile" class="um-file-input" accept="image/*"
-                                           onchange="uploadBrandingAsset('brandEmailBannerFile','brandEmailBannerUrl','brandEmailBannerPreview')">
-                                </label>
-                                <div style="text-align:center;margin-bottom:8px;">
-                                    <img id="brandEmailBannerPreview" src="" alt="Banner preview"
-                                         style="display:none;max-width:100%;max-height:60px;object-fit:contain;border-radius:4px;">
-                                </div>
-                                <div class="um-input-wrap">
-                                    <i class="fa-solid fa-link um-input-icon"></i>
-                                    <input type="text" id="brandEmailBannerUrl" class="um-input"
-                                           placeholder="https://.../banner.png" style="padding-left:34px;"
-                                           oninput="updateBrandPreview('brandEmailBannerUrl','brandEmailBannerPreview')">
-                                </div>
-                            </div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
+                            <button type="button" class="atl-btn atl-btn--primary" onclick="openBnrCreateDrawer()">
+                                <i class="fa-solid fa-plus"></i> New Banner
+                            </button>
                         </div>
+                    </div>
+
+                    <div class="atl-toolbar" style="margin:16px 0;">
+                        <div class="um-input-wrap" style="flex:1; min-width:180px;">
+                            <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                            <input type="search" id="bnrSearchInput" class="um-input" placeholder="Search banners…" autocomplete="off" oninput="onBnrSearchInput()">
+                        </div>
+                        <select id="bnrCategoryFilter" class="atl-filter-select" onchange="reloadBnrBanners()">
+                            <option value="">All Categories</option>
+                        </select>
+                        <select id="bnrStatusFilter" class="atl-filter-select" onchange="reloadBnrBanners()">
+                            <option value="">All Statuses</option>
+                            <option value="active">Active only</option>
+                            <option value="archived">Archived only</option>
+                        </select>
+                        <button type="button" class="atl-clear-btn" onclick="clearBnrFilters()">Clear filters</button>
+                    </div>
+
+                    <div id="bnrCardGrid" class="evt-card-grid"></div>
+                    <div style="text-align:center; margin-top:20px;">
+                        <button type="button" id="bnrLoadMoreBtn" class="atl-btn atl-btn--ghost" style="display:none;" onclick="loadMoreBnrBanners()">Load More</button>
                     </div>
 
                     </div>
@@ -14894,6 +14901,294 @@
                 window.notificationService.showError('Could not clear the gallery.');
             }
         });
+
+        // ============================================================
+        // BANNER MANAGEMENT CENTRE (Prompt 6) — /api/admin/banners*, /api/admin/email-templates*
+        // Every handler referenced from an inline HTML attribute (onclick/onchange/oninput) or from
+        // switchTab() (a later script block) is exposed on window, matching the window.qs/escHtml/
+        // openAtlDrawer convention already used in this file — plain declarations aren't reliably
+        // reachable across this file's several separate <script> blocks.
+        // ============================================================
+        var BNR_CATEGORIES = [
+            'Booking Requests', 'Quotes & Proposals', 'Contracts & Signatures', 'Payments & Invoices',
+            'Booking Confirmations', 'Event Reminders', 'Thank You & Reviews', 'Booking Recovery',
+            'Contact & Support', 'Newsletters & Marketing', 'User Accounts & Security'
+        ];
+        var bnrPage = 1;
+        var bnrCardsCache = [];
+        var bnrEditId = null;      // null = create mode
+        var bnrSearchDebounce = null;
+        var bnrCategoriesLoaded = false;
+        var bnrValidImageFile = null; // the File object once it has passed client-side checks
+
+        window.initBnrLibrary = function () {
+            if (!bnrCategoriesLoaded) {
+                var opts = BNR_CATEGORIES.map(function (c) { return '<option value="' + c + '">' + c + '</option>'; }).join('');
+                $('#bnrCategoryFilter').append(opts);
+                $('#bnrCategory').html(opts);
+                bnrCategoriesLoaded = true;
+            }
+            window.reloadBnrBanners();
+        };
+
+        window.onBnrSearchInput = function () {
+            clearTimeout(bnrSearchDebounce);
+            bnrSearchDebounce = setTimeout(window.reloadBnrBanners, 300);
+        };
+
+        window.clearBnrFilters = function () {
+            $('#bnrSearchInput').val('');
+            $('#bnrCategoryFilter').val('');
+            $('#bnrStatusFilter').val('');
+            window.reloadBnrBanners();
+        };
+
+        window.reloadBnrBanners = function () {
+            bnrPage = 1;
+            bnrCardsCache = [];
+            loadBnrBanners();
+        };
+
+        window.loadMoreBnrBanners = function () {
+            bnrPage++;
+            loadBnrBanners();
+        };
+
+        async function loadBnrBanners() {
+            var search = $('#bnrSearchInput').val().trim();
+            var category = $('#bnrCategoryFilter').val();
+            var status = $('#bnrStatusFilter').val();
+            var qs2 = '?page=' + bnrPage + '&limit=24' +
+                '&category=' + encodeURIComponent(category) +
+                '&status=' + encodeURIComponent(status) +
+                '&search=' + encodeURIComponent(search);
+            try {
+                var data = await apiCall('/api/admin/banners' + qs2);
+                if (!data || !data.success) throw new Error('Invalid response');
+                bnrCardsCache = (bnrPage === 1) ? data.banners : bnrCardsCache.concat(data.banners);
+                renderBnrCards();
+                $('#bnrLoadMoreBtn').toggle(bnrPage < (data.pages || 1));
+            } catch (err) {
+                console.error('Failed to load banners:', err);
+                $('#bnrCardGrid').html('<div class="atl-empty-state"><i class="fa-solid fa-triangle-exclamation" style="font-size:28px; color:var(--atl-clay); margin-bottom:14px; display:block;"></i><p style="color:var(--atl-muted); margin:0; font-size:13px;">Could not load banners. Please refresh and try again.</p></div>');
+                $('#bnrLoadMoreBtn').hide();
+            }
+        }
+
+        function bnrStatusBadgeHtml(status) {
+            return status === 'active'
+                ? '<span class="um-status-badge um-status-badge--active">Active</span>'
+                : '<span class="um-status-badge um-status-badge--archived">Archived</span>';
+        }
+
+        function renderBnrCards() {
+            var $grid = $('#bnrCardGrid');
+            if (!bnrCardsCache.length) {
+                $grid.html('<div class="atl-empty-state"><i class="fa-solid fa-panorama" style="font-size:32px; color:var(--atl-muted-dim); margin-bottom:14px; display:block;"></i><p style="color:var(--atl-muted); margin:0; font-size:13px;">No banners yet. Click &ldquo;New Banner&rdquo; to create your first one.</p></div>');
+                return;
+            }
+            $grid.empty();
+            bnrCardsCache.forEach(function (b) {
+                var updated = b.updated_at ? new Date(b.updated_at).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+                var encoded = encodeURIComponent(JSON.stringify(b));
+                var archiveBtn = (b.status === 'active')
+                    ? '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="archiveBnrBanner(' + b.id + ')" title="Archive"><i class="fa-solid fa-box-archive"></i></button>'
+                    : '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="restoreBnrBanner(' + b.id + ')" title="Restore"><i class="fa-solid fa-rotate-left"></i></button>';
+                var html = '' +
+                    '<article class="atl-edit-card" data-id="' + b.id + '" data-payload="' + encoded + '">' +
+                      '<div class="atl-card-inner">' +
+                        '<div class="atl-edit-card__header">' +
+                          '<div class="atl-edit-card__thumb">' +
+                            '<img src="' + b.image_url + '" alt="' + escHtml(b.alt_text || '') + '" onerror="this.onerror=null;this.src=\'https://placehold.co/72x100/1a1a1a/D4AF37?text=No+Image\';">' +
+                          '</div>' +
+                          '<div style="flex:1; min-width:0;">' +
+                            '<h3 class="atl-edit-card__title">' + escHtml(b.name) + '</h3>' +
+                            '<p class="atl-edit-card__subtitle">' + escHtml(b.category) + ' &middot; Used by ' + (b.usage_count || 0) + ' &middot; ' + updated + '</p>' +
+                            '<div style="margin-top:6px;">' + bnrStatusBadgeHtml(b.status) + '</div>' +
+                          '</div>' +
+                          '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">' +
+                            '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="openBnrEditDrawer(' + b.id + ')" title="Edit banner"><i class="fa-solid fa-pen"></i></button>' +
+                            archiveBtn +
+                          '</div>' +
+                        '</div>' +
+                      '</div>' +
+                    '</article>';
+                $grid.append(html);
+            });
+        }
+
+        // ── Create / Edit drawer ──
+        function resetBnrForm() {
+            bnrEditId = null;
+            bnrValidImageFile = null;
+            $('#bnrForm')[0].reset();
+            $('#bnrImageError').hide().text('');
+            $('#bnrExistingImageRow').hide();
+            $('#bnrNewImagePreviewWrap').hide();
+            $('#bnrImageRequiredMark').show();
+            $('#bnrDrawerTitle').html('<i class="fa-solid fa-panorama"></i> New Banner');
+            $('#bnrSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Create Banner');
+        }
+
+        window.openBnrCreateDrawer = function () {
+            resetBnrForm();
+            openAtlDrawer('bnrDrawer');
+        };
+
+        window.openBnrEditDrawer = function (id) {
+            var b = bnrCardsCache.find(function (x) { return x.id === id; });
+            if (!b) return;
+            resetBnrForm();
+            bnrEditId = id;
+            $('#bnrName').val(b.name);
+            $('#bnrCategory').val(b.category);
+            $('#bnrAltText').val(b.alt_text);
+            $('#bnrHeadline').val(b.headline || '');
+            $('#bnrSubtitle').val(b.subtitle || '');
+            $('#bnrExistingImagePreview').attr('src', b.image_url);
+            $('#bnrExistingImageRow').show();
+            $('#bnrImageRequiredMark').hide(); // image optional on edit — existing image kept if none chosen
+            $('#bnrDrawerTitle').html('<i class="fa-solid fa-panorama"></i> Edit Banner');
+            $('#bnrSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Save Changes');
+            openAtlDrawer('bnrDrawer');
+        };
+
+        // ── Client-side image validation (mirrors server rules for fast feedback; server re-validates) ──
+        window.onBnrImageFileChange = function () {
+            var input = document.getElementById('bnrImageFile');
+            var file = input.files && input.files[0];
+            bnrValidImageFile = null;
+            $('#bnrImageError').hide().text('');
+            $('#bnrNewImagePreviewWrap').hide();
+            if (!file) return;
+
+            var ext = (file.name.split('.').pop() || '').toLowerCase();
+            if (['jpg', 'jpeg', 'png'].indexOf(ext) === -1 || ['image/jpeg', 'image/png'].indexOf(file.type) === -1) {
+                $('#bnrImageError').text('Only JPG or PNG images are allowed.').show();
+                input.value = '';
+                return;
+            }
+            if (file.size > 100 * 1024) {
+                $('#bnrImageError').text('Image must be 100KB or smaller (received ' + Math.round(file.size / 1024) + 'KB). Compress and try again.').show();
+                input.value = '';
+                return;
+            }
+            var img = new Image();
+            var objectUrl = URL.createObjectURL(file);
+            img.onload = function () {
+                if (img.naturalWidth < 1200 || img.naturalWidth > 1400) {
+                    $('#bnrImageError').text('Image width must be between 1200 and 1400px for retina display (received ' + img.naturalWidth + 'px).').show();
+                    input.value = '';
+                    URL.revokeObjectURL(objectUrl);
+                    return;
+                }
+                bnrValidImageFile = file;
+                $('#bnrNewImagePreview').attr('src', objectUrl);
+                $('#bnrNewImagePreviewWrap').show();
+            };
+            img.onerror = function () {
+                URL.revokeObjectURL(objectUrl);
+                $('#bnrImageError').text('Could not read the image — the file may be corrupt.').show();
+                input.value = '';
+            };
+            img.src = objectUrl;
+        };
+
+        // ── Submit (create or update) ──
+        $(document).on('submit', '#bnrForm', async function (e) {
+            e.preventDefault();
+            var name = $('#bnrName').val().trim();
+            var category = $('#bnrCategory').val();
+            var altText = $('#bnrAltText').val().trim();
+            var headline = $('#bnrHeadline').val().trim();
+            var subtitle = $('#bnrSubtitle').val().trim();
+
+            if (!name) { window.notificationService.showError('Banner name is required.'); return; }
+            if (!category) { window.notificationService.showError('A category is required.'); return; }
+            if (!altText) { window.notificationService.showError('Alt text is required.'); return; }
+            if (!bnrEditId && !bnrValidImageFile) { window.notificationService.showError('Please choose a valid image.'); return; }
+            if ($('#bnrImageError').is(':visible')) { window.notificationService.showError('Please fix the image before submitting.'); return; }
+
+            var isEdit = !!bnrEditId;
+
+            // Global-replace confirmation — editing an existing banner's image affects every template
+            // that references it immediately (resolution is live at send time, no propagation step).
+            if (isEdit && bnrValidImageFile) {
+                var existing = bnrCardsCache.find(function (x) { return x.id === bnrEditId; });
+                var usageCount = existing ? (existing.usage_count || 0) : 0;
+                if (usageCount > 0) {
+                    var used = await apiCall('/api/admin/banners/' + bnrEditId);
+                    var list = ((used && used.used_by) || []).map(function (u) { return u.template_key; }).join(', ');
+                    var ok = await window.notificationService.showConfirm({
+                        title: 'Replace banner image?',
+                        message: 'This banner is used by ' + usageCount + ' template(s): ' + list + '. Replacing its image updates all of them immediately. Continue?',
+                        isDestructive: false
+                    });
+                    if (!ok) return;
+                }
+            }
+
+            var fd = new FormData();
+            fd.append('name', name);
+            fd.append('category', category);
+            fd.append('alt_text', altText);
+            if (headline) fd.append('headline', headline);
+            if (subtitle) fd.append('subtitle', subtitle);
+            if (bnrValidImageFile) fd.append('image', bnrValidImageFile);
+
+            var $btn = $('#bnrSubmitBtn');
+            var origHtml = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving...');
+            try {
+                var url = isEdit ? ('/api/admin/banners/' + bnrEditId) : '/api/admin/banners';
+                var method = isEdit ? 'PUT' : 'POST';
+                var res = await fetch(url, { method: method, credentials: 'include', body: fd });
+                var data = await res.json().catch(function () { return {}; });
+                if (!res.ok || !data.success) throw new Error(data.message || 'Could not save the banner.');
+                closeAtlDrawer('bnrDrawer');
+                resetBnrForm();
+                window.reloadBnrBanners();
+                window.notificationService.showSuccess(isEdit ? 'Banner updated.' : 'Banner created.');
+            } catch (err) {
+                console.error('Banner save error:', err);
+                window.notificationService.showError(err.message || 'Could not save the banner.');
+            } finally {
+                $btn.prop('disabled', false).html(origHtml);
+            }
+        });
+
+        // ── Archive / Restore ──
+        window.archiveBnrBanner = async function (id) {
+            var b = bnrCardsCache.find(function (x) { return x.id === id; });
+            var usageCount = b ? (b.usage_count || 0) : 0;
+            if (usageCount > 0) {
+                var ok = await window.notificationService.showConfirm({
+                    title: 'Archive banner?',
+                    message: 'This banner is used by ' + usageCount + ' template(s) — they will fall back to the text headline block. Archive anyway?',
+                    isDestructive: true
+                });
+                if (!ok) return;
+            }
+            try {
+                await apiCall('/api/admin/banners/' + id + '/archive', 'PATCH');
+                window.notificationService.showSuccess('Banner archived.');
+                loadBnrBanners();
+            } catch (err) {
+                console.error('Archive banner failed:', err);
+                window.notificationService.showError('Could not archive the banner.');
+            }
+        };
+
+        window.restoreBnrBanner = async function (id) {
+            try {
+                await apiCall('/api/admin/banners/' + id + '/restore', 'PATCH');
+                window.notificationService.showSuccess('Banner restored.');
+                loadBnrBanners();
+            } catch (err) {
+                console.error('Restore banner failed:', err);
+                window.notificationService.showError('Could not restore the banner.');
+            }
+        };
 
         // Drag-and-drop highlight for the gallery upload zone (bound after ready; element persists through docking)
         $(function () {
@@ -23061,6 +23356,74 @@
         </div>
     </div>
 
+    <!-- Banner Management Centre — create/edit drawer (Prompt 6) -->
+    <div id="bnrDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="bnrDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="bnrDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="bnrDrawerTitle"><i class="fa-solid fa-panorama"></i> New Banner</h5>
+            <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('bnrDrawer')" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <form id="bnrForm" class="um-form" autocomplete="off">
+                <div class="um-field-group">
+                    <label class="um-label" for="bnrName">Name <span style="color:var(--atl-clay);">*</span></label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-tag um-input-icon"></i>
+                        <input type="text" class="um-input" id="bnrName" placeholder="e.g. Confirmations — Gold Spotlight" required>
+                    </div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="bnrCategory">Category <span style="color:var(--atl-clay);">*</span></label>
+                    <select id="bnrCategory" class="atl-filter-select" style="width:100%;" required></select>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="bnrAltText">Alt Text <span style="color:var(--atl-clay);">*</span></label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-closed-captioning um-input-icon"></i>
+                        <input type="text" class="um-input" id="bnrAltText" placeholder="Describe the image for accessibility" required>
+                    </div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="bnrHeadline">Headline (optional)</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-heading um-input-icon"></i>
+                        <input type="text" class="um-input" id="bnrHeadline" placeholder="Shown only as a text fallback if unassigned/archived">
+                    </div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="bnrSubtitle">Subtitle (optional)</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-align-left um-input-icon"></i>
+                        <input type="text" class="um-input" id="bnrSubtitle" placeholder="Small supporting line">
+                    </div>
+                </div>
+                <div id="bnrExistingImageRow" style="display:none; margin-bottom:16px; border-radius:var(--atl-r-md); overflow:hidden; position:relative; max-width:100%;">
+                    <img id="bnrExistingImagePreview" src="" alt="Current banner" style="display:block; width:100%; max-height:160px; object-fit:cover; border-radius:var(--atl-r-md); border:1px solid var(--atl-line);">
+                    <span style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.55); color:#fff; font-size:11px; padding:2px 8px; border-radius:20px; pointer-events:none;">Current</span>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="bnrImageFile">Image <span id="bnrImageRequiredMark" style="color:var(--atl-clay);">*</span></label>
+                    <label for="bnrImageFile" class="um-upload-zone">
+                        <i class="fa-solid fa-cloud-arrow-up um-upload-icon"></i>
+                        <p class="um-upload-text">Drag &amp; drop or click to upload</p>
+                        <input type="file" id="bnrImageFile" class="um-file-input" accept="image/jpeg,image/png" onchange="onBnrImageFileChange()">
+                        <small class="help-block">JPG or PNG, 1200&ndash;1400px wide, &le;100KB.</small>
+                    </label>
+                    <div id="bnrImageError" style="display:none; color:var(--atl-clay); font-size:12px; margin-top:6px;"></div>
+                    <div id="bnrNewImagePreviewWrap" style="display:none; margin-top:10px; text-align:center;">
+                        <img id="bnrNewImagePreview" src="" alt="New image preview" style="max-width:100%; max-height:160px; object-fit:contain; border-radius:var(--atl-r-md); border:1px solid var(--atl-line);">
+                    </div>
+                </div>
+                <div class="um-form-actions" style="justify-content:flex-end; gap:10px;">
+                    <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('bnrDrawer')">Cancel</button>
+                    <button type="submit" class="atl-btn atl-btn--primary" id="bnrSubmitBtn">
+                        <i class="fa-solid fa-plus-circle"></i> Create Banner
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Home slider editor drawer (Add) / docks into expanded cards (Edit) -->
     <div id="homeDrawerBackdrop" class="atl-drawer-backdrop"></div>
     <div id="homeDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="homeDrawerTitle" aria-modal="true" aria-hidden="true">
@@ -24882,6 +25245,11 @@
         // Load current branding into the form (so previews reflect what's applied)
         if (sectionId === 'brandingAdmin' && typeof loadBrandingSettings === 'function') {
             loadBrandingSettings();
+        }
+
+        // Banner Management Centre (Prompt 6) — populate category selects once, then (re)load the grid
+        if (sectionId === 'brandingAdmin' && typeof initBnrLibrary === 'function') {
+            initBnrLibrary();
         }
 
         // Fire synthetic shown.bs.tab on the sidebar link so that data-loader
@@ -30093,7 +30461,6 @@
             if (b.favicon)       { $('#brandFaviconUrl').val(b.favicon);         updateBrandPreview('brandFaviconUrl','brandFaviconPreview'); }
             if (b.primary_color) { $('#brandPrimaryColor').val(b.primary_color); $('#brandColorHex').val(b.primary_color); }
             if (b.theme_font)    { $('#brandThemeFont').val(b.theme_font); }
-            if (b.email_banner)  { $('#brandEmailBannerUrl').val(b.email_banner); updateBrandPreview('brandEmailBannerUrl','brandEmailBannerPreview'); }
             if (b.login_background) { $('#brandLoginBgUrl').val(b.login_background); updateBrandPreview('brandLoginBgUrl','brandLoginBgPreview'); }
             window.tmLoginBg = b.login_background || null;
             updateBrandFontPreview();
@@ -30110,8 +30477,7 @@
             site_logo:     $('#brandLogoUrl').val().trim(),
             favicon:       $('#brandFaviconUrl').val().trim(),
             primary_color: $('#brandColorHex').val().trim() || $('#brandPrimaryColor').val(),
-            theme_font:    $('#brandThemeFont').val(),
-            email_banner:  $('#brandEmailBannerUrl').val().trim()
+            theme_font:    $('#brandThemeFont').val()
         };
         // G5 — accent-colour hex validation (no other Branding fields are mandatory)
         const _fe = (id, msg) => { const e = document.getElementById(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
