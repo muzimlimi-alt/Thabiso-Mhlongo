@@ -300,3 +300,36 @@ reproducible as a black-box HTTP test without mocking the DB layer. Consistent w
 (Batch 3, Guard 8), **Guard 9** instead renders through the *exact* `renderSystemEmail` call-shape used
 in each of the four server.js rebuilds and asserts every figure/ID/error-string renders verbatim, the
 severity is `alert` (amber `#E8A83E`), and no red (`#ef4444`/`#ff0000`) appears anywhere. Suite: 79/79.
+
+## Batch 5 — security / user-account (closes Prompt 4 — all SYSTEM emails rebuilt)
+
+- **Dashboard Invite** and **Password Reset** — ***bug fixed, not just restyled.*** Both used
+  `class="btn-luxe"` (button) and `class="text-muted"` (footer text), CSS classes that only exist in
+  the legacy `createEmailWrapper`'s `<style>` block — **absent entirely** on the live raw path. Every
+  activation button and every reset button has been rendering as **plain unstyled text** since whichever
+  commit introduced them. Now built with the actual bulletproof `ctaButton` component (table + VML,
+  works in Outlook) embedded directly in the SYSTEM body. `inviteLink`/`resetLink`, the expiry wording
+  (72h / 1h), and the sign-in email are all verbatim. **Also restored a personalisation regression I
+  introduced mid-edit**: `renderSystemEmail` has no dedicated greeting slot (unlike
+  `renderPremiumEmail`), so my first pass silently dropped "Hello {name}," — caught before it reached a
+  test and folded back into `leadFact`.
+- **Guard 4 retired as "isolation," reborn as a completion capstone.** Every SYSTEM and PREMIUM email is
+  now migrated (verified by a full sweep of every `sendEmail(`/`sendEmailDirectly(` call site in
+  `server.js` for a missing `preWrapped` — the only one left is the separate, already-correct
+  `sendDirectEmail` "Direct Emails" system, untouched by design). With no legacy target left, Guard 4
+  now proves the opposite: it fires `/api/admin/forgot-password` end-to-end and asserts the password
+  reset email is pre-wrapped, single-shelled, and contains a real reset link + genuine VML button + no
+  trace of the dead classes. New **Guard 10** does the same live, end-to-end, for the dashboard invite
+  via `POST /api/admin/users`.
+
+### Audit gap found and closed alongside this batch
+
+The same sweep for missing `preWrapped` surfaced **`POST /api/admin/bookings/:id/respond`** ("Admin
+Booking Direct Email Responder") — an admin-to-client message endpoint **not present in the original
+`docs/email-audit.md` inventory**. Unlike the inquiry-reply/compose bug found in Prompt 3 (Batch 5), this
+one wasn't broken — it correctly used its self-built `htmlTemplate` — so it was a coverage gap, not a
+live defect. Migrated to `renderPremiumEmail` for consistency with every other admin-triggered client
+message. Content, recipient, subject and reply-to unchanged.
+
+**Prompt 4 is complete.** All ~24 SYSTEM-track emails from the audit, plus this one previously-uncounted
+email, are now rebuilt. Suite: **84/84**.

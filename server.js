@@ -2286,23 +2286,27 @@ function createAndSendInvite(user, expiresHours, callback) {
                 const roleLabel = (user.role || 'manager').charAt(0).toUpperCase() + (user.role || 'manager').slice(1);
                 const greetName = (user.full_name && String(user.full_name).trim()) ? user.full_name : 'there';
 
-                const emailBody = `
-                    <p>Hello <strong>${greetName}</strong>,</p>
-                    <p>You've been added as a <strong>${roleLabel}</strong> to the Thabiso Mhlongo management dashboard.</p>
-                    <p>To activate your account, set your password using the secure link below. This link will safely expire in ${expiresHours || 72} hours.</p>
-                    <div style="text-align: center; margin: 35px 0;">
-                        <a href="${inviteLink}" class="btn-luxe">Set Your Password</a>
-                    </div>
-                    <p>Your sign-in email is <strong>${user.email}</strong>.</p>
-                    <p class="text-muted" style="font-size: 12px; margin-top: 30px;">
-                        If you weren't expecting this invitation, you can safely ignore this automated message.
-                    </p>
-                `;
+                // SECURITY-CRITICAL (HIGH): inviteLink, expiry hours and user.email kept verbatim.
+                // The old class="btn-luxe"/class="text-muted" only resolve via the legacy wrapper's
+                // <style> block, absent on the live raw path — the button/muted text render unstyled
+                // today. Uses the bulletproof ctaButton component directly (works in Outlook too).
+                const emailBody = emailComponents.renderSystemEmail({
+                    preheaderText: `You've been added as a ${roleLabel} to the Thabiso Mhlongo dashboard.`,
+                    category: 'User Accounts & Security',
+                    severity: 'action',
+                    leadFact: `Hello <strong style="color:#FAFAFA;">${greetName}</strong> — you've been added as a <strong style="color:#FAFAFA;">${roleLabel}</strong> to the Thabiso Mhlongo management dashboard.`,
+                    bodyHtml:
+                        `<p style="margin:0 0 18px; color:#E6E6E6;">To activate your account, set your password using the secure link below. This link will safely expire in ${expiresHours || 72} hours.</p>` +
+                        emailComponents.ctaButton({ label: 'Set Your Password', url: inviteLink }) +
+                        `<p style="margin:18px 0 0; color:#E6E6E6;">Your sign-in email is <strong style="color:#FAFAFA;">${user.email}</strong>.</p>` +
+                        `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">If you weren't expecting this invitation, you can safely ignore this automated message.</p>`
+                });
 
                 sendEmail({
                     to: user.email,
                     subject: "You're invited to the Thabiso Mhlongo Management Dashboard",
                     htmlContent: emailBody,
+                    preWrapped: true,
                     titleOverride: 'Management Dashboard',
                     trigger_event: 'Admin: User Invitation'
                 }).then(result => {
@@ -2358,22 +2362,24 @@ app.post('/api/admin/forgot-password', (req, res) => {
                     const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
                     const resetLink = `${baseUrl}/reset-password.html?token=${rawToken}&email=${encodeURIComponent(email)}`;
                     
-                    const emailBody = `
-                        <p>Hello <strong>${admin.username}</strong>,</p>
-                        <p>We received a request to reset the administrative password associated with this email address.</p>
-                        <p>You can reset your password by clicking the secure link below. This link will safely expire in 1 hour.</p>
-                        <div style="text-align: center; margin: 35px 0;">
-                            <a href="${resetLink}" class="btn-luxe">Reset Password</a>
-                        </div>
-                        <p class="text-muted" style="font-size: 12px; margin-top: 30px;">
-                            If you did not request a password reset, you can safely ignore this automated message.
-                        </p>
-                    `;
-    
+                    // SECURITY-CRITICAL (HIGH): resetLink and the 1-hour expiry wording kept verbatim.
+                    // Same dead class="btn-luxe"/class="text-muted" defect as the invite email.
+                    const emailBody = emailComponents.renderSystemEmail({
+                        preheaderText: 'A password reset was requested for your dashboard account.',
+                        category: 'User Accounts & Security',
+                        severity: 'action',
+                        leadFact: `Hello <strong style="color:#FAFAFA;">${admin.username}</strong> — we received a request to reset the administrative password associated with this email address.`,
+                        bodyHtml:
+                            `<p style="margin:0 0 18px; color:#E6E6E6;">You can reset your password by clicking the secure link below. This link will safely expire in 1 hour.</p>` +
+                            emailComponents.ctaButton({ label: 'Reset Password', url: resetLink }) +
+                            `<p style="margin:18px 0 0; color:#B0B0B0; font-size:12px;">If you did not request a password reset, you can safely ignore this automated message.</p>`
+                    });
+
                     sendEmail({
                         to: email,
                         subject: 'Password Reset Request - Thabiso Mhlongo Dashboard',
                         htmlContent: emailBody,
+                        preWrapped: true,
                         titleOverride: 'Management Dashboard',
                         trigger_event: 'Admin: Password Reset Request'
                     }).then(result => {
@@ -13113,29 +13119,20 @@ app.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
         return res.status(400).json({ success: false, message: 'Missing email, subject, or message.' });
     }
 
-    const logoFilePath = path.join(__dirname, 'images', 'logo4.png');
-
-    const htmlTemplate = `
-        <div style="font-family: 'Outfit', Arial, sans-serif; padding: 40px 30px; background-color: #0a0a0a; color: #ffffff; max-width: 650px; border: 1px solid rgba(255,255,255,0.12); margin:0 auto;">
-            <div style="text-align: center; margin-bottom: 20px;">
-                <img src="cid:thabisoLogo" alt="Thabiso Mhlongo Logo" style="max-height: 80px; margin-bottom: 14px;" />
-                <h2 style="color: #D4AF37; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: 1px; margin-bottom: 4px;">Thabiso Mhlongo Management</h2>
-                <p style="color: #707070; font-size: 13px; margin-top: 0;">In reference to Booking Request #${bookingId}</p>
-            </div>
-            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.10); margin: 0 0 24px 0;">
-            <div style="background-color: #1a1a1a; padding: 24px; border-left: 3px solid #D4AF37; font-size: 14px; line-height: 1.7; white-space: pre-wrap; color: #e0e0e0;">${message.replace(/\n/g, '<br>')}</div>
-
-            <div style="margin-top: 32px; text-align: center;">
-                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.10); margin-bottom: 18px;">
-                <p style="font-size: 11px; color: #707070;">&copy; ${new Date().getFullYear()} Thabiso Mhlongo. All rights reserved.</p>
-            </div>
-        </div>
-    `;
+    // Audit gap closed: this admin->client responder wasn't in the original email inventory.
+    // It already used its own self-built shell correctly (unlike the dead-template bug found in
+    // inquiry-reply/compose) — migrated to the shared component system for consistency.
+    const htmlTemplate = emailComponents.renderPremiumEmail({
+        preheaderText: `Re: Booking Request #${bookingId}`,
+        headline: 'Management Response',
+        bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Booking Request #${bookingId}</p>` + message.replace(/\n/g, '<br>')
+    });
 
     sendEmail({
         to: email,
         subject: subject,
         htmlContent: htmlTemplate,
+        preWrapped: true,
         replyTo: process.env.EMAIL_USER || process.env.NOTIFICATION_EMAIL || 'muzi.mlimi@gmail.com',
         titleOverride: 'Booking Management Response',
         trigger_event: 'Admin: Booking Respond'

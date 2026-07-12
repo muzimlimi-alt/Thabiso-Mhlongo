@@ -78,15 +78,43 @@ module.exports = async function ({ check }) {
             `1000=${pay.html.includes('R1000.00')} 400=${pay.html.includes('R400.00')} 600=${pay.html.includes('R600.00')}`);
     }
 
-    // ── Guard 4: isolation — un-migrated (SYSTEM) emails are NOT pre-wrapped ──
-    // Target rotates as Prompt 4 batches migrate more SYSTEM emails; currently the two security
-    // emails (dashboard invite, password reset) are the last un-migrated ones (Batch 5).
+    // ── Guard 4: migration-complete capstone (was "isolation" through Batches 1-4; Batch 5
+    // migrated the last un-migrated SYSTEM email — password reset — so there is no legacy target
+    // left to prove isolation against). Now asserts the opposite: password reset (SECURITY-CRITICAL,
+    // fixed in Batch 5's dead class="btn-luxe" bug) is pre-wrapped, single-shelled, carries a real
+    // reset link for this exact admin, a genuine VML button, and none of the dead legacy classes.
     await pub('POST', '/api/admin/forgot-password', { email: 'test.runner@example.invalid' });
     await sleep(150);
     const adminMail = await queued('Password Reset Request%');
-    check('un-migrated admin email stays legacy (no preWrapped, no full shell)',
-        !!adminMail && adminMail.preWrapped === false && count(adminMail.html, '<!DOCTYPE') === 0,
+    check('password reset email queued pre-wrapped (migration complete)',
+        !!adminMail && adminMail.preWrapped === true && count(adminMail.html, '<!DOCTYPE') === 1,
         adminMail && `pre=${adminMail.preWrapped} doctypes=${count(adminMail.html, '<!DOCTYPE')}`);
+    if (adminMail) {
+        check('password reset: real reset link for this admin, bulletproof button, dead classes gone',
+            adminMail.html.includes('/reset-password.html?token=') &&
+            adminMail.html.includes(encodeURIComponent('test.runner@example.invalid')) &&
+            /v:roundrect/.test(adminMail.html) &&
+            !adminMail.html.includes('class="btn-luxe"') && !adminMail.html.includes('class="text-muted"'),
+            `link=${adminMail.html.includes('/reset-password.html?token=')} vml=${/v:roundrect/.test(adminMail.html)}`);
+    }
+
+    // ── Guard 10 (Batch 5): dashboard invite — the other security email fixed in this batch ──
+    const inviteEmail = email();
+    const inviteRes = await api('POST', '/api/admin/users', { email: inviteEmail, full_name: 'Guard Ten', phone: '+27821234567', role: 'manager' });
+    check('create-user endpoint 200 (dashboard invite triggered)', inviteRes.status === 200 && inviteRes.body.success, `${inviteRes.status}`);
+    await sleep(150);
+    const inviteMail = await queued("You're invited to the Thabiso Mhlongo Management Dashboard");
+    check('dashboard invite queued pre-wrapped to the new user', !!inviteMail && inviteMail.preWrapped === true && inviteMail.to === inviteEmail,
+        inviteMail && `${inviteMail.preWrapped} ${inviteMail.to}`);
+    if (inviteMail) {
+        check('dashboard invite: real activation link for this user, bulletproof button, dead classes gone',
+            inviteMail.html.includes('/reset-password.html?token=') && inviteMail.html.includes('welcome=1') &&
+            inviteMail.html.includes(encodeURIComponent(inviteEmail)) &&
+            /v:roundrect/.test(inviteMail.html) &&
+            !inviteMail.html.includes('class="btn-luxe"') && !inviteMail.html.includes('class="text-muted"'),
+            `link=${inviteMail.html.includes('/reset-password.html?token=')} vml=${/v:roundrect/.test(inviteMail.html)}`);
+        check('dashboard invite: single shell', count(inviteMail.html, '<!DOCTYPE') === 1, `doctypes=${count(inviteMail.html, '<!DOCTYPE')}`);
+    }
 
     // ── Fixture 2: separate R1000 booking, for the DEPOSIT_PAID and refund guards ──
     const em2 = email();

@@ -402,6 +402,14 @@ const premium = {
         headline: 'New Tour Dates Just Announced!',
         bodyHtml: `<p>Hey there!</p><p>I'm thrilled to announce four new stand-up dates across Gauteng this September. Tickets go live Friday at 9am — subscribers get first access.</p><p>See you in the front row,<br>Thabiso</p>`,
         unsubscribeUrl: '#'
+    }),
+
+    /* ── Audit gap closed alongside Batch 5: admin->client booking responder (was missing from the
+       original inventory; already used its own self-built shell correctly — migrated for consistency). ── */
+    'booking-management-response.html': P({
+        preheaderText: 'Re: Booking Request #100045',
+        headline: 'Management Response',
+        bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Booking Request #100045</p>Hi Naledi, thanks for your patience — I've reviewed the updated guest count and the quote will be revised shortly.`
     })
 };
 
@@ -614,6 +622,27 @@ const system = {
         leadFact: 'A balance payment attempt by <strong style="color:#FAFAFA;">Priya Naidoo</strong> for Booking <strong style="color:#FAFAFA;">#100099</strong> has failed.',
         bodyHtml: `<p style="margin:0; color:#E6E6E6;">The booking still has a deposit on record. Payment status remains <strong style="color:#D4AF37;">DEPOSIT_PAID</strong>. Please follow up with the client.</p>`,
         cards: [{ rows: [{ label: 'PayFast Status', value: 'FAILED', highlight: true }] }]
+    }),
+
+    /* ── Batch 5: security / user-account (HIGH — token links verbatim) ── */
+    'dashboard-invite.html': S({
+        preheaderText: "You've been added as a Manager to the Thabiso Mhlongo dashboard.",
+        category: 'User Accounts & Security', severity: 'action',
+        leadFact: 'Hello <strong style="color:#FAFAFA;">Naledi</strong> — you\'ve been added as a <strong style="color:#FAFAFA;">Manager</strong> to the Thabiso Mhlongo management dashboard.',
+        bodyHtml:
+            `<p style="margin:0 0 18px; color:#E6E6E6;">To activate your account, set your password using the secure link below. This link will safely expire in 72 hours.</p>` +
+            C.ctaButton({ label: 'Set Your Password', url: '#' }) +
+            `<p style="margin:18px 0 0; color:#E6E6E6;">Your sign-in email is <strong style="color:#FAFAFA;">naledi@example.com</strong>.</p>` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">If you weren't expecting this invitation, you can safely ignore this automated message.</p>`
+    }),
+    'password-reset.html': S({
+        preheaderText: 'A password reset was requested for your dashboard account.',
+        category: 'User Accounts & Security', severity: 'action',
+        leadFact: 'Hello <strong style="color:#FAFAFA;">admin</strong> — we received a request to reset the administrative password associated with this email address.',
+        bodyHtml:
+            `<p style="margin:0 0 18px; color:#E6E6E6;">You can reset your password by clicking the secure link below. This link will safely expire in 1 hour.</p>` +
+            C.ctaButton({ label: 'Reset Password', url: '#' }) +
+            `<p style="margin:18px 0 0; color:#B0B0B0; font-size:12px;">If you did not request a password reset, you can safely ignore this automated message.</p>`
     })
 };
 
