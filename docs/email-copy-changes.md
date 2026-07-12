@@ -114,3 +114,24 @@ All six componentised; subjects/recipients/attachments/figures preserved. Notabl
 
 *(Not in this batch: `sendPaidReceiptEmail` merely re-sends the invoice via `sendInvoiceEmail`, which
 is payment-critical Batch 3.)*
+
+---
+
+# Batch 3 — payment-critical A
+
+**Figures, references, and links are byte-identical** (locked by `test/email.test.js`, which asserts
+the queued HTML contains the exact amount strings and exactly one shell). Changes are presentation
+and prose only:
+
+- **Invoice** (`sendInvoiceEmail`) — schedule table kept **verbatim**; PDF + `Invoice Reference: #{id}`
+  unchanged; gains the standard **View Your Booking** CTA. Also covers `sendPaidReceiptEmail` (which
+  re-sends the paid invoice through this function).
+- **Invoice Pre-Due** (`sendInvoicePreDueEmail`) — the old summary card used `display:flex`, which many
+  email clients (Outlook) ignore entirely; now a table-based `infoCard` (Invoice #, Due Date,
+  `R {amount}` highlighted). Same **Pay Now** URL and day-pluralised subject.
+- **Invoice Overdue** (`sendOverdueInvoiceEmail`) — same flex→infoCard fix, and the **red (#ef4444)
+  text/button is replaced with the design system's amber** (`alertStrip`, severity `alert`) per the
+  no-red-on-black HARD RULE. Amount/dates/URL identical.
+- **Payment Received** (`sendPaymentReceivedEmail`) — the three figure strings keep their exact
+  original format (`R{amount}` with **no space**, e.g. `R400.00`); conditional Partial/Full subject
+  unchanged; remaining balance amber when > 0; gains the tracker CTA.

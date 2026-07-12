@@ -226,6 +226,55 @@ const premium = {
         headline: 'Your Enquiry Has Expired', greeting: 'Hi Naledi,',
         bodyHtml: `Your booking enquiry for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> has expired due to inactivity.<br><br>If you're still interested, we'd love to help make your event special — just submit a new enquiry. <span style="color:#B0B0B0; font-size:13px;">(Original reference #100045)</span>`,
         cta: { label: 'Submit a New Enquiry', url: '#' }
+    }),
+
+    /* ── Batch 3: payment-critical A ── */
+    'invoice.html': P({
+        preheaderText: 'Your invoice for booking #100045 is attached.',
+        headline: 'Your Invoice', greeting: 'Hi Naledi,',
+        bodyHtml: `Your formal invoice is ready for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>. Please find the attached PDF for the full service breakdown.` +
+            `<p style="margin:12px 0 0;"><strong style="color:#D4AF37;">Terms &amp; Policies:</strong><br>Standard cancellation policy applies.</p>` +
+            `<p style="margin:10px 0 0; color:#E6E6E6;">Payment can be made via the secure link sent in our previous communications or via bank transfer using the details in the invoice.</p>` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">Invoice Reference: <strong style="color:#D4AF37;">#100045</strong></p>`,
+        cta: { label: 'View Your Booking', url: '#' }
+    }),
+    'invoice-pre-due.html': P({
+        preheaderText: 'Invoice INV-2026-100045 is due in 3 days.',
+        headline: 'Invoice Payment Reminder', greeting: 'Hi Naledi,',
+        bodyHtml: `This is a friendly reminder that your invoice for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> is due in <strong style="color:#D4AF37;">3 days</strong>.` +
+            `<p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">If you have already arranged payment, please disregard this message. (Booking reference #100045)</p>`,
+        cards: [{ title: 'Payment Due', rows: [
+            { label: 'Invoice #', value: 'INV-2026-100045' },
+            { label: 'Due Date', value: '2026-08-07' },
+            { label: 'Amount Due', value: 'R 9250.00', highlight: true }
+        ]}],
+        cta: { label: 'Pay Now', url: '#' }
+    }),
+    'invoice-overdue.html': P({
+        preheaderText: 'Invoice INV-2026-100045 is overdue — R 9250.00 outstanding.',
+        headline: 'Invoice Overdue', greeting: 'Hi Naledi,',
+        bodyHtml: `Your invoice for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> was due on <strong style="color:#E8A83E;">2026-08-07</strong> and is now <strong style="color:#E8A83E;">overdue</strong>.` +
+            C.spacer(14) +
+            C.alertStrip({ severity: 'alert', text: 'Please settle this payment at your earliest convenience to avoid any disruption to your booking.' }) +
+            `<p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">If you believe this is an error or have already made payment, please contact us immediately and we will update your records. (Booking reference #100045)</p>`,
+        cards: [{ title: 'Outstanding Invoice', rows: [
+            { label: 'Invoice #', value: 'INV-2026-100045' },
+            { label: 'Was Due', value: '2026-08-07' },
+            { label: 'Outstanding Amount', value: 'R 9250.00', highlight: true }
+        ]}],
+        cta: { label: 'Pay Now', url: '#' }
+    }),
+    'payment-received.html': P({
+        preheaderText: 'Partial Payment Received for booking #100045 — R9250.00.',
+        headline: 'Partial Payment Received', greeting: 'Hi Naledi,',
+        bodyHtml: `We've successfully processed a payment for the booking of <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>.` +
+            `<p style="margin:12px 0 0; color:#E6E6E6;">Your booking will be fully confirmed once the remaining balance is settled. <span style="color:#B0B0B0; font-size:13px;">(Booking reference #100045)</span></p>`,
+        cards: [{ title: 'Payment Summary', rows: [
+            { label: 'Total Quote', value: 'R18500.00' },
+            { label: 'Amount Paid', value: 'R9250.00', highlight: true },
+            { label: 'Remaining Balance', rawValue: '<span style="color:#E8A83E;">R9250.00</span>' }
+        ]}],
+        cta: { label: 'View Your Booking', url: '#' }
     })
 };
 

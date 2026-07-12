@@ -2840,21 +2840,27 @@ async function sendInvoiceEmail(booking, invoicePdfPath) {
             </table>
         </div>`;
 
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>Your formal invoice is ready for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong>.</p>
-        <p>Please find the attached PDF for the full service breakdown.</p>
-        ${paymentScheduleHtml}
-        <p><strong>Terms & Policies:</strong><br/>
-        ${booking.terms || 'Standard cancellation policy applies.'}</p>
-        <p>Payment can be made via the secure link sent in our previous communications or via bank transfer using the details in the invoice.</p>
-        <p class="text-gold">Invoice Reference: <strong>#${id}</strong></p>
-    `;
+    // PAYMENT-CRITICAL: paymentScheduleHtml (amounts/due dates) kept verbatim; PDF + reference unchanged.
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Your invoice for booking #${id} is attached.`,
+        headline: 'Your Invoice',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `Your formal invoice is ready for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>. Please find the attached PDF for the full service breakdown.` +
+            paymentScheduleHtml +
+            `<p style="margin:12px 0 0;"><strong style="color:#D4AF37;">Terms &amp; Policies:</strong><br>${booking.terms || 'Standard cancellation policy applies.'}</p>` +
+            `<p style="margin:10px 0 0; color:#E6E6E6;">Payment can be made via the secure link sent in our previous communications or via bank transfer using the details in the invoice.</p>` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">Invoice Reference: <strong style="color:#D4AF37;">#${id}</strong></p>`,
+        cta: { label: 'View Your Booking', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
+        socialLinks
+    });
 
     const result = await sendEmail({
         to: email,
         subject: `Invoice for Booking #${id}`,
-        htmlContent: emailBody,
+        htmlContent: html,
+        preWrapped: true,
         attachments: attachments,
         titleOverride: 'Your Invoice',
         trigger_event: 'Booking: Invoice Generated'
@@ -2871,34 +2877,33 @@ async function sendInvoicePreDueEmail(booking, invoice, daysUntilDue) {
     const amount  = parseFloat(invoice.total_amount || 0).toFixed(2);
     const dueDate = invoice.due_date || '';
 
-    const htmlContent = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>This is a friendly reminder that your invoice for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong> is due in <strong style="color:#D4AF37;">${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}</strong>.</p>
-        <div style="background:#111;border:1px solid #333;border-radius:4px;padding:14px;margin:16px 0;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                <span style="color:#888;font-size:13px;">Invoice #</span>
-                <span style="color:#fff;font-size:13px;font-weight:600;">${invoice.invoice_number || id}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                <span style="color:#888;font-size:13px;">Due Date</span>
-                <span style="color:#fff;font-size:13px;font-weight:600;">${dueDate}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;">
-                <span style="color:#888;font-size:13px;">Amount Due</span>
-                <span style="color:#D4AF37;font-size:15px;font-weight:700;">R ${amount}</span>
-            </div>
-        </div>
-        <p style="margin:20px 0;text-align:center;">
-            <a href="${payUrl}" style="display:inline-block;padding:12px 28px;background:#D4AF37;color:#000;text-decoration:none;font-weight:bold;border-radius:4px;font-size:14px;">Pay Now</a>
-        </p>
-        <p style="font-size:12px;color:#888;">If you have already arranged payment, please disregard this message.</p>
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-    `;
+    // PAYMENT-CRITICAL: invoice number, due date, `R ${amount}` and payUrl kept verbatim.
+    // (The old card used display:flex, which many email clients ignore — infoCard is table-based.)
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Invoice ${invoice.invoice_number || id} is due in ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}.`,
+        headline: 'Invoice Payment Reminder',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `This is a friendly reminder that your invoice for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> is due in <strong style="color:#D4AF37;">${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}</strong>.` +
+            `<p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">If you have already arranged payment, please disregard this message. <span style="font-size:12px;">(Booking reference #${id})</span></p>`,
+        cards: [{
+            title: 'Payment Due',
+            rows: [
+                { label: 'Invoice #', value: `${invoice.invoice_number || id}` },
+                { label: 'Due Date', value: dueDate },
+                { label: 'Amount Due', value: `R ${amount}`, highlight: true }
+            ]
+        }],
+        cta: { label: 'Pay Now', url: payUrl },
+        socialLinks
+    });
 
     const result = await sendEmail({
         to: email,
         subject: `Invoice Due in ${daysUntilDue} Day${daysUntilDue !== 1 ? 's' : ''} — Booking #${id}`,
-        htmlContent,
+        htmlContent: html,
+        preWrapped: true,
         titleOverride: 'Invoice Payment Reminder',
         trigger_event: 'Booking: Invoice Pre-Due Reminder'
     });
@@ -2947,35 +2952,35 @@ async function sendOverdueInvoiceEmail(booking, invoice) {
     const amount  = parseFloat(invoice.total_amount || 0).toFixed(2);
     const dueDate = invoice.due_date || '';
 
-    const htmlContent = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>Your invoice for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong> was due on <strong style="color:#ef4444;">${dueDate}</strong> and is now <strong style="color:#ef4444;">overdue</strong>.</p>
-        <div style="background:#111;border:1px solid #3b1a1a;border-radius:4px;padding:14px;margin:16px 0;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                <span style="color:#888;font-size:13px;">Invoice #</span>
-                <span style="color:#fff;font-size:13px;font-weight:600;">${invoice.invoice_number || id}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-                <span style="color:#888;font-size:13px;">Was Due</span>
-                <span style="color:#ef4444;font-size:13px;font-weight:600;">${dueDate}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;">
-                <span style="color:#888;font-size:13px;">Outstanding Amount</span>
-                <span style="color:#ef4444;font-size:15px;font-weight:700;">R ${amount}</span>
-            </div>
-        </div>
-        <p>Please settle this payment at your earliest convenience to avoid any disruption to your booking.</p>
-        <p style="margin:20px 0;text-align:center;">
-            <a href="${payUrl}" style="display:inline-block;padding:12px 28px;background:#ef4444;color:#fff;text-decoration:none;font-weight:bold;border-radius:4px;font-size:14px;">Pay Now</a>
-        </p>
-        <p style="font-size:12px;color:#888;">If you believe this is an error or have already made payment, please contact us immediately and we will update your records.</p>
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-    `;
+    // PAYMENT-CRITICAL: invoice number, due date, `R ${amount}` and payUrl kept verbatim.
+    // Red (#ef4444) replaced with the design system's amber alert (no red-on-black per HARD RULES).
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Invoice ${invoice.invoice_number || id} is overdue — R ${amount} outstanding.`,
+        headline: 'Invoice Overdue',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `Your invoice for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> was due on <strong style="color:#E8A83E;">${dueDate}</strong> and is now <strong style="color:#E8A83E;">overdue</strong>.` +
+            emailComponents.spacer(14) +
+            emailComponents.alertStrip({ severity: 'alert', text: 'Please settle this payment at your earliest convenience to avoid any disruption to your booking.' }) +
+            `<p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">If you believe this is an error or have already made payment, please contact us immediately and we will update your records. <span style="font-size:12px;">(Booking reference #${id})</span></p>`,
+        cards: [{
+            title: 'Outstanding Invoice',
+            rows: [
+                { label: 'Invoice #', value: `${invoice.invoice_number || id}` },
+                { label: 'Was Due', value: dueDate },
+                { label: 'Outstanding Amount', value: `R ${amount}`, highlight: true }
+            ]
+        }],
+        cta: { label: 'Pay Now', url: payUrl },
+        socialLinks
+    });
 
     const result = await sendEmail({
         to: email,
         subject: `Invoice Overdue — Booking #${id}`,
-        htmlContent,
+        htmlContent: html,
+        preWrapped: true,
         titleOverride: 'Invoice Overdue',
         trigger_event: 'Booking: Invoice Overdue Reminder'
     });
@@ -3107,27 +3112,32 @@ async function sendPaymentReceivedEmail(booking, newAmountPaid, newOutstanding, 
     const titleStatus = isPartial ? 'Partial Payment Received' : 'Full Payment Received';
     const displayTotal = total_amount || (quote_amount ? parseFloat(quote_amount.replace(/[^0-9.]/g, '')) : 0);
 
-    const paymentRows = [
-        { label: 'Total Quote', value: `R${displayTotal.toFixed(2)}` },
-        { label: 'Amount Paid', value: `R${newAmountPaid.toFixed(2)}`, highlight: true },
-        { label: 'Remaining Balance', value: `<span style="color:${newOutstanding > 0 ? '#f59e0b' : '#10b981'};">R${newOutstanding.toFixed(2)}</span>` }
-    ];
-
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>We've successfully processed a payment for the booking of <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong>.</p>
-        
-        ${emailTemplates.createQuoteTable(paymentRows)}
-        
-        ${isPartial ? `<p>Your booking will be fully confirmed once the remaining balance is settled.</p>` : `<p>Your booking is now <strong style="color:#10b981;">CONFIRMED</strong>. We look forward to performing at your event!</p>`}
-        
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-    `;
+    // PAYMENT-CRITICAL: the exact figure strings (R${...} — no space, as before) are unchanged.
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `${titleStatus} for booking #${id} — R${newAmountPaid.toFixed(2)}.`,
+        headline: titleStatus,
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `We've successfully processed a payment for the booking of <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>.` +
+            `<p style="margin:12px 0 0; color:#E6E6E6;">${isPartial ? 'Your booking will be fully confirmed once the remaining balance is settled.' : `Your booking is now <strong style="color:#D4AF37;">CONFIRMED</strong>. We look forward to performing at your event!`} <span style="color:#B0B0B0; font-size:13px;">(Booking reference #${id})</span></p>`,
+        cards: [{
+            title: 'Payment Summary',
+            rows: [
+                { label: 'Total Quote', value: `R${displayTotal.toFixed(2)}` },
+                { label: 'Amount Paid', value: `R${newAmountPaid.toFixed(2)}`, highlight: true },
+                { label: 'Remaining Balance', rawValue: `<span style="color:${newOutstanding > 0 ? '#E8A83E' : '#D4AF37'};">R${newOutstanding.toFixed(2)}</span>` }
+            ]
+        }],
+        cta: { label: 'View Your Booking', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
+        socialLinks
+    });
 
     const result = await sendEmail({
         to: email,
         subject: `${titleStatus} – Booking #${id}`,
-        htmlContent: emailBody,
+        htmlContent: html,
+        preWrapped: true,
         titleOverride: titleStatus,
         trigger_event: 'Booking: Payment Received'
     });
