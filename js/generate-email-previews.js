@@ -379,6 +379,29 @@ const premium = {
         ]}],
         cta: { label: 'Resume My Booking', url: '#' },
         unsubscribeUrl: '#'
+    }),
+
+    /* ── Batch 6: visitor & subscriber ── */
+    'contact-auto-reply.html': P({
+        preheaderText: "We've received your message — thanks for reaching out, Naledi!",
+        headline: "We've Received Your Message", greeting: 'Hi Naledi,',
+        bodyHtml: `Thank you for reaching out to Thabiso Mhlongo Management. We have successfully received your inquiry regarding <strong style="color:#D4AF37;">"Availability for a private event"</strong> and our team will review it shortly.` +
+            `<p style="margin:10px 0 0; color:#E6E6E6;">In the meantime, feel free to follow Thabiso on social media for the latest updates and tour dates.</p>` +
+            `<p style="margin:18px 0 0; color:#B0B0B0;">Stay funny,<br><span style="font-family:'Cormorant Garamond',Georgia,serif; font-size:18px; color:#D4AF37;">Thabiso Mhlongo Management</span></p>`
+    }),
+    'newsletter-welcome.html': P({
+        preheaderText: "You're on the list — welcome to the newsletter!",
+        headline: "You're On The List!",
+        bodyHtml: `<p style="text-align:center;">Thank you for subscribing to my official newsletter. I truly appreciate your support. You will now be the first to know about my upcoming stand-up tour dates, new video releases, and exclusive content.</p>` +
+            `<p style="text-align:center; color:#B0B0B0;">Rest assured, your email address will be used responsibly and will never be shared with third parties.</p>` +
+            `<p style="text-align:center; margin-top:18px; color:#B0B0B0;">Stay funny,<br><span style="font-family:'Cormorant Garamond',Georgia,serif; font-size:18px; color:#D4AF37;">Thabiso Mhlongo</span></p>`,
+        unsubscribeUrl: '#'
+    }),
+    'newsletter-campaign.html': P({
+        preheaderText: 'New Tour Dates Just Announced!',
+        headline: 'New Tour Dates Just Announced!',
+        bodyHtml: `<p>Hey there!</p><p>I'm thrilled to announce four new stand-up dates across Gauteng this September. Tickets go live Friday at 9am — subscribers get first access.</p><p>See you in the front row,<br>Thabiso</p>`,
+        unsubscribeUrl: '#'
     })
 };
 

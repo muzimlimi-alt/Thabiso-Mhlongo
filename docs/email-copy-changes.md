@@ -181,3 +181,26 @@ Same rule as Batch 3: figures/references/links byte-identical, locked by the ext
 - **Booking Recovery Reminder** (abandoned draft) — booking-so-far becomes an `infoCard`; its bespoke
   opt-out link is now wired into the standard footer's unsubscribe slot (same purpose, existing
   component) instead of a separate inline sentence. Resume URL unchanged.
+
+---
+
+# Batch 6 — visitor & subscriber (closes out Prompt 3 — all 33 PREMIUM emails rebuilt)
+
+- **Contact Auto-Reply** (visitor receipt) — same message, componentised. (The paired admin
+  notification stays SYSTEM-track, untouched — Prompt 4.)
+- **Newsletter Welcome** — ***bug fixed, not just restyled.*** Like the inquiry-reply/compose fix in
+  Batch 5, this email's unsubscribe link **only ever worked when `EMAIL_OVERHAUL_ENABLED=true`** (the
+  legacy wrapper looks up the subscriber's token; the raw fallback path — what's actually live — sends
+  no link at all, and no wrapper). It now builds the unsubscribe URL directly from the token the
+  subscribe request just created and always includes it, regardless of the flag.
+- **Scheduled Newsletter** and **Newsletter Broadcast ("Send Now")** — ***same defect, same fix,
+  affecting every campaign ever sent to every subscriber.*** Both dispatch loops passed the admin's
+  authored HTML straight to `sendEmail()` raw — no wrapper, no per-recipient unsubscribe link, unless
+  the flag was on. **The admin's campaign content itself is rendered completely unchanged** — it is
+  the message body verbatim, not rewritten copy — but it now always gets the brand shell and a
+  genuine per-recipient unsubscribe link (looked up alongside each subscriber's email, one query,
+  no extra DB round-trips). Subject, attachments, and the 200ms anti-spam pacing are unchanged.
+
+New guard in `test/email.test.js` (Guard 7): subscribes a fresh test address, confirms the welcome
+email is queued pre-wrapped and its unsubscribe link contains **that exact subscriber's token** — not
+a shared or missing one. Suite: 68/68.

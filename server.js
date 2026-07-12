@@ -7017,19 +7017,23 @@ app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
         });
 
         // 2. Receipt to Visitor
-        const visitorBody = `
-            <p>Hi <strong>${name}</strong>,</p>
-            <p>Thank you for reaching out to Thabiso Mhlongo Management.</p>
-            <p>We have successfully received your inquiry regarding <span class="text-gold">"${subject || 'General Inquiry'}"</span> and our team will review it shortly.</p>
-            <p>In the meantime, feel free to follow Thabiso on social media for the latest updates and tour dates.</p>
-            <p style="margin-top: 30px;">Stay funny,</p>
-            <p class="text-gold" style="font-family: Georgia, serif; font-size: 20px;">Thabiso Mhlongo Management</p>
-        `;
+        const { socialLinks: contactSocialLinks } = await getEmailFooterContext();
+        const visitorBody = emailComponents.renderPremiumEmail({
+            preheaderText: `We've received your message — thanks for reaching out, ${name}!`,
+            headline: "We've Received Your Message",
+            greeting: `Hi ${name},`,
+            bodyHtml:
+                `Thank you for reaching out to Thabiso Mhlongo Management. We have successfully received your inquiry regarding <strong style="color:#D4AF37;">"${subject || 'General Inquiry'}"</strong> and our team will review it shortly.` +
+                `<p style="margin:10px 0 0; color:#E6E6E6;">In the meantime, feel free to follow Thabiso on social media for the latest updates and tour dates.</p>` +
+                `<p style="margin:18px 0 0; color:#B0B0B0;">Stay funny,<br><span style="font-family:'Cormorant Garamond',Georgia,serif; font-size:18px; color:#D4AF37;">Thabiso Mhlongo Management</span></p>`,
+            socialLinks: contactSocialLinks
+        });
 
         await sendEmail({
             to: email,
             subject: `Thank you for your message, ${name}!`,
             htmlContent: visitorBody,
+            preWrapped: true,
             titleOverride: "We've Received Your Message!",
             trigger_event: 'Contact Form: Visitor Receipt'
         });
@@ -7079,24 +7083,30 @@ app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
         console.log(`[Newsletter] DB Insert SUCCESS for: ${email}`);
         
         // --- Send Introductory Welcome Email ---
-        const emailBody = `
-            <div style="text-align: center;">
-                <p>Thank you for subscribing to my official newsletter.</p>
-                <p>I truly appreciate your support. You will now be the first to know about my upcoming stand-up tour dates, new video releases, and exclusive content.</p>
-                <p>Rest assured, your email address will be used responsibly and will never be shared with third parties.</p>
-                
-                <p style="margin-top: 30px;">Stay funny,</p>
-                <p class="text-gold" style="font-family: Georgia, serif; font-size: 20px;">Thabiso Mhlongo</p>
-            </div>
-        `;
-
-        sendEmail({
-            to: email,
-            subject: "Welcome to Thabiso Mhlongo's Newsletter!",
-            htmlContent: emailBody,
-            titleOverride: "You're on the list!",
-            trigger_event: 'Newsletter: Welcome Receipt'
-        }).catch(e => console.error("Error sending welcome email to " + email + ":", e));
+        // preWrapped bypasses sendEmailDirectly's own subscriber lookup, so build the unsubscribe
+        // URL here from the token this insert just created (same host/format as the legacy path).
+        (async () => {
+            const { socialLinks } = await getEmailFooterContext();
+            const unsubscribeUrl = `${emailBaseUrl()}/unsubscribe.html?token=${unsubscribe_token}&email=${encodeURIComponent(email)}`;
+            const emailBody = emailComponents.renderPremiumEmail({
+                preheaderText: "You're on the list — welcome to the newsletter!",
+                headline: "You're On The List!",
+                bodyHtml:
+                    `<p style="text-align:center;">Thank you for subscribing to my official newsletter. I truly appreciate your support. You will now be the first to know about my upcoming stand-up tour dates, new video releases, and exclusive content.</p>` +
+                    `<p style="text-align:center; color:#B0B0B0;">Rest assured, your email address will be used responsibly and will never be shared with third parties.</p>` +
+                    `<p style="text-align:center; margin-top:18px; color:#B0B0B0;">Stay funny,<br><span style="font-family:'Cormorant Garamond',Georgia,serif; font-size:18px; color:#D4AF37;">Thabiso Mhlongo</span></p>`,
+                unsubscribeUrl,
+                socialLinks
+            });
+            return sendEmail({
+                to: email,
+                subject: "Welcome to Thabiso Mhlongo's Newsletter!",
+                htmlContent: emailBody,
+                preWrapped: true,
+                titleOverride: "You're on the list!",
+                trigger_event: 'Newsletter: Welcome Receipt'
+            });
+        })().catch(e => console.error("Error sending welcome email to " + email + ":", e));
 
         res.json({ success: true, message: 'Subscribed successfully!' });
     });
@@ -7502,7 +7512,7 @@ function scheduleNewsletterSend(schedItem) {
                 return;
             }
 
-            db.all("SELECT email FROM newsletter_subscribers WHERE status = 'active'", async (err2, subscribers) => {
+            db.all("SELECT email, unsubscribe_token FROM newsletter_subscribers WHERE status = 'active'", async (err2, subscribers) => {
                 if (err2) {
                     db.run("UPDATE scheduled_newsletters SET status = 'failed' WHERE id = ?", [schedItem.id]);
                     delete scheduledJobs[schedItem.id];
@@ -7523,14 +7533,29 @@ function scheduleNewsletterSend(schedItem) {
                     } catch(e) {}
                 }
 
+                // Campaign content is the admin's own authored HTML — rendered verbatim as bodyHtml,
+                // just wrapped with the brand shell + a per-recipient unsubscribe link (preWrapped
+                // bypasses sendEmailDirectly's own subscriber lookup, so it's built here instead).
+                const { socialLinks: schedSocialLinks } = await getEmailFooterContext();
                 let successCount = 0;
                 let failCount = 0;
                 for (const sub of subscribers) {
                     try {
+                        const unsubscribeUrl = sub.unsubscribe_token
+                            ? `${emailBaseUrl()}/unsubscribe.html?token=${sub.unsubscribe_token}&email=${encodeURIComponent(sub.email)}`
+                            : null;
+                        const html = emailComponents.renderPremiumEmail({
+                            preheaderText: schedItem.subject,
+                            headline: schedItem.subject,
+                            bodyHtml: schedItem.content,
+                            unsubscribeUrl,
+                            socialLinks: schedSocialLinks
+                        });
                         const result = await sendEmail({
                             to: sub.email,
                             subject: schedItem.subject,
-                            htmlContent: schedItem.content,
+                            htmlContent: html,
+                            preWrapped: true,
                             titleOverride: schedItem.subject,
                             attachments: jobAttachments,
                             trigger_event: 'Newsletter: Scheduled Campaign'
@@ -7684,7 +7709,7 @@ app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachmen
     const attachments = uploadedFiles.map(f => ({ filename: f.originalname, path: f.path }));
 
     // First fetch all active subscribers
-    db.all("SELECT email FROM newsletter_subscribers WHERE status = 'active'", [], async (err, rows) => {
+    db.all("SELECT email, unsubscribe_token FROM newsletter_subscribers WHERE status = 'active'", [], async (err, rows) => {
         if (err) {
             uploadedFiles.forEach(f => fs.unlink(f.path, () => {}));
             return res.status(500).json({ success: false, message: 'Database error fetching subscribers' });
@@ -7695,18 +7720,32 @@ app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachmen
             return res.status(400).json({ success: false, message: 'No active subscribers found.' });
         }
 
-        const recipients = rows.map(r => r.email);
         let successCount = 0;
         let errors = [];
 
-        console.log(`Starting premium newsletter dispatch to ${recipients.length} recipients...`);
+        console.log(`Starting premium newsletter dispatch to ${rows.length} recipients...`);
 
-        for (const recipientEmail of recipients) {
+        // Campaign content is the admin's own authored HTML — rendered verbatim as bodyHtml, just
+        // wrapped with the brand shell + a per-recipient unsubscribe link.
+        const { socialLinks: campaignSocialLinks } = await getEmailFooterContext();
+        for (const sub of rows) {
+            const recipientEmail = sub.email;
             try {
+                const unsubscribeUrl = sub.unsubscribe_token
+                    ? `${emailBaseUrl()}/unsubscribe.html?token=${sub.unsubscribe_token}&email=${encodeURIComponent(recipientEmail)}`
+                    : null;
+                const html = emailComponents.renderPremiumEmail({
+                    preheaderText: subject,
+                    headline: subject,
+                    bodyHtml: message,
+                    unsubscribeUrl,
+                    socialLinks: campaignSocialLinks
+                });
                 const result = await sendEmail({
                     to: recipientEmail,
                     subject: subject,
-                    htmlContent: message,
+                    htmlContent: html,
+                    preWrapped: true,
                     titleOverride: subject,
                     attachments,
                     trigger_event: 'Newsletter: Campaign Dispatch'
@@ -7714,7 +7753,7 @@ app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachmen
 
                 if (result.success) {
                     successCount++;
-                    if (successCount % 10 === 0) console.log(`Newsletter progress: ${successCount}/${recipients.length} sent...`);
+                    if (successCount % 10 === 0) console.log(`Newsletter progress: ${successCount}/${rows.length} sent...`);
                 } else {
                     throw result.error || new Error('Dispatch failed');
                 }
@@ -7731,13 +7770,13 @@ app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachmen
             if (err) console.error("CRITICAL: Error logging campaign to DB:", err);
             uploadedFiles.forEach(f => fs.unlink(f.path, () => {}));
 
-            const finalMessage = `Newsletter dispatch complete. Successfully sent: ${successCount}/${recipients.length}. Failures: ${errors.length}.`;
+            const finalMessage = `Newsletter dispatch complete. Successfully sent: ${successCount}/${rows.length}. Failures: ${errors.length}.`;
             console.log(`✅ ${finalMessage}`);
 
             res.json({
                 success: true,
                 message: finalMessage,
-                stats: { total: recipients.length, sent: successCount, failed: errors.length },
+                stats: { total: rows.length, sent: successCount, failed: errors.length },
                 failures: errors.slice(0, 50)
             });
         });

@@ -134,4 +134,19 @@ module.exports = async function ({ check }) {
             `amt=${refundMail.html.includes('R 500.00')} ref=${refundMail.html.includes('TESTREF-9001')}`);
         check('refund email: single shell (no double-wrap)', count(refundMail.html, '<!DOCTYPE') === 1, `doctypes=${count(refundMail.html, '<!DOCTYPE')}`);
     }
+
+    // ── Guard 7 (Batch 6): newsletter welcome — real unsubscribe link, per-recipient token ──
+    const subEmail = email();
+    const subRes = await pub('POST', '/api/public/subscribe', { email: subEmail, popia_consent: true });
+    check('newsletter subscribe endpoint 200', subRes.status === 200 && subRes.body.success, `${subRes.status}`);
+    await sleep(150);
+    const sub = await one('SELECT unsubscribe_token FROM newsletter_subscribers WHERE LOWER(email)=LOWER(?)', [subEmail]);
+    check('subscriber row has an unsubscribe_token', !!(sub && sub.unsubscribe_token), JSON.stringify(sub));
+    const welcomeMail = await queued("Welcome to Thabiso Mhlongo's Newsletter!");
+    check('welcome email queued pre-wrapped to the new subscriber', !!welcomeMail && welcomeMail.preWrapped === true && welcomeMail.to === subEmail,
+        welcomeMail && `${welcomeMail.preWrapped} ${welcomeMail.to}`);
+    if (welcomeMail && sub) {
+        check('welcome email: real unsubscribe link with this subscriber\'s token', welcomeMail.html.includes(sub.unsubscribe_token) && welcomeMail.html.includes('unsubscribe.html'),
+            `hasToken=${welcomeMail.html.includes(sub.unsubscribe_token)} hasPath=${welcomeMail.html.includes('unsubscribe.html')}`);
+    }
 };
