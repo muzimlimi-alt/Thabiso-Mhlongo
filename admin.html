@@ -15008,6 +15008,7 @@
                           '</div>' +
                           '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">' +
                             '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="openBnrEditDrawer(' + b.id + ')" title="Edit banner"><i class="fa-solid fa-pen"></i></button>' +
+                            '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="openBnrAssignDrawer(' + b.id + ')" title="Assign to templates"><i class="fa-solid fa-link"></i></button>' +
                             archiveBtn +
                           '</div>' +
                         '</div>' +
@@ -15187,6 +15188,85 @@
             } catch (err) {
                 console.error('Restore banner failed:', err);
                 window.notificationService.showError('Could not restore the banner.');
+            }
+        };
+
+        // ── Assign drawer: checklist of every email template, grouped by category, checked where
+        // banner_id already matches this banner. Also the "used by" lookup — every checked box IS
+        // the used-by list. ──
+        var bnrAssignBannerId = null;
+        var bnrAssignOriginallyChecked = null; // Set of template_key, snapshot at open time (for diffing)
+
+        window.openBnrAssignDrawer = async function (id) {
+            var b = bnrCardsCache.find(function (x) { return x.id === id; });
+            if (!b) return;
+            bnrAssignBannerId = id;
+            $('#bnrAssignThumb').attr('src', b.image_url).attr('alt', b.alt_text || '');
+            $('#bnrAssignName').text(b.name);
+            $('#bnrAssignCategory').text(b.category);
+            $('#bnrAssignList').html('<p style="color:var(--atl-muted); font-size:13px; text-align:center; padding:20px 0;"><i class="fa-solid fa-spinner fa-spin"></i> Loading templates…</p>');
+            openAtlDrawer('bnrAssignDrawer');
+
+            try {
+                var data = await apiCall('/api/admin/email-templates');
+                if (!data || !data.success) throw new Error('Invalid response');
+                var byCategory = {};
+                data.templates.forEach(function (t) {
+                    (byCategory[t.category] = byCategory[t.category] || []).push(t);
+                });
+                bnrAssignOriginallyChecked = {};
+                var html = '';
+                BNR_CATEGORIES.forEach(function (cat) {
+                    var rows = byCategory[cat];
+                    if (!rows || !rows.length) return;
+                    html += '<div style="margin-bottom:16px;">' +
+                        '<p style="font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color:var(--atl-amber); margin:0 0 8px;">' + escHtml(cat) + '</p>';
+                    rows.forEach(function (t) {
+                        var checked = (t.banner_id === id);
+                        if (checked) bnrAssignOriginallyChecked[t.template_key] = true;
+                        html += '<label style="display:flex; align-items:center; gap:10px; padding:8px 4px; cursor:pointer; border-bottom:1px solid var(--atl-line);">' +
+                            '<input type="checkbox" class="bnr-assign-checkbox" data-key="' + escHtml(t.template_key) + '"' + (checked ? ' checked' : '') + '>' +
+                            '<span style="flex:1; font-family:var(--atl-mono, monospace); font-size:12.5px; color:var(--atl-ink-dim);">' + escHtml(t.template_key) + '</span>' +
+                            (t.banner_id && !checked ? '<span style="font-size:11px; color:var(--atl-muted);">uses &ldquo;' + escHtml(t.banner_name || 'another banner') + '&rdquo;</span>' : '') +
+                            '</label>';
+                    });
+                    html += '</div>';
+                });
+                $('#bnrAssignList').html(html || '<p style="color:var(--atl-muted); font-size:13px; text-align:center; padding:20px 0;">No email templates found.</p>');
+            } catch (err) {
+                console.error('Failed to load email templates:', err);
+                $('#bnrAssignList').html('<p style="color:var(--atl-clay); font-size:13px; text-align:center; padding:20px 0;">Could not load templates. Please close and try again.</p>');
+            }
+        };
+
+        window.applyBnrAssignments = async function () {
+            if (!bnrAssignBannerId) return;
+            var nowChecked = {};
+            $('.bnr-assign-checkbox:checked').each(function () { nowChecked[$(this).data('key')] = true; });
+
+            var toAssign = Object.keys(nowChecked).filter(function (k) { return !bnrAssignOriginallyChecked[k]; });
+            var toUnassign = Object.keys(bnrAssignOriginallyChecked).filter(function (k) { return !nowChecked[k]; });
+
+            if (!toAssign.length && !toUnassign.length) { closeAtlDrawer('bnrAssignDrawer'); return; }
+
+            var $btn = $('#bnrAssignApplyBtn');
+            var origHtml = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Applying...');
+            try {
+                if (toAssign.length) {
+                    await apiCall('/api/admin/email-templates/assign', 'PUT', { template_keys: toAssign, banner_id: bnrAssignBannerId });
+                }
+                if (toUnassign.length) {
+                    await apiCall('/api/admin/email-templates/assign', 'PUT', { template_keys: toUnassign, banner_id: null });
+                }
+                closeAtlDrawer('bnrAssignDrawer');
+                window.reloadBnrBanners();
+                window.notificationService.showSuccess('Assignments updated.');
+            } catch (err) {
+                console.error('Assign failed:', err);
+                window.notificationService.showError('Could not update assignments.');
+            } finally {
+                $btn.prop('disabled', false).html(origHtml);
             }
         };
 
@@ -23421,6 +23501,36 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Banner Management Centre — assign-to-templates drawer (Prompt 6, Batch 2). Also doubles as the
+         "used by" lookup: every checked box here is a template currently using this banner. -->
+    <div id="bnrAssignDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="bnrAssignDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="bnrAssignDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="bnrAssignDrawerTitle"><i class="fa-solid fa-link"></i> Assign Banner</h5>
+            <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('bnrAssignDrawer')" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <div id="bnrAssignHeader" style="display:flex; align-items:center; gap:12px; margin-bottom:18px; padding-bottom:16px; border-bottom:1px solid var(--atl-line);">
+                <img id="bnrAssignThumb" src="" alt="" style="width:56px; height:56px; object-fit:cover; border-radius:8px; border:1px solid var(--atl-line);">
+                <div>
+                    <div id="bnrAssignName" style="font-weight:600; color:var(--atl-ink);"></div>
+                    <div id="bnrAssignCategory" style="font-size:12px; color:var(--atl-muted);"></div>
+                </div>
+            </div>
+            <p class="um-section-desc" style="width:100%; margin-bottom:14px;">
+                Check the email templates that should use this banner. Assigning replaces any banner
+                a template already uses; unchecking falls back to that template's text headline.
+            </p>
+            <div id="bnrAssignList" style="max-height:50vh; overflow-y:auto;"></div>
+            <div class="um-form-actions" style="justify-content:flex-end; gap:10px; margin-top:18px;">
+                <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('bnrAssignDrawer')">Cancel</button>
+                <button type="button" class="atl-btn atl-btn--primary" id="bnrAssignApplyBtn" onclick="applyBnrAssignments()">
+                    <i class="fa-solid fa-check"></i> Apply
+                </button>
+            </div>
         </div>
     </div>
 
