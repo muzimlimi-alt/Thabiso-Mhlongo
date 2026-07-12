@@ -165,6 +165,67 @@ const premium = {
         headline: 'Your Quote Expires Tomorrow', greeting: 'Hi Naledi,',
         bodyHtml: `Your quote for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> expires <strong style="color:#D4AF37;">tomorrow (13 Jul 2026)</strong>. Accept it now via your booking tracker before it lapses.`,
         cta: { label: 'Accept Your Quote', url: '#' }
+    }),
+
+    /* ── Batch 2: confirm & lifecycle ── */
+    'booking-confirmed.html': P({
+        preheaderText: 'Booking #100045 is confirmed — see you on Sat, 14 Aug 2026!',
+        headline: 'Your Booking Is Confirmed', greeting: 'Hi Naledi,',
+        bodyHtml: `Wonderful news — your booking for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> at <strong style="color:#FAFAFA;">The Venue, Sandton</strong> is now fully <strong style="color:#D4AF37;">CONFIRMED</strong>.<br><br>Thabiso Mhlongo is excited to be part of your event, and our team will be in touch with any final logistics closer to the date.<br><br><span style="color:#B0B0B0; font-size:13px;">We've attached a calendar invite (.ics) so you can save the event to your calendar.</span>`,
+        cards: [{ title: 'Confirmed Booking', rows: [
+            { label: 'Event', value: 'Corporate Year-End', mono: false },
+            { label: 'Date', value: 'Sat, 14 Aug 2026' },
+            { label: 'Venue', value: 'The Venue, Sandton', mono: false },
+            { label: 'Performance Slot', value: '20:00 – 21:00', mono: false },
+            { label: 'Reference', value: '#100045' }
+        ]}],
+        cta: { label: 'View Your Booking', url: '#' }
+    }),
+    'booking-completed.html': P({
+        preheaderText: 'Thank you — booking #100045 is complete. We hope it was a blast!',
+        headline: 'Event Completed — Thank You!', greeting: 'Hi Naledi,',
+        bodyHtml: `We hope you had an absolutely wonderful time! Your event — <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> at <strong style="color:#FAFAFA;">The Venue, Sandton</strong> — has been marked as completed.<br><br>It was a pleasure working with you. Here's a summary of your booking <span style="color:#B0B0B0; font-size:13px;">(reference #100045)</span>:`,
+        cards: [
+            { title: 'Services Delivered', rows: [
+                { label: 'Stand-up Set (60 min)', value: 'R 15,000.00' },
+                { label: 'Travel Buyout – Gauteng', value: 'R 3,500.00' }
+            ]},
+            { title: 'Financial Summary', rows: [
+                { label: 'Total', value: 'R 18,500.00' },
+                { label: 'Amount Paid', value: 'R 18,500.00', highlight: true }
+            ]}
+        ]
+    }),
+    'review-request.html': P({
+        preheaderText: "How was your event? We'd love your feedback on booking #100045.",
+        headline: "We'd Love Your Feedback", greeting: 'Hi Naledi,',
+        bodyHtml: `We hope your event — <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> — was everything you imagined!<br><br>If you enjoyed working with Thabiso, a short review or testimonial would mean the world to us.`,
+        cta: { label: 'Send Your Review', url: '#' }
+    }),
+    'date-changed.html': P({
+        preheaderText: 'Booking #100045: the event date changed to Sat, 21 Aug 2026.',
+        headline: 'Event Date Updated', greeting: 'Hi Naledi,',
+        bodyHtml: `Please note that the date for your booking <strong style="color:#FAFAFA;">#100045</strong> — <strong style="color:#FAFAFA;">Corporate Year-End</strong> — has been updated. Please update your calendar accordingly.<br><br><span style="color:#B0B0B0; font-size:13px;">If this change was made in error or you have any concerns, please contact us immediately at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</span>`,
+        cards: [{ title: 'Date Change', rows: [
+            { label: 'Previous Date', rawValue: '<span style="text-decoration:line-through; color:#707070;">Sat, 14 Aug 2026</span>' },
+            { label: 'New Date', value: 'Sat, 21 Aug 2026', highlight: true }
+        ]}],
+        cta: { label: 'View My Booking', url: '#' }
+    }),
+    'booking-cancelled.html': P({
+        preheaderText: 'Booking #100045 has been cancelled.',
+        headline: 'Booking Cancelled', greeting: 'Hi Naledi,',
+        bodyHtml: `We regret to inform you that your booking for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> has been cancelled.<br><br><strong style="color:#FAFAFA;">Reason:</strong> Venue no longer available` +
+            C.spacer(14) +
+            C.alertStrip({ severity: 'info', text: `<strong style="color:#B0B0B0;">Cancellation Policy Applied</strong><br>Cancelled more than 30 days before the event — 100% of the deposit is refundable.<br><span style="font-size:12px;color:#B0B0B0;">Days until event at time of cancellation: <strong>33</strong></span>` }) +
+            `<p style="margin:14px 0 0;"><strong style="color:#D4AF37;">Refund Due: R 9,250.00</strong><br><span style="color:#B0B0B0;">Your refund will be processed within 5&ndash;7 business days.</span></p>` +
+            `<p style="margin:12px 0 0; color:#B0B0B0;">If you have any questions, please contact us directly. <span style="font-size:13px;">(Booking reference #100045)</span></p>`
+    }),
+    'pending-expired.html': P({
+        preheaderText: 'Enquiry #100045 has expired — you can submit a new one any time.',
+        headline: 'Your Enquiry Has Expired', greeting: 'Hi Naledi,',
+        bodyHtml: `Your booking enquiry for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> has expired due to inactivity.<br><br>If you're still interested, we'd love to help make your event special — just submit a new enquiry. <span style="color:#B0B0B0; font-size:13px;">(Original reference #100045)</span>`,
+        cta: { label: 'Submit a New Enquiry', url: '#' }
     })
 };
 

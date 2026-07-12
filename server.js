@@ -3064,33 +3064,35 @@ async function sendCancellationEmail(booking, cancellationData) {
     const { id, name, email, event_name, event_type, date } = booking;
     const { reason, refund_due, rule, days_until_event, is_force_majeure } = cancellationData;
 
-    // SC-3: Policy block — always tells the client which rule was applied and the timing context
-    const policyHtml = rule ? `
-        <div style="background:#111;border:1px solid #333;border-radius:4px;padding:12px 16px;margin:16px 0;">
-            <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:${is_force_majeure ? '#10b981' : '#888'};margin-bottom:6px;">
-                ${is_force_majeure ? 'Force Majeure — Full Refund Granted' : 'Cancellation Policy Applied'}
-            </div>
-            <div style="font-size:13px;color:#ccc;">${rule}</div>
-            ${days_until_event !== null && days_until_event !== undefined
-                ? `<div style="font-size:12px;color:#888;margin-top:4px;">Days until event at time of cancellation: <strong>${days_until_event}</strong></div>`
-                : ''}
-        </div>` : '';
-
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>We regret to inform you that your booking for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong> has been cancelled.</p>
-        ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ''}
-        ${policyHtml}
-        ${parseFloat(refund_due) > 0
-            ? `<p><strong>Refund Due:</strong> R ${parseFloat(refund_due).toFixed(2)}</p><p>Your refund will be processed within 5&ndash;7 business days.</p>`
-            : '<p>No refund is applicable for this cancellation per our cancellation policy.</p>'}
-        <p>If you have any questions, please contact us directly.</p>
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-    `;
+    // SC-3: Policy strip — always tells the client which rule was applied and the timing context.
+    // Refund figure kept verbatim: R ${parseFloat(refund_due).toFixed(2)}.
+    const { socialLinks } = await getEmailFooterContext();
+    const policyStrip = rule ? emailComponents.alertStrip({
+        severity: is_force_majeure ? 'action' : 'info',
+        text: `<strong style="color:${is_force_majeure ? '#D4AF37' : '#B0B0B0'};">${is_force_majeure ? 'Force Majeure — Full Refund Granted' : 'Cancellation Policy Applied'}</strong><br>${rule}` +
+              (days_until_event !== null && days_until_event !== undefined
+                  ? `<br><span style="font-size:12px;color:#B0B0B0;">Days until event at time of cancellation: <strong>${days_until_event}</strong></span>` : '')
+    }) : '';
+    const refundHtml = parseFloat(refund_due) > 0
+        ? `<p style="margin:14px 0 0;"><strong style="color:#D4AF37;">Refund Due: R ${parseFloat(refund_due).toFixed(2)}</strong><br><span style="color:#B0B0B0;">Your refund will be processed within 5&ndash;7 business days.</span></p>`
+        : `<p style="margin:14px 0 0; color:#B0B0B0;">No refund is applicable for this cancellation per our cancellation policy.</p>`;
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Booking #${id} has been cancelled.`,
+        headline: 'Booking Cancelled',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `We regret to inform you that your booking for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> has been cancelled.` +
+            (reason ? `<br><br><strong style="color:#FAFAFA;">Reason:</strong> ${reason}` : '') +
+            (policyStrip ? emailComponents.spacer(14) + policyStrip : '') +
+            refundHtml +
+            `<p style="margin:12px 0 0; color:#B0B0B0;">If you have any questions, please contact us directly. <span style="font-size:13px;">(Booking reference #${id})</span></p>`,
+        socialLinks
+    });
     const result = await sendEmail({
         to: email,
         subject: `Booking Cancelled – Reference #${id}`,
-        htmlContent: emailBody,
+        htmlContent: html,
+        preWrapped: true,
         titleOverride: 'Booking Cancellation',
         trigger_event: 'Booking: Cancellation'
     });
@@ -3178,25 +3180,26 @@ async function sendBookingConfirmedEmail(booking) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date, event_location, performance_slot, performance_duration } = booking;
 
-    const performanceRows = [
-        performance_slot    ? `<tr><td style="padding:8px 12px;color:#888;width:160px;">Performance Slot</td><td style="padding:8px 12px;color:#fff;">${performance_slot}</td></tr>` : '',
-        performance_duration ? `<tr><td style="padding:8px 12px;color:#888;">Duration</td><td style="padding:8px 12px;color:#fff;">${performance_duration}</td></tr>` : ''
-    ].filter(Boolean).join('');
+    const { socialLinks } = await getEmailFooterContext();
+    const cardRows = [
+        { label: 'Event', value: event_name || event_type, mono: false },
+        { label: 'Date', value: date },
+        { label: 'Venue', value: event_location || 'TBD', mono: false }
+    ];
+    if (performance_slot) cardRows.push({ label: 'Performance Slot', value: performance_slot, mono: false });
+    if (performance_duration) cardRows.push({ label: 'Duration', value: performance_duration, mono: false });
+    cardRows.push({ label: 'Reference', value: `#${id}` });
 
-    const performanceTable = performanceRows ? `
-        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#111;border:1px solid #2a2a2a;border-radius:4px;margin:14px 0;">
-            <tr style="background:#1a1a1a;"><td colspan="2" style="padding:8px 12px;color:#D4AF37;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Performance Details</td></tr>
-            ${performanceRows}
-        </table>` : '';
-
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>Your booking for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong> at <strong style="color:#ffffff;">${event_location || 'TBD'}</strong> is now fully <strong style="color:#10b981;">CONFIRMED</strong>.</p>
-        ${performanceTable}
-        <p>We're excited to be part of your event. Our team will be in touch with any final logistics closer to the date.</p>
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-        <p style="font-size:13px; color:#888;">We've attached a calendar invite (.ics) so you can save this event to your calendar.</p>
-    `;
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Booking #${id} is confirmed — see you on ${date}!`,
+        headline: 'Your Booking Is Confirmed',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `Wonderful news — your booking for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> at <strong style="color:#FAFAFA;">${event_location || 'TBD'}</strong> is now fully <strong style="color:#D4AF37;">CONFIRMED</strong>.<br><br>Thabiso Mhlongo is excited to be part of your event, and our team will be in touch with any final logistics closer to the date.<br><br><span style="color:#B0B0B0; font-size:13px;">We've attached a calendar invite (.ics) so you can save the event to your calendar.</span>`,
+        cards: [{ title: 'Confirmed Booking', rows: cardRows }],
+        cta: { label: 'View Your Booking', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
+        socialLinks
+    });
 
     const icsContent = generateBookingICS(booking);
     const attachments = icsContent ? [{
@@ -3208,7 +3211,8 @@ async function sendBookingConfirmedEmail(booking) {
     const result = await sendEmail({
         to: email,
         subject: `Booking Confirmed 🎉 – #${id}`,
-        htmlContent: emailBody,
+        htmlContent: html,
+        preWrapped: true,
         attachments,
         titleOverride: 'Booking Confirmed!',
         trigger_event: 'Booking: Final Confirmation'
@@ -3257,43 +3261,40 @@ async function sendBookingCompletedEmail(booking) {
     const paid = parseFloat(amount_paid) || 0;
     const subtotal = displayTotal - vatAmount;
 
-    // Build services-delivered table (only when data is available)
-    let servicesHtml = '';
+    // Services + financial figures below are rendered with the exact same computed strings as before.
+    const { socialLinks } = await getEmailFooterContext();
+    const cards = [];
     if (services.length > 0) {
-        const serviceRows = services.map(s => {
-            const qty = s.quantity_minutes && s.display_unit ? ` (${s.quantity_minutes} ${s.display_unit})` : '';
-            return `<tr>
-                <td style="padding:8px 12px;color:#ccc;font-size:12px;border-bottom:1px solid rgba(255,255,255,0.06);">${s.service_name || 'Service'}${qty}</td>
-                <td style="padding:8px 12px;color:#D4AF37;font-size:12px;text-align:right;border-bottom:1px solid rgba(255,255,255,0.06);">R ${(parseFloat(s.total_price) || 0).toFixed(2)}</td>
-            </tr>`;
-        }).join('');
-        servicesHtml = `
-            <div style="margin:16px 0 8px;">
-                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:#888;margin-bottom:8px;">Services Delivered</div>
-                <table style="width:100%;border-collapse:collapse;background:#111;border-radius:4px;overflow:hidden;">${serviceRows}</table>
-            </div>`;
+        cards.push({
+            title: 'Services Delivered',
+            rows: services.map(s => {
+                const qty = s.quantity_minutes && s.display_unit ? ` (${s.quantity_minutes} ${s.display_unit})` : '';
+                return { label: `${s.service_name || 'Service'}${qty}`, value: `R ${(parseFloat(s.total_price) || 0).toFixed(2)}` };
+            })
+        });
     }
+    cards.push({
+        title: 'Financial Summary',
+        rows: [
+            ...(vatAmount > 0 ? [{ label: 'Subtotal (excl. VAT)', value: `R ${subtotal.toFixed(2)}` }] : []),
+            ...(vatAmount > 0 ? [{ label: 'VAT (15%)',            value: `R ${vatAmount.toFixed(2)}` }] : []),
+            { label: 'Total',        value: `R ${displayTotal.toFixed(2)}` },
+            { label: 'Amount Paid',  value: `R ${paid.toFixed(2)}`, highlight: true },
+        ]
+    });
 
-    // Financial summary rows
-    const finRows = [
-        ...(vatAmount > 0 ? [{ label: 'Subtotal (excl. VAT)', value: `R ${subtotal.toFixed(2)}` }] : []),
-        ...(vatAmount > 0 ? [{ label: 'VAT (15%)',            value: `R ${vatAmount.toFixed(2)}` }] : []),
-        { label: 'Total',        value: `R ${displayTotal.toFixed(2)}` },
-        { label: 'Amount Paid',  value: `R ${paid.toFixed(2)}`, highlight: true },
-    ];
-
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>We hope you had an absolutely wonderful time! Your event — <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong> at <strong style="color:#ffffff;">${event_location || 'your venue'}</strong> — has been marked as completed.</p>
-        <p>It was a pleasure working with you. Here's a summary of your booking:</p>
-        ${servicesHtml}
-        ${emailTemplates.createQuoteTable(finRows)}
-        <p class="text-gold" style="margin-top:16px;">Booking Reference: <strong>#${id}</strong></p>
-        <p style="font-size:13px;color:#888;">Thank you for choosing Thabiso Mhlongo. 🎤</p>
-    `;
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Thank you — booking #${id} is complete. We hope it was a blast!`,
+        headline: 'Event Completed — Thank You!',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `We hope you had an absolutely wonderful time! Your event — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> at <strong style="color:#FAFAFA;">${event_location || 'your venue'}</strong> — has been marked as completed.<br><br>It was a pleasure working with you. Here's a summary of your booking <span style="color:#B0B0B0; font-size:13px;">(reference #${id})</span>:`,
+        cards,
+        socialLinks
+    });
     const result = await sendEmail({
         to: email, subject: `Thank You – Event Completed! Booking #${id}`,
-        htmlContent: emailBody, titleOverride: 'Event Completed – Thank You!',
+        htmlContent: html, preWrapped: true, titleOverride: 'Event Completed – Thank You!',
         trigger_event: 'Booking: Completed'
     });
     return result.success;
@@ -3361,15 +3362,18 @@ async function sendDepositBalanceDueEmail(booking, outstanding) {
 async function sendPendingExpiredEmail(booking) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
-    const emailBody = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>Your booking enquiry for <strong style="color:#ffffff;">${event_name || event_type}</strong>${date ? ` on <strong style="color:#ffffff;">${date}</strong>` : ''} has expired due to inactivity.</p>
-        <p>If you are still interested, please <a href="${process.env.SITE_URL || ''}/index.html#booking" style="color:#D4AF37;">submit a new enquiry</a> — we'd love to help make your event special.</p>
-        <p class="text-gold">Original Reference: <strong>#${id}</strong></p>
-    `;
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Enquiry #${id} has expired — you can submit a new one any time.`,
+        headline: 'Your Enquiry Has Expired',
+        greeting: `Hi ${name},`,
+        bodyHtml: `Your booking enquiry for <strong style="color:#FAFAFA;">${event_name || event_type}</strong>${date ? ` on <strong style="color:#FAFAFA;">${date}</strong>` : ''} has expired due to inactivity.<br><br>If you're still interested, we'd love to help make your event special — just submit a new enquiry. <span style="color:#B0B0B0; font-size:13px;">(Original reference #${id})</span>`,
+        cta: { label: 'Submit a New Enquiry', url: `${process.env.SITE_URL || ''}/index.html#booking` },
+        socialLinks
+    });
     const result = await sendEmail({
         to: email, subject: `Booking Enquiry Expired – Reference #${id}`,
-        htmlContent: emailBody, titleOverride: 'Enquiry Expired',
+        htmlContent: html, preWrapped: true, titleOverride: 'Enquiry Expired',
         trigger_event: 'Booking: Enquiry Expired'
     });
     return result.success;
@@ -3487,12 +3491,17 @@ async function sendQuoteExpiryWarningEmail(booking) {
 async function sendReviewRequestEmail(booking) {
     booking = escapeEmailFields(booking);
     const { id, name, email, event_name, event_type, date } = booking;
-    const body = `<p>Hi <strong>${name}</strong>,</p>
-        <p>We hope your event — <strong>${event_name || event_type}</strong> on <strong>${date}</strong> — was everything you imagined!</p>
-        <p>We'd love to hear your feedback. If you enjoyed working with Thabiso, a short review or testimonial would mean the world to us.</p>
-        <p><a href="mailto:info@thabisomhlongo.com?subject=Review for Booking %23${id}" style="color:#D4AF37;font-weight:700;">Send Your Review</a></p>`;
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `How was your event? We'd love your feedback on booking #${id}.`,
+        headline: "We'd Love Your Feedback",
+        greeting: `Hi ${name},`,
+        bodyHtml: `We hope your event — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> — was everything you imagined!<br><br>If you enjoyed working with Thabiso, a short review or testimonial would mean the world to us.`,
+        cta: { label: 'Send Your Review', url: `mailto:info@thabisomhlongo.com?subject=Review for Booking %23${id}` },
+        socialLinks
+    });
     return sendEmail({ to: email, subject: `How was your event? – Booking #${id}`,
-        htmlContent: body, titleOverride: "We'd Love Your Feedback!", trigger_event: 'Booking: Review Request' });
+        htmlContent: html, preWrapped: true, titleOverride: "We'd Love Your Feedback!", trigger_event: 'Booking: Review Request' });
 }
 
 async function sendRefundProcessedEmail(booking, refundAmount, refundReference) {
@@ -3516,16 +3525,24 @@ async function sendDateChangedEmail(booking, oldDate, newDate) {
     const { id, name, email, event_name, event_type } = booking;
     const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
     const trackUrl = `${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}`;
-    const body = `<p>Hi <strong>${name}</strong>,</p>
-        <p>Please note that the date for your booking <strong>#${id}</strong> — <strong>${event_name || event_type}</strong> — has been updated.</p>
-        <table style="border-collapse:collapse;width:100%;max-width:480px;margin:16px 0;">
-            <tr><td style="padding:8px 12px;font-weight:700;background:#f5f5f5;">Previous Date</td><td style="padding:8px 12px;text-decoration:line-through;color:#888;">${oldDate}</td></tr>
-            <tr><td style="padding:8px 12px;font-weight:700;background:#f5f5f5;">New Date</td><td style="padding:8px 12px;font-weight:700;color:#D4AF37;">${newDate}</td></tr>
-        </table>
-        <p>Please update your calendar accordingly. If this change was made in error or you have any concerns, please contact us immediately at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</p>
-        <p><a href="${trackUrl}" style="display:inline-block;padding:10px 20px;background:#D4AF37;color:#000;font-weight:700;text-decoration:none;border-radius:4px;">View My Booking</a></p>`;
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Booking #${id}: the event date changed to ${newDate}.`,
+        headline: 'Event Date Updated',
+        greeting: `Hi ${name},`,
+        bodyHtml: `Please note that the date for your booking <strong style="color:#FAFAFA;">#${id}</strong> — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> — has been updated. Please update your calendar accordingly.<br><br><span style="color:#B0B0B0; font-size:13px;">If this change was made in error or you have any concerns, please contact us immediately at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</span>`,
+        cards: [{
+            title: 'Date Change',
+            rows: [
+                { label: 'Previous Date', rawValue: `<span style="text-decoration:line-through; color:#707070;">${oldDate}</span>` },
+                { label: 'New Date', value: newDate, highlight: true }
+            ]
+        }],
+        cta: { label: 'View My Booking', url: trackUrl },
+        socialLinks
+    });
     return sendEmail({ to: email, subject: `Event Date Updated – Booking #${id}`,
-        htmlContent: body, titleOverride: 'Event Date Changed', trigger_event: 'Booking: Date Changed' });
+        htmlContent: html, preWrapped: true, titleOverride: 'Event Date Changed', trigger_event: 'Booking: Date Changed' });
 }
 
 // ==========================================

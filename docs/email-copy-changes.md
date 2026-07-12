@@ -88,3 +88,29 @@ keeps the reference inline, and a **"Submit a New Enquiry"** CTA (same `/index.h
 
 - **Quote Expires Tomorrow** (`sendQuoteExpiryWarningEmail`) — same message, now componentised with an
   **"Accept Your Quote"** CTA (same `/index.html#track` link).
+
+---
+
+# Batch 2 — confirm & lifecycle
+
+All six componentised; subjects/recipients/attachments/figures preserved. Notable changes:
+
+- **Event Date Updated** (`sendDateChangedEmail`) — *most-changed of the batch.* The old email used a
+  **light-mode table** (`#f5f5f5` cells) inside the dark email — visually broken. Now a proper dark
+  `infoCard` with the previous date struck through and the new date highlighted gold. Same track-URL
+  CTA and `bookings@` contact line.
+- **Booking Confirmed** (`sendBookingConfirmedEmail`) — performance details fold into a single
+  "Confirmed Booking" `infoCard` (event/date/venue/slot/duration/ref); gains a **"View Your Booking"**
+  CTA to the tracker. ICS attachment + 🎉 subject unchanged. Copy warmed ("Wonderful news…").
+- **Booking Cancelled** (`sendCancellationEmail`) — the policy block becomes an `alertStrip`
+  (force-majeure = gold "action", otherwise neutral); **refund figure `R {refund_due}` kept verbatim**,
+  as are the no-refund and 5–7-business-days lines.
+- **Event Completed** (`sendBookingCompletedEmail`) — services + financial summary become two
+  `infoCard`s; **all amounts (subtotal/VAT/total/paid) render with the exact same computed strings**.
+- **Review Request** (`sendReviewRequestEmail`) — same message; the mailto link becomes the
+  **"Send Your Review"** CTA button (same mailto URL).
+- **Enquiry Expired** (`sendPendingExpiredEmail`) — same message; gains a **"Submit a New Enquiry"**
+  CTA (same `/index.html#booking` link).
+
+*(Not in this batch: `sendPaidReceiptEmail` merely re-sends the invoice via `sendInvoiceEmail`, which
+is payment-critical Batch 3.)*
