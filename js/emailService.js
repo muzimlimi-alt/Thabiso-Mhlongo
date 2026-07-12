@@ -102,7 +102,10 @@ async function sendEmail({
     trigger_event = 'System Communication',
     related_entity = null,
     related_id = null,
-    preWrapped = false
+    preWrapped = false,
+    cc = null,
+    bcc = null,
+    branding = 'default'
 }) {
     try {
         let attachmentPathsString = null;
@@ -121,7 +124,10 @@ async function sendEmail({
             skipBrandAttachments,
             titleOverride,
             trigger_event,
-            preWrapped
+            preWrapped,
+            cc,
+            bcc,
+            branding
         };
 
         await new Promise((resolve, reject) => {
@@ -157,7 +163,10 @@ async function sendEmailDirectly({
     skipBrandAttachments = false,
     titleOverride = null,
     trigger_event = 'System Communication',
-    preWrapped = false
+    preWrapped = false,
+    cc = null,
+    bcc = null,
+    branding = 'default'
 }) {
     const isOverhaulEnabled = process.env.EMAIL_OVERHAUL_ENABLED === 'true';
 
@@ -172,6 +181,8 @@ async function sendEmailDirectly({
                 html: processedContent.html
             };
             if (replyTo) mailOptions.replyTo = replyTo;
+            if (cc) mailOptions.cc = cc;
+            if (bcc) mailOptions.bcc = bcc;
             const merged = [...processedContent.attachments, ...attachments];
             if (merged.length > 0) mailOptions.attachments = merged;
 
@@ -206,13 +217,22 @@ async function sendEmailDirectly({
         const brandAttachments = skipBrandAttachments ? [] : emailAssets.getBrandAttachments();
         const mergedAttachments = [...brandAttachments, ...inlineAttachments, ...attachments];
         
-        const hasBanner = brandAttachments.some(a => a.cid === 'thabisoBanner');
-        const bannerSrc = hasBanner ? 'cid:thabisoBanner' : (process.env.EMAIL_BANNER || null);
+        let bannerSrc = null;
+        let finalBranding = branding || 'default';
+        if (branding && (branding.startsWith('http') || branding.startsWith('/') || branding.includes('.'))) {
+            const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+            bannerSrc = branding.startsWith('/') ? baseUrl + branding : branding;
+            finalBranding = 'banner';
+        } else {
+            const hasBanner = brandAttachments.some(a => a.cid === 'thabisoBanner');
+            bannerSrc = hasBanner ? 'cid:thabisoBanner' : (process.env.EMAIL_BANNER || null);
+        }
+
         // preWrapped emails (Prompt 3 rebuild) already contain their full shell via
         // js/emailComponents.js — do NOT wrap again or they double-nest.
         const finalHtml = preWrapped
             ? emailBody
-            : emailTemplates.createEmailWrapper(emailBody, titleOverride || subject, unsubscribeUrl, bannerSrc, socialLinks);
+            : emailTemplates.createEmailWrapper(emailBody, titleOverride || subject, unsubscribeUrl, bannerSrc, socialLinks, finalBranding);
         const finalPlainText = plainTextAlternative || htmlToPlainText(emailBody);
 
         const mailOptions = {
@@ -225,6 +245,8 @@ async function sendEmailDirectly({
         };
 
         if (replyTo) mailOptions.replyTo = replyTo;
+        if (cc) mailOptions.cc = cc;
+        if (bcc) mailOptions.bcc = bcc;
 
         let logId = null;
         await new Promise((resVal) => {

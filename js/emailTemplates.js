@@ -9,7 +9,7 @@ const path = require('path');
 /**
  * Generates the base shell for all outgoing emails.
  */
-function createEmailWrapper(content, title = "Thabiso Mhlongo Official Notification", unsubscribeUrl = null, bannerSrc = null, socialLinks = []) {
+function createEmailWrapper(content, title = "Thabiso Mhlongo Official Notification", unsubscribeUrl = null, bannerSrc = null, socialLinks = [], branding = 'default') {
     const getIconName = (platform) => {
         const name = (platform || '').toLowerCase().trim();
         if (name.includes('instagram')) return 'instagram';
@@ -118,8 +118,9 @@ function createEmailWrapper(content, title = "Thabiso Mhlongo Official Notificat
 </head>
 <body>
     <div class="email-container">
-        <div class="email-header" style="padding: 0;">
-            ${bannerSrc ? `<img src="${bannerSrc}" alt="Thabiso Mhlongo" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />` : ''}
+        <div class="email-header" style="text-align: center; padding: ${branding === 'logo' ? '20px 30px' : '0'}; background-color: #0a0a0a; border-bottom: ${branding === 'none' ? 'none' : '1px solid rgba(255,255,255,0.08)'};">
+            ${(branding === 'banner' || (branding === 'default' && bannerSrc)) && bannerSrc ? `<img src="${bannerSrc}" alt="Thabiso Mhlongo Banner" style="max-width: 100%; height: auto; display: block; margin: 0 auto;" />` : ''}
+            ${(branding === 'logo' || (branding === 'default' && !bannerSrc)) ? `<img src="cid:thabisoLogo" alt="Thabiso Mhlongo Logo" style="max-height: 80px; display: block; margin: 0 auto; padding: 20px 0;" />` : ''}
         </div>
         
         <div class="email-body">

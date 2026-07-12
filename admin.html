@@ -3245,6 +3245,474 @@
             background: var(--atl-amber-hover) !important;
             transform: translateY(-1px);
         }
+
+        /* ── ENHANCED EMAIL COMPOSER DRAWER STYLES ── */
+        .inq-chip-input-container {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: var(--atl-input-bg) !important;
+            border: 1px solid var(--atl-line) !important;
+            border-radius: var(--atl-r-md) !important;
+            width: 100%;
+            min-height: 40px;
+            cursor: text;
+        }
+        .inq-chip-input-container:focus-within {
+            border-color: var(--atl-amber) !important;
+            box-shadow: 0 0 0 2px rgba(212,175,55,0.2) !important;
+        }
+        .inq-recipient-chip {
+            display: inline-flex;
+            align-items: center;
+            background: rgba(212,175,55,0.12) !important;
+            border: 1px solid rgba(212,175,55,0.3) !important;
+            color: var(--atl-amber) !important;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .inq-recipient-chip .inq-chip-remove {
+            margin-left: 6px;
+            cursor: pointer;
+            color: var(--atl-muted);
+            transition: color var(--atl-t-fast);
+        }
+        .inq-recipient-chip .inq-chip-remove:hover {
+            color: #ff6b6b;
+        }
+        .inq-recipient-chip.inq-recipient-invalid {
+            background: rgba(232,168,62,0.1) !important;
+            border-color: rgba(232,168,62,0.4) !important;
+            color: var(--atl-amber) !important;
+            text-decoration: line-through;
+        }
+        .inq-chip-input {
+            border: none !important;
+            outline: none !important;
+            background: transparent !important;
+            color: var(--atl-ink) !important;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 13px;
+            flex-grow: 1;
+            min-width: 120px;
+            padding: 2px 0;
+        }
+        .inq-field-toggle-btn {
+            background: transparent !important;
+            border: 1px solid var(--atl-line) !important;
+            color: var(--atl-muted) !important;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 11px;
+            font-weight: 500;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all var(--atl-t-fast);
+            white-space: nowrap;
+        }
+        .inq-field-toggle-btn:hover {
+            border-color: var(--atl-amber) !important;
+            color: var(--atl-amber) !important;
+        }
+        .inq-collapsible-field {
+            animation: slideDownInq 0.25s ease-out;
+        }
+        @keyframes slideDownInq {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .inq-controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 12px;
+            margin-top: 12px;
+        }
+        .inq-control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+            min-width: 180px;
+        }
+        .inq-select-label {
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 12px;
+            color: var(--atl-muted) !important;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .inq-select {
+            background: var(--atl-input-bg) !important;
+            border: 1px solid var(--atl-line) !important;
+            color: var(--atl-ink) !important;
+            border-radius: var(--atl-r-md) !important;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 12px;
+            padding: 6px 10px;
+            flex-grow: 1;
+            outline: none;
+            cursor: pointer;
+        }
+        .inq-select:focus {
+            border-color: var(--atl-amber) !important;
+        }
+        .inq-banner-preview-box {
+            border: 1px solid var(--atl-line);
+            border-radius: var(--atl-r-md);
+            padding: 6px;
+            background: #000;
+            text-align: center;
+            margin-bottom: 12px;
+            max-height: 80px;
+            overflow: hidden;
+        }
+        .inq-banner-preview-box img {
+            max-width: 100%;
+            max-height: 68px;
+            object-fit: contain;
+        }
+        .inq-tokens-bar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 12px;
+            padding: 6px 10px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid var(--atl-line);
+            border-radius: var(--atl-r-sm);
+        }
+        .inq-tokens-label {
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 11px;
+            color: var(--atl-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-right: 4px;
+        }
+        .inq-token-chip {
+            background: var(--atl-card) !important;
+            border: 1px solid var(--atl-line) !important;
+            color: var(--atl-ink) !important;
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 10px !important;
+            padding: 2px 6px !important;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all var(--atl-t-fast);
+        }
+        .inq-token-chip:hover {
+            border-color: var(--atl-amber) !important;
+            color: var(--atl-amber) !important;
+            background: rgba(212,175,55,0.05) !important;
+        }
+        .inq-drag-drop-zone {
+            border: 2px dashed var(--atl-line) !important;
+            border-radius: var(--atl-r-md) !important;
+            background: rgba(255,255,255,0.01) !important;
+            padding: 20px !important;
+            text-align: center;
+            cursor: pointer;
+            transition: all var(--atl-t-fast);
+            margin-bottom: 12px;
+            margin-top: 12px;
+        }
+        .inq-drag-drop-zone.dragover {
+            background: rgba(212,175,55,0.04) !important;
+            border-color: var(--atl-amber) !important;
+        }
+        .inq-upload-icon {
+            font-size: 24px;
+            color: var(--atl-muted);
+            margin-bottom: 8px;
+        }
+        .inq-upload-text {
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 13px;
+            color: var(--atl-muted);
+            margin: 0;
+        }
+        .inq-browse-link {
+            color: var(--atl-amber);
+            font-weight: 600;
+            text-decoration: underline;
+        }
+        .inq-upload-progress-container {
+            background: var(--atl-card);
+            border: 1px solid var(--atl-line);
+            border-radius: var(--atl-r-md);
+            padding: 10px 14px;
+            margin-bottom: 12px;
+        }
+        .inq-upload-progress-header {
+            display: flex;
+            justify-content: space-between;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 12px;
+            color: var(--atl-ink);
+            margin-bottom: 6px;
+        }
+        .inq-progress-bar-bg {
+            background: rgba(255,255,255,0.08);
+            height: 6px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .inq-progress-bar-fill {
+            background: var(--atl-amber);
+            height: 100%;
+            transition: width 0.1s ease-out;
+        }
+        .inq-attachments-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+        .inq-attachment-tile {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: var(--atl-card) !important;
+            border: 1px solid var(--atl-line) !important;
+            border-radius: var(--atl-r-md) !important;
+        }
+        .inq-attach-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .inq-attach-icon {
+            font-size: 16px;
+            color: var(--atl-amber);
+        }
+        .inq-attach-name {
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 13px;
+            color: var(--atl-ink);
+            font-weight: 500;
+        }
+        .inq-attach-size {
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 11px;
+            color: var(--atl-muted);
+        }
+        .inq-attach-remove {
+            background: transparent;
+            border: none;
+            color: var(--atl-muted);
+            cursor: pointer;
+            font-size: 16px;
+            transition: color var(--atl-t-fast);
+        }
+        .inq-attach-remove:hover {
+            color: #ff6b6b;
+        }
+        .inq-preview-btn {
+            background: transparent !important;
+            border: 1px solid var(--atl-line) !important;
+            color: var(--atl-ink) !important;
+            font-family: 'Outfit', sans-serif !important;
+            padding: 8px 14px;
+            border-radius: var(--atl-r-md);
+            cursor: pointer;
+            transition: all var(--atl-t-fast);
+        }
+        .inq-preview-btn:hover {
+            border-color: var(--atl-amber) !important;
+            color: var(--atl-amber) !important;
+            background: rgba(212,175,55,0.03) !important;
+        }
+        .inq-draft-btn {
+            background: transparent !important;
+            border: 1px solid var(--atl-line) !important;
+            color: var(--atl-muted) !important;
+            font-family: 'Outfit', sans-serif !important;
+            padding: 8px 14px;
+            border-radius: var(--atl-r-md);
+            cursor: pointer;
+            transition: all var(--atl-t-fast);
+        }
+        .inq-draft-btn:hover {
+            border-color: var(--atl-muted-hover) !important;
+            color: var(--atl-ink) !important;
+        }
+        .inq-split-send-container {
+            display: inline-flex;
+            position: relative;
+        }
+        .inq-split-toggle-btn {
+            background: var(--atl-amber) !important;
+            color: var(--atl-on-amber) !important;
+            border: none !important;
+            border-left: 1px solid rgba(0,0,0,0.15) !important;
+            border-top-right-radius: var(--atl-r-md) !important;
+            border-bottom-right-radius: var(--atl-r-md) !important;
+            padding: 0 10px !important;
+            cursor: pointer;
+            transition: all var(--atl-t-fast);
+            min-height: 38px;
+        }
+        .inq-split-toggle-btn:hover {
+            background: var(--atl-amber-hover) !important;
+        }
+        .inq-split-send-container .inq-send-btn {
+            border-top-right-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+        }
+        .inq-send-menu {
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            background: var(--atl-card);
+            border: 1px solid var(--atl-line);
+            border-radius: var(--atl-r-md);
+            padding: 4px 0;
+            box-shadow: var(--atl-shadow-popover);
+            min-width: 140px;
+            z-index: 100;
+            margin-bottom: 4px;
+            animation: slideUpMenu 0.15s ease-out;
+        }
+        @keyframes slideUpMenu {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .inq-menu-item {
+            display: block;
+            width: 100%;
+            text-align: left;
+            background: transparent;
+            border: none;
+            padding: 8px 14px;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 13px;
+            color: var(--atl-ink);
+            cursor: pointer;
+            transition: background var(--atl-t-fast);
+        }
+        .inq-menu-item:hover {
+            background: rgba(212,175,55,0.08);
+            color: var(--atl-amber);
+        }
+        .inq-schedule-row {
+            background: rgba(212,175,55,0.04);
+            border: 1px solid rgba(212,175,55,0.2) !important;
+            padding: 8px 12px !important;
+            border-radius: var(--atl-r-md);
+            margin-bottom: 12px;
+            margin-top: 12px;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+        }
+        .inq-datetime-picker {
+            background: transparent !important;
+            border: none !important;
+            outline: none !important;
+            color: var(--atl-amber) !important;
+            font-family: 'Outfit', sans-serif !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            padding: 0 !important;
+            cursor: pointer;
+            flex-grow: 1;
+            margin-left: 8px !important;
+        }
+        .inq-clear-schedule-btn {
+            background: transparent;
+            border: none;
+            color: var(--atl-muted);
+            font-size: 18px;
+            cursor: pointer;
+            line-height: 1;
+            padding: 0 4px;
+        }
+        .inq-clear-schedule-btn:hover {
+            color: var(--atl-ink);
+        }
+        
+        /* ── EMAIL PREVIEW MODAL STYLES ── */
+        .inq-preview-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .inq-preview-backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .inq-preview-dialog {
+            background: #0f0f0f;
+            border: 1px solid var(--atl-line-strong);
+            border-radius: 8px;
+            width: 90%;
+            max-width: 700px;
+            height: 85%;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            transform: scale(0.95);
+            transition: transform 0.25s ease;
+        }
+        .inq-preview-backdrop.active .inq-preview-dialog {
+            transform: scale(1);
+        }
+        .inq-preview-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--atl-line);
+        }
+        .inq-preview-title {
+            font-family: 'Cormorant Garamond', serif;
+            font-size: 18px;
+            color: var(--atl-amber);
+            margin: 0;
+            letter-spacing: 0.5px;
+        }
+        .inq-preview-close {
+            background: transparent;
+            border: none;
+            color: var(--atl-muted);
+            font-size: 24px;
+            cursor: pointer;
+            line-height: 1;
+            transition: color var(--atl-t-fast);
+        }
+        .inq-preview-close:hover {
+            color: var(--atl-ink);
+        }
+        .inq-preview-body {
+            flex-grow: 1;
+            padding: 10px;
+            background: #0d0d0d;
+        }
+        .inq-preview-iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #0d0d0d;
+        }
         .inq-search-input {
             background: var(--atl-input-bg) !important;
             border: 1px solid var(--atl-line) !important;
@@ -3294,6 +3762,369 @@
             font-size: 10px !important;
             color: var(--atl-muted-dim) !important;
         }
+        /* --- Enhanced Composer recipient chips --- */
+        .inq-chip-input-container {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--atl-line);
+            border-radius: var(--atl-r-sm);
+            padding: 6px 10px;
+            min-height: 38px;
+            width: 100%;
+            cursor: text;
+            transition: border-color var(--atl-t-base);
+        }
+        .inq-chip-input-container:focus-within {
+            border-color: var(--atl-amber);
+            background: rgba(255, 255, 255, 0.04);
+        }
+        .inq-recipient-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(214, 175, 55, 0.1);
+            color: var(--atl-amber);
+            border: 1px solid rgba(214, 175, 55, 0.25);
+            border-radius: 12px;
+            padding: 2px 10px;
+            font-size: 12px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 500;
+        }
+        .inq-recipient-chip.inq-recipient-invalid {
+            background: rgba(235, 87, 87, 0.1);
+            color: #eb5757;
+            border-color: rgba(235, 87, 87, 0.25);
+            text-decoration: underline dashed rgba(235, 87, 87, 0.5);
+        }
+        .inq-recipient-chip .inq-chip-remove {
+            cursor: pointer;
+            opacity: 0.7;
+            transition: opacity var(--atl-t-fast);
+        }
+        .inq-recipient-chip .inq-chip-remove:hover {
+            opacity: 1;
+        }
+        .inq-chip-input-container input {
+            border: none !important;
+            background: none !important;
+            color: var(--atl-ink) !important;
+            font-size: 13px !important;
+            font-family: 'Outfit', sans-serif !important;
+            outline: none !important;
+            flex: 1;
+            min-width: 100px;
+            padding: 0 !important;
+        }
+
+        /* --- Personalization Tokens Bar --- */
+        .inq-tokens-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: 6px;
+            align-items: center;
+        }
+        .inq-token-label {
+            font-size: 11px;
+            color: var(--atl-muted-dim);
+            font-family: 'Outfit', sans-serif;
+            margin-right: 4px;
+        }
+        .inq-token-chip {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--atl-line);
+            border-radius: 4px;
+            color: var(--atl-muted);
+            padding: 3px 8px;
+            font-size: 11px;
+            font-family: 'JetBrains Mono', monospace;
+            cursor: pointer;
+            transition: all var(--atl-t-fast);
+        }
+        .inq-token-chip:hover {
+            border-color: var(--atl-amber);
+            color: var(--atl-amber);
+            background: rgba(214, 175, 55, 0.05);
+        }
+
+        /* --- Custom Banners Preview Tile --- */
+        .inq-banner-preview-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--atl-line);
+            padding: 10px;
+            border-radius: var(--atl-r-sm);
+        }
+        .inq-banner-preview-box img {
+            max-height: 48px;
+            max-width: 120px;
+            border-radius: 4px;
+            object-fit: cover;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* --- Drag and Drop Attachment styles --- */
+        .inq-drag-drop-zone {
+            border: 1.5px dashed var(--atl-line);
+            border-radius: var(--atl-r-md);
+            padding: 20px 15px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.01);
+            transition: all var(--atl-t-base);
+            cursor: pointer;
+        }
+        .inq-drag-drop-zone.dragover {
+            border-color: var(--atl-amber);
+            background: rgba(214, 175, 55, 0.03);
+        }
+        .inq-drag-drop-zone i {
+            font-size: 24px;
+            color: var(--atl-muted);
+            margin-bottom: 8px;
+        }
+        .inq-drag-drop-zone p {
+            font-size: 13px;
+            color: var(--atl-muted);
+            margin: 0;
+        }
+        .inq-browse-link {
+            color: var(--atl-amber);
+            text-decoration: underline;
+            font-weight: 500;
+        }
+
+        /* Upload progress bar */
+        .inq-upload-progress-box {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--atl-line);
+            border-radius: var(--atl-r-sm);
+            padding: 10px 12px;
+            margin-top: 10px;
+        }
+        .inq-progress-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--atl-muted);
+            margin-bottom: 6px;
+        }
+        .inq-progress-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .inq-progress-bar-fill {
+            height: 100%;
+            background: var(--atl-amber);
+            width: 0%;
+            transition: width 0.1s linear;
+        }
+
+        /* Attachment List Tiles */
+        .inq-attachments-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .inq-attachment-tile {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--atl-line);
+            border-radius: var(--atl-r-sm);
+            padding: 8px 12px;
+        }
+        .inq-attach-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .inq-attach-icon {
+            font-size: 16px;
+            color: var(--atl-amber);
+        }
+        .inq-attach-name {
+            font-size: 12px;
+            color: var(--atl-ink);
+            font-weight: 500;
+            display: block;
+        }
+        .inq-attach-size {
+            font-size: 10px;
+            color: var(--atl-muted-dim);
+        }
+        .inq-attach-remove {
+            background: none;
+            border: none;
+            color: var(--atl-muted-dim);
+            cursor: pointer;
+            font-size: 13px;
+            padding: 4px;
+            transition: color var(--atl-t-fast);
+        }
+        .inq-attach-remove:hover {
+            color: #eb5757;
+        }
+
+        /* --- Split Send Button and Dropdown --- */
+        .inq-split-send-wrapper {
+            position: relative;
+            display: inline-flex;
+            vertical-align: middle;
+        }
+        .inq-split-send-wrapper .inq-send-btn {
+            border-top-right-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+            border-right: 1px solid rgba(0, 0, 0, 0.15);
+        }
+        .inq-send-toggle-btn {
+            background: var(--atl-amber) !important;
+            color: var(--atl-ink-dark) !important;
+            border: none;
+            border-top-right-radius: var(--atl-r-sm);
+            border-bottom-right-radius: var(--atl-r-sm);
+            padding: 0 10px;
+            cursor: pointer;
+            transition: opacity var(--atl-t-fast);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .inq-send-toggle-btn:hover {
+            opacity: 0.9;
+        }
+        .inq-send-dropdown-menu {
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            margin-bottom: 6px;
+            background: var(--atl-bg-card);
+            border: 1px solid var(--atl-line);
+            border-radius: var(--atl-r-sm);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+            min-width: 160px;
+            padding: 4px 0;
+            display: none;
+        }
+        .inq-send-dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            padding: 8px 12px;
+            border: none;
+            background: none;
+            color: var(--atl-ink);
+            text-align: left;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: 'Outfit', sans-serif;
+            transition: background var(--atl-t-fast);
+        }
+        .inq-send-dropdown-item:hover {
+            background: rgba(214, 175, 55, 0.08);
+            color: var(--atl-amber);
+        }
+
+        /* --- Preview Modal overlay --- */
+        .inq-preview-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(4px);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .inq-preview-backdrop.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .inq-preview-modal {
+            background: var(--atl-bg);
+            border: 1px solid var(--atl-line);
+            border-radius: var(--atl-r-md);
+            width: 90%;
+            max-width: 800px;
+            height: 80%;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            transform: scale(0.95);
+            transition: transform 0.25s ease;
+        }
+        .inq-preview-backdrop.active .inq-preview-modal {
+            transform: scale(1);
+        }
+        .inq-preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--atl-line);
+            background: var(--atl-bg-card);
+        }
+        .inq-preview-header h3 {
+            margin: 0;
+            font-size: 15px;
+            color: var(--atl-amber);
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+        }
+        .inq-preview-close {
+            background: none;
+            border: none;
+            color: var(--atl-muted);
+            font-size: 18px;
+            cursor: pointer;
+            transition: color var(--atl-t-fast);
+        }
+        .inq-preview-close:hover {
+            color: var(--atl-amber);
+        }
+        .inq-preview-body {
+            flex: 1;
+            background: #ffffff; /* White background to match default email readers */
+            padding: 0;
+            margin: 0;
+            border: none;
+        }
+        .inq-preview-body iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        /* Status Dot overrides for Draft/Scheduled */
+        .inq-status-dot--draft { background-color: var(--atl-muted-dim) !important; }
+        .inq-status-dot--scheduled { background-color: var(--atl-amber) !important; }
+
+        #inqComposeBodyEditor {
+            min-height: 400px !important;
+        }
+        #inqComposeBodyEditor .ql-editor {
+            min-height: 400px !important;
+        }
+
         /* Inbox: bulk select, bulk bar, pagination */
         .inq-selectall { accent-color: var(--atl-amber); cursor: pointer; width: 15px; height: 15px; }
         .inq-row-check {
@@ -5962,6 +6793,16 @@
                                 <i class="fa-solid fa-box-archive" aria-hidden="true"></i>
                                 <span>Archived</span>
                                 <span class="inq-folder-count" id="inqCount-archived" aria-label="archived count"></span>
+                            </a>
+                            <a href="#" class="inq-folder" data-filter="drafts">
+                                <i class="fa-solid fa-file-lines" aria-hidden="true"></i>
+                                <span>Drafts</span>
+                                <span class="inq-folder-count" id="inqCount-drafts" aria-label="drafts count"></span>
+                            </a>
+                            <a href="#" class="inq-folder" data-filter="scheduled">
+                                <i class="fa-solid fa-clock" aria-hidden="true"></i>
+                                <span>Scheduled</span>
+                                <span class="inq-folder-count" id="inqCount-scheduled" aria-label="scheduled count"></span>
                             </a>
                         </nav>
                     </aside>
@@ -15306,6 +16147,38 @@
             $('#inqListBody').html('<div class="inq-empty-state"><i class="fa-solid fa-rotate fa-spin" aria-hidden="true"></i><p>Loading...</p></div>');
             const sort = $('#inqSortSelect').val() || 'newest';
             const search = $('#inqSearchInput').val() || '';
+
+            if (currentInqFilter === 'drafts' || currentInqFilter === 'scheduled') {
+                const statusQuery = currentInqFilter === 'drafts' ? 'draft' : 'scheduled';
+                try {
+                    const res = await apiCall('/api/admin/direct-emails?page=' + inqPage + '&status=' + statusQuery + '&search=' + encodeURIComponent(search));
+                    if (res && res.success) {
+                        allInquiriesCache = res.emails;
+                        if (allInquiriesCache.length === 0 && inqPage > 1 && (res.total || 0) > 0) {
+                            inqPage--;
+                            return loadInquiries();
+                        }
+                        
+                        // We also trigger a badge count sweep to refresh sidebar counters
+                        const cntRes = await apiCall('/api/admin/inquiries?page=1&limit=1');
+                        if (cntRes && cntRes.success) {
+                            renderInqCounts(cntRes.counts);
+                        }
+
+                        renderDirectEmailsList();
+                        inqUpdatePagination(res.total || 0, res.pages || 1);
+                        updateInqBulkBar();
+                    } else {
+                        throw new Error('Invalid response');
+                    }
+                } catch (e) {
+                    $('#inqListBody').html('<div class="inq-empty-state"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><p>Failed to load direct emails.</p></div>');
+                    window.notificationService.showError('Could not load direct emails.');
+                    $('#inqPagination').hide();
+                }
+                return;
+            }
+
             let data;
             try {
                 data = await apiCall('/api/admin/inquiries?page=' + inqPage + '&limit=50&status=' + encodeURIComponent(currentInqFilter) + '&sort=' + encodeURIComponent(sort) + '&search=' + encodeURIComponent(search));
@@ -15340,7 +16213,6 @@
             renderInqCounts();
         }
 
-        // ---- Folder Counts (from server-provided global totals) ----
         function renderInqCounts(counts) {
             if (counts && typeof counts === 'object') inqCounts = counts;
             $('#inqCount-all').text(inqCounts.all > 0 ? inqCounts.all : '');
@@ -15348,6 +16220,54 @@
             $('#inqCount-read').text(inqCounts.read > 0 ? inqCounts.read : '');
             $('#inqCount-replied').text(inqCounts.replied > 0 ? inqCounts.replied : '');
             $('#inqCount-archived').text(inqCounts.archived > 0 ? inqCounts.archived : '');
+            $('#inqCount-drafts').text(inqCounts.drafts > 0 ? inqCounts.drafts : '');
+            $('#inqCount-scheduled').text(inqCounts.scheduled > 0 ? inqCounts.scheduled : '');
+        }
+
+        function renderDirectEmailsList() {
+            const data = allInquiriesCache;
+            const $body = $('#inqListBody');
+            $body.empty();
+
+            if (!data || data.length === 0) {
+                $body.html('<div class="inq-empty-state"><i class="fa-regular fa-envelope-open" aria-hidden="true"></i><p>No draft or scheduled emails found.</p></div>');
+                return;
+            }
+
+            data.forEach(row => {
+                let toList = [];
+                try { toList = JSON.parse(row.to_emails || '[]'); } catch(e) { toList = [row.to_emails]; }
+                const toStr = toList.join(', ') || 'Draft';
+                const initial = toStr.charAt(0).toUpperCase();
+                const dateStr = inqFormatDate(row.updated_at);
+                const preview = (row.body || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().substring(0, 100);
+                const isActive = (inqActiveDraftId == row.id) ? 'inq-row--active' : '';
+                const escapedTo = $('<span>').text(toStr).html();
+                const escapedSubject = $('<span>').text(row.subject || '(No Subject)').html();
+                const escapedPreview = $('<span>').text(preview).html();
+
+                let statusDot = 'draft';
+                let statusLabel = 'Draft';
+                if (row.status === 'scheduled') {
+                    statusDot = 'scheduled';
+                    statusLabel = 'Scheduled at ' + row.scheduled_at;
+                }
+
+                $body.append(`
+<div class="inq-row ${isActive}" data-id="${row.id}" role="button" tabindex="0" aria-label="Direct email to ${escapedTo}: ${escapedSubject}">
+    <input type="checkbox" class="inq-row-check" data-id="${row.id}" aria-label="Select draft">
+    <div class="inq-row-avatar" aria-hidden="true" style="background:rgba(212,175,55,0.1); color:var(--atl-amber);">${initial}</div>
+    <div class="inq-row-main">
+        <div class="inq-row-top">
+            <span class="inq-row-name">${escapedTo}</span>
+            <span class="inq-row-date">${dateStr}</span>
+        </div>
+        <div class="inq-row-subject">${escapedSubject}</div>
+        <div class="inq-row-preview">${escapedPreview}</div>
+    </div>
+    <span class="inq-status-dot inq-status-dot--${statusDot}" aria-label="${statusLabel}"></span>
+</div>`);
+            });
         }
 
         // ---- Pagination control ----
@@ -15464,29 +16384,584 @@
             }
         }
 
-        // ---- Compose Mode ----
+        // ---- Direct Email Recipient Arrays & Config ----
+        let inqToEmails = [];
+        let inqCcEmails = [];
+        let inqBccEmails = [];
+        let inqComposeQuill = null;
+        let inqPredefinedBanners = [];
+        let inqActiveDraftId = null;
+        let inqAttachments = [];
+        let inqActiveInquiryContext = null;
+        let inqAutosaveTimer = null;
+
+        // ---- Compose Mode (Enhanced) ----
         function showInqComposeView(defaults) {
             currentInqId = null;
+            inqActiveDraftId = null;
+            inqAttachments = [];
+            inqToEmails = [];
+            inqCcEmails = [];
+            inqBccEmails = [];
+            inqActiveInquiryContext = null;
+
             defaults = defaults || {};
-            $('#inqComposeTo').val(defaults.to || '');
+            
+            // Clean/Reset all form fields
+            $('#inqComposerTitle').text(defaults.isReply ? 'Reply to Inquiry' : 'New Message');
             $('#inqComposeSubject').val(defaults.subject || '');
-            $('#inqComposeBody').val(defaults.body || 'Best Regards,\nThabiso Mhlongo Management');
-            $('#inqComposeAlert').hide().removeClass('alert-success alert-danger');
+            $('#inqComposeReplyTo').val(defaults.replyTo || '');
+            
+            // Initialize/reset Quill editor
+            initInqComposeQuill();
+            if (inqComposeQuill) {
+                inqComposeQuill.root.innerHTML = defaults.body || '<p><br></p>';
+            }
+
+            // CC/BCC collapses
+            $('#inqCcRow, #inqBccRow, #inqReplyToRow').hide();
+            $('#toggleCcBccBtn').text('Cc/Bcc/Reply-To');
+
+            // Reset templates/branding selection
+            $('#inqTemplateSelect').val('');
+            $('#inqBrandingSelect').val('default');
+            $('#inqCustomBannerGroup').hide();
+            $('#inqBannerPreviewRow').hide();
+
+            // Clear attachments
+            renderInqAttachments();
+
+            // Clear scheduled sendpicker
+            $('#inqScheduleSendRow').hide();
+            $('#inqSchedulePicker').val('');
+
+            // Pre-populate recipients
+            if (defaults.to) {
+                if (Array.isArray(defaults.to)) {
+                    defaults.to.forEach(e => addRecipientChip('inqToChipsContainer', 'inqComposeToInput', e, inqToEmails));
+                } else {
+                    addRecipientChip('inqToChipsContainer', 'inqComposeToInput', defaults.to, inqToEmails);
+                }
+            } else {
+                renderRecipientChips('inqToChipsContainer', 'inqComposeToInput', inqToEmails);
+            }
+            renderRecipientChips('inqCcChipsContainer', 'inqComposeCcInput', inqCcEmails);
+            renderRecipientChips('inqBccChipsContainer', 'inqComposeBccInput', inqBccEmails);
+
+            // Bind inputs
+            setupInqChipInput('inqToChipsContainer', 'inqComposeToInput', inqToEmails);
+            setupInqChipInput('inqCcChipsContainer', 'inqComposeCcInput', inqCcEmails);
+            setupInqChipInput('inqBccChipsContainer', 'inqComposeBccInput', inqBccEmails);
+
+            // Set attachments drag/drop
+            initInqAttachmentUpload();
+
+            // Set scheduled datetimepicker
+            initInqSchedulePicker();
+
+            // Hide/Show correct drawer panels
             $('#inqReadView').hide();
+            $('#inqReplyStrip').hide();
             $('#inqComposeView').show();
+            
             openAtlDrawer('inqDetailDrawer');
             $('.inq-row').removeClass('inq-row--active');
-            $('#inqComposeTo').trigger('focus');
+            
+            setTimeout(() => {
+                $('#inqComposeToInput').trigger('focus');
+            }, 100);
+
+            // Clear existing autosave timer
+            if (inqAutosaveTimer) clearInterval(inqAutosaveTimer);
+            // Trigger automatic draft autosaving every 15 seconds if body/to has content
+            inqAutosaveTimer = setInterval(autosaveInqDraft, 15000);
         }
 
+        // Quill WYSIWYG editor init
+        function initInqComposeQuill() {
+            if (inqComposeQuill) return;
+            try {
+                if (typeof Quill === 'undefined') return;
+                
+                var Font = Quill.import('formats/font');
+                Font.whitelist = ['outfit','cormorant','jetbrains','farsan','opensans','roboto','lato','montserrat','arial','georgia','timesnewroman','garamond','playfair'];
+                Quill.register(Font, true);
+
+                var Size = Quill.import('formats/size');
+                Size.whitelist = ['small', false, 'large', 'huge'];
+                Quill.register(Size, true);
+
+                const toolbarOptions = [
+                    [{ 'font': Font.whitelist }],
+                    [{ 'size': Size.whitelist }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'color': [] }, { 'background': [] }],
+                    [{ 'header': [1, 2, 3, false] }],
+                    [{ 'align': [] }],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'indent': '-1'}, { 'indent': '+1' }],
+                    ['blockquote', 'link'],
+                    ['table-insert', 'hr-insert', 'emoji-picker'],
+                    ['undo', 'redo', 'clean']
+                ];
+
+                inqComposeQuill = new Quill('#inqComposeBodyEditor', {
+                    theme: 'snow',
+                    placeholder: 'Write your email here...',
+                    modules: {
+                        toolbar: {
+                            container: toolbarOptions,
+                            handlers: {
+                                'table-insert': function() {
+                                    const rows = prompt('Number of rows:', '2') || 2;
+                                    const cols = prompt('Number of columns:', '3') || 3;
+                                    let table = '<table style="width:100%; border-collapse:collapse; margin:10px 0; border:1px solid var(--atl-line);">';
+                                    table += '<thead><tr style="background:rgba(255,255,255,0.03);">';
+                                    for (let c = 0; c < cols; c++) table += '<th style="border:1px solid var(--atl-line); padding:6px 10px; text-align:left; color:var(--atl-amber);">Header</th>';
+                                    table += '</tr></thead><tbody>';
+                                    for (let r = 0; r < rows; r++) {
+                                        table += '<tr>';
+                                        for (let c = 0; c < cols; c++) table += '<td style="border:1px solid var(--atl-line); padding:6px 10px; color:var(--atl-ink);">Cell</td>';
+                                        table += '</tr>';
+                                    }
+                                    table += '</tbody></table>';
+                                    const range = this.quill.getSelection(true);
+                                    this.quill.clipboard.dangerouslyPasteHTML(range.index, table);
+                                },
+                                'hr-insert': function() {
+                                    const range = this.quill.getSelection(true);
+                                    this.quill.clipboard.dangerouslyPasteHTML(range.index, '<hr style="border:0; border-top:1px solid rgba(255,255,255,0.15); margin:15px 0;">');
+                                },
+                                'emoji-picker': function() {
+                                    const emojis = ['😊', '👍', '🙏', '🎉', '🔥', '💡', '🌟', '👏', '❤️', '📧', '📞', '🤝'];
+                                    const selected = prompt('Choose an emoji:\n' + emojis.join(' '), '😊');
+                                    if (selected && emojis.includes(selected.trim())) {
+                                        const range = this.quill.getSelection(true);
+                                        this.quill.insertText(range.index, selected.trim());
+                                    }
+                                },
+                                'undo': function() { this.quill.history.undo(); },
+                                'redo': function() { this.quill.history.redo(); }
+                            }
+                        }
+                    }
+                });
+
+                $('.ql-table-insert').html('<i class="fa-solid fa-table" title="Insert Table"></i>');
+                $('.ql-hr-insert').html('<i class="fa-solid fa-minus" title="Insert Horizontal Rule"></i>');
+                $('.ql-emoji-picker').html('<i class="fa-regular fa-face-smile" title="Insert Emoji"></i>');
+                $('.ql-undo').html('<i class="fa-solid fa-rotate-left" title="Undo"></i>');
+                $('.ql-redo').html('<i class="fa-solid fa-rotate-right" title="Redo"></i>');
+            } catch(e) {
+                console.warn('Composer Quill init failed:', e);
+            }
+        }
+
+        // Recipient chips controller logic
+        function setupInqChipInput(containerId, inputId, storageArray) {
+            const $container = $('#' + containerId);
+            const $input = $('#' + inputId);
+            
+            $container.off('click').on('click', function(e) {
+                if (e.target === this || $(e.target).hasClass('inq-recipient-chip') || $(e.target).parent().hasClass('inq-recipient-chip')) {
+                    $input.trigger('focus');
+                }
+            });
+
+            $input.off('keydown').on('keydown', function(e) {
+                const value = $(this).val().trim();
+                if (e.key === 'Enter' || e.key === ',' || e.key === ' ' || e.key === 'Tab') {
+                    e.preventDefault();
+                    if (value) {
+                        addRecipientChip(containerId, inputId, value, storageArray);
+                        $(this).val('');
+                    }
+                } else if (e.key === 'Backspace' && !value && storageArray.length > 0) {
+                    storageArray.pop();
+                    renderRecipientChips(containerId, inputId, storageArray);
+                }
+            });
+
+            $input.off('blur').on('blur', function() {
+                const value = $(this).val().trim();
+                if (value) {
+                    addRecipientChip(containerId, inputId, value, storageArray);
+                    $(this).val('');
+                }
+            });
+        }
+
+        function addRecipientChip(containerId, inputId, email, storageArray) {
+            const cleanEmail = email.replace(/,/g, '').trim();
+            if (!cleanEmail) return;
+            if (storageArray.includes(cleanEmail)) return;
+            storageArray.push(cleanEmail);
+            renderRecipientChips(containerId, inputId, storageArray);
+        }
+
+        function removeRecipientChip(containerId, inputId, email, storageArray) {
+            const idx = storageArray.indexOf(email);
+            if (idx !== -1) {
+                storageArray.splice(idx, 1);
+            }
+            renderRecipientChips(containerId, inputId, storageArray);
+        }
+
+        function renderRecipientChips(containerId, inputId, storageArray) {
+            const $container = $('#' + containerId);
+            const $input = $('#' + inputId);
+            $container.find('.inq-recipient-chip').remove();
+            
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            storageArray.forEach(email => {
+                const isValid = emailRegex.test(email);
+                const invalidClass = isValid ? '' : 'inq-recipient-invalid';
+                const chipHtml = `
+                    <span class="inq-recipient-chip ${invalidClass}">
+                        <span>${email}</span>
+                        <i class="fa-solid fa-xmark inq-chip-remove" data-email="${email}"></i>
+                    </span>
+                `;
+                $(chipHtml).insertBefore($input);
+            });
+        }
+
+        // Attachments upload logic
+        function initInqAttachmentUpload() {
+            const $zone = $('#inqDragDropZone');
+            const $fileInput = $('#inqAttachmentFileInput');
+
+            $('#inqBrowseLink').off('click').on('click', function(e) {
+                e.stopPropagation();
+                $fileInput.trigger('click');
+            });
+
+            $zone.off('dragover').on('dragover', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                $(this).addClass('dragover');
+            });
+
+            $zone.off('dragleave').on('dragleave', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                $(this).removeClass('dragover');
+            });
+
+            $zone.off('drop').on('drop', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                $(this).removeClass('dragover');
+                const files = e.originalEvent.dataTransfer.files;
+                handleInqFiles(files);
+            });
+
+            $fileInput.off('change').on('change', function() {
+                const files = this.files;
+                handleInqFiles(files);
+            });
+        }
+
+        function handleInqFiles(files) {
+            if (!files.length) return;
+            for (let i = 0; i < files.length; i++) {
+                uploadInqAttachment(files[i]);
+            }
+        }
+
+        async function uploadInqAttachment(file) {
+            const maxSize = 10 * 1024 * 1024;
+            if (file.size > maxSize) {
+                window.notificationService.showError(`File ${file.name} exceeds 10MB limit.`);
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const $progressBox = $('#inqUploadProgressBox');
+            const $percent = $('#inqUploadProgressPercent');
+            const $fileName = $('#inqUploadFileName');
+            const $barFill = $('#inqProgressBarFill');
+
+            $fileName.text('Uploading ' + file.name + '...');
+            $percent.text('0%');
+            $barFill.css('width', '0%');
+            $progressBox.show();
+
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/api/admin/direct-emails/upload', true);
+                
+                xhr.upload.onprogress = function(e) {
+                    if (e.lengthComputable) {
+                        const percentVal = Math.round((e.loaded / e.total) * 100);
+                        $percent.text(percentVal + '%');
+                        $barFill.css('width', percentVal + '%');
+                    }
+                };
+
+                xhr.onload = function() {
+                    $progressBox.hide();
+                    if (xhr.status === 200) {
+                        try {
+                            const res = JSON.parse(xhr.responseText);
+                            if (res.success) {
+                                inqAttachments.push({
+                                    filename: res.originalName,
+                                    path: res.path,
+                                    size: res.size
+                                });
+                                renderInqAttachments();
+                                window.notificationService.showSuccess(`Uploaded ${res.originalName}`);
+                            } else {
+                                window.notificationService.showError(res.message || 'Upload failed');
+                            }
+                        } catch(e) {
+                            window.notificationService.showError('Invalid server response');
+                        }
+                    } else {
+                        window.notificationService.showError('Upload failed with status ' + xhr.status);
+                    }
+                };
+
+                xhr.onerror = function() {
+                    $progressBox.hide();
+                    window.notificationService.showError('Network error during upload');
+                };
+
+                xhr.send(formData);
+            } catch(e) {
+                $progressBox.hide();
+                window.notificationService.showError('Upload initialization failed');
+            }
+        }
+
+        function renderInqAttachments() {
+            const $list = $('#inqAttachmentsList');
+            $list.empty();
+            inqAttachments.forEach((att, idx) => {
+                const sizeMb = (att.size / (1024 * 1024)).toFixed(2);
+                const ext = att.filename.split('.').pop().toLowerCase();
+                let iconClass = 'fa-file';
+                if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) iconClass = 'fa-file-image';
+                else if (ext === 'pdf') iconClass = 'fa-file-pdf';
+                else if (['doc', 'docx'].includes(ext)) iconClass = 'fa-file-word';
+                else if (['zip', 'rar', '7z', 'gz'].includes(ext)) iconClass = 'fa-file-zipper';
+
+                $list.append(`
+                    <div class="inq-attachment-tile">
+                        <div class="inq-attach-info">
+                            <i class="fa-solid ${iconClass} inq-attach-icon" aria-hidden="true"></i>
+                            <div>
+                                <span class="inq-attach-name">${att.filename}</span>
+                                <span class="inq-attach-size">(${sizeMb} MB)</span>
+                            </div>
+                        </div>
+                        <button type="button" class="inq-attach-remove" data-idx="${idx}" aria-label="Remove attachment">
+                            <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                `);
+            });
+        }
+
+        // Datepicker scheduling send
+        function initInqSchedulePicker() {
+            const el = document.getElementById('inqSchedulePicker');
+            if (el && !el._flatpickr) {
+                if (typeof flatpickr !== 'undefined') {
+                    flatpickr(el, {
+                        enableTime: true,
+                        dateFormat: "Y-m-d H:i",
+                        minDate: "today",
+                        time_24hr: true
+                    });
+                }
+            }
+        }
+
+        // Auto save drafts block
+        async function autosaveInqDraft() {
+            if (!inqComposeQuill || !$('#inqComposeView').is(':visible')) return;
+            const body = inqComposeQuill.root.innerHTML.trim();
+            if (body === '<p><br></p>' && inqToEmails.length === 0) return;
+            
+            const subject = $('#inqComposeSubject').val().trim() || '(No Subject)';
+            const branding = $('#inqBrandingSelect').val();
+            const bannerUrl = branding === 'banner' ? $('#inqBannerSelector').val() : null;
+            const replyTo = $('#inqComposeReplyTo').val().trim();
+            
+            const payload = {
+                inquiry_id: inqActiveInquiryContext ? inqActiveInquiryContext.inquiry_id : null,
+                to_emails: inqToEmails,
+                cc_emails: inqCcEmails,
+                bcc_emails: inqBccEmails,
+                reply_to: replyTo,
+                subject: subject,
+                body: body,
+                branding_option: branding,
+                selected_banner_url: bannerUrl,
+                attachment_paths: inqAttachments,
+                status: 'draft'
+            };
+
+            try {
+                if (inqActiveDraftId) {
+                    await apiCall('/api/admin/direct-emails/' + inqActiveDraftId, 'PUT', payload);
+                } else {
+                    const res = await apiCall('/api/admin/direct-emails', 'POST', payload);
+                    if (res && res.success && res.email) {
+                        inqActiveDraftId = res.email.id;
+                    }
+                }
+                if (currentInqFilter === 'drafts') {
+                    loadInquiries(false);
+                }
+            } catch(e) {
+                console.warn('Auto-draft save failed:', e);
+            }
+        }
+
+        // Open direct email draft / schedule send for editing
+        async function openDirectEmailDraft(id) {
+            inqActiveDraftId = id;
+            inqAttachments = [];
+            inqToEmails = [];
+            inqCcEmails = [];
+            inqBccEmails = [];
+            inqActiveInquiryContext = null;
+
+            try {
+                const res = await apiCall('/api/admin/direct-emails/' + id);
+                if (res && res.success && res.email) {
+                    const email = res.email;
+                    
+                    $('#inqComposerTitle').text(email.status === 'scheduled' ? 'Scheduled Email' : 'Edit Draft');
+                    $('#inqComposeSubject').val(email.subject || '');
+                    $('#inqComposeReplyTo').val(email.reply_to || '');
+
+                    initInqComposeQuill();
+                    if (inqComposeQuill) {
+                        inqComposeQuill.root.innerHTML = email.body || '<p><br></p>';
+                    }
+
+                    try { inqToEmails = JSON.parse(email.to_emails || '[]'); } catch(e) { inqToEmails = [email.to_emails]; }
+                    try { inqCcEmails = JSON.parse(email.cc_emails || '[]'); } catch(e) { inqCcEmails = []; }
+                    try { inqBccEmails = JSON.parse(email.bcc_emails || '[]'); } catch(e) { inqBccEmails = []; }
+                    try { inqAttachments = JSON.parse(email.attachment_paths || '[]'); } catch(e) { inqAttachments = []; }
+
+                    renderRecipientChips('inqToChipsContainer', 'inqComposeToInput', inqToEmails);
+                    renderRecipientChips('inqCcChipsContainer', 'inqComposeCcInput', inqCcEmails);
+                    renderRecipientChips('inqBccChipsContainer', 'inqComposeBccInput', inqBccEmails);
+
+                    setupInqChipInput('inqToChipsContainer', 'inqComposeToInput', inqToEmails);
+                    setupInqChipInput('inqCcChipsContainer', 'inqComposeCcInput', inqCcEmails);
+                    setupInqChipInput('inqBccChipsContainer', 'inqComposeBccInput', inqBccEmails);
+
+                    if (inqCcEmails.length > 0 || inqBccEmails.length > 0 || email.reply_to) {
+                        $('#inqCcRow, #inqBccRow, #inqReplyToRow').show();
+                        $('#toggleCcBccBtn').text('Hide Cc/Bcc/Reply-To');
+                    } else {
+                        $('#inqCcRow, #inqBccRow, #inqReplyToRow').hide();
+                        $('#toggleCcBccBtn').text('Cc/Bcc/Reply-To');
+                    }
+
+                    $('#inqTemplateSelect').val('');
+                    $('#inqBrandingSelect').val(email.branding_option || 'default');
+                    if (email.branding_option === 'banner') {
+                        if (inqPredefinedBanners.length === 0) {
+                            const bres = await apiCall('/api/admin/branding/banners');
+                            if (bres && bres.success && bres.banners) {
+                                inqPredefinedBanners = bres.banners;
+                            }
+                        }
+                        populateBannerSelector();
+                        $('#inqBannerSelector').val(email.selected_banner_url || '');
+                        $('#inqSelectedBannerPreview').attr('src', email.selected_banner_url || '');
+                        $('#inqCustomBannerGroup').show();
+                        $('#inqBannerPreviewRow').show();
+                    } else {
+                        $('#inqCustomBannerGroup').hide();
+                        $('#inqBannerPreviewRow').hide();
+                    }
+
+                    renderInqAttachments();
+
+                    if (email.status === 'scheduled' && email.scheduled_at) {
+                        const dt = email.scheduled_at.replace('Z', '').replace('T', ' ').substring(0, 16);
+                        $('#inqSchedulePicker').val(dt);
+                        $('#inqScheduleSendRow').show();
+                    } else {
+                        $('#inqSchedulePicker').val('');
+                        $('#inqScheduleSendRow').hide();
+                    }
+
+                    if (email.inquiry_id) {
+                        const inqs = await apiCall('/api/admin/inquiries?limit=100'); // Check cache
+                        if (inqs && inqs.success && inqs.inquiries) {
+                            inqActiveInquiryContext = inqs.inquiries.find(i => i.inquiry_id == email.inquiry_id);
+                        }
+                    }
+
+                    $('#inqReadView').hide();
+                    $('#inqReplyStrip').hide();
+                    $('#inqComposeView').show();
+                    openAtlDrawer('inqDetailDrawer');
+                    $('.inq-row').removeClass('inq-row--active');
+                    $(`.inq-row[data-id="${id}"]`).addClass('inq-row--active');
+
+                    initInqAttachmentUpload();
+                    initInqSchedulePicker();
+
+                    if (inqAutosaveTimer) clearInterval(inqAutosaveTimer);
+                    inqAutosaveTimer = setInterval(autosaveInqDraft, 15000);
+                } else {
+                    window.notificationService.showError('Could not load draft details.');
+                }
+            } catch(e) {
+                window.notificationService.showError('Draft loading failed: ' + e.message);
+            }
+        }
+
+        // Apply templates
+        function applyInqTemplate(templateKey) {
+            if (!inqComposeQuill) return;
+            let clientName = 'there';
+            if (inqActiveInquiryContext && inqActiveInquiryContext.sender_name) {
+                clientName = inqActiveInquiryContext.sender_name.split(' ')[0];
+            }
+            
+            let html = '';
+            if (templateKey === 'inquiry_follow_up') {
+                html = `<p>Hi ${clientName},</p><p>Thank you for reaching out to us. We have received your inquiry and would love to assist you with organizing Thabiso's performance for your upcoming event.</p><p>Could you please provide some additional details regarding the event format, location, and the expected audience size? This will help us quote accurately.</p><p>Looking forward to your reply!</p>`;
+            } else if (templateKey === 'date_unavailable') {
+                html = `<p>Hi ${clientName},</p><p>Thank you for considering Thabiso for your event${inqActiveInquiryContext ? ' on ' + (inqActiveInquiryContext.submitted_at ? new Date(inqActiveInquiryContext.submitted_at).toLocaleDateString() : '') : ''}.</p><p>Unfortunately, Thabiso is already booked or unavailable at that time. We appreciate your inquiry and hope we can work together on a future event!</p><p>Best regards,</p>`;
+            } else if (templateKey === 'phone_call') {
+                html = `<p>Hi ${clientName},</p><p>Thank you for your message. To understand your requirements and ensure Thabiso is the perfect fit, we would love to jump on a quick 10-minute phone call.</p><p>Please let us know what time works best for you this week, or call Lindelwe Xulu at +27 74 341 9681.</p><p>Best regards,</p>`;
+            } else {
+                html = `<p>Hi ${clientName},</p><p><br></p>`;
+            }
+
+            inqComposeQuill.root.innerHTML = html;
+        }
+
+        // Preview email modal
+        window.closeEmailPreviewModal = function() {
+            $('#inqPreviewBackdrop').removeClass('active');
+        };
+
         function inqCloseDetail() {
+            if (inqAutosaveTimer) clearInterval(inqAutosaveTimer);
             closeAtlDrawer('inqDetailDrawer');
         }
 
-        // Clear selection state whenever the reading-pane drawer closes (Back button, Escape, or backdrop click).
+        // Clear selection state whenever the reading-pane drawer closes
         document.addEventListener('atl:drawerClosed', function(e) {
             if (!e.detail || e.detail.id !== 'inqDetailDrawer') return;
             currentInqId = null;
+            inqActiveDraftId = null;
+            if (inqAutosaveTimer) clearInterval(inqAutosaveTimer);
             $('#inqReadView').hide();
             $('#inqComposeView').hide();
             $('#inqReplyStrip').hide();
@@ -15498,11 +16973,24 @@
         // Open message on row click (ignore clicks on the row's select checkbox)
         $(document).on('click', '.inq-row', function(e) {
             if ($(e.target).is('.inq-row-check')) return;
-            openInquiry($(this).data('id'));
+            const id = $(this).data('id');
+            if (currentInqFilter === 'drafts' || currentInqFilter === 'scheduled') {
+                openDirectEmailDraft(id);
+            } else {
+                openInquiry(id);
+            }
         });
         $(document).on('keydown', '.inq-row', function(e) {
             if ($(e.target).is('.inq-row-check')) return;
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openInquiry($(this).data('id')); }
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                const id = $(this).data('id');
+                if (currentInqFilter === 'drafts' || currentInqFilter === 'scheduled') {
+                    openDirectEmailDraft(id);
+                } else {
+                    openInquiry(id);
+                }
+            }
         });
 
         // Row checkbox: select without opening the message
@@ -15605,8 +17093,20 @@
             } catch (e) {}
         });
 
-        // Reply strip toggle
-        $(document).on('click', '#inqReadReplyBtn', function() { $('#inqReplyStrip').slideToggle(200); });
+        // Reply drawer trigger
+        $(document).on('click', '#inqReadReplyBtn', function() {
+            const inquiry = allInquiriesCache.find(i => i.inquiry_id == currentInqId);
+            if (!inquiry) return;
+            
+            inqActiveInquiryContext = inquiry;
+            const firstName = (inquiry.sender_name || '').split(' ')[0] || 'there';
+            showInqComposeView({
+                isReply: true,
+                to: inquiry.sender_email,
+                subject: 'Re: ' + (inquiry.subject || 'Your Inquiry'),
+                body: `<p>Hi ${firstName},</p><p>Thank you for reaching out to us. We appreciate you taking the time to contact us.</p><p><br></p><p>Best Regards,</p><p>Thabiso Mhlongo Management</p>`
+            });
+        });
         $(document).on('click', '#inqCancelReplyBtn', function() { $('#inqReplyStrip').slideUp(200); });
 
         // Archive toggle
@@ -15653,55 +17153,242 @@
             } catch (e) {}
         });
 
-        // Send reply
-        $(document).on('click', '#inqSendReplyBtnNew', async function() {
-            if (!currentInqId) return;
-            const subject = $('#inqReplySubjectField').val().trim();
-            const message = $('#inqReplyBody').val().trim();
-            if (!message) { window.notificationService.showError('Please write a reply message before sending.'); return; }
-            const $btn = $(this);
-            const origHtml = $btn.html();
-            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Sending...');
-            try {
-                const res = await apiCall('/api/admin/inquiries/' + currentInqId + '/reply', 'POST', { replyMessage: message, subject: subject });
-                if (res && res.success) {
-                    const inquiry = allInquiriesCache.find(i => i.inquiry_id == currentInqId);
-                    if (inquiry) inquiry.status = 'replied';
-                    loadInquiries();
-                    $('#inqReadStatusBadge').text('Replied').attr('class', 'inq-read-status-badge inq-badge inq-badge--replied');
-                    window.notificationService.showSuccess('Reply sent. The sender has been notified by email.');
-                    setTimeout(() => { $('#inqReplyStrip').slideUp(200); }, 3000);
-                } else {
-                    window.notificationService.showError('Failed to send reply. Please try again.');
-                }
-            } catch (e) {
-                window.notificationService.showError(e.message || 'Send failed.');
+        // Toggle CC/BCC/Reply-To collapse row
+        $(document).on('click', '#toggleCcBccBtn', function() {
+            const isVisible = $('#inqCcRow').is(':visible');
+            if (isVisible) {
+                $('#inqCcRow, #inqBccRow, #inqReplyToRow').hide();
+                $(this).text('Cc/Bcc/Reply-To');
+            } else {
+                $('#inqCcRow, #inqBccRow, #inqReplyToRow').show();
+                $(this).text('Hide Cc/Bcc/Reply-To');
             }
-            $btn.prop('disabled', false).html(origHtml);
         });
 
-        // Send compose (outbound freeform email)
-        $(document).on('click', '#inqComposeSendBtn', async function() {
-            const to = $('#inqComposeTo').val().trim();
-            const subject = $('#inqComposeSubject').val().trim();
-            const body = $('#inqComposeBody').val().trim();
-            if (!to) { window.notificationService.showError('Please enter a recipient email address.'); return; }
-            if (!body) { window.notificationService.showError('Please write a message before sending.'); return; }
-            const $btn = $(this);
-            const origHtml = $btn.html();
-            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Sending...');
-            try {
-                const res = await apiCall('/api/admin/compose', 'POST', { to, subject, body });
-                if (res && res.success) {
-                    window.notificationService.showSuccess('Message sent successfully.');
-                    setTimeout(() => { inqCloseDetail(); }, 2500);
+        // Templates selection trigger
+        $(document).on('change', '#inqTemplateSelect', function() {
+            const val = $(this).val();
+            if (val) {
+                applyInqTemplate(val);
+            }
+        });
+
+        // Personalization tokens bar chip click
+        $(document).on('click', '.inq-token-chip', function() {
+            if (!inqComposeQuill) return;
+            const token = $(this).data('token');
+            const range = inqComposeQuill.getSelection(true);
+            inqComposeQuill.insertText(range.index, token);
+            inqComposeQuill.setSelection(range.index + token.length);
+        });
+
+        // Branding dropdown change
+        $(document).on('change', '#inqBrandingSelect', function() {
+            const val = $(this).val();
+            if (val === 'banner') {
+                if (inqPredefinedBanners.length === 0) {
+                    apiCall('/api/admin/branding/banners').then(res => {
+                        if (res && res.success && res.banners) {
+                            inqPredefinedBanners = res.banners;
+                            populateBannerSelector();
+                        }
+                    });
                 } else {
-                    window.notificationService.showError('Failed to send message. Please check your email server settings.');
+                    populateBannerSelector();
                 }
-            } catch (e) {
-                window.notificationService.showError(e.message || 'Send failed.');
+                $('#inqCustomBannerGroup').show();
+            } else {
+                $('#inqCustomBannerGroup').hide();
+                $('#inqBannerPreviewRow').hide();
+            }
+        });
+
+        function populateBannerSelector() {
+            const $sel = $('#inqBannerSelector');
+            $sel.empty();
+            inqPredefinedBanners.forEach(url => {
+                const name = url.split('/').pop().replace(/_/g, ' ');
+                $sel.append(`<option value="${url}">${name}</option>`);
+            });
+            const selected = $sel.val();
+            if (selected) {
+                $('#inqSelectedBannerPreview').attr('src', selected);
+                $('#inqBannerPreviewRow').show();
+            }
+        }
+
+        $(document).on('change', '#inqBannerSelector', function() {
+            const selected = $(this).val();
+            if (selected) {
+                $('#inqSelectedBannerPreview').attr('src', selected);
+                $('#inqBannerPreviewRow').show();
+            }
+        });
+
+        // Attachment removal delegate
+        $(document).on('click', '.inq-attach-remove', function() {
+            const idx = $(this).data('idx');
+            inqAttachments.splice(idx, 1);
+            renderInqAttachments();
+        });
+
+        // Split send options
+        $(document).on('click', '#inqSendMenuToggleBtn', function(e) {
+            e.stopPropagation();
+            $('#inqSendDropdownMenu').toggle();
+        });
+
+        $(document).on('click', function() {
+            $('#inqSendDropdownMenu').hide();
+        });
+
+        $(document).on('click', '#inqScheduleSendBtnOption', function() {
+            $('#inqScheduleSendRow').show();
+            $('#inqSchedulePicker').trigger('focus');
+        });
+
+        $(document).on('click', '#inqClearScheduleBtn', function() {
+            $('#inqSchedulePicker').val('');
+            $('#inqScheduleSendRow').hide();
+        });
+
+        // Manual Save Draft button
+        $(document).on('click', '#inqComposeSaveDraftBtn', async function() {
+            if (inqToEmails.length === 0 && (!inqComposeQuill || inqComposeQuill.root.innerHTML.trim() === '<p><br></p>')) {
+                window.notificationService.showError('Cannot save an empty draft.');
+                return;
+            }
+            const $btn = $(this);
+            $btn.prop('disabled', true).text('Saving...');
+            await autosaveInqDraft();
+            window.notificationService.showSuccess('Draft saved successfully.');
+            $btn.prop('disabled', false).text('Save Draft');
+        });
+
+        // Preview rendering trigger
+        async function previewComposedEmail() {
+            if (!inqComposeQuill) return;
+            const body = inqComposeQuill.root.innerHTML;
+            const subject = $('#inqComposeSubject').val().trim() || '(No Subject)';
+            const branding = $('#inqBrandingSelect').val();
+            const bannerUrl = branding === 'banner' ? $('#inqBannerSelector').val() : null;
+
+            try {
+                const res = await apiCall('/api/admin/direct-emails/preview', 'POST', {
+                    body,
+                    subject,
+                    branding_option: branding,
+                    selected_banner_url: bannerUrl
+                });
+
+                if (res && res.success && res.html) {
+                    const iframe = document.getElementById('inqPreviewIframe');
+                    const iframeDoc = iframe.contentWindow || iframe.contentDocument;
+                    const doc = iframeDoc.document ? iframeDoc.document : iframeDoc;
+                    doc.open();
+                    doc.write(res.html);
+                    doc.close();
+                    $('#inqPreviewBackdrop').addClass('active');
+                } else {
+                    window.notificationService.showError('Preview generation failed.');
+                }
+            } catch(e) {
+                window.notificationService.showError('Could not load email preview: ' + e.message);
+            }
+        }
+        $(document).on('click', '#inqComposePreviewBtn', previewComposedEmail);
+
+        // Send or Schedule composed email
+        async function sendOrScheduleComposedEmail() {
+            if (inqToEmails.length === 0) {
+                window.notificationService.showError('Please add at least one recipient email address.');
+                return;
+            }
+            const body = inqComposeQuill ? inqComposeQuill.root.innerHTML.trim() : '';
+            if (!body || body === '<p><br></p>') {
+                window.notificationService.showError('Please write a message before sending.');
+                return;
+            }
+
+            const subject = $('#inqComposeSubject').val().trim() || '(No Subject)';
+            const branding = $('#inqBrandingSelect').val();
+            const bannerUrl = branding === 'banner' ? $('#inqBannerSelector').val() : null;
+            const replyTo = $('#inqComposeReplyTo').val().trim();
+            
+            const schedPicker = $('#inqSchedulePicker').val();
+            const isScheduled = $('#inqScheduleSendRow').is(':visible') && schedPicker;
+            const status = isScheduled ? 'scheduled' : 'draft';
+            const scheduledAt = isScheduled ? schedPicker : null;
+
+            const payload = {
+                inquiry_id: inqActiveInquiryContext ? inqActiveInquiryContext.inquiry_id : null,
+                to_emails: inqToEmails,
+                cc_emails: inqCcEmails,
+                bcc_emails: inqBccEmails,
+                reply_to: replyTo,
+                subject: subject,
+                body: body,
+                branding_option: branding,
+                selected_banner_url: bannerUrl,
+                attachment_paths: inqAttachments,
+                scheduled_at: scheduledAt,
+                status: status
+            };
+
+            const $btn = $('#inqComposeSendBtn');
+            const origHtml = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Processing...');
+
+            try {
+                let draftId = inqActiveDraftId;
+                if (draftId) {
+                    await apiCall('/api/admin/direct-emails/' + draftId, 'PUT', payload);
+                } else {
+                    const res = await apiCall('/api/admin/direct-emails', 'POST', payload);
+                    if (res && res.success && res.email) {
+                        draftId = res.email.id;
+                    }
+                }
+
+                if (isScheduled) {
+                    window.notificationService.showSuccess('Email scheduled successfully.');
+                    if (inqAutosaveTimer) clearInterval(inqAutosaveTimer);
+                    inqCloseDetail();
+                    loadInquiries(true);
+                } else {
+                    const sendRes = await apiCall('/api/admin/direct-emails/' + draftId + '/send', 'POST');
+                    if (sendRes && sendRes.success) {
+                        window.notificationService.showSuccess('Message sent successfully.');
+                        if (inqAutosaveTimer) clearInterval(inqAutosaveTimer);
+                        inqCloseDetail();
+                        loadInquiries(true);
+                    } else {
+                        window.notificationService.showError('Sending failed. Saved as draft.');
+                    }
+                }
+            } catch(e) {
+                window.notificationService.showError('Failed: ' + e.message);
             }
             $btn.prop('disabled', false).html(origHtml);
+        }
+        $(document).off('click', '#inqComposeSendBtn').on('click', '#inqComposeSendBtn', sendOrScheduleComposedEmail);
+
+        // Discard / Delete draft button click
+        $(document).on('click', '#inqComposeDiscardBtn', async function() {
+            if (inqActiveDraftId) {
+                if (confirm('Are you sure you want to discard this draft?')) {
+                    try {
+                        await apiCall('/api/admin/direct-emails/' + inqActiveDraftId, 'DELETE');
+                        window.notificationService.showSuccess('Draft discarded.');
+                        inqCloseDetail();
+                        loadInquiries(true);
+                    } catch(e) {
+                        window.notificationService.showError('Could not discard draft.');
+                    }
+                }
+            } else {
+                inqCloseDetail();
+            }
         });
 
         // --- Bookings ---
@@ -21488,28 +23175,177 @@
             </div>
 
             <!-- Compose New View -->
+            <!-- Compose New View (Enhanced) -->
             <div class="inq-compose-view" id="inqComposeView" style="display:none;">
                 <div class="inq-read-toolbar">
                     <button class="inq-tool-btn" id="inqComposeBackBtn" title="Cancel compose" aria-label="Back">
                         <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
                     </button>
-                    <span class="inq-folder-title">New Message</span>
+                    <span class="inq-folder-title" id="inqComposerTitle">New Message</span>
                 </div>
+                
                 <div class="inq-compose-form">
+                    <!-- Recipients Block -->
                     <div class="inq-compose-row">
-                        <label class="inq-compose-label" for="inqComposeTo">To:</label>
-                        <input type="email" class="inq-compose-field" id="inqComposeTo" placeholder="recipient@email.com" aria-label="Recipient email">
+                        <label class="inq-compose-label">To:</label>
+                        <div class="inq-chip-input-container" id="inqToChipsContainer">
+                            <input type="text" class="inq-chip-input" id="inqComposeToInput" placeholder="Enter recipient email..." aria-label="Recipient email">
+                        </div>
+                        <button type="button" class="inq-field-toggle-btn" id="toggleCcBccBtn" style="margin-left:8px;" title="Toggle CC/BCC/Reply-To">Cc/Bcc/Reply-To</button>
                     </div>
-                    <div class="inq-compose-row">
+
+                    <!-- CC Row (Collapsible) -->
+                    <div class="inq-compose-row inq-collapsible-field" id="inqCcRow" style="display:none; margin-top:8px;">
+                        <label class="inq-compose-label">Cc:</label>
+                        <div class="inq-chip-input-container" id="inqCcChipsContainer">
+                            <input type="text" class="inq-chip-input" id="inqComposeCcInput" placeholder="Enter CC emails..." aria-label="CC email">
+                        </div>
+                    </div>
+
+                    <!-- BCC Row (Collapsible) -->
+                    <div class="inq-compose-row inq-collapsible-field" id="inqBccRow" style="display:none; margin-top:8px;">
+                        <label class="inq-compose-label">Bcc:</label>
+                        <div class="inq-chip-input-container" id="inqBccChipsContainer">
+                            <input type="text" class="inq-chip-input" id="inqComposeBccInput" placeholder="Enter BCC emails..." aria-label="BCC email">
+                        </div>
+                    </div>
+
+                    <!-- Reply-To Row (Collapsible) -->
+                    <div class="inq-compose-row inq-collapsible-field" id="inqReplyToRow" style="display:none; margin-top:8px;">
+                        <label class="inq-compose-label" for="inqComposeReplyTo">Reply-To:</label>
+                        <input type="email" class="inq-compose-field" id="inqComposeReplyTo" placeholder="Reply-to email address (optional)" aria-label="Reply-To email">
+                    </div>
+
+                    <!-- Subject Row -->
+                    <div class="inq-compose-row" style="margin-top:8px;">
                         <label class="inq-compose-label" for="inqComposeSubject">Subject:</label>
                         <input type="text" class="inq-compose-field" id="inqComposeSubject" placeholder="Subject" aria-label="Message subject">
                     </div>
-                    <textarea class="inq-compose-textarea inq-compose-textarea--tall" id="inqComposeBody" placeholder="Write your message..." aria-label="Message body"></textarea>
-                    <div class="inq-compose-actions">
-                        <button class="inq-send-btn" id="inqComposeSendBtn" aria-label="Send message">
-                            <i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Send Message
-                        </button>
-                        <button class="inq-cancel-btn" id="inqComposeDiscardBtn" aria-label="Discard draft">Discard</button>
+
+                    <!-- Branding, Template, & Snippet Controls -->
+                    <div class="inq-compose-row inq-controls-row">
+                        <div class="inq-control-group">
+                            <label class="inq-select-label" for="inqTemplateSelect">Template:</label>
+                            <select class="inq-select" id="inqTemplateSelect">
+                                <option value="">Select Template...</option>
+                                <option value="blank">Blank Email</option>
+                                <option value="inquiry_follow_up">Inquiry Follow-up</option>
+                                <option value="date_unavailable">Date Unavailable</option>
+                                <option value="phone_call">Request Phone Call</option>
+                            </select>
+                        </div>
+
+                        <div class="inq-control-group">
+                            <label class="inq-select-label" for="inqBrandingSelect">Branding:</label>
+                            <select class="inq-select" id="inqBrandingSelect">
+                                <option value="logo">Company Logo Only</option>
+                                <option value="default" selected>Default Branding</option>
+                                <option value="banner">Master Banner</option>
+                                <option value="none">No Branding</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Custom Banner Selector (shown if 'banner' is chosen) -->
+                        <div class="inq-control-group" id="inqCustomBannerGroup" style="display:none;">
+                            <label class="inq-select-label" for="inqBannerSelector">Select Banner:</label>
+                            <select class="inq-select" id="inqBannerSelector">
+                                <!-- Dynamically populated -->
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Banners dynamic preview area -->
+                    <div id="inqBannerPreviewRow" class="inq-banner-preview-box" style="display:none;">
+                        <img id="inqSelectedBannerPreview" src="" alt="Banner Preview">
+                    </div>
+
+                    <!-- Personalization Tokens Bar -->
+                    <div class="inq-tokens-bar">
+                        <span class="inq-tokens-label">Insert Token:</span>
+                        <button type="button" class="inq-token-chip" data-token="{{client_name}}">Client Name</button>
+                        <button type="button" class="inq-token-chip" data-token="{{booking_reference}}">Booking Ref</button>
+                        <button type="button" class="inq-token-chip" data-token="{{event_name}}">Event Name</button>
+                        <button type="button" class="inq-token-chip" data-token="{{event_date}}">Event Date</button>
+                        <button type="button" class="inq-token-chip" data-token="{{quote_number}}">Quote No</button>
+                    </div>
+
+                    <!-- Rich Text Editor Container -->
+                    <div class="atl-quill-wrap" id="inqQuillContainer" style="margin-bottom: 12px;">
+                        <div id="inqComposeBodyEditor" style="background: var(--atl-card); min-height: 400px;"></div>
+                    </div>
+
+                    <!-- Attachments System -->
+                    <div class="inq-attachments-section">
+                        <label class="inq-compose-label" style="display:block; margin-bottom: 6px;">Attachments:</label>
+                        
+                        <!-- Drag-and-drop upload zone -->
+                        <div class="inq-drag-drop-zone" id="inqDragDropZone">
+                            <i class="fa-solid fa-paperclip inq-upload-icon"></i>
+                            <p class="inq-upload-text">Drag &amp; drop files here, or <span class="inq-browse-link" id="inqBrowseLink">browse files</span></p>
+                            <input type="file" id="inqAttachmentFileInput" multiple style="display:none;">
+                        </div>
+
+                        <!-- Upload progress indicator -->
+                        <div class="inq-upload-progress-container" id="inqUploadProgressBox" style="display:none;">
+                            <div class="inq-upload-progress-header">
+                                <span id="inqUploadFileName">Uploading...</span>
+                                <span id="inqUploadProgressPercent">0%</span>
+                            </div>
+                            <div class="inq-progress-bar-bg">
+                                <div class="inq-progress-bar-fill" id="inqProgressBarFill" style="width: 0%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Uploaded attachments list -->
+                        <div class="inq-attachments-list" id="inqAttachmentsList">
+                            <!-- Dynamic attachment chips -->
+                        </div>
+                    </div>
+
+                    <!-- Scheduled send date-picker row (Collapsible) -->
+                    <div class="inq-compose-row inq-schedule-row" id="inqScheduleSendRow" style="display:none; margin-top:12px;">
+                        <span class="inq-compose-label" style="color:var(--atl-amber); margin:0;"><i class="fa-solid fa-clock"></i> Schedule Send:</span>
+                        <input type="text" class="inq-datetime-picker" id="inqSchedulePicker" placeholder="Select date &amp; time..." style="flex-grow:1; margin: 0 10px;">
+                        <button type="button" class="inq-clear-schedule-btn" id="inqClearScheduleBtn" title="Clear schedule">&times;</button>
+                    </div>
+
+                    <!-- Action buttons -->
+                    <div class="inq-compose-actions" style="margin-top: 15px; display:flex; justify-content:space-between; align-items:center; gap: 10px;">
+                        <div class="inq-actions-left" style="display:flex; gap: 8px;">
+                            <button type="button" class="inq-preview-btn" id="inqComposePreviewBtn" title="Preview Email">
+                                <i class="fa-solid fa-eye"></i> Preview
+                            </button>
+                            <button type="button" class="inq-draft-btn" id="inqComposeSaveDraftBtn">Save Draft</button>
+                        </div>
+                        <div class="inq-actions-right" style="display:flex; gap: 8px; align-items:center;">
+                            <button type="button" class="inq-cancel-btn" id="inqComposeDiscardBtn">Discard</button>
+                            
+                            <!-- Split send button: Send Immediately / Schedule Send dropdown -->
+                            <div class="inq-split-send-container">
+                                <button type="button" class="inq-send-btn" id="inqComposeSendBtn" style="min-height:38px;">
+                                    <i class="fa-solid fa-paper-plane"></i> Send
+                                </button>
+                                <button type="button" class="inq-split-toggle-btn" id="inqSendMenuToggleBtn" aria-label="More send options">
+                                    <i class="fa-solid fa-caret-up"></i>
+                                </button>
+                                <div class="inq-send-menu" id="inqSendDropdownMenu" style="display:none;">
+                                    <button type="button" class="inq-menu-item" id="inqScheduleSendBtnOption"><i class="fa-solid fa-clock"></i> Schedule Send</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Email Preview Modal -->
+            <div class="inq-preview-backdrop" id="inqPreviewBackdrop" onclick="closeEmailPreviewModal()">
+                <div class="inq-preview-dialog" onclick="event.stopPropagation()">
+                    <div class="inq-preview-header">
+                        <h5 class="inq-preview-title"><i class="fa-solid fa-eye"></i> Email Render Preview</h5>
+                        <button type="button" class="inq-preview-close" onclick="closeEmailPreviewModal()">&times;</button>
+                    </div>
+                    <div class="inq-preview-body">
+                        <iframe class="inq-preview-iframe" id="inqPreviewIframe" title="Email preview body"></iframe>
                     </div>
                 </div>
             </div>
