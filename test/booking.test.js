@@ -53,20 +53,35 @@ module.exports = async function ({ check }) {
     const cAfter = (await one('SELECT COUNT(*) c FROM clients')).c;
     check('rejected submission writes no orphan client', cAfter === cBefore, `clients ${cBefore} -> ${cAfter}`);
 
-    // Happy path.
+    // Happy path. The public route enforces the configured working_hours (per weekday), so
+    // derive a compliant date + start time from the fixture DB instead of hardcoding 9:00 —
+    // the owner can change working hours in Settings and the test must not break when they do.
     const okEmail = email();
-    r = await pub('POST', '/api/public/bookings', base({ email: okEmail, event_date: future(55), event_start_time: '9:00', performance_duration: '90' }));
-    check('valid public booking accepted', r.status === 200 && r.body.success, `${r.status}`);
+    let happyDays = 55, whRow = null;
+    for (let i = 0; i < 7; i++) { // find a working day at/after future(55)
+        const dow = new Date(future(55 + i) + 'T12:00:00').getDay();
+        const rowW = await one('SELECT start_time, is_working_day FROM working_hours WHERE day_of_week=?', [dow]);
+        if (!rowW || rowW.is_working_day) { happyDays = 55 + i; whRow = rowW; break; }
+    }
+    const happyDate = future(happyDays);
+    const startPadded = (whRow && whRow.start_time) ? whRow.start_time : '09:00'; // stored, zero-padded form
+    const startInput = startPadded.replace(/^0/, '');                             // un-padded input exercises normalisation
+    const [sh, sm] = startPadded.split(':').map(Number);
+    const endM = sh * 60 + sm + 90;
+    const endPadded = `${String(Math.floor(endM / 60) % 24).padStart(2, '0')}:${String(endM % 60).padStart(2, '0')}`;
+
+    r = await pub('POST', '/api/public/bookings', base({ email: okEmail, event_date: happyDate, event_start_time: startInput, performance_duration: '90' }));
+    check('valid public booking accepted', r.status === 200 && r.body.success, `${r.status} ${r.body && r.body.message}`);
     const pubId = r.body.booking_id;
     if (pubId) {
         const row = await one('SELECT status, event_start_time, performance_end_time, travel_accommodation FROM bookings WHERE id=?', [pubId]);
         check('booking saved as NEW', row.status === 'NEW', row.status);
-        check('event_start_time zero-padded', row.event_start_time === '09:00', row.event_start_time);
-        check('performance_end_time derived (09:00 + 90m)', row.performance_end_time === '10:30', row.performance_end_time);
+        check('event_start_time zero-padded', row.event_start_time === startPadded, `${row.event_start_time} (expected ${startPadded})`);
+        check(`performance_end_time derived (${startPadded} + 90m)`, row.performance_end_time === endPadded, `${row.performance_end_time} (expected ${endPadded})`);
         const consent = (await one('SELECT COUNT(*) c FROM consent_audit WHERE booking_id=?', [pubId])).c;
         check('consent_audit row written on intake', consent === 1, `consent=${consent}`);
         // Duplicate same-email/same-date rejected.
-        r = await pub('POST', '/api/public/bookings', base({ email: okEmail, event_date: future(55) }));
+        r = await pub('POST', '/api/public/bookings', base({ email: okEmail, event_date: happyDate }));
         check('duplicate (email,date) rejected 409', r.status === 409, `${r.status}`);
     }
 
