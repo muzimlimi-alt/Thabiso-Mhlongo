@@ -279,3 +279,24 @@ New Guard 8 in `test/email.test.js`: since these are cron-only jobs with no admi
 the guard renders through the *exact* `renderSystemEmail`/`infoCard` row-shape used in the server.js
 rebuild and asserts (a) the output is a real `<table>`, not a `<br>`-joined list, (b) each row's figure
 string appears verbatim, (c) the shell is single and dark-mode-safe. Suite: 71/71.
+
+## Batch 4 — PayFast ITN alerts (HIGH risk — payment gateway)
+
+All four are inside the `POST /api/payment/webhook/payfast` handler and were left untouched except for
+the four `sendEmail(...)` calls — the signature/IP validation, the atomic credit transaction, the
+overpayment/duplicate guards, and every other line of ITN logic are exactly as before.
+
+- **PayFast ITN Rejected — Missing Total**, **PayFast ITN Failed**, **Overpayment Detected**,
+  **Balance Payment Failed** — all four keep every `R{amount}` figure, booking ID, client name, and
+  (for ITN Failed) the raw `outcome.error.message` **verbatim**. The only change is presentation:
+  `<p>` prose → `systemHeader` + `alertStrip` (severity `alert`, **amber**, never red-on-black) +
+  (Balance Payment Failed) a one-row `infoCard` for the PayFast status.
+
+**Why no live E2E guard:** each of the four requires forcing a specific, rare failure condition —
+a booking with no resolvable total, a genuine DB write failure mid-transaction, an ITN amount that
+would exceed the booking total, or a failed balance payment on a DEPOSIT_PAID booking. Some of these
+(especially "ITN Failed", which needs the atomic credit transaction to actually throw) aren't safely
+reproducible as a black-box HTTP test without mocking the DB layer. Consistent with the digest guard
+(Batch 3, Guard 8), **Guard 9** instead renders through the *exact* `renderSystemEmail` call-shape used
+in each of the four server.js rebuilds and asserts every figure/ID/error-string renders verbatim, the
+severity is `alert` (amber `#E8A83E`), and no red (`#ef4444`/`#ff0000`) appears anywhere. Suite: 79/79.

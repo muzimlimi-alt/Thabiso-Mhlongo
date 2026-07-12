@@ -182,4 +182,61 @@ module.exports = async function ({ check }) {
         `r1=${digestHtml.includes('R3250.50 outstanding')} r2=${digestHtml.includes('R1899.99 outstanding')}`);
     check('digest: single shell, dark color-scheme meta', count(digestHtml, '<!DOCTYPE') === 1 && /name="color-scheme" content="dark"/.test(digestHtml),
         `doctypes=${count(digestHtml, '<!DOCTYPE')}`);
+
+    // ── Guard 9 (Batch 4): PayFast ITN alerts — figures verbatim, severity alert, single shell ──
+    // Each of the 4 failure paths (missing-total, ITN-failed, overpayment, balance-failed) requires
+    // forcing a rare condition (a genuine DB error, a specific race) that isn't safely reproducible
+    // as a black-box HTTP test without mocking the DB layer. As with the cron digests (Guard 8), this
+    // renders through the exact renderSystemEmail call-shape used in each server.js rebuild and
+    // proves the PayFast-critical figures/booking-IDs/error text render verbatim with no red-on-black.
+    const itnCases = [
+        {
+            name: 'missing-total',
+            html: emailComponents.renderSystemEmail({
+                preheaderText: 'PayFast ITN for booking #100099 rejected — no total_amount set.',
+                category: 'Payments & Invoices', severity: 'alert',
+                leadFact: 'A PayFast ITN for booking <strong style="color:#FAFAFA;">#100099</strong> (R750.00) was <strong style="color:#E8A83E;">rejected</strong> because the booking has no total_amount set.',
+                bodyHtml: '<p style="margin:0; color:#E6E6E6;">Set the booking total and replay the transaction manually.</p>'
+            }),
+            mustInclude: ['#100099', 'R750.00']
+        },
+        {
+            name: 'itn-failed',
+            html: emailComponents.renderSystemEmail({
+                preheaderText: 'PayFast payment for booking #100099 could not be recorded.',
+                category: 'Payments & Invoices', severity: 'alert',
+                leadFact: 'A verified PayFast payment for booking <strong style="color:#FAFAFA;">#100099</strong> (R750.00) could not be recorded: SQLITE_BUSY: database is locked.',
+                bodyHtml: '<p style="margin:0; color:#E6E6E6;">The booking ledger is unchanged. Replay manually.</p>'
+            }),
+            mustInclude: ['#100099', 'R750.00', 'SQLITE_BUSY: database is locked']
+        },
+        {
+            name: 'overpayment',
+            html: emailComponents.renderSystemEmail({
+                preheaderText: 'Overpayment detected for booking #100099 — credit NOT applied.',
+                category: 'Payments & Invoices', severity: 'alert',
+                leadFact: 'PayFast sent <strong style="color:#FAFAFA;">R1200.00</strong> for booking <strong style="color:#FAFAFA;">#100099</strong> but crediting it would exceed the R750.00 booking total.',
+                bodyHtml: '<p style="margin:0; color:#E6E6E6;">Credit was <strong style="color:#E8A83E;">NOT applied</strong>. Manual review required.</p>'
+            }),
+            mustInclude: ['R1200.00', 'R750.00', '#100099']
+        },
+        {
+            name: 'balance-payment-failed',
+            html: emailComponents.renderSystemEmail({
+                preheaderText: 'Balance payment failed for booking #100099 — deposit remains on record.',
+                category: 'Payments & Invoices', severity: 'alert',
+                leadFact: 'A balance payment attempt by <strong style="color:#FAFAFA;">Priya Naidoo</strong> for Booking <strong style="color:#FAFAFA;">#100099</strong> has failed.',
+                bodyHtml: '<p style="margin:0; color:#E6E6E6;">The booking still has a deposit on record. Payment status remains <strong style="color:#D4AF37;">DEPOSIT_PAID</strong>. Please follow up with the client.</p>',
+                cards: [{ rows: [{ label: 'PayFast Status', value: 'FAILED', highlight: true }] }]
+            }),
+            mustInclude: ['Priya Naidoo', '#100099', 'FAILED']
+        }
+    ];
+    for (const c of itnCases) {
+        check(`PayFast alert (${c.name}): figures/IDs verbatim`, c.mustInclude.every(s => c.html.includes(s)),
+            c.mustInclude.filter(s => !c.html.includes(s)).join(', ') || 'all present');
+        check(`PayFast alert (${c.name}): single shell + amber alert (no red)`,
+            count(c.html, '<!DOCTYPE') === 1 && c.html.includes('#E8A83E') && !/#ef4444|#ff0000|color:\s*red/i.test(c.html),
+            `doctypes=${count(c.html, '<!DOCTYPE')} hasAmber=${c.html.includes('#E8A83E')}`);
+    }
 };

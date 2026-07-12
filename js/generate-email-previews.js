@@ -587,6 +587,33 @@ const system = {
         cards: [{ title: 'Stuck PayFast Transactions', rows: [
             { label: '#100050 — Priya Naidoo', value: 'R3250.50 · Started 2026-07-12 06:45:00', mono: false }
         ] }]
+    }),
+
+    /* ── Batch 4: PayFast ITN alerts (HIGH — figures verbatim) ── */
+    'itn-missing-total.html': S({
+        preheaderText: 'PayFast ITN for booking #100099 rejected — no total_amount set.',
+        category: 'Payments & Invoices', severity: 'alert',
+        leadFact: 'A PayFast ITN for booking <strong style="color:#FAFAFA;">#100099</strong> (R750.00) was <strong style="color:#E8A83E;">rejected</strong> because the booking has no total_amount set.',
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">Set the booking total and replay the transaction manually.</p>`
+    }),
+    'itn-failed.html': S({
+        preheaderText: 'PayFast payment for booking #100099 could not be recorded.',
+        category: 'Payments & Invoices', severity: 'alert',
+        leadFact: 'A verified PayFast payment for booking <strong style="color:#FAFAFA;">#100099</strong> (R750.00) could not be recorded: SQLITE_BUSY: database is locked.',
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">The booking ledger is unchanged. Replay manually.</p>`
+    }),
+    'itn-overpayment.html': S({
+        preheaderText: 'Overpayment detected for booking #100099 — credit NOT applied.',
+        category: 'Payments & Invoices', severity: 'alert',
+        leadFact: 'PayFast sent <strong style="color:#FAFAFA;">R1200.00</strong> for booking <strong style="color:#FAFAFA;">#100099</strong> but crediting it would exceed the R750.00 booking total.',
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">Credit was <strong style="color:#E8A83E;">NOT applied</strong>. Manual review required.</p>`
+    }),
+    'itn-balance-payment-failed.html': S({
+        preheaderText: 'Balance payment failed for booking #100099 — deposit remains on record.',
+        category: 'Payments & Invoices', severity: 'alert',
+        leadFact: 'A balance payment attempt by <strong style="color:#FAFAFA;">Priya Naidoo</strong> for Booking <strong style="color:#FAFAFA;">#100099</strong> has failed.',
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">The booking still has a deposit on record. Payment status remains <strong style="color:#D4AF37;">DEPOSIT_PAID</strong>. Please follow up with the client.</p>`,
+        cards: [{ rows: [{ label: 'PayFast Status', value: 'FAILED', highlight: true }] }]
     })
 };
 

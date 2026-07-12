@@ -4819,10 +4819,18 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
                 logPaymentEvent(bookingId, 'FAILED_NO_TOTAL', pfData, true);
                 getNotificationEmail().then(notifEmail => {
                     if (!notifEmail) return;
+                    // PAYMENT-GATEWAY (HIGH): `R${itnAmount.toFixed(2)}` and the booking ID kept verbatim.
                     sendEmail({
                         to: notifEmail,
                         subject: `PayFast ITN Rejected – Missing Total – Booking #${bookingId}`,
-                        htmlContent: `<p>A PayFast ITN for booking <strong>#${bookingId}</strong> (R${itnAmount.toFixed(2)}) was <strong>rejected</strong> because the booking has no total_amount set. Set the booking total and replay the transaction manually.</p>`,
+                        htmlContent: emailComponents.renderSystemEmail({
+                            preheaderText: `PayFast ITN for booking #${bookingId} rejected — no total_amount set.`,
+                            category: 'Payments & Invoices',
+                            severity: 'alert',
+                            leadFact: `A PayFast ITN for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> (R${itnAmount.toFixed(2)}) was <strong style="color:#E8A83E;">rejected</strong> because the booking has no total_amount set.`,
+                            bodyHtml: `<p style="margin:0; color:#E6E6E6;">Set the booking total and replay the transaction manually.</p>`
+                        }),
+                        preWrapped: true,
                         titleOverride: 'ITN Rejected – Missing Total',
                         trigger_event: 'Admin: ITN No Total'
                     });
@@ -4910,19 +4918,36 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
             if (outcome.error) {
                 console.error(`[PayFast ITN] Credit transaction failed for booking #${bookingId}:`, outcome.error.message);
                 logPaymentEvent(bookingId, 'CRITICAL_ERROR', pfData, false);
+                // PAYMENT-GATEWAY (HIGH): `R${itnAmount.toFixed(2)}`, booking ID and the error message
+                // (outcome.error.message) are kept verbatim.
                 getNotificationEmail().then(notifEmail => notifEmail && sendEmail({ to: notifEmail,
                     subject: `PayFast ITN Failed – Booking #${bookingId}`,
-                    htmlContent: `<p>A verified PayFast payment for booking <strong>#${bookingId}</strong> (R${itnAmount.toFixed(2)}) could not be recorded: ${outcome.error.message}. The booking ledger is unchanged. Replay manually.</p>`,
+                    htmlContent: emailComponents.renderSystemEmail({
+                        preheaderText: `PayFast payment for booking #${bookingId} could not be recorded.`,
+                        category: 'Payments & Invoices',
+                        severity: 'alert',
+                        leadFact: `A verified PayFast payment for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> (R${itnAmount.toFixed(2)}) could not be recorded: ${outcome.error.message}.`,
+                        bodyHtml: `<p style="margin:0; color:#E6E6E6;">The booking ledger is unchanged. Replay manually.</p>`
+                    }),
+                    preWrapped: true,
                     titleOverride: 'ITN Processing Failed', trigger_event: 'Admin: ITN Failure' })).catch(() => {});
                 return;
             }
             if (outcome.overpayment) {
                 console.warn(`[PayFast ITN] OVERPAYMENT REJECTED for booking #${bookingId} (atomic guard). Total: ${currentTotal}, ITN amount: ${itnAmount}`);
                 logPaymentEvent(bookingId, 'OVERPAYMENT_REJECTED', pfData, true);
+                // PAYMENT-GATEWAY (HIGH): both `R${amount}` figures and the booking ID kept verbatim.
                 getNotificationEmail().then(notifEmail => {
                     sendEmail({ to: notifEmail,
                         subject: `Overpayment Detected – Booking #${bookingId}`,
-                        htmlContent: `<p>PayFast sent <strong>R${itnAmount.toFixed(2)}</strong> for booking <strong>#${bookingId}</strong> but crediting it would exceed the R${currentTotal.toFixed(2)} booking total. Credit was <strong>NOT applied</strong>. Manual review required.</p>`,
+                        htmlContent: emailComponents.renderSystemEmail({
+                            preheaderText: `Overpayment detected for booking #${bookingId} — credit NOT applied.`,
+                            category: 'Payments & Invoices',
+                            severity: 'alert',
+                            leadFact: `PayFast sent <strong style="color:#FAFAFA;">R${itnAmount.toFixed(2)}</strong> for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> but crediting it would exceed the R${currentTotal.toFixed(2)} booking total.`,
+                            bodyHtml: `<p style="margin:0; color:#E6E6E6;">Credit was <strong style="color:#E8A83E;">NOT applied</strong>. Manual review required.</p>`
+                        }),
+                        preWrapped: true,
                         titleOverride: 'Overpayment Alert', trigger_event: 'Admin: Overpayment Alert' });
                 }).catch((emailErr) => {
                     console.error(`[PayFast ITN] CRITICAL: Overpayment admin notification failed for booking #${bookingId}:`, emailErr.message);
@@ -4994,12 +5019,21 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
                     if (pfData.payment_status !== 'CANCELLED') {
                         sendPaymentFailedEmail(failedRow).catch(e => console.error('Payment-failed email error:', e.message));
                     }
-                    // C6: If a balance payment failed on a partially-paid booking, explicitly alert admin
+                    // C6: If a balance payment failed on a partially-paid booking, explicitly alert admin.
+                    // PAYMENT-GATEWAY (HIGH): client name, booking ID and pfData.payment_status verbatim.
                     if (failedRow.payment_status === 'DEPOSIT_PAID') {
                         getNotificationEmail().then(notifEmail => sendEmail({
                             to: notifEmail,
                             subject: `⚠️ Balance Payment Failed – Booking #${bookingId}`,
-                            htmlContent: `<p>A balance payment attempt by <strong>${failedRow.name || failedRow.client_name}</strong> for Booking <strong>#${bookingId}</strong> has failed.</p><p>The booking still has a deposit on record. Payment status remains <strong>DEPOSIT_PAID</strong>. Please follow up with the client.</p><p>PayFast status: <strong>${pfData.payment_status}</strong></p>`,
+                            htmlContent: emailComponents.renderSystemEmail({
+                                preheaderText: `Balance payment failed for booking #${bookingId} — deposit remains on record.`,
+                                category: 'Payments & Invoices',
+                                severity: 'alert',
+                                leadFact: `A balance payment attempt by <strong style="color:#FAFAFA;">${failedRow.name || failedRow.client_name}</strong> for Booking <strong style="color:#FAFAFA;">#${bookingId}</strong> has failed.`,
+                                bodyHtml: `<p style="margin:0; color:#E6E6E6;">The booking still has a deposit on record. Payment status remains <strong style="color:#D4AF37;">DEPOSIT_PAID</strong>. Please follow up with the client.</p>`,
+                                cards: [{ rows: [{ label: 'PayFast Status', value: pfData.payment_status, highlight: true }] }]
+                            }),
+                            preWrapped: true,
                             titleOverride: 'Balance Payment Failed',
                             trigger_event: 'Admin: Balance Payment Failed'
                         })).catch(err => console.error('Admin balance-failed email error:', err.message));
