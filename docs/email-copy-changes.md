@@ -157,3 +157,27 @@ Same rule as Batch 3: figures/references/links byte-identical, locked by the ext
 - **Quote Still Open** (`runQuoteFollowUpJob`) — `R {quote_amount}` verbatim; same accept-URL CTA.
 - **Balance Payment Reminder** (event-approaching cron) — same `display:flex` defect fixed as the
   schedule reminder; `R {outstanding}` verbatim (both mentions); same Pay Balance Now URL.
+
+---
+
+# Batch 5 — contract & admin-triggered client
+
+- **Your Booking Contract** (`sendContractEmail`) — PDF + sign URL unchanged; gains a proper
+  **Review & Sign Contract** CTA button (was a plain link).
+- **Contract Signature Reminder** — rebuilt at **both** call sites (`/contract/remind` route and the
+  state-aware `remindBooking` used by bulk reminders). The bulk-reminder path gains a **Review & Sign
+  Contract** CTA it never had (previously said "review and sign it from your booking page" with no
+  actual link).
+- **Request Received** (quote-revision/extension acknowledgement) — same message, componentised.
+  (The paired admin notification is SYSTEM-track and untouched — Prompt 4.)
+- **Inquiry Reply** and **Direct Message** (Admin Compose) — ***bug fixed, not just restyled.*** Both
+  routes built a branded `htmlTemplate` (logo, dark shell, gold divider) that was **never actually
+  used** — the `sendEmail()` call passed the raw, unwrapped `replyMessage`/`body` instead. Every inquiry
+  reply and every admin-composed message has been going out as **plain unbranded text with no logo, no
+  shell, nothing**. Now genuinely wrapped via `renderPremiumEmail` + `preWrapped:true`. Message content,
+  recipient, subject and reply-to are all unchanged — only the previously-dead branding now actually
+  applies. (The separate, newer "Direct Emails" system — `sendDirectEmail`, with scheduling/CC/BCC/
+  per-email branding picker — already worked correctly and was left untouched.)
+- **Booking Recovery Reminder** (abandoned draft) — booking-so-far becomes an `infoCard`; its bespoke
+  opt-out link is now wired into the standard footer's unsubscribe slot (same purpose, existing
+  component) instead of a separate inline sentence. Resume URL unchanged.

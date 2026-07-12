@@ -2941,20 +2941,23 @@ async function sendContractEmail(booking, contractPdfPath) {
         attachments.push({ filename: `Contract_${id}_Thabiso_Mhlongo.pdf`, path: contractPdfPath, contentType: 'application/pdf' });
     }
 
-    const htmlContent = `
-        <p>Hi <strong>${name}</strong>,</p>
-        <p>Your booking contract for <strong style="color:#ffffff;">${event_name || event_type}</strong> on <strong style="color:#ffffff;">${date}</strong> is ready. Please review the attached PDF and sign it online at your convenience.</p>
-        <p style="margin:20px 0;text-align:center;">
-            <a href="${signUrl}" style="display:inline-block;padding:12px 28px;background:#D4AF37;color:#000;text-decoration:none;font-weight:bold;border-radius:4px;font-size:14px;">Review &amp; Sign Contract</a>
-        </p>
-        <p style="font-size:12px;color:#888;">Once you've signed, our team will countersign to finalise the agreement. If you have any questions about the terms, just reply to this email.</p>
-        <p class="text-gold">Booking Reference: <strong>#${id}</strong></p>
-    `;
+    const { socialLinks } = await getEmailFooterContext();
+    const htmlContent = emailComponents.renderPremiumEmail({
+        preheaderText: `Your booking contract for #${id} is ready to review and sign.`,
+        headline: 'Your Booking Contract',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `Your booking contract for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> is ready. Please review the attached PDF and sign it online at your convenience.` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">Once you've signed, our team will countersign to finalise the agreement. If you have any questions about the terms, just reply to this email. (Booking reference #${id})</p>`,
+        cta: { label: 'Review & Sign Contract', url: signUrl },
+        socialLinks
+    });
 
     const result = await sendEmail({
         to: email,
         subject: `Your booking contract — ${event_name || event_type} (Booking #${id})`,
         htmlContent,
+        preWrapped: true,
         attachments,
         titleOverride: 'Your Booking Contract',
         trigger_event: 'Booking: Contract Sent'
@@ -4167,29 +4170,27 @@ async function sendAbandonedBookingReminderEmail(draft) {
         ['Type', draft.event_type],
         ['Venue', draft.event_location],
         ['Services', services.map(s => esc(s.name)).filter(Boolean).join(', ')]
-    ].filter(r => r[1]).map(r =>
-        `<tr><td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#888;font-size:13px;width:38%;">${r[0]}</td>` +
-        `<td style="padding:10px 16px;border-bottom:1px solid rgba(255,255,255,0.06);color:#fff;font-size:13px;">${esc(r[1])}</td></tr>`).join('');
+    ].filter(r => r[1]).map(r => ({ label: r[0], value: r[1], mono: false }));
 
-    const html = `
-        <p style="color:#e8e8e8;">Hi <strong>${esc(draft.name || 'there')}</strong>,</p>
-        <p style="color:#b0b0b0;">It looks like you started a booking request for <strong style="color:#D4AF37;">Thabiso Mhlongo</strong> but didn't quite finish. Good news &mdash; your details are saved, so you can pick up right where you left off.</p>
-        <table style="width:100%;border-collapse:collapse;margin:22px 0;background-color:#1a1a1a;">
-            <tr><td colspan="2" style="padding:12px 16px;background-color:#1e1a0e;border-bottom:1px solid rgba(212,175,55,0.3);">
-                <strong style="color:#D4AF37;font-size:12px;text-transform:uppercase;letter-spacing:1px;">Your booking so far</strong></td></tr>
-            ${summaryRows || '<tr><td style="padding:12px 16px;color:#888;font-size:13px;">Your saved progress</td></tr>'}
-        </table>
-        <div style="text-align:center;margin:28px 0;">
-            <a href="${resumeUrl}" style="display:inline-block;padding:14px 28px;background:#D4AF37;color:#000;text-decoration:none;font-weight:bold;border-radius:4px;">Resume my booking</a>
-        </div>
-        <p style="color:#888;font-size:12px;">Submitting a request doesn't confirm a booking &mdash; our team reviews each one and sends a personalised quote, usually within 2 business days.</p>
-        <p style="color:#666;font-size:11px;margin-top:18px;">Not planning to continue? <a href="${optOutUrl}" style="color:#888;">Unsubscribe from booking reminders</a>.</p>
-    `;
+    const { socialLinks } = await getEmailFooterContext();
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: "You started a booking request — pick up right where you left off.",
+        headline: 'Finish Your Booking Request',
+        greeting: `Hi ${esc(draft.name || 'there')},`,
+        bodyHtml:
+            `It looks like you started a booking request for <strong style="color:#D4AF37;">Thabiso Mhlongo</strong> but didn't quite finish. Good news — your details are saved, so you can pick up right where you left off.` +
+            `<p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">Submitting a request doesn't confirm a booking — our team reviews each one and sends a personalised quote, usually within 2 business days.</p>`,
+        cards: summaryRows.length ? [{ title: 'Your Booking So Far', rows: summaryRows }] : [],
+        cta: { label: 'Resume My Booking', url: resumeUrl },
+        unsubscribeUrl: optOutUrl,
+        socialLinks
+    });
     try {
         const info = await sendEmail({
             to: draft.email,
             subject: 'Complete your booking request — Thabiso Mhlongo',
             htmlContent: html,
+            preWrapped: true,
             titleOverride: 'Finish Your Booking Request',
             trigger_event: 'Booking: Recovery Reminder'
         });
@@ -5743,18 +5744,22 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
                 trigger_event: 'Booking: Quote Revision Request'
             }).catch(e => console.error('[Quote Revision Request] Admin email notification failed:', e.message));
 
-            sendEmail({
+            getEmailFooterContext().then(({ socialLinks }) => sendEmail({
                 to: row.email,
                 subject: `We've Received Your Request – Booking #${row.id}`,
-                htmlContent: `
-                    <p>Hi <strong>${row.name}</strong>,</p>
-                    <p>We've received your <strong>${typeLabel.toLowerCase()}</strong> request for booking <strong style="color:#D4AF37;">#${row.id}</strong>.</p>
-                    <p>Our team will review your request and get back to you shortly.</p>
-                    <p style="font-size:12px;color:#888;">Your request: "${message.trim()}"</p>
-                `,
+                htmlContent: emailComponents.renderPremiumEmail({
+                    preheaderText: `We've received your request for booking #${row.id}.`,
+                    headline: 'Request Received',
+                    greeting: `Hi ${row.name},`,
+                    bodyHtml:
+                        `We've received your <strong style="color:#D4AF37;">${typeLabel.toLowerCase()}</strong> request for booking <strong style="color:#FAFAFA;">#${row.id}</strong>. Our team will review your request and get back to you shortly.` +
+                        `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">Your request: "${message.trim()}"</p>`,
+                    socialLinks
+                }),
+                preWrapped: true,
                 titleOverride: 'Request Received',
                 trigger_event: 'Booking: Quote Revision Acknowledgement'
-            }).catch(e => console.error('[Quote Revision Request] Client email acknowledgement failed:', e.message));
+            })).catch(e => console.error('[Quote Revision Request] Client email acknowledgement failed:', e.message));
 
             res.json({ success: true, message: 'Your request has been recorded. We will be in touch shortly.' });
         } catch (dbErr) {
@@ -6706,16 +6711,22 @@ app.post('/api/admin/bookings/:id/contract/remind', requireAdmin, mutateRateLimi
                 });
             }
 
-            sendEmail({
+            getEmailFooterContext().then(({ socialLinks }) => sendEmail({
                 to: b.email,
                 subject: `Action Required: Please sign your booking contract — ${b.event_name}`,
-                htmlContent: `<p>Hi ${b.name},</p>
-                              <p>A friendly reminder that your booking contract for <strong>${b.event_name}</strong> on ${b.date} is awaiting your signature.</p>
-                              <p>Please contact us at your earliest convenience to arrange signing.</p>
-                              <p>Thank you,<br>Thabiso Mhlongo Management</p>`,
+                htmlContent: emailComponents.renderPremiumEmail({
+                    preheaderText: `Your booking contract for ${b.event_name} is awaiting your signature.`,
+                    headline: 'Contract Signature Reminder',
+                    greeting: `Hi ${b.name},`,
+                    bodyHtml:
+                        `A friendly reminder that your booking contract for <strong style="color:#FAFAFA;">${b.event_name}</strong> on ${b.date} is awaiting your signature.` +
+                        `<p style="margin:10px 0 0; color:#E6E6E6;">Please contact us at your earliest convenience to arrange signing.</p>`,
+                    socialLinks
+                }),
+                preWrapped: true,
                 titleOverride: 'Contract Signature Reminder',
                 trigger_event: 'Admin: Contract Remind'
-            }).then(() => {
+            })).then(() => {
                 // Only stamp a contract row that already exists; the reminder can predate the upload.
                 db.run("UPDATE contracts SET sent_to_client_at = CURRENT_TIMESTAMP WHERE booking_id = ?", [bookingId],
                     (uErr) => { if (uErr) console.error('[Contract Remind] timestamp update failed:', uErr.message); });
@@ -6752,10 +6763,20 @@ async function remindBooking(bookingId) {
         if (contract && contract.status === 'sent' && !contract.signed_by_client_at && contract.is_frozen !== 1) {
             const last = contract.sent_to_client_at ? moment(contract.sent_to_client_at) : null;
             if (last && moment().diff(last, 'hours') < 24) return { booking_id: bookingId, sent: false, skipped: 'contract reminded <24h ago' };
+            const { socialLinks: remindSocialLinks } = await getEmailFooterContext();
             await sendEmail({
                 to: b.email,
                 subject: `Action Required: Please sign your booking contract — ${b.event_name || b.event_type}`,
-                htmlContent: `<p>Hi ${b.name},</p><p>A friendly reminder that your booking contract for <strong>${b.event_name || b.event_type}</strong> on ${b.date} is awaiting your signature. You can review and sign it from your booking page.</p><p>Thank you,<br>Thabiso Mhlongo Management</p>`,
+                htmlContent: emailComponents.renderPremiumEmail({
+                    preheaderText: `Your booking contract for ${b.event_name || b.event_type} is awaiting your signature.`,
+                    headline: 'Contract Signature Reminder',
+                    greeting: `Hi ${b.name},`,
+                    bodyHtml:
+                        `A friendly reminder that your booking contract for <strong style="color:#FAFAFA;">${b.event_name || b.event_type}</strong> on ${b.date} is awaiting your signature. You can review and sign it from your booking page.`,
+                    cta: { label: 'Review & Sign Contract', url: `${emailBaseUrl()}/?track=${bookingId}&email=${encodeURIComponent(b.email)}` },
+                    socialLinks: remindSocialLinks
+                }),
+                preWrapped: true,
                 titleOverride: 'Contract Signature Reminder',
                 trigger_event: 'Admin: Contract Remind'
             });
@@ -13414,30 +13435,22 @@ app.post('/api/admin/inquiries/:id/reply', requireAdmin, (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!inquiry) return res.status(404).json({ error: 'Inquiry not found' });
         
-        const logoFilePath = path.join(__dirname, 'images', 'logo4.png');
-        
-        const htmlTemplate = `
-            <div style="font-family: 'Outfit', Arial, sans-serif; padding: 40px 30px; background-color: #0a0a0a; color: #ffffff; max-width: 650px; border: 1px solid rgba(255,255,255,0.12); margin:0 auto;">
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <img src="cid:thabisoLogo" alt="Thabiso Mhlongo Logo" style="max-height: 80px; margin-bottom: 14px;" />
-                    <h2 style="color: #D4AF37; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: 1px; margin-bottom: 4px;">Thabiso Mhlongo Management</h2>
-                    <p style="color: #707070; font-size: 13px; margin-top: 0;">In reference to Inquiry #${inquiry.subject}</p>
-                </div>
-                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.10); margin: 0 0 24px 0;">
-                <div style="background-color: #1a1a1a; padding: 24px; border-left: 3px solid #D4AF37; font-size: 14px; line-height: 1.7; white-space: pre-wrap; color: #e0e0e0;">${replyMessage.replace(/\n/g, '<br>')}</div>
+        // Bug fixed in passing: htmlTemplate was built here but never used — the send below passed
+        // the raw replyMessage, so inquiry replies went out with NO wrapper/logo/shell at all.
+        const { socialLinks } = await getEmailFooterContext();
+        const htmlTemplate = emailComponents.renderPremiumEmail({
+            preheaderText: `Re: ${inquiry.subject}`,
+            headline: 'Management Response',
+            bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Inquiry #${inquiry.subject}</p>` + replyMessage.replace(/\n/g, '<br>'),
+            socialLinks
+        });
 
-                <div style="margin-top: 32px; text-align: center;">
-                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.10); margin-bottom: 18px;">
-                    <p style="font-size: 11px; color: #707070;">&copy; ${new Date().getFullYear()} Thabiso Mhlongo. All rights reserved.</p>
-                </div>
-            </div>
-        `;
-        
         try {
             await sendEmail({
                 to: inquiry.sender_email,
                 subject: subject || `Re: ${inquiry.subject}`,
-                htmlContent: replyMessage,
+                htmlContent: htmlTemplate,
+                preWrapped: true,
                 replyTo: process.env.EMAIL_USER || 'admin@thabisomhlongo.com',
                 titleOverride: 'Management Response',
                 trigger_event: 'Admin: Inquiry Reply'
@@ -13457,26 +13470,22 @@ app.post('/api/admin/compose', requireAdmin, async (req, res) => {
     const { to, subject, body } = req.body;
     if (!to || !body) return res.status(400).json({ error: 'Recipient and message body are required.' });
 
-    const logoFilePath = path.join(__dirname, 'images', 'logo4.png');
-    const htmlTemplate = `
-        <div style="font-family: 'Outfit', Arial, sans-serif; padding: 40px 30px; background-color: #0a0a0a; color: #ffffff; max-width: 650px; border: 1px solid rgba(255,255,255,0.12); margin: 0 auto;">
-            <div style="text-align: center; margin-bottom: 20px;">
-                <img src="cid:thabisoLogo" alt="Thabiso Mhlongo Logo" style="max-height: 80px; margin-bottom: 14px;" />
-                <h2 style="color: #D4AF37; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 400; letter-spacing: 1px; margin-bottom: 0;">Thabiso Mhlongo Management</h2>
-            </div>
-            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.10); margin: 0 0 24px 0;">
-            <div style="background-color: #1a1a1a; padding: 24px; border-left: 3px solid #D4AF37; font-size: 14px; line-height: 1.7; white-space: pre-wrap; color: #e0e0e0;">${body.replace(/\n/g, '<br>')}</div>
-            <div style="margin-top: 32px; text-align: center;">
-                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.10); margin-bottom: 18px;">
-                <p style="font-size: 11px; color: #707070;">&copy; ${new Date().getFullYear()} Thabiso Mhlongo. All rights reserved.</p>
-            </div>
-        </div>`;
+    // Bug fixed in passing: htmlTemplate was built here but never used — the send below passed the
+    // raw body, so composed messages went out with NO wrapper/logo/shell at all.
+    const { socialLinks } = await getEmailFooterContext();
+    const htmlTemplate = emailComponents.renderPremiumEmail({
+        preheaderText: subject || 'A message from Thabiso Mhlongo Management.',
+        headline: 'Direct Message',
+        bodyHtml: body.replace(/\n/g, '<br>'),
+        socialLinks
+    });
 
     try {
         await sendEmail({
             to: to,
             subject: subject || 'Message from Thabiso Mhlongo Management',
-            htmlContent: body,
+            htmlContent: htmlTemplate,
+            preWrapped: true,
             replyTo: process.env.EMAIL_USER || 'admin@thabisomhlongo.com',
             titleOverride: 'Direct Message',
             trigger_event: 'Admin: Direct Compose'

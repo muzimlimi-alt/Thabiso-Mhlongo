@@ -335,6 +335,50 @@ const premium = {
             { label: 'Balance Due', value: 'R 9250.00', highlight: true }
         ]}],
         cta: { label: 'Pay Balance Now', url: '#' }
+    }),
+
+    /* ── Batch 5: contract & admin-triggered client ── */
+    'contract-sent.html': P({
+        preheaderText: 'Your booking contract for #100045 is ready to review and sign.',
+        headline: 'Your Booking Contract', greeting: 'Hi Naledi,',
+        bodyHtml: `Your booking contract for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> is ready. Please review the attached PDF and sign it online at your convenience.` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">Once you've signed, our team will countersign to finalise the agreement. If you have any questions about the terms, just reply to this email. (Booking reference #100045)</p>`,
+        cta: { label: 'Review & Sign Contract', url: '#' }
+    }),
+    'contract-sign-reminder.html': P({
+        preheaderText: 'Your booking contract for Corporate Year-End is awaiting your signature.',
+        headline: 'Contract Signature Reminder', greeting: 'Hi Naledi,',
+        bodyHtml: `A friendly reminder that your booking contract for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on Sat, 14 Aug 2026 is awaiting your signature. You can review and sign it from your booking page.`,
+        cta: { label: 'Review & Sign Contract', url: '#' }
+    }),
+    'custom-response.html': P({
+        preheaderText: "We've received your request for booking #100045.",
+        headline: 'Request Received', greeting: 'Hi Naledi,',
+        bodyHtml: `We've received your <strong style="color:#D4AF37;">quote revision</strong> request for booking <strong style="color:#FAFAFA;">#100045</strong>. Our team will review your request and get back to you shortly.` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">Your request: "Could we push the event start time to 8pm?"</p>`
+    }),
+    'inquiry-reply.html': P({
+        preheaderText: 'Re: Availability enquiry for December',
+        headline: 'Management Response',
+        bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Inquiry #Availability enquiry for December</p>Thanks so much for reaching out! Thabiso is available on that date — I've sent a formal quote through to your email.`
+    }),
+    'direct-compose.html': P({
+        preheaderText: 'A message from Thabiso Mhlongo Management.',
+        headline: 'Direct Message',
+        bodyHtml: `Just confirming we received your deposit — looking forward to the show!`
+    }),
+    'abandoned-booking-recovery.html': P({
+        preheaderText: 'You started a booking request — pick up right where you left off.',
+        headline: 'Finish Your Booking Request', greeting: 'Hi there,',
+        bodyHtml: `It looks like you started a booking request for <strong style="color:#D4AF37;">Thabiso Mhlongo</strong> but didn't quite finish. Good news — your details are saved, so you can pick up right where you left off.` +
+            `<p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">Submitting a request doesn't confirm a booking — our team reviews each one and sends a personalised quote, usually within 2 business days.</p>`,
+        cards: [{ title: 'Your Booking So Far', rows: [
+            { label: 'Event', value: 'Birthday Party', mono: false },
+            { label: 'Date', value: '2026-09-12' },
+            { label: 'Venue', value: 'Home', mono: false }
+        ]}],
+        cta: { label: 'Resume My Booking', url: '#' },
+        unsubscribeUrl: '#'
     })
 };
 
