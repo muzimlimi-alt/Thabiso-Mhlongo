@@ -1192,6 +1192,60 @@ function initializeDatabase() {
         db.run(`CREATE INDEX IF NOT EXISTS idx_notifications_entity ON notifications(related_entity, related_id)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_notifications_scheduled ON notifications(scheduled_at)`);
 
+        // DIRECT EMAILS (DRAFTS & SCHEDULED REPLIES/COMPOSITIONS)
+        db.run(`CREATE TABLE IF NOT EXISTS direct_emails (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            inquiry_id INTEGER REFERENCES inquiries(inquiry_id) ON DELETE SET NULL,
+            to_emails TEXT NOT NULL,
+            cc_emails TEXT,
+            bcc_emails TEXT,
+            reply_to TEXT,
+            subject TEXT,
+            body TEXT NOT NULL,
+            branding_option TEXT DEFAULT 'logo',
+            selected_banner_url TEXT,
+            attachment_paths TEXT,
+            scheduled_at DATETIME,
+            status TEXT DEFAULT 'draft' CHECK(status IN ('draft', 'scheduled', 'sent', 'failed', 'cancelled')),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_direct_emails_status ON direct_emails(status)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_direct_emails_inquiry ON direct_emails(inquiry_id)`);
+
+        // EMAIL BANNER REGISTRY (Prompt 5) — per-category banner images assignable to lifecycle
+        // email templates. Independent of direct_emails.selected_banner_url (the separate Direct
+        // Emails composer) and of js/emailAssets.js's single global CID banner (legacy wrapper path).
+        db.run(`CREATE TABLE IF NOT EXISTS banners (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            category TEXT NOT NULL CHECK(category IN (
+                'Booking Requests','Quotes & Proposals','Contracts & Signatures','Payments & Invoices',
+                'Booking Confirmations','Event Reminders','Thank You & Reviews','Booking Recovery',
+                'Contact & Support','Newsletters & Marketing','User Accounts & Security'
+            )),
+            image_url TEXT NOT NULL,
+            alt_text TEXT NOT NULL,
+            headline TEXT,
+            subtitle TEXT,
+            status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived')),
+            created_by INTEGER REFERENCES admins(id),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_banners_category ON banners(category)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_banners_status ON banners(status)`);
+
+        // One row per rebuilt lifecycle email's stable template_key (seeded by
+        // scripts/seed-banner-templates.js, not user-created — assignment only).
+        db.run(`CREATE TABLE IF NOT EXISTS email_template_banners (
+            template_key TEXT PRIMARY KEY,
+            category TEXT NOT NULL,
+            banner_id INTEGER REFERENCES banners(id) ON DELETE SET NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_email_template_banners_banner_id ON email_template_banners(banner_id)`);
+
         // SCHEMA MIGRATIONS TRACKING TABLE
         db.run(`CREATE TABLE IF NOT EXISTS schema_migrations (
             version INTEGER PRIMARY KEY,
