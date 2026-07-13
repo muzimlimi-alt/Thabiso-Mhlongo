@@ -1813,6 +1813,21 @@
         .atl-tab-btn.active { color: var(--atl-amber); border-bottom-color: var(--atl-amber); }
         .atl-tab-btn:focus-visible { outline: 3px solid var(--atl-focus); outline-offset: 2px; }
 
+        /* Banner Management Centre's inner Library/Preview/About toggle (Prompt 6) — visually cloned
+           from .atl-tab-bar/.atl-tab-btn under distinct class names on purpose: initTabs() sweeps ALL
+           descendant .um-panel elements on any .atl-tab-btn click (not scoped to direct children), so
+           reusing those classes here would let the outer "Banners" tab click blank these inner views. */
+        .bnr-view-bar { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--atl-line); margin-bottom: 20px; }
+        .bnr-view-btn {
+            font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
+            padding: 8px 16px; border: none; background: transparent;
+            color: var(--atl-muted); cursor: pointer; border-bottom: 2px solid transparent;
+            transition: color 0.2s, border-color 0.2s;
+        }
+        .bnr-view-btn:hover { color: var(--atl-ink); }
+        .bnr-view-btn.active { color: var(--atl-amber); border-bottom-color: var(--atl-amber); }
+        .bnr-view-btn:focus-visible { outline: 3px solid var(--atl-focus); outline-offset: 2px; }
+
         /* Empty/Loading states */
         .atl-empty-state { text-align: center; padding: 80px 40px; }
         .atl-spinner {
@@ -11107,42 +11122,116 @@
 
                     <div class="um-panel" id="brandPanelEmail">
                     <!-- Banner Management Centre (Prompt 6) — per-category banner registry wired to
-                         GET/POST/PUT /api/admin/banners* and GET/PUT /api/admin/email-templates*.
-                         Supersedes the old single global "Email Header Banner" field (email_banner
-                         setting) — that setting and js/emailAssets.js's CID logic are left untouched
-                         server-side, just no longer exposed here. -->
-                    <div class="atl-section-hd" style="margin-bottom:0;">
-                        <div>
-                            <p class="atl-section-eyebrow">Master Banner System</p>
-                            <h2 class="atl-section-heading" style="font-size:20px;"><i class="fa-solid fa-panorama"></i> Banner Library</h2>
-                            <p class="atl-section-sub">Manage banner images and assign them to email templates by category.</p>
+                         GET/POST/PUT /api/admin/banners*, GET/PUT /api/admin/email-templates*, and
+                         GET /api/admin/email-templates/:key/preview. Supersedes the old single global
+                         "Email Header Banner" field (email_banner setting) — that setting and
+                         js/emailAssets.js's CID logic are left untouched server-side, just no longer
+                         exposed here.
+                         Inner Library/Preview/About toggle deliberately does NOT reuse .atl-tab-btn/
+                         data-um-tab/.um-panel — initTabs() sweeps ALL descendant .um-panel elements
+                         (tabBar.parentElement.querySelectorAll, not scoped to direct children), so
+                         nesting inside this outer "Banners" tab (itself a .um-panel) would blank the
+                         inner views on the outer tab's own click. Its own tiny showBnrView() instead. -->
+                    <div class="bnr-view-bar" role="tablist">
+                        <button type="button" class="bnr-view-btn active" data-bnr-view="library" onclick="showBnrView('library')"><i class="fa-solid fa-panorama"></i> Library</button>
+                        <button type="button" class="bnr-view-btn" data-bnr-view="preview" onclick="showBnrView('preview')"><i class="fa-solid fa-eye"></i> Preview</button>
+                        <button type="button" class="bnr-view-btn" data-bnr-view="about" onclick="showBnrView('about')"><i class="fa-solid fa-circle-info"></i> About</button>
+                    </div>
+
+                    <div id="bnrViewLibrary" class="bnr-view active">
+                        <div class="atl-section-hd" style="margin-bottom:0;">
+                            <div>
+                                <p class="atl-section-eyebrow">Master Banner System</p>
+                                <h2 class="atl-section-heading" style="font-size:20px;"><i class="fa-solid fa-panorama"></i> Banner Library</h2>
+                                <p class="atl-section-sub">Manage banner images and assign them to email templates by category.</p>
+                            </div>
+                            <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
+                                <button type="button" class="atl-btn atl-btn--primary" onclick="openBnrCreateDrawer()">
+                                    <i class="fa-solid fa-plus"></i> New Banner
+                                </button>
+                            </div>
                         </div>
-                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
-                            <button type="button" class="atl-btn atl-btn--primary" onclick="openBnrCreateDrawer()">
-                                <i class="fa-solid fa-plus"></i> New Banner
-                            </button>
+
+                        <div class="atl-toolbar" style="margin:16px 0;">
+                            <div class="um-input-wrap" style="flex:1; min-width:180px;">
+                                <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                                <input type="search" id="bnrSearchInput" class="um-input" placeholder="Search banners…" autocomplete="off" oninput="onBnrSearchInput()">
+                            </div>
+                            <select id="bnrCategoryFilter" class="atl-filter-select" onchange="reloadBnrBanners()">
+                                <option value="">All Categories</option>
+                            </select>
+                            <select id="bnrStatusFilter" class="atl-filter-select" onchange="reloadBnrBanners()">
+                                <option value="">All Statuses</option>
+                                <option value="active">Active only</option>
+                                <option value="archived">Archived only</option>
+                            </select>
+                            <button type="button" class="atl-clear-btn" onclick="clearBnrFilters()">Clear filters</button>
+                        </div>
+
+                        <div id="bnrCardGrid" class="evt-card-grid"></div>
+                        <div style="text-align:center; margin-top:20px;">
+                            <button type="button" id="bnrLoadMoreBtn" class="atl-btn atl-btn--ghost" style="display:none;" onclick="loadMoreBnrBanners()">Load More</button>
                         </div>
                     </div>
 
-                    <div class="atl-toolbar" style="margin:16px 0;">
-                        <div class="um-input-wrap" style="flex:1; min-width:180px;">
-                            <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
-                            <input type="search" id="bnrSearchInput" class="um-input" placeholder="Search banners…" autocomplete="off" oninput="onBnrSearchInput()">
+                    <div id="bnrViewPreview" class="bnr-view" style="display:none;">
+                        <div class="atl-section-hd" style="margin-bottom:0;">
+                            <div>
+                                <p class="atl-section-eyebrow">Master Banner System</p>
+                                <h2 class="atl-section-heading" style="font-size:20px;"><i class="fa-solid fa-eye"></i> Email Preview</h2>
+                                <p class="atl-section-sub">See any template rendered with sample data and its currently assigned banner.</p>
+                            </div>
                         </div>
-                        <select id="bnrCategoryFilter" class="atl-filter-select" onchange="reloadBnrBanners()">
-                            <option value="">All Categories</option>
-                        </select>
-                        <select id="bnrStatusFilter" class="atl-filter-select" onchange="reloadBnrBanners()">
-                            <option value="">All Statuses</option>
-                            <option value="active">Active only</option>
-                            <option value="archived">Archived only</option>
-                        </select>
-                        <button type="button" class="atl-clear-btn" onclick="clearBnrFilters()">Clear filters</button>
+                        <div class="atl-toolbar" style="margin:16px 0;">
+                            <select id="bnrPreviewTemplateSelect" class="atl-filter-select" style="min-width:280px;" onchange="loadBnrPreview()">
+                                <option value="">Select a template…</option>
+                            </select>
+                            <div style="display:flex; gap:4px; margin-left:auto;">
+                                <button type="button" id="bnrPreviewMobileBtn" class="atl-btn atl-btn--ghost" onclick="setBnrPreviewWidth(375)"><i class="fa-solid fa-mobile-screen"></i> 375px</button>
+                                <button type="button" id="bnrPreviewDesktopBtn" class="atl-btn atl-btn--primary" onclick="setBnrPreviewWidth(600)"><i class="fa-solid fa-desktop"></i> 600px</button>
+                            </div>
+                        </div>
+                        <div id="bnrPreviewStatus" style="color:var(--atl-muted); font-size:12px; margin-bottom:10px;"></div>
+                        <div style="display:flex; justify-content:center; background:var(--atl-paper); border-radius:var(--atl-r-md); border:1px solid var(--atl-line); padding:20px; overflow-x:auto;">
+                            <iframe id="bnrPreviewIframe" title="Email preview" style="width:600px; max-width:100%; height:640px; border:0; background:#0A0A0A; border-radius:8px; transition:width 0.2s ease;"></iframe>
+                        </div>
                     </div>
 
-                    <div id="bnrCardGrid" class="evt-card-grid"></div>
-                    <div style="text-align:center; margin-top:20px;">
-                        <button type="button" id="bnrLoadMoreBtn" class="atl-btn atl-btn--ghost" style="display:none;" onclick="loadMoreBnrBanners()">Load More</button>
+                    <div id="bnrViewAbout" class="bnr-view" style="display:none;">
+                        <div class="atl-card">
+                            <div class="um-icon-header">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                <div>
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">About the Master Banner System</h4>
+                                    <p class="um-section-desc">How per-category banner images get attached to your outgoing emails.</p>
+                                </div>
+                            </div>
+                            <div class="um-divider"></div>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:14px;">
+                                Every client-facing email belongs to one of <strong style="color:var(--atl-ink);">11 fixed categories</strong> (Booking Requests, Quotes &amp; Proposals, Contracts &amp; Signatures, Payments &amp; Invoices, Booking Confirmations, Event Reminders, Thank You &amp; Reviews, Booking Recovery, Contact &amp; Support, Newsletters &amp; Marketing, User Accounts &amp; Security). A <strong style="color:var(--atl-ink);">banner</strong> is one image assigned to a category and, from there, to any number of specific email templates via the <strong style="color:var(--atl-ink);">Assign</strong> action on its card.
+                            </p>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:14px;">
+                                Banners are resolved <strong style="color:var(--atl-ink);">at the moment an email sends</strong> &mdash; there is no publish step. Editing a banner's image, headline or subtitle updates every template using it immediately. If a template has no banner assigned, or its banner is <strong style="color:var(--atl-ink);">archived</strong>, the email falls back to a plain text headline block instead &mdash; nothing breaks, it just looks less photographic.
+                            </p>
+                            <h4 class="um-section-label" style="margin: 4px 0 10px;">Image specs</h4>
+                            <ul class="um-role-list" style="margin-bottom:14px;">
+                                <li class="can"><i class="fa-solid fa-check"></i> JPG or PNG only</li>
+                                <li class="can"><i class="fa-solid fa-check"></i> 1200&ndash;1400px wide (2&times; retina; displays at 600&ndash;700px)</li>
+                                <li class="can"><i class="fa-solid fa-check"></i> 100KB or smaller</li>
+                                <li class="can"><i class="fa-solid fa-check"></i> Descriptive alt text is required &mdash; it's what shows if the image is blocked, and it matters for accessibility and deliverability</li>
+                            </ul>
+                            <h4 class="um-section-label" style="margin: 4px 0 10px;">A few things to know</h4>
+                            <ul class="um-role-list" style="margin-bottom:14px;">
+                                <li class="can"><i class="fa-solid fa-check"></i> Personalisation (names, booking references, amounts) always lives in the email text, never baked into the banner image itself</li>
+                                <li class="can"><i class="fa-solid fa-check"></i> Buttons are never part of the artwork &mdash; every call-to-action is a real, clickable button below the banner</li>
+                                <li class="can"><i class="fa-solid fa-check"></i> Emails render in dark mode by default; banner art should hold up on a near-black background</li>
+                                <li class="can"><i class="fa-solid fa-check"></i> Only PREMIUM (client/visitor/subscriber-facing) emails use banners &mdash; internal SYSTEM notifications (digests, alerts, password resets) use a compact text header instead</li>
+                            </ul>
+                            <p class="um-section-desc" style="margin-top:8px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>Use the <strong style="color:var(--atl-ink);">Preview</strong> tab to see exactly how any template looks with its currently assigned banner (or its fallback) before you rely on it.</span>
+                            </p>
+                        </div>
                     </div>
 
                     </div>
@@ -11213,9 +11302,10 @@
 
                             <!-- Email -->
                             <div class="um-role-info" style="margin-bottom:16px;">
-                                <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-envelope-open-text" style="color:var(--atl-amber);"></i> Email</p>
+                                <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-panorama" style="color:var(--atl-amber);"></i> Email Banners</p>
                                 <ul class="um-role-list">
-                                    <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Email Header Banner</strong> &mdash; the image shown at the top of every outgoing system email (quotes, confirmations, password resets, user invitations).</li>
+                                    <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Banner Library</strong> (under the <strong style="color:var(--atl-ink);">Banners</strong> tab) manages a per-category banner image system &mdash; one image can be assigned to any number of email templates (quotes, confirmations, invoices, and more), and updates every email using it the moment you save.</li>
+                                    <li class="can"><i class="fa-solid fa-check"></i> See the Banners tab's own <strong style="color:var(--atl-ink);">About</strong> view for the full picture: categories, image specs, and how assignment works.</li>
                                 </ul>
                             </div>
 
@@ -11232,7 +11322,7 @@
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
                                 <li><strong style="color:var(--atl-ink);">Swap the logo</strong> &mdash; under <strong style="color:var(--atl-ink);">Identity</strong>, upload the header logo (or paste a URL), check the preview, and <strong style="color:var(--atl-ink);">Save Branding</strong>.</li>
                                 <li><strong style="color:var(--atl-ink);">Set the accent colour</strong> &mdash; under Identity, pick the primary accent colour used for buttons and highlights, then save.</li>
-                                <li><strong style="color:var(--atl-ink);">Brand your emails</strong> &mdash; under <strong style="color:var(--atl-ink);">Email</strong>, upload the Email Header Banner shown atop every system email.</li>
+                                <li><strong style="color:var(--atl-ink);">Brand your emails</strong> &mdash; under <strong style="color:var(--atl-ink);">Banners</strong>, create a banner and assign it to one or more email templates.</li>
                                 <li><strong style="color:var(--atl-ink);">Change the login screen</strong> &mdash; under <strong style="color:var(--atl-ink);">Site</strong>, set the Admin Login Background (clear the field to reset it), then save.</li>
                             </ol>
 
@@ -14929,6 +15019,57 @@
                 bnrCategoriesLoaded = true;
             }
             window.reloadBnrBanners();
+        };
+
+        // ── Library / Preview / About toggle (see the CSS comment above .bnr-view-bar for why this
+        // doesn't reuse .atl-tab-btn/data-um-tab) ──
+        var bnrPreviewTemplatesLoaded = false;
+        var bnrPreviewWidth = 600;
+        // System-track templates (dashboard_invite, password_reset) never resolve a banner — excluded
+        // from the picker so an admin can't preview a category that will never actually render.
+        var BNR_SYSTEM_TRACK_KEYS = ['dashboard_invite', 'password_reset'];
+
+        window.showBnrView = function (view) {
+            $('.bnr-view-btn').removeClass('active');
+            $('.bnr-view-btn[data-bnr-view="' + view + '"]').addClass('active');
+            $('.bnr-view').hide();
+            $('#bnrView' + view.charAt(0).toUpperCase() + view.slice(1)).show();
+            if (view === 'preview' && !bnrPreviewTemplatesLoaded) {
+                bnrPreviewTemplatesLoaded = true;
+                apiCall('/api/admin/email-templates').then(function (data) {
+                    if (!data || !data.success) return;
+                    var opts = data.templates
+                        .filter(function (t) { return BNR_SYSTEM_TRACK_KEYS.indexOf(t.template_key) === -1; })
+                        .map(function (t) { return '<option value="' + t.template_key + '">' + t.category + ' — ' + t.template_key + '</option>'; })
+                        .join('');
+                    $('#bnrPreviewTemplateSelect').append(opts);
+                }).catch(function (err) { console.error('Failed to load templates for preview picker:', err); });
+            }
+        };
+
+        window.setBnrPreviewWidth = function (px) {
+            bnrPreviewWidth = px;
+            $('#bnrPreviewIframe').css('width', px + 'px');
+            $('#bnrPreviewMobileBtn').toggleClass('atl-btn--primary', px === 375).toggleClass('atl-btn--ghost', px !== 375);
+            $('#bnrPreviewDesktopBtn').toggleClass('atl-btn--primary', px === 600).toggleClass('atl-btn--ghost', px !== 600);
+        };
+
+        window.loadBnrPreview = async function () {
+            var key = $('#bnrPreviewTemplateSelect').val();
+            var $status = $('#bnrPreviewStatus');
+            var $frame = $('#bnrPreviewIframe');
+            if (!key) { $frame.attr('srcdoc', ''); $status.text(''); return; }
+            $status.html('<i class="fa-solid fa-spinner fa-spin"></i> Loading preview…');
+            try {
+                var data = await apiCall('/api/admin/email-templates/' + encodeURIComponent(key) + '/preview');
+                if (!data || !data.success) throw new Error('Invalid response');
+                $frame.attr('srcdoc', data.html);
+                $status.text(data.banner_assigned ? 'Showing the banner currently assigned to this template.' : 'No banner assigned — showing the text-headline fallback.');
+            } catch (err) {
+                console.error('Failed to load preview:', err);
+                $status.text('Could not load the preview.');
+                $frame.attr('srcdoc', '');
+            }
         };
 
         window.onBnrSearchInput = function () {

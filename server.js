@@ -11,6 +11,7 @@ const transporter = emailService.transporter;
 const emailTemplates = require('./js/emailTemplates');
 const emailComponents = require('./js/emailComponents');
 const bannerRegistry = require('./js/bannerRegistry');
+const { SAMPLES_BY_CATEGORY } = require('./js/emailPreviewSamples');
 const { imageSize } = require('image-size');
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
@@ -14077,6 +14078,41 @@ app.put('/api/admin/email-templates/assign', requireAdmin, requireRole(['adminis
             res.json({ success: true, updated: changes });
         });
     }
+});
+
+// System-track template_keys have no banner concept (renderSystemEmail has no banner slot) — the
+// Banner Centre's preview picker excludes these client-side; this is defense in depth.
+const SYSTEM_TRACK_TEMPLATE_KEYS = ['dashboard_invite', 'password_reset'];
+
+// Live preview: renders a template's category-generic sample body with its REAL currently-assigned
+// banner (or the text-headline fallback, matching exactly what a real send would look like).
+app.get('/api/admin/email-templates/:key/preview', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+    const key = req.params.key;
+    if (SYSTEM_TRACK_TEMPLATE_KEYS.includes(key)) {
+        return res.status(400).json({ success: false, message: 'This template uses the SYSTEM track — banners are not used; there is no banner preview for it.' });
+    }
+    db.get('SELECT category FROM email_template_banners WHERE template_key = ?', [key], async (err, row) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (!row) return res.status(404).json({ success: false, message: 'Unknown template_key.' });
+
+        const sample = SAMPLES_BY_CATEGORY[row.category] || { headline: row.category, bodyHtml: 'Sample preview content.' };
+        const banner = await bannerRegistry.resolveBanner(key);
+        const { socialLinks } = await getEmailFooterContext();
+        // Real sends need bannerSrc as an absolute URL (email clients have no "same origin"), but this
+        // preview renders inside an admin.html iframe, which enforces its own img-src CSP that doesn't
+        // allowlist the production domain — use a same-origin relative path here instead.
+        const previewBannerSrc = banner ? banner.src.replace(bannerRegistry.emailBaseUrl(), '') : null;
+
+        const html = emailComponents.renderPremiumEmail(Object.assign({}, sample, {
+            preheaderText: `Preview: ${row.category} — ${key}`,
+            bannerSrc: previewBannerSrc,
+            bannerAlt: banner && banner.alt,
+            subtitle: (banner && banner.subtitle) || sample.subtitle,
+            headline: (banner && banner.headline) || sample.headline,
+            socialLinks
+        }));
+        res.json({ success: true, html, category: row.category, banner_assigned: !!banner });
+    });
 });
 
 // Attachment upload for direct emails
