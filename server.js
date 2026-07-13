@@ -13770,14 +13770,30 @@ async function sendDirectEmail(id) {
             }
 
             try {
+                // Route through the same registry-resolved rendering every other PREMIUM email uses —
+                // branding_option/selected_banner_url are no longer read (see direct-emails/preview
+                // below): they pointed at the legacy branded-logic branch in sendEmailDirectly(), which
+                // never runs (EMAIL_OVERHAUL_ENABLED is unset in every deployment), so this email was
+                // going out completely raw — no wrapper, no banner, no footer, no unsubscribe.
+                const templateKey = emailItem.inquiry_id ? 'inquiry_reply' : 'direct_compose';
+                const banner = await bannerRegistry.resolveBanner(templateKey);
+                const { socialLinks } = await getEmailFooterContext();
+                const html = emailComponents.renderPremiumEmail({
+                    preheaderText: emailItem.subject || 'A message from Thabiso Mhlongo Management.',
+                    bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+                    headline: banner?.headline || (emailItem.inquiry_id ? 'Management Response' : 'Direct Message'),
+                    bodyHtml: emailItem.body, // already real HTML from Quill's root.innerHTML — embed verbatim
+                    socialLinks
+                });
+
                 const result = await sendEmail({
                     to,
                     subject: emailItem.subject || 'Message from Thabiso Mhlongo Management',
-                    htmlContent: emailItem.body,
+                    htmlContent: html,
+                    preWrapped: true,
                     replyTo: emailItem.reply_to || process.env.EMAIL_USER || 'admin@thabisomhlongo.com',
                     cc,
                     bcc,
-                    branding: emailItem.branding_option,
                     attachments,
                     trigger_event: emailItem.inquiry_id ? 'Admin: Inquiry Reply' : 'Admin: Direct Compose',
                     related_entity: emailItem.inquiry_id ? 'inquiries' : null,
@@ -14291,47 +14307,24 @@ app.post('/api/admin/direct-emails/:id/send', requireAdmin, (req, res) => {
 });
 
 // Preview direct email html
+// Mirrors sendDirectEmail()'s rendering exactly (registry-resolved banner via renderPremiumEmail) so
+// the preview shown here is byte-identical in shape to what actually sends — previously this called
+// createEmailWrapper() unconditionally while the real send (gated by the always-off
+// EMAIL_OVERHAUL_ENABLED flag) shipped raw HTML, so preview and reality had permanently diverged.
 app.post('/api/admin/direct-emails/preview', requireAdmin, async (req, res) => {
-    const { body, subject, branding_option, selected_banner_url } = req.body;
-    
-    let bannerSrc = null;
-    let finalBranding = branding_option || 'default';
-    
-    if (branding_option === 'banner' && selected_banner_url) {
-        bannerSrc = selected_banner_url;
-        finalBranding = 'banner';
-    }
-    
-    if (branding_option === 'default') {
-        db.get("SELECT email_banner FROM branding LIMIT 1", [], (err, row) => {
-            let defaultBanner = row ? row.email_banner : null;
-            renderPreview(defaultBanner);
-        });
-    } else {
-        renderPreview(bannerSrc);
-    }
+    const { body, subject, inquiry_id } = req.body;
+    const templateKey = inquiry_id ? 'inquiry_reply' : 'direct_compose';
+    const banner = await bannerRegistry.resolveBanner(templateKey);
+    const { socialLinks } = await getEmailFooterContext();
 
-    async function renderPreview(bannerUrl) {
-        let finalBannerUrl = bannerUrl;
-        if (finalBannerUrl && finalBannerUrl.startsWith('/')) {
-            const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
-            finalBannerUrl = baseUrl + finalBannerUrl;
-        }
-
-        const socialLinks = await new Promise((resolve) => {
-            db.all("SELECT platform_name, platform_url FROM social_links WHERE is_active = 1 ORDER BY display_order ASC", [], (err, rows) => resolve(err ? [] : (rows || [])));
-        });
-
-        const html = emailTemplates.createEmailWrapper(
-            body,
-            subject || 'Preview Email',
-            null, // unsubscribe
-            finalBannerUrl,
-            socialLinks,
-            finalBranding
-        );
-        res.json({ success: true, html });
-    }
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: subject || 'A message from Thabiso Mhlongo Management.',
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || (inquiry_id ? 'Management Response' : 'Direct Message'),
+        bodyHtml: body,
+        socialLinks
+    });
+    res.json({ success: true, html });
 });
 
 

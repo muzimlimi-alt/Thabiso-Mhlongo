@@ -3262,6 +3262,13 @@
         }
 
         /* ── ENHANCED EMAIL COMPOSER DRAWER STYLES ── */
+        /* inqComposeView lives inside #inqDetailDrawer alongside inqReadView (an unstyled, unrelated
+           sibling), so it can't rely on the parent being a flex column — anchor to the drawer itself
+           (the nearest positioned ancestor, .atl-drawer's position:fixed) instead of the flow, so the
+           atl-drawer__header/body/footer split (fixed header/footer, scrolling body) works regardless
+           of what inqReadView's own layout is doing. JS sets display:flex directly (not .show()/.hide(),
+           which would default to display:block and break this). */
+        #inqComposeView { position: absolute; inset: 0; flex-direction: column; }
         .inq-chip-input-container {
             display: flex;
             flex-wrap: wrap;
@@ -16905,7 +16912,6 @@
         let inqCcEmails = [];
         let inqBccEmails = [];
         let inqComposeQuill = null;
-        let inqPredefinedBanners = [];
         let inqActiveDraftId = null;
         let inqAttachments = [];
         let inqActiveInquiryContext = null;
@@ -16924,7 +16930,7 @@
             defaults = defaults || {};
             
             // Clean/Reset all form fields
-            $('#inqComposerTitle').text(defaults.isReply ? 'Reply to Inquiry' : 'New Message');
+            $('#inqComposerTitle').html(defaults.isReply ? '<i class="fa-solid fa-reply"></i> Reply to Inquiry' : '<i class="fa-solid fa-pen-to-square"></i> New Message');
             $('#inqComposeSubject').val(defaults.subject || '');
             $('#inqComposeReplyTo').val(defaults.replyTo || '');
             
@@ -16938,11 +16944,8 @@
             $('#inqCcRow, #inqBccRow, #inqReplyToRow').hide();
             $('#toggleCcBccBtn').text('Cc/Bcc/Reply-To');
 
-            // Reset templates/branding selection
+            // Reset template selection
             $('#inqTemplateSelect').val('');
-            $('#inqBrandingSelect').val('default');
-            $('#inqCustomBannerGroup').hide();
-            $('#inqBannerPreviewRow').hide();
 
             // Clear attachments
             renderInqAttachments();
@@ -16975,11 +16978,13 @@
             // Set scheduled datetimepicker
             initInqSchedulePicker();
 
-            // Hide/Show correct drawer panels
+            // Hide/Show correct drawer panels. inqComposeView uses the atl-drawer__header/body/footer
+            // flex layout, so it needs display:flex specifically — jQuery's .show() would default to
+            // display:block (the tag's UA default), breaking the pinned header/footer + scrolling body.
             $('#inqReadView').hide();
             $('#inqReplyStrip').hide();
-            $('#inqComposeView').show();
-            
+            $('#inqComposeView').css('display', 'flex');
+
             openAtlDrawer('inqDetailDrawer');
             $('.inq-row').removeClass('inq-row--active');
             
@@ -17304,10 +17309,8 @@
             if (body === '<p><br></p>' && inqToEmails.length === 0) return;
             
             const subject = $('#inqComposeSubject').val().trim() || '(No Subject)';
-            const branding = $('#inqBrandingSelect').val();
-            const bannerUrl = branding === 'banner' ? $('#inqBannerSelector').val() : null;
             const replyTo = $('#inqComposeReplyTo').val().trim();
-            
+
             const payload = {
                 inquiry_id: inqActiveInquiryContext ? inqActiveInquiryContext.inquiry_id : null,
                 to_emails: inqToEmails,
@@ -17316,8 +17319,6 @@
                 reply_to: replyTo,
                 subject: subject,
                 body: body,
-                branding_option: branding,
-                selected_banner_url: bannerUrl,
                 attachment_paths: inqAttachments,
                 status: 'draft'
             };
@@ -17353,7 +17354,7 @@
                 if (res && res.success && res.email) {
                     const email = res.email;
                     
-                    $('#inqComposerTitle').text(email.status === 'scheduled' ? 'Scheduled Email' : 'Edit Draft');
+                    $('#inqComposerTitle').html(email.status === 'scheduled' ? '<i class="fa-solid fa-clock"></i> Scheduled Email' : '<i class="fa-solid fa-pen-to-square"></i> Edit Draft');
                     $('#inqComposeSubject').val(email.subject || '');
                     $('#inqComposeReplyTo').val(email.reply_to || '');
 
@@ -17384,23 +17385,6 @@
                     }
 
                     $('#inqTemplateSelect').val('');
-                    $('#inqBrandingSelect').val(email.branding_option || 'default');
-                    if (email.branding_option === 'banner') {
-                        if (inqPredefinedBanners.length === 0) {
-                            const bres = await apiCall('/api/admin/branding/banners');
-                            if (bres && bres.success && bres.banners) {
-                                inqPredefinedBanners = bres.banners;
-                            }
-                        }
-                        populateBannerSelector();
-                        $('#inqBannerSelector').val(email.selected_banner_url || '');
-                        $('#inqSelectedBannerPreview').attr('src', email.selected_banner_url || '');
-                        $('#inqCustomBannerGroup').show();
-                        $('#inqBannerPreviewRow').show();
-                    } else {
-                        $('#inqCustomBannerGroup').hide();
-                        $('#inqBannerPreviewRow').hide();
-                    }
 
                     renderInqAttachments();
 
@@ -17422,7 +17406,7 @@
 
                     $('#inqReadView').hide();
                     $('#inqReplyStrip').hide();
-                    $('#inqComposeView').show();
+                    $('#inqComposeView').css('display', 'flex');
                     openAtlDrawer('inqDetailDrawer');
                     $('.inq-row').removeClass('inq-row--active');
                     $(`.inq-row[data-id="${id}"]`).addClass('inq-row--active');
@@ -17525,8 +17509,11 @@
         // The detail-pane buttons live in the slide-in drawer (#inqDetailDrawer), which is added to the
         // DOM after this script runs, so these are delegated from document rather than bound directly.
         $(document).on('click', '#inqComposeBackBtn', inqCloseDetail);
-        $(document).on('click', '#inqComposeDiscardBtn', inqCloseDetail);
         $(document).on('click', '#inqBackBtn', inqCloseDetail);
+        // #inqComposeDiscardBtn's own handler (below, near sendOrScheduleComposedEmail) closes the
+        // drawer itself once it's done — it used to ALSO have this unconditional handler bound to the
+        // same click, which closed the drawer immediately regardless of whether the user confirmed or
+        // cancelled the "discard this draft?" prompt.
 
         // Folder filter
         $(document).on('click', '.inq-folder', function(e) {
@@ -17698,49 +17685,6 @@
             inqComposeQuill.setSelection(range.index + token.length);
         });
 
-        // Branding dropdown change
-        $(document).on('change', '#inqBrandingSelect', function() {
-            const val = $(this).val();
-            if (val === 'banner') {
-                if (inqPredefinedBanners.length === 0) {
-                    apiCall('/api/admin/branding/banners').then(res => {
-                        if (res && res.success && res.banners) {
-                            inqPredefinedBanners = res.banners;
-                            populateBannerSelector();
-                        }
-                    });
-                } else {
-                    populateBannerSelector();
-                }
-                $('#inqCustomBannerGroup').show();
-            } else {
-                $('#inqCustomBannerGroup').hide();
-                $('#inqBannerPreviewRow').hide();
-            }
-        });
-
-        function populateBannerSelector() {
-            const $sel = $('#inqBannerSelector');
-            $sel.empty();
-            inqPredefinedBanners.forEach(url => {
-                const name = url.split('/').pop().replace(/_/g, ' ');
-                $sel.append(`<option value="${url}">${name}</option>`);
-            });
-            const selected = $sel.val();
-            if (selected) {
-                $('#inqSelectedBannerPreview').attr('src', selected);
-                $('#inqBannerPreviewRow').show();
-            }
-        }
-
-        $(document).on('change', '#inqBannerSelector', function() {
-            const selected = $(this).val();
-            if (selected) {
-                $('#inqSelectedBannerPreview').attr('src', selected);
-                $('#inqBannerPreviewRow').show();
-            }
-        });
-
         // Attachment removal delegate
         $(document).on('click', '.inq-attach-remove', function() {
             const idx = $(this).data('idx');
@@ -17786,15 +17730,12 @@
             if (!inqComposeQuill) return;
             const body = inqComposeQuill.root.innerHTML;
             const subject = $('#inqComposeSubject').val().trim() || '(No Subject)';
-            const branding = $('#inqBrandingSelect').val();
-            const bannerUrl = branding === 'banner' ? $('#inqBannerSelector').val() : null;
 
             try {
                 const res = await apiCall('/api/admin/direct-emails/preview', 'POST', {
                     body,
                     subject,
-                    branding_option: branding,
-                    selected_banner_url: bannerUrl
+                    inquiry_id: inqActiveInquiryContext ? inqActiveInquiryContext.inquiry_id : null
                 });
 
                 if (res && res.success && res.html) {
@@ -17827,10 +17768,8 @@
             }
 
             const subject = $('#inqComposeSubject').val().trim() || '(No Subject)';
-            const branding = $('#inqBrandingSelect').val();
-            const bannerUrl = branding === 'banner' ? $('#inqBannerSelector').val() : null;
             const replyTo = $('#inqComposeReplyTo').val().trim();
-            
+
             const schedPicker = $('#inqSchedulePicker').val();
             const isScheduled = $('#inqScheduleSendRow').is(':visible') && schedPicker;
             const status = isScheduled ? 'scheduled' : 'draft';
@@ -17844,8 +17783,6 @@
                 reply_to: replyTo,
                 subject: subject,
                 body: body,
-                branding_option: branding,
-                selected_banner_url: bannerUrl,
                 attachment_paths: inqAttachments,
                 scheduled_at: scheduledAt,
                 status: status
@@ -23788,110 +23725,103 @@
                 </div>
             </div>
 
-            <!-- Compose New View -->
-            <!-- Compose New View (Enhanced) -->
+            <!-- Compose New View (aligned to the house .atl-drawer__header/__body/__footer pattern) -->
             <div class="inq-compose-view" id="inqComposeView" style="display:none;">
-                <div class="inq-read-toolbar">
-                    <button class="inq-tool-btn" id="inqComposeBackBtn" title="Cancel compose" aria-label="Back">
-                        <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>
-                    </button>
-                    <span class="inq-folder-title" id="inqComposerTitle">New Message</span>
+                <div class="atl-drawer__header">
+                    <h5 id="inqComposerTitle"><i class="fa-solid fa-pen-to-square"></i> New Message</h5>
+                    <button type="button" class="atl-drawer__close" id="inqComposeBackBtn" aria-label="Close">&times;</button>
                 </div>
-                
+
+                <div class="atl-drawer__body">
                 <div class="inq-compose-form">
                     <!-- Recipients Block -->
-                    <div class="inq-compose-row">
-                        <label class="inq-compose-label">To:</label>
-                        <div class="inq-chip-input-container" id="inqToChipsContainer">
-                            <input type="text" class="inq-chip-input" id="inqComposeToInput" placeholder="Enter recipient email..." aria-label="Recipient email">
+                    <div class="um-field-group">
+                        <label class="um-label">To:</label>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <div class="inq-chip-input-container" id="inqToChipsContainer" style="flex:1;">
+                                <input type="text" class="inq-chip-input" id="inqComposeToInput" placeholder="Enter recipient email..." aria-label="Recipient email">
+                            </div>
+                            <button type="button" class="inq-field-toggle-btn" id="toggleCcBccBtn" title="Toggle CC/BCC/Reply-To">Cc/Bcc/Reply-To</button>
                         </div>
-                        <button type="button" class="inq-field-toggle-btn" id="toggleCcBccBtn" style="margin-left:8px;" title="Toggle CC/BCC/Reply-To">Cc/Bcc/Reply-To</button>
                     </div>
 
                     <!-- CC Row (Collapsible) -->
-                    <div class="inq-compose-row inq-collapsible-field" id="inqCcRow" style="display:none; margin-top:8px;">
-                        <label class="inq-compose-label">Cc:</label>
+                    <div class="um-field-group inq-collapsible-field" id="inqCcRow" style="display:none;">
+                        <label class="um-label">Cc:</label>
                         <div class="inq-chip-input-container" id="inqCcChipsContainer">
                             <input type="text" class="inq-chip-input" id="inqComposeCcInput" placeholder="Enter CC emails..." aria-label="CC email">
                         </div>
                     </div>
 
                     <!-- BCC Row (Collapsible) -->
-                    <div class="inq-compose-row inq-collapsible-field" id="inqBccRow" style="display:none; margin-top:8px;">
-                        <label class="inq-compose-label">Bcc:</label>
+                    <div class="um-field-group inq-collapsible-field" id="inqBccRow" style="display:none;">
+                        <label class="um-label">Bcc:</label>
                         <div class="inq-chip-input-container" id="inqBccChipsContainer">
                             <input type="text" class="inq-chip-input" id="inqComposeBccInput" placeholder="Enter BCC emails..." aria-label="BCC email">
                         </div>
                     </div>
 
                     <!-- Reply-To Row (Collapsible) -->
-                    <div class="inq-compose-row inq-collapsible-field" id="inqReplyToRow" style="display:none; margin-top:8px;">
-                        <label class="inq-compose-label" for="inqComposeReplyTo">Reply-To:</label>
-                        <input type="email" class="inq-compose-field" id="inqComposeReplyTo" placeholder="Reply-to email address (optional)" aria-label="Reply-To email">
+                    <div class="um-field-group inq-collapsible-field" id="inqReplyToRow" style="display:none;">
+                        <label class="um-label" for="inqComposeReplyTo">Reply-To:</label>
+                        <div class="um-input-wrap">
+                            <i class="fa-solid fa-reply um-input-icon"></i>
+                            <input type="email" class="um-input" id="inqComposeReplyTo" placeholder="Reply-to email address (optional)" aria-label="Reply-To email">
+                        </div>
                     </div>
 
                     <!-- Subject Row -->
-                    <div class="inq-compose-row" style="margin-top:8px;">
-                        <label class="inq-compose-label" for="inqComposeSubject">Subject:</label>
-                        <input type="text" class="inq-compose-field" id="inqComposeSubject" placeholder="Subject" aria-label="Message subject">
-                    </div>
-
-                    <!-- Branding, Template, & Snippet Controls -->
-                    <div class="inq-compose-row inq-controls-row">
-                        <div class="inq-control-group">
-                            <label class="inq-select-label" for="inqTemplateSelect">Template:</label>
-                            <select class="inq-select" id="inqTemplateSelect">
-                                <option value="">Select Template...</option>
-                                <option value="blank">Blank Email</option>
-                                <option value="inquiry_follow_up">Inquiry Follow-up</option>
-                                <option value="date_unavailable">Date Unavailable</option>
-                                <option value="phone_call">Request Phone Call</option>
-                            </select>
-                        </div>
-
-                        <div class="inq-control-group">
-                            <label class="inq-select-label" for="inqBrandingSelect">Branding:</label>
-                            <select class="inq-select" id="inqBrandingSelect">
-                                <option value="logo">Company Logo Only</option>
-                                <option value="default" selected>Default Branding</option>
-                                <option value="banner">Master Banner</option>
-                                <option value="none">No Branding</option>
-                            </select>
-                        </div>
-                        
-                        <!-- Custom Banner Selector (shown if 'banner' is chosen) -->
-                        <div class="inq-control-group" id="inqCustomBannerGroup" style="display:none;">
-                            <label class="inq-select-label" for="inqBannerSelector">Select Banner:</label>
-                            <select class="inq-select" id="inqBannerSelector">
-                                <!-- Dynamically populated -->
-                            </select>
+                    <div class="um-field-group">
+                        <label class="um-label" for="inqComposeSubject">Subject:</label>
+                        <div class="um-input-wrap">
+                            <i class="fa-solid fa-font um-input-icon"></i>
+                            <input type="text" class="um-input" id="inqComposeSubject" placeholder="Subject" aria-label="Message subject">
                         </div>
                     </div>
 
-                    <!-- Banners dynamic preview area -->
-                    <div id="inqBannerPreviewRow" class="inq-banner-preview-box" style="display:none;">
-                        <img id="inqSelectedBannerPreview" src="" alt="Banner Preview">
+                    <!-- Template picker (canned starter text — unrelated to banners) -->
+                    <div class="um-field-group">
+                        <label class="um-label" for="inqTemplateSelect">Template:</label>
+                        <select class="atl-filter-select" id="inqTemplateSelect" style="width:100%;">
+                            <option value="">Select Template...</option>
+                            <option value="blank">Blank Email</option>
+                            <option value="inquiry_follow_up">Inquiry Follow-up</option>
+                            <option value="date_unavailable">Date Unavailable</option>
+                            <option value="phone_call">Request Phone Call</option>
+                        </select>
                     </div>
+
+                    <!-- Banner: resolved automatically from the Contact & Support category (Master
+                         Banner System, Prompt 6) — no per-send picker. Manage the actual image under
+                         Branding -> Banners; assign/unassign under its Assign action. -->
+                    <p class="um-section-desc" style="width:100%; margin:-4px 0 14px; display:flex; gap:6px; align-items:flex-start;">
+                        <i class="fa-solid fa-panorama" style="color:var(--atl-amber); margin-top:2px;"></i>
+                        <span>Banner is resolved automatically from the <strong style="color:var(--atl-ink);">Contact &amp; Support</strong> category — manage it under <strong style="color:var(--atl-ink);">Branding &rarr; Banners</strong>.</span>
+                    </p>
 
                     <!-- Personalization Tokens Bar -->
-                    <div class="inq-tokens-bar">
-                        <span class="inq-tokens-label">Insert Token:</span>
-                        <button type="button" class="inq-token-chip" data-token="{{client_name}}">Client Name</button>
-                        <button type="button" class="inq-token-chip" data-token="{{booking_reference}}">Booking Ref</button>
-                        <button type="button" class="inq-token-chip" data-token="{{event_name}}">Event Name</button>
-                        <button type="button" class="inq-token-chip" data-token="{{event_date}}">Event Date</button>
-                        <button type="button" class="inq-token-chip" data-token="{{quote_number}}">Quote No</button>
+                    <div class="um-field-group">
+                        <div class="inq-tokens-bar">
+                            <span class="inq-tokens-label">Insert Token:</span>
+                            <button type="button" class="inq-token-chip" data-token="{{client_name}}">Client Name</button>
+                            <button type="button" class="inq-token-chip" data-token="{{booking_reference}}">Booking Ref</button>
+                            <button type="button" class="inq-token-chip" data-token="{{event_name}}">Event Name</button>
+                            <button type="button" class="inq-token-chip" data-token="{{event_date}}">Event Date</button>
+                            <button type="button" class="inq-token-chip" data-token="{{quote_number}}">Quote No</button>
+                        </div>
                     </div>
 
                     <!-- Rich Text Editor Container -->
-                    <div class="atl-quill-wrap" id="inqQuillContainer" style="margin-bottom: 12px;">
-                        <div id="inqComposeBodyEditor" style="background: var(--atl-card); min-height: 400px;"></div>
+                    <div class="um-field-group">
+                        <div class="atl-quill-wrap" id="inqQuillContainer">
+                            <div id="inqComposeBodyEditor" style="background: var(--atl-card); min-height: 400px;"></div>
+                        </div>
                     </div>
 
                     <!-- Attachments System -->
-                    <div class="inq-attachments-section">
-                        <label class="inq-compose-label" style="display:block; margin-bottom: 6px;">Attachments:</label>
-                        
+                    <div class="um-field-group">
+                        <label class="um-label">Attachments:</label>
+
                         <!-- Drag-and-drop upload zone -->
                         <div class="inq-drag-drop-zone" id="inqDragDropZone">
                             <i class="fa-solid fa-paperclip inq-upload-icon"></i>
@@ -23917,34 +23847,34 @@
                     </div>
 
                     <!-- Scheduled send date-picker row (Collapsible) -->
-                    <div class="inq-compose-row inq-schedule-row" id="inqScheduleSendRow" style="display:none; margin-top:12px;">
-                        <span class="inq-compose-label" style="color:var(--atl-amber); margin:0;"><i class="fa-solid fa-clock"></i> Schedule Send:</span>
+                    <div class="inq-schedule-row" id="inqScheduleSendRow" style="display:none;">
+                        <span class="um-label" style="color:var(--atl-amber); margin:0;"><i class="fa-solid fa-clock"></i> Schedule Send:</span>
                         <input type="text" class="inq-datetime-picker" id="inqSchedulePicker" placeholder="Select date &amp; time..." style="flex-grow:1; margin: 0 10px;">
                         <button type="button" class="inq-clear-schedule-btn" id="inqClearScheduleBtn" title="Clear schedule">&times;</button>
                     </div>
+                </div>
+                </div>
 
-                    <!-- Action buttons -->
-                    <div class="inq-compose-actions" style="margin-top: 15px; display:flex; justify-content:space-between; align-items:center; gap: 10px;">
-                        <div class="inq-actions-left" style="display:flex; gap: 8px;">
-                            <button type="button" class="inq-preview-btn" id="inqComposePreviewBtn" title="Preview Email">
-                                <i class="fa-solid fa-eye"></i> Preview
+                <div class="atl-drawer__footer" style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                    <div style="display:flex; gap:8px;">
+                        <button type="button" class="atl-btn atl-btn--ghost" id="inqComposePreviewBtn" title="Preview Email">
+                            <i class="fa-solid fa-eye"></i> Preview
+                        </button>
+                        <button type="button" class="atl-btn atl-btn--ghost" id="inqComposeSaveDraftBtn">Save Draft</button>
+                    </div>
+                    <div style="display:flex; gap:8px; align-items:center;">
+                        <button type="button" class="atl-btn atl-btn--ghost" id="inqComposeDiscardBtn">Discard</button>
+
+                        <!-- Split send button: Send Immediately / Schedule Send dropdown -->
+                        <div class="inq-split-send-container">
+                            <button type="button" class="inq-send-btn" id="inqComposeSendBtn" style="min-height:38px;">
+                                <i class="fa-solid fa-paper-plane"></i> Send
                             </button>
-                            <button type="button" class="inq-draft-btn" id="inqComposeSaveDraftBtn">Save Draft</button>
-                        </div>
-                        <div class="inq-actions-right" style="display:flex; gap: 8px; align-items:center;">
-                            <button type="button" class="inq-cancel-btn" id="inqComposeDiscardBtn">Discard</button>
-                            
-                            <!-- Split send button: Send Immediately / Schedule Send dropdown -->
-                            <div class="inq-split-send-container">
-                                <button type="button" class="inq-send-btn" id="inqComposeSendBtn" style="min-height:38px;">
-                                    <i class="fa-solid fa-paper-plane"></i> Send
-                                </button>
-                                <button type="button" class="inq-split-toggle-btn" id="inqSendMenuToggleBtn" aria-label="More send options">
-                                    <i class="fa-solid fa-caret-up"></i>
-                                </button>
-                                <div class="inq-send-menu" id="inqSendDropdownMenu" style="display:none;">
-                                    <button type="button" class="inq-menu-item" id="inqScheduleSendBtnOption"><i class="fa-solid fa-clock"></i> Schedule Send</button>
-                                </div>
+                            <button type="button" class="inq-split-toggle-btn" id="inqSendMenuToggleBtn" aria-label="More send options">
+                                <i class="fa-solid fa-caret-up"></i>
+                            </button>
+                            <div class="inq-send-menu" id="inqSendDropdownMenu" style="display:none;">
+                                <button type="button" class="inq-menu-item" id="inqScheduleSendBtnOption"><i class="fa-solid fa-clock"></i> Schedule Send</button>
                             </div>
                         </div>
                     </div>
