@@ -178,7 +178,11 @@ async function sendEmailDirectly({
                 from: `${fromName} <${process.env.EMAIL_USER}>`,
                 to,
                 subject,
-                html: processedContent.html
+                html: processedContent.html,
+                // Prompt 8: this branch is the one actually active (EMAIL_OVERHAUL_ENABLED is unset in
+                // every deployment so far), and it previously sent HTML-only with no text/plain part at
+                // all — a deliverability/accessibility gap for every email the app has ever sent.
+                text: plainTextAlternative || htmlToPlainText(processedContent.html)
             };
             if (replyTo) mailOptions.replyTo = replyTo;
             if (cc) mailOptions.cc = cc;
