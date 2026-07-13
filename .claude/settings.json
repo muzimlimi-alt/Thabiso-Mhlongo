@@ -3,7 +3,12 @@
     "allow": [
       "Bash(grep -nE \"subject:\\\\s*[\\\\`'\\\\\"]\" server.js)",
       "Bash(git status *)",
-      "Bash(node --check js/emailService.js)"
+      "Bash(node --check js/emailService.js)",
+      "Bash(node js/generate-email-previews.js)",
+      "Bash(node --check js/generate-email-previews.js)",
+      "Bash(node --check test/email.test.js)",
+      "Bash(cp \"C:\\\\Users\\\\muzim\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-muzim-OneDrive-Muzi-s-Office-Dev-Beast-Thabiso-Mhlongo-Official-Website-Thabiso-Mhlongo-Offcial-Website\\\\0307a841-af9e-425d-97d0-34c1adaaf9e6\\\\scratchpad\\\\smoke_banner_preview.js\" ./_smoke_preview_tmp.js)",
+      "Bash(node _smoke_preview_tmp.js)"
     ]
   }
 }
