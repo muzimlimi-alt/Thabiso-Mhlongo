@@ -1724,6 +1724,27 @@ const requireRole = (allowedRoles) => {
     };
 };
 
+// Restricts direct_emails mutations to administrator/manager only when the email is linked to an
+// inquiry (reply-sending) — assistants keep freeform (non-inquiry) compose access. inquiry_id is
+// immutable after creation (POST never lets it be changed by PUT), so update/send routes look it
+// up from the existing row rather than trusting the request body.
+const requireRoleForInquiryEmail = (req, res, next) => {
+    const role = req.session.role || 'assistant';
+    if (role === 'administrator' || role === 'manager') return next();
+    if (req.method === 'POST' && req.path === '/api/admin/direct-emails') {
+        if (req.body && req.body.inquiry_id) {
+            return res.status(403).json({ success: false, message: 'Forbidden: Insufficient permissions.' });
+        }
+        return next();
+    }
+    db.get("SELECT inquiry_id FROM direct_emails WHERE id = ?", [req.params.id], (err, row) => {
+        if (row && row.inquiry_id) {
+            return res.status(403).json({ success: false, message: 'Forbidden: Insufficient permissions.' });
+        }
+        return next();
+    });
+};
+
 // Admin role constants + last-administrator guard helper (shared by /api/admin/users CRUD)
 const VALID_ADMIN_ROLES = ['administrator', 'manager', 'assistant'];
 
@@ -13592,7 +13613,7 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
     });
 });
 
-app.put('/api/admin/inquiries/:id/status', requireAdmin, (req, res) => {
+app.put('/api/admin/inquiries/:id/status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { status } = req.body;
     const validStatuses = ['unread', 'read', 'replied', 'archived'];
     if (!validStatuses.includes(status)) {
@@ -13604,7 +13625,7 @@ app.put('/api/admin/inquiries/:id/status', requireAdmin, (req, res) => {
     });
 });
 
-app.put('/api/admin/inquiries/bulk-status', requireAdmin, (req, res) => {
+app.put('/api/admin/inquiries/bulk-status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { ids, status } = req.body;
     const validStatuses = ['read', 'unread', 'replied', 'archived'];
     if (!Array.isArray(ids) || !ids.length) {
@@ -14167,7 +14188,7 @@ app.get('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
 });
 
 // Create draft or scheduled direct email
-app.post('/api/admin/direct-emails', requireAdmin, (req, res) => {
+app.post('/api/admin/direct-emails', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
     const { inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
     
     if (!to_emails || !body) {
@@ -14200,7 +14221,7 @@ app.post('/api/admin/direct-emails', requireAdmin, (req, res) => {
 });
 
 // Update draft or scheduled direct email
-app.put('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
+app.put('/api/admin/direct-emails/:id', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
     const { to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
     const { id } = req.params;
 
@@ -14268,7 +14289,7 @@ app.delete('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
 });
 
 // Send direct email immediately
-app.post('/api/admin/direct-emails/:id/send', requireAdmin, (req, res) => {
+app.post('/api/admin/direct-emails/:id/send', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
     const { id } = req.params;
     
     // Cancel schedule job if it exists

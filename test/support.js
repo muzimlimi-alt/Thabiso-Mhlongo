@@ -116,6 +116,40 @@ async function api(method, urlPath, body) {
     return { status: r.status, body: json };
 }
 
+// Creates (or reuses) an admin account with the given role and returns an authenticated request
+// function scoped to that role's session cookie — independent of the module-level `cookie` used by
+// `api()`, so a test can hold an administrator cookie and e.g. an assistant cookie side by side.
+async function loginAs(role) {
+    const email = `test.${role}@example.invalid`;
+    const password = 'TestRunnerPass1!';
+    const db = new sqlite3.Database(TEST_DB);
+    const hash = await bcrypt.hash(password, 10);
+    await new Promise((res, rej) => db.run(
+        `INSERT INTO admins (username, email, password_hash, role, is_active, must_change_password)
+         VALUES (?, ?, ?, ?, 1, 0)
+         ON CONFLICT(username) DO UPDATE SET role = excluded.role, is_active = 1, password_hash = excluded.password_hash`,
+        [email, email, hash, role], e => e ? rej(e) : res()));
+    await new Promise(res => db.close(res));
+
+    const lr = await fetch(`${BASE}/api/admin/login`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+    });
+    const sc = lr.headers.get('set-cookie');
+    if (lr.status !== 200 || !sc) throw new Error(`loginAs(${role}) failed: ${lr.status}`);
+    const roleCookie = sc.split(';')[0];
+
+    return async (method, urlPath, body) => {
+        const r = await fetch(BASE + urlPath, {
+            method,
+            headers: { 'Content-Type': 'application/json', Cookie: roleCookie },
+            body: body ? JSON.stringify(body) : undefined,
+        });
+        let json = null; try { json = await r.json(); } catch (e) {}
+        return { status: r.status, body: json };
+    };
+}
+
 // Unauthenticated request (public endpoints).
 async function pub(method, urlPath, body) {
     const r = await fetch(BASE + urlPath, {
@@ -181,4 +215,4 @@ function makeTestPng(width, height, { random = false } = {}) {
 
 const future = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 
-module.exports = { start, stop, api, pub, upload, q, one, future, makeTestPng, TEST_DB, BASE, sleep };
+module.exports = { start, stop, api, pub, upload, loginAs, q, one, future, makeTestPng, TEST_DB, BASE, sleep };

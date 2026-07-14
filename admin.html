@@ -16270,8 +16270,8 @@
             $('.inq-row').removeClass('inq-row--active');
             $(`.inq-row[data-id="${id}"]`).addClass('inq-row--active');
 
-            // Auto-mark as read
-            if (inquiry.status === 'unread') {
+            // Auto-mark as read (skipped for assistants — status-change is manager+ only)
+            if (inquiry.status === 'unread' && window.currentUserRole !== 'assistant') {
                 apiCall('/api/admin/inquiries/' + id + '/status', 'PUT', { status: 'read' }).then(res => {
                     if (res && res.success) {
                         inquiry.status = 'read';
@@ -24225,7 +24225,12 @@
     body.role-assistant .bk-action-gen-invoice,
     body.role-assistant .bk-action-send-invoice,
     body.role-assistant .bk-action-record-payment,
-    body.role-assistant .bk-action-refund {
+    body.role-assistant .bk-action-refund,
+    body.role-assistant #inqReadReplyBtn,
+    body.role-assistant #inqReadArchiveBtn,
+    body.role-assistant #inqReadToggleReadBtn,
+    body.role-assistant #inqBulkBar,
+    body.role-assistant #inqComposeBtn {
         display: none !important;
     }
 
