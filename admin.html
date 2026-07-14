@@ -3437,6 +3437,14 @@
         .inq-chip a { color: inherit; text-decoration: none; }
         .inq-chip a:hover { color: var(--atl-amber); }
 
+        /* CRM panel: assignment (CP7), priority/tags/notes appended in later checkpoints */
+        .inq-crm-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--atl-line); background: var(--atl-input-bg); flex-shrink: 0; }
+        .inq-crm-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .inq-crm-label { font-family: 'Outfit', sans-serif; font-size: 12px; color: var(--atl-muted); font-weight: 600; display: flex; align-items: center; gap: 6px; min-width: 110px; }
+        .inq-crm-select { background: var(--atl-card); border: 1px solid var(--atl-line); color: var(--atl-ink); border-radius: var(--atl-r-sm); padding: 5px 8px; font-size: 12px; cursor: pointer; flex: 1; min-width: 140px; }
+        .inq-crm-select:focus { outline: none; border-color: var(--atl-amber); }
+        .inq-crm-select:disabled { opacity: 0.6; cursor: not-allowed; }
+
         .inq-read-body { flex: 1; overflow-y: auto; padding: 20px; font-size: 14px; color: var(--atl-ink-dim); line-height: 1.75; background: var(--atl-sidebar-bg); scrollbar-width: thin; scrollbar-color: var(--atl-line-strong) transparent; }
         .inq-read-body::-webkit-scrollbar { width: 3px; }
         .inq-read-body::-webkit-scrollbar-track { background: transparent; }
@@ -6202,6 +6210,11 @@
                                 <i class="fa-solid fa-box-archive" aria-hidden="true"></i>
                                 <span>Archived</span>
                                 <span class="inq-folder-count" id="inqCount-archived" aria-label="archived count"></span>
+                            </a>
+                            <a href="#" class="inq-folder" data-filter="mine">
+                                <i class="fa-solid fa-user" aria-hidden="true"></i>
+                                <span>My Inquiries</span>
+                                <span class="inq-folder-count" id="inqCount-mine" aria-label="assigned to me count"></span>
                             </a>
                             <a href="#" class="inq-folder" data-filter="drafts">
                                 <i class="fa-solid fa-file-lines" aria-hidden="true"></i>
@@ -16025,8 +16038,26 @@
         let currentInqFilter = 'all';
         let currentInqId = null;
         let inqPage = 1;
-        let inqCounts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0 };
+        let inqCounts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0, mine: 0 };
         let inqSearchDebounce = null;
+        let inqAssignableAdmins = null; // cached list of {id, full_name, username, role}
+
+        // Fetches (once per page load) the active-admin roster for the "Assigned to" select.
+        async function loadInqAssignableAdmins() {
+            if (inqAssignableAdmins) return inqAssignableAdmins;
+            try {
+                const res = await apiCall('/api/admin/inquiries/assignable-admins');
+                inqAssignableAdmins = (res && res.success && res.admins) ? res.admins : [];
+            } catch (e) {
+                inqAssignableAdmins = [];
+            }
+            const $sel = $('#inqAssignSelect');
+            $sel.find('option[value!=""]').remove();
+            inqAssignableAdmins.forEach(a => {
+                $sel.append(`<option value="${a.id}">${$('<s>').text(a.full_name || a.username).html()}</option>`);
+            });
+            return inqAssignableAdmins;
+        }
 
         // ---- Helpers ----
         function inqIsToday(d) {
@@ -16088,9 +16119,11 @@
                 return;
             }
 
+            const isMine = currentInqFilter === 'mine';
+            const statusParam = isMine ? 'all' : currentInqFilter;
             let data;
             try {
-                data = await apiCall('/api/admin/inquiries?page=' + inqPage + '&limit=50&status=' + encodeURIComponent(currentInqFilter) + '&sort=' + encodeURIComponent(sort) + '&search=' + encodeURIComponent(search));
+                data = await apiCall('/api/admin/inquiries?page=' + inqPage + '&limit=50&status=' + encodeURIComponent(statusParam) + (isMine ? '&mine=1' : '') + '&sort=' + encodeURIComponent(sort) + '&search=' + encodeURIComponent(search));
             } catch (e) {
                 $('#inqListBody').html('<div class="inq-empty-state"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><p>Failed to load messages.</p></div>');
                 window.notificationService.showError('Could not load messages — please check your connection and try again.');
@@ -16131,6 +16164,7 @@
             $('#inqCount-archived').text(inqCounts.archived > 0 ? inqCounts.archived : '');
             $('#inqCount-drafts').text(inqCounts.drafts > 0 ? inqCounts.drafts : '');
             $('#inqCount-scheduled').text(inqCounts.scheduled > 0 ? inqCounts.scheduled : '');
+            $('#inqCount-mine').text(inqCounts.mine > 0 ? inqCounts.mine : '');
         }
 
         function renderDirectEmailsList() {
@@ -16206,7 +16240,7 @@
 
             data.forEach(row => {
                 const isUnread = row.status === 'unread';
-                const initial = (row.sender_name || '?').charAt(0).toUpperCase();
+                const rowInitial = initial(row.sender_name);
                 const dateStr = inqFormatDate(row.submitted_at);
                 const preview = (row.message_body || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().substring(0, 100);
                 const isActive = (currentInqId == row.inquiry_id) ? 'inq-row--active' : '';
@@ -16214,14 +16248,17 @@
                 const escapedName = $('<span>').text(row.sender_name || 'Unknown').html();
                 const escapedSubject = $('<span>').text(row.subject || '(No Subject)').html();
                 const escapedPreview = $('<span>').text(preview).html();
+                const assigneeChip = row.assigned_to_name
+                    ? `<span class="inq-chip" style="margin-left:6px;" title="Assigned to ${$('<s>').text(row.assigned_to_name).html()}"><i class="fa-solid fa-user" aria-hidden="true"></i> ${initial(row.assigned_to_name)}</span>`
+                    : '';
 
                 $body.append(`
 <div class="inq-row ${unreadClass} ${isActive}" data-id="${row.inquiry_id}" role="button" tabindex="0" aria-label="Message from ${escapedName}: ${escapedSubject}">
     <input type="checkbox" class="inq-row-check" data-id="${row.inquiry_id}" aria-label="Select message from ${escapedName}">
-    <div class="inq-row-avatar" aria-hidden="true">${initial}</div>
+    <div class="inq-row-avatar" aria-hidden="true">${rowInitial}</div>
     <div class="inq-row-main">
         <div class="inq-row-top">
-            <span class="inq-row-name">${escapedName}</span>
+            <span class="inq-row-name">${escapedName}${assigneeChip}</span>
             <span class="inq-row-date">${dateStr}</span>
         </div>
         <div class="inq-row-subject">${escapedSubject}</div>
@@ -16256,6 +16293,12 @@
             if (inquiry.sender_email) chips += `<span class="inq-chip"><i class="fa-solid fa-at" aria-hidden="true"></i> <a href="mailto:${inquiry.sender_email}" style="color:inherit;">${$('<s>').text(inquiry.sender_email).html()}</a></span>`;
             if (inquiry.routing_path) chips += `<span class="inq-chip"><i class="fa-solid fa-route" aria-hidden="true"></i> ${$('<s>').text(inquiry.routing_path).html()}</span>`;
             $('#inqReadChips').html(chips);
+
+            // CRM panel: assignment (manager+ only — assistants see it read-only)
+            loadInqAssignableAdmins().then(() => {
+                $('#inqAssignSelect').val(inquiry.assigned_to || '');
+            });
+            $('#inqAssignSelect').prop('disabled', window.currentUserRole === 'assistant');
 
             // Message body (newlines → <br>)
             const safeBody = $('<span>').text(inquiry.message_body || '').html().replace(/\n/g, '<br>');
@@ -17026,6 +17069,19 @@
                 await apiCall('/api/admin/inquiries/' + currentInqId, 'DELETE');
                 inqCloseDetail();
                 loadInquiries();
+            } catch (e) {}
+        });
+
+        // Assign / reassign inquiry to an admin
+        $(document).on('change', '#inqAssignSelect', async function() {
+            if (!currentInqId) return;
+            const val = $(this).val();
+            try {
+                const res = await apiCall('/api/admin/inquiries/' + currentInqId + '/assign', 'PUT', { assigned_to: val || null });
+                if (res && res.success) {
+                    window.notificationService.showSuccess(val ? 'Inquiry assigned.' : 'Inquiry unassigned.');
+                    loadInquiries();
+                }
             } catch (e) {}
         });
 
@@ -23078,6 +23134,15 @@
                 </div>
 
                 <div class="inq-read-chips" id="inqReadChips" aria-label="Message details"></div>
+
+                <div class="inq-crm-panel" id="inqCrmPanel" aria-label="Case details">
+                    <div class="inq-crm-row">
+                        <span class="inq-crm-label"><i class="fa-solid fa-user-check" aria-hidden="true"></i> Assigned to</span>
+                        <select class="inq-crm-select" id="inqAssignSelect" aria-label="Assign to admin">
+                            <option value="">Unassigned</option>
+                        </select>
+                    </div>
+                </div>
 
                 <div class="inq-read-body" id="inqReadBody" tabindex="0"></div>
             </div>

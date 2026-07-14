@@ -132,8 +132,18 @@ function initializeDatabase() {
             });
         });
 
+        // Added synchronously (not inside the async PRAGMA callback above) and BEFORE any index/trigger
+        // that references these columns, ignoring the "duplicate column" error on repeat boots — same
+        // pattern used for contracts.signed_by etc. below. A column added only inside that async PRAGMA
+        // callback isn't guaranteed to exist yet when a same-tick, synchronously-queued CREATE INDEX or
+        // CREATE TRIGGER elsewhere in this file references it (SQLite validates column references at
+        // trigger-creation time), which is exactly the race that broke chk/audit_inquiries_* on first boot.
+        db.run("ALTER TABLE inquiries ADD COLUMN assigned_to INTEGER REFERENCES admins(id) ON DELETE SET NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.assigned_to already exists or error: " + err.message); });
+        db.run("ALTER TABLE inquiries ADD COLUMN assigned_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.assigned_at already exists or error: " + err.message); });
+
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_submitted_at ON inquiries(submitted_at)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_assigned_to ON inquiries(assigned_to)`);
 
         // 3. Bookings Table (from Booking page)
         db.run(`CREATE TABLE IF NOT EXISTS bookings (
@@ -1387,6 +1397,7 @@ function initializeDatabase() {
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (41, 'audit_2026_cancel_route_audit_log')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (42, 'audit_2026_complete_route_audit_log')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (43, 'inquiries_status_triggers_audit_indexes')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (44, 'inquiries_assignment')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (99, 'full_schema_history_reconstructed_2026_06_19')`);
         // END schema_migrations seeds
 
@@ -1554,12 +1565,13 @@ function initializeDatabase() {
                 'public', CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_inquiries_insert trigger:", err.message); });
 
+        db.run("DROP TRIGGER IF EXISTS audit_inquiries_update");
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_inquiries_update AFTER UPDATE ON inquiries
         BEGIN
             INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, change_timestamp)
             VALUES ('inquiries', NEW.inquiry_id, 'UPDATE',
-                json_object('status', OLD.status),
-                json_object('status', NEW.status),
+                json_object('status', OLD.status, 'assigned_to', OLD.assigned_to),
+                json_object('status', NEW.status, 'assigned_to', NEW.assigned_to),
                 CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_inquiries_update trigger:", err.message); });
 

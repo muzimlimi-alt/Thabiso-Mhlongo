@@ -13573,6 +13573,12 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
     const qp = [];
     if (statusFilter !== 'all') { conditions.push("status = ?"); qp.push(statusFilter); }
     if (category) { conditions.push("category = ?"); qp.push(category); }
+    if (req.query.mine === '1') {
+        conditions.push("assigned_to = ?"); qp.push(req.session.adminId);
+    } else if (req.query.assigned_to) {
+        const assignedTo = parseInt(req.query.assigned_to);
+        if (!isNaN(assignedTo)) { conditions.push("assigned_to = ?"); qp.push(assignedTo); }
+    }
     if (search) {
         conditions.push("(LOWER(sender_name) LIKE LOWER(?) OR LOWER(sender_email) LIKE LOWER(?) OR LOWER(COALESCE(subject,'')) LIKE LOWER(?) OR LOWER(COALESCE(message_body,'')) LIKE LOWER(?))");
         const term = `%${search}%`;
@@ -13581,12 +13587,14 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countSql = `SELECT COUNT(*) AS total FROM inquiries ${whereClause}`;
-    const dataSql  = `SELECT * FROM inquiries ${whereClause} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+    const dataSql  = `SELECT inquiries.*, COALESCE(admins.full_name, admins.username) AS assigned_to_name
+                       FROM inquiries LEFT JOIN admins ON admins.id = inquiries.assigned_to
+                       ${whereClause} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
 
     // Folder badge counts are global totals (independent of current filter/search).
     db.all("SELECT status, COUNT(*) AS c FROM inquiries GROUP BY status", [], (errC, countRows) => {
         if (errC) return res.status(500).json({ success: false, message: errC.message });
-        const counts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0, drafts: 0, scheduled: 0 };
+        const counts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0, drafts: 0, scheduled: 0, mine: 0 };
         (countRows || []).forEach(r => {
             if (counts.hasOwnProperty(r.status)) counts[r.status] = r.c;
             counts.all += r.c;
@@ -13601,6 +13609,9 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
                 });
             }
 
+            db.get("SELECT COUNT(*) AS c FROM inquiries WHERE assigned_to = ?", [req.session.adminId], (errM, mineRow) => {
+                if (!errM && mineRow) counts.mine = mineRow.c;
+
             db.get(countSql, qp, (err, countRow) => {
                 if (err) return res.status(500).json({ success: false, message: err.message });
                 db.all(dataSql, [...qp, limit, offset], (err2, rows) => {
@@ -13608,6 +13619,7 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
                     const total = countRow.total;
                     res.json({ success: true, inquiries: rows, counts, total, page, pages: Math.ceil(total / limit) });
                 });
+            });
             });
         });
     });
@@ -13622,6 +13634,35 @@ app.put('/api/admin/inquiries/:id/status', requireAdmin, requireRole(['administr
     db.run("UPDATE inquiries SET status = ? WHERE inquiry_id = ?", [status, req.params.id], function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true });
+    });
+});
+
+// Active admins eligible to be assigned an inquiry (deliberately narrower than /api/admin/users,
+// which is administrator-only and returns full PII) — any authenticated admin can view the list.
+app.get('/api/admin/inquiries/assignable-admins', requireAdmin, (req, res) => {
+    db.all("SELECT id, full_name, username, role FROM admins WHERE is_active = 1 ORDER BY full_name, username", [], (err, rows) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, admins: rows });
+    });
+});
+
+app.put('/api/admin/inquiries/:id/assign', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    const { assigned_to } = req.body;
+    if (assigned_to === null || assigned_to === undefined || assigned_to === '') {
+        return db.run("UPDATE inquiries SET assigned_to = NULL, assigned_at = NULL WHERE inquiry_id = ?", [req.params.id], function(err) {
+            if (err) return res.status(500).json({ success: false, message: err.message });
+            res.json({ success: true });
+        });
+    }
+    const targetId = parseInt(assigned_to);
+    if (isNaN(targetId)) return res.status(400).json({ success: false, message: 'Invalid assignee.' });
+    db.get("SELECT id FROM admins WHERE id = ? AND is_active = 1", [targetId], (err, row) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (!row) return res.status(400).json({ success: false, message: 'Assignee must be an active admin.' });
+        db.run("UPDATE inquiries SET assigned_to = ?, assigned_at = CURRENT_TIMESTAMP WHERE inquiry_id = ?", [targetId, req.params.id], function(err2) {
+            if (err2) return res.status(500).json({ success: false, message: err2.message });
+            res.json({ success: true });
+        });
     });
 });
 

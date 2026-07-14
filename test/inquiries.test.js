@@ -111,4 +111,31 @@ module.exports = async function ({ check }) {
         const asstSendInquiryEmail = await asAssistant('POST', `/api/admin/direct-emails/${mgrEmailId}/send`, {});
         check('CP6: assistant blocked from sending an inquiry-linked email even by id lookup -> 403', asstSendInquiryEmail.status === 403, JSON.stringify(asstSendInquiryEmail.body));
     }
+
+    // ── CP7: assignment ──
+    const assignableRes = await api('GET', '/api/admin/inquiries/assignable-admins');
+    check('CP7: assignable-admins returns active admin roster', assignableRes.status === 200 && assignableRes.body.success && Array.isArray(assignableRes.body.admins) && assignableRes.body.admins.length > 0, JSON.stringify(assignableRes.body));
+
+    const managerRow = await one("SELECT id FROM admins WHERE username = 'test.manager@example.invalid'");
+    const managerId = managerRow && managerRow.id;
+
+    const asstAssign = await asAssistant('PUT', `/api/admin/inquiries/${inquiryId}/assign`, { assigned_to: managerId });
+    check('CP7: assistant blocked from assigning an inquiry -> 403', asstAssign.status === 403, JSON.stringify(asstAssign.body));
+
+    const badAssign = await asManager('PUT', `/api/admin/inquiries/${inquiryId}/assign`, { assigned_to: 999999 });
+    check('CP7: assign rejects a nonexistent admin id -> 400', badAssign.status === 400 && badAssign.body.success === false, JSON.stringify(badAssign.body));
+
+    const goodAssign = await asManager('PUT', `/api/admin/inquiries/${inquiryId}/assign`, { assigned_to: managerId });
+    check('CP7: manager can assign an inquiry to an active admin -> 200', goodAssign.status === 200 && goodAssign.body.success, JSON.stringify(goodAssign.body));
+
+    const afterAssign = await one("SELECT assigned_to, assigned_at, assigned_to_name FROM (SELECT inquiries.*, admins.full_name AS assigned_to_name FROM inquiries LEFT JOIN admins ON admins.id = inquiries.assigned_to) WHERE inquiry_id = ?", [inquiryId]);
+    check('CP7: assigned_to/assigned_at persisted', !!afterAssign && afterAssign.assigned_to === managerId && !!afterAssign.assigned_at, JSON.stringify(afterAssign));
+
+    const mineList = await asManager('GET', '/api/admin/inquiries?mine=1');
+    check('CP7: GET ?mine=1 returns the newly-assigned inquiry with assigned_to_name', mineList.status === 200 && mineList.body.inquiries.some(r => r.inquiry_id === inquiryId && !!r.assigned_to_name), JSON.stringify(mineList.body.inquiries.map(r => ({ id: r.inquiry_id, name: r.assigned_to_name }))));
+
+    const unassign = await asManager('PUT', `/api/admin/inquiries/${inquiryId}/assign`, { assigned_to: null });
+    check('CP7: assign with null clears assignment -> 200', unassign.status === 200 && unassign.body.success, JSON.stringify(unassign.body));
+    const afterUnassign = await one("SELECT assigned_to, assigned_at FROM inquiries WHERE inquiry_id = ?", [inquiryId]);
+    check('CP7: assigned_to/assigned_at cleared to NULL', !!afterUnassign && afterUnassign.assigned_to === null && afterUnassign.assigned_at === null, JSON.stringify(afterUnassign));
 };
