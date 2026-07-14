@@ -3453,6 +3453,7 @@
         .inq-crm-select { background: var(--atl-card); border: 1px solid var(--atl-line); color: var(--atl-ink); border-radius: var(--atl-r-sm); padding: 5px 8px; font-size: 12px; cursor: pointer; flex: 1; min-width: 140px; }
         .inq-crm-select:focus { outline: none; border-color: var(--atl-amber); }
         .inq-crm-select:disabled { opacity: 0.6; cursor: not-allowed; }
+        input.inq-crm-select { cursor: text; }
 
         /* Internal notes (CP9) — not manager+-gated, mirrors booking_notes precedent */
         .inq-notes-panel { border-bottom: 1px solid var(--atl-line); flex-shrink: 0; }
@@ -16094,6 +16095,21 @@
             return inqAssignableAdmins;
         }
 
+        let inqCategoriesCache = null;
+        async function loadInqCategories() {
+            if (inqCategoriesCache) return inqCategoriesCache;
+            try {
+                const res = await apiCall('/api/admin/inquiries/categories');
+                inqCategoriesCache = (res && res.success && res.categories) ? res.categories : [];
+            } catch (e) {
+                inqCategoriesCache = [];
+            }
+            const $list = $('#inqCategoryList');
+            $list.empty();
+            inqCategoriesCache.forEach(c => $list.append(`<option value="${$('<s>').text(c).html()}"></option>`));
+            return inqCategoriesCache;
+        }
+
         // ---- Helpers ----
         function inqIsToday(d) {
             const t = new Date();
@@ -16289,6 +16305,9 @@
                 const priorityFlag = (row.priority === 'high' || row.priority === 'urgent')
                     ? `<i class="fa-solid fa-flag inq-priority-flag inq-priority-flag--${row.priority}" title="${row.priority === 'urgent' ? 'Urgent' : 'High'} priority" aria-label="${row.priority === 'urgent' ? 'Urgent' : 'High'} priority"></i>`
                     : '';
+                const categoryPill = row.category
+                    ? `<span class="inq-chip" style="margin-left:6px; flex-shrink:0;"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${$('<s>').text(row.category).html()}</span>`
+                    : '';
 
                 $body.append(`
 <div class="inq-row ${unreadClass} ${isActive}" data-id="${row.inquiry_id}" role="button" tabindex="0" aria-label="Message from ${escapedName}: ${escapedSubject}">
@@ -16296,8 +16315,8 @@
     <div class="inq-row-avatar" aria-hidden="true">${rowInitial}</div>
     <div class="inq-row-main">
         <div class="inq-row-top">
-            <span class="inq-row-name">${priorityFlag}${escapedName}${assigneeChip}</span>
-            <span class="inq-row-date">${dateStr}</span>
+            <span class="inq-row-name">${priorityFlag}${escapedName}</span>${assigneeChip}${categoryPill}
+            <span class="inq-row-date" style="margin-left:auto;">${dateStr}</span>
         </div>
         <div class="inq-row-subject">${escapedSubject}</div>
         <div class="inq-row-preview">${escapedPreview}</div>
@@ -16338,6 +16357,8 @@
             });
             $('#inqAssignSelect').prop('disabled', window.currentUserRole === 'assistant');
             $('#inqPrioritySelect').val(inquiry.priority || 'normal').prop('disabled', window.currentUserRole === 'assistant');
+            loadInqCategories();
+            $('#inqCategoryInput').val(inquiry.category || '');
 
             // Internal notes: collapsed by default, loaded lazily when expanded (see toggle handler)
             $('#inqNotesBody').hide();
@@ -17204,6 +17225,22 @@
             try {
                 await apiCall('/api/admin/inquiries/' + currentInqId + '/notes/' + noteId, 'DELETE');
                 loadInqNotes(currentInqId);
+            } catch (e) {}
+        });
+
+        // Edit category / tag (saved on blur, not per-keystroke)
+        $(document).on('blur', '#inqCategoryInput', async function() {
+            if (!currentInqId) return;
+            const inquiry = allInquiriesCache.find(i => i.inquiry_id == currentInqId);
+            const category = $(this).val().trim();
+            if (inquiry && category === (inquiry.category || '')) return; // unchanged, skip the call
+            try {
+                const res = await apiCall('/api/admin/inquiries/' + currentInqId + '/category', 'PUT', { category });
+                if (res && res.success) {
+                    if (inquiry) inquiry.category = category;
+                    inqCategoriesCache = null; // refreshed next time the datalist is needed
+                    window.notificationService.showSuccess('Category updated.');
+                }
             } catch (e) {}
         });
 
@@ -23272,6 +23309,11 @@
                             <option value="high">High</option>
                             <option value="urgent">Urgent</option>
                         </select>
+                    </div>
+                    <div class="inq-crm-row">
+                        <span class="inq-crm-label"><i class="fa-solid fa-tag" aria-hidden="true"></i> Category</span>
+                        <input type="text" class="inq-crm-select" id="inqCategoryInput" list="inqCategoryList" placeholder="e.g. Wedding, Corporate..." aria-label="Category / tag" maxlength="100">
+                        <datalist id="inqCategoryList"></datalist>
                     </div>
                 </div>
 

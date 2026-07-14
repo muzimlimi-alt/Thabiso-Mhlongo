@@ -13680,6 +13680,22 @@ app.put('/api/admin/inquiries/:id/priority', requireAdmin, requireRole(['adminis
     });
 });
 
+// Distinct previously-used categories, for the tag/category autocomplete datalist.
+app.get('/api/admin/inquiries/categories', requireAdmin, (req, res) => {
+    db.all("SELECT DISTINCT category FROM inquiries WHERE category IS NOT NULL AND category != '' ORDER BY category", [], (err, rows) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, categories: (rows || []).map(r => r.category) });
+    });
+});
+
+app.put('/api/admin/inquiries/:id/category', requireAdmin, (req, res) => {
+    const category = (req.body.category || '').trim().slice(0, 100);
+    db.run("UPDATE inquiries SET category = ? WHERE inquiry_id = ?", [category || null, req.params.id], function(err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true });
+    });
+});
+
 app.get('/api/admin/inquiries/:id/notes', requireAdmin, (req, res) => {
     db.all(
         "SELECT id, note, author, created_at FROM inquiry_notes WHERE inquiry_id = ? ORDER BY created_at ASC",

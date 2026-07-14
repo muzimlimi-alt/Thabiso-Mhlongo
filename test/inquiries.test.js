@@ -191,4 +191,22 @@ module.exports = async function ({ check }) {
         const afterDelete = await api('GET', `/api/admin/inquiries/${inquiryId}/notes`);
         check('CP9: deleted note no longer present', afterDelete.status === 200 && afterDelete.body.notes.length === 1 && !afterDelete.body.notes.some(n => n.id === asstNoteId), JSON.stringify(afterDelete.body.notes));
     }
+
+    // ── CP10: tags (reuse category), not manager+-gated ──
+    const categoriesBefore = await api('GET', '/api/admin/inquiries/categories');
+    check('CP10: categories endpoint returns distinct values incl. General', categoriesBefore.status === 200 && categoriesBefore.body.success && categoriesBefore.body.categories.includes('General'), JSON.stringify(categoriesBefore.body));
+
+    const asstCategory = await asAssistant('PUT', `/api/admin/inquiries/${inquiryId}/category`, { category: 'Corporate Event' });
+    check('CP10: assistant CAN edit category (not manager+-gated) -> 200', asstCategory.status === 200 && asstCategory.body.success, JSON.stringify(asstCategory.body));
+
+    const afterCategory = await one("SELECT category FROM inquiries WHERE inquiry_id = ?", [inquiryId]);
+    check('CP10: category persisted', !!afterCategory && afterCategory.category === 'Corporate Event', JSON.stringify(afterCategory));
+
+    const categoriesAfter = await api('GET', '/api/admin/inquiries/categories');
+    check('CP10: new category value appears in the distinct list', categoriesAfter.status === 200 && categoriesAfter.body.categories.includes('Corporate Event'), JSON.stringify(categoriesAfter.body.categories));
+
+    const clearCategory = await api('PUT', `/api/admin/inquiries/${inquiryId}/category`, { category: '' });
+    check('CP10: empty category clears to NULL -> 200', clearCategory.status === 200 && clearCategory.body.success, JSON.stringify(clearCategory.body));
+    const afterClear = await one("SELECT category FROM inquiries WHERE inquiry_id = ?", [inquiryId]);
+    check('CP10: category cleared to NULL', !!afterClear && afterClear.category === null, JSON.stringify(afterClear));
 };
