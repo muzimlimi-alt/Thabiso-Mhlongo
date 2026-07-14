@@ -9579,7 +9579,7 @@ app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'man
     const { name, email, cell, company, event_date, event_start_time,
             event_name, event_type, event_location, status, budget_range, message,
             venue_place_id, city, venue_address, country, services, override_conflict,
-            override_duplicate, override_working_hours, popia_consent } = req.body;
+            override_duplicate, override_working_hours, popia_consent, source_inquiry_id } = req.body;
 
     if (!name || !email || !cell || !event_date || !event_name || !event_type || !event_location || !message)
         return res.status(400).json({ success: false, message: 'Missing required fields.' });
@@ -9765,14 +9765,16 @@ app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'man
                 const defaultQuoteExpiry = moment(event_date).subtract(14, 'days').format('YYYY-MM-DD');
                 const consentVal = popia_consent !== undefined ? (popia_consent ? 1 : 0) : 1;
 
+                const sourceInquiryId = source_inquiry_id ? parseInt(source_inquiry_id) : null;
+
                 const ins = await dbRun(
                     `INSERT INTO bookings
                         (name, company, email, cell, event_name, date, event_start_time, performance_start_time,
                          performance_end_time, performance_duration,
                          event_type, event_location, city, venue_place_id, budget_range, message, status,
                          popia_consent, consent_timestamp, client_id, venue_id,
-                         quote_amount, total_amount, amount_outstanding, payment_status, quote_expiry_date, policy_version, source, consent_source)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?,?,?,?,?, 'admin_recorded')`,
+                         quote_amount, total_amount, amount_outstanding, payment_status, quote_expiry_date, policy_version, source, consent_source, source_inquiry_id)
+                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?,?,?,?,?, 'admin_recorded', ?)`,
                     [
                         name, company || null, email, cell, event_name, event_date,
                         event_start_time || null, event_start_time || null,
@@ -9781,10 +9783,15 @@ app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'man
                         city || null, venue_place_id || null,
                         budget_range || null, message, bookingStatus,
                         consentVal, clientId, venueId,
-                        initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, defaultQuoteExpiry, CURRENT_POLICY_VERSION, 'admin'
+                        initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, defaultQuoteExpiry, CURRENT_POLICY_VERSION, 'admin',
+                        sourceInquiryId && !isNaN(sourceInquiryId) ? sourceInquiryId : null
                     ]
                 );
                 const bookingId = ins.lastID;
+
+                if (sourceInquiryId && !isNaN(sourceInquiryId)) {
+                    await dbRun("UPDATE inquiries SET converted_booking_id = ? WHERE inquiry_id = ?", [bookingId, sourceInquiryId]);
+                }
 
                 // The consent record, the services and the audit row are part of the booking, not an
                 // afterthought. These used to run AFTER `COMMIT` with their errors swallowed by a bare

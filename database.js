@@ -141,11 +141,13 @@ function initializeDatabase() {
         db.run("ALTER TABLE inquiries ADD COLUMN assigned_to INTEGER REFERENCES admins(id) ON DELETE SET NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.assigned_to already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN assigned_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.assigned_at already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN priority TEXT DEFAULT 'normal'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.priority already exists or error: " + err.message); });
+        db.run("ALTER TABLE inquiries ADD COLUMN converted_booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.converted_booking_id already exists or error: " + err.message); });
 
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_submitted_at ON inquiries(submitted_at)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_assigned_to ON inquiries(assigned_to)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_priority ON inquiries(priority)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_converted_booking_id ON inquiries(converted_booking_id)`);
 
         // 3. Bookings Table (from Booking page)
         db.run(`CREATE TABLE IF NOT EXISTS bookings (
@@ -1341,6 +1343,8 @@ function initializeDatabase() {
         // S4-1: Tracks when the DEPOSIT_PAID approaching-event reminder was last sent
         db.run("ALTER TABLE bookings ADD COLUMN deposit_balance_reminded_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN rebooked_from_id INTEGER", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE bookings ADD COLUMN source_inquiry_id INTEGER REFERENCES inquiries(inquiry_id) ON DELETE SET NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run(`CREATE INDEX IF NOT EXISTS idx_bookings_source_inquiry_id ON bookings(source_inquiry_id)`);
         // S6-1: Tracks when the post-event follow-up (review request) email was auto-sent
         db.run("ALTER TABLE bookings ADD COLUMN review_email_sent_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
         // X3: Structured performance time columns (parsed from free-text performance_slot on write)
@@ -1415,6 +1419,7 @@ function initializeDatabase() {
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (44, 'inquiries_assignment')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (45, 'inquiries_priority')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (46, 'inquiry_notes')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (47, 'inquiries_bookings_conversion_link')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (99, 'full_schema_history_reconstructed_2026_06_19')`);
         // END schema_migrations seeds
 

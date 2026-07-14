@@ -3,7 +3,7 @@
 // inquiry-linked email sends to administrator/manager (CP6). CP7-CP12 (CRM fields) are appended as
 // they land.
 const support = require('./support');
-const { api, pub, one, loginAs } = support;
+const { api, pub, one, loginAs, future } = support;
 const sqlite3 = require('sqlite3');
 
 // Direct read-write handle to the isolated TEST_DB, so the DB-level trigger can be asserted
@@ -209,4 +209,33 @@ module.exports = async function ({ check }) {
     check('CP10: empty category clears to NULL -> 200', clearCategory.status === 200 && clearCategory.body.success, JSON.stringify(clearCategory.body));
     const afterClear = await one("SELECT category FROM inquiries WHERE inquiry_id = ?", [inquiryId]);
     check('CP10: category cleared to NULL', !!afterClear && afterClear.category === null, JSON.stringify(afterClear));
+
+    // ── CP11: Convert to Booking (bidirectional link, inherits POST /bookings' existing RBAC) ──
+    const SVC = 15; // 'Travel Buyout – Gauteng' (active, flat fee, zero lead time) — see booking.test.js
+    const asstConvert = await asAssistant('POST', '/api/admin/bookings', {
+        name: seeded.sender_name, email: seeded.sender_email, cell: '+27821234567', event_date: future(30),
+        event_name: 'Converted Event', event_type: 'Corporate', event_location: 'Test Hall',
+        message: 'Convert-to-booking integration test.',
+        services: [{ service_id: SVC }], status: 'NEW', override_working_hours: true,
+        source_inquiry_id: inquiryId,
+    });
+    check('CP11: assistant blocked from converting (inherits manual-booking RBAC) -> 403', asstConvert.status === 403, JSON.stringify(asstConvert.body));
+
+    const convert = await asManager('POST', '/api/admin/bookings', {
+        name: seeded.sender_name, email: seeded.sender_email, cell: '+27821234567', event_date: future(30),
+        event_name: 'Converted Event', event_type: 'Corporate', event_location: 'Test Hall',
+        message: 'Convert-to-booking integration test.',
+        services: [{ service_id: SVC }], status: 'NEW', override_working_hours: true,
+        source_inquiry_id: inquiryId,
+    });
+    check('CP11: manager can convert an inquiry to a booking -> 200', convert.status === 200 && convert.body.success && !!convert.body.booking_id, JSON.stringify(convert.body));
+    const newBookingId = convert.body && convert.body.booking_id;
+
+    if (newBookingId) {
+        const bookingRow = await one("SELECT source_inquiry_id FROM bookings WHERE id = ?", [newBookingId]);
+        check('CP11: bookings.source_inquiry_id persisted', !!bookingRow && bookingRow.source_inquiry_id === inquiryId, JSON.stringify(bookingRow));
+
+        const inquiryRow = await one("SELECT converted_booking_id FROM inquiries WHERE inquiry_id = ?", [inquiryId]);
+        check('CP11: inquiries.converted_booking_id persisted (bidirectional link)', !!inquiryRow && inquiryRow.converted_booking_id === newBookingId, JSON.stringify(inquiryRow));
+    }
 };

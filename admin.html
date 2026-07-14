@@ -16360,6 +16360,16 @@
             loadInqCategories();
             $('#inqCategoryInput').val(inquiry.category || '');
 
+            // Convert to Booking: show the converted-booking link instead of the action once linked
+            if (inquiry.converted_booking_id) {
+                $('#inqConvertToBookingBtn').hide();
+                $('#inqConvertedLinkText').text('Converted → Booking #' + inquiry.converted_booking_id);
+                $('#inqConvertedLink').show();
+            } else {
+                $('#inqConvertToBookingBtn').show();
+                $('#inqConvertedLink').hide();
+            }
+
             // Internal notes: collapsed by default, loaded lazily when expanded (see toggle handler)
             $('#inqNotesBody').hide();
             $('#inqNotesToggle').attr('aria-expanded', 'false');
@@ -17242,6 +17252,19 @@
                     window.notificationService.showSuccess('Category updated.');
                 }
             } catch (e) {}
+        });
+
+        // Convert to Booking: hand off to the manual booking drawer, pre-filled from this inquiry
+        $(document).on('click', '#inqConvertToBookingBtn', function() {
+            if (!currentInqId) return;
+            const inquiry = allInquiriesCache.find(i => i.inquiry_id == currentInqId);
+            if (!inquiry || typeof window.inqConvertToBooking !== 'function') return;
+            window.inqConvertToBooking(inquiry);
+        });
+
+        $(document).on('click', '#inqConvertedLink', function(e) {
+            e.preventDefault();
+            switchTab('bookingsAdmin');
         });
 
         // Toggle CC/BCC/Reply-To collapse row
@@ -23315,6 +23338,14 @@
                         <input type="text" class="inq-crm-select" id="inqCategoryInput" list="inqCategoryList" placeholder="e.g. Wedding, Corporate..." aria-label="Category / tag" maxlength="100">
                         <datalist id="inqCategoryList"></datalist>
                     </div>
+                    <div class="inq-crm-row" id="inqConvertRow">
+                        <button type="button" class="um-btn um-btn--ghost um-btn--sm" id="inqConvertToBookingBtn" style="width:100%; justify-content:center;">
+                            <i class="fa-solid fa-right-left" aria-hidden="true"></i> Convert to Booking
+                        </button>
+                        <a href="#" class="um-btn um-btn--ghost um-btn--sm" id="inqConvertedLink" style="width:100%; justify-content:center; display:none;">
+                            <i class="fa-solid fa-circle-check" aria-hidden="true"></i> <span id="inqConvertedLinkText"></span>
+                        </a>
+                    </div>
                 </div>
 
                 <div class="inq-notes-panel" id="inqNotesPanel" aria-label="Internal notes">
@@ -25831,9 +25862,39 @@
             document.getElementById('mbCity').value = '';
             document.getElementById('mbAddress').value = '';
             document.getElementById('mbCountry').value = '';
+            document.getElementById('mbSourceInquiryId').value = '';
             openAtlDrawer('manualBookingDrawer');
         });
     }
+
+    // Opened from an inquiry's "Convert to Booking" action (see inqConvertToBooking below);
+    // resets to null once the manual booking drawer closes via either path.
+    window.mbConvertingInquiryId = null;
+
+    // Pre-fills the manual booking form from an inquiry and hands off to it.
+    window.inqConvertToBooking = function(inquiry) {
+        document.getElementById('manualBookingAlert').style.display = 'none';
+        document.getElementById('mbName').value = inquiry.sender_name || '';
+        document.getElementById('mbEmail').value = inquiry.sender_email || '';
+        document.getElementById('mbPhone').value = inquiry.sender_phone || '';
+        document.getElementById('mbCompany').value = '';
+        document.getElementById('mbEventName').value = inquiry.subject || '';
+        document.getElementById('mbLocation').value = '';
+        document.getElementById('mbMessage').value = inquiry.message_body || '';
+        document.getElementById('mbDate').value = '';
+        document.getElementById('mbTime').value = '';
+        document.getElementById('mbEventType').value = '';
+        document.getElementById('mbStatus').value = 'NEW';
+        document.getElementById('mbBudget').value = '';
+        document.getElementById('mbPlaceId').value = '';
+        document.getElementById('mbCity').value = '';
+        document.getElementById('mbAddress').value = '';
+        document.getElementById('mbCountry').value = '';
+        document.getElementById('mbSourceInquiryId').value = inquiry.inquiry_id;
+        window.mbConvertingInquiryId = inquiry.inquiry_id;
+        closeAtlDrawer('inqDetailDrawer');
+        openAtlDrawer('manualBookingDrawer');
+    };
 
     // Refresh Bookings Handler
     const btnRefreshBookings = document.getElementById('btnRefreshBookings');
@@ -25933,6 +25994,7 @@
             btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Creating…';
 
             try {
+                var sourceInquiryId = document.getElementById('mbSourceInquiryId').value;
                 var requestBody = {
                     name: name, email: email, cell: cell, company: company,
                     event_date: date, event_start_time: time || null,
@@ -25942,7 +26004,8 @@
                     venue_place_id: placeId || null, city: city || null,
                     venue_address: address || null, country: country || null,
                     services: services,
-                    override_conflict: false
+                    override_conflict: false,
+                    source_inquiry_id: sourceInquiryId || null
                 };
 
                 async function performSubmit(body) {
@@ -25976,6 +26039,10 @@
 
                 var data = await performSubmit(requestBody);
                 showMbAlert('✓ Booking #' + data.booking_id + ' created successfully.', 'success');
+                if (window.mbConvertingInquiryId) {
+                    window.mbConvertingInquiryId = null;
+                    if (typeof loadInquiries === 'function') loadInquiries();
+                }
                 setTimeout(function() {
                     closeAtlDrawer('manualBookingDrawer');
                     if (typeof loadBookings === 'function') loadBookings();
@@ -31683,6 +31750,7 @@
     </div>
     <div class="atl-drawer__body">
         <div id="manualBookingAlert" style="display:none;margin-bottom:14px;"></div>
+        <input type="hidden" id="mbSourceInquiryId" value="">
         <div class="mb-form-grid">
 
           <div>
