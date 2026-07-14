@@ -3388,6 +3388,15 @@
         .inq-status-dot--draft { background-color: var(--atl-muted-dim); }
         .inq-status-dot--scheduled { background-color: var(--atl-amber); }
 
+        /* Priority flag (only rendered in list rows for high/urgent — see renderInqList) */
+        .inq-priority-flag { font-size: 11px; margin-right: 4px; }
+        .inq-priority-flag--high { color: var(--atl-orange); }
+        .inq-priority-flag--urgent { color: var(--atl-clay); }
+        .inq-priority-dot--low { background: var(--atl-blue); }
+        .inq-priority-dot--normal { background: var(--atl-muted); }
+        .inq-priority-dot--high { background: var(--atl-orange); }
+        .inq-priority-dot--urgent { background: var(--atl-clay); }
+
         /* Bulk select, bulk bar, pagination */
         .inq-selectall { accent-color: var(--atl-amber); cursor: pointer; width: 15px; height: 15px; }
         .inq-row-check { accent-color: var(--atl-amber); cursor: pointer; width: 15px; height: 15px; margin: 2px 4px 0 0; flex: 0 0 auto; align-self: flex-start; }
@@ -16251,6 +16260,9 @@
                 const assigneeChip = row.assigned_to_name
                     ? `<span class="inq-chip" style="margin-left:6px;" title="Assigned to ${$('<s>').text(row.assigned_to_name).html()}"><i class="fa-solid fa-user" aria-hidden="true"></i> ${initial(row.assigned_to_name)}</span>`
                     : '';
+                const priorityFlag = (row.priority === 'high' || row.priority === 'urgent')
+                    ? `<i class="fa-solid fa-flag inq-priority-flag inq-priority-flag--${row.priority}" title="${row.priority === 'urgent' ? 'Urgent' : 'High'} priority" aria-label="${row.priority === 'urgent' ? 'Urgent' : 'High'} priority"></i>`
+                    : '';
 
                 $body.append(`
 <div class="inq-row ${unreadClass} ${isActive}" data-id="${row.inquiry_id}" role="button" tabindex="0" aria-label="Message from ${escapedName}: ${escapedSubject}">
@@ -16258,7 +16270,7 @@
     <div class="inq-row-avatar" aria-hidden="true">${rowInitial}</div>
     <div class="inq-row-main">
         <div class="inq-row-top">
-            <span class="inq-row-name">${escapedName}${assigneeChip}</span>
+            <span class="inq-row-name">${priorityFlag}${escapedName}${assigneeChip}</span>
             <span class="inq-row-date">${dateStr}</span>
         </div>
         <div class="inq-row-subject">${escapedSubject}</div>
@@ -16294,11 +16306,12 @@
             if (inquiry.routing_path) chips += `<span class="inq-chip"><i class="fa-solid fa-route" aria-hidden="true"></i> ${$('<s>').text(inquiry.routing_path).html()}</span>`;
             $('#inqReadChips').html(chips);
 
-            // CRM panel: assignment (manager+ only — assistants see it read-only)
+            // CRM panel: assignment + priority (manager+ only — assistants see them read-only)
             loadInqAssignableAdmins().then(() => {
                 $('#inqAssignSelect').val(inquiry.assigned_to || '');
             });
             $('#inqAssignSelect').prop('disabled', window.currentUserRole === 'assistant');
+            $('#inqPrioritySelect').val(inquiry.priority || 'normal').prop('disabled', window.currentUserRole === 'assistant');
 
             // Message body (newlines → <br>)
             const safeBody = $('<span>').text(inquiry.message_body || '').html().replace(/\n/g, '<br>');
@@ -17081,6 +17094,20 @@
                 if (res && res.success) {
                     window.notificationService.showSuccess(val ? 'Inquiry assigned.' : 'Inquiry unassigned.');
                     loadInquiries();
+                }
+            } catch (e) {}
+        });
+
+        // Change priority
+        $(document).on('change', '#inqPrioritySelect', async function() {
+            if (!currentInqId) return;
+            const priority = $(this).val();
+            try {
+                const res = await apiCall('/api/admin/inquiries/' + currentInqId + '/priority', 'PUT', { priority });
+                if (res && res.success) {
+                    const inquiry = allInquiriesCache.find(i => i.inquiry_id == currentInqId);
+                    if (inquiry) inquiry.priority = priority;
+                    window.notificationService.showSuccess('Priority updated.');
                 }
             } catch (e) {}
         });
@@ -23140,6 +23167,15 @@
                         <span class="inq-crm-label"><i class="fa-solid fa-user-check" aria-hidden="true"></i> Assigned to</span>
                         <select class="inq-crm-select" id="inqAssignSelect" aria-label="Assign to admin">
                             <option value="">Unassigned</option>
+                        </select>
+                    </div>
+                    <div class="inq-crm-row">
+                        <span class="inq-crm-label"><i class="fa-solid fa-flag" aria-hidden="true"></i> Priority</span>
+                        <select class="inq-crm-select" id="inqPrioritySelect" aria-label="Priority">
+                            <option value="low">Low</option>
+                            <option value="normal">Normal</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
                         </select>
                     </div>
                 </div>

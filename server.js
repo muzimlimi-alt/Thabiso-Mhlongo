@@ -13579,6 +13579,8 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
         const assignedTo = parseInt(req.query.assigned_to);
         if (!isNaN(assignedTo)) { conditions.push("assigned_to = ?"); qp.push(assignedTo); }
     }
+    const validPriorities = ['low', 'normal', 'high', 'urgent'];
+    if (validPriorities.includes(req.query.priority)) { conditions.push("priority = ?"); qp.push(req.query.priority); }
     if (search) {
         conditions.push("(LOWER(sender_name) LIKE LOWER(?) OR LOWER(sender_email) LIKE LOWER(?) OR LOWER(COALESCE(subject,'')) LIKE LOWER(?) OR LOWER(COALESCE(message_body,'')) LIKE LOWER(?))");
         const term = `%${search}%`;
@@ -13663,6 +13665,18 @@ app.put('/api/admin/inquiries/:id/assign', requireAdmin, requireRole(['administr
             if (err2) return res.status(500).json({ success: false, message: err2.message });
             res.json({ success: true });
         });
+    });
+});
+
+app.put('/api/admin/inquiries/:id/priority', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    const { priority } = req.body;
+    const validPriorities = ['low', 'normal', 'high', 'urgent'];
+    if (!validPriorities.includes(priority)) {
+        return res.status(400).json({ success: false, message: 'Invalid priority.' });
+    }
+    db.run("UPDATE inquiries SET priority = ? WHERE inquiry_id = ?", [priority, req.params.id], function(err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true });
     });
 });
 

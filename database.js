@@ -140,10 +140,12 @@ function initializeDatabase() {
         // trigger-creation time), which is exactly the race that broke chk/audit_inquiries_* on first boot.
         db.run("ALTER TABLE inquiries ADD COLUMN assigned_to INTEGER REFERENCES admins(id) ON DELETE SET NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.assigned_to already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN assigned_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.assigned_at already exists or error: " + err.message); });
+        db.run("ALTER TABLE inquiries ADD COLUMN priority TEXT DEFAULT 'normal'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.priority already exists or error: " + err.message); });
 
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_submitted_at ON inquiries(submitted_at)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_assigned_to ON inquiries(assigned_to)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_priority ON inquiries(priority)`);
 
         // 3. Bookings Table (from Booking page)
         db.run(`CREATE TABLE IF NOT EXISTS bookings (
@@ -1398,6 +1400,7 @@ function initializeDatabase() {
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (42, 'audit_2026_complete_route_audit_log')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (43, 'inquiries_status_triggers_audit_indexes')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (44, 'inquiries_assignment')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (45, 'inquiries_priority')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (99, 'full_schema_history_reconstructed_2026_06_19')`);
         // END schema_migrations seeds
 
@@ -1570,8 +1573,8 @@ function initializeDatabase() {
         BEGIN
             INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, change_timestamp)
             VALUES ('inquiries', NEW.inquiry_id, 'UPDATE',
-                json_object('status', OLD.status, 'assigned_to', OLD.assigned_to),
-                json_object('status', NEW.status, 'assigned_to', NEW.assigned_to),
+                json_object('status', OLD.status, 'assigned_to', OLD.assigned_to, 'priority', OLD.priority),
+                json_object('status', NEW.status, 'assigned_to', NEW.assigned_to, 'priority', NEW.priority),
                 CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_inquiries_update trigger:", err.message); });
 
@@ -1701,6 +1704,17 @@ function initializeDatabase() {
         BEFORE UPDATE OF status ON inquiries
         WHEN NEW.status NOT IN ('unread','read','replied','archived')
         BEGIN SELECT RAISE(ABORT, 'Invalid inquiries.status value'); END`);
+
+        // inquiries.priority (mirrors notifications.priority's enum for consistency)
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_inquiries_priority_insert
+        BEFORE INSERT ON inquiries
+        WHEN NEW.priority NOT IN ('low','normal','high','urgent')
+        BEGIN SELECT RAISE(ABORT, 'Invalid inquiries.priority value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_inquiries_priority_update
+        BEFORE UPDATE OF priority ON inquiries
+        WHEN NEW.priority NOT IN ('low','normal','high','urgent')
+        BEGIN SELECT RAISE(ABORT, 'Invalid inquiries.priority value'); END`);
 
         // ==========================================
         // ORPHAN PROTECTION TRIGGERS

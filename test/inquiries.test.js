@@ -138,4 +138,28 @@ module.exports = async function ({ check }) {
     check('CP7: assign with null clears assignment -> 200', unassign.status === 200 && unassign.body.success, JSON.stringify(unassign.body));
     const afterUnassign = await one("SELECT assigned_to, assigned_at FROM inquiries WHERE inquiry_id = ?", [inquiryId]);
     check('CP7: assigned_to/assigned_at cleared to NULL', !!afterUnassign && afterUnassign.assigned_to === null && afterUnassign.assigned_at === null, JSON.stringify(afterUnassign));
+
+    // ── CP8: priority ──
+    let priorityTriggerRejected = false;
+    try { await run("UPDATE inquiries SET priority = 'critical' WHERE inquiry_id = ?", [inquiryId]); }
+    catch (e) { priorityTriggerRejected = /Invalid inquiries\.priority/.test(e.message); }
+    check('CP8: BEFORE UPDATE trigger rejects invalid priority', priorityTriggerRejected, 'expected RAISE(ABORT) from chk_inquiries_priority_update');
+
+    const defaultPriority = await one("SELECT priority FROM inquiries WHERE inquiry_id = ?", [inquiryId]);
+    check('CP8: new inquiries default to normal priority', !!defaultPriority && defaultPriority.priority === 'normal', JSON.stringify(defaultPriority));
+
+    const asstPriority = await asAssistant('PUT', `/api/admin/inquiries/${inquiryId}/priority`, { priority: 'high' });
+    check('CP8: assistant blocked from changing priority -> 403', asstPriority.status === 403, JSON.stringify(asstPriority.body));
+
+    const badPriority = await asManager('PUT', `/api/admin/inquiries/${inquiryId}/priority`, { priority: 'critical' });
+    check('CP8: route rejects invalid priority enum -> 400', badPriority.status === 400 && badPriority.body.success === false, JSON.stringify(badPriority.body));
+
+    const goodPriority = await asManager('PUT', `/api/admin/inquiries/${inquiryId}/priority`, { priority: 'urgent' });
+    check('CP8: manager can set a valid priority -> 200', goodPriority.status === 200 && goodPriority.body.success, JSON.stringify(goodPriority.body));
+
+    const afterPriority = await one("SELECT priority FROM inquiries WHERE inquiry_id = ?", [inquiryId]);
+    check('CP8: priority persisted', !!afterPriority && afterPriority.priority === 'urgent', JSON.stringify(afterPriority));
+
+    const byPriority = await api('GET', '/api/admin/inquiries?priority=urgent');
+    check('CP8: priority filter returns only matching rows', byPriority.status === 200 && byPriority.body.inquiries.length > 0 && byPriority.body.inquiries.every(r => r.priority === 'urgent'), JSON.stringify(byPriority.body.inquiries.map(r => r.priority)));
 };
