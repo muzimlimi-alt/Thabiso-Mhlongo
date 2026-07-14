@@ -16155,6 +16155,9 @@
         }
 
         // ---- Data Loading (server-side paginated/filtered/sorted) ----
+        // Exposed on window: this section's <script> block is a separate scope from the manual-booking
+        // drawer's (Convert to Booking needs to refresh the inbox after creating a booking).
+        window.loadInquiries = loadInquiries;
         async function loadInquiries(resetPage) {
             if (resetPage) inqPage = 1;
             $('#inqListBody').html('<div class="inq-empty-state"><i class="fa-solid fa-rotate fa-spin" aria-hidden="true"></i><p>Loading...</p></div>');
@@ -16313,7 +16316,7 @@
 
             data.forEach(row => {
                 const isUnread = row.status === 'unread';
-                const rowInitial = initial(row.sender_name);
+                const rowInitial = (row.sender_name || '?').charAt(0).toUpperCase();
                 const dateStr = inqFormatDate(row.submitted_at);
                 const preview = (row.message_body || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().substring(0, 100);
                 const isActive = (currentInqId == row.inquiry_id) ? 'inq-row--active' : '';
@@ -16322,7 +16325,7 @@
                 const escapedSubject = $('<span>').text(row.subject || '(No Subject)').html();
                 const escapedPreview = $('<span>').text(preview).html();
                 const assigneeChip = row.assigned_to_name
-                    ? `<span class="inq-chip" style="margin-left:6px;" title="Assigned to ${$('<s>').text(row.assigned_to_name).html()}"><i class="fa-solid fa-user" aria-hidden="true"></i> ${initial(row.assigned_to_name)}</span>`
+                    ? `<span class="inq-chip" style="margin-left:6px;" title="Assigned to ${$('<s>').text(row.assigned_to_name).html()}"><i class="fa-solid fa-user" aria-hidden="true"></i> ${(row.assigned_to_name || '?').charAt(0).toUpperCase()}</span>`
                     : '';
                 const priorityFlag = (row.priority === 'high' || row.priority === 'urgent')
                     ? `<i class="fa-solid fa-flag inq-priority-flag inq-priority-flag--${row.priority}" title="${row.priority === 'urgent' ? 'Urgent' : 'High'} priority" aria-label="${row.priority === 'urgent' ? 'Urgent' : 'High'} priority"></i>`
