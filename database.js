@@ -132,6 +132,9 @@ function initializeDatabase() {
             });
         });
 
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_submitted_at ON inquiries(submitted_at)`);
+
         // 3. Bookings Table (from Booking page)
         db.run(`CREATE TABLE IF NOT EXISTS bookings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1383,6 +1386,7 @@ function initializeDatabase() {
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (40, 'audit_2026_complete_migrations_tracking')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (41, 'audit_2026_cancel_route_audit_log')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (42, 'audit_2026_complete_route_audit_log')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (43, 'inquiries_status_triggers_audit_indexes')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (99, 'full_schema_history_reconstructed_2026_06_19')`);
         // END schema_migrations seeds
 
@@ -1542,6 +1546,31 @@ function initializeDatabase() {
                 CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_events_delete trigger:", err.message); });
 
+        db.run(`CREATE TRIGGER IF NOT EXISTS audit_inquiries_insert AFTER INSERT ON inquiries
+        BEGIN
+            INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+            VALUES ('inquiries', NEW.inquiry_id, 'INSERT',
+                json_object('sender_name', NEW.sender_name, 'sender_email', NEW.sender_email, 'subject', NEW.subject, 'status', NEW.status),
+                'public', CURRENT_TIMESTAMP);
+        END`, (err) => { if (err) console.error("Error creating audit_inquiries_insert trigger:", err.message); });
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS audit_inquiries_update AFTER UPDATE ON inquiries
+        BEGIN
+            INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, change_timestamp)
+            VALUES ('inquiries', NEW.inquiry_id, 'UPDATE',
+                json_object('status', OLD.status),
+                json_object('status', NEW.status),
+                CURRENT_TIMESTAMP);
+        END`, (err) => { if (err) console.error("Error creating audit_inquiries_update trigger:", err.message); });
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS audit_inquiries_delete AFTER DELETE ON inquiries
+        BEGIN
+            INSERT INTO audit_log (table_name, record_id, action, old_values, change_timestamp)
+            VALUES ('inquiries', OLD.inquiry_id, 'DELETE',
+                json_object('sender_name', OLD.sender_name, 'sender_email', OLD.sender_email, 'subject', OLD.subject, 'status', OLD.status),
+                CURRENT_TIMESTAMP);
+        END`, (err) => { if (err) console.error("Error creating audit_inquiries_delete trigger:", err.message); });
+
         // ==========================================
         // STATUS VALIDATION TRIGGERS (CHECK-constraint equivalents for SQLite)
         // These fire BEFORE INSERT/UPDATE on status columns to reject invalid values.
@@ -1649,6 +1678,17 @@ function initializeDatabase() {
         BEFORE UPDATE OF refund_status ON cancellations
         WHEN NEW.refund_status NOT IN ('pending','processing','processed','failed','cancelled')
         BEGIN SELECT RAISE(ABORT, 'Invalid cancellations.refund_status value'); END`);
+
+        // inquiries.status (lowercase convention)
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_inquiries_status_insert
+        BEFORE INSERT ON inquiries
+        WHEN NEW.status NOT IN ('unread','read','replied','archived')
+        BEGIN SELECT RAISE(ABORT, 'Invalid inquiries.status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_inquiries_status_update
+        BEFORE UPDATE OF status ON inquiries
+        WHEN NEW.status NOT IN ('unread','read','replied','archived')
+        BEGIN SELECT RAISE(ABORT, 'Invalid inquiries.status value'); END`);
 
         // ==========================================
         // ORPHAN PROTECTION TRIGGERS

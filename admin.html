@@ -16875,15 +16875,7 @@
             const safeBody = $('<span>').text(inquiry.message_body || '').html().replace(/\n/g, '<br>');
             $('#inqReadBody').html('<p style="margin:0;">' + safeBody + '</p>');
 
-            // Pre-fill reply
-            const firstName = (inquiry.sender_name || '').split(' ')[0] || 'there';
-            $('#inqReplySubjectField').val('Re: ' + (inquiry.subject || 'Your Inquiry'));
-            $('#inqReplyBody').val('Hi ' + firstName + ',\n\nThank you for reaching out to us. We appreciate you taking the time to contact us.\n\nBest Regards,\nThabiso Mhlongo Management');
-            $('#inqReplyToName').text(inquiry.sender_name || '');
-
             // Show views
-            $('#inqReplyStrip').hide();
-            $('#inqReplyAlertNew').hide();
             $('#inqComposeView').hide();
             $('#inqReadView').show();
             openAtlDrawer('inqDetailDrawer');
@@ -16982,7 +16974,6 @@
             // flex layout, so it needs display:flex specifically — jQuery's .show() would default to
             // display:block (the tag's UA default), breaking the pinned header/footer + scrolling body.
             $('#inqReadView').hide();
-            $('#inqReplyStrip').hide();
             $('#inqComposeView').css('display', 'flex');
 
             openAtlDrawer('inqDetailDrawer');
@@ -17405,7 +17396,6 @@
                     }
 
                     $('#inqReadView').hide();
-                    $('#inqReplyStrip').hide();
                     $('#inqComposeView').css('display', 'flex');
                     openAtlDrawer('inqDetailDrawer');
                     $('.inq-row').removeClass('inq-row--active');
@@ -17464,7 +17454,6 @@
             if (inqAutosaveTimer) clearInterval(inqAutosaveTimer);
             $('#inqReadView').hide();
             $('#inqComposeView').hide();
-            $('#inqReplyStrip').hide();
             $('.inq-row').removeClass('inq-row--active');
         });
 
@@ -17610,8 +17599,6 @@
                 body: `<p>Hi ${firstName},</p><p>Thank you for reaching out to us. We appreciate you taking the time to contact us.</p><p><br></p><p>Best Regards,</p><p>Thabiso Mhlongo Management</p>`
             });
         });
-        $(document).on('click', '#inqCancelReplyBtn', function() { $('#inqReplyStrip').slideUp(200); });
-
         // Archive toggle
         $(document).on('click', '#inqReadArchiveBtn', async function() {
             if (!currentInqId) return;
@@ -23707,22 +23694,6 @@
                 <div class="inq-read-chips" id="inqReadChips" aria-label="Message details"></div>
 
                 <div class="inq-read-body" id="inqReadBody" tabindex="0"></div>
-
-                <!-- Reply Strip -->
-                <div class="inq-reply-strip" id="inqReplyStrip" style="display:none;" aria-label="Reply to message">
-                    <div class="inq-reply-strip-header">
-                        <i class="fa-solid fa-reply" aria-hidden="true"></i>
-                        <span>Reply to <strong id="inqReplyToName"></strong></span>
-                    </div>
-                    <input type="text" class="inq-compose-field" id="inqReplySubjectField" placeholder="Subject" aria-label="Reply subject">
-                    <textarea class="inq-compose-textarea" id="inqReplyBody" rows="12" placeholder="Write your reply..." aria-label="Reply message body"></textarea>
-                    <div class="inq-compose-actions">
-                        <button class="inq-send-btn" id="inqSendReplyBtnNew" aria-label="Send reply">
-                            <i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Send Reply
-                        </button>
-                        <button class="inq-cancel-btn" id="inqCancelReplyBtn" aria-label="Cancel reply">Cancel</button>
-                    </div>
-                </div>
             </div>
 
             <!-- Compose New View (aligned to the house .atl-drawer__header/__body/__footer pattern) -->
@@ -26633,9 +26604,9 @@
                     items.push({
                         type: 'inquiry',
                         icon: 'fa-solid fa-envelope',
-                        title: (q.name || 'Unknown') + ': ' + (q.subject || q.type || 'Inquiry'),
-                        meta: timeAgo(q.created_at),
-                        action: function() { switchTab('inquiriesAdmin'); },
+                        title: (q.sender_name || 'Unknown') + ': ' + (q.subject || 'Inquiry'),
+                        meta: timeAgo(q.submitted_at),
+                        action: function() { switchTab('inquiriesAdmin'); openInquiry(q.inquiry_id); },
                         unread: true
                     });
                 });
@@ -26808,10 +26779,10 @@
         // -- Inquiries --
         if (typeof allInquiriesCache !== 'undefined' && Array.isArray(allInquiriesCache)) {
             var inqResults = allInquiriesCache.filter(function(item) {
-                return (item.name||'').toLowerCase().includes(ql) ||
-                       (item.email||'').toLowerCase().includes(ql) ||
+                return (item.sender_name||'').toLowerCase().includes(ql) ||
+                       (item.sender_email||'').toLowerCase().includes(ql) ||
                        (item.subject||'').toLowerCase().includes(ql) ||
-                       (item.message||'').toLowerCase().includes(ql);
+                       (item.message_body||'').toLowerCase().includes(ql);
             }).slice(0, 5);
 
             if (inqResults.length) {
@@ -26821,8 +26792,8 @@
                     html += '<button class="adm-search__result" data-type="inquiry" data-id="' + id + '">' +
                         '<i class="fa-solid fa-envelope"></i>' +
                         '<span class="adm-search__result-main">' +
-                            '<span class="adm-search__result-title">' + escHtml(item.name||'') + ' — ' + escHtml(item.subject||item.type||'') + '</span>' +
-                            '<span class="adm-search__result-sub">' + escHtml(item.email||'') + '</span>' +
+                            '<span class="adm-search__result-title">' + escHtml(item.sender_name||'') + ' — ' + escHtml(item.subject||'') + '</span>' +
+                            '<span class="adm-search__result-sub">' + escHtml(item.sender_email||'') + '</span>' +
                         '</span>' +
                         '<span class="adm-search__result-badge adm-search__result-badge--inquiry">' + escHtml(item.status||'') + '</span>' +
                     '</button>';
@@ -26897,9 +26868,10 @@
         searchPanel.querySelectorAll('.adm-search__result').forEach(function(btn) {
             btn.addEventListener('click', function() {
                 var type = this.dataset.type;
+                var id = this.dataset.id;
                 searchPanel.style.display = 'none';
                 searchInput.value = '';
-                if (type === 'inquiry') switchTab('inquiriesAdmin');
+                if (type === 'inquiry') { switchTab('inquiriesAdmin'); openInquiry(parseInt(id)); }
                 else if (type === 'booking') switchTab('bookingsAdmin');
                 else if (type === 'event') switchTab('eventsAdmin');
             });

@@ -1610,9 +1610,10 @@ function startDataRetentionCaretaker() {
 
         // 2. Anonymize old inquiries (2 years)
         // We keep the record for stats but wipe PII
-        db.run(`UPDATE inquiries 
-                SET name = '[ANONYMIZED]', email = 'deleted@po-pia.com', cell = '0000000000', message = '[REDACTED]' 
-                WHERE created_at < date('now', '-2 years') AND email != 'deleted@po-pia.com'`, function(err) {
+        db.run(`UPDATE inquiries
+                SET sender_name = '[ANONYMIZED]', sender_email = 'deleted@po-pia.com', sender_phone = '0000000000', message_body = '[REDACTED]'
+                WHERE submitted_at < date('now', '-2 years') AND sender_email != 'deleted@po-pia.com'`, function(err) {
+            if (err) { console.error('✗ POPIA: Failed to anonymize stale inquiries:', err.message); return; }
             if (this.changes > 0) console.log(`✓ POPIA: Anonymized ${this.changes} stale inquiries.`);
         });
 
@@ -5493,13 +5494,16 @@ app.post('/api/public/compliance/request-forget', ipRateLimiter, (req, res) => {
     // Whitelist prevents SQL injection if this function is ever called with untrusted input.
     const ANONYMIZE_TARGETS = [
         { table: 'bookings',   emailCol: 'email', extraFields: "name = '[FORGOTTEN]', cell = '000000000', company = NULL" },
-        { table: 'inquiries',  emailCol: 'email', extraFields: "name = '[FORGOTTEN]', cell = '000000000', company = NULL" },
+        { table: 'inquiries',  emailCol: 'sender_email', extraFields: "sender_name = '[FORGOTTEN]', sender_phone = '000000000'" },
     ];
     const anonymize = ({ table, emailCol, extraFields }) => {
         return new Promise((resolve) => {
             db.run(
                 `UPDATE ${table} SET ${emailCol} = 'deleted@po-pia.com', ${extraFields} WHERE LOWER(${emailCol}) = LOWER(?)`,
-                [email], () => resolve()
+                [email], (err) => {
+                    if (err) console.error(`[POPIA] request-forget failed for table=${table}:`, err.message);
+                    resolve();
+                }
             );
         });
     };
@@ -5518,8 +5522,10 @@ app.post('/api/public/compliance/export-data', ipRateLimiter, (req, res) => {
     const dataExport = {};
     
     db.all("SELECT * FROM bookings WHERE LOWER(email) = LOWER(?)", [email], (err, bookings) => {
+        if (err) console.error('[POPIA] export-data bookings query failed:', err.message);
         dataExport.bookings = bookings || [];
-        db.all("SELECT * FROM inquiries WHERE LOWER(email) = LOWER(?)", [email], (err, inquiries) => {
+        db.all("SELECT * FROM inquiries WHERE LOWER(sender_email) = LOWER(?)", [email], (err, inquiries) => {
+            if (err) console.error('[POPIA] export-data inquiries query failed:', err.message);
             dataExport.inquiries = inquiries || [];
             
             if (dataExport.bookings.length === 0 && dataExport.inquiries.length === 0) {
@@ -13531,11 +13537,12 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
     const validStatuses = ['all', 'unread', 'read', 'replied', 'archived'];
     const validSorts = ['newest', 'oldest', 'name'];
     const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = 50;
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
     const offset = (page - 1) * limit;
     const statusFilter = validStatuses.includes(req.query.status) ? req.query.status : 'all';
     const sortBy = validSorts.includes(req.query.sort) ? req.query.sort : 'newest';
     const search = (req.query.search || '').trim();
+    const category = (req.query.category || '').trim();
 
     const orderClause = sortBy === 'oldest' ? 'submitted_at ASC' :
                         sortBy === 'name' ? "LOWER(COALESCE(sender_name,'')) ASC" :
@@ -13544,6 +13551,7 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
     const conditions = [];
     const qp = [];
     if (statusFilter !== 'all') { conditions.push("status = ?"); qp.push(statusFilter); }
+    if (category) { conditions.push("category = ?"); qp.push(category); }
     if (search) {
         conditions.push("(LOWER(sender_name) LIKE LOWER(?) OR LOWER(sender_email) LIKE LOWER(?) OR LOWER(COALESCE(subject,'')) LIKE LOWER(?) OR LOWER(COALESCE(message_body,'')) LIKE LOWER(?))");
         const term = `%${search}%`;
@@ -13586,8 +13594,12 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
 
 app.put('/api/admin/inquiries/:id/status', requireAdmin, (req, res) => {
     const { status } = req.body;
+    const validStatuses = ['unread', 'read', 'replied', 'archived'];
+    if (!validStatuses.includes(status)) {
+        return res.status(400).json({ success: false, message: 'Invalid status.' });
+    }
     db.run("UPDATE inquiries SET status = ? WHERE inquiry_id = ?", [status, req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true });
     });
 });
@@ -13631,48 +13643,13 @@ app.post('/api/admin/inquiries/bulk-delete', requireAdmin, requireRole(['adminis
 
 app.delete('/api/admin/inquiries/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM inquiries WHERE inquiry_id = ?", req.params.id, function(err) {
-        if (err) return res.status(500).json({ error: err.message });
+        if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true });
     });
 });
 
-app.post('/api/admin/inquiries/:id/reply', requireAdmin, (req, res) => {
-    const { replyMessage, subject } = req.body;
-    db.get("SELECT * FROM inquiries WHERE inquiry_id = ?", [req.params.id], async (err, inquiry) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (!inquiry) return res.status(404).json({ error: 'Inquiry not found' });
-        
-        // Bug fixed in passing: htmlTemplate was built here but never used — the send below passed
-        // the raw replyMessage, so inquiry replies went out with NO wrapper/logo/shell at all.
-        const { socialLinks } = await getEmailFooterContext();
-        const inquiryBanner = await bannerRegistry.resolveBanner('inquiry_reply');
-        const htmlTemplate = emailComponents.renderPremiumEmail({
-            preheaderText: `Re: ${inquiry.subject}`,
-            bannerSrc: inquiryBanner?.src, bannerAlt: inquiryBanner?.alt, subtitle: inquiryBanner?.subtitle,
-            headline: inquiryBanner?.headline || 'Management Response',
-            bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Inquiry #${inquiry.subject}</p>` + replyMessage.replace(/\n/g, '<br>'),
-            socialLinks
-        });
-
-        try {
-            await sendEmail({
-                to: inquiry.sender_email,
-                subject: subject || `Re: ${inquiry.subject}`,
-                htmlContent: htmlTemplate,
-                preWrapped: true,
-                replyTo: process.env.EMAIL_USER || 'admin@thabisomhlongo.com',
-                titleOverride: 'Management Response',
-                trigger_event: 'Admin: Inquiry Reply'
-            });
-            // Update status to replied
-            db.run("UPDATE inquiries SET status = 'replied' WHERE inquiry_id = ?", [req.params.id]);
-            res.json({ success: true, message: 'Reply sent successfully.' });
-        } catch (error) {
-            console.error("Error sending reply email:", error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-});
+// Note: the legacy POST /:id/reply endpoint was removed — no longer called by any client code,
+// superseded by the direct_emails composer (POST/PUT /api/admin/direct-emails, POST /:id/send).
 
 // --- Admin Compose (freeform outbound email) ---
 app.post('/api/admin/compose', requireAdmin, async (req, res) => {
