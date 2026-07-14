@@ -1034,6 +1034,19 @@ function initializeDatabase() {
         )`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_booking_notes_booking ON booking_notes(booking_id)`);
 
+        // Internal admin-only notes on an inquiry — structural mirror of booking_notes, with a
+        // created_by FK (author is still stored as free text for display, but derived from the
+        // session server-side rather than trusted from the client, unlike booking_notes' author).
+        db.run(`CREATE TABLE IF NOT EXISTS inquiry_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            inquiry_id INTEGER NOT NULL REFERENCES inquiries(inquiry_id) ON DELETE CASCADE,
+            note TEXT NOT NULL,
+            author TEXT NOT NULL DEFAULT 'Admin',
+            created_by INTEGER REFERENCES admins(id),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiry_notes_inquiry ON inquiry_notes(inquiry_id)`);
+
         // EXPENSES (SARS Mileage & Per Diem)
         db.run(`CREATE TABLE IF NOT EXISTS expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1401,6 +1414,7 @@ function initializeDatabase() {
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (43, 'inquiries_status_triggers_audit_indexes')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (44, 'inquiries_assignment')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (45, 'inquiries_priority')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (46, 'inquiry_notes')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (99, 'full_schema_history_reconstructed_2026_06_19')`);
         // END schema_migrations seeds
 

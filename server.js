@@ -13680,6 +13680,48 @@ app.put('/api/admin/inquiries/:id/priority', requireAdmin, requireRole(['adminis
     });
 });
 
+app.get('/api/admin/inquiries/:id/notes', requireAdmin, (req, res) => {
+    db.all(
+        "SELECT id, note, author, created_at FROM inquiry_notes WHERE inquiry_id = ? ORDER BY created_at ASC",
+        [req.params.id],
+        (err, rows) => {
+            if (err) return res.status(500).json({ success: false, message: err.message });
+            res.json({ success: true, notes: rows || [] });
+        }
+    );
+});
+
+app.post('/api/admin/inquiries/:id/notes', requireAdmin, (req, res) => {
+    const { note } = req.body;
+    if (!note || !note.trim()) return res.status(400).json({ success: false, message: 'Note text is required.' });
+    // Author/created_by derive from the session rather than trusting client input.
+    db.get("SELECT COALESCE(full_name, username) AS name FROM admins WHERE id = ?", [req.session.adminId], (err0, adminRow) => {
+        const author = (adminRow && adminRow.name) || req.session.username || 'Admin';
+        db.run(
+            "INSERT INTO inquiry_notes (inquiry_id, note, author, created_by) VALUES (?, ?, ?, ?)",
+            [req.params.id, note.trim(), author, req.session.adminId],
+            function(err) {
+                if (err) return res.status(500).json({ success: false, message: err.message });
+                db.get("SELECT id, note, author, created_at FROM inquiry_notes WHERE id = ?", [this.lastID], (e, row) => {
+                    res.json({ success: true, note: row });
+                });
+            }
+        );
+    });
+});
+
+app.delete('/api/admin/inquiries/:id/notes/:noteId', requireAdmin, (req, res) => {
+    db.run(
+        "DELETE FROM inquiry_notes WHERE id = ? AND inquiry_id = ?",
+        [req.params.noteId, req.params.id],
+        function(err) {
+            if (err) return res.status(500).json({ success: false, message: err.message });
+            if (this.changes === 0) return res.status(404).json({ success: false, message: 'Note not found.' });
+            res.json({ success: true });
+        }
+    );
+});
+
 app.put('/api/admin/inquiries/bulk-status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { ids, status } = req.body;
     const validStatuses = ['read', 'unread', 'replied', 'archived'];

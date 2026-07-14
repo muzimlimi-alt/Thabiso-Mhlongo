@@ -162,4 +162,33 @@ module.exports = async function ({ check }) {
 
     const byPriority = await api('GET', '/api/admin/inquiries?priority=urgent');
     check('CP8: priority filter returns only matching rows', byPriority.status === 200 && byPriority.body.inquiries.length > 0 && byPriority.body.inquiries.every(r => r.priority === 'urgent'), JSON.stringify(byPriority.body.inquiries.map(r => r.priority)));
+
+    // ── CP9: internal notes (not manager+-gated, mirrors booking_notes) ──
+    const emptyNotes = await api('GET', `/api/admin/inquiries/${inquiryId}/notes`);
+    check('CP9: GET notes -> 200 empty list initially', emptyNotes.status === 200 && emptyNotes.body.success && Array.isArray(emptyNotes.body.notes) && emptyNotes.body.notes.length === 0, JSON.stringify(emptyNotes.body));
+
+    const emptyNote = await api('POST', `/api/admin/inquiries/${inquiryId}/notes`, { note: '   ' });
+    check('CP9: empty/whitespace-only note rejected -> 400', emptyNote.status === 400 && emptyNote.body.success === false, JSON.stringify(emptyNote.body));
+
+    const asstNote = await asAssistant('POST', `/api/admin/inquiries/${inquiryId}/notes`, { note: 'Assistant left a note.' });
+    check('CP9: assistant CAN add a note (not manager+-gated)', asstNote.status === 200 && asstNote.body.success && asstNote.body.note && asstNote.body.note.author === 'test.assistant@example.invalid', JSON.stringify(asstNote.body));
+    const asstNoteId = asstNote.body && asstNote.body.note && asstNote.body.note.id;
+    check('CP9: note author derives from session, not client input', asstNote.body.note.author !== 'Client Supplied Name', JSON.stringify(asstNote.body.note));
+
+    const mgrNote = await asManager('POST', `/api/admin/inquiries/${inquiryId}/notes`, { note: 'Manager follow-up note.' });
+    check('CP9: manager can add a note -> 200', mgrNote.status === 200 && mgrNote.body.success, JSON.stringify(mgrNote.body));
+
+    const listNotes = await api('GET', `/api/admin/inquiries/${inquiryId}/notes`);
+    check('CP9: notes list returns both notes, oldest first', listNotes.status === 200 && listNotes.body.notes.length === 2 && listNotes.body.notes[0].id === asstNoteId, JSON.stringify(listNotes.body.notes));
+
+    if (asstNoteId) {
+        const delOther = await api('DELETE', `/api/admin/inquiries/${inquiryId}/notes/999999`);
+        check('CP9: delete nonexistent note -> 404', delOther.status === 404, JSON.stringify(delOther.body));
+
+        const delNote = await asAssistant('DELETE', `/api/admin/inquiries/${inquiryId}/notes/${asstNoteId}`);
+        check('CP9: assistant can delete a note (not manager+-gated) -> 200', delNote.status === 200 && delNote.body.success, JSON.stringify(delNote.body));
+
+        const afterDelete = await api('GET', `/api/admin/inquiries/${inquiryId}/notes`);
+        check('CP9: deleted note no longer present', afterDelete.status === 200 && afterDelete.body.notes.length === 1 && !afterDelete.body.notes.some(n => n.id === asstNoteId), JSON.stringify(afterDelete.body.notes));
+    }
 };

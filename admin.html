@@ -3454,6 +3454,32 @@
         .inq-crm-select:focus { outline: none; border-color: var(--atl-amber); }
         .inq-crm-select:disabled { opacity: 0.6; cursor: not-allowed; }
 
+        /* Internal notes (CP9) — not manager+-gated, mirrors booking_notes precedent */
+        .inq-notes-panel { border-bottom: 1px solid var(--atl-line); flex-shrink: 0; }
+        .inq-notes-toggle {
+            width: 100%; display: flex; align-items: center; gap: 8px;
+            background: transparent; border: none; color: var(--atl-muted);
+            font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600;
+            padding: 10px 20px; cursor: pointer; text-align: left;
+        }
+        .inq-notes-toggle:hover { color: var(--atl-ink); }
+        .inq-notes-count { color: var(--atl-amber); font-weight: 700; }
+        .inq-notes-chevron { margin-left: auto; transition: transform var(--atl-t-fast); }
+        .inq-notes-toggle[aria-expanded="true"] .inq-notes-chevron { transform: rotate(180deg); }
+        .inq-notes-body { padding: 0 20px 14px; }
+        .inq-notes-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; max-height: 220px; overflow-y: auto; }
+        .inq-note-item { background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: var(--atl-r-sm); padding: 8px 12px; }
+        .inq-note-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--atl-muted-dim); margin-bottom: 4px; }
+        .inq-note-author { color: var(--atl-amber); font-weight: 600; }
+        .inq-note-delete { background: transparent; border: none; color: var(--atl-muted); cursor: pointer; font-size: 12px; }
+        .inq-note-delete:hover { color: var(--atl-clay); }
+        .inq-note-text { font-size: 13px; color: var(--atl-ink-dim); white-space: pre-wrap; word-break: break-word; }
+        .inq-notes-empty { font-size: 12px; color: var(--atl-muted-dim); padding: 4px 0; }
+        .inq-notes-add-row { display: flex; flex-direction: column; gap: 6px; }
+        .inq-notes-input { width: 100%; background: var(--atl-input-bg); border: 1px solid var(--atl-line); color: var(--atl-ink); border-radius: var(--atl-r-sm); padding: 8px 10px; font-size: 12px; font-family: inherit; resize: vertical; box-sizing: border-box; }
+        .inq-notes-input:focus { outline: none; border-color: var(--atl-amber); }
+        .inq-notes-add-row .um-btn { align-self: flex-end; }
+
         .inq-read-body { flex: 1; overflow-y: auto; padding: 20px; font-size: 14px; color: var(--atl-ink-dim); line-height: 1.75; background: var(--atl-sidebar-bg); scrollbar-width: thin; scrollbar-color: var(--atl-line-strong) transparent; }
         .inq-read-body::-webkit-scrollbar { width: 3px; }
         .inq-read-body::-webkit-scrollbar-track { background: transparent; }
@@ -16313,6 +16339,13 @@
             $('#inqAssignSelect').prop('disabled', window.currentUserRole === 'assistant');
             $('#inqPrioritySelect').val(inquiry.priority || 'normal').prop('disabled', window.currentUserRole === 'assistant');
 
+            // Internal notes: collapsed by default, loaded lazily when expanded (see toggle handler)
+            $('#inqNotesBody').hide();
+            $('#inqNotesToggle').attr('aria-expanded', 'false');
+            $('#inqNotesList').empty();
+            $('#inqNotesCount').text('');
+            $('#inqNoteInput').val('');
+
             // Message body (newlines → <br>)
             const safeBody = $('<span>').text(inquiry.message_body || '').html().replace(/\n/g, '<br>');
             $('#inqReadBody').html('<p style="margin:0;">' + safeBody + '</p>');
@@ -17109,6 +17142,68 @@
                     if (inquiry) inquiry.priority = priority;
                     window.notificationService.showSuccess('Priority updated.');
                 }
+            } catch (e) {}
+        });
+
+        // ---- Internal Notes ----
+        function renderInqNotes(notes) {
+            const $list = $('#inqNotesList');
+            $list.empty();
+            $('#inqNotesCount').text(notes.length > 0 ? notes.length : '');
+            if (!notes.length) {
+                $list.html('<div class="inq-notes-empty">No internal notes yet.</div>');
+                return;
+            }
+            notes.forEach(n => {
+                const when = new Date(n.created_at).toLocaleString();
+                const escapedAuthor = $('<s>').text(n.author || 'Admin').html();
+                const escapedNote = $('<s>').text(n.note || '').html();
+                $list.append(`
+<div class="inq-note-item" data-note-id="${n.id}">
+    <div class="inq-note-meta">
+        <span><span class="inq-note-author">${escapedAuthor}</span> · ${when}</span>
+        <button type="button" class="inq-note-delete" data-note-id="${n.id}" title="Delete note" aria-label="Delete note"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>
+    </div>
+    <div class="inq-note-text">${escapedNote}</div>
+</div>`);
+            });
+        }
+
+        async function loadInqNotes(id) {
+            try {
+                const res = await apiCall('/api/admin/inquiries/' + id + '/notes');
+                if (res && res.success) renderInqNotes(res.notes || []);
+            } catch (e) {}
+        }
+
+        $(document).on('click', '#inqNotesToggle', function() {
+            const $body = $('#inqNotesBody');
+            const expanding = !$body.is(':visible');
+            $body.toggle(expanding);
+            $(this).attr('aria-expanded', expanding ? 'true' : 'false');
+            if (expanding && currentInqId) loadInqNotes(currentInqId);
+        });
+
+        $(document).on('click', '#inqAddNoteBtn', async function() {
+            if (!currentInqId) return;
+            const note = $('#inqNoteInput').val().trim();
+            if (!note) return;
+            try {
+                const res = await apiCall('/api/admin/inquiries/' + currentInqId + '/notes', 'POST', { note });
+                if (res && res.success) {
+                    $('#inqNoteInput').val('');
+                    loadInqNotes(currentInqId);
+                }
+            } catch (e) {}
+        });
+
+        $(document).on('click', '.inq-note-delete', async function() {
+            if (!currentInqId) return;
+            const noteId = $(this).data('note-id');
+            if (!(await window.notificationService.showConfirm({ message: 'Delete this note?', isDestructive: true }))) return;
+            try {
+                await apiCall('/api/admin/inquiries/' + currentInqId + '/notes/' + noteId, 'DELETE');
+                loadInqNotes(currentInqId);
             } catch (e) {}
         });
 
@@ -23177,6 +23272,21 @@
                             <option value="high">High</option>
                             <option value="urgent">Urgent</option>
                         </select>
+                    </div>
+                </div>
+
+                <div class="inq-notes-panel" id="inqNotesPanel" aria-label="Internal notes">
+                    <button type="button" class="inq-notes-toggle" id="inqNotesToggle" aria-expanded="false" aria-controls="inqNotesBody">
+                        <i class="fa-solid fa-note-sticky" aria-hidden="true"></i> Internal Notes
+                        <span class="inq-notes-count" id="inqNotesCount"></span>
+                        <i class="fa-solid fa-chevron-down inq-notes-chevron" aria-hidden="true"></i>
+                    </button>
+                    <div class="inq-notes-body" id="inqNotesBody" style="display:none;">
+                        <div class="inq-notes-list" id="inqNotesList"></div>
+                        <div class="inq-notes-add-row">
+                            <textarea class="inq-notes-input" id="inqNoteInput" rows="2" placeholder="Add an internal note (not visible to the sender)..." aria-label="New internal note"></textarea>
+                            <button type="button" class="um-btn um-btn--ghost um-btn--sm" id="inqAddNoteBtn">Add Note</button>
+                        </div>
                     </div>
                 </div>
 
