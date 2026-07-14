@@ -11,6 +11,7 @@ const transporter = emailService.transporter;
 const emailTemplates = require('./js/emailTemplates');
 const emailComponents = require('./js/emailComponents');
 const bannerRegistry = require('./js/bannerRegistry');
+const { applyMergeFields } = require('./js/mergeFields');
 const { SAMPLES_BY_CATEGORY } = require('./js/emailPreviewSamples');
 const { imageSize } = require('image-size');
 const crypto = require('crypto');
@@ -207,6 +208,19 @@ const sanitizeEmailInput = (input) => {
     if (typeof input !== 'string') return input;
     // Remove newlines to prevent header injection
     return input.replace(/[\r\n]/g, '').trim();
+};
+
+const EMAIL_FORMAT_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Day/month-only birthday validation (no year, ever — see newsletter_subscribers schema).
+// Feb is capped at 29, not 28: a Feb-29 birthday is real, it just won't recur every year.
+const BIRTHDAY_DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+const isValidBirthday = (day, month) => {
+    const d = parseInt(day, 10), m = parseInt(month, 10);
+    if (!Number.isInteger(d) || !Number.isInteger(m)) return false;
+    if (m < 1 || m > 12) return false;
+    if (d < 1 || d > BIRTHDAY_DAYS_IN_MONTH[m - 1]) return false;
+    return true;
 };
 
 const app = express();
@@ -456,6 +470,10 @@ const newsletterAttachStorage = multer.diskStorage({
     filename: (req, file, cb) => { cb(null, `${Date.now()}-${file.originalname}`); }
 });
 const newsletterUpload = multer({ storage: newsletterAttachStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+
+// Subscriber CSV import — memory storage, no extension filter (the shared `upload` instance above
+// only allows image extensions and silently rejected every .csv before this existed).
+const subscriberCsvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 // Direct email attachment storage
 const emailAttachStorage = multer.diskStorage({
@@ -7224,11 +7242,16 @@ app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
 // Public Newsletter Subscribe Route
 // ==========================================
 app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
-    const { email, popia_consent } = req.body;
+    let { email, popia_consent, first_name } = req.body;
     if (!email) {
         return res.status(400).json({ success: false, message: 'Email is required' });
     }
-    
+    email = sanitizeEmailInput(email);
+    if (!EMAIL_FORMAT_RE.test(email)) {
+        return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+    }
+    first_name = (typeof first_name === 'string') ? sanitizeEmailInput(first_name).slice(0, 100) : null;
+
     // Validate POPIA consent
     if (!popia_consent) {
         return res.status(400).json({ success: false, message: 'POPIA consent is required to subscribe.' });
@@ -7243,8 +7266,8 @@ app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
     const unsubscribe_token = crypto.randomBytes(16).toString('hex');
 
     // Need to insert status, active, and unsubscribe_token
-    db.run(`INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, ip_address, user_agent, source, popia_consent, consent_timestamp, policy_version) VALUES (?, 'active', 1, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?)`, 
-    [email, unsubscribe_token, ip_address, user_agent, source, CURRENT_POLICY_VERSION], function(err) {
+    db.run(`INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, ip_address, user_agent, source, popia_consent, consent_timestamp, policy_version, first_name) VALUES (?, 'active', 1, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?)`,
+    [email, unsubscribe_token, ip_address, user_agent, source, CURRENT_POLICY_VERSION, first_name || null], function(err) {
         if (err) {
             console.error("Newsletter Subscription DB Error:", err.message);
             // IF UNIQUE constraint failed, they are already subscribed. That's fine.
@@ -7254,7 +7277,7 @@ app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
             return res.status(500).json({ success: false, message: 'Server error: ' + err.message });
         }
         console.log(`[Newsletter] DB Insert SUCCESS for: ${email}`);
-        
+
         // --- Send Introductory Welcome Email ---
         // preWrapped bypasses sendEmailDirectly's own subscriber lookup, so build the unsubscribe
         // URL here from the token this insert just created (same host/format as the legacy path).
@@ -7262,11 +7285,13 @@ app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
             const { socialLinks } = await getEmailFooterContext();
             const unsubscribeUrl = `${emailBaseUrl()}/unsubscribe.html?token=${unsubscribe_token}&email=${encodeURIComponent(email)}`;
             const banner = await bannerRegistry.resolveBanner('newsletter_welcome');
+            const greeting = applyMergeFields('Hi {{first_name}},', { first_name }, unsubscribeUrl);
             const emailBody = emailComponents.renderPremiumEmail({
                 preheaderText: "You're on the list — welcome to the newsletter!",
                 bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
                 headline: banner?.headline || "You're On The List!",
                 bodyHtml:
+                    `<p style="text-align:center;">${greeting}</p>` +
                     `<p style="text-align:center;">Thank you for subscribing to my official newsletter. I truly appreciate your support. You will now be the first to know about my upcoming stand-up tour dates, new video releases, and exclusive content.</p>` +
                     `<p style="text-align:center; color:#B0B0B0;">Rest assured, your email address will be used responsibly and will never be shared with third parties.</p>` +
                     `<p style="text-align:center; margin-top:18px; color:#B0B0B0;">Stay funny,<br><span style="font-family:'Cormorant Garamond',Georgia,serif; font-size:18px; color:#D4AF37;">Thabiso Mhlongo</span></p>`,
@@ -7380,7 +7405,10 @@ app.get('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
 
     const conditions = [];
     const qp = [];
-    if (search) { conditions.push("LOWER(email) LIKE LOWER(?)"); qp.push(`%${search}%`); }
+    if (search) {
+        conditions.push("(LOWER(email) LIKE LOWER(?) OR LOWER(first_name) LIKE LOWER(?))");
+        qp.push(`%${search}%`, `%${search}%`);
+    }
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     db.get(`SELECT COUNT(*) AS total FROM newsletter_subscribers ${whereClause}`, qp, (err, countRow) => {
@@ -7395,8 +7423,9 @@ app.get('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
 });
 
 // Add a subscriber manually
-app.post('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
+app.post('/api/admin/newsletter/subscribers', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { email } = req.body;
+    const first_name = (typeof req.body.first_name === 'string') ? sanitizeEmailInput(req.body.first_name).slice(0, 100) : null;
     if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
 
     const ip_address = req.ip || req.connection.remoteAddress || 'unknown';
@@ -7406,9 +7435,9 @@ app.post('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
 
     const unsubscribe_token = crypto.randomBytes(16).toString('hex');
 
-    // Need to insert both 'status' and 'active' to maintain backwards compatibility 
-    db.run(`INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, ip_address, user_agent, source, created_by) VALUES (?, 'active', 1, ?, ?, ?, ?, ?)`, 
-    [email, unsubscribe_token, ip_address, user_agent, source, adminId], function(err) {
+    // Need to insert both 'status' and 'active' to maintain backwards compatibility
+    db.run(`INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, ip_address, user_agent, source, created_by, first_name) VALUES (?, 'active', 1, ?, ?, ?, ?, ?, ?)`,
+    [email, unsubscribe_token, ip_address, user_agent, source, adminId, first_name || null], function(err) {
         if (err) {
             console.error("DEBUG ERROR ADDING SUBSCRIBER MANUAL:", err);
             if (err.message.includes('UNIQUE')) {
@@ -7420,11 +7449,44 @@ app.post('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
     });
 });
 
+// Update a subscriber's personalization/profile fields — kept separate from the status-toggle
+// endpoint below since that one is already wired to bulk actions and shouldn't be overloaded.
+app.put('/api/admin/newsletter/subscribers/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    const subscriberId = req.params.id;
+    const adminId = req.session.adminId;
+    const first_name = (typeof req.body.first_name === 'string') ? sanitizeEmailInput(req.body.first_name).slice(0, 100) : null;
+    const internal_notes = (typeof req.body.internal_notes === 'string') ? req.body.internal_notes.slice(0, 2000) : null;
+
+    let birthday_day = null, birthday_month = null;
+    if (req.body.birthday_day != null && req.body.birthday_day !== '' && req.body.birthday_month != null && req.body.birthday_month !== '') {
+        if (!isValidBirthday(req.body.birthday_day, req.body.birthday_month)) {
+            return res.status(400).json({ success: false, message: 'Invalid birthday day/month.' });
+        }
+        birthday_day = parseInt(req.body.birthday_day, 10);
+        birthday_month = parseInt(req.body.birthday_month, 10);
+    }
+
+    let tags = null;
+    if (Array.isArray(req.body.tags)) {
+        tags = JSON.stringify(req.body.tags.map(t => String(t).trim()).filter(Boolean));
+    }
+
+    db.run(`UPDATE newsletter_subscribers
+            SET first_name = ?, birthday_day = ?, birthday_month = ?, tags = ?, internal_notes = ?,
+                modified_on = CURRENT_TIMESTAMP, modified_by = ?
+            WHERE subscriber_id = ?`,
+        [first_name || null, birthday_day, birthday_month, tags, internal_notes, adminId, subscriberId], function(err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (this.changes === 0) return res.status(404).json({ success: false, message: 'Subscriber not found' });
+        res.json({ success: true, message: 'Subscriber updated successfully.' });
+    });
+});
+
 // (D9) Removed duplicate DELETE /api/admin/newsletter/subscribers/:id — the canonical copy
 // with the 404-on-no-change guard lives below ("Delete subscriber permanently").
 
 // Toggle subscriber status (Active/Inactive)
-app.put('/api/admin/newsletter/subscribers/:id/status', requireAdmin, (req, res) => {
+app.put('/api/admin/newsletter/subscribers/:id/status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const subscriberId = req.params.id;
     const { status } = req.body; // Expects 'active' or 'inactive'
     const adminId = req.session.adminId;
@@ -7444,7 +7506,7 @@ app.put('/api/admin/newsletter/subscribers/:id/status', requireAdmin, (req, res)
 });
 
 // Delete subscriber permanently
-app.delete('/api/admin/newsletter/subscribers/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/newsletter/subscribers/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     const subscriberId = req.params.id;
 
     db.run(`DELETE FROM newsletter_subscribers WHERE subscriber_id = ?`, [subscriberId], function(err) {
@@ -7455,7 +7517,7 @@ app.delete('/api/admin/newsletter/subscribers/:id', requireAdmin, (req, res) => 
 });
 
 // Bulk Toggle Subscriber Status
-app.put('/api/admin/newsletter/subscribers/bulk-status', requireAdmin, (req, res) => {
+app.put('/api/admin/newsletter/subscribers/bulk-status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { ids, status } = req.body;
     const adminId = req.session.adminId;
 
@@ -7478,7 +7540,7 @@ app.put('/api/admin/newsletter/subscribers/bulk-status', requireAdmin, (req, res
 });
 
 // Bulk Delete Subscribers
-app.post('/api/admin/newsletter/subscribers/bulk-delete', requireAdmin, (req, res) => {
+app.post('/api/admin/newsletter/subscribers/bulk-delete', requireAdmin, requireRole(['administrator']), (req, res) => {
     const { ids } = req.body;
 
     if (!ids || !Array.isArray(ids) || !ids.length) {
@@ -7495,29 +7557,32 @@ app.post('/api/admin/newsletter/subscribers/bulk-delete', requireAdmin, (req, re
 });
 
 // Bulk Import Subscribers via CSV
-app.post('/api/admin/newsletter/subscribers/import', requireAdmin, upload.single('csv'), async (req, res) => {
+app.post('/api/admin/newsletter/subscribers/import', requireAdmin, requireRole(['administrator', 'manager']), subscriberCsvUpload.single('csv'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
 
-    const filePath = req.file.path;
     const adminId = req.session.adminId;
 
     try {
-        const fileContent = fs.readFileSync(filePath, 'utf-8');
+        const fileContent = req.file.buffer.toString('utf-8');
         const lines = fileContent.split(/\r?\n/);
-        
+
         if (lines.length < 2) {
-             fs.unlinkSync(filePath);
              return res.json({ success: false, message: 'File is empty or has no data rows' });
         }
 
-        const headers = lines[0].toLowerCase().split(',');
+        const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
         const emailIdx = headers.indexOf('email');
         const statusIdx = headers.indexOf('status');
+        const firstNameIdx = headers.indexOf('first_name');
+        // Day/month-only, format MM-DD (e.g. "07-14") — never a year, matching the schema.
+        const birthdayIdx = headers.indexOf('birthday');
+        // Semicolon-separated: this importer's line.split(',') has no quoted-field support, so a
+        // comma inside a tags cell would misalign every column after it.
+        const tagsIdx = headers.indexOf('tags');
 
         if (emailIdx === -1) {
-            fs.unlinkSync(filePath);
             return res.status(400).json({ success: false, message: 'Missing "email" column in header' });
         }
 
@@ -7544,6 +7609,19 @@ app.post('/api/admin/newsletter/subscribers/import', requireAdmin, upload.single
                     const cols = line.split(',');
                     const email = (cols[emailIdx] || '').trim();
                     let status = statusIdx !== -1 ? (cols[statusIdx] || '').trim().toLowerCase() : 'active';
+                    const firstName = firstNameIdx !== -1 ? (cols[firstNameIdx] || '').trim() : '';
+                    const tagsRaw = tagsIdx !== -1 ? (cols[tagsIdx] || '').trim() : '';
+                    const tagsJson = tagsRaw ? JSON.stringify(tagsRaw.split(';').map(t => t.trim()).filter(Boolean)) : null;
+
+                    let birthdayDay = null, birthdayMonth = null;
+                    if (birthdayIdx !== -1) {
+                        const m = (cols[birthdayIdx] || '').trim().match(/^(\d{1,2})-(\d{1,2})$/);
+                        if (m && isValidBirthday(m[2], m[1])) {
+                            birthdayMonth = parseInt(m[1], 10);
+                            birthdayDay = parseInt(m[2], 10);
+                        }
+                        // Malformed birthday values are ignored (left unset), not treated as a row error.
+                    }
 
                     if (!status || (status !== 'active' && status !== 'inactive')) status = 'active';
 
@@ -7562,17 +7640,22 @@ app.post('/api/admin/newsletter/subscribers/import', requireAdmin, upload.single
                     try {
                         const upd = await dbRun(
                             `UPDATE newsletter_subscribers
-                             SET status = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ?
+                             SET status = ?,
+                                 first_name = COALESCE(NULLIF(?, ''), first_name),
+                                 birthday_day = COALESCE(?, birthday_day),
+                                 birthday_month = COALESCE(?, birthday_month),
+                                 tags = COALESCE(?, tags),
+                                 modified_on = CURRENT_TIMESTAMP, modified_by = ?
                              WHERE LOWER(email) = LOWER(?)`,
-                            [status, adminId, email]
+                            [status, firstName, birthdayDay, birthdayMonth, tagsJson, adminId, email]
                         );
                         if (upd.changes > 0) {
                             updateCount++;
                         } else {
                             await dbRun(
-                                `INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, source, created_by)
-                                 VALUES (?, ?, ?, ?, 'csv_import', ?)`,
-                                [email, status, active, unsubscribe_token, adminId]
+                                `INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, source, created_by, first_name, birthday_day, birthday_month, tags)
+                                 VALUES (?, ?, ?, ?, 'csv_import', ?, ?, ?, ?, ?)`,
+                                [email, status, active, unsubscribe_token, adminId, firstName || null, birthdayDay, birthdayMonth, tagsJson]
                             );
                             successCount++;
                         }
@@ -7590,7 +7673,6 @@ app.post('/api/admin/newsletter/subscribers/import', requireAdmin, upload.single
             }
         });
 
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
 
         res.json({
@@ -7599,7 +7681,6 @@ app.post('/api/admin/newsletter/subscribers/import', requireAdmin, upload.single
         });
 
     } catch (e) {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
         res.status(500).json({ success: false, message: 'Server error: ' + e.message });
     }
 });
@@ -7607,7 +7688,7 @@ app.post('/api/admin/newsletter/subscribers/import', requireAdmin, upload.single
 // --- Newsletter Drafts ---
 
 // Save Draft
-app.post('/api/admin/newsletter/drafts', requireAdmin, newsletterUpload.none(), (req, res) => {
+app.post('/api/admin/newsletter/drafts', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), (req, res) => {
     const { subject, content } = req.body;
     db.run("INSERT INTO newsletter_drafts (subject, content) VALUES (?, ?)", [subject, content], function(err) {
         if (err) {
@@ -7618,7 +7699,7 @@ app.post('/api/admin/newsletter/drafts', requireAdmin, newsletterUpload.none(), 
 });
 
 // Update Draft
-app.put('/api/admin/newsletter/drafts/:id', requireAdmin, newsletterUpload.none(), (req, res) => {
+app.put('/api/admin/newsletter/drafts/:id', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), (req, res) => {
     const { subject, content } = req.body;
     const { id } = req.params;
     db.run("UPDATE newsletter_drafts SET subject = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [subject, content, id], function(err) {
@@ -7651,7 +7732,7 @@ app.get('/api/admin/newsletter/drafts/:id', requireAdmin, (req, res) => {
 });
 
 // Delete Draft
-app.delete('/api/admin/newsletter/drafts/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/newsletter/drafts/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { id } = req.params;
     db.run("DELETE FROM newsletter_drafts WHERE id = ?", [id], function(err) {
         if (err) {
@@ -7687,7 +7768,7 @@ function scheduleNewsletterSend(schedItem) {
                 return;
             }
 
-            db.all("SELECT email, unsubscribe_token FROM newsletter_subscribers WHERE status = 'active'", async (err2, subscribers) => {
+            db.all("SELECT email, unsubscribe_token, first_name, subscribed_at, birthday_day, birthday_month FROM newsletter_subscribers WHERE status = 'active'", async (err2, subscribers) => {
                 if (err2) {
                     db.run("UPDATE scheduled_newsletters SET status = 'failed' WHERE id = ?", [schedItem.id]);
                     delete scheduledJobs[schedItem.id];
@@ -7708,9 +7789,10 @@ function scheduleNewsletterSend(schedItem) {
                     } catch(e) {}
                 }
 
-                // Campaign content is the admin's own authored HTML — rendered verbatim as bodyHtml,
-                // just wrapped with the brand shell + a per-recipient unsubscribe link (preWrapped
-                // bypasses sendEmailDirectly's own subscriber lookup, so it's built here instead).
+                // Campaign content is the admin's own authored HTML — run through the merge-field
+                // engine per recipient, then wrapped with the brand shell + a per-recipient
+                // unsubscribe link (preWrapped bypasses sendEmailDirectly's own subscriber lookup,
+                // so it's built here instead).
                 const { socialLinks: schedSocialLinks } = await getEmailFooterContext();
                 const campaignBanner = await bannerRegistry.resolveBanner('newsletter_campaign');
                 let successCount = 0;
@@ -7720,20 +7802,22 @@ function scheduleNewsletterSend(schedItem) {
                         const unsubscribeUrl = sub.unsubscribe_token
                             ? `${emailBaseUrl()}/unsubscribe.html?token=${sub.unsubscribe_token}&email=${encodeURIComponent(sub.email)}`
                             : null;
+                        const personalizedSubject = applyMergeFields(schedItem.subject, sub, unsubscribeUrl);
+                        const personalizedBody = applyMergeFields(schedItem.content, sub, unsubscribeUrl);
                         const html = emailComponents.renderPremiumEmail({
-                            preheaderText: schedItem.subject,
+                            preheaderText: personalizedSubject,
                             bannerSrc: campaignBanner?.src, bannerAlt: campaignBanner?.alt, subtitle: campaignBanner?.subtitle,
-                            headline: schedItem.subject,
-                            bodyHtml: schedItem.content,
+                            headline: personalizedSubject,
+                            bodyHtml: personalizedBody,
                             unsubscribeUrl,
                             socialLinks: schedSocialLinks
                         });
                         const result = await sendEmail({
                             to: sub.email,
-                            subject: schedItem.subject,
+                            subject: personalizedSubject,
                             htmlContent: html,
                             preWrapped: true,
-                            titleOverride: schedItem.subject,
+                            titleOverride: personalizedSubject,
                             attachments: jobAttachments,
                             trigger_event: 'Newsletter: Scheduled Campaign'
                         });
@@ -7757,12 +7841,33 @@ function scheduleNewsletterSend(schedItem) {
     scheduledJobs[schedItem.id] = job;
 }
 
-// Newsletter Preview — returns the exact branded HTML the recipient will see
-app.post('/api/admin/newsletter/preview', requireAdmin, newsletterUpload.none(), (req, res) => {
+// Newsletter Preview — renders through the exact same path a real send uses
+// (emailComponents.renderPremiumEmail + the resolved newsletter_campaign banner), so what an
+// admin previews is what subscribers actually get. Previously used the older emailTemplates
+// wrapper, which had drifted from the real send rendering.
+app.post('/api/admin/newsletter/preview', requireAdmin, newsletterUpload.none(), async (req, res) => {
     try {
         const { subject, content } = req.body;
         if (!content) return res.status(400).json({ success: false, message: 'Content is required.' });
-        const html = emailTemplates.createEmailWrapper(content, subject || 'Newsletter Preview', '#', process.env.EMAIL_BANNER || null);
+
+        const sampleSubscriber = {
+            first_name: 'Alex', email: 'alex@example.com',
+            subscribed_at: new Date().toISOString(),
+            birthday_day: new Date().getDate(), birthday_month: new Date().getMonth() + 1
+        };
+        const previewSubject = applyMergeFields(subject || 'Newsletter Preview', sampleSubscriber, '#');
+        const previewBody = applyMergeFields(content, sampleSubscriber, '#');
+
+        const { socialLinks } = await getEmailFooterContext();
+        const banner = await bannerRegistry.resolveBanner('newsletter_campaign');
+        const html = emailComponents.renderPremiumEmail({
+            preheaderText: previewSubject,
+            bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+            headline: previewSubject,
+            bodyHtml: previewBody,
+            unsubscribeUrl: '#',
+            socialLinks
+        });
         res.json({ success: true, html });
     } catch(e) {
         console.error('[Preview] Error generating preview:', e.message);
@@ -7771,7 +7876,7 @@ app.post('/api/admin/newsletter/preview', requireAdmin, newsletterUpload.none(),
 });
 
 // Create Scheduled Newsletter
-app.post('/api/admin/newsletter/schedule', requireAdmin, newsletterUpload.array('attachments', 10), (req, res) => {
+app.post('/api/admin/newsletter/schedule', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.array('attachments', 10), (req, res) => {
     const { subject, content, scheduled_at } = req.body;
     if (!content) return res.status(400).json({ success: false, message: 'Content is required.' });
     if (!scheduled_at) return res.status(400).json({ success: false, message: 'scheduled_at is required.' });
@@ -7806,7 +7911,7 @@ app.get('/api/admin/newsletter/schedule', requireAdmin, (req, res) => {
 });
 
 // Cancel Scheduled Newsletter
-app.delete('/api/admin/newsletter/schedule/:id', requireAdmin, (req, res) => {
+app.delete('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { id } = req.params;
     // Fetch attachment paths before cancelling so we can clean up files
     db.get("SELECT attachment_paths FROM scheduled_newsletters WHERE id = ? AND status = 'pending'", [id], (fetchErr, row) => {
@@ -7828,7 +7933,7 @@ app.delete('/api/admin/newsletter/schedule/:id', requireAdmin, (req, res) => {
 });
 
 // Update Scheduled Newsletter
-app.put('/api/admin/newsletter/schedule/:id', requireAdmin, newsletterUpload.array('attachments', 10), (req, res) => {
+app.put('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.array('attachments', 10), (req, res) => {
     const { subject, content, scheduled_at } = req.body;
     const { id } = req.params;
     const newFiles = req.files || [];
@@ -7874,7 +7979,7 @@ app.put('/api/admin/newsletter/schedule/:id', requireAdmin, newsletterUpload.arr
 // ==========================================
 // Admin Newsletter Dispatch Route
 // ==========================================
-app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachments', 10), async (req, res) => {
+app.post('/api/admin/campaigns', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.array('attachments', 10), async (req, res) => {
     const { subject, message } = req.body;
     const uploadedFiles = req.files || [];
 
@@ -7886,7 +7991,7 @@ app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachmen
     const attachments = uploadedFiles.map(f => ({ filename: f.originalname, path: f.path }));
 
     // First fetch all active subscribers
-    db.all("SELECT email, unsubscribe_token FROM newsletter_subscribers WHERE status = 'active'", [], async (err, rows) => {
+    db.all("SELECT email, unsubscribe_token, first_name, subscribed_at, birthday_day, birthday_month FROM newsletter_subscribers WHERE status = 'active'", [], async (err, rows) => {
         if (err) {
             uploadedFiles.forEach(f => fs.unlink(f.path, () => {}));
             return res.status(500).json({ success: false, message: 'Database error fetching subscribers' });
@@ -7902,8 +8007,8 @@ app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachmen
 
         console.log(`Starting premium newsletter dispatch to ${rows.length} recipients...`);
 
-        // Campaign content is the admin's own authored HTML — rendered verbatim as bodyHtml, just
-        // wrapped with the brand shell + a per-recipient unsubscribe link.
+        // Campaign content is the admin's own authored HTML — run through the merge-field engine
+        // per recipient, then wrapped with the brand shell + a per-recipient unsubscribe link.
         const { socialLinks: campaignSocialLinks } = await getEmailFooterContext();
         const campaignBanner = await bannerRegistry.resolveBanner('newsletter_campaign');
         for (const sub of rows) {
@@ -7912,20 +8017,22 @@ app.post('/api/admin/campaigns', requireAdmin, newsletterUpload.array('attachmen
                 const unsubscribeUrl = sub.unsubscribe_token
                     ? `${emailBaseUrl()}/unsubscribe.html?token=${sub.unsubscribe_token}&email=${encodeURIComponent(recipientEmail)}`
                     : null;
+                const personalizedSubject = applyMergeFields(subject, sub, unsubscribeUrl);
+                const personalizedBody = applyMergeFields(message, sub, unsubscribeUrl);
                 const html = emailComponents.renderPremiumEmail({
-                    preheaderText: subject,
+                    preheaderText: personalizedSubject,
                     bannerSrc: campaignBanner?.src, bannerAlt: campaignBanner?.alt, subtitle: campaignBanner?.subtitle,
-                    headline: subject,
-                    bodyHtml: message,
+                    headline: personalizedSubject,
+                    bodyHtml: personalizedBody,
                     unsubscribeUrl,
                     socialLinks: campaignSocialLinks
                 });
                 const result = await sendEmail({
                     to: recipientEmail,
-                    subject: subject,
+                    subject: personalizedSubject,
                     htmlContent: html,
                     preWrapped: true,
-                    titleOverride: subject,
+                    titleOverride: personalizedSubject,
                     attachments,
                     trigger_event: 'Newsletter: Campaign Dispatch'
                 });
@@ -13461,12 +13568,8 @@ app.delete('/api/admin/gallery/:id', requireAdmin, requireRole(['administrator']
 });
 
 // --- Subscribers & Campaigns ---
-app.get('/api/admin/subscribers', requireAdmin, (req, res) => {
-    db.all("SELECT * FROM newsletter_subscribers ORDER BY subscribed_at DESC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
+// (Quick Wins) Removed legacy GET /api/admin/subscribers — an unpaginated duplicate of
+// GET /api/admin/newsletter/subscribers, which the admin UI actually calls.
 // (D11) Removed legacy GET /api/admin/campaigns — superseded by GET /api/admin/campaigns/unified
 // (the only campaigns-list route the frontend calls). The POST /api/admin/campaigns send route is unaffected.
 app.delete('/api/admin/campaigns/:id', requireAdmin, requireRole(['administrator']), (req, res) => {

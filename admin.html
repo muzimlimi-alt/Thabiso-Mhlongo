@@ -10030,8 +10030,12 @@
                                         </button>
                                     </div>
                                 </div>
-                                <form id="addSubscriberForm" style="display: flex; gap: 10px; margin-bottom: 20px;">
-                                    <div class="um-input-wrap" style="flex-grow:1;">
+                                <form id="addSubscriberForm" style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap:wrap;">
+                                    <div class="um-input-wrap" style="flex:1; min-width:160px;">
+                                        <i class="fa-regular fa-user um-input-icon"></i>
+                                        <input type="text" id="newSubscriberFirstName" class="um-input" placeholder="First name (optional)">
+                                    </div>
+                                    <div class="um-input-wrap" style="flex:2; min-width:200px;">
                                         <i class="fa-regular fa-envelope um-input-icon"></i>
                                         <input type="email" id="newSubscriberEmail" class="um-input" placeholder="Add email manually..." required>
                                     </div>
@@ -10072,6 +10076,7 @@
                                                 <th style="border:none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; width:40px;">
                                                     <input type="checkbox" id="selectAllSubscribers" title="Select All" style="accent-color: var(--atl-amber); cursor:pointer;">
                                                 </th>
+                                                <th style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Name</th>
                                                 <th style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Email</th>
                                                 <th style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Date</th>
                                                 <th style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Status</th>
@@ -21372,6 +21377,7 @@
                 
                 var safeEmail = $('<span>').text(sub.email || '').html();
                 var safeEmailLower = $('<span>').text((sub.email || '').toLowerCase()).html();
+                var safeName = sub.first_name ? $('<span>').text(sub.first_name).html() : '<span style="color:var(--atl-muted);">—</span>';
                 var isActive = sub.status === 'active';
                 var statusHtml = isActive
                     ? '<span class="atl-badge atl-badge--confirmed">Active</span>'
@@ -21385,6 +21391,9 @@
                         <td style="vertical-align: middle; border: none; width:40px;">
                             <input type="checkbox" class="subscriber-checkbox" data-id="${sub.subscriber_id}" style="accent-color: var(--atl-amber); cursor:pointer;">
                         </td>
+                        <td style="font-size: 12px; vertical-align: middle; border: none;">
+                            ${safeName}
+                        </td>
                         <td style="font-family: monospace; font-size: 12px; vertical-align: middle; border: none; word-break: break-all;">
                             ${safeEmail}
                         </td>
@@ -21393,6 +21402,9 @@
                         </td>
                         <td style="vertical-align: middle; border: none;">${statusHtml}</td>
                         <td style="vertical-align: middle; border: none; text-align: right; white-space: nowrap;">
+                            <button class="atl-btn atl-btn--ghost edit-subscriber-btn" data-id="${sub.subscriber_id}" title="Edit">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
                             <button class="atl-btn atl-btn--ghost toggle-subscriber-btn" data-id="${sub.subscriber_id}" data-current-status="${sub.status}" title="${toggleTitle}">
                                 ${toggleAction}
                             </button>
@@ -21650,11 +21662,19 @@
         function exportSubscribersCSV(dataArray) {
             const list = dataArray || window.subscribersData;
             if (!list.length) return;
-            let csv = "data:text/csv;charset=utf-8,ID,Email,Status,Date Subscribed,IP Address,User Agent,Source\r\n";
+            let csv = "data:text/csv;charset=utf-8,ID,First Name,Email,Status,Date Subscribed,Birthday,Tags,Internal Notes,IP Address,User Agent,Source\r\n";
             list.forEach(row => {
                 const escapedEmail = row.email.replace(/"/g, '""');
+                const escapedName = (row.first_name || '').replace(/"/g, '""');
                 const escapedUA = (row.user_agent || '').replace(/"/g, '""');
-                csv += [row.subscriber_id, `"${escapedEmail}"`, row.status, row.subscribed_at, row.ip_address || '', `"${escapedUA}"`, row.source || ''].join(",") + "\r\n";
+                const escapedNotes = (row.internal_notes || '').replace(/"/g, '""');
+                const birthday = (row.birthday_day && row.birthday_month)
+                    ? String(row.birthday_month).padStart(2, '0') + '-' + String(row.birthday_day).padStart(2, '0')
+                    : '';
+                let tags = [];
+                try { tags = row.tags ? JSON.parse(row.tags) : []; } catch (e) {}
+                const escapedTags = (Array.isArray(tags) ? tags.join(';') : '').replace(/"/g, '""');
+                csv += [row.subscriber_id, `"${escapedName}"`, `"${escapedEmail}"`, row.status, row.subscribed_at, birthday, `"${escapedTags}"`, `"${escapedNotes}"`, row.ip_address || '', `"${escapedUA}"`, row.source || ''].join(",") + "\r\n";
             });
             const link = document.createElement('a');
             link.href = encodeURI(csv);
@@ -21685,15 +21705,17 @@
         $('#addSubscriberForm').on('submit', async function(e) {
             e.preventDefault();
             const email = $('#newSubscriberEmail').val().trim();
+            const firstName = $('#newSubscriberFirstName').val().trim();
             if (!email) return;
 
             const $btn = $(this).find('button[type="submit"]');
             $btn.prop('disabled', true).text('Adding...');
 
             try {
-                const res = await apiCall('/api/admin/newsletter/subscribers', 'POST', { email: email });
+                const res = await apiCall('/api/admin/newsletter/subscribers', 'POST', { email: email, first_name: firstName });
                 if (res && res.success) {
                     $('#newSubscriberEmail').val('');
+                    $('#newSubscriberFirstName').val('');
                     window.notificationService.showSuccess("Subscriber added successfully!");
                     renderSubscribersList();
                 } else if (res && res.message && res.message.includes('already subscribed')) {
@@ -21706,6 +21728,77 @@
                 window.notificationService.showError("An error occurred. Please try again.");
             } finally {
                 $btn.prop('disabled', false).text('Add');
+            }
+        });
+
+        // Edit Subscriber drawer — populate Day/Month select options once
+        (function populateSubscriberBirthdaySelects() {
+            const $day = $('#editSubscriberBirthdayDay');
+            for (let d = 1; d <= 31; d++) $day.append(`<option value="${d}">${d}</option>`);
+            const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+            const $month = $('#editSubscriberBirthdayMonth');
+            months.forEach((name, i) => $month.append(`<option value="${i + 1}">${name}</option>`));
+        })();
+
+        // Open the Edit Subscriber drawer, pre-filled from the already-fetched subscribersData
+        // (client-side lookup — no need for a separate GET-by-id endpoint).
+        $(document).on('click', '.edit-subscriber-btn', function() {
+            const id = $(this).data('id');
+            const sub = (subscribersData || []).find(s => String(s.subscriber_id) === String(id));
+            if (!sub) return;
+
+            $('#editSubscriberId').val(sub.subscriber_id);
+            $('#editSubscriberEmail').val(sub.email || '');
+            $('#editSubscriberFirstName').val(sub.first_name || '');
+            $('#editSubscriberBirthdayDay').val(sub.birthday_day || '');
+            $('#editSubscriberBirthdayMonth').val(sub.birthday_month || '');
+            let tags = [];
+            try { tags = sub.tags ? JSON.parse(sub.tags) : []; } catch (e) {}
+            $('#editSubscriberTags').val(Array.isArray(tags) ? tags.join(', ') : '');
+            $('#editSubscriberNotes').val(sub.internal_notes || '');
+            $('#errEditSubscriberBirthday').hide();
+            $('#editSubscriberFeedback').text('');
+
+            openAtlDrawer('editSubscriberDrawer');
+        });
+
+        $('#editSubscriberForm').on('submit', async function(e) {
+            e.preventDefault();
+            const id = $('#editSubscriberId').val();
+            const day = $('#editSubscriberBirthdayDay').val();
+            const month = $('#editSubscriberBirthdayMonth').val();
+            $('#errEditSubscriberBirthday').hide();
+            if ((day && !month) || (!day && month)) {
+                $('#errEditSubscriberBirthday').text('Please select both a day and a month.').show();
+                return;
+            }
+
+            const tags = $('#editSubscriberTags').val().split(',').map(t => t.trim()).filter(Boolean);
+            const payload = {
+                first_name: $('#editSubscriberFirstName').val().trim(),
+                birthday_day: day || null,
+                birthday_month: month || null,
+                tags: tags,
+                internal_notes: $('#editSubscriberNotes').val()
+            };
+
+            const $btn = $('#editSubscriberSubmit');
+            $btn.prop('disabled', true);
+
+            try {
+                const res = await apiCall('/api/admin/newsletter/subscribers/' + id, 'PUT', payload);
+                if (res && res.success) {
+                    window.notificationService.showSuccess('Subscriber updated.');
+                    closeAtlDrawer('editSubscriberDrawer');
+                    renderSubscribersList();
+                } else {
+                    window.notificationService.showError((res && res.message) || 'Could not update subscriber.');
+                }
+            } catch (err) {
+                console.error('Error updating subscriber:', err);
+                window.notificationService.showError('An error occurred. Please try again.');
+            } finally {
+                $btn.prop('disabled', false);
             }
         });
 
@@ -22301,8 +22394,8 @@
             const restrictedTiles = [];
 
             if (isAssistant) {
-                restrictedSidebar.push('a[href="#financeAdmin"]');
-                restrictedTiles.push('financeAdmin');
+                restrictedSidebar.push('a[href="#financeAdmin"]', 'a[href="#newsletterAdmin"]');
+                restrictedTiles.push('financeAdmin', 'newsletterAdmin');
 
                 // Hide Finance group title
                 const financeHeaders = Array.from(document.querySelectorAll('.tm-sidebar-group-title')).filter(el => el.textContent.includes('Finance'));
@@ -23803,6 +23896,70 @@
         </div>
     </div>
 
+    <!-- Edit Subscriber side drawer (atl-drawer pattern, matches umAddUserDrawer) -->
+    <div id="editSubscriberDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('editSubscriberDrawer')"></div>
+    <div id="editSubscriberDrawer" class="atl-drawer atl-drawer--480" role="dialog" aria-labelledby="editSubscriberDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="editSubscriberDrawerTitle"><i class="fa-solid fa-user-pen"></i> Edit Subscriber</h5>
+            <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('editSubscriberDrawer')" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <form id="editSubscriberForm" class="um-form" autocomplete="off">
+                <input type="hidden" id="editSubscriberId" value="">
+                <div class="um-form-grid">
+                    <div class="um-field-group">
+                        <label class="um-label">Email</label>
+                        <div class="um-input-wrap">
+                            <i class="fa-regular fa-envelope um-input-icon"></i>
+                            <input type="text" class="um-input" id="editSubscriberEmail" disabled>
+                        </div>
+                    </div>
+                    <div class="um-field-group">
+                        <label class="um-label" for="editSubscriberFirstName">First Name</label>
+                        <div class="um-input-wrap">
+                            <i class="fa-regular fa-user um-input-icon"></i>
+                            <input type="text" class="um-input" id="editSubscriberFirstName" placeholder="First name" maxlength="100">
+                        </div>
+                    </div>
+                    <div class="um-field-group">
+                        <label class="um-label">Birthday <span style="color:var(--atl-muted); font-weight:400;">(day &amp; month only — no year)</span></label>
+                        <div style="display:flex; gap:10px;">
+                            <div class="um-input-wrap" style="flex:1;">
+                                <select class="um-input" id="editSubscriberBirthdayDay" aria-label="Birthday day">
+                                    <option value="">Day</option>
+                                </select>
+                            </div>
+                            <div class="um-input-wrap" style="flex:1.4;">
+                                <select class="um-input" id="editSubscriberBirthdayMonth" aria-label="Birthday month">
+                                    <option value="">Month</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="atl-field-error" id="errEditSubscriberBirthday" style="display:none;"></div>
+                    </div>
+                    <div class="um-field-group">
+                        <label class="um-label" for="editSubscriberTags">Tags <span style="color:var(--atl-muted); font-weight:400;">(comma-separated)</span></label>
+                        <div class="um-input-wrap">
+                            <i class="fa-solid fa-tags um-input-icon"></i>
+                            <input type="text" class="um-input" id="editSubscriberTags" placeholder="e.g. vip, booking-client">
+                        </div>
+                    </div>
+                    <div class="um-field-group">
+                        <label class="um-label" for="editSubscriberNotes">Internal Notes</label>
+                        <textarea class="um-input" id="editSubscriberNotes" rows="3" placeholder="Not visible to the subscriber" maxlength="2000"></textarea>
+                    </div>
+                </div>
+                <div class="um-form-actions">
+                    <button type="submit" class="atl-btn atl-btn--primary" id="editSubscriberSubmit">
+                        <i class="fa-solid fa-floppy-disk"></i> Save Changes
+                    </button>
+                    <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('editSubscriberDrawer')">Cancel</button>
+                </div>
+                <div class="um-feedback" id="editSubscriberFeedback" role="status" aria-live="polite"></div>
+            </form>
+        </div>
+    </div>
+
     <!-- recordPaymentDrawer backdrop -->
     <div id="recordPaymentDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('recordPaymentDrawer')"></div>
     <!-- recordPaymentDrawer -->
@@ -25049,7 +25206,7 @@
             restricted.push('brandingAdmin', 'preferencesAdmin', 'usersAdmin', 'securityAdmin', 'emailLogsAdmin');
         }
         if (role === 'assistant') {
-            restricted.push('financeAdmin');
+            restricted.push('financeAdmin', 'newsletterAdmin');
         }
         if (restricted.includes(sectionId)) {
             window.notificationService && window.notificationService.showError('Access denied: You do not have permission to view this section.');

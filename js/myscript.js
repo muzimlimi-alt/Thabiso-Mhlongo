@@ -932,7 +932,6 @@ document.addEventListener("DOMContentLoaded", function() {
     // INITIALIZE NEWSLETTER SUBSCRIPTION
     // ==========================================
     var $newsletterForm = $('#newsletterSubscribeForm');
-    var $newsletterStatus = $('#newsletterSubscribeStatus');
 
     if ($newsletterForm.length) {
         $newsletterForm.on('submit', async function(e) {
@@ -960,11 +959,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     $newsletterForm.find('input[type="email"]').val('');
                     window.notificationService.showSuccess('Awesome! You have been added to the mailing list.');
                 }
-
-                // hide message after 5s
-                setTimeout(function() {
-                    $newsletterStatus.fadeOut(500);
-                }, 5000);
 
             } catch (err) {
                 console.error("Newsletter Subscription Error:", err);

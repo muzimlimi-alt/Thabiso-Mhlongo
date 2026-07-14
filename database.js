@@ -1329,6 +1329,20 @@ function initializeDatabase() {
         // bookings.completed_at timestamp
         db.run("ALTER TABLE bookings ADD COLUMN completed_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: bookings.completed_at already exists."); });
 
+        // Newsletter subscribers: close schema drift — these two columns are read/written
+        // throughout server.js but were only ever added to the live DB by a one-off standalone
+        // migration script, never to this declarative schema. A fresh clone was missing them.
+        db.run("ALTER TABLE newsletter_subscribers ADD COLUMN active INTEGER DEFAULT 1", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE newsletter_subscribers ADD COLUMN unsubscribe_token TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        // Newsletter subscribers: personalization foundation (first name + day/month-only birthday,
+        // no year — used for recurring annual birthday automation and merge-field personalization)
+        db.run("ALTER TABLE newsletter_subscribers ADD COLUMN first_name TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE newsletter_subscribers ADD COLUMN birthday_day INTEGER", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE newsletter_subscribers ADD COLUMN birthday_month INTEGER", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE newsletter_subscribers ADD COLUMN tags TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE newsletter_subscribers ADD COLUMN internal_notes TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run(`CREATE INDEX IF NOT EXISTS idx_newsletter_subscribers_birthday ON newsletter_subscribers(birthday_month, birthday_day)`);
+
         // bookings: admin notes + background clerk tracking columns
         db.run("ALTER TABLE bookings ADD COLUMN admin_notes TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN quote_expiry_warned DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
