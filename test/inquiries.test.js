@@ -238,4 +238,41 @@ module.exports = async function ({ check }) {
         const inquiryRow = await one("SELECT converted_booking_id FROM inquiries WHERE inquiry_id = ?", [inquiryId]);
         check('CP11: inquiries.converted_booking_id persisted (bidirectional link)', !!inquiryRow && inquiryRow.converted_booking_id === newBookingId, JSON.stringify(inquiryRow));
     }
+
+    // ── CP12: SLA / response-time tracking (purely derived, no background job) ──
+    const slaEmail = 'sla.test.target@example.invalid';
+    await pub('POST', '/send-email', { name: 'SLA Test', email: slaEmail, message: 'sla test', subject: 'SLA test', category: 'General', popia_consent: true });
+    const slaSeed = await one("SELECT inquiry_id FROM inquiries WHERE sender_email = ? ORDER BY inquiry_id DESC LIMIT 1", [slaEmail]);
+    const slaInquiryId = slaSeed && slaSeed.inquiry_id;
+
+    // Backdate submitted_at past the default 24h SLA window (bypasses the trigger — status untouched)
+    await run("UPDATE inquiries SET submitted_at = datetime('now', '-25 hours') WHERE inquiry_id = ?", [slaInquiryId]);
+
+    const overdueList = await api('GET', '/api/admin/inquiries?limit=100');
+    check('CP12: response envelope includes sla_hours (default 24)', overdueList.status === 200 && overdueList.body.sla_hours === 24, JSON.stringify(overdueList.body.sla_hours));
+    const overdueRow = overdueList.body.inquiries.find(r => r.inquiry_id === slaInquiryId);
+    check('CP12: inquiry past the SLA window is flagged overdue', !!overdueRow && overdueRow.overdue === 1, JSON.stringify(overdueRow));
+
+    const reply1 = await api('POST', '/api/admin/direct-emails', { inquiry_id: slaInquiryId, to_emails: slaEmail, subject: 'Re: SLA test', body: 'first reply body' });
+    const reply1Id = reply1.body && reply1.body.email && reply1.body.email.id;
+    check('CP12: seed first reply draft -> 200', reply1.status === 200 && !!reply1Id, JSON.stringify(reply1.body));
+
+    if (reply1Id) {
+        await api('POST', `/api/admin/direct-emails/${reply1Id}/send`);
+        const afterReply1 = await one("SELECT status, responded_at FROM inquiries WHERE inquiry_id = ?", [slaInquiryId]);
+        check('CP12: responded_at set on first reply, status flips to replied', !!afterReply1 && afterReply1.status === 'replied' && !!afterReply1.responded_at, JSON.stringify(afterReply1));
+        const firstRespondedAt = afterReply1.responded_at;
+
+        const reply2 = await api('POST', '/api/admin/direct-emails', { inquiry_id: slaInquiryId, to_emails: slaEmail, subject: 'Re: SLA test (2)', body: 'second reply body' });
+        const reply2Id = reply2.body && reply2.body.email && reply2.body.email.id;
+        if (reply2Id) {
+            await api('POST', `/api/admin/direct-emails/${reply2Id}/send`);
+            const afterReply2 = await one("SELECT responded_at FROM inquiries WHERE inquiry_id = ?", [slaInquiryId]);
+            check('CP12: responded_at NOT overwritten by a second reply (first-response only)', !!afterReply2 && afterReply2.responded_at === firstRespondedAt, JSON.stringify({ first: firstRespondedAt, second: afterReply2 && afterReply2.responded_at }));
+        }
+
+        const afterReplyList = await api('GET', '/api/admin/inquiries?limit=100');
+        const afterReplyRow = afterReplyList.body.inquiries.find(r => r.inquiry_id === slaInquiryId);
+        check('CP12: replied inquiry no longer flagged overdue (status left unread/read window)', !!afterReplyRow && afterReplyRow.overdue === 0, JSON.stringify(afterReplyRow));
+    }
 };

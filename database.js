@@ -142,6 +142,7 @@ function initializeDatabase() {
         db.run("ALTER TABLE inquiries ADD COLUMN assigned_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.assigned_at already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN priority TEXT DEFAULT 'normal'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.priority already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN converted_booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.converted_booking_id already exists or error: " + err.message); });
+        db.run("ALTER TABLE inquiries ADD COLUMN responded_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.responded_at already exists or error: " + err.message); });
 
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_submitted_at ON inquiries(submitted_at)`);
@@ -1420,6 +1421,7 @@ function initializeDatabase() {
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (45, 'inquiries_priority')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (46, 'inquiry_notes')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (47, 'inquiries_bookings_conversion_link')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (48, 'inquiries_sla_response_tracking')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (99, 'full_schema_history_reconstructed_2026_06_19')`);
         // END schema_migrations seeds
 
@@ -1507,7 +1509,8 @@ function initializeDatabase() {
             ['cancellation_policy', 'Cancellations made 30+ days before the event receive a full refund minus a 10% admin fee. Cancellations 14-29 days receive 50% refund. Cancellations within 14 days are non-refundable.'],
             ['deposit_percentage', '50'],
             ['quote_validity_days', '7'],
-            ['payment_terms', '50% non-refundable deposit due upon acceptance of quote. Remaining balance due 48 hours before the event.']
+            ['payment_terms', '50% non-refundable deposit due upon acceptance of quote. Remaining balance due 48 hours before the event.'],
+            ['inquiry_response_sla_hours', '24']
         ];
         defaultPolicies.forEach(p => {
             db.run(`INSERT OR IGNORE INTO policies (policy_key, policy_value) VALUES (?, ?)`, p);

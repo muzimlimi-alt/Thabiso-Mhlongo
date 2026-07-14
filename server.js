@@ -13596,12 +13596,18 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
     const countSql = `SELECT COUNT(*) AS total FROM inquiries ${whereClause}`;
-    const dataSql  = `SELECT inquiries.*, COALESCE(admins.full_name, admins.username) AS assigned_to_name
-                       FROM inquiries LEFT JOIN admins ON admins.id = inquiries.assigned_to
-                       ${whereClause} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
 
     // Folder badge counts are global totals (independent of current filter/search).
-    db.all("SELECT status, COUNT(*) AS c FROM inquiries GROUP BY status", [], (errC, countRows) => {
+    db.get("SELECT policy_value FROM policies WHERE policy_key = 'inquiry_response_sla_hours'", [], (errS, slaRow) => {
+        const slaHours = (!errS && slaRow && parseInt(slaRow.policy_value) > 0) ? parseInt(slaRow.policy_value) : 24;
+        // overdue: still awaiting a first response and past the SLA window — purely derived at query
+        // time from submitted_at vs the policy value, no background job needed.
+        const dataSql = `SELECT inquiries.*, COALESCE(admins.full_name, admins.username) AS assigned_to_name,
+                                 CASE WHEN status IN ('unread','read') AND submitted_at < datetime('now', '-' || ? || ' hours') THEN 1 ELSE 0 END AS overdue
+                          FROM inquiries LEFT JOIN admins ON admins.id = inquiries.assigned_to
+                          ${whereClause} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
+
+        db.all("SELECT status, COUNT(*) AS c FROM inquiries GROUP BY status", [], (errC, countRows) => {
         if (errC) return res.status(500).json({ success: false, message: errC.message });
         const counts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0, drafts: 0, scheduled: 0, mine: 0 };
         (countRows || []).forEach(r => {
@@ -13623,13 +13629,14 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
 
             db.get(countSql, qp, (err, countRow) => {
                 if (err) return res.status(500).json({ success: false, message: err.message });
-                db.all(dataSql, [...qp, limit, offset], (err2, rows) => {
+                db.all(dataSql, [slaHours, ...qp, limit, offset], (err2, rows) => {
                     if (err2) return res.status(500).json({ success: false, message: err2.message });
                     const total = countRow.total;
-                    res.json({ success: true, inquiries: rows, counts, total, page, pages: Math.ceil(total / limit) });
+                    res.json({ success: true, inquiries: rows, counts, total, page, pages: Math.ceil(total / limit), sla_hours: slaHours });
                 });
             });
             });
+        });
         });
     });
 });
@@ -13921,7 +13928,8 @@ async function sendDirectEmail(id) {
                 if (result.success) {
                     db.run("UPDATE direct_emails SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id], (updErr) => {
                         if (emailItem.inquiry_id) {
-                            db.run("UPDATE inquiries SET status = 'replied' WHERE inquiry_id = ?", [emailItem.inquiry_id]);
+                            // responded_at only set once — first response, not every subsequent reply
+                            db.run("UPDATE inquiries SET status = 'replied', responded_at = COALESCE(responded_at, CURRENT_TIMESTAMP) WHERE inquiry_id = ?", [emailItem.inquiry_id]);
                         }
                         resolve();
                     });

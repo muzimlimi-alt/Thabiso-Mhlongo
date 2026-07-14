@@ -3397,6 +3397,17 @@
         .inq-priority-dot--high { background: var(--atl-orange); }
         .inq-priority-dot--urgent { background: var(--atl-clay); }
 
+        /* SLA overdue indicator (CP12) — purely derived server-side, no background job */
+        .inq-overdue-flag { color: var(--atl-clay); font-size: 11px; margin-right: 4px; }
+        .inq-overdue-badge {
+            display: inline-flex; align-items: center; gap: 4px;
+            background: color-mix(in srgb, var(--atl-clay) 12%, transparent);
+            color: var(--atl-clay);
+            border: 1px solid color-mix(in srgb, var(--atl-clay) 30%, transparent);
+            border-radius: var(--atl-r-pill); padding: 2px 9px; font-size: 10px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px; margin-left: 6px;
+        }
+
         /* Bulk select, bulk bar, pagination */
         .inq-selectall { accent-color: var(--atl-amber); cursor: pointer; width: 15px; height: 15px; }
         .inq-row-check { accent-color: var(--atl-amber); cursor: pointer; width: 15px; height: 15px; margin: 2px 4px 0 0; flex: 0 0 auto; align-self: flex-start; }
@@ -8345,6 +8356,17 @@
                                             <div class="um-input-wrap">
                                                 <i class="fa-solid fa-calendar-day um-input-icon"></i>
                                                 <input type="number" id="polQuoteValidity" class="atl-input um-input" min="1" placeholder="7">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="um-field-group">
+                                            <label class="um-label" for="polInquirySlaHours">Inquiry Response SLA (hours)</label>
+                                            <div class="um-input-wrap">
+                                                <i class="fa-solid fa-stopwatch um-input-icon"></i>
+                                                <input type="number" id="polInquirySlaHours" class="atl-input um-input" min="1" placeholder="24">
                                             </div>
                                         </div>
                                     </div>
@@ -16308,6 +16330,9 @@
                 const categoryPill = row.category
                     ? `<span class="inq-chip" style="margin-left:6px; flex-shrink:0;"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${$('<s>').text(row.category).html()}</span>`
                     : '';
+                const overdueFlag = row.overdue
+                    ? `<i class="fa-solid fa-clock inq-overdue-flag" title="Overdue: past the response SLA" aria-label="Overdue: past the response SLA"></i>`
+                    : '';
 
                 $body.append(`
 <div class="inq-row ${unreadClass} ${isActive}" data-id="${row.inquiry_id}" role="button" tabindex="0" aria-label="Message from ${escapedName}: ${escapedSubject}">
@@ -16315,7 +16340,7 @@
     <div class="inq-row-avatar" aria-hidden="true">${rowInitial}</div>
     <div class="inq-row-main">
         <div class="inq-row-top">
-            <span class="inq-row-name">${priorityFlag}${escapedName}</span>${assigneeChip}${categoryPill}
+            <span class="inq-row-name">${overdueFlag}${priorityFlag}${escapedName}</span>${assigneeChip}${categoryPill}
             <span class="inq-row-date" style="margin-left:auto;">${dateStr}</span>
         </div>
         <div class="inq-row-subject">${escapedSubject}</div>
@@ -16342,6 +16367,7 @@
             $('#inqReadStatusBadge')
                 .text(inqStatusLabel(inquiry.status))
                 .attr('class', 'inq-read-status-badge inq-badge ' + inqStatusBadgeClass(inquiry.status));
+            $('#inqOverdueBadge').toggle(!!inquiry.overdue);
 
             // Metadata chips
             let chips = '';
@@ -23313,6 +23339,7 @@
                         <div class="inq-read-date" id="inqReadDate"></div>
                     </div>
                     <span class="inq-read-status-badge" id="inqReadStatusBadge"></span>
+                    <span class="inq-overdue-badge" id="inqOverdueBadge" style="display:none;"><i class="fa-solid fa-clock" aria-hidden="true"></i> Overdue</span>
                 </div>
 
                 <div class="inq-read-chips" id="inqReadChips" aria-label="Message details"></div>
@@ -29726,6 +29753,7 @@
                 if (p.cancellation_policy) $('#polCancellation').val(p.cancellation_policy);
                 if (p.reminder_days_1 !== undefined) $('#polReminderDays1').val(p.reminder_days_1);
                 if (p.reminder_days_2 !== undefined) $('#polReminderDays2').val(p.reminder_days_2);
+                if (p.inquiry_response_sla_hours !== undefined) $('#polInquirySlaHours').val(p.inquiry_response_sla_hours);
             }
         } catch(e) {
             console.error('Failed to load policies:', e);
@@ -29761,7 +29789,8 @@
             payment_terms: $('#polPaymentTerms').val(),
             cancellation_policy: $('#polCancellation').val(),
             reminder_days_1: $('#polReminderDays1').val() || '7',
-            reminder_days_2: $('#polReminderDays2').val() || '2'
+            reminder_days_2: $('#polReminderDays2').val() || '2',
+            inquiry_response_sla_hours: $('#polInquirySlaHours').val() || '24'
         };
         try {
             await apiCall('/api/admin/policies', 'PUT', { policies });
