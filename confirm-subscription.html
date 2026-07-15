@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirm Subscription | Thabiso Mhlongo</title>
+    <link rel="icon" href="images/icon/logo5.png" type="image/png" sizes="16x16">
+
+    <!-- Core Stylesheets matching index.html theme -->
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/redesign.css">
+    <link rel="stylesheet" href="css/notifications.css">
+
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: var(--bg-page) !important;
+            color: var(--text-primary) !important;
+            font-family: var(--f-body), sans-serif;
+            position: relative;
+        }
+
+        /* Ambient glowing background circles matching index.html premium feel */
+        .ambient-glow {
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, var(--y-glow) 0%, transparent 70%);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            opacity: 0.25;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .unsub-container {
+            max-width: 480px;
+            width: 90%;
+            padding: 40px 30px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-low);
+            border-radius: var(--r, 8px);
+            text-align: center;
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            animation: fadeIn unsubSlideUp 0.8s ease-out;
+        }
+
+        @keyframes unsubSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .brand-logo {
+            width: 100%;
+            max-width: 220px;
+            margin: 0 auto 30px;
+            display: block;
+            transition: transform var(--t, 0.3s) var(--ease, ease);
+        }
+
+        .brand-logo:hover {
+            transform: scale(1.05);
+        }
+
+        h1 {
+            font-family: var(--f-display), serif;
+            font-weight: 300;
+            font-size: 26px;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+            color: var(--y-base);
+        }
+
+        h1 em {
+            font-style: italic;
+            color: var(--y-hover);
+        }
+
+        p {
+            font-family: var(--f-body), sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            color: var(--text-secondary);
+            margin-bottom: 30px;
+        }
+
+        /* Custom buttons styled exactly like the gold buttons in index.html */
+        .btn-unsub-confirm {
+            display: inline-block;
+            background: var(--y-base);
+            color: var(--text-inverse) !important;
+            border: 1px solid var(--y-base);
+            padding: 14px 40px;
+            font-weight: 700;
+            font-size: 12px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            border-radius: var(--r-pill, 100px);
+            cursor: pointer;
+            transition: all var(--t, 0.3s) var(--ease, ease);
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.2);
+            font-family: var(--f-body), sans-serif;
+        }
+
+        .btn-unsub-confirm:hover,
+        .btn-unsub-confirm:focus {
+            background: var(--y-hover);
+            border-color: var(--y-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px var(--y-glow);
+            outline: none;
+        }
+
+        .btn-unsub-confirm:active {
+            transform: translateY(0);
+        }
+
+        .status-message {
+            display: none;
+            margin-top: 10px;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        .success-text {
+            color: var(--y-base);
+            font-weight: 500;
+        }
+
+        .error-text {
+            color: var(--error);
+            font-weight: 500;
+        }
+
+        .footer-link-btn {
+            display: inline-block;
+            margin-top: 25px;
+            background: transparent;
+            color: var(--text-primary) !important;
+            border: 1px solid var(--border-default);
+            padding: 10px 24px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            border-radius: var(--r-pill, 100px);
+            text-decoration: none !important;
+            transition: all var(--t, 0.3s) var(--ease, ease);
+        }
+
+        .footer-link-btn:hover,
+        .footer-link-btn:focus {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--border-strong);
+            transform: translateY(-1px);
+        }
+
+        /* Loading dot animations */
+        .loading-dots:after {
+            content: ' .';
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { color: rgba(0,0,0,0); text-shadow: .5em 0 0 rgba(0,0,0,0), 1em 0 0 rgba(0,0,0,0); }
+            40% { color: var(--text-inverse); text-shadow: .5em 0 0 rgba(0,0,0,0), 1em 0 0 rgba(0,0,0,0); }
+            60% { text-shadow: .5em 0 0 var(--text-inverse), 1em 0 0 rgba(0,0,0,0); }
+            80%, 100% { text-shadow: .5em 0 0 var(--text-inverse), 1em 0 0 var(--text-inverse); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background Glow -->
+    <div class="ambient-glow"></div>
+
+    <div class="unsub-container">
+        <!-- Brand logo with optimized sizing -->
+        <img src="images/logo4.png" alt="Thabiso Mhlongo Logo" class="brand-logo site-logo">
+
+        <div id="initial-view">
+            <h1>Confirm Your <em>Subscription</em></h1>
+            <p id="msg-display">Please confirm your email to start receiving updates from Thabiso Mhlongo.</p>
+            <button id="confirm-btn" class="btn-unsub-confirm" onclick="handleConfirm()">Confirm My Subscription</button>
+        </div>
+
+        <div id="status-view" class="status-message">
+            <p id="status-text"></p>
+            <a href="index.html" class="footer-link-btn">Return to Official Website</a>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const token = urlParams.get('token');
+        const email = urlParams.get('email');
+
+        if (!token || !email) {
+            document.getElementById('msg-display').innerText = "Invalid confirmation link. Please check your email or sign up again if you continue to have issues.";
+            document.getElementById('confirm-btn').style.display = 'none';
+        }
+
+        async function handleConfirm() {
+            const btn = document.getElementById('confirm-btn');
+            const initialView = document.getElementById('initial-view');
+            const statusView = document.getElementById('status-view');
+            const statusText = document.getElementById('status-text');
+
+            btn.disabled = true;
+            btn.innerHTML = 'Confirming<span class="loading-dots"></span>';
+
+            try {
+                const response = await fetch('/api/public/newsletter/confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, email })
+                });
+
+                const data = await response.json();
+
+                initialView.style.display = 'none';
+                statusView.style.display = 'block';
+
+                if (data.alreadyConfirmed) {
+                    statusText.innerHTML = `<span class="success-text">Your subscription is already confirmed.</span><br><br>You're all set — no further action needed.`;
+                } else if (data.success) {
+                    statusText.innerHTML = `<span class="success-text">You're confirmed! Welcome to the list.</span><br><br>Thank you for confirming — you'll now receive updates from Thabiso Mhlongo.`;
+                } else {
+                    statusText.innerHTML = `<span class="error-text">${data.message || 'An error occurred.'}</span><br><br>Please try again later or sign up again from the website.`;
+                }
+            } catch (err) {
+                initialView.style.display = 'none';
+                statusView.style.display = 'block';
+                statusText.innerHTML = `<span class="error-text">Network error.</span><br><br>Please check your connection and try again.`;
+            }
+        }
+    </script>
+    <script src="js/applyBranding.js"></script>
+</body>
+</html>

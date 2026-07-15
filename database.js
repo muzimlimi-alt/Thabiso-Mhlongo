@@ -1277,6 +1277,60 @@ function initializeDatabase() {
         )`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_email_template_banners_banner_id ON email_template_banners(banner_id)`);
 
+        // Migration: add 'Birthday' to banners.category's CHECK constraint. SQLite can't ALTER a
+        // CHECK constraint, so this is the one genuine table-rebuild in this codebase (everywhere
+        // else is purely-additive ALTER TABLE ADD COLUMN). Guarded by inspecting the table's own
+        // stored SQL — self-verifying, not a separate tracking flag that could drift from reality.
+        // Written as explicit nested callbacks (not relying on serialize() queue ordering) since
+        // each step must only run after the previous one actually succeeded.
+        db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='banners'", (sqlErr, row) => {
+            if (sqlErr || !row || row.sql.includes("'Birthday'")) return;
+            console.log('[migration] Adding Birthday category to banners.category CHECK constraint...');
+            db.run("PRAGMA foreign_keys=OFF", () => {
+                db.run("BEGIN TRANSACTION", (beginErr) => {
+                    if (beginErr) { console.error('[migration] BEGIN failed:', beginErr.message); return; }
+                    db.run(`CREATE TABLE banners_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        category TEXT NOT NULL CHECK(category IN (
+                            'Booking Requests','Quotes & Proposals','Contracts & Signatures','Payments & Invoices',
+                            'Booking Confirmations','Event Reminders','Thank You & Reviews','Booking Recovery',
+                            'Contact & Support','Newsletters & Marketing','User Accounts & Security','Birthday'
+                        )),
+                        image_url TEXT NOT NULL,
+                        alt_text TEXT NOT NULL,
+                        headline TEXT,
+                        subtitle TEXT,
+                        status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived')),
+                        created_by INTEGER REFERENCES admins(id),
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )`, (createErr) => {
+                        if (createErr) { console.error('[migration] create banners_new failed:', createErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                        db.run("INSERT INTO banners_new SELECT * FROM banners", (copyErr) => {
+                            if (copyErr) { console.error('[migration] copy banners failed:', copyErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                            db.run("DROP TABLE banners", (dropErr) => {
+                                if (dropErr) { console.error('[migration] drop banners failed:', dropErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                                db.run("ALTER TABLE banners_new RENAME TO banners", (renameErr) => {
+                                    if (renameErr) { console.error('[migration] rename banners_new failed:', renameErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                                    db.run(`CREATE INDEX IF NOT EXISTS idx_banners_category ON banners(category)`);
+                                    db.run(`CREATE INDEX IF NOT EXISTS idx_banners_status ON banners(status)`);
+                                    db.run("COMMIT", (commitErr) => {
+                                        db.run("PRAGMA foreign_keys=ON");
+                                        if (commitErr) { console.error('[migration] commit failed:', commitErr.message); return; }
+                                        console.log('[migration] Birthday category added successfully.');
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+        // Registers the Birthday newsletter template key (idempotent — mirrors the seeding scripts/
+        // seed-banner-templates.js does for the other lifecycle template keys).
+        db.run(`INSERT OR IGNORE INTO email_template_banners (template_key, category) VALUES ('subscriber_birthday', 'Birthday')`);
+
         // SCHEMA MIGRATIONS TRACKING TABLE
         db.run(`CREATE TABLE IF NOT EXISTS schema_migrations (
             version INTEGER PRIMARY KEY,
@@ -1342,6 +1396,25 @@ function initializeDatabase() {
         db.run("ALTER TABLE newsletter_subscribers ADD COLUMN tags TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
         db.run("ALTER TABLE newsletter_subscribers ADD COLUMN internal_notes TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
         db.run(`CREATE INDEX IF NOT EXISTS idx_newsletter_subscribers_birthday ON newsletter_subscribers(birthday_month, birthday_day)`);
+
+        // Double opt-in: audit timestamp for when a pending_confirmation subscriber actually
+        // confirmed. Nullable — NULL for admin-added/CSV-imported subscribers (never pending)
+        // and for anyone who hasn't confirmed yet. No CHECK constraint on `status` exists (by
+        // design, see Phase 1), so the new 'pending_confirmation' status value needs no migration.
+        db.run("ALTER TABLE newsletter_subscribers ADD COLUMN confirmed_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+
+        // Newsletter campaigns/scheduled sends: persist recipient/success/fail counts instead of
+        // discarding them after the HTTP response (newsletter_campaigns) or overloading `status`
+        // with a composite "sent (n/m)" string (scheduled_newsletters) — status stays a clean value.
+        db.run("ALTER TABLE newsletter_campaigns ADD COLUMN recipient_count INTEGER", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE newsletter_campaigns ADD COLUMN success_count INTEGER", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE newsletter_campaigns ADD COLUMN fail_count INTEGER", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE scheduled_newsletters ADD COLUMN success_count INTEGER", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE scheduled_newsletters ADD COLUMN fail_count INTEGER", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        // Audience segmentation choice, persisted so a scheduled send still targets the segment
+        // the admin picked at compose time, not just "all active" once the job actually fires.
+        db.run("ALTER TABLE scheduled_newsletters ADD COLUMN segment TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run("ALTER TABLE scheduled_newsletters ADD COLUMN segment_value TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
 
         // bookings: admin notes + background clerk tracking columns
         db.run("ALTER TABLE bookings ADD COLUMN admin_notes TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });

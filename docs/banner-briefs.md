@@ -161,6 +161,18 @@ live email today.)*
   category is ever wired to a PREMIUM template in the future.
 - **Alt text:** "A minimal gold geometric line motif on a dark background."
 
+## 12. Birthday
+
+**Serves:** `subscriber_birthday` (added in the Newsletter Phase 3 migration, `database.js`)
+
+- **Headline:** "Happy Birthday, From All of Us"
+- **Subtitle:** "Here's to another year of laughs"
+- **Imagery direction:** The most overtly celebratory image in the set, but still restrained and adult —
+  a single spotlight with fine gold confetti caught mid-fall in the beam, obsidian background. No crowd,
+  no cake, no balloons — this is a one-to-one personal note, not a stage moment. Mood: warm, premium,
+  a private toast rather than a party.
+- **Alt text:** "Fine gold confetti falling through a single spotlight beam on a dark background."
+
 ---
 
 ## Coverage matrix
@@ -182,6 +194,7 @@ is unassigned — every row below has a brief above.
 | Contact & Support | `contact_auto_reply`, `inquiry_reply`, `direct_compose`, `booking_management_response` |
 | Newsletters & Marketing | `newsletter_welcome`, `newsletter_campaign` |
 | User Accounts & Security | *(SYSTEM-track only — `dashboard_invite`, `password_reset` — never renders a banner)* |
+| Birthday | `subscriber_birthday` |
 
 **32 template_keys, all 11 categories accounted for.** Two categories (Event Reminders, User Accounts &
 Security) currently have no *live* PREMIUM template but keep a brief for completeness and future use,

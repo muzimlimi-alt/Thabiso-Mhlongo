@@ -934,10 +934,41 @@ document.addEventListener("DOMContentLoaded", function() {
     var $newsletterForm = $('#newsletterSubscribeForm');
 
     if ($newsletterForm.length) {
+        // Clear a field's inline error as soon as the visitor edits it.
+        $newsletterForm.on('input change', '.tm-nl-input, #newsletterPopia', function() {
+            var $err = $(this).closest('.tm-form-group, .tm-newsletter-consent').find('.tm-field-error');
+            $err.text('');
+        });
+
         $newsletterForm.on('submit', async function(e) {
             e.preventDefault();
+
+            $newsletterForm.find('.tm-field-error').text('');
+
+            var firstName = $('#newsletterFirstName').val().trim();
             var email = $('#newsletterSubscribeEmail').val().trim();
-            if (!email) return;
+            var birthdayDay = $('#newsletterBirthdayDay').val();
+            var birthdayMonth = $('#newsletterBirthdayMonth').val();
+            var popiaChecked = $('#newsletterPopia').is(':checked');
+            var emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+            var firstInvalid = null;
+            function invalid($field, errId, message) {
+                $('#' + errId).text(message);
+                if (!firstInvalid) firstInvalid = $field;
+            }
+
+            if (!firstName) invalid($('#newsletterFirstName'), 'errNewsletterFirstName', 'Please enter your first name.');
+            if (!email || !emailRe.test(email)) invalid($('#newsletterSubscribeEmail'), 'errNewsletterEmail', 'Please enter a valid email address.');
+            if ((birthdayDay && !birthdayMonth) || (!birthdayDay && birthdayMonth)) {
+                invalid($('#newsletterBirthdayDay'), 'errNewsletterBirthday', 'Please select both a day and a month.');
+            }
+            if (!popiaChecked) invalid($('#newsletterPopia'), 'errNewsletterPopia', 'Please accept the Privacy Policy to subscribe.');
+
+            if (firstInvalid) {
+                firstInvalid.trigger('focus');
+                return;
+            }
 
             var $btn = $(this).find('button[type="submit"]');
             var originalBtnHtml = $btn.html();
@@ -947,7 +978,13 @@ document.addEventListener("DOMContentLoaded", function() {
                 const res = await fetch('/api/public/subscribe', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email: email, popia_consent: $('#newsletterPopia').is(':checked') })
+                    body: JSON.stringify({
+                        email: email,
+                        first_name: firstName,
+                        birthday_day: birthdayDay || null,
+                        birthday_month: birthdayMonth || null,
+                        popia_consent: popiaChecked
+                    })
                 });
                 const result = await res.json();
 
@@ -956,8 +993,8 @@ document.addEventListener("DOMContentLoaded", function() {
                 } else if (!res.ok) {
                     throw new Error(result.message || 'Subscription failed');
                 } else {
-                    $newsletterForm.find('input[type="email"]').val('');
-                    window.notificationService.showSuccess('Awesome! You have been added to the mailing list.');
+                    $newsletterForm[0].reset();
+                    window.notificationService.showSuccess(result.message || 'Almost there! Check your email to confirm your subscription.');
                 }
 
             } catch (err) {

@@ -76,6 +76,12 @@ const SAMPLES_BY_CATEGORY = {
         headline: 'Account Notice',
         greeting: 'Hi Admin,',
         bodyHtml: 'This is a preview of how the <strong style="color:#D4AF37;">User Accounts &amp; Security</strong> category\'s banner would appear. In practice, this category\'s templates (dashboard invite, password reset) are SYSTEM-track emails, which use a compact text header and never a photographic banner.'
+    },
+    'Birthday': {
+        headline: 'Happy Birthday, Naledi!',
+        greeting: 'Hi Naledi,',
+        bodyHtml: 'This is a preview of how the <strong style="color:#D4AF37;">Birthday</strong> category\'s banner appears — the annual birthday email sent automatically on a subscriber\'s day.',
+        cta: { label: 'Book Your Next Event', url: '#' }
     }
 };
 

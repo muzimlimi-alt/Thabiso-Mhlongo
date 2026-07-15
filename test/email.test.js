@@ -168,15 +168,35 @@ module.exports = async function ({ check }) {
         check('refund email: single shell (no double-wrap)', count(refundMail.html, '<!DOCTYPE') === 1, `doctypes=${count(refundMail.html, '<!DOCTYPE')}`);
     }
 
-    // ── Guard 7 (Batch 6): newsletter welcome — real unsubscribe link, per-recipient token ──
+    // ── Guard 7 (Batch 6, revised for double opt-in): subscribe queues a confirmation email
+    // (not the welcome email); confirming flips status and fires the welcome email with the
+    // real unsubscribe token, exactly as before but gated behind confirmation. ──
     const subEmail = email();
-    const subRes = await pub('POST', '/api/public/subscribe', { email: subEmail, popia_consent: true });
+    const subRes = await pub('POST', '/api/public/subscribe', { email: subEmail, popia_consent: true, first_name: 'Test' });
     check('newsletter subscribe endpoint 200', subRes.status === 200 && subRes.body.success, `${subRes.status}`);
     await sleep(150);
-    const sub = await one('SELECT unsubscribe_token FROM newsletter_subscribers WHERE LOWER(email)=LOWER(?)', [subEmail]);
+    const sub = await one('SELECT subscriber_id, status, active, confirmed_at, unsubscribe_token FROM newsletter_subscribers WHERE LOWER(email)=LOWER(?)', [subEmail]);
+    check('subscriber inserted pending_confirmation, not active', !!sub && sub.status === 'pending_confirmation' && sub.active === 0 && !sub.confirmed_at, JSON.stringify(sub));
     check('subscriber row has an unsubscribe_token', !!(sub && sub.unsubscribe_token), JSON.stringify(sub));
+
+    const confirmMail = await queued('%Confirm Your Subscription%');
+    check('confirmation email queued pre-wrapped to the new subscriber', !!confirmMail && confirmMail.preWrapped === true && confirmMail.to === subEmail,
+        confirmMail && `${confirmMail.preWrapped} ${confirmMail.to}`);
+    if (confirmMail && sub) {
+        check('confirmation email: real confirm link with this subscriber\'s token', confirmMail.html.includes(sub.unsubscribe_token) && confirmMail.html.includes('confirm-subscription.html'),
+            `hasToken=${confirmMail.html.includes(sub.unsubscribe_token)} hasPath=${confirmMail.html.includes('confirm-subscription.html')}`);
+    }
+    const noWelcomeYet = await queued("Welcome to Thabiso Mhlongo's Newsletter!");
+    check('no welcome email before confirmation', !noWelcomeYet, JSON.stringify(noWelcomeYet));
+
+    const confirmRes = await pub('POST', '/api/public/newsletter/confirm', { email: subEmail, token: sub.unsubscribe_token });
+    check('confirm endpoint 200', confirmRes.status === 200 && confirmRes.body.success, `${confirmRes.status}`);
+    await sleep(150);
+    const subAfter = await one('SELECT status, active, confirmed_at FROM newsletter_subscribers WHERE subscriber_id=?', [sub.subscriber_id]);
+    check('subscriber flipped to active with confirmed_at set', !!subAfter && subAfter.status === 'active' && subAfter.active === 1 && !!subAfter.confirmed_at, JSON.stringify(subAfter));
+
     const welcomeMail = await queued("Welcome to Thabiso Mhlongo's Newsletter!");
-    check('welcome email queued pre-wrapped to the new subscriber', !!welcomeMail && welcomeMail.preWrapped === true && welcomeMail.to === subEmail,
+    check('welcome email queued pre-wrapped after confirmation', !!welcomeMail && welcomeMail.preWrapped === true && welcomeMail.to === subEmail,
         welcomeMail && `${welcomeMail.preWrapped} ${welcomeMail.to}`);
     if (welcomeMail && sub) {
         check('welcome email: real unsubscribe link with this subscriber\'s token', welcomeMail.html.includes(sub.unsubscribe_token) && welcomeMail.html.includes('unsubscribe.html'),

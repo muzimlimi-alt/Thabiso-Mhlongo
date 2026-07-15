@@ -74,7 +74,11 @@ const TEMPLATE_MAP = {
     newsletter_campaign: 'Newsletters & Marketing',
 
     dashboard_invite: 'User Accounts & Security',
-    password_reset: 'User Accounts & Security'
+    password_reset: 'User Accounts & Security',
+
+    // Added in the newsletter Phase 3 migration (database.js) — the real row is inserted there,
+    // not by running this script; listed here only so this map stays an accurate reference.
+    subscriber_birthday: 'Birthday'
 };
 
 (async () => {

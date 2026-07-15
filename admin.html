@@ -4902,14 +4902,15 @@
 
                     <!-- CENTRE: Global Search (hidden on mobile, shown via search icon) -->
                     <div class="adm-header__centre">
-                        <div class="adm-search" role="search">
+                        <form class="adm-search" role="search" autocomplete="off" action="#" onsubmit="return false;">
                             <i class="fa-solid fa-magnifying-glass adm-search__icon" aria-hidden="true"></i>
                             <input
                                 type="search"
                                 id="admGlobalSearch"
+                                name="q"
                                 class="adm-search__input"
                                 placeholder="Search bookings, inquiries, events…"
-                                autocomplete="search-field"
+                                autocomplete="off"
                                 aria-label="Search across all sections"
                                 aria-controls="admSearchResults"
                                 aria-expanded="false"
@@ -4917,7 +4918,7 @@
                             <kbd class="adm-search__shortcut" aria-hidden="true">/</kbd>
                             <!-- Results dropdown -->
                             <div class="adm-search__results" id="admSearchResults" role="listbox" aria-label="Search results" style="display:none;"></div>
-                        </div>
+                        </form>
                     </div>
 
                     <!-- RIGHT: Utility Cluster -->
@@ -5023,11 +5024,12 @@
 
             <!-- Mobile Search Panel (slides down below navbar on mobile) -->
             <div class="adm-mobile-search-panel" id="admMobileSearchPanel" aria-hidden="true">
-                <div class="adm-search adm-mobile-search-inner" role="search">
+                <form class="adm-search adm-mobile-search-inner" role="search" autocomplete="off" action="#" onsubmit="return false;">
                     <i class="fa-solid fa-magnifying-glass adm-search__icon" aria-hidden="true"></i>
                     <input
                         type="search"
                         id="admMobileSearchInput"
+                        name="q"
                         class="adm-search__input"
                         placeholder="Search bookings, inquiries, events…"
                         autocomplete="off"
@@ -5036,7 +5038,7 @@
                     <button type="button" class="adm-mobile-search-close" id="admMobileSearchClose" aria-label="Close search">
                         <i class="fa-solid fa-xmark" aria-hidden="true"></i>
                     </button>
-                </div>
+                </form>
             </div>
 
             <!-- Tab panes -->
@@ -9864,6 +9866,7 @@
                         <button class="atl-tab-btn active" data-um-tab="newsletterComposePanel" role="tab" aria-selected="true"><i class="fa-solid fa-pen-nib"></i> Compose</button>
                         <button class="atl-tab-btn" data-um-tab="newsletterCampaignsPanel" role="tab" aria-selected="false"><i class="fa-solid fa-list"></i> Campaigns</button>
                         <button class="atl-tab-btn" data-um-tab="newsletterSubscribersPanel" role="tab" aria-selected="false"><i class="fa-solid fa-users"></i> Subscribers</button>
+                        <button class="atl-tab-btn" data-um-tab="newsletterBirthdayPanel" role="tab" aria-selected="false"><i class="fa-solid fa-cake-candles"></i> Birthday</button>
                         <button class="atl-tab-btn" data-um-tab="newsletterAboutPanel" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
                     </div>
 
@@ -9878,6 +9881,38 @@
                                 </div>
                                 <div class="um-divider" style="margin-top:0;"></div>
                                 <form id="newsletterForm">
+                                    <div class="um-field-group">
+                                        <label class="um-label">Audience</label>
+                                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                                            <div class="um-input-wrap" style="flex:1; min-width:200px;">
+                                                <select id="newsletterAudienceSelect" class="um-input">
+                                                    <option value="all">All Active Subscribers</option>
+                                                    <option value="new_30d">New Subscribers (Last 30 Days)</option>
+                                                    <option value="birthday_month">Birthday Month…</option>
+                                                    <option value="has_tag">Has Tag…</option>
+                                                    <option value="source">Source…</option>
+                                                    <option value="booking_clients">Booking Clients</option>
+                                                    <option value="dormant">Dormant Subscribers (Inactive N+ Days)</option>
+                                                </select>
+                                            </div>
+                                            <div class="um-input-wrap" id="newsletterAudienceValueWrap" style="flex:1; min-width:160px; display:none;">
+                                                <select id="newsletterAudienceMonth" class="um-input" style="display:none;">
+                                                    <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+                                                    <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+                                                    <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+                                                    <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+                                                </select>
+                                                <input type="text" id="newsletterAudienceTag" class="um-input" placeholder="Tag name" style="display:none;">
+                                                <select id="newsletterAudienceSource" class="um-input" style="display:none;">
+                                                    <option value="index.html">Website Signup</option>
+                                                    <option value="admin_dashboard">Manually Added</option>
+                                                    <option value="csv_import">CSV Import</option>
+                                                </select>
+                                                <input type="number" id="newsletterAudienceDays" class="um-input" placeholder="Days" value="180" min="1" style="display:none;">
+                                            </div>
+                                            <span id="newsletterAudienceCount" style="font-size:12px; color:var(--atl-muted); white-space:nowrap;"></span>
+                                        </div>
+                                    </div>
                                     <div class="um-field-group">
                                         <label class="um-label">Email Subject</label>
                                         <div class="um-input-wrap">
@@ -9953,6 +9988,10 @@
                                         <i class="fa-solid fa-eye"></i> Preview Email
                                     </button>
 
+                                    <button type="button" id="newsletterSendTestBtn" class="atl-btn atl-btn--ghost" style="width:100%;justify-content:center;margin-top:8px;">
+                                        <i class="fa-solid fa-paper-plane"></i> Send Test to Myself
+                                    </button>
+
                                 </form>
                         </div>
                     </div>
@@ -9968,19 +10007,19 @@
                             </div>
                             <div class="um-divider" style="margin-top:0;"></div>
                                     <!-- Bulk action bar -->
-                                    <div id="campaignsBulkBar" style="display:none;margin-bottom:10px;padding:10px 14px;background: var(--atl-card);border: 1px solid var(--atl-line);border-radius:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-                                        <span id="campaignsBulkCount" style="color: var(--atl-amber);font-weight:600;font-size:13px;">0 selected</span>
+                                    <div id="campaignsBulkBar" class="um-bulk-bar" style="display:none;">
+                                        <span id="campaignsBulkCount" class="um-bulk-bar__count">0 selected</span>
                                         <button id="campaignsBulkDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(248,113,113,0.1);color:var(--atl-clay);border-color:rgba(248,113,113,0.3);">
                                             <i class="fa-solid fa-trash"></i> Delete Selected
                                         </button>
                                     </div>
                                     <!-- Filter and sort controls -->
-                                    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+                                    <div class="atl-toolbar">
                                         <div class="um-input-wrap" style="flex:2;min-width:180px;">
                                             <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
                                             <input type="text" id="campaignsSearchInput" class="um-input" placeholder="Search by subject…" style="padding-left:34px;font-size:12px;">
                                         </div>
-                                        <select id="campaignsSortSelect" class="um-input" style="flex:1;min-width:140px;font-size:12px;">
+                                        <select id="campaignsSortSelect" class="atl-filter-select" style="flex:1;min-width:140px;">
                                             <option value="date_desc">Newest First</option>
                                             <option value="date_asc">Oldest First</option>
                                             <option value="subject_asc">Subject A–Z</option>
@@ -10001,16 +10040,12 @@
                                                 </tr>
                                             </thead>
                                             <tbody id="campaignsTableBody">
-                                                <tr><td colspan="5" style="padding:20px;text-align:center;color:var(--atl-muted-dim);font-size:13px;">Loading...</td></tr>
+                                                <tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>Loading campaigns…</div></td></tr>
                                             </tbody>
                                         </table>
                                     </div>
                                     <!-- Pagination -->
-                                    <div id="campaignsPagination" style="display:none;margin-top:12px;align-items:center;justify-content:space-between;gap:8px;">
-                                        <button id="campaignsPrevBtn" class="um-btn um-btn--ghost um-btn--sm"><i class="fa-solid fa-chevron-left"></i> Prev</button>
-                                        <span id="campaignsPageInfo" style="font-size:12px;color:var(--atl-muted-dim);">—</span>
-                                        <button id="campaignsNextBtn" class="um-btn um-btn--ghost um-btn--sm">Next <i class="fa-solid fa-chevron-right"></i></button>
-                                    </div>
+                                    <div id="campaignsPagination" class="um-pagination-btns" style="display:none;margin-top:12px;justify-content:center;"></div>
                             </div>
                     </div>
 
@@ -10042,21 +10077,31 @@
                                     <button type="submit" class="atl-btn atl-btn--primary">Add</button>
                                 </form>
 
+                                <!-- KPI cards -->
+                                <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px;">
+                                    <div class="db-stat-card" style="padding:14px 18px;">
+                                        <div class="db-stat-label">Total Subscribers</div>
+                                        <div class="db-stat-value" id="subKpiTotal">—</div>
+                                    </div>
+                                    <div class="db-stat-card" style="padding:14px 18px;">
+                                        <div class="db-stat-label">Active</div>
+                                        <div class="db-stat-value" id="subKpiActive">—</div>
+                                    </div>
+                                    <div class="db-stat-card" style="padding:14px 18px;">
+                                        <div class="db-stat-label">New (Last 7 Days)</div>
+                                        <div class="db-stat-value" id="subKpiNew7d">—</div>
+                                    </div>
+                                </div>
+
                                 <!-- Search and Filter -->
-                                <div style="margin-bottom: 15px; display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                                <div class="atl-toolbar">
                                     <div class="um-input-wrap" style="flex:1; min-width:180px;">
                                         <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
-                                        <input type="text" id="subscriberSearch" class="um-input" placeholder="Search loaded page by email..." />
+                                        <input type="text" id="subscriberSearch" class="um-input" placeholder="Search by name or email..." />
                                     </div>
-                                    <select id="subscriberSortSelect" class="um-input" style="width:auto; min-width:150px;" aria-label="Sort subscribers">
-                                        <option value="newest">Newest First</option>
-                                        <option value="oldest">Oldest First</option>
-                                        <option value="email_asc">Email A–Z</option>
-                                        <option value="status">By Status</option>
-                                    </select>
                                 </div>
-                                <div id="subscriberBulkBar" style="display:none; margin-bottom:12px; padding:10px 14px; background: var(--atl-card); border: 1px solid var(--atl-line); border-radius:8px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-                                    <span id="bulkSelectedCount" style="color: var(--atl-amber); font-weight:600; font-size:13px;">0 selected</span>
+                                <div id="subscriberBulkBar" class="um-bulk-bar" style="display:none;">
+                                    <span id="bulkSelectedCount" class="um-bulk-bar__count">0 selected</span>
                                     <div style="display:flex; gap:6px;">
                                         <button id="bulkSetActiveBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(52,211,153,0.1); color:var(--atl-green); border-color:rgba(52,211,153,0.3);">Set Active</button>
                                         <button id="bulkSetInactiveBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(251,146,60,0.1); color:var(--atl-orange); border-color:rgba(251,146,60,0.3);">Set Inactive</button>
@@ -10076,10 +10121,10 @@
                                                 <th style="border:none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; width:40px;">
                                                     <input type="checkbox" id="selectAllSubscribers" title="Select All" style="accent-color: var(--atl-amber); cursor:pointer;">
                                                 </th>
-                                                <th style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Name</th>
-                                                <th style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Email</th>
-                                                <th style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Date</th>
-                                                <th style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600;">Status</th>
+                                                <th class="um-th-sort" style="border:none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; cursor:pointer;" onclick="window.toggleSubscriberSort('first_name')">Name <i class="fa-solid fa-sort" id="subsort-first_name" style="font-size:10px; margin-left:4px; opacity:0.5;"></i></th>
+                                                <th class="um-th-sort" style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; cursor:pointer;" onclick="window.toggleSubscriberSort('email')">Email <i class="fa-solid fa-sort" id="subsort-email" style="font-size:10px; margin-left:4px; opacity:0.5;"></i></th>
+                                                <th class="um-th-sort" style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; cursor:pointer;" onclick="window.toggleSubscriberSort('subscribed_at')">Date <i class="fa-solid fa-sort" id="subsort-subscribed_at" style="font-size:10px; margin-left:4px; opacity:0.5;"></i></th>
+                                                <th class="um-th-sort" style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; cursor:pointer;" onclick="window.toggleSubscriberSort('status')">Status <i class="fa-solid fa-sort" id="subsort-status" style="font-size:10px; margin-left:4px; opacity:0.5;"></i></th>
                                                 <th style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; text-align: right;">Actions</th>
                                             </tr>
                                         </thead>
@@ -10088,16 +10133,118 @@
                                         </tbody>
                                     </table>
 
-                                    <div id="subscriberListEmpty" class="text-muted text-center" style="font-size: 12px; padding: 20px 0; display: none;">No subscribers found.</div>
+                                    <div id="subscriberListEmpty" class="um-empty-state" style="display: none;"></div>
 
                                     <!-- Pagination -->
-                                    <div id="subscribersPagination" style="display:none; margin-top:12px; align-items:center; justify-content:space-between; gap:8px;">
-                                        <button id="subscribersPrevBtn" class="um-btn um-btn--ghost um-btn--sm"><i class="fa-solid fa-chevron-left"></i> Prev</button>
-                                        <span id="subscribersPageInfo" style="font-size:12px;color:var(--atl-muted-dim);">—</span>
-                                        <button id="subscribersNextBtn" class="um-btn um-btn--ghost um-btn--sm">Next <i class="fa-solid fa-chevron-right"></i></button>
-                                    </div>
+                                    <div id="subscribersPagination" class="um-pagination-btns" style="display:none; margin-top:12px; justify-content:center;"></div>
                                 </div>
                             </div>
+                    </div>
+
+                    <div class="um-panel" id="newsletterBirthdayPanel">
+                        <div class="atl-card">
+                            <div class="um-icon-header" style="margin-bottom: 16px;">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-cake-candles"></i></div>
+                                <div>
+                                    <h4 class="um-section-label" style="margin:0 0 4px 0;">Birthday Automation</h4>
+                                    <p class="um-section-desc" style="margin:0;">Automatically email subscribers on their birthday — day &amp; month only, never a year.</p>
+                                </div>
+                            </div>
+                            <div class="um-divider" style="margin-top:0;"></div>
+
+                            <form id="birthdaySettingsForm">
+                                <div style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:16px;">
+                                    <label class="tm-checkbox-wrap" style="cursor:pointer;">
+                                        <input type="checkbox" id="bdayEnabled">
+                                        <span class="cb-box" aria-hidden="true"></span>
+                                        <span class="checkbox-label" style="color:var(--atl-muted); font-size:13px;">Automation enabled</span>
+                                    </label>
+                                    <label class="tm-checkbox-wrap" style="cursor:pointer;">
+                                        <input type="checkbox" id="bdayTestMode">
+                                        <span class="cb-box" aria-hidden="true"></span>
+                                        <span class="checkbox-label" style="color:var(--atl-muted); font-size:13px;">Test mode (redirect all sends to the test recipient)</span>
+                                    </label>
+                                </div>
+
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                                    <div class="um-field-group">
+                                        <label class="um-label">Send Time <span style="color:var(--atl-muted-dim); font-weight:300;">(daily, South Africa time)</span></label>
+                                        <div class="um-input-wrap">
+                                            <i class="fa-solid fa-clock um-input-icon"></i>
+                                            <input type="time" id="bdaySendTime" class="um-input">
+                                        </div>
+                                    </div>
+                                    <div class="um-field-group">
+                                        <label class="um-label">Test Recipient Email</label>
+                                        <div class="um-input-wrap">
+                                            <i class="fa-regular fa-envelope um-input-icon"></i>
+                                            <input type="email" id="bdayTestRecipient" class="um-input" placeholder="you@example.com">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="um-divider"></div>
+
+                                <div class="um-field-group">
+                                    <label class="um-label">Email Subject</label>
+                                    <div class="um-input-wrap">
+                                        <i class="fa-regular fa-envelope um-input-icon"></i>
+                                        <input type="text" id="bdaySubject" class="um-input" placeholder="Happy Birthday, {{first_name}}!">
+                                    </div>
+                                </div>
+                                <div class="um-field-group">
+                                    <label class="um-label">Heading <span style="color:var(--atl-muted-dim); font-weight:300;">(shown if no banner image is assigned)</span></label>
+                                    <div class="um-input-wrap">
+                                        <input type="text" id="bdayHeading" class="um-input" placeholder="Happy Birthday, {{first_name}}!">
+                                    </div>
+                                </div>
+                                <div class="um-field-group">
+                                    <label class="um-label">Body</label>
+                                    <div id="bdayBodyContainer" class="atl-quill-wrap"><div id="bdayBodyEditor"></div></div>
+                                </div>
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                                    <div class="um-field-group">
+                                        <label class="um-label">CTA Button Label <span style="color:var(--atl-muted-dim); font-weight:300;">(optional)</span></label>
+                                        <div class="um-input-wrap">
+                                            <input type="text" id="bdayCtaLabel" class="um-input" placeholder="e.g. Book Your Next Event">
+                                        </div>
+                                    </div>
+                                    <div class="um-field-group">
+                                        <label class="um-label">CTA Button URL</label>
+                                        <div class="um-input-wrap">
+                                            <input type="text" id="bdayCtaUrl" class="um-input" placeholder="https://...">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="um-field-group">
+                                    <label class="um-label">Footer Note <span style="color:var(--atl-muted-dim); font-weight:300;">(optional, small text under the message)</span></label>
+                                    <textarea id="bdayFooterNote" class="um-input" rows="2" placeholder="Optional extra line, e.g. a promo code"></textarea>
+                                </div>
+
+                                <div class="um-security-tips" style="margin:16px 0;">
+                                    <i class="fa-solid fa-circle-info"></i>
+                                    <span>Supports the same merge fields as newsletters: <code>{{first_name}}</code>, <code>{{email}}</code>, <code>{{birthday}}</code>, <code>{{subscription_date}}</code>, <code>{{unsubscribe_link}}</code>.</span>
+                                </div>
+
+                                <div class="um-form-actions" style="display:flex; gap:10px; flex-wrap:wrap;">
+                                    <button type="submit" class="atl-btn atl-btn--primary" id="bdaySaveBtn">
+                                        <i class="fa-solid fa-floppy-disk"></i> Save Settings
+                                    </button>
+                                    <button type="button" class="atl-btn atl-btn--ghost" id="bdayPreviewBtn">
+                                        <i class="fa-solid fa-eye"></i> Preview
+                                    </button>
+                                    <button type="button" class="atl-btn atl-btn--ghost" id="bdaySendTestBtn">
+                                        <i class="fa-solid fa-paper-plane"></i> Send Test Email
+                                    </button>
+                                </div>
+                            </form>
+
+                            <div class="um-divider"></div>
+
+                            <h4 class="um-section-label" style="margin-bottom:10px;">Recent Sends</h4>
+                            <div id="bdayRecentSendsList" style="display:flex; flex-direction:column; gap:6px;"></div>
+                            <div id="bdayRecentSendsEmpty" class="text-muted text-center" style="font-size:12px; padding:14px 0; display:none;">No birthday emails sent yet.</div>
+                        </div>
                     </div>
 
                     <div class="um-panel" id="newsletterAboutPanel">
@@ -11371,7 +11518,8 @@
                 const originalModal = jQuery.fn.modal;
                 const targetModalIds = [
                     'cancelBookingModal', 'cancelModal',
-                    'promoteBookingModal'
+                    'promoteBookingModal',
+                    'importSubscribersModal', 'newsletterPreviewModal'
                 ];
                 
                 jQuery.fn.modal = function(action, ...args) {
@@ -21304,7 +21452,14 @@
         // --- Subscribers ---
         let subscribersData = [];      // current page only (server-paginated)
         let subscribersPage = 1;
-        let subscribersSort = 'newest';
+        let subscribersSortCol = 'subscribed_at';
+        let subscribersSortOrder = 'DESC';
+        let subscribersSearchTerm = '';
+        let subscribersTotalPages = 1;
+
+        function subscribersEmptyState(iconClass, message) {
+            return `<i class="${iconClass}" style="font-size:28px;color:var(--atl-muted-dim);display:block;margin-bottom:10px;"></i><p style="color:var(--atl-muted);margin:0;">${message}</p>`;
+        }
 
         async function renderSubscribersList(resetPage) {
             if (resetPage) subscribersPage = 1;
@@ -21314,16 +21469,22 @@
             var $table = $tbody.closest('table');
 
             $tbody.empty();
+            $table.hide();
+            $('#subscribersPagination').hide();
+            $empty.html(subscribersEmptyState('fa-solid fa-circle-notch fa-spin', 'Loading subscribers…')).show();
 
             try {
-                const data = await apiCall('/api/admin/newsletter/subscribers?page=' + subscribersPage + '&limit=50&sort=' + encodeURIComponent(subscribersSort));
+                const params = new URLSearchParams({
+                    page: subscribersPage, limit: 50,
+                    sort: subscribersSortCol, order: subscribersSortOrder
+                });
+                if (subscribersSearchTerm) params.set('search', subscribersSearchTerm);
+                const data = await apiCall('/api/admin/newsletter/subscribers?' + params.toString());
 
                 if (!data || !data.success || !Array.isArray(data.subscribers)) {
                     $count.text('0');
-                    $table.hide();
-                    $('#subscribersPagination').hide();
                     window.notificationService.showError('Could not load subscribers — please refresh and try again.');
-                    $empty.html('Could not load subscribers.').show();
+                    $empty.html(subscribersEmptyState('fa-solid fa-triangle-exclamation', 'Could not load subscribers.')).show();
                     subscribersData = [];
                     return;
                 }
@@ -21339,33 +21500,83 @@
                 $count.text(data.total);
 
                 if (data.total === 0) {
-                    $table.hide();
-                    $('#subscribersPagination').hide();
-                    $empty.html('No subscribers found.').show();
+                    $empty.html(subscribersEmptyState('fa-solid fa-inbox', subscribersSearchTerm ? 'No subscribers match your search.' : 'No subscribers found.')).show();
                     return;
                 }
 
                 $table.show();
                 $empty.hide();
                 injectSubscribers(data.subscribers);
-                subUpdatePagination(data.total || 0, data.pages || 1);
+                subscribersTotalPages = data.pages || 1;
+                renderSubscribersPaginationNumbered(subscribersTotalPages);
+                updateSortIconsSubscribers();
             } catch (err) {
                   $count.text('0');
-                  $table.hide();
-                  $('#subscribersPagination').hide();
                   window.notificationService.showError('Unexpected error loading subscribers.');
-                  $empty.html('An error occurred. Please refresh.').show();
+                  $empty.html(subscribersEmptyState('fa-solid fa-triangle-exclamation', 'An error occurred. Please refresh.')).show();
             }
         }
 
-        function subUpdatePagination(total, pages) {
-            if (total <= 0) { $('#subscribersPagination').hide(); return; }
-            const from = (subscribersPage - 1) * 50 + 1;
-            const to = Math.min(subscribersPage * 50, total);
-            $('#subscribersPageInfo').text(from + '–' + to + ' of ' + total);
-            $('#subscribersPrevBtn').prop('disabled', subscribersPage <= 1);
-            $('#subscribersNextBtn').prop('disabled', subscribersPage >= pages);
-            $('#subscribersPagination').css('display', 'flex');
+        function renderSubscribersPaginationNumbered(totalPages) {
+            var container = document.getElementById('subscribersPagination');
+            if (!container) return;
+            container.innerHTML = '';
+            container.style.display = totalPages > 1 ? 'flex' : 'none';
+            if (totalPages <= 1) return;
+
+            var prev = document.createElement('button');
+            prev.className = 'um-btn um-btn--ghost um-btn--sm' + (subscribersPage === 1 ? ' disabled' : '');
+            prev.innerHTML = '<i class="fa fa-chevron-left"></i>';
+            prev.onclick = function() { if (subscribersPage > 1) { subscribersPage--; renderSubscribersList(); } };
+            container.appendChild(prev);
+
+            for (var i = 1; i <= totalPages; i++) {
+                if (totalPages > 7 && i > 5 && i < totalPages) {
+                    if (i === 6) { var sp = document.createElement('span'); sp.textContent = '…'; sp.style.color = 'var(--atl-muted)'; sp.style.padding = '0 4px'; container.appendChild(sp); }
+                    continue;
+                }
+                var b = document.createElement('button');
+                b.className = 'um-btn um-btn--sm ' + (subscribersPage === i ? 'um-btn--primary' : 'um-btn--ghost');
+                b.textContent = i;
+                (function(p) { b.onclick = function() { subscribersPage = p; renderSubscribersList(); }; })(i);
+                container.appendChild(b);
+            }
+
+            var next = document.createElement('button');
+            next.className = 'um-btn um-btn--ghost um-btn--sm' + (subscribersPage === totalPages ? ' disabled' : '');
+            next.innerHTML = '<i class="fa fa-chevron-right"></i>';
+            next.onclick = function() { if (subscribersPage < totalPages) { subscribersPage++; renderSubscribersList(); } };
+            container.appendChild(next);
+        }
+
+        window.toggleSubscriberSort = function(col) {
+            if (subscribersSortCol === col) {
+                subscribersSortOrder = (subscribersSortOrder === 'ASC') ? 'DESC' : 'ASC';
+            } else {
+                subscribersSortCol = col;
+                subscribersSortOrder = (col === 'subscribed_at') ? 'DESC' : 'ASC';
+            }
+            subscribersPage = 1;
+            renderSubscribersList();
+        };
+
+        function updateSortIconsSubscribers() {
+            $('.um-th-sort i').each(function() {
+                if (this.id && this.id.indexOf('subsort-') === 0) { this.className = 'fa-solid fa-sort'; this.style.opacity = '0.5'; }
+            });
+            var active = document.getElementById('subsort-' + subscribersSortCol);
+            if (active) { active.className = (subscribersSortOrder === 'ASC') ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down'; active.style.opacity = '1'; }
+        }
+
+        async function loadSubscriberStats() {
+            try {
+                const res = await apiCall('/api/admin/newsletter/subscribers/stats');
+                if (res && res.success) {
+                    $('#subKpiTotal').text(res.stats.total);
+                    $('#subKpiActive').text(res.stats.active);
+                    $('#subKpiNew7d').text(res.stats.new_7d);
+                }
+            } catch (err) { console.error('Error loading subscriber stats:', err); }
         }
 
         function injectSubscribers(dataArray) {
@@ -21379,12 +21590,15 @@
                 var safeEmailLower = $('<span>').text((sub.email || '').toLowerCase()).html();
                 var safeName = sub.first_name ? $('<span>').text(sub.first_name).html() : '<span style="color:var(--atl-muted);">—</span>';
                 var isActive = sub.status === 'active';
+                var isPending = sub.status === 'pending_confirmation';
                 var statusHtml = isActive
                     ? '<span class="atl-badge atl-badge--confirmed">Active</span>'
-                    : '<span class="atl-badge atl-badge--unpaid">Inactive</span>';
+                    : isPending
+                        ? '<span class="atl-badge atl-badge--pending">Pending Confirmation</span>'
+                        : '<span class="atl-badge atl-badge--unpaid">Inactive</span>';
 
                 var toggleAction = isActive ? '<i class="fa-solid fa-ban"></i>' : '<i class="fa-solid fa-check"></i>';
-                var toggleTitle = isActive ? 'Deactivate' : 'Activate';
+                var toggleTitle = isActive ? 'Deactivate' : (isPending ? 'Confirm & Activate' : 'Activate');
 
                 var html = `
                     <tr style="border-bottom: 1px solid var(--atl-line); background-color: transparent;" data-email="${safeEmailLower}">
@@ -21418,28 +21632,16 @@
             });
         }
         
-        // Subscriber Search/Filter — client-side, scoped to the currently loaded page
+        // Subscriber Search — server-side (matches email or first name), debounced
+        let subscriberSearchDebounce = null;
         $('#subscriberSearch').on('input', function() {
-            var searchTerm = $(this).val().toLowerCase();
-            $('#subscriberListBody tr').each(function() {
-                var rowEmail = $(this).data('email');
-                if (rowEmail.includes(searchTerm)) {
-                    $(this).show();
-                } else {
-                    $(this).hide();
-                }
-            });
+            var val = $(this).val().trim();
+            clearTimeout(subscriberSearchDebounce);
+            subscriberSearchDebounce = setTimeout(function() {
+                subscribersSearchTerm = val;
+                renderSubscribersList(true);
+            }, 300);
         });
-
-        // Sort (server-side, resets to page 1)
-        $('#subscriberSortSelect').on('change', function() {
-            subscribersSort = $(this).val();
-            renderSubscribersList(true);
-        });
-
-        // Pagination
-        $('#subscribersPrevBtn').on('click', function() { if (subscribersPage > 1) { subscribersPage--; renderSubscribersList(); } });
-        $('#subscribersNextBtn').on('click', function() { subscribersPage++; renderSubscribersList(); });
 
         // Toggle select all
         $('#selectAllSubscribers').on('change', function() {
@@ -21550,8 +21752,14 @@
             $('#importResult').hide();
         }
 
-        // Clean slate every time the modal opens (delegated — modal is defined after this script runs)
-        $(document).on('show.bs.modal', '#importSubscribersModal', _resetImportModal);
+        // Import CSV button — previously had no handler at all, so the modal could never be
+        // opened from the UI. Reset to a clean slate on each open (the Atelier modal system this
+        // now routes through doesn't fire Bootstrap's show.bs.modal event, so reset happens here
+        // directly rather than via that now-inert listener).
+        $('#importSubscribersBtn').on('click', function() {
+            _resetImportModal();
+            $('#importSubscribersModal').modal('show');
+        });
 
         // File input — click-to-select path (delegated)
         $(document).on('change', '#csvFileInput', function() {
@@ -21690,7 +21898,9 @@
             const original = $btn.html();
             $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Exporting…');
             try {
-                const data = await apiCall('/api/admin/newsletter/subscribers?page=1&limit=100000&sort=newest');
+                const params = new URLSearchParams({ page: 1, limit: 100000, sort: subscribersSortCol, order: subscribersSortOrder });
+                if (subscribersSearchTerm) params.set('search', subscribersSearchTerm);
+                const data = await apiCall('/api/admin/newsletter/subscribers?' + params.toString());
                 const list = (data && data.success && Array.isArray(data.subscribers)) ? data.subscribers : [];
                 if (!list.length) { window.notificationService.showWarning('No subscribers to export.'); return; }
                 exportSubscribersCSV(list);
@@ -21803,7 +22013,190 @@
         });
 
 
+        // ─── Birthday Automation ───
+        function initBirthdayBodyQuill() {
+            if (window.birthdayBodyQuill) return;
+            var toolbar = [['bold', 'italic', 'underline'], [{ list: 'ordered' }, { list: 'bullet' }], ['link'], ['clean']];
+            window.birthdayBodyQuill = new Quill('#bdayBodyEditor', { theme: 'snow', placeholder: 'Wishing you a wonderful day, {{first_name}}!...', modules: { toolbar: toolbar } });
+        }
+
+        function collectBirthdayFormData() {
+            var fd = new FormData();
+            fd.append('birthday_email_subject', $('#bdaySubject').val().trim());
+            fd.append('birthday_email_heading', $('#bdayHeading').val().trim());
+            fd.append('birthday_email_body', window.birthdayBodyQuill ? window.birthdayBodyQuill.root.innerHTML : '');
+            fd.append('birthday_email_cta_label', $('#bdayCtaLabel').val().trim());
+            fd.append('birthday_email_cta_url', $('#bdayCtaUrl').val().trim());
+            fd.append('birthday_email_footer_note', $('#bdayFooterNote').val().trim());
+            fd.append('birthday_test_recipient', $('#bdayTestRecipient').val().trim());
+            return fd;
+        }
+
+        window.loadBirthdaySettings = async function() {
+            initBirthdayBodyQuill();
+            try {
+                const res = await apiCall('/api/admin/newsletter/birthday-settings');
+                if (!res || !res.success) throw new Error((res && res.message) || 'Failed to load');
+                const s = res.settings;
+                $('#bdayEnabled').prop('checked', s.birthday_automation_enabled === '1');
+                $('#bdayTestMode').prop('checked', s.birthday_test_mode === '1');
+                $('#bdaySendTime').val(s.birthday_send_time);
+                $('#bdayTestRecipient').val(s.birthday_test_recipient);
+                $('#bdaySubject').val(s.birthday_email_subject);
+                $('#bdayHeading').val(s.birthday_email_heading);
+                $('#bdayCtaLabel').val(s.birthday_email_cta_label);
+                $('#bdayCtaUrl').val(s.birthday_email_cta_url);
+                $('#bdayFooterNote').val(s.birthday_email_footer_note);
+                window.birthdayBodyQuill.root.innerHTML = s.birthday_email_body || '';
+            } catch (err) {
+                console.error('Error loading birthday settings:', err);
+                window.notificationService.showError('Could not load birthday automation settings.');
+            }
+            loadBirthdayRecentSends();
+        };
+
+        async function loadBirthdayRecentSends() {
+            var $list = $('#bdayRecentSendsList');
+            var $empty = $('#bdayRecentSendsEmpty');
+            try {
+                const res = await apiCall('/api/admin/email-logs?search=' + encodeURIComponent('Newsletter: Birthday') + '&limit=10&sort=sent_at&order=DESC');
+                const logs = (res && res.success && Array.isArray(res.logs)) ? res.logs : [];
+                $list.empty();
+                if (!logs.length) { $empty.show(); return; }
+                $empty.hide();
+                logs.forEach(function(log) {
+                    var isTest = (log.trigger_event || '').includes('Test');
+                    var statusBadge = log.status === 'success'
+                        ? '<span class="atl-badge atl-badge--confirmed">Sent</span>'
+                        : (log.status === 'failed' ? '<span class="atl-badge atl-badge--cancelled">Failed</span>' : '<span class="atl-badge atl-badge--unpaid">' + escHtml(log.status || '') + '</span>');
+                    var d = new Date(log.sent_at);
+                    $list.append(
+                        '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; background:var(--atl-card); border:1px solid var(--atl-line); border-radius:6px; font-size:12px;">' +
+                            '<span style="color:var(--atl-ink-dim); word-break:break-all;">' + escHtml(log.recipient_email) + (isTest ? ' <span style="color:var(--atl-muted-dim);">(test)</span>' : '') + '</span>' +
+                            '<span style="display:flex; align-items:center; gap:8px; white-space:nowrap;"><span style="color:var(--atl-muted);">' + d.toLocaleDateString() + '</span>' + statusBadge + '</span>' +
+                        '</div>'
+                    );
+                });
+            } catch (err) {
+                console.error('Error loading birthday recent sends:', err);
+            }
+        }
+
+        $('#birthdaySettingsForm').on('submit', async function(e) {
+            e.preventDefault();
+            const $btn = $('#bdaySaveBtn');
+            $btn.prop('disabled', true);
+            try {
+                const payload = {
+                    birthday_automation_enabled: $('#bdayEnabled').is(':checked'),
+                    birthday_test_mode: $('#bdayTestMode').is(':checked'),
+                    birthday_send_time: $('#bdaySendTime').val(),
+                    birthday_test_recipient: $('#bdayTestRecipient').val().trim(),
+                    birthday_email_subject: $('#bdaySubject').val().trim(),
+                    birthday_email_heading: $('#bdayHeading').val().trim(),
+                    birthday_email_body: window.birthdayBodyQuill ? window.birthdayBodyQuill.root.innerHTML : '',
+                    birthday_email_cta_label: $('#bdayCtaLabel').val().trim(),
+                    birthday_email_cta_url: $('#bdayCtaUrl').val().trim(),
+                    birthday_email_footer_note: $('#bdayFooterNote').val().trim()
+                };
+                const res = await fetch('/api/admin/newsletter/birthday-settings', {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (!res.ok || !result.success) throw new Error(result.message || 'Save failed');
+                window.notificationService.showSuccess('Birthday automation settings saved.');
+            } catch (err) {
+                console.error('Error saving birthday settings:', err);
+                window.notificationService.showError(err.message || 'Could not save settings.');
+            } finally {
+                $btn.prop('disabled', false);
+            }
+        });
+
+        $('#bdayPreviewBtn').on('click', async function() {
+            const $btn = $(this);
+            $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Loading...');
+            try {
+                const res = await fetch('/api/admin/newsletter/birthday-settings/preview', { method: 'POST', body: collectBirthdayFormData(), credentials: 'same-origin' });
+                const result = await res.json();
+                if (!res.ok || !result.success) throw new Error(result.message || 'Preview failed');
+                document.getElementById('newsletterPreviewFrame').srcdoc = result.html;
+                $('#newsletterPreviewModal').modal('show');
+            } catch (err) {
+                window.notificationService.showError('Could not load preview: ' + (err.message || 'Unknown error'));
+            } finally {
+                $btn.prop('disabled', false).html('<i class="fa-solid fa-eye"></i> Preview');
+            }
+        });
+
+        $('#bdaySendTestBtn').on('click', async function() {
+            const $btn = $(this);
+            if (!$('#bdayTestRecipient').val().trim()) {
+                window.notificationService.showWarning('Set a test recipient email first.');
+                return;
+            }
+            $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Sending...');
+            try {
+                const res = await fetch('/api/admin/newsletter/birthday-settings/send-test', { method: 'POST', body: collectBirthdayFormData(), credentials: 'same-origin' });
+                const result = await res.json();
+                if (!res.ok || !result.success) throw new Error(result.message || 'Send failed');
+                window.notificationService.showSuccess(result.message || 'Test email sent.');
+                loadBirthdayRecentSends();
+            } catch (err) {
+                window.notificationService.showError('Could not send test email: ' + (err.message || 'Unknown error'));
+            } finally {
+                $btn.prop('disabled', false).html('<i class="fa-solid fa-paper-plane"></i> Send Test Email');
+            }
+        });
+
         // Dispatch Newsletter
+        // ─── Audience segmentation ───
+        function getSelectedAudience() {
+            const segment = $('#newsletterAudienceSelect').val();
+            let value = '';
+            if (segment === 'birthday_month') value = $('#newsletterAudienceMonth').val();
+            else if (segment === 'has_tag') value = $('#newsletterAudienceTag').val().trim();
+            else if (segment === 'source') value = $('#newsletterAudienceSource').val();
+            else if (segment === 'dormant') value = $('#newsletterAudienceDays').val();
+            return { segment, value };
+        }
+        function audienceLabel() {
+            const map = { all: 'all active subscribers', new_30d: 'new subscribers (last 30 days)', birthday_month: 'subscribers born in the selected month', has_tag: 'subscribers with the selected tag', source: 'subscribers from the selected source', booking_clients: 'booking clients', dormant: 'dormant subscribers' };
+            return map[$('#newsletterAudienceSelect').val()] || 'the selected audience';
+        }
+        function updateAudienceValueVisibility() {
+            const segment = $('#newsletterAudienceSelect').val();
+            $('#newsletterAudienceMonth, #newsletterAudienceTag, #newsletterAudienceSource, #newsletterAudienceDays').hide();
+            const needsValue = segment === 'birthday_month' || segment === 'has_tag' || segment === 'source' || segment === 'dormant';
+            $('#newsletterAudienceValueWrap').toggle(needsValue);
+            if (segment === 'birthday_month') $('#newsletterAudienceMonth').show();
+            else if (segment === 'has_tag') $('#newsletterAudienceTag').show();
+            else if (segment === 'source') $('#newsletterAudienceSource').show();
+            else if (segment === 'dormant') $('#newsletterAudienceDays').show();
+        }
+        async function refreshAudienceCount() {
+            const { segment, value } = getSelectedAudience();
+            if (segment === 'has_tag' && !value) { $('#newsletterAudienceCount').text(''); return; }
+            try {
+                const params = new URLSearchParams({ segment });
+                if (value) params.set('segment_value', value);
+                const res = await apiCall('/api/admin/newsletter/campaigns/audience-count?' + params.toString());
+                if (res && res.success) $('#newsletterAudienceCount').text(res.count + (res.count === 1 ? ' recipient' : ' recipients'));
+            } catch (e) { $('#newsletterAudienceCount').text(''); }
+        }
+        $('#newsletterAudienceSelect').on('change', function() { updateAudienceValueVisibility(); refreshAudienceCount(); });
+        $('#newsletterAudienceMonth, #newsletterAudienceSource').on('change', refreshAudienceCount);
+        let audienceTagDebounce = null;
+        $('#newsletterAudienceTag').on('input', function() {
+            clearTimeout(audienceTagDebounce);
+            audienceTagDebounce = setTimeout(refreshAudienceCount, 400);
+        });
+        let audienceDaysDebounce = null;
+        $('#newsletterAudienceDays').on('input', function() {
+            clearTimeout(audienceDaysDebounce);
+            audienceDaysDebounce = setTimeout(refreshAudienceCount, 400);
+        });
+
         $('#newsletterForm').on('submit', async function(e) {
             e.preventDefault();
             let valid = true;
@@ -21829,8 +22222,9 @@
             var message = (window.newsletterQuill ? window.newsletterQuill.root.innerHTML : $('#newsletterMessage').val()).trim();
             var $btn = $('#newsletterSubmitBtn');
             const originalBtnHtml = $btn.html();
+            const { segment, value: segmentValue } = getSelectedAudience();
 
-            if(!(await window.notificationService.showConfirm({ message: `You are about to dispatch this HTML newsletter to all active subscribers. Proceed?`, isDestructive: false }))) {
+            if(!(await window.notificationService.showConfirm({ message: `You are about to dispatch this HTML newsletter to ${audienceLabel()}. Proceed?`, isDestructive: false }))) {
                 return;
             }
 
@@ -21840,6 +22234,8 @@
                 const fd = new FormData();
                 fd.append('subject', subject);
                 fd.append('message', message);
+                fd.append('segment', segment);
+                if (segmentValue) fd.append('segment_value', segmentValue);
                 newsletterFiles.forEach(f => fd.append('attachments', f));
                 const _res = await fetch('/api/admin/campaigns', { method: 'POST', body: fd, credentials: 'same-origin' });
                 const response = await _res.json();
@@ -22015,6 +22411,31 @@
             }
         });
 
+        $('#newsletterSendTestBtn').on('click', async function() {
+            const subject = $('#newsletterSubject').val().trim();
+            const content = window.newsletterQuill ? window.newsletterQuill.root.innerHTML : '';
+            if (!subject || !content.trim()) {
+                window.notificationService.showWarning('Add a subject and message before sending a test.');
+                return;
+            }
+            const $btn = $(this);
+            const original = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Sending...');
+            try {
+                const fd = new FormData();
+                fd.append('subject', subject);
+                fd.append('message', content);
+                const _r = await fetch('/api/admin/campaigns/send-test', { method: 'POST', body: fd, credentials: 'same-origin' });
+                const res = await _r.json();
+                if (!_r.ok || !res.success) throw new Error(res.message || 'Send failed');
+                window.notificationService.showSuccess(res.message || 'Test email sent.');
+            } catch (e) {
+                window.notificationService.showError('Could not send test email: ' + (e.message || 'Unknown error'));
+            } finally {
+                $btn.prop('disabled', false).html(original);
+            }
+        });
+
         // Schedule Send button
         $('#newsletterScheduleBtn').on('click', async function() {
             let valid = true;
@@ -22055,6 +22476,9 @@
                 fd.append('subject', subject);
                 fd.append('content', content);
                 fd.append('scheduled_at', new Date(scheduledAt).toISOString());
+                const { segment, value: segmentValue } = getSelectedAudience();
+                fd.append('segment', segment);
+                if (segmentValue) fd.append('segment_value', segmentValue);
                 newsletterFiles.forEach(f => fd.append('attachments', f));
                 const _r = await fetch(url, { method, body: fd, credentials: 'same-origin' });
                 const res = await _r.json();
@@ -22100,7 +22524,7 @@
         async function loadCampaigns(resetPage) {
             if (resetPage) campaignsPage = 1;
             const $tbody = $('#campaignsTableBody');
-            $tbody.html('<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--atl-muted-dim);font-size:13px;">Loading…</td></tr>');
+            $tbody.html('<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>Loading campaigns…</div></td></tr>');
             try {
                 const data = await apiCall(`/api/admin/campaigns/unified?page=${campaignsPage}&status=${campaignsStatus}&sort=${campaignsSort}&search=${encodeURIComponent(campaignsSearch)}`, 'GET');
                 campaignsData = data.campaigns || [];
@@ -22108,7 +22532,8 @@
                 const pages = data.pages || 1;
                 $tbody.empty();
                 if (!campaignsData.length) {
-                    $tbody.html('<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--atl-muted-dim);font-size:13px;">No campaigns found.</td></tr>');
+                    const msg = campaignsSearch ? 'No campaigns match your search.' : 'No campaigns found.';
+                    $tbody.html(`<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-inbox" style="font-size:22px;color:var(--atl-muted-dim);display:block;margin-bottom:8px;"></i>${msg}</div></td></tr>`);
                     $('#campaignsPagination').hide();
                     updateCampaignsBulkBar();
                     return;
@@ -22139,24 +22564,56 @@
                         </td>
                     </tr>`);
                 });
-                const from = (campaignsPage - 1) * 10 + 1;
-                const to = Math.min(campaignsPage * 10, total);
-                $('#campaignsPageInfo').text(`${from}–${to} of ${total}`);
-                $('#campaignsPrevBtn').prop('disabled', campaignsPage <= 1);
-                $('#campaignsNextBtn').prop('disabled', campaignsPage >= pages);
-                $('#campaignsPagination').css('display', 'flex');
+                renderCampaignsPaginationNumbered(pages);
                 updateCampaignsBulkBar();
             } catch(e) {
-                $tbody.html('<tr><td colspan="5" style="padding:20px;text-align:center;color:var(--atl-clay);font-size:13px;">Could not load campaigns.</td></tr>');
+                $tbody.html('<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-triangle-exclamation" style="font-size:22px;color:var(--atl-clay);display:block;margin-bottom:8px;"></i>Could not load campaigns.</div></td></tr>');
                 $('#campaignsPagination').hide();
             }
         }
 
+        function renderCampaignsPaginationNumbered(totalPages) {
+            var container = document.getElementById('campaignsPagination');
+            if (!container) return;
+            container.innerHTML = '';
+            container.style.display = totalPages > 1 ? 'flex' : 'none';
+            if (totalPages <= 1) return;
+
+            var prev = document.createElement('button');
+            prev.className = 'um-btn um-btn--ghost um-btn--sm' + (campaignsPage === 1 ? ' disabled' : '');
+            prev.innerHTML = '<i class="fa fa-chevron-left"></i>';
+            prev.onclick = function() { if (campaignsPage > 1) { campaignsPage--; loadCampaigns(); } };
+            container.appendChild(prev);
+
+            for (var i = 1; i <= totalPages; i++) {
+                if (totalPages > 7 && i > 5 && i < totalPages) {
+                    if (i === 6) { var sp = document.createElement('span'); sp.textContent = '…'; sp.style.color = 'var(--atl-muted)'; sp.style.padding = '0 4px'; container.appendChild(sp); }
+                    continue;
+                }
+                var b = document.createElement('button');
+                b.className = 'um-btn um-btn--sm ' + (campaignsPage === i ? 'um-btn--primary' : 'um-btn--ghost');
+                b.textContent = i;
+                (function(p) { b.onclick = function() { campaignsPage = p; loadCampaigns(); }; })(i);
+                container.appendChild(b);
+            }
+
+            var next = document.createElement('button');
+            next.className = 'um-btn um-btn--ghost um-btn--sm' + (campaignsPage === totalPages ? ' disabled' : '');
+            next.innerHTML = '<i class="fa fa-chevron-right"></i>';
+            next.onclick = function() { if (campaignsPage < totalPages) { campaignsPage++; loadCampaigns(); } };
+            container.appendChild(next);
+        }
+
+        // Search is server-side (matches the backend's `search` param on the unified endpoint),
+        // debounced — previously this only filtered rows already on the current page.
+        let campaignsSearchDebounce = null;
         $('#campaignsSearchInput').on('input', function() {
-            var term = $(this).val().toLowerCase();
-            $('#campaignsTableBody tr').each(function() {
-                $(this).toggle(($(this).data('subject') || '').includes(term));
-            });
+            var val = $(this).val().trim();
+            clearTimeout(campaignsSearchDebounce);
+            campaignsSearchDebounce = setTimeout(function() {
+                campaignsSearch = val;
+                loadCampaigns(true);
+            }, 300);
         });
         $('#campaignsSortSelect').on('change', function() {
             campaignsSort = $(this).val();
@@ -22471,6 +22928,8 @@
                     loadHighlights();
                     loadGallery();
                     renderSubscribersList();
+                    loadSubscriberStats();
+                    refreshAudienceCount();
                     loadDraftsList();
                     loadScheduledList();
                     if (window.applyAdminBackgrounds) window.applyAdminBackgrounds();
@@ -22597,6 +23056,8 @@
                     loadHighlights();
                     loadGallery();
                     renderSubscribersList();
+                    loadSubscriberStats();
+                    refreshAudienceCount();
                     loadDraftsList();
                     loadScheduledList();
                     if (window.applyAdminBackgrounds) window.applyAdminBackgrounds();
@@ -26815,6 +27276,7 @@
     var currentUserId = null;
     var allUsersCache = [];
     var moduleLoaded   = false;
+    var birthdayModuleLoaded = false;
     var itiUmPhone     = null;  // intl-tel-input instance for the Add/Edit drawer phone field
 
     /* ================================================================
@@ -26841,6 +27303,11 @@
                 if (target === 'umPanelUsers' && !moduleLoaded) {
                     loadAllUsers();
                     moduleLoaded = true;
+                }
+                // Lazy-load birthday automation settings on first open (not on every admin login)
+                if (target === 'newsletterBirthdayPanel' && !birthdayModuleLoaded) {
+                    if (typeof window.loadBirthdaySettings === 'function') window.loadBirthdaySettings();
+                    birthdayModuleLoaded = true;
                 }
             });
         });
@@ -31558,7 +32025,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <p style="color: var(--atl-ink-dim);font-size:13px;">Upload a CSV file. The file must have columns: <code>email, status</code>. Existing emails will be updated; new emails will be added.</p>
+                <p style="color: var(--atl-ink-dim);font-size:13px;">Upload a CSV file. Required column: <code>email</code>. Optional: <code>status</code>, <code>first_name</code>, <code>birthday</code> (format <code>MM-DD</code>, no year), <code>tags</code> (semicolon-separated). Existing emails will be updated; new emails will be added.</p>
                 <label class="um-upload-zone" for="csvFileInput" style="cursor:pointer; background: var(--atl-card); border:1px dashed var(--atl-line); border-radius:8px; padding:30px; text-align:center; display:block;">
                     <i class="fa-solid fa-cloud-upload-alt" style="color: var(--atl-amber); font-size:32px; margin-bottom:10px; display:block;"></i>
                     <span id="importFileName" style="color: var(--atl-muted);">Drag & drop or click to select a CSV file</span>

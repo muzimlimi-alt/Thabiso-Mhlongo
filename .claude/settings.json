@@ -14,7 +14,12 @@
       "Bash(node -e \"console.log\\(require.resolve\\('puppeteer'\\)\\)\")",
       "Skill(artifact-design)",
       "Skill(artifact-design:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(node \"C:\\\\Users\\\\muzim\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-muzim-OneDrive-Muzi-s-Office-Dev-Beast-Thabiso-Mhlongo-Official-Website-Thabiso-Mhlongo-Offcial-Website\\\\9c789ca1-3b7d-40d4-a046-d2e4f9ce1ee2\\\\scratchpad\\\\verify_newsletter.js\")",
+      "Bash(tasklist //FI \"IMAGENAME eq node.exe\")",
+      "Bash(powershell -NoProfile -Command \"Get-Process node -ErrorAction SilentlyContinue | Select-Object Id,StartTime\")",
+      "Bash(powershell -NoProfile -Command \"Get-CimInstance Win32_Process -Filter \\\\\"Name='node.exe'\\\\\" | Select-Object ProcessId, CommandLine | Format-List\")",
+      "Bash(powershell -NoProfile -Command 'Get-Process -Id 2952,15860 -ErrorAction SilentlyContinue | Select-Object Id,StartTime,@{N='\\\\''RuntimeMin'\\\\'';E={\\(\\(Get-Date\\)-$_.StartTime\\).TotalMinutes}}')"
     ]
   }
 }

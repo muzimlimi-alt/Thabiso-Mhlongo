@@ -1515,67 +1515,130 @@ header .navbar {
   border-radius:0!important;
   padding:0!important;
   box-shadow:none!important;
-  text-align:center!important;
+  text-align:left!important;
   display: block !important; /* Ensure it doesn't flex if not needed */
 }
 #NewsLetter h3{ display:none; }
 #NewsLetter > p{ display:none; }
+
+/* Mobile-first: everything stacks in a single column by default. */
 #newsletterSubscribeForm{
-  display:grid !important;
-  grid-template-columns:1fr auto;
-  gap:15px;
-  max-width:500px;
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+  max-width:520px;
   margin:0 auto 20px;
-  align-items: center;
+  text-align:left;
+}
+.tm-newsletter-row{
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+}
+@media (min-width:600px){
+  .tm-newsletter-row{ flex-direction:row; }
+  .tm-newsletter-row .tm-form-group{ flex:1; min-width:0; }
 }
 
-.tm-form-group {
-  margin-bottom: 0 !important; /* Override default margin */
-  width: 100%;
+.tm-form-group{
+  margin-bottom:0 !important; /* Override default margin */
+  width:100%;
 }
 
-#newsletterSubscribeEmail{
-  background:transparent !important;
-  border:none !important;
-  border-bottom:1px solid rgba(255,255,255,0.2) !important;
-  border-radius:0 !important;
+.tm-newsletter-label{
+  display:block;
+  font-family:var(--f-body);
+  font-size:.68rem;
+  font-weight:500;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.55);
+  margin-bottom:8px;
+}
+.tm-newsletter-label__hint{
+  text-transform:none;
+  letter-spacing:normal;
+  font-weight:400;
+  font-size:.72rem;
+  color:rgba(255,255,255,.35);
+}
+
+/* Boxed input treatment — same visual language as #contactForm's inputs (translucent fill
+   instead of #contactForm's --bg-page recess, since this form has no elevated card behind it). */
+.tm-nl-input{
+  background:rgba(255,255,255,.05) !important;
+  border:1px solid rgba(255,255,255,.14) !important;
+  border-radius:var(--r) !important;
   color:#fff !important;
   font-family:var(--f-body);
-  font-size:1rem !important;
-  padding:12px 10px !important;
+  font-size:.95rem !important;
+  font-weight:300;
+  padding:14px 16px !important;
   width:100%;
   box-shadow:none !important;
-  transition:border-color 0.3s ease;
-  text-align: center !important; /* Center the input text */
+  transition:all var(--t) var(--ease);
 }
-#newsletterSubscribeEmail:focus{
+.tm-nl-input::placeholder{ color:rgba(255,255,255,.32); }
+.tm-nl-input:focus{
+  outline:none !important;
   border-color:var(--y-base) !important;
+  background:rgba(255,255,255,.07) !important;
+  box-shadow:0 0 0 3px var(--y-muted) !important;
 }
-#newsletterSubscribeEmail::placeholder{
-  color:rgba(255,255,255,0.3);
+select.tm-nl-input{
+  /* style.css's unscoped `select.form-control{background-color:#fff!important}` outranks the
+     plain .tm-nl-input class on specificity alone, !important notwithstanding — restate the
+     fill/text color here at matching (element+class) specificity to win it back. */
+  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+  background-color:rgba(255,255,255,.05) !important;
+  color:#fff !important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23D4AF37'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E") !important;
+  background-repeat:no-repeat !important;
+  background-position:calc(100% - 14px) 50% !important;
+  background-size:18px !important;
+  padding-right:38px !important;
+  cursor:pointer;
 }
+select.tm-nl-input:focus{
+  background-color:rgba(255,255,255,.07) !important;
+  border-color:var(--y-base) !important;
+  box-shadow:0 0 0 3px var(--y-muted) !important;
+}
+select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !important; }
+
+.tm-newsletter-birthday__row{
+  display:flex;
+  gap:14px;
+}
+.tm-newsletter-birthday__row .tm-nl-input{ flex:1; min-width:0; }
+
+.tm-field-error{
+  display:block;
+  min-height:0;
+  font-family:var(--f-body);
+  font-size:.76rem;
+  color:var(--accent-red, #f87171);
+  margin-top:6px;
+}
+.tm-field-error:empty{ display:none; }
 
 .tm-newsletter-consent{
-  grid-column:1 / -1; /* Span full width in grid */
   display:flex;
-  justify-content:center;
-  margin-top:10px;
+  flex-direction:column;
+  gap:6px;
 }
 .tm-newsletter-consent .bk-checkbox-label{
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   gap:10px;
   cursor:pointer;
   font-family:var(--f-body);
-  font-size:0.75rem !important;
-  color:rgba(255,255,255,0.4) !important;
+  font-size:.8rem !important;
+  line-height:1.5;
+  color:rgba(255,255,255,.55) !important;
+  text-align:left;
 }
-#newsletterSubscribeStatus{
-  margin-top:18px!important;
-  font-size:.82rem;
-  color:var(--y-base);
-  text-align:center;
-}
+.tm-newsletter-consent .bk-checkbox{ margin-top:3px; flex-shrink:0; }
 
 .tm-newsletter__hint {
   display: block; /* Essential for span */
@@ -1584,29 +1647,6 @@ header .navbar {
   margin-top: 15px !important;
   text-align: center;
   font-family: var(--f-body);
-}
-@media (max-width:540px){
-  .tm-newsletter-bar{ 
-    flex-direction:column !important; 
-    background:transparent !important; 
-    border:none !important; 
-    padding: 0 !important;
-    overflow:visible !important; 
-    border-radius: 0 !important; 
-  }
-  #newsletterSubscribeEmail{
-    background:rgba(255,255,255,.08)!important;
-    border:1px solid rgba(255,255,255,.15)!important;
-    border-radius:100px !important;
-    margin-bottom:12px !important;
-    padding: 0 24px !important;
-    width: 100% !important;
-  }
-  #newsletterSubscribeBtn{ 
-    border-radius:100px !important; 
-    width:100% !important; 
-    height: 52px !important;
-  }
 }
 
 /* ---------- CONTACT ---------- */
