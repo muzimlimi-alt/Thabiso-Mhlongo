@@ -359,6 +359,68 @@ function initializeDatabase() {
             db.run("ALTER TABLE career_highlights ADD COLUMN year TEXT", () => {});
             db.run("ALTER TABLE career_highlights ADD COLUMN badge TEXT", () => {});
             db.run("ALTER TABLE career_highlights ADD COLUMN location TEXT", () => {});
+            // Milestones redesign: per-entry icon badge (mic/tv/plane/etc.) — nullable, falls back
+            // to a generic icon on the frontend for existing rows.
+            db.run("ALTER TABLE career_highlights ADD COLUMN icon TEXT", () => {});
+        });
+
+        // Footprint — countries performed in, shown as a flag grid on the public site.
+        // Modeled directly on career_highlights: same admin-managed list shape, no reorder UI.
+        db.run(`CREATE TABLE IF NOT EXISTS footprint_countries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            country_name TEXT NOT NULL,
+            flag_image_path TEXT NOT NULL,
+            display_order INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, () => {
+            // One-time seed of the real countries from the Footprint prototype — only runs while
+            // the table is empty, so an admin who later deletes all rows doesn't get them back.
+            db.get("SELECT COUNT(*) AS c FROM footprint_countries", (err, row) => {
+                if (err || !row || row.c > 0) return;
+                const seed = [
+                    ['South Africa', 'images/footprint/flag-south-africa.png'],
+                    ['Eswatini', 'images/footprint/flag-eswatini.png'],
+                    ['Lesotho', 'images/footprint/flag-lesotho.png'],
+                    ['Cape Verde', 'images/footprint/flag-cape-verde.png'],
+                    ['Spain', 'images/footprint/flag-spain.png'],
+                    ['Japan', 'images/footprint/flag-japan.png'],
+                ];
+                seed.forEach(([country_name, flag_image_path]) => {
+                    db.run("INSERT INTO footprint_countries (country_name, flag_image_path) VALUES (?, ?)", [country_name, flag_image_path]);
+                });
+            });
+        });
+
+        // Testimonials — visitor-submitted, admin-moderated. status gates public visibility;
+        // no CHECK constraint, matching this project's established preference for status columns
+        // (see the Newsletter double opt-in work for the same reasoning).
+        db.run(`CREATE TABLE IF NOT EXISTS testimonials (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            designation TEXT,
+            quote TEXT NOT NULL,
+            image_path TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            submitted_by TEXT NOT NULL DEFAULT 'visitor',
+            display_order INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, () => {
+            // One-time seed of the real testimonial quotes from the prototype, pre-approved since
+            // they're the site owner's own vetted content. NOTE: the prototype's embedded "photos"
+            // turned out to be unrelated event flyers, not real client headshots — seeded with
+            // image_path NULL on purpose; the public carousel renders a monogram avatar for any
+            // testimonial without a photo (real client photos can be added via the admin later).
+            db.get("SELECT COUNT(*) AS c FROM testimonials", (err, row) => {
+                if (err || !row || row.c > 0) return;
+                const seed = [
+                    ['Naledi Khumalo', 'Corporate Events Lead', "Thabiso hosted our year-end function and had the whole floor — interns to the CFO — crying with laughter. Professional, punctual, and impossibly funny."],
+                    ['Sipho Maseko', 'Festival Director', "He switched between isiSwati and English mid-punchline and somehow the whole tent got the joke. We've booked him twice since — the crowd asks for him by name."],
+                    ['Annelie Botha', 'Private Client', "From the first quote to the final bow, everything was effortless. He made my father's 60th feel like a sold-out theatre show."],
+                ];
+                seed.forEach(([name, designation, quote]) => {
+                    db.run("INSERT INTO testimonials (name, designation, quote, status, submitted_by) VALUES (?, ?, ?, 'approved', 'admin')", [name, designation, quote]);
+                });
+            });
         });
 
         // 7. Gallery Images Table

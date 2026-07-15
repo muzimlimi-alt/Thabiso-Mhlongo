@@ -452,6 +452,10 @@ const storage = multer.diskStorage({
              folder = 'images/backgrounds/';
         } else if (section === 'branding') {
              folder = 'images/branding/';
+        } else if (section === 'footprint') {
+             folder = 'images/footprint/';
+        } else if (section === 'testimonials') {
+             folder = 'images/testimonials/';
         }
 
         // Ensure directory exists
@@ -476,6 +480,35 @@ const upload = multer({
         cb(new Error('Only image files are allowed.'));
     },
     limits: { fileSize: 15 * 1024 * 1024 }
+});
+
+// Restricted variant of `upload` for the one PUBLIC, unauthenticated upload route (testimonial
+// photo submission) — deliberately excludes .svg. SEC-1 (see the /upload route below) already
+// established that allowing SVG through an unauthenticated upload path is a stored-XSS vector;
+// `upload` above stays SVG-permissive because every other route using it is requireAdmin-gated.
+// Uses its own fixed-destination storage (not the shared `storage` above, which picks a folder
+// from req.body.section) because this route only ever handles testimonial photos and the public
+// submission form has no reason to send a `section` field — relying on it silently misfiled
+// uploads into images/ instead of images/testimonials/ while the DB kept the intended path.
+const publicImageUploadStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const dir = path.join(__dirname, 'images/testimonials/');
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+    },
+    filename: function (req, file, cb) {
+        cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'));
+    }
+});
+const publicImageUpload = multer({
+    storage: publicImageUploadStorage,
+    fileFilter: function(req, file, cb) {
+        const allowed = /jpeg|jpg|png|webp/;
+        const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
+        if (allowed.test(ext)) return cb(null, true);
+        cb(new Error('Only JPG, PNG or WEBP images are allowed.'));
+    },
+    limits: { fileSize: 8 * 1024 * 1024 }
 });
 
 // Receipt file storage for expenses
@@ -578,6 +611,8 @@ app.post('/upload', (req, res, next) => {
     else if (section === 'about') folderPath = 'images/about/';
     else if (section === 'backgrounds') folderPath = 'images/backgrounds/';
     else if (section === 'branding') folderPath = 'images/branding/';
+    else if (section === 'footprint') folderPath = 'images/footprint/';
+    else if (section === 'testimonials') folderPath = 'images/testimonials/';
 
     const relativePath = folderPath + req.file.filename;
 
@@ -12109,8 +12144,12 @@ app.get('/api/public/places/autocomplete', ipRateLimiter, (req, res) => {
     const input = (req.query.input || '').trim();
     if (input.length < 2) return res.json({ predictions: [] });
     const apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
+    if (!apiKey) {
+        console.warn('[Places] GOOGLE_MAPS_API_KEY is not set — venue autocomplete will always return zero results until it is configured.');
+        return res.json({ predictions: [] });
+    }
     const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${apiKey}`;
-    
+
     require('https').get(url, (r) => {
         let body = '';
         r.on('data', d => body += d);
@@ -12126,6 +12165,7 @@ app.get('/api/public/places/autocomplete', ipRateLimiter, (req, res) => {
                     }));
                     res.json({ predictions });
                 } else {
+                    if (data.status !== 'ZERO_RESULTS') console.warn('[Places] autocomplete returned', data.status, data.error_message || '');
                     res.json({ predictions: [] });
                 }
             } catch(e) { res.json({ predictions: [] }); }
@@ -12138,8 +12178,12 @@ app.get('/api/public/places/details', ipRateLimiter, (req, res) => {
     const place_id = req.query.place_id;
     if (!place_id) return res.status(400).json({ error: 'place_id required' });
     const apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
+    if (!apiKey) {
+        console.warn('[Places] GOOGLE_MAPS_API_KEY is not set — venue details lookup cannot run.');
+        return res.status(404).json({ error: 'Place not found' });
+    }
     const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place_id}&fields=address_components,formatted_address,name,geometry&key=${apiKey}`;
-    
+
     require('https').get(url, (r) => {
         let body = '';
         r.on('data', d => body += d);
@@ -12149,6 +12193,7 @@ app.get('/api/public/places/details', ipRateLimiter, (req, res) => {
                 if (data.status === 'OK' && data.result) {
                     res.json({ result: data.result });
                 } else {
+                    if (data.status !== 'ZERO_RESULTS') console.warn('[Places] details returned', data.status, data.error_message || '');
                     res.status(404).json({ error: 'Place not found' });
                 }
             } catch(e) { res.status(500).json({ error: 'Server error' }); }
@@ -13944,38 +13989,159 @@ app.get('/api/admin/highlights', requireAdmin, (req, res) => {
 });
 // Using Multer array middleware we defined earlier, or single file handler
 app.post('/api/admin/highlights', requireAdmin, upload.single('file'), (req, res) => {
-    const { year, title, badge, location, description, display_order, fallback_url } = req.body;
+    const { year, title, badge, location, description, display_order, fallback_url, icon } = req.body;
     // Prioritize uploaded file over the fallback URL
     const imagePath = req.file ? `images/${req.file.filename}` : (fallback_url || null);
 
-    db.run("INSERT INTO career_highlights (year, title, badge, location, description, image_path, display_order) VALUES (?, ?, ?, ?, ?, ?, ?)", 
-        [year, title, badge, location, description, imagePath, display_order || 0], function(err) {
+    db.run("INSERT INTO career_highlights (year, title, badge, location, description, image_path, display_order, icon) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [year, title, badge, location, description, imagePath, display_order || 0, icon || null], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, id: this.lastID });
     });
 });
 app.put('/api/admin/highlights/:id', requireAdmin, (req, res) => {
-    const { year, title, badge, location, description, display_order, fallback_url, clear_image } = req.body;
+    const { year, title, badge, location, description, display_order, fallback_url, clear_image, icon } = req.body;
     const done = function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });
     };
     if (clear_image === true || clear_image === 'true') {
         // Clear the image path entirely
-        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = NULL, display_order = ? WHERE id = ?",
-            [year, title, badge, location, description, display_order, req.params.id], done);
+        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = NULL, display_order = ?, icon = ? WHERE id = ?",
+            [year, title, badge, location, description, display_order, icon || null, req.params.id], done);
     } else if (fallback_url) {
         // A new media URL was supplied on edit — update image_path too.
-        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = ?, display_order = ? WHERE id = ?",
-            [year, title, badge, location, description, fallback_url, display_order, req.params.id], done);
+        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = ?, display_order = ?, icon = ? WHERE id = ?",
+            [year, title, badge, location, description, fallback_url, display_order, icon || null, req.params.id], done);
     } else {
         // No new media — leave the existing image_path untouched.
-        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, display_order = ? WHERE id = ?",
-            [year, title, badge, location, description, display_order, req.params.id], done);
+        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, display_order = ?, icon = ? WHERE id = ?",
+            [year, title, badge, location, description, display_order, icon || null, req.params.id], done);
     }
 });
 app.delete('/api/admin/highlights/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     db.run("DELETE FROM career_highlights WHERE id = ?", req.params.id, function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
+// --- Footprint (countries performed in) — mirrors Career Highlights' route shape exactly ---
+app.get('/api/public/footprint', (req, res) => { // Public route for index.html
+    db.all("SELECT * FROM footprint_countries ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+app.get('/api/admin/footprint', requireAdmin, (req, res) => {
+    db.all("SELECT * FROM footprint_countries ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+app.post('/api/admin/footprint', requireAdmin, upload.single('file'), (req, res) => {
+    const { country_name, display_order, fallback_url } = req.body;
+    const imagePath = req.file ? `images/footprint/${req.file.filename}` : (fallback_url || null);
+    if (!country_name || !imagePath) {
+        return res.status(400).json({ success: false, message: 'Country name and a flag image are required.' });
+    }
+    db.run("INSERT INTO footprint_countries (country_name, flag_image_path, display_order) VALUES (?, ?, ?)",
+        [country_name, imagePath, display_order || 0], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true, id: this.lastID });
+    });
+});
+app.put('/api/admin/footprint/:id', requireAdmin, (req, res) => {
+    const { country_name, display_order, fallback_url } = req.body;
+    const done = function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    };
+    if (fallback_url) {
+        // A new flag image was supplied on edit.
+        db.run("UPDATE footprint_countries SET country_name = ?, flag_image_path = ?, display_order = ? WHERE id = ?",
+            [country_name, fallback_url, display_order, req.params.id], done);
+    } else {
+        // No new image — flag_image_path is required, so it's never cleared, only replaced.
+        db.run("UPDATE footprint_countries SET country_name = ?, display_order = ? WHERE id = ?",
+            [country_name, display_order, req.params.id], done);
+    }
+});
+app.delete('/api/admin/footprint/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+    db.run("DELETE FROM footprint_countries WHERE id = ?", req.params.id, function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+    });
+});
+
+// --- Testimonials (visitor-submitted, admin-moderated) ---
+app.get('/api/public/testimonials', (req, res) => { // Public: approved only
+    db.all("SELECT * FROM testimonials WHERE status = 'approved' ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+// Public submission — rate-limited, restricted (non-SVG) upload, always starts pending review.
+app.post('/api/public/testimonials', ipRateLimiter, publicImageUpload.single('file'), (req, res) => {
+    const { name, designation, quote } = req.body;
+    if (!name || !quote) {
+        return res.status(400).json({ success: false, message: 'Name and testimonial text are required.' });
+    }
+    const imagePath = req.file ? `images/testimonials/${req.file.filename}` : null;
+    db.run("INSERT INTO testimonials (name, designation, quote, image_path, status, submitted_by) VALUES (?, ?, ?, ?, 'pending', 'visitor')",
+        [name, designation || null, quote, imagePath], function(err) {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        res.json({ success: true, message: 'Thank you! Your testimonial has been submitted for review.' });
+    });
+});
+// Admin: every status, so the moderation queue can show pending/approved/rejected.
+app.get('/api/admin/testimonials', requireAdmin, (req, res) => {
+    const status = req.query.status;
+    const where = status ? "WHERE status = ?" : "";
+    const params = status ? [status] : [];
+    db.all(`SELECT * FROM testimonials ${where} ORDER BY display_order ASC, created_at DESC`, params, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+// Admin-authored testimonial — the site owner's own content skips the review queue.
+app.post('/api/admin/testimonials', requireAdmin, upload.single('file'), (req, res) => {
+    const { name, designation, quote, display_order, fallback_url } = req.body;
+    if (!name || !quote) {
+        return res.status(400).json({ success: false, message: 'Name and testimonial text are required.' });
+    }
+    const imagePath = req.file ? `images/testimonials/${req.file.filename}` : (fallback_url || null);
+    db.run("INSERT INTO testimonials (name, designation, quote, image_path, display_order, status, submitted_by) VALUES (?, ?, ?, ?, ?, 'approved', 'admin')",
+        [name, designation || null, quote, imagePath, display_order || 0], function(err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true, id: this.lastID });
+    });
+});
+// Edit — also how Approve/Reject work (a status-only PUT from the admin moderation queue).
+app.put('/api/admin/testimonials/:id', requireAdmin, (req, res) => {
+    const { name, designation, quote, display_order, fallback_url, clear_image, status } = req.body;
+    db.get("SELECT * FROM testimonials WHERE id = ?", [req.params.id], (selErr, existing) => {
+        if (selErr) return res.status(500).json({ error: selErr.message });
+        if (!existing) return res.status(404).json({ success: false, message: 'Testimonial not found' });
+
+        const newName = name !== undefined ? name : existing.name;
+        const newDesignation = designation !== undefined ? designation : existing.designation;
+        const newQuote = quote !== undefined ? quote : existing.quote;
+        const newDisplayOrder = display_order !== undefined ? display_order : existing.display_order;
+        const newStatus = status !== undefined ? status : existing.status;
+        let newImagePath = existing.image_path;
+        if (clear_image === true || clear_image === 'true') newImagePath = null;
+        else if (fallback_url) newImagePath = fallback_url;
+
+        db.run("UPDATE testimonials SET name = ?, designation = ?, quote = ?, image_path = ?, display_order = ?, status = ? WHERE id = ?",
+            [newName, newDesignation, newQuote, newImagePath, newDisplayOrder, newStatus, req.params.id], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            res.json({ success: true });
+        });
+    });
+});
+app.delete('/api/admin/testimonials/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+    db.run("DELETE FROM testimonials WHERE id = ?", req.params.id, function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true });
     });
@@ -15366,7 +15532,7 @@ const SITE_CONTENT_KEYS = ['announcement_text', 'announcement_enabled', 'announc
 // Public homepage sections whose visibility admins can toggle (stored as a JSON map in the
 // `section_visibility` setting). A key absent/true = visible; only an explicit false hides it.
 // `announcement` is intentionally NOT here — its visibility shares the `announcement_enabled` key.
-const SECTION_KEYS = ['hero', 'features', 'services', 'about', 'career', 'gallery', 'events', 'social', 'newsletter', 'contact', 'footer'];
+const SECTION_KEYS = ['hero', 'features', 'services', 'about', 'career', 'footprint', 'gallery', 'events', 'social', 'newsletter', 'testimonials', 'contact', 'footer'];
 
 app.get('/api/public/site-content', (req, res) => {
     const ph = SITE_CONTENT_KEYS.map(() => '?').join(',');

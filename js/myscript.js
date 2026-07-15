@@ -323,10 +323,12 @@ $(function() {
         services:   { sel: '.tm-services', nav: [] },
         about:      { sel: '#about',       nav: ['#about'] },
         career:     { sel: '#career',      nav: ['#career'] },
+        footprint:  { sel: '#footprint',   nav: ['#footprint'] },
         gallery:    { sel: '#gallery',     nav: ['#gallery'] },
         events:     { sel: '#events',      nav: ['#events'] },
         social:     { sel: '#social',      nav: ['#social'] },
         newsletter: { sel: '#newsletter',  nav: ['#newsletter'] },
+        testimonials: { sel: '#testimonials', nav: ['#testimonials'] },
         contact:    { sel: '#contact',     nav: ['#contact'] },
         footer:     { sel: '.tm-footer',   nav: [] }
     };
@@ -631,7 +633,57 @@ $(function() {
         }
     });
 
-    // 9. Dynamic Career Accordion Rendering
+    // 9. Dynamic Milestones Rendering (expanding-panel selector) — same /api/public/highlights
+    // contract and image/YouTube/Vimeo trichotomy the old accordion used, new presentation only.
+    var MS_ICON_MAP = { mic: 'fa-microphone', tv: 'fa-tv', headphones: 'fa-headphones', plane: 'fa-plane', pen: 'fa-pen-nib', trophy: 'fa-trophy', camera: 'fa-camera', star: 'fa-star' };
+
+    function msYouTubeVideoId(url) {
+        var videoId = '';
+        if (url.includes('watch?v=')) videoId = url.split('watch?v=')[1].substring(0, 11);
+        else if (url.includes('youtu.be/')) videoId = url.split('youtu.be/')[1].substring(0, 11);
+        else if (url.includes('embed/')) { var parts = url.split('embed/'); if (parts.length > 1) videoId = parts[1].substring(0, 11); }
+        return (videoId && videoId.length === 11) ? videoId : null;
+    }
+    function msYouTubeEmbedUrl(videoId) {
+        // origin= is required by some videos' embed restrictions (commonly triggers YouTube's
+        // "Error 153" without it). Even with it, a video's owner can still disable embedding
+        // entirely (common for official/network channel uploads) — nothing client-side can force
+        // that to work, hence the always-visible "Watch on YouTube" fallback link this pairs with.
+        return 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&origin=' + encodeURIComponent(window.location.origin);
+    }
+
+    function msEmbedVideo($opt) {
+        var embedUrl = $opt.attr('data-embed-url');
+        var watchUrl = $opt.attr('data-watch-url');
+        if (!embedUrl || $opt.find('.ms-option__embed').length) return;
+        // Some videos (commonly official/network channel uploads) have embedding disabled by their
+        // owner on YouTube/Vimeo's side — nothing this page can do makes those play inline. The
+        // "Watch on YouTube/Vimeo" link stays visible regardless, so it's never a dead end.
+        var watchLinkHtml = watchUrl
+            ? '<a class="ms-option__watch-link" href="' + watchUrl + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();"><i class="fa-solid fa-arrow-up-right-from-square"></i> Watch on ' + (watchUrl.includes('vimeo') ? 'Vimeo' : 'YouTube') + '</a>'
+            : '';
+        $opt.append('<div class="ms-option__embed"><iframe src="' + embedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>' + watchLinkHtml + '</div>');
+    }
+
+    function msWireInteractions() {
+        var $row = $('#milestonesRow');
+        $row.off('click.milestones keydown.milestones');
+
+        // One click both expands a panel AND plays its video, if it has one — matches the old
+        // accordion's single-click-to-watch behavior. No separate play-button click required.
+        $row.on('click.milestones', '.ms-option', function() {
+            var $opt = $(this);
+            if ($opt.hasClass('is-active')) return;
+            $row.find('.ms-option').removeClass('is-active').attr('aria-expanded', 'false').find('.ms-option__embed').remove();
+            $opt.addClass('is-active').attr('aria-expanded', 'true');
+            msEmbedVideo($opt);
+        });
+
+        $row.on('keydown.milestones', '.ms-option', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $(this).trigger('click'); }
+        });
+    }
+
     async function renderCareer() {
         var parsed = [];
         try {
@@ -644,96 +696,325 @@ $(function() {
             console.error("Failed to load career highlights from server:", err);
         }
 
-        if (parsed && parsed.length > 0) {
-                var $acc = $('#accordion');
-                $acc.empty();
-                
-                parsed.forEach(function(item, index) {
-                    var isFirst = index === 0;
-                    var collId = 'collapseDyn' + index;
-                    var headId = 'headingDyn' + index;
-                    
-                    // Construct Header
-                    var headerText = `<strong>${item.year}</strong> &ndash; ${item.title}`;
-                    if (item.location) headerText += ` <span style="font-size:14px; margin-left:8px; opacity:0.8;">| ${item.location}</span>`;
-                    if (item.badge) headerText += ` <span class="label label-warning" style="margin-left:8px;">${item.badge}</span>`;
+        var $row = $('#milestonesRow');
+        if (!$row.length) return;
 
-                    // Construct Body Media
-                    var mediaHtml = '';
-                    var itemMedia = item.image_path || '';
-                    if (itemMedia) {
-                        if (itemMedia.startsWith('data:image') || itemMedia.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null) {
-                            mediaHtml = `<img src="${itemMedia}" class="img-responsive" style="border-radius:6px; margin-top:15px; box-shadow:0 4px 8px rgba(0,0,0,0.2);" alt="Career Highlight">`;
-                        } else if (itemMedia.includes('youtube.com') || itemMedia.includes('youtu.be')) {
-                            // Convert standard youtube link to embed link safely
-                            var embedUrl = itemMedia;
-                            var videoId = '';
-                            if (embedUrl.includes('watch?v=')) {
-                                videoId = embedUrl.split('watch?v=')[1].substring(0, 11);
-                            } else if (embedUrl.includes('youtu.be/')) {
-                                videoId = embedUrl.split('youtu.be/')[1].substring(0, 11);
-                            } else if (embedUrl.includes('embed/')) {
-                                var parts = embedUrl.split('embed/');
-                                if (parts.length > 1) {
-                                    videoId = parts[1].substring(0, 11);
-                                }
-                            }
-                            
-                            if (videoId && videoId.length === 11) {
-                                embedUrl = `https://www.youtube.com/embed/${videoId}`;
-                                mediaHtml = `<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; border-radius:6px; margin-top:15px; box-shadow:0 4px 8px rgba(0,0,0,0.2);">
-                                                <iframe src="${embedUrl}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                                             </div>`;
-                            } else {
-                                // Raw fallback if the URL is unorthodox
-                                var rawSrc = itemMedia;
-                                if (rawSrc.includes('src="')) {
-                                    rawSrc = rawSrc.split('src="')[1].split('"')[0];
-                                }
-                                mediaHtml = `<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; border-radius:6px; margin-top:15px; box-shadow:0 4px 8px rgba(0,0,0,0.2);">
-                                                <iframe src="${rawSrc}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                                             </div>`;
-                            }
-                        } else if (itemMedia.includes('vimeo')) {
-                            mediaHtml = `<div style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; border-radius:6px; margin-top:15px; box-shadow:0 4px 8px rgba(0,0,0,0.2);">
-                                            <iframe src="${itemMedia}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
-                                         </div>`;
-                        }
-                    }
-
-                    // Format Description with paragraphs
-                    var descHtml = '';
-                    if (item.description) {
-                        var paragraphs = item.description.split('\n').filter(function(p) { return p.trim().length > 0; });
-                        paragraphs.forEach(function(p) { descHtml += `<p style="line-height:1.8; font-size:15px; font-style: normal; color: #a9a9a9;">${p}</p>`; });
-                    }
-
-                    var html = `
-                        <div class="panel panel-default career-panel">
-                            <div class="panel-heading" role="tab" id="${headId}">
-                                <h4 class="panel-title">
-                                    <a class="${isFirst ? '' : 'collapsed'}" role="button" data-toggle="collapse" data-parent="#accordion" href="#${collId}" aria-expanded="${isFirst ? 'true' : 'false'}" aria-controls="${collId}" style="display:block; text-decoration:none;">
-                                        ${headerText} <span class="glyphicon glyphicon-chevron-down pull-right" style="font-size:12px; margin-top:3px; opacity: 0.5;"></span>
-                                    </a>
-                                </h4>
-                            </div>
-                            <div id="${collId}" class="panel-collapse collapse ${isFirst ? 'in' : ''}" role="tabpanel" aria-labelledby="${headId}">
-                                <div class="panel-body" style="padding:25px; border-top:none;">
-                                    <div class="row">
-                                        <div class="col-md-${itemMedia ? '7' : '12'}">
-                                            ${descHtml}
-                                        </div>
-                                        ${itemMedia ? `<div class="col-md-5">${mediaHtml}</div>` : ''}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>`;
-                    $acc.append(html);
-                });
-            }
+        if (!parsed.length) {
+            // No highlights on file (fresh install, or fetch failed) — hide the whole section
+            // rather than showing an empty heading over a blank panel row.
+            $row.closest('.tm-section').hide();
+            return;
         }
-        
+
+        $row.empty();
+        parsed.forEach(function(item, index) {
+            var iconClass = MS_ICON_MAP[item.icon] || MS_ICON_MAP.star;
+            var media = item.image_path || '';
+            var mediaType = 'none';
+            var embedUrl = null;
+            var watchUrl = null;
+
+            if (media) {
+                if (media.startsWith('data:image') || media.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null) {
+                    mediaType = 'image';
+                } else if (media.includes('youtube.com') || media.includes('youtu.be') || media.includes('embed/')) {
+                    var ytId = msYouTubeVideoId(media);
+                    if (ytId) {
+                        mediaType = 'video';
+                        embedUrl = msYouTubeEmbedUrl(ytId);
+                        watchUrl = 'https://www.youtube.com/watch?v=' + ytId;
+                    }
+                } else if (media.includes('vimeo')) {
+                    mediaType = 'video';
+                    embedUrl = media; // trusted as-is, matches the old accordion's own Vimeo handling
+                    watchUrl = media;
+                }
+            }
+
+            var descText = '';
+            if (item.description) {
+                var firstPara = item.description.split('\n').filter(function(p) { return p.trim().length > 0; })[0];
+                descText = firstPara || '';
+            }
+
+            var metaHtml = '';
+            if (item.badge) metaHtml += '<span class="ms-option__pill">' + item.badge + '</span>';
+            if (item.location) metaHtml += '<span class="ms-option__loc"><i class="fa-solid fa-location-dot"></i> ' + item.location + '</span>';
+
+            var $opt = $('<div>')
+                .addClass('ms-option' + (index === 0 ? ' is-active' : ''))
+                .attr({
+                    role: 'button', tabindex: '0',
+                    'aria-expanded': index === 0 ? 'true' : 'false',
+                    'aria-label': (item.year ? item.year + ' — ' : '') + item.title,
+                    'data-embed-url': embedUrl || '',
+                    'data-watch-url': watchUrl || ''
+                });
+            if (mediaType === 'image') $opt.css('background-image', 'url("' + media + '")');
+
+            $opt.append('<div class="ms-option__wash"></div>');
+            $opt.append('<div class="ms-option__badge"><i class="fa-solid ' + iconClass + '"></i></div>');
+            if (mediaType === 'video' && embedUrl) $opt.append('<div class="ms-option__video-badge" title="Includes video"><i class="fa-solid fa-play"></i></div>');
+            $opt.append(
+                '<div class="ms-option__content">' +
+                    (item.year ? '<span class="ms-option__index">' + item.year + '</span>' : '') +
+                    '<h3 class="ms-option__title">' + item.title + '</h3>' +
+                    (descText ? '<p class="ms-option__desc">' + descText + '</p>' : '') +
+                    (metaHtml ? '<div class="ms-option__meta">' + metaHtml + '</div>' : '') +
+                '</div>'
+            );
+            $row.append($opt);
+            // The first panel starts active without going through the click handler — embed its
+            // video immediately too, so a video-type highlight autoplays on page load like any
+            // other active panel, not just after the visitor clicks something else first.
+            if (index === 0 && mediaType === 'video' && embedUrl) msEmbedVideo($opt);
+        });
+
+        msWireInteractions();
+    }
+
     renderCareer();
+
+    // 9b. Dynamic Footprint Rendering (countries performed in — flag grid)
+    async function renderFootprint() {
+        var countries = [];
+        try {
+            const response = await fetch('/api/public/footprint');
+            const data = await response.json();
+            if (Array.isArray(data)) countries = data;
+        } catch (err) {
+            console.error("Failed to load footprint countries from server:", err);
+        }
+
+        var $grid = $('#footprintGrid');
+        if (!$grid.length) return;
+
+        if (!countries.length) {
+            $grid.closest('.tm-section').hide();
+            return;
+        }
+
+        $grid.empty();
+        countries.forEach(function (c) {
+            var $card = $('<div>').addClass('fp-card tm-reveal').attr('role', 'listitem');
+            $card.append($('<img>').addClass('fp-flag').attr({ src: c.flag_image_path, alt: 'Flag of ' + c.country_name, loading: 'lazy' }));
+            $card.append($('<p>').addClass('fp-name').text(c.country_name));
+            $grid.append($card);
+        });
+
+        // Newly-injected .tm-reveal cards need to be registered with the page's IntersectionObserver
+        // reveal system (it only auto-wires elements present at initial page load).
+        $grid.find('.tm-reveal').addClass('reveal');
+        if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
+            $grid.find('.reveal').each(function () { revealObserver.observe(this); });
+        } else {
+            $grid.find('.reveal').addClass('active');
+        }
+    }
+    renderFootprint();
+
+    // 9c. Testimonials — vanilla-JS port of the "circular"/depth-stack carousel (no React/Babel
+    // dependency added to this codebase), plus the public submission form.
+    var ctState = { items: [], activeIndex: 0, autoplayTimer: null };
+
+    // Referenced from an inline onerror="" attribute, so it must hang off window rather than
+    // stay a closure-local function — inline handlers always run in the global scope.
+    window.ctThumbFallback = function (imgEl) {
+        var slot = imgEl.closest('.ct-image-slot');
+        if (!slot) return;
+        slot.classList.add('ct-monogram');
+        slot.textContent = (imgEl.alt || '?').trim().charAt(0).toUpperCase() || '?';
+    };
+
+    function ctSlotHtml(item, pos) {
+        var safeName = $('<span>').text(item.name || '').html();
+        var isMonogram = !item.image_path;
+        var inner = isMonogram
+            ? (item.name || '?').trim().charAt(0).toUpperCase()
+            : '<img src="' + item.image_path + '" alt="' + safeName + '" onerror="window.ctThumbFallback(this)">';
+        return '<div class="ct-image-slot' + (isMonogram ? ' ct-monogram' : '') + '" data-pos="' + pos + '">' + inner + '</div>';
+    }
+
+    function ctRenderSlots() {
+        var n = ctState.items.length;
+        var $container = $('#ctImageContainer');
+        $container.empty();
+        for (var i = 0; i < n; i++) {
+            var pos = 'hidden';
+            if (i === ctState.activeIndex) pos = 'active';
+            else if (n > 1 && i === (ctState.activeIndex - 1 + n) % n) pos = 'prev';
+            else if (n > 1 && i === (ctState.activeIndex + 1) % n) pos = 'next';
+            $container.append(ctSlotHtml(ctState.items[i], pos));
+        }
+    }
+
+    function ctRenderContent() {
+        var item = ctState.items[ctState.activeIndex];
+        if (!item) return;
+        $('#ctName').text(item.name || '');
+        $('#ctDesignation').text(item.designation || '');
+        $('#ctQuote').text(item.quote || '');
+        // Restart the fade-in animation on every change.
+        var el = document.getElementById('ctFadeIn');
+        if (el) {
+            el.classList.remove('ct-fade-in');
+            void el.offsetWidth; // force reflow so the animation replays
+            el.classList.add('ct-fade-in');
+        }
+    }
+
+    function ctGoTo(index) {
+        var n = ctState.items.length;
+        if (!n) return;
+        ctState.activeIndex = ((index % n) + n) % n;
+        ctRenderSlots();
+        ctRenderContent();
+    }
+    function ctResetAutoplay() {
+        if (ctState.autoplayTimer) clearInterval(ctState.autoplayTimer);
+        if (ctState.items.length > 1) {
+            ctState.autoplayTimer = setInterval(function () { ctGoTo(ctState.activeIndex + 1); }, 6000);
+        }
+    }
+    function ctNext() { ctGoTo(ctState.activeIndex + 1); ctResetAutoplay(); }
+    function ctPrev() { ctGoTo(ctState.activeIndex - 1); ctResetAutoplay(); }
+
+    async function renderTestimonials() {
+        var items = [];
+        try {
+            const response = await fetch('/api/public/testimonials');
+            const data = await response.json();
+            if (Array.isArray(data)) items = data;
+        } catch (err) {
+            console.error("Failed to load testimonials from server:", err);
+        }
+
+        ctState.items = items;
+        ctState.activeIndex = 0;
+        var $wrap = $('#testimonialsCarouselWrap');
+
+        // Below 3 items the "3-slot depth stack" degrades: 0 -> the carousel hides (the
+        // submission form below stays visible either way); 1 -> single centered card, no
+        // arrows/autoplay; 2+ -> normal stack + arrows + autoplay.
+        if (!items.length) {
+            $wrap.hide();
+            return;
+        }
+        $wrap.show();
+        $('#ctArrowButtons').toggle(items.length > 1);
+        ctRenderSlots();
+        ctRenderContent();
+        ctResetAutoplay();
+    }
+    renderTestimonials();
+
+    $(document).on('click', '#ctNextBtn', ctNext);
+    $(document).on('click', '#ctPrevBtn', ctPrev);
+    $(document).on('keydown', function (e) {
+        if (!$('#testimonialsCarouselWrap').is(':visible')) return;
+        if (e.key === 'ArrowLeft') ctPrev();
+        else if (e.key === 'ArrowRight') ctNext();
+    });
+
+    // ── Testimonial photo dropzone (native file-input-drop, so no manual DataTransfer wiring
+    // is needed — the invisible input covers the whole zone and browsers drop files onto it
+    // directly; the drag listeners below are purely for the visual highlight). ──
+    function tsResetPhotoZone() {
+        $('#tsPhotoZone').removeClass('ts-file-zone--dragover');
+        $('#tsPhotoPreview').hide();
+        $('#tsPhotoPrompt').show();
+        $('#tsPhotoPreviewImg').attr('src', '');
+        $('#tsPhotoName').text('');
+    }
+
+    $(document).on('change', '#tsPhoto', function () {
+        var file = this.files[0];
+        if (!file) { tsResetPhotoZone(); return; }
+        if (file.size > 8 * 1024 * 1024) {
+            window.notificationService.showWarning('Photo Too Large', 'Please choose an image under 8 MB.');
+            this.value = '';
+            tsResetPhotoZone();
+            return;
+        }
+        var reader = new FileReader();
+        reader.onload = function (e) {
+            $('#tsPhotoPreviewImg').attr('src', e.target.result);
+            $('#tsPhotoName').text(file.name);
+            $('#tsPhotoPrompt').hide();
+            $('#tsPhotoPreview').show();
+        };
+        reader.readAsDataURL(file);
+    });
+
+    $(document).on('click', '#tsPhotoRemove', function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $('#tsPhoto').val('');
+        tsResetPhotoZone();
+    });
+
+    $(document).on('dragenter dragover', '#tsPhotoZone', function (e) {
+        e.preventDefault();
+        $(this).addClass('ts-file-zone--dragover');
+    });
+    $(document).on('dragleave drop', '#tsPhotoZone', function () {
+        $(this).removeClass('ts-file-zone--dragover');
+    });
+
+    // ── Testimonial submission form ──
+    $(document).on('submit', '#testimonialSubmitForm', async function (e) {
+        e.preventDefault();
+        var $form = $(this);
+        $form.find('.tm-field-error').text('');
+
+        var name = $('#tsName').val().trim();
+        var designation = $('#tsDesignation').val().trim();
+        var quote = $('#tsQuote').val().trim();
+        var consent = $('#tsConsent').is(':checked');
+        var file = $('#tsPhoto')[0].files[0];
+
+        var firstInvalid = null;
+        function invalid($field, errId, message) {
+            $('#' + errId).text(message);
+            if (!firstInvalid) firstInvalid = $field;
+        }
+        if (!name) invalid($('#tsName'), 'errTsName', 'Please enter your name.');
+        if (!quote) invalid($('#tsQuote'), 'errTsQuote', 'Please share a few words about your experience.');
+        if (!consent) invalid($('#tsConsent'), 'errTsConsent', "Please confirm you're okay with this being shown publicly.");
+        if (firstInvalid) { firstInvalid.trigger('focus'); return; }
+
+        var $btn = $('#testimonialSubmitBtn');
+        var originalBtnHtml = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i>');
+
+        try {
+            var formData = new FormData();
+            formData.append('name', name);
+            formData.append('designation', designation);
+            formData.append('quote', quote);
+            if (file) formData.append('file', file);
+            const res = await fetch('/api/public/testimonials', { method: 'POST', body: formData });
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.message || 'Submission failed');
+            $form[0].reset();
+            $('#testimonialModal').modal('hide');
+            window.notificationService.showSuccess(result.message || 'Thank you! Your testimonial has been submitted for review.');
+        } catch (err) {
+            console.error("Testimonial submission error:", err);
+            window.notificationService.showError('Could not submit your testimonial. Please try again later.');
+        } finally {
+            $btn.prop('disabled', false).html(originalBtnHtml);
+        }
+    });
+
+    // Reset the form (and any leftover field errors) each time the modal closes,
+    // so reopening it after a cancelled attempt starts clean.
+    $('#testimonialModal').on('hidden.bs.modal', function () {
+        var $form = $('#testimonialSubmitForm');
+        $form[0].reset();
+        $form.find('.tm-field-error').text('');
+        tsResetPhotoZone();
+    });
 
 
     // 11. Dynamic Social Icons & Embeds Rendering
@@ -1610,7 +1891,11 @@ document.addEventListener("DOMContentLoaded", function() {
                             $dd.empty();
                             var predictions = data.predictions || [];
                             if (predictions.length === 0) {
-                                $dd.hide(); return;
+                                // No matches (or the Places API itself is unavailable) — don't leave
+                                // the user stuck with a dead search box; offer manual entry instead.
+                                $dd.hide();
+                                $('.manual-address-toggle-wrap').show();
+                                return;
                             }
                             predictions.slice(0, 6).forEach(function(p) {
                                 var main = p.main_text || p.description || '';
@@ -1660,6 +1945,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         },
                         error: function() {
                             $dd.hide();
+                            $('.manual-address-toggle-wrap').show();
                         }
                     });
                 }, 250);

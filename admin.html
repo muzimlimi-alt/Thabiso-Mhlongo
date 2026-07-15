@@ -4844,6 +4844,8 @@
                     <li><a href="#homeAdmin" class="tm-nav-link" title="Home Slider"><i class="fa-solid fa-images"></i> <span class="tm-nav-text">Home Slider</span></a></li>
                     <li><a href="#aboutAdmin" class="tm-nav-link" title="About Me"><i class="fa-solid fa-user-astronaut"></i> <span class="tm-nav-text">About Me</span></a></li>
                     <li><a href="#careerAdmin" class="tm-nav-link" title="Career Highlights"><i class="fa-solid fa-star"></i> <span class="tm-nav-text">Career</span></a></li>
+                    <li><a href="#footprintAdmin" class="tm-nav-link" title="Footprint"><i class="fa-solid fa-earth-africa"></i> <span class="tm-nav-text">Footprint</span></a></li>
+                    <li><a href="#testimonialsAdmin" class="tm-nav-link" title="Testimonials"><i class="fa-solid fa-quote-left"></i> <span class="tm-nav-text">Testimonials</span></a></li>
                     <li><a href="#galleryAdmin" class="tm-nav-link" title="Gallery"><i class="fa-solid fa-image"></i> <span class="tm-nav-text">Gallery</span></a></li>
 
                     <li class="tm-sidebar-group-title"><span style="color: var(--atl-amber)">Communications &amp; Audience</span></li>
@@ -9021,6 +9023,139 @@
                 </div>
             </div>
 
+            <!-- Footprint (countries performed in) -->
+            <div class="admin-section" id="footprintAdmin">
+                <div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">Reach</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-earth-africa"></i> Footprint</h2>
+                            <p class="atl-section-sub">The countries you've performed in, shown as a flag grid on the public site.</p>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
+                            <button id="footprintAddNewBtn" class="atl-btn atl-btn--primary">
+                                <i class="fa-solid fa-plus"></i> Add Country
+                            </button>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
+
+                    <div class="atl-tab-bar" role="tablist">
+                        <button class="atl-tab-btn active" data-um-tab="footprintConfigPanel" role="tab" aria-selected="true"><i class="fa-solid fa-earth-africa"></i> Manage Countries</button>
+                        <button class="atl-tab-btn" data-um-tab="footprintAboutPanel" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
+                    </div>
+
+                    <div id="footprintConfigPanel" class="um-panel active">
+                        <div id="adminFootprintList" class="evt-card-grid">
+                            <!-- JS injected -->
+                        </div>
+                    </div><!-- /#footprintConfigPanel -->
+
+                    <div id="footprintAboutPanel" class="um-panel">
+                        <div class="atl-card">
+                            <div class="um-icon-header">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                <div>
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">About Footprint</h4>
+                                    <p class="um-section-desc">The flag grid shown in the Footprint area of your public site.</p>
+                                </div>
+                            </div>
+                            <div class="um-divider"></div>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                Each card is a <strong style="color:var(--atl-ink);">country name</strong> and a <strong style="color:var(--atl-ink);">flag image</strong>. Add a country any time you perform somewhere new, or remove one — the public grid always reflects exactly what's listed here.
+                            </p>
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span>Deleting a country is permanent and administrator-only &mdash; there is no undo.</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Testimonials (visitor-submitted, admin-moderated) -->
+            <div class="admin-section" id="testimonialsAdmin">
+                <div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">Social Proof</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-quote-left"></i> Testimonials</h2>
+                            <p class="atl-section-sub">Visitors can submit a testimonial from the public site — review and approve before it appears.</p>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
+                            <button id="testimonialsAddNewBtn" class="atl-btn atl-btn--primary">
+                                <i class="fa-solid fa-plus"></i> Add Testimonial
+                            </button>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
+
+                    <div class="atl-tab-bar" role="tablist">
+                        <button class="atl-tab-btn active" data-um-tab="testimonialsConfigPanel" role="tab" aria-selected="true"><i class="fa-solid fa-quote-left"></i> Manage Testimonials</button>
+                        <button class="atl-tab-btn" data-um-tab="testimonialsAboutPanel" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
+                    </div>
+
+                    <div id="testimonialsConfigPanel" class="um-panel active">
+                        <div class="atl-toolbar" style="margin-bottom:16px;">
+                            <div class="um-input-wrap" style="max-width:220px;">
+                                <i class="fa-solid fa-filter um-input-icon"></i>
+                                <select id="testimonialsStatusFilter" class="um-input atl-filter-select">
+                                    <option value="">All Statuses</option>
+                                    <option value="pending">Pending Review</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="rejected">Rejected</option>
+                                </select>
+                            </div>
+                            <span id="testimonialsPendingBadge" class="atl-badge atl-badge--pending" style="display:none;"></span>
+                        </div>
+                        <div id="adminTestimonialsList" class="evt-card-grid">
+                            <!-- JS injected -->
+                        </div>
+                    </div><!-- /#testimonialsConfigPanel -->
+
+                    <div id="testimonialsAboutPanel" class="um-panel">
+                        <div class="atl-card">
+                            <div class="um-icon-header">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                <div>
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">About Testimonials</h4>
+                                    <p class="um-section-desc">The rotating quote carousel shown in the Testimonials area of your public site.</p>
+                                </div>
+                            </div>
+                            <div class="um-divider"></div>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                Visitors can share their own testimonial from a small form on the public site. Every visitor submission starts as <strong style="color:var(--atl-ink);">Pending</strong> and is <strong style="color:var(--atl-ink);">never shown publicly</strong> until you approve it. Testimonials you add yourself here are approved immediately &mdash; your own content doesn't need review.
+                            </p>
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                            <div class="um-roles-grid" style="margin-bottom:26px;">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-inbox" style="color:var(--atl-amber);"></i> Review queue</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Filter to <strong style="color:var(--atl-ink);">Pending Review</strong> to see what's waiting</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Approve or Reject directly from the card</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-trash" style="color:var(--atl-amber);"></i> Delete</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Deleting requires an administrator</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Cannot be undone</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span>Rejecting a testimonial keeps the record (in case the visitor asks) but it will never show on the public site unless later approved.</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 4. Existing Gallery Grid -->
             <div class="admin-section" id="galleryAdmin">
                 <div>
@@ -12774,11 +12909,13 @@
             { key: 'features',   label: 'At a Glance',       cat: 'Content',    desc: 'The strip of key stats and highlights just below the hero.' },
             { key: 'services',   label: 'What I Do',         cat: 'Content',    desc: 'The services grid ("From the mic to the moment").' },
             { key: 'about',      label: 'About',             cat: 'Content',    desc: 'Your biography, portrait and story.' },
-            { key: 'career',     label: 'Career Highlights', cat: 'Content',    desc: 'The milestones timeline / accordion.' },
+            { key: 'career',     label: 'Milestones',        cat: 'Content',    desc: 'The career-defining moments panel (data managed in the Career admin section).' },
+            { key: 'footprint',  label: 'Footprint',         cat: 'Content',    desc: 'The flag grid of countries you\'ve performed in.' },
             { key: 'gallery',    label: 'Gallery',           cat: 'Engagement', desc: 'The photo grid of moments from road, stage & studio.' },
             { key: 'events',     label: 'Events',            cat: 'Engagement', desc: 'Upcoming and past public events.' },
             { key: 'social',     label: 'Social Media',      cat: 'Marketing',  desc: 'Social profile links and embedded posts.' },
             { key: 'newsletter', label: 'Newsletter',        cat: 'Marketing',  desc: 'The email newsletter sign-up form.' },
+            { key: 'testimonials', label: 'Testimonials',    cat: 'Engagement', desc: 'The rotating quote carousel of approved visitor testimonials.' },
             { key: 'contact',    label: 'Contact',           cat: 'Contact',    desc: 'The contact form and manager details.' },
             { key: 'footer',     label: 'Footer',            cat: 'Footer',     desc: 'The site footer with brand, links and legal bar.' }
         ];
@@ -13898,6 +14035,7 @@
 
         function resetCareerForm() {
             $('#careerForm')[0].reset();
+            $('#careerIcon').val('');
             $('#careerFile').val('');
             initCareerYears();
             $('#careerVideoWarning').hide();
@@ -13917,6 +14055,7 @@
             initCareerYears();                       // ensure year options exist before setting
             $('#careerYear').val(item.year);
             $('#careerTitle').val(item.title || '');
+            $('#careerIcon').val(item.icon || '');
             $('#careerBadge').val(item.badge || '');
             $('#careerLocation').val(item.location || '');
             $('#careerDesc').val(item.description || '');
@@ -14028,6 +14167,7 @@
             var formData = new FormData();
             formData.append('year', $('#careerYear').val());
             formData.append('title', $('#careerTitle').val().trim());
+            formData.append('icon', $('#careerIcon').val());
             formData.append('badge', $('#careerBadge').val().trim());
             formData.append('location', $('#careerLocation').val().trim());
             formData.append('description', $('#careerDesc').val().trim());
@@ -14151,6 +14291,479 @@
             } catch (e) {
                 console.error('Clear all highlights failed:', e);
                 window.notificationService.showError('Could not clear all highlights.');
+            }
+        });
+
+        // ==========================================
+        // 5b. Footprint Logic (countries performed in) — one shared drawer for Add + Edit,
+        // simpler than Career's docked-form pattern (no video handling, no year-based sort needed).
+        // ==========================================
+        let editingFootprintId = null;
+
+        function resetFootprintForm() {
+            $('#footprintForm')[0].reset();
+            $('#footprintFile').val('');
+            $('#footprintFlagPreview').hide();
+            $('#footprintFlagPreviewImg').attr('src', '');
+            $('#err-footprintForm').hide();
+            editingFootprintId = null;
+            var text = document.getElementById('footprintUploadText');
+            if (text) text.textContent = 'Select or drop a flag image';
+            $('#footprintDrawerTitle').html('<i class="fa-solid fa-earth-africa"></i> Add Country');
+            $('#footprintSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Country').prop('disabled', false);
+        }
+
+        function openFootprintEditor(item) {
+            resetFootprintForm();
+            editingFootprintId = item.id;
+            $('#footprintCountryName').val(item.country_name || '');
+            if (item.flag_image_path) {
+                $('#footprintFlagPreviewImg').attr('src', item.flag_image_path);
+                $('#footprintFlagPreview').show();
+            }
+            var text = document.getElementById('footprintUploadText');
+            if (text) text.textContent = 'Upload a new image to replace';
+            $('#footprintDrawerTitle').html('<i class="fa-solid fa-earth-africa"></i> Edit Country');
+            $('#footprintSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Country');
+            openAtlDrawer('footprintDrawer');
+        }
+
+        async function loadFootprint() {
+            var $list = $('#adminFootprintList');
+            $list.html('<div class="um-empty-state" style="grid-column:1/-1; padding:30px 20px;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>Loading countries…</div>');
+            try {
+                const rows = await apiCall('/api/admin/footprint');
+                const items = Array.isArray(rows) ? rows : [];
+                $list.empty();
+                if (!items.length) {
+                    $list.html('<div class="um-empty-state" style="grid-column:1/-1; padding:30px 20px;"><i class="fa-solid fa-earth-africa" style="font-size:22px;color:var(--atl-muted-dim);display:block;margin-bottom:8px;"></i>No countries yet — add the first one.</div>');
+                    return;
+                }
+                items.forEach(function (item) {
+                    var safeName = $('<span>').text(item.country_name || '').html();
+                    var safeThumb = $('<span>').text(item.flag_image_path || '').html();
+                    var html = `
+                        <article class="atl-edit-card" data-id="${item.id}">
+                            <div class="atl-card-inner">
+                                <div class="atl-edit-card__header">
+                                    <div class="atl-edit-card__thumb">
+                                        <img src="${safeThumb}" alt="Flag of ${safeName}" onerror="this.style.opacity='0.2';">
+                                    </div>
+                                    <div style="flex:1; min-width:0;">
+                                        <h3 class="atl-edit-card__title">${safeName}</h3>
+                                    </div>
+                                    <div style="display:flex; gap:6px; align-items:flex-start;">
+                                        <button type="button" class="atl-btn atl-btn--ghost footprint-edit-btn" data-id="${item.id}" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                                        <button type="button" class="atl-btn atl-btn--danger footprint-delete-btn" data-id="${item.id}" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </article>`;
+                    $list.append(html);
+                });
+            } catch (err) {
+                console.error('Failed to load footprint countries:', err);
+                $list.html('<div class="um-empty-state" style="grid-column:1/-1; padding:30px 20px;"><i class="fa-solid fa-triangle-exclamation" style="font-size:22px;color:var(--atl-clay);display:block;margin-bottom:8px;"></i>Could not load countries.</div>');
+            }
+        }
+
+        $(document).on('click', '#footprintAddNewBtn', function () {
+            resetFootprintForm();
+            openAtlDrawer('footprintDrawer');
+        });
+        $(document).on('click', '#footprintDrawerClose, #footprintDrawerBackdrop, #footprintCancelBtn', function () {
+            if (window.closeAtlDrawer) closeAtlDrawer('footprintDrawer');
+        });
+        $(document).on('click', '.footprint-edit-btn', async function () {
+            var id = $(this).data('id');
+            try {
+                const rows = await apiCall('/api/admin/footprint');
+                const item = (Array.isArray(rows) ? rows : []).find(r => r.id === id);
+                if (item) openFootprintEditor(item);
+            } catch (err) {
+                console.error('Failed to load country for edit:', err);
+            }
+        });
+        $(document).on('click', '.footprint-delete-btn', async function () {
+            var id = $(this).data('id');
+            if (!(await window.notificationService.showConfirm({ title: 'Delete Country', message: 'Permanently remove this country from Footprint? This cannot be undone.', isDestructive: true }))) return;
+            try {
+                await apiCall('/api/admin/footprint/' + id, 'DELETE');
+                window.notificationService.showSuccess('Country removed.');
+                loadFootprint();
+            } catch (err) {
+                console.error('Delete footprint country failed:', err);
+                window.notificationService.showError('Could not delete this country.');
+            }
+        });
+
+        $(document).on('change', '#footprintFile', function () {
+            var file = this.files[0];
+            var text = document.getElementById('footprintUploadText');
+            if (text) text.textContent = file ? file.name : 'Select or drop a flag image';
+            if (file) {
+                var reader = new FileReader();
+                reader.onload = function (ev) {
+                    $('#footprintFlagPreviewImg').attr('src', ev.target.result);
+                    $('#footprintFlagPreview').show();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        $(function () {
+            const zone = document.getElementById('footprintUploadZone');
+            if (!zone) return;
+            ['dragenter', 'dragover'].forEach(function (ev) {
+                zone.addEventListener(ev, function (e) {
+                    e.preventDefault(); e.stopPropagation();
+                    zone.classList.add('um-upload-zone--dragging');
+                    if (ev === 'dragenter') {
+                        var t = document.getElementById('footprintUploadText');
+                        if (t) t.textContent = 'Drop image here';
+                    }
+                });
+            });
+            ['dragleave', 'drop'].forEach(function (ev) {
+                zone.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); zone.classList.remove('um-upload-zone--dragging'); });
+            });
+            zone.addEventListener('drop', function (e) {
+                const dropped = e.dataTransfer && e.dataTransfer.files;
+                if (dropped && dropped.length) {
+                    const input = document.getElementById('footprintFile');
+                    try { input.files = dropped; } catch (err) { /* some browsers disallow direct assignment */ }
+                    $('#footprintFile').trigger('change');
+                }
+            });
+        });
+
+        $(document).on('submit', '#footprintForm', async function (e) {
+            e.preventDefault();
+            var countryName = $('#footprintCountryName').val().trim();
+            var file = $('#footprintFile')[0].files[0];
+            var fallbackUrl = $('#footprintUrl').val().trim();
+            var isEdit = editingFootprintId !== null;
+
+            if (!countryName) {
+                $('#err-footprintForm').text('Country name is required.').show();
+                return;
+            }
+            if (!isEdit && !file && !fallbackUrl) {
+                $('#err-footprintForm').text('A flag image (upload or URL) is required.').show();
+                return;
+            }
+            $('#err-footprintForm').hide();
+
+            var $btn = $('#footprintSubmitBtn');
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving...');
+
+            try {
+                if (isEdit) {
+                    var jsonBody = { country_name: countryName };
+                    if (fallbackUrl) {
+                        jsonBody.fallback_url = fallbackUrl;
+                    } else if (file) {
+                        const uploaded = await uploadFileToServer(file, 'footprint');
+                        if (uploaded) jsonBody.fallback_url = uploaded;
+                    }
+                    await apiCall('/api/admin/footprint/' + editingFootprintId, 'PUT', jsonBody);
+                } else {
+                    var formData = new FormData();
+                    formData.append('country_name', countryName);
+                    formData.append('fallback_url', fallbackUrl);
+                    formData.append('section', 'footprint');
+                    if (file) formData.append('file', file);
+                    const res = await fetch('/api/admin/footprint', { method: 'POST', body: formData });
+                    if (!res.ok) throw new Error('Server error saving country');
+                }
+
+                closeAtlDrawer('footprintDrawer');
+                resetFootprintForm();
+                await loadFootprint();
+                window.notificationService.showSuccess(isEdit ? 'Country updated.' : 'Country added.');
+            } catch (err) {
+                console.error('Footprint save error', err);
+                window.notificationService.showError('An error occurred while saving.');
+                $btn.prop('disabled', false).html(isEdit ? '<i class="fa-solid fa-floppy-disk"></i> Update Country' : '<i class="fa-solid fa-plus-circle"></i> Add Country');
+            }
+        });
+
+        // ==========================================
+        // 5c. Testimonials Logic (visitor-submitted, admin-moderated) — same shared-drawer
+        // pattern as Footprint, plus a status filter and per-card Approve/Reject.
+        // ==========================================
+        let editingTestimonialId = null;
+        let testimonialImageCleared = false;
+
+        function resetTestimonialsForm() {
+            $('#testimonialsForm')[0].reset();
+            $('#testimonialFile').val('');
+            $('#testimonialPhotoPreview').hide();
+            $('#testimonialPhotoPreviewImg').attr('src', '');
+            $('#err-testimonialsForm').hide();
+            editingTestimonialId = null;
+            testimonialImageCleared = false;
+            var text = document.getElementById('testimonialUploadText');
+            if (text) text.textContent = 'Select or drop a photo';
+            $('#testimonialsDrawerTitle').html('<i class="fa-solid fa-quote-left"></i> Add Testimonial');
+            $('#testimonialsSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Testimonial').prop('disabled', false);
+        }
+
+        function openTestimonialEditor(item) {
+            resetTestimonialsForm();
+            editingTestimonialId = item.id;
+            $('#testimonialName').val(item.name || '');
+            $('#testimonialDesignation').val(item.designation || '');
+            $('#testimonialQuote').val(item.quote || '');
+            if (item.image_path) {
+                $('#testimonialPhotoPreviewImg').attr('src', item.image_path);
+                $('#testimonialPhotoPreview').show();
+            }
+            var text = document.getElementById('testimonialUploadText');
+            if (text) text.textContent = 'Upload a new photo to replace';
+            $('#testimonialsDrawerTitle').html('<i class="fa-solid fa-quote-left"></i> Edit Testimonial');
+            $('#testimonialsSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Testimonial');
+            openAtlDrawer('testimonialsDrawer');
+        }
+
+        // Referenced from an inline onerror="" attribute, so it must hang off window regardless
+        // of which <script> block this one turns out to be (re-)loaded inside.
+        window.tsThumbFallback = function (imgEl) {
+            var initial = (imgEl.alt || '?').trim().charAt(0).toUpperCase() || '?';
+            var div = document.createElement('div');
+            div.style.cssText = 'width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--atl-amber); color:var(--atl-bg, #0a0a0a); font-family:var(--atl-font-display, serif); font-size:22px; font-weight:600;';
+            div.textContent = initial;
+            if (imgEl.parentElement) {
+                imgEl.parentElement.innerHTML = '';
+                imgEl.parentElement.appendChild(div);
+            }
+        };
+
+        async function loadTestimonials() {
+            var $list = $('#adminTestimonialsList');
+            $list.html('<div class="um-empty-state" style="grid-column:1/-1; padding:30px 20px;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>Loading testimonials…</div>');
+            try {
+                const statusFilter = $('#testimonialsStatusFilter').val();
+                const url = '/api/admin/testimonials' + (statusFilter ? '?status=' + statusFilter : '');
+                const rows = await apiCall(url);
+                const items = Array.isArray(rows) ? rows : [];
+
+                // Pending count badge — always reflects the true total, independent of the current filter.
+                const allRows = statusFilter ? await apiCall('/api/admin/testimonials') : items;
+                const pendingCount = (Array.isArray(allRows) ? allRows : []).filter(r => r.status === 'pending').length;
+                const $badge = $('#testimonialsPendingBadge');
+                if (pendingCount > 0) $badge.text(pendingCount + ' Pending Review').show(); else $badge.hide();
+
+                $list.empty();
+                if (!items.length) {
+                    $list.html('<div class="um-empty-state" style="grid-column:1/-1; padding:30px 20px;"><i class="fa-solid fa-quote-left" style="font-size:22px;color:var(--atl-muted-dim);display:block;margin-bottom:8px;"></i>No testimonials here yet.</div>');
+                    return;
+                }
+                items.forEach(function (item) {
+                    var safeName = $('<span>').text(item.name || '').html();
+                    var safeDesignation = $('<span>').text(item.designation || '').html();
+                    var safeQuote = $('<span>').text(item.quote || '').html();
+                    var initial = (item.name || '?').trim().charAt(0).toUpperCase();
+                    var monogramHtml = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--atl-amber); color:var(--atl-bg, #0a0a0a); font-family:var(--atl-font-display, serif); font-size:22px; font-weight:600;">${initial}</div>`;
+                    var thumbHtml = item.image_path
+                        ? `<img src="${$('<span>').text(item.image_path).html()}" alt="${safeName}" onerror="window.tsThumbFallback(this)">`
+                        : monogramHtml;
+                    var statusBadge = item.status === 'approved'
+                        ? '<span class="atl-badge atl-badge--confirmed">Approved</span>'
+                        : item.status === 'rejected'
+                            ? '<span class="atl-badge atl-badge--cancelled">Rejected</span>'
+                            : '<span class="atl-badge atl-badge--pending">Pending</span>';
+                    var moderationBtns = item.status === 'pending'
+                        ? `<button type="button" class="atl-btn atl-btn--ghost testimonial-approve-btn" data-id="${item.id}" title="Approve" style="color:#34d399;"><i class="fa-solid fa-check"></i></button>
+                           <button type="button" class="atl-btn atl-btn--ghost testimonial-reject-btn" data-id="${item.id}" title="Reject" style="color:var(--atl-clay);"><i class="fa-solid fa-xmark"></i></button>`
+                        : `<button type="button" class="atl-btn atl-btn--ghost testimonial-retract-btn" data-id="${item.id}" title="${item.status === 'approved' ? 'Retract from public site (back to Pending Review)' : 'Move back to Pending Review'}" style="color:var(--atl-amber);"><i class="fa-solid fa-rotate-left"></i></button>`;
+                    var html = `
+                        <article class="atl-edit-card" data-id="${item.id}">
+                            <div class="atl-card-inner">
+                                <div class="atl-edit-card__header">
+                                    <div class="atl-edit-card__thumb">${thumbHtml}</div>
+                                    <div style="flex:1; min-width:0;">
+                                        <h3 class="atl-edit-card__title">${safeName}</h3>
+                                        <p class="atl-edit-card__subtitle">${safeDesignation}</p>
+                                        <div class="atl-edit-card__desc">${statusBadge} <span style="margin-left:8px;">${safeQuote}</span></div>
+                                    </div>
+                                    <div style="display:flex; gap:6px; align-items:flex-start; flex-wrap:wrap; justify-content:flex-end;">
+                                        ${moderationBtns}
+                                        <button type="button" class="atl-btn atl-btn--ghost testimonial-edit-btn" data-id="${item.id}" title="Edit"><i class="fa-solid fa-pen"></i></button>
+                                        <button type="button" class="atl-btn atl-btn--danger testimonial-delete-btn" data-id="${item.id}" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                                    </div>
+                                </div>
+                            </div>
+                        </article>`;
+                    $list.append(html);
+                });
+            } catch (err) {
+                console.error('Failed to load testimonials:', err);
+                $list.html('<div class="um-empty-state" style="grid-column:1/-1; padding:30px 20px;"><i class="fa-solid fa-triangle-exclamation" style="font-size:22px;color:var(--atl-clay);display:block;margin-bottom:8px;"></i>Could not load testimonials.</div>');
+            }
+        }
+
+        $(document).on('change', '#testimonialsStatusFilter', function () { loadTestimonials(); });
+
+        $(document).on('click', '#testimonialsAddNewBtn', function () {
+            resetTestimonialsForm();
+            openAtlDrawer('testimonialsDrawer');
+        });
+        $(document).on('click', '#testimonialsDrawerClose, #testimonialsDrawerBackdrop, #testimonialsCancelBtn', function () {
+            if (window.closeAtlDrawer) closeAtlDrawer('testimonialsDrawer');
+        });
+        $(document).on('click', '.testimonial-edit-btn', async function () {
+            var id = $(this).data('id');
+            try {
+                const rows = await apiCall('/api/admin/testimonials');
+                const item = (Array.isArray(rows) ? rows : []).find(r => r.id === id);
+                if (item) openTestimonialEditor(item);
+            } catch (err) {
+                console.error('Failed to load testimonial for edit:', err);
+            }
+        });
+        $(document).on('click', '.testimonial-delete-btn', async function () {
+            var id = $(this).data('id');
+            if (!(await window.notificationService.showConfirm({ title: 'Delete Testimonial', message: 'Permanently remove this testimonial? This cannot be undone.', isDestructive: true }))) return;
+            try {
+                await apiCall('/api/admin/testimonials/' + id, 'DELETE');
+                window.notificationService.showSuccess('Testimonial removed.');
+                loadTestimonials();
+            } catch (err) {
+                console.error('Delete testimonial failed:', err);
+                window.notificationService.showError('Could not delete this testimonial.');
+            }
+        });
+        $(document).on('click', '.testimonial-approve-btn', async function () {
+            var id = $(this).data('id');
+            try {
+                await apiCall('/api/admin/testimonials/' + id, 'PUT', { status: 'approved' });
+                window.notificationService.showSuccess('Testimonial approved — now live on the public site.');
+                loadTestimonials();
+            } catch (err) {
+                console.error('Approve testimonial failed:', err);
+                window.notificationService.showError('Could not approve this testimonial.');
+            }
+        });
+        $(document).on('click', '.testimonial-reject-btn', async function () {
+            var id = $(this).data('id');
+            try {
+                await apiCall('/api/admin/testimonials/' + id, 'PUT', { status: 'rejected' });
+                window.notificationService.showSuccess('Testimonial rejected.');
+                loadTestimonials();
+            } catch (err) {
+                console.error('Reject testimonial failed:', err);
+                window.notificationService.showError('Could not reject this testimonial.');
+            }
+        });
+        $(document).on('click', '.testimonial-retract-btn', async function () {
+            var id = $(this).data('id');
+            try {
+                await apiCall('/api/admin/testimonials/' + id, 'PUT', { status: 'pending' });
+                window.notificationService.showSuccess('Moved back to Pending Review — no longer visible on the public site.');
+                loadTestimonials();
+            } catch (err) {
+                console.error('Retract testimonial failed:', err);
+                window.notificationService.showError('Could not update this testimonial.');
+            }
+        });
+
+        $(document).on('click', '#btnTestimonialClearImage', function () {
+            testimonialImageCleared = true;
+            $('#testimonialFile').val('');
+            $('#testimonialPhotoPreview').hide();
+            $('#testimonialPhotoPreviewImg').attr('src', '');
+            var text = document.getElementById('testimonialUploadText');
+            if (text) text.textContent = 'Select or drop a photo';
+        });
+
+        $(document).on('change', '#testimonialFile', function () {
+            var file = this.files[0];
+            var text = document.getElementById('testimonialUploadText');
+            if (text) text.textContent = file ? file.name : 'Select or drop a photo';
+            if (file) {
+                testimonialImageCleared = false;
+                var reader = new FileReader();
+                reader.onload = function (ev) {
+                    $('#testimonialPhotoPreviewImg').attr('src', ev.target.result);
+                    $('#testimonialPhotoPreview').show();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        $(function () {
+            const zone = document.getElementById('testimonialUploadZone');
+            if (!zone) return;
+            ['dragenter', 'dragover'].forEach(function (ev) {
+                zone.addEventListener(ev, function (e) {
+                    e.preventDefault(); e.stopPropagation();
+                    zone.classList.add('um-upload-zone--dragging');
+                    if (ev === 'dragenter') {
+                        var t = document.getElementById('testimonialUploadText');
+                        if (t) t.textContent = 'Drop image here';
+                    }
+                });
+            });
+            ['dragleave', 'drop'].forEach(function (ev) {
+                zone.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); zone.classList.remove('um-upload-zone--dragging'); });
+            });
+            zone.addEventListener('drop', function (e) {
+                const dropped = e.dataTransfer && e.dataTransfer.files;
+                if (dropped && dropped.length) {
+                    const input = document.getElementById('testimonialFile');
+                    try { input.files = dropped; } catch (err) { /* some browsers disallow direct assignment */ }
+                    $('#testimonialFile').trigger('change');
+                }
+            });
+        });
+
+        $(document).on('submit', '#testimonialsForm', async function (e) {
+            e.preventDefault();
+            var name = $('#testimonialName').val().trim();
+            var designation = $('#testimonialDesignation').val().trim();
+            var quote = $('#testimonialQuote').val().trim();
+            var file = $('#testimonialFile')[0].files[0];
+            var isEdit = editingTestimonialId !== null;
+
+            if (!name || !quote) {
+                $('#err-testimonialsForm').text('Name and testimonial text are required.').show();
+                return;
+            }
+            $('#err-testimonialsForm').hide();
+
+            var $btn = $('#testimonialsSubmitBtn');
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving...');
+
+            try {
+                if (isEdit) {
+                    var jsonBody = { name: name, designation: designation, quote: quote };
+                    if (testimonialImageCleared) {
+                        jsonBody.clear_image = true;
+                    } else if (file) {
+                        const uploaded = await uploadFileToServer(file, 'testimonials');
+                        if (uploaded) jsonBody.fallback_url = uploaded;
+                    }
+                    await apiCall('/api/admin/testimonials/' + editingTestimonialId, 'PUT', jsonBody);
+                } else {
+                    var formData = new FormData();
+                    formData.append('name', name);
+                    formData.append('designation', designation);
+                    formData.append('quote', quote);
+                    formData.append('section', 'testimonials');
+                    if (file) formData.append('file', file);
+                    const res = await fetch('/api/admin/testimonials', { method: 'POST', body: formData });
+                    if (!res.ok) throw new Error('Server error saving testimonial');
+                }
+
+                closeAtlDrawer('testimonialsDrawer');
+                resetTestimonialsForm();
+                await loadTestimonials();
+                window.notificationService.showSuccess(isEdit ? 'Testimonial updated.' : 'Testimonial added.');
+            } catch (err) {
+                console.error('Testimonial save error', err);
+                window.notificationService.showError('An error occurred while saving.');
+                $btn.prop('disabled', false).html(isEdit ? '<i class="fa-solid fa-floppy-disk"></i> Update Testimonial' : '<i class="fa-solid fa-plus-circle"></i> Add Testimonial');
             }
         });
 
@@ -23059,6 +23672,8 @@
                     loadInquiries();
                     loadBookings();
                     loadHighlights();
+                    loadFootprint();
+                    loadTestimonials();
                     loadGallery();
                     renderSubscribersList();
                     loadSubscriberStats();
@@ -23187,6 +23802,8 @@
                     loadInquiries();
                     loadBookings();
                     loadHighlights();
+                    loadFootprint();
+                    loadTestimonials();
                     loadGallery();
                     renderSubscribersList();
                     loadSubscriberStats();
@@ -23710,6 +24327,20 @@
                         </div>
                     </div>
                     <div class="um-field-group">
+                        <label class="um-label" for="careerIcon">Milestone Icon (Optional)</label>
+                        <select id="careerIcon" class="um-input">
+                            <option value="">Default (Star)</option>
+                            <option value="mic">Microphone — Stand-Up / Live Show</option>
+                            <option value="tv">TV — Television</option>
+                            <option value="headphones">Headphones — Podcast / Radio</option>
+                            <option value="plane">Plane — Touring / Travel</option>
+                            <option value="pen">Pen — Writing</option>
+                            <option value="trophy">Trophy — Award</option>
+                            <option value="camera">Camera — Film</option>
+                            <option value="star">Star — General</option>
+                        </select>
+                    </div>
+                    <div class="um-field-group">
                         <label class="um-label" for="careerBadge">Short Impact Label (Optional)</label>
                         <div class="um-input-wrap">
                             <i class="fa-solid fa-tag um-input-icon"></i>
@@ -23763,6 +24394,114 @@
                     </div>
                 </form>
             </div>
+        </div>
+    </div>
+
+    <!-- Footprint editor drawer — one drawer serves both Add and Edit (simpler than Career's
+         docked-form pattern; matches e.g. the Newsletter subscriber edit drawer). -->
+    <div id="footprintDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="footprintDrawer" class="atl-drawer atl-drawer--480" role="dialog" aria-labelledby="footprintDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="footprintDrawerTitle"><i class="fa-solid fa-earth-africa"></i> Manage Country</h5>
+            <button type="button" class="atl-drawer__close" id="footprintDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <form id="footprintForm" class="um-form" autocomplete="off">
+                <div class="um-field-group">
+                    <label class="um-label" for="footprintCountryName">Country Name</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-flag um-input-icon"></i>
+                        <input type="text" id="footprintCountryName" class="um-input" placeholder="e.g. Namibia" required>
+                    </div>
+                </div>
+                <hr class="um-divider">
+                <div class="um-field-group">
+                    <label class="um-label" for="footprintFile">Flag Image</label>
+                    <label for="footprintFile" id="footprintUploadZone" class="um-upload-zone">
+                        <i class="fa-solid fa-image um-upload-icon"></i>
+                        <p class="um-upload-text" id="footprintUploadText">Select or drop a flag image</p>
+                        <input type="file" id="footprintFile" class="um-file-input" accept="image/*">
+                        <small class="help-block">A 3:2 landscape flag image works best.</small>
+                    </label>
+                    <div id="footprintFlagPreview" style="display:none; margin-top:10px; border-radius:var(--atl-r-md); overflow:hidden; position:relative; max-width:100%;">
+                        <img id="footprintFlagPreviewImg" src="" alt="Flag preview" style="display:block; width:100%; max-height:160px; object-fit:cover; border-radius:var(--atl-r-md); border:1px solid var(--atl-line);">
+                        <span style="position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.55); color:#fff; font-size:11px; padding:2px 8px; border-radius:20px; pointer-events:none;">Current</span>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px; margin:20px 0;">
+                    <hr style="flex:1; border:0; border-top:1px solid var(--atl-line);">
+                    <span style="color:var(--atl-muted-dim); font-size:11px; font-weight:700; letter-spacing:1px;">OR</span>
+                    <hr style="flex:1; border:0; border-top:1px solid var(--atl-line);">
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="footprintUrl">Image URL Fallback</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-link um-input-icon"></i>
+                        <input type="text" id="footprintUrl" class="um-input" placeholder="e.g. https://example.com/flag.png">
+                    </div>
+                </div>
+                <div id="err-footprintForm" style="display:none;font-size:12px;color:var(--atl-clay);margin-top:4px;"></div>
+                <div class="um-form-actions" style="justify-content:flex-end; gap:10px;">
+                    <button type="button" class="atl-btn atl-btn--ghost" id="footprintCancelBtn">Cancel</button>
+                    <button type="submit" class="atl-btn atl-btn--primary" id="footprintSubmitBtn">
+                        <i class="fa-solid fa-plus-circle"></i> Add Country
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Testimonials editor drawer — one drawer for Add + Edit (matches Footprint's pattern).
+         Approve/Reject happen as quick-action buttons directly on the card, not in this drawer. -->
+    <div id="testimonialsDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="testimonialsDrawer" class="atl-drawer atl-drawer--480" role="dialog" aria-labelledby="testimonialsDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="testimonialsDrawerTitle"><i class="fa-solid fa-quote-left"></i> Add Testimonial</h5>
+            <button type="button" class="atl-drawer__close" id="testimonialsDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <form id="testimonialsForm" class="um-form" autocomplete="off">
+                <div class="um-field-group">
+                    <label class="um-label" for="testimonialName">Name</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-user um-input-icon"></i>
+                        <input type="text" id="testimonialName" class="um-input" placeholder="e.g. Naledi Khumalo" required>
+                    </div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="testimonialDesignation">Role / Designation (Optional)</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-briefcase um-input-icon"></i>
+                        <input type="text" id="testimonialDesignation" class="um-input" placeholder="e.g. Corporate Events Lead">
+                    </div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="testimonialQuote">Testimonial</label>
+                    <textarea id="testimonialQuote" class="um-input" rows="4" placeholder="What did they say?" required></textarea>
+                </div>
+                <hr class="um-divider">
+                <div class="um-field-group">
+                    <label class="um-label" for="testimonialFile">Photo (Optional)</label>
+                    <label for="testimonialFile" id="testimonialUploadZone" class="um-upload-zone">
+                        <i class="fa-solid fa-image um-upload-icon"></i>
+                        <p class="um-upload-text" id="testimonialUploadText">Select or drop a photo</p>
+                        <input type="file" id="testimonialFile" class="um-file-input" accept="image/*">
+                        <small class="help-block">A square headshot works best. Leave blank for a monogram avatar.</small>
+                    </label>
+                    <div id="testimonialPhotoPreview" style="display:none; margin-top:10px; border-radius:var(--atl-r-md); overflow:hidden; position:relative; max-width:100%;">
+                        <img id="testimonialPhotoPreviewImg" src="" alt="Photo preview" style="display:block; width:100%; max-height:160px; object-fit:cover; border-radius:var(--atl-r-md); border:1px solid var(--atl-line);">
+                        <span style="position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.55); color:#fff; font-size:11px; padding:2px 8px; border-radius:20px; pointer-events:none;">Current</span>
+                        <button type="button" id="btnTestimonialClearImage" class="um-btn um-btn--danger um-btn--sm" style="position:absolute; top:8px; right:8px; font-size:11px; padding:3px 8px;"><i class="fa-solid fa-trash-can"></i> Remove</button>
+                    </div>
+                </div>
+                <div id="err-testimonialsForm" style="display:none;font-size:12px;color:var(--atl-clay);margin-top:4px;"></div>
+                <div class="um-form-actions" style="justify-content:flex-end; gap:10px;">
+                    <button type="button" class="atl-btn atl-btn--ghost" id="testimonialsCancelBtn">Cancel</button>
+                    <button type="submit" class="atl-btn atl-btn--primary" id="testimonialsSubmitBtn">
+                        <i class="fa-solid fa-plus-circle"></i> Add Testimonial
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -25902,6 +26641,8 @@
         homeAdmin:        { label: 'Home Slider',       icon: 'fa-images' },
         aboutAdmin:       { label: 'About Me',          icon: 'fa-user-astronaut' },
         careerAdmin:      { label: 'Career',            icon: 'fa-star' },
+        footprintAdmin:   { label: 'Footprint',         icon: 'fa-earth-africa' },
+        testimonialsAdmin:{ label: 'Testimonials',      icon: 'fa-quote-left' },
         galleryAdmin:     { label: 'Gallery',           icon: 'fa-image' },
         socialAdmin:      { label: 'Socials',           icon: 'fa-share-nodes' },
         eventsAdmin:      { label: 'Events',            icon: 'fa-masks-theater' },

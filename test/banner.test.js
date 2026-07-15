@@ -70,6 +70,7 @@ module.exports = async function ({ check }) {
             JSON.stringify(updRes.body));
 
         // ── Resolver: unassigned template_key resolves to null ──
+        await api('PUT', '/api/admin/email-templates/assign', { template_keys: ['booking_confirmed'], banner_id: null });
         const beforeAssign = await resolve('booking_confirmed');
         check('resolve: unassigned template_key -> null', beforeAssign === null, JSON.stringify(beforeAssign));
 

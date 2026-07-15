@@ -120,7 +120,7 @@
 	(function () {
 		try {
 			var v = JSON.parse(localStorage.getItem('tm_sections') || '{}');
-			var MAP = { hero:'#hero', features:'.tm-features', services:'.tm-services', about:'#about', career:'#career', gallery:'#gallery', events:'#events', social:'#social', newsletter:'#newsletter', contact:'#contact', footer:'.tm-footer' };
+			var MAP = { hero:'#hero', features:'.tm-features', services:'.tm-services', about:'#about', career:'#career', footprint:'#footprint', gallery:'#gallery', events:'#events', social:'#social', newsletter:'#newsletter', testimonials:'#testimonials', contact:'#contact', footer:'.tm-footer' };
 			var sel = [];
 			Object.keys(MAP).forEach(function (k) { if (v[k] === false) sel.push(MAP[k]); });
 			if (sel.length) {
@@ -157,9 +157,11 @@
 				<li><a href="#hero" class="is-active">Home</a></li>
 				<li><a href="#about">About</a></li>
 				<li><a href="#career">Career</a></li>
+				<li><a href="#footprint">Footprint</a></li>
 				<li><a href="#gallery">Gallery</a></li>
 				<li><a href="#social">Social</a></li>
 				<li><a href="#events">Events</a></li>
+				<li><a href="#testimonials">Testimonials</a></li>
 				<li><a href="#contact">Contact</a></li>
 			</ul>
 		</div>
@@ -183,10 +185,12 @@
 	<a href="#hero">Home</a>
 	<a href="#about">About</a>
 	<a href="#career">Career</a>
+	<a href="#footprint">Footprint</a>
 	<a href="#gallery">Gallery</a>
 	<a href="#social">Social</a>
 	<a href="#events">Events</a>
 	<a href="#newsletter">Newsletter</a>
+	<a href="#testimonials">Testimonials</a>
 	<a href="#contact">Contact</a>
 	<a href="#" data-toggle="modal" data-target="#trackingModal">Track Booking</a>
 	<a href="#" data-toggle="modal" data-target="#bookingModal" data-track="book_now" data-bk-source="mobile-nav">Book Me</a>
@@ -365,119 +369,30 @@
 </section>
 
 <!-- ============== CAREER ============== -->
-<section class="tm-section tm-career" id="career" aria-labelledby="careerTitle">
+<section class="tm-section tm-milestones" id="career" aria-labelledby="careerTitle">
 	<div class="tm-container">
 		<div class="tm-section__head text-center tm-reveal">
 			<p class="tm-eyebrow">Milestones</p>
-			<h2 id="careerTitle">Career <em>Highlights</em></h2>
-			<p class="tm-section__desc">Join me as I reflect on career defining moments, the milestones that showcase my dedication to my craft.</p>
+			<h2 id="careerTitle">The Moments That <em>Made Me</em></h2>
+			<p class="tm-section__desc">From the first open mic to stages across the globe — the career-defining stops so far. Click a moment to open it up.</p>
 		</div>
 
-		<div class="row">
-			<div class="col-xs-12 col-md-10 col-md-offset-1">
-				<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true">
+		<div class="ms-row" id="milestonesRow" role="list" aria-label="Career milestones">
+			<!-- Populated dynamically from /api/public/highlights by renderCareer() in js/myscript.js -->
+		</div>
+	</div>
+</section>
 
-					<!-- 2014 Panel -->
-					<div class="panel panel-default career-panel tm-reveal">
-							<div class="panel-heading" role="tab" id="heading2014">
-								<h3 class="panel-title">
-									<a role="button" data-toggle="collapse" data-parent="#accordion" href="#collapse2014" aria-expanded="true" aria-controls="collapse2014">
-										2014 <span class="glyphicon glyphicon-chevron-down"></span>
-									</a>
-								</h3>
-							</div>
-							<div id="collapse2014" class="panel-collapse collapse in" role="tabpanel" aria-labelledby="heading2014">
-								<div class="panel-body">
-									<ul>
-										<li>Parkers Comedy and Jive</li>
-										<li>Goliath &amp; Goliath's The Box</li>
-									</ul>
-								</div>
-							</div>
-						</div>
-
-						<!-- 2015 Panel -->
-						<div class="panel panel-default career-panel tm-reveal">
-							<div class="panel-heading" role="tab" id="heading2015">
-								<h3 class="panel-title">
-									<a class="collapsed" role="button" data-toggle="collapse" data-parent="#accordion" href="#collapse2015" aria-expanded="false" aria-controls="collapse2015">
-										2015 <span class="glyphicon glyphicon-chevron-down"></span>
-									</a>
-								</h3>
-							</div>
-							<div id="collapse2015" class="panel-collapse collapse" role="tabpanel" aria-labelledby="heading2015">
-								<div class="panel-body">
-									<ul>
-										<li>MC'd the Old Mutual Carol by Candlelight with The Bala Brothers</li>
-										<li>MC'd The Ocean Basket end of the year function</li>
-										<li>MC'd The South Point Comedy Experience</li>
-										<li>MC'd Mr &amp; Miss South Point 2015</li>
-										<li>MC'd Mr &amp; Miss Damelin Pretoria 2015</li>
-										<li>Scripted &amp; voiced MTN radio ad in IsiSwati</li>
-									</ul>
-								</div>
-							</div>
-						</div>
-
-						<!-- 2016 Panel -->
-						<div class="panel panel-default career-panel tm-reveal">
-							<div class="panel-heading" role="tab" id="heading2016">
-								<h3 class="panel-title">
-									<a class="collapsed" role="button" data-toggle="collapse" data-parent="#accordion" href="#collapse2016" aria-expanded="false" aria-controls="collapse2016">
-										2016 <span class="glyphicon glyphicon-chevron-down"></span>
-									</a>
-								</h3>
-							</div>
-							<div id="collapse2016" class="panel-collapse collapse" role="tabpanel" aria-labelledby="heading2016">
-								<div class="panel-body">
-									<ul>
-										<li>ANN7 SinBin segment Presenter and Writer</li>
-										<li>Feature role as the Delivery Guy on "The Alliance"</li>
-										<li>Voice over for SABC2 Afrikaans and English</li>
-										<li>Banker in Film "Debt at a Funeral"</li>
-										<li>Savanna's Comics Choice Newcomer Showcase</li>
-										<li>MTV #YouGotGot Prankster — top 3 "Fam Prank" 2016</li>
-										<li>Telkom Knockout voice-over artist (IsiSwati)</li>
-										<li>Telkom Knockout Cup radio advert contributor 2016</li>
-										<li>Vuzu Amp's The Coalition 2016</li>
-										<li>Comedy Central's Grab The Mic Winner 2016</li>
-										<li>Comedy Central Roast Battle contestant 2016</li>
-									</ul>
-								</div>
-							</div>
-						</div>
-
-						<!-- General Highlights Panel -->
-						<div class="panel panel-default career-panel tm-reveal">
-							<div class="panel-heading" role="tab" id="headingGen">
-								<h3 class="panel-title">
-									<a class="collapsed" role="button" data-toggle="collapse" data-parent="#accordion" href="#collapseGen" aria-expanded="false" aria-controls="collapseGen">
-										General Highlights <span class="glyphicon glyphicon-chevron-down"></span>
-									</a>
-								</h3>
-							</div>
-							<div id="collapseGen" class="panel-collapse collapse" role="tabpanel" aria-labelledby="headingGen">
-								<div class="panel-body">
-									<ul>
-										<li>Goliath &amp; Goliath's 20-in-5 at The Box</li>
-										<li>Parker's Comedy and Jive in Monte Casino</li>
-										<li>Kitcheners New Material Night</li>
-										<li>Space.Comedy at the Johannesburg Theatre</li>
-										<li>Kings Of Vernac Comedy at the Pretoria State Theatre (IsiSwati)</li>
-										<li>Thursday Night Comedy at the Bohemians in Westdene</li>
-										<li>South Point Comedy Experience</li>
-										<li>Eugene Khoza Tell Them Tour — Nelspruit leg</li>
-										<li>IsiSwati Translator for Nu Breed Comedy</li>
-										<li>Opening Act for Loyiso Madinga's "Born Free-ish"</li>
-									</ul>
-								</div>
-							</div>
-						</div>
-			</div>
-
-					</div><!-- /#accordion -->
-				</div>
-			</div>
+<!-- ============== FOOTPRINT ============== -->
+<section class="tm-section tm-footprint" id="footprint" aria-labelledby="footprintTitle">
+	<div class="tm-container">
+		<div class="tm-section__head text-center tm-reveal">
+			<p class="tm-eyebrow">Footprint</p>
+			<h2 id="footprintTitle">Where the Laughs Have <em>Landed</em></h2>
+			<p class="tm-section__desc">The countries so far — the passport's just warming up.</p>
+		</div>
+		<div class="fp-grid" id="footprintGrid" role="list" aria-label="Countries performed in">
+			<!-- Populated dynamically from /api/public/footprint by renderFootprint() in js/myscript.js -->
 		</div>
 	</div>
 </section>
@@ -591,7 +506,50 @@
 		</div>
 	</div>
 </section>
-	
+
+<!-- ============== TESTIMONIALS ============== -->
+<section class="tm-section tm-testimonials" id="testimonials" aria-labelledby="testimonialsTitle">
+	<div class="tm-container">
+		<div class="tm-section__head text-center tm-reveal">
+			<p class="tm-eyebrow">Testimonials</p>
+			<h2 id="testimonialsTitle">Word of <em>Mouth</em></h2>
+			<p class="tm-section__desc">What people say after the lights come up.</p>
+		</div>
+
+		<div class="ct-container tm-reveal" id="testimonialsCarouselWrap" style="display:none;">
+			<div class="ct-grid">
+				<div class="ct-image-container" id="ctImageContainer">
+					<!-- Populated dynamically from /api/public/testimonials -->
+				</div>
+				<div class="ct-content">
+					<div class="ct-fade-in" id="ctFadeIn">
+						<h3 class="ct-name" id="ctName"></h3>
+						<p class="ct-designation" id="ctDesignation"></p>
+						<p class="ct-quote" id="ctQuote"></p>
+					</div>
+					<div class="ct-arrow-buttons" id="ctArrowButtons">
+						<button type="button" class="ct-arrow-button" id="ctPrevBtn" aria-label="Previous testimonial">
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+						</button>
+						<button type="button" class="ct-arrow-button" id="ctNextBtn" aria-label="Next testimonial">
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 18l6-6-6-6" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+						</button>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<div class="ts-submit-wrap tm-reveal">
+			<div class="ts-submit-card ts-submit-card--cta">
+				<h3 class="ts-submit-title">Share Your Experience</h3>
+				<p class="ts-submit-desc">Worked with Thabiso, or been in the crowd? Tell us about it — approved testimonials appear above.</p>
+				<button type="button" class="btn btn-outline" data-toggle="modal" data-target="#testimonialModal">
+					<i class="fa-solid fa-quote-left"></i> Share Your Testimonial
+				</button>
+			</div>
+		</div>
+	</div>
+</section>
 
 <!-- ============== CONTACT ============== -->
 <section class="tm-section tm-contact" id="contact" aria-labelledby="contactTitle">
@@ -719,8 +677,10 @@
 				<ul>
 					<li><a href="#about">About</a></li>
 					<li><a href="#career">Career</a></li>
+					<li><a href="#footprint">Footprint</a></li>
 					<li><a href="#gallery">Gallery</a></li>
 					<li><a href="#events">Events</a></li>
+					<li><a href="#testimonials">Testimonials</a></li>
 				</ul>
 			</div>
 			<div class="tm-footer__col">
@@ -1753,6 +1713,62 @@
         </div>
     </div>
 
+    <div class="modal fade tm-modal" id="testimonialModal" tabindex="-1" role="dialog" aria-labelledby="testimonialModalLabel">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4 class="modal-title" id="testimonialModalLabel">
+                        <i class="fa-solid fa-quote-left"></i>Share Your Experience
+                    </h4>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <p class="ts-submit-desc" style="margin-bottom:24px;">Worked with Thabiso, or been in the crowd? Tell us about it — approved testimonials appear in the carousel above.</p>
+                    <form id="testimonialSubmitForm" class="tm-form ts-form" novalidate>
+                        <div class="tm-form-group">
+                            <label for="tsName" class="tm-newsletter-label">Your Name</label>
+                            <input type="text" id="tsName" class="form-control bk-input" placeholder="Your name" maxlength="120" required>
+                            <span class="tm-field-error" id="errTsName" role="alert"></span>
+                        </div>
+                        <div class="tm-form-group">
+                            <label for="tsDesignation" class="tm-newsletter-label">Role / Company <span class="tm-newsletter-label__hint">(optional)</span></label>
+                            <input type="text" id="tsDesignation" class="form-control bk-input" placeholder="e.g. Events Manager" maxlength="120">
+                        </div>
+                        <div class="tm-form-group">
+                            <label for="tsQuote" class="tm-newsletter-label">Your Testimonial</label>
+                            <textarea id="tsQuote" class="form-control bk-input" rows="4" placeholder="Tell us about your experience..." maxlength="600" required></textarea>
+                            <span class="tm-field-error" id="errTsQuote" role="alert"></span>
+                        </div>
+                        <div class="tm-form-group">
+                            <label class="tm-newsletter-label">Photo <span class="tm-newsletter-label__hint">(optional)</span></label>
+                            <div class="ts-file-zone" id="tsPhotoZone" tabindex="0" role="button" aria-label="Upload a photo">
+                                <input type="file" id="tsPhoto" class="ts-file-zone__input" accept="image/*">
+                                <div class="ts-file-zone__prompt" id="tsPhotoPrompt">
+                                    <i class="fa-solid fa-cloud-arrow-up ts-file-zone__icon"></i>
+                                    <p class="ts-file-zone__text">Click to browse or drag a photo here</p>
+                                    <p class="ts-file-zone__hint">JPG, PNG or WEBP &middot; up to 8 MB</p>
+                                </div>
+                                <div class="ts-file-zone__preview" id="tsPhotoPreview" style="display:none;">
+                                    <img class="ts-file-zone__thumb" id="tsPhotoPreviewImg" src="" alt="">
+                                    <span class="ts-file-zone__name" id="tsPhotoName"></span>
+                                    <button type="button" class="ts-file-zone__remove" id="tsPhotoRemove" aria-label="Remove photo"><i class="fa-solid fa-xmark"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tm-newsletter-consent">
+                            <label class="bk-checkbox-label">
+                                <input type="checkbox" id="tsConsent" class="bk-checkbox" required>
+                                <span class="bk-checkbox-text">I agree this testimonial may be displayed publicly on this website.</span>
+                            </label>
+                            <span class="tm-field-error" id="errTsConsent" role="alert"></span>
+                        </div>
+                        <button type="submit" id="testimonialSubmitBtn" class="btn btn-primary btn-block">Submit Testimonial</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Final Scripts -->
     <script src="js/jquery-2.1.1.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
@@ -1805,13 +1821,26 @@ $(function() {
     }
 
     // --- HEADER SCROLL STATE ---
+    // Fades continuously with scroll position (via --scroll-progress, read by the header's
+    // background in CSS) instead of a hard flip at one threshold — a 0-vs-1 class toggle alone
+    // meant the header stayed fully transparent for the first 800px of scroll, then snapped to
+    // solid all at once, which read as "not gradual" / "not changing" rather than a fade.
     const header = document.querySelector(".tm-header");
     const announce = document.querySelector(".tm-announcement");
     if (header) {
+        const FADE_DISTANCE = 220;
+        let ticking = false;
         const onScroll = () => {
-            const isScrolled = window.scrollY > 800;
-            header.classList.toggle("is-scrolled", isScrolled);
-            if (announce) announce.classList.toggle("is-scrolled", isScrolled);
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(() => {
+                const progress = Math.min(window.scrollY / FADE_DISTANCE, 1);
+                header.style.setProperty("--scroll-progress", progress.toFixed(3));
+                const isScrolled = progress > 0.02;
+                header.classList.toggle("is-scrolled", isScrolled);
+                if (announce) announce.classList.toggle("is-scrolled", isScrolled);
+                ticking = false;
+            });
         };
         window.addEventListener("scroll", onScroll, { passive: true });
         onScroll();
