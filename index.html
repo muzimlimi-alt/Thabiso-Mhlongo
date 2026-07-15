@@ -1825,8 +1825,9 @@ $(function() {
     // background in CSS) instead of a hard flip at one threshold — a 0-vs-1 class toggle alone
     // meant the header stayed fully transparent for the first 800px of scroll, then snapped to
     // solid all at once, which read as "not gradual" / "not changing" rather than a fade.
+    // The announcement bar above it is intentionally NOT part of this — it's always solid
+    // #111111 with no scroll-driven effect of its own.
     const header = document.querySelector(".tm-header");
-    const announce = document.querySelector(".tm-announcement");
     if (header) {
         const FADE_DISTANCE = 220;
         let ticking = false;
@@ -1838,7 +1839,6 @@ $(function() {
                 header.style.setProperty("--scroll-progress", progress.toFixed(3));
                 const isScrolled = progress > 0.02;
                 header.classList.toggle("is-scrolled", isScrolled);
-                if (announce) announce.classList.toggle("is-scrolled", isScrolled);
                 ticking = false;
             });
         };

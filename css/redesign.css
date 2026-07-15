@@ -335,9 +335,11 @@ a:hover,a:focus{ color:var(--y-hover); }
 /* ---------- ANNOUNCEMENT BAR ---------- */
 .tm-announcement{
   position:fixed; top:0; left:0; right:0; z-index:1001;
-  background: rgba(10, 10, 10, 0.05);
-  backdrop-filter: saturate(180%);
-  -webkit-backdrop-filter: saturate(180%);
+  /* Always solid — no scroll-driven fade/transition (unlike .tm-header just below it).
+     transition:none is explicit here, not just an absence of a rule, since some other
+     selector elsewhere in this file sets transition:all and would otherwise inherit through. */
+  background: var(--bg-section);
+  transition: none;
   color:var(--text-primary);
   border: none !important;
   display:flex; align-items:center;
@@ -348,12 +350,6 @@ a:hover,a:focus{ color:var(--y-hover); }
   text-transform:uppercase;
   font-weight:400;
   height:var(--announce-h);
-  transition: background-color var(--t) var(--ease), 
-              backdrop-filter var(--t) var(--ease),
-              transform .35s var(--ease);
-}
-.tm-announcement.is-scrolled{
-  background: var(--bg-page);
 }
 .tm-announcement strong{ color:var(--y-base); font-weight:500; }
 .tm-announcement .sep{ color:var(--y-dark); margin:0 12px; }
