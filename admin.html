@@ -9885,6 +9885,7 @@
                                         <label class="um-label">Audience</label>
                                         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
                                             <div class="um-input-wrap" style="flex:1; min-width:200px;">
+                                                <i class="fa-solid fa-users um-input-icon"></i>
                                                 <select id="newsletterAudienceSelect" class="um-input">
                                                     <option value="all">All Active Subscribers</option>
                                                     <option value="new_30d">New Subscribers (Last 30 Days)</option>
@@ -9896,6 +9897,7 @@
                                                 </select>
                                             </div>
                                             <div class="um-input-wrap" id="newsletterAudienceValueWrap" style="flex:1; min-width:160px; display:none;">
+                                                <i id="newsletterAudienceValueIcon" class="fa-solid fa-calendar-days um-input-icon"></i>
                                                 <select id="newsletterAudienceMonth" class="um-input" style="display:none;">
                                                     <option value="1">January</option><option value="2">February</option><option value="3">March</option>
                                                     <option value="4">April</option><option value="5">May</option><option value="6">June</option>
@@ -9914,7 +9916,15 @@
                                         </div>
                                     </div>
                                     <div class="um-field-group">
-                                        <label class="um-label">Email Subject</label>
+                                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                                            <label class="um-label" style="margin:0;">Email Subject</label>
+                                            <div class="dropdown">
+                                                <button type="button" class="atl-btn atl-btn--ghost merge-field-btn" data-toggle="dropdown" data-target-input="newsletterSubject" title="Insert a personalization token" style="font-size:11px; padding:5px 10px;">
+                                                    <i class="fa-solid fa-code"></i> Insert Field
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:#282828; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.5); min-width:280px;"></ul>
+                                            </div>
+                                        </div>
                                         <div class="um-input-wrap">
                                             <i class="fa-regular fa-envelope um-input-icon"></i>
                                             <input type="text" id="newsletterSubject" class="um-input" placeholder="e.g. November Tour Dates + New Video!" required>
@@ -9922,7 +9932,15 @@
                                         <div id="err-newsletterSubject" style="display:none;font-size:12px;color:var(--atl-clay);margin-top:4px;"></div>
                                     </div>
                                     <div class="um-field-group">
-                                        <label class="um-label">Message Content</label>
+                                        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                                            <label class="um-label" style="margin:0;">Message Content</label>
+                                            <div class="dropdown">
+                                                <button type="button" class="atl-btn atl-btn--ghost merge-field-btn" data-toggle="dropdown" data-quill-var="newsletterQuill" title="Insert a personalization token" style="font-size:11px; padding:5px 10px;">
+                                                    <i class="fa-solid fa-code"></i> Insert Field
+                                                </button>
+                                                <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:#282828; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.5); min-width:280px;"></ul>
+                                            </div>
+                                        </div>
                                         <textarea id="newsletterMessage" style="display:none;"></textarea>
                                         <div id="newsletterEditorContainer" class="atl-quill-wrap">
                                             <div id="newsletterEditor"></div>
@@ -10112,7 +10130,7 @@
 
                                 <div style="background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: 10px; padding: 15px; max-height: 500px; overflow-y: auto;">
                                     <h4 style="margin-top: 0; font-size: 13px; color: var(--atl-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; border-bottom: 1px solid var(--atl-line); padding-bottom: 10px; margin-bottom: 15px;">
-                                        <span id="subscriberCount" style="font-size: 22px; color: var(--atl-amber); font-weight: 700; text-transform: none; letter-spacing: 0;">0</span> Total Subscribers
+                                        <span id="subscriberCount" style="font-size: 22px; color: var(--atl-amber); font-weight: 700; text-transform: none; letter-spacing: 0;">0</span> <span id="subscriberCountLabel">Total Subscribers</span>
                                     </h4>
 
                                     <table class="table mt-3" style="color: var(--atl-ink-dim); background-color: transparent; width: 100%;">
@@ -10124,6 +10142,7 @@
                                                 <th class="um-th-sort" style="border:none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; cursor:pointer;" onclick="window.toggleSubscriberSort('first_name')">Name <i class="fa-solid fa-sort" id="subsort-first_name" style="font-size:10px; margin-left:4px; opacity:0.5;"></i></th>
                                                 <th class="um-th-sort" style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; cursor:pointer;" onclick="window.toggleSubscriberSort('email')">Email <i class="fa-solid fa-sort" id="subsort-email" style="font-size:10px; margin-left:4px; opacity:0.5;"></i></th>
                                                 <th class="um-th-sort" style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; cursor:pointer;" onclick="window.toggleSubscriberSort('subscribed_at')">Date <i class="fa-solid fa-sort" id="subsort-subscribed_at" style="font-size:10px; margin-left:4px; opacity:0.5;"></i></th>
+                                                <th class="um-th-sort" style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; cursor:pointer;" onclick="window.toggleSubscriberSort('birthday')">Birthday <i class="fa-solid fa-sort" id="subsort-birthday" style="font-size:10px; margin-left:4px; opacity:0.5;"></i></th>
                                                 <th class="um-th-sort" style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; cursor:pointer;" onclick="window.toggleSubscriberSort('status')">Status <i class="fa-solid fa-sort" id="subsort-status" style="font-size:10px; margin-left:4px; opacity:0.5;"></i></th>
                                                 <th style="border: none; color:var(--atl-muted); font-size:12px; text-transform:uppercase; letter-spacing:0.5px; font-weight:600; text-align: right;">Actions</th>
                                             </tr>
@@ -10186,7 +10205,15 @@
                                 <div class="um-divider"></div>
 
                                 <div class="um-field-group">
-                                    <label class="um-label">Email Subject</label>
+                                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                                        <label class="um-label" style="margin:0;">Email Subject</label>
+                                        <div class="dropdown">
+                                            <button type="button" class="atl-btn atl-btn--ghost merge-field-btn" data-toggle="dropdown" data-target-input="bdaySubject" title="Insert a personalization token" style="font-size:11px; padding:5px 10px;">
+                                                <i class="fa-solid fa-code"></i> Insert Field
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:#282828; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.5); min-width:280px;"></ul>
+                                        </div>
+                                    </div>
                                     <div class="um-input-wrap">
                                         <i class="fa-regular fa-envelope um-input-icon"></i>
                                         <input type="text" id="bdaySubject" class="um-input" placeholder="Happy Birthday, {{first_name}}!">
@@ -10199,7 +10226,15 @@
                                     </div>
                                 </div>
                                 <div class="um-field-group">
-                                    <label class="um-label">Body</label>
+                                    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                                        <label class="um-label" style="margin:0;">Body</label>
+                                        <div class="dropdown">
+                                            <button type="button" class="atl-btn atl-btn--ghost merge-field-btn" data-toggle="dropdown" data-quill-var="birthdayBodyQuill" title="Insert a personalization token" style="font-size:11px; padding:5px 10px;">
+                                                <i class="fa-solid fa-code"></i> Insert Field
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:#282828; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.5); min-width:280px;"></ul>
+                                        </div>
+                                    </div>
                                     <div id="bdayBodyContainer" class="atl-quill-wrap"><div id="bdayBodyEditor"></div></div>
                                 </div>
                                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
@@ -11031,6 +11066,7 @@
                                     <option value="Booking: Payment Received">Payment Received</option>
                                     <option value="Contact Form: Admin Notification">Contact Inquiry</option>
                                     <option value="Newsletter: Campaign Dispatch">Newsletter Campaign</option>
+                                    <option value="Newsletter: Scheduled Campaign">Newsletter Campaign (Scheduled)</option>
                                     <option value="Admin: Direct Compose">Admin Direct Message</option>
                                     <option value="Admin: Password Reset Request">Password Reset</option>
                                 </select>
@@ -11519,7 +11555,7 @@
                 const targetModalIds = [
                     'cancelBookingModal', 'cancelModal',
                     'promoteBookingModal',
-                    'importSubscribersModal', 'newsletterPreviewModal'
+                    'importSubscribersModal', 'newsletterPreviewModal', 'campaignDeliveryLogModal'
                 ];
                 
                 jQuery.fn.modal = function(action, ...args) {
@@ -21498,6 +21534,7 @@
                 subscribersData = data.subscribers;
                 window.subscribersData = data.subscribers;
                 $count.text(data.total);
+                $('#subscriberCountLabel').text(subscribersSearchTerm ? 'Matching Subscribers' : 'Total Subscribers');
 
                 if (data.total === 0) {
                     $empty.html(subscribersEmptyState('fa-solid fa-inbox', subscribersSearchTerm ? 'No subscribers match your search.' : 'No subscribers found.')).show();
@@ -21583,12 +21620,16 @@
             var $tbody = $('#subscriberListBody');
             $tbody.empty();
             
+            var MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
             dataArray.forEach(function (sub) {
                 var d = new Date(sub.subscribed_at);
-                
+
                 var safeEmail = $('<span>').text(sub.email || '').html();
                 var safeEmailLower = $('<span>').text((sub.email || '').toLowerCase()).html();
                 var safeName = sub.first_name ? $('<span>').text(sub.first_name).html() : '<span style="color:var(--atl-muted);">—</span>';
+                var birthdayHtml = (sub.birthday_day && sub.birthday_month)
+                    ? sub.birthday_day + ' ' + MONTH_ABBR[sub.birthday_month - 1]
+                    : '<span style="color:var(--atl-muted);">—</span>';
                 var isActive = sub.status === 'active';
                 var isPending = sub.status === 'pending_confirmation';
                 var statusHtml = isActive
@@ -21614,6 +21655,7 @@
                         <td style="font-size: 11px; color: var(--atl-muted); vertical-align: middle; border: none; white-space: nowrap;">
                             ${d.toLocaleDateString()}<br>${d.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </td>
+                        <td style="font-size: 12px; vertical-align: middle; border: none; white-space: nowrap;">${birthdayHtml}</td>
                         <td style="vertical-align: middle; border: none;">${statusHtml}</td>
                         <td style="vertical-align: middle; border: none; text-align: right; white-space: nowrap;">
                             <button class="atl-btn atl-btn--ghost edit-subscriber-btn" data-id="${sub.subscriber_id}" title="Edit">
@@ -21941,14 +21983,17 @@
             }
         });
 
-        // Edit Subscriber drawer — populate Day/Month select options once
-        (function populateSubscriberBirthdaySelects() {
+        // Edit Subscriber drawer — populate Day/Month select options once. Deferred to
+        // document.ready: this script block (lines ~11418-22865) runs before the drawer's own
+        // markup (~line 24519) is parsed, so $('#editSubscriberBirthdayDay') would otherwise match
+        // nothing yet and .append() would silently no-op, leaving only the static placeholder option.
+        $(function populateSubscriberBirthdaySelects() {
             const $day = $('#editSubscriberBirthdayDay');
             for (let d = 1; d <= 31; d++) $day.append(`<option value="${d}">${d}</option>`);
             const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
             const $month = $('#editSubscriberBirthdayMonth');
             months.forEach((name, i) => $month.append(`<option value="${i + 1}">${name}</option>`));
-        })();
+        });
 
         // Open the Edit Subscriber drawer, pre-filled from the already-fetched subscribersData
         // (client-side lookup — no need for a separate GET-by-id endpoint).
@@ -22149,6 +22194,46 @@
             }
         });
 
+        // ─── Merge-field token picker (Compose + Birthday subject/body) ───
+        var MERGE_FIELDS = [
+            { token: '{{first_name}}', label: "Subscriber's first name" },
+            { token: '{{email}}', label: 'Subscriber email address' },
+            { token: '{{birthday}}', label: 'Formatted birthday, e.g. "15 July"' },
+            { token: '{{subscription_date}}', label: 'Date they subscribed' },
+            { token: '{{unsubscribe_link}}', label: 'Unsubscribe URL (auto-inserted if omitted)' },
+        ];
+        function insertMergeField(token, targetInputId, quillVarName) {
+            var quill = quillVarName ? window[quillVarName] : null;
+            if (quill) {
+                var sel = quill.getSelection(true);
+                quill.insertText(sel.index, token, 'user');
+                quill.setSelection(sel.index + token.length);
+            } else if (targetInputId) {
+                var el = document.getElementById(targetInputId);
+                if (!el) return;
+                var start = el.selectionStart != null ? el.selectionStart : el.value.length;
+                var end = el.selectionEnd != null ? el.selectionEnd : el.value.length;
+                el.value = el.value.slice(0, start) + token + el.value.slice(end);
+                el.selectionStart = el.selectionEnd = start + token.length;
+                el.focus();
+            }
+        }
+        $('.merge-field-menu').each(function() {
+            var $menu = $(this);
+            MERGE_FIELDS.forEach(function(f) {
+                var $item = $('<a href="#" class="merge-field-item"></a>')
+                    .attr('data-token', f.token)
+                    .css({ color: 'var(--atl-ink)', padding: '8px 14px', display: 'block' })
+                    .html('<code style="color:var(--atl-amber);">' + f.token + '</code><br><span style="font-size:11px; color:var(--atl-muted);">' + f.label + '</span>');
+                $menu.append($('<li></li>').append($item));
+            });
+        });
+        $(document).on('click', '.merge-field-item', function(e) {
+            e.preventDefault();
+            var $btn = $(this).closest('.dropdown').find('.merge-field-btn');
+            insertMergeField($(this).data('token'), $btn.data('target-input'), $btn.data('quill-var'));
+        });
+
         // Dispatch Newsletter
         // ─── Audience segmentation ───
         function getSelectedAudience() {
@@ -22169,6 +22254,8 @@
             $('#newsletterAudienceMonth, #newsletterAudienceTag, #newsletterAudienceSource, #newsletterAudienceDays').hide();
             const needsValue = segment === 'birthday_month' || segment === 'has_tag' || segment === 'source' || segment === 'dormant';
             $('#newsletterAudienceValueWrap').toggle(needsValue);
+            const iconMap = { birthday_month: 'fa-calendar-days', has_tag: 'fa-tag', source: 'fa-globe', dormant: 'fa-hourglass-half' };
+            $('#newsletterAudienceValueIcon').attr('class', 'fa-solid ' + (iconMap[segment] || 'fa-calendar-days') + ' um-input-icon');
             if (segment === 'birthday_month') $('#newsletterAudienceMonth').show();
             else if (segment === 'has_tag') $('#newsletterAudienceTag').show();
             else if (segment === 'source') $('#newsletterAudienceSource').show();
@@ -22559,6 +22646,7 @@
                         <td style="padding:10px 8px;vertical-align:middle;border:none;text-align:right;white-space:nowrap;">
                             ${isPending ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-edit-btn" data-id="${c.id}" style="margin-right:4px;" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>` : ''}
                             ${isPending ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-cancel-btn" data-id="${c.id}" style="margin-right:4px;color:var(--atl-orange);border-color:rgba(255,152,0,0.4);" title="Cancel scheduled send"><i class="fa-solid fa-ban"></i> Cancel</button>` : ''}
+                            ${c.display_status === 'sent' ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-delivery-log-btn" data-subject="${subj}" data-source="${c.source}" style="margin-right:4px;" title="View delivery log"><i class="fa-solid fa-list-check"></i></button>` : ''}
                             <button class="um-btn um-btn--primary um-btn--sm campaign-reuse-btn" data-id="${c.id}" data-source="${c.source}" style="margin-right:4px;" title="Load into composer"><i class="fa-solid fa-rotate-left"></i> Reuse</button>
                             <button class="um-btn um-btn--ghost um-btn--sm campaign-delete-btn" data-id="${c.id}" data-source="${c.source}" style="color:var(--atl-clay);" title="Delete"><i class="fa-solid fa-trash"></i></button>
                         </td>
@@ -22635,6 +22723,52 @@
         });
         $('#campaignsPrevBtn').on('click', function() { if (campaignsPage > 1) { campaignsPage--; loadCampaigns(); } });
         $('#campaignsNextBtn').on('click', function() { campaignsPage++; loadCampaigns(); });
+
+        // ─── Delivery log: real per-recipient send outcomes live in email_logs (written by the
+        // notification queue, not at enqueue time), scoped by trigger_event + a subject substring —
+        // email_logs has no campaign/schedule foreign key, so this is the best available scoping
+        // without a schema change. Mirrors loadBirthdayRecentSends()'s inline list pattern. ───
+        async function viewCampaignDeliveryLog(subject, source) {
+            const trigger = source === 'schedule' ? 'Newsletter: Scheduled Campaign' : 'Newsletter: Campaign Dispatch';
+            const $list = $('#campaignDeliveryLogList');
+            const $empty = $('#campaignDeliveryLogEmpty');
+            $list.empty();
+            $empty.hide();
+            $('#campaignDeliveryLogModal').modal('show');
+            try {
+                const res = await apiCall('/api/admin/email-logs?trigger=' + encodeURIComponent(trigger) + '&search=' + encodeURIComponent(subject) + '&limit=50&sort=sent_at&order=DESC');
+                const logs = (res && res.success && Array.isArray(res.logs)) ? res.logs : [];
+                if (!logs.length) { $empty.show(); return; }
+                logs.forEach(function(log) {
+                    var statusBadge = log.status === 'success'
+                        ? '<span class="atl-badge atl-badge--confirmed">Sent</span>'
+                        : (log.status === 'failed' ? '<span class="atl-badge atl-badge--cancelled">Failed</span>' : '<span class="atl-badge atl-badge--unpaid">' + escHtml(log.status || '') + '</span>');
+                    var d = new Date(log.sent_at);
+                    $list.append(
+                        '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; background:var(--atl-card); border:1px solid var(--atl-line); border-radius:6px; font-size:12px;">' +
+                            '<span style="color:var(--atl-ink-dim); word-break:break-all;">' + escHtml(log.recipient_email) + '</span>' +
+                            '<span style="display:flex; align-items:center; gap:8px; white-space:nowrap;"><span style="color:var(--atl-muted);">' + d.toLocaleDateString() + '</span>' + statusBadge + '</span>' +
+                        '</div>'
+                    );
+                });
+            } catch (e) {
+                console.error('Error loading campaign delivery log:', e);
+                $empty.text('Could not load the delivery log.').show();
+            }
+            $('#campaignDeliveryLogViewAll').off('click').on('click', function(ev) {
+                ev.preventDefault();
+                logState.trigger = trigger;
+                logState.search = subject;
+                $('#logTriggerFilter').val(trigger);
+                $('#logSearch').val(subject);
+                $('#campaignDeliveryLogModal').modal('hide');
+                window.switchTab('emailLogsAdmin');
+                window.loadEmailLogs();
+            });
+        }
+        $(document).on('click', '.campaign-delivery-log-btn', function() {
+            viewCampaignDeliveryLog($(this).data('subject'), $(this).data('source'));
+        });
 
         $(document).on('change', '#selectAllCampaigns', function() {
             $('.campaign-checkbox').prop('checked', this.checked);
@@ -22787,7 +22921,6 @@
                 bookingsAdmin:     { endpoint: '/api/admin/bookings/full',           handler: arr => arr.filter(b => b.status === 'PENDING').length },
                 calendarAdmin:     { endpoint: '/api/admin/calendar/events',         handler: arr => arr.filter(ev => ev.start && new Date(ev.start) > new Date()).length },
                 financeAdmin:      { endpoint: '/api/admin/financials/stats',        handler: res => res.stats ? 'R ' + (res.stats.revenue / 1000).toFixed(0) + 'k' : '—' },
-                newsletterAdmin:   { endpoint: '/api/admin/newsletter/subscribers?limit=100000', handler: d => (d && Array.isArray(d.subscribers)) ? d.subscribers.filter(s => s.status === 'active').length : 0 },
                 servicesAdmin:     { endpoint: '/api/admin/services',                handler: arr => arr.filter(s => s.is_active !== 0).length },
                 policiesAdmin:     { endpoint: '/api/admin/policies',                handler: obj => (obj && obj.policies && Object.keys(obj.policies).length) ? 'Active' : '—' },
                 emailLogsAdmin:    { endpoint: '/api/admin/email-logs?limit=1',      handler: res => res.total || 0 },
@@ -32059,6 +32192,26 @@
             </div>
             <div class="modal-body" style="padding:0;">
                 <iframe id="newsletterPreviewFrame" style="width:100%;height:70vh;border:none;display:block;"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="campaignDeliveryLogModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content" style="background: var(--atl-paper);border: 1px solid var(--atl-line);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--atl-line);padding:14px 20px;">
+                <h5 class="modal-title" style="color: var(--atl-amber);font-size:15px;margin:0;"><i class="fa-solid fa-list-check"></i> Delivery Log</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color:var(--atl-muted);opacity:1;padding:0;background:none;border:none;cursor:pointer;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/></svg>
+                </button>
+            </div>
+            <div class="modal-body" style="padding:16px 20px; max-height:60vh; overflow-y:auto;">
+                <div id="campaignDeliveryLogList" style="display:flex; flex-direction:column; gap:6px;"></div>
+                <div id="campaignDeliveryLogEmpty" class="um-empty-state" style="display:none; padding:24px;">No delivery records found for this campaign yet.</div>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid var(--atl-line); padding:12px 20px; display:flex; justify-content:flex-end;">
+                <a href="#" id="campaignDeliveryLogViewAll" class="atl-btn atl-btn--ghost" style="font-size:12px;">View All in Email Logs</a>
             </div>
         </div>
     </div>

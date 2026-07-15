@@ -26,11 +26,18 @@ function emailBaseUrl() {
 
 /**
  * @param {string} templateKey
+ * @param {{baseUrlOverride?: string}} [opts] - Pass the requesting host (e.g. from an admin preview
+ *   request) to render the banner src against that host instead of emailBaseUrl()'s production
+ *   fallback. Override calls bypass the cache entirely (both read and write) so a preview on a
+ *   dev/staging host can never poison the TTL cache that real sends read from.
  * @returns {Promise<{src:string, alt:string, headline:string|null, subtitle:string|null}|null>}
  */
-async function resolveBanner(templateKey) {
-    const cached = _cache.get(templateKey);
-    if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
+async function resolveBanner(templateKey, opts = {}) {
+    const { baseUrlOverride } = opts;
+    if (!baseUrlOverride) {
+        const cached = _cache.get(templateKey);
+        if (cached && Date.now() - cached.at < TTL_MS) return cached.value;
+    }
 
     const value = await new Promise((resolve) => {
         db.get(
@@ -42,7 +49,7 @@ async function resolveBanner(templateKey) {
             (err, row) => {
                 if (err || !row) return resolve(null);
                 resolve({
-                    src: `${emailBaseUrl()}${row.image_url}`,
+                    src: `${baseUrlOverride || emailBaseUrl()}${row.image_url}`,
                     alt: row.alt_text,
                     headline: row.headline || null,
                     subtitle: row.subtitle || null
@@ -51,7 +58,7 @@ async function resolveBanner(templateKey) {
         );
     });
 
-    _cache.set(templateKey, { at: Date.now(), value });
+    if (!baseUrlOverride) _cache.set(templateKey, { at: Date.now(), value });
     return value;
 }
 

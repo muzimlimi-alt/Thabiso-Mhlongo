@@ -17,6 +17,7 @@ const ADMIN = { email: 'test.runner@example.invalid', password: 'TestRunnerPass1
 let child = null;
 let cookie = '';
 let runStartedAt = 0; // used to sweep docs/ PDFs this run generated
+let childLog = ''; // accumulated stdout+stderr of the current child, reset on start()/restart()
 
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -39,15 +40,11 @@ async function seedAdmin() {
     await new Promise(res => db.close(res));
 }
 
-async function start() {
-    runStartedAt = Date.now();
-    // Fresh throwaway DB from the current schema+data.
-    for (const suffix of ['', '-wal', '-shm']) {
-        const src = path.join(ROOT, 'database.sqlite' + suffix);
-        if (fs.existsSync(src)) fs.copyFileSync(src, TEST_DB + suffix);
-    }
-    await seedAdmin();
-
+// Spawns server.js against TEST_DB and waits for readiness. Shared by start() (fresh DB + login)
+// and restart() (same DB, no re-login needed — sessions live in the real sessions.sqlite, which
+// isn't DB_PATH-redirected, so an existing cookie survives a respawn untouched).
+async function spawnAndWait() {
+    childLog = '';
     child = spawn(process.execPath, ['server.js'], {
         cwd: ROOT,
         env: {
@@ -61,20 +58,30 @@ async function start() {
         },
         stdio: ['ignore', 'pipe', 'pipe'],
     });
-    let log = '';
-    child.stdout.on('data', d => { log += d; });
-    child.stderr.on('data', d => { log += d; });
+    child.stdout.on('data', d => { childLog += d; });
+    child.stderr.on('data', d => { childLog += d; });
 
-    // Wait for readiness.
     const deadline = Date.now() + 30000;
     while (Date.now() < deadline) {
         try {
             const r = await fetch(`${BASE}/api/public/booking-config`);
-            if (r.ok) break;
+            if (r.ok) return;
         } catch (e) { /* not up yet */ }
-        if (child.exitCode !== null) throw new Error('server exited during startup:\n' + log.slice(-2000));
+        if (child.exitCode !== null) throw new Error('server exited during startup:\n' + childLog.slice(-2000));
         await sleep(250);
     }
+    throw new Error('server did not become ready within 30s:\n' + childLog.slice(-2000));
+}
+
+async function start() {
+    runStartedAt = Date.now();
+    // Fresh throwaway DB from the current schema+data.
+    for (const suffix of ['', '-wal', '-shm']) {
+        const src = path.join(ROOT, 'database.sqlite' + suffix);
+        if (fs.existsSync(src)) fs.copyFileSync(src, TEST_DB + suffix);
+    }
+    await seedAdmin();
+    await spawnAndWait();
 
     const lr = await fetch(`${BASE}/api/admin/login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(ADMIN),
@@ -83,6 +90,20 @@ async function start() {
     if (lr.status !== 200 || !sc) throw new Error('admin login failed: ' + lr.status);
     cookie = sc.split(';')[0];
 }
+
+// Kills the current child WITHOUT touching TEST_DB (unlike start(), which always re-copies the
+// live DB) and respawns against the same DB file — for tests that need to simulate a server
+// restart against deliberately-seeded state (e.g. an overdue scheduled_newsletters row).
+async function restart() {
+    if (child && child.exitCode === null) {
+        child.kill();
+        await sleep(300);
+    }
+    await spawnAndWait();
+}
+
+// Current accumulated stdout+stderr of the running child, reset on the last start()/restart().
+function getChildLog() { return childLog; }
 
 async function stop() {
     if (child && child.exitCode === null) {
@@ -215,4 +236,4 @@ function makeTestPng(width, height, { random = false } = {}) {
 
 const future = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 
-module.exports = { start, stop, api, pub, upload, loginAs, q, one, future, makeTestPng, TEST_DB, BASE, sleep };
+module.exports = { start, stop, restart, getChildLog, api, pub, upload, loginAs, q, one, future, makeTestPng, TEST_DB, BASE, sleep };

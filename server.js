@@ -140,8 +140,10 @@ const mutateRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateL
     message: { success: false, message: 'Too many attempts. Please wait 15 minutes and try again.' }
 }) : (req, res, next) => next();
 
-// Limiter for all authenticated admin routes (120 req/min per IP)
-const adminRateLimiter = rateLimit ? rateLimit({
+// Limiter for all authenticated admin routes (120 req/min per IP) — bypassed in test mode, matching
+// bookingRateLimiter/mutateRateLimiter above: the integration suite runs many admin requests from
+// one IP across dozens of test files in the same 1-minute window, well beyond real admin usage.
+const adminRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
     windowMs: 60 * 1000, // 1 minute
     max: 120,
     standardHeaders: true,
@@ -7544,7 +7546,7 @@ app.get('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
     // Generic sortable-column pair (matches the Users table's own sort convention) rather than a
     // fixed enum — this is an admin-only internal API with one caller (the Subscribers tab), so
     // there's no other consumer's contract to preserve.
-    const sortColumns = { email: 'LOWER(email)', first_name: 'LOWER(COALESCE(first_name, \'\'))', subscribed_at: 'subscribed_at', status: 'status' };
+    const sortColumns = { email: 'LOWER(email)', first_name: 'LOWER(COALESCE(first_name, \'\'))', subscribed_at: 'subscribed_at', status: 'status', birthday: 'birthday' };
     const page = Math.max(1, parseInt(req.query.page) || 1);
     // Honour a client-supplied limit (capped) so the "Export All" path can request the full list.
     const limit = Math.min(Math.max(1, parseInt(req.query.limit) || 50), 100000);
@@ -7553,7 +7555,10 @@ app.get('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
     const sortDir = req.query.order === 'ASC' ? 'ASC' : 'DESC';
     const search = (req.query.search || '').trim();
 
-    const orderClause = `${sortColumns[sortCol]} ${sortDir}`;
+    // Birthday is two columns with NULLs (no birthday on file) always sorted last, regardless of direction.
+    const orderClause = sortCol === 'birthday'
+        ? `(birthday_month IS NULL) ASC, birthday_month ${sortDir}, birthday_day ${sortDir}`
+        : `${sortColumns[sortCol]} ${sortDir}`;
 
     const conditions = [];
     const qp = [];
@@ -7964,25 +7969,52 @@ app.delete('/api/admin/newsletter/drafts/:id', requireAdmin, requireRole(['admin
 // --- Newsletter Scheduling ---
 
 function loadPendingScheduledJobs() {
-    db.all(
-        "SELECT * FROM scheduled_newsletters WHERE status = 'pending' AND scheduled_at > datetime('now')",
-        (err, rows) => {
-            if (err) return console.error('Failed to load scheduled jobs:', err);
-            rows.forEach(row => scheduleNewsletterSend(row));
-        }
-    );
+    // Fetch ALL pending rows and partition future-vs-overdue in JS rather than filtering with SQL's
+    // `scheduled_at > datetime('now')` — that comparison is a byte-for-byte TEXT compare, and
+    // scheduled_at is stored as an ISO instant ("...T06:25:42.296Z") while datetime('now') returns
+    // "...08:25:42" (space, no T) — 'T' (0x54) sorts after ' ' (0x20) at that byte offset
+    // UNCONDITIONALLY, so the old SQL filter treated every same-day-overdue row as "still pending"
+    // and handed it to scheduleNewsletterSend(), which then silently dropped it via its own
+    // fireDate <= new Date() guard. This table is low-volume (one comedian's newsletter, not a
+    // mass-mailer), so fetching everything and partitioning in JS is simpler and correct.
+    db.all("SELECT * FROM scheduled_newsletters WHERE status = 'pending'", (err, rows) => {
+        if (err) return console.error('Failed to load scheduled jobs:', err);
+        let recovered = 0;
+        rows.forEach(row => {
+            const rawDt = row.scheduled_at;
+            const fireDate = new Date(rawDt.includes('T') ? rawDt : rawDt.replace(' ', 'T') + 'Z');
+            if (isNaN(fireDate.getTime())) return; // corrupt row — leave for manual review, don't guess
+            if (fireDate.getTime() <= Date.now()) {
+                recovered++;
+                scheduleNewsletterSend(row, { fireImmediately: true });
+            } else {
+                scheduleNewsletterSend(row);
+            }
+        });
+        if (recovered > 0) console.log(`[Newsletter] Recovering ${recovered} overdue scheduled campaign(s) after restart`);
+    });
 }
 
-function scheduleNewsletterSend(schedItem) {
+function scheduleNewsletterSend(schedItem, { fireImmediately = false } = {}) {
     // Handle both ISO8601 ("2025-05-12T14:00:00.000Z") and SQLite datetime ("2025-05-12 14:00:00")
     const rawDt = schedItem.scheduled_at;
-    const fireDate = new Date(rawDt.includes('T') ? rawDt : rawDt.replace(' ', 'T') + 'Z');
-    if (isNaN(fireDate.getTime()) || fireDate <= new Date()) return;
+    let fireDate = new Date(rawDt.includes('T') ? rawDt : rawDt.replace(' ', 'T') + 'Z');
+    if (fireImmediately) {
+        // node-schedule's handling of a Date already in the past is unreliable/undocumented — give
+        // it a concrete few-seconds-out target instead, so a recovered overdue row is guaranteed to
+        // fire while still reusing this function's exact send logic (including the atomic claim below).
+        fireDate = new Date(Date.now() + 2000);
+    } else if (isNaN(fireDate.getTime()) || fireDate <= new Date()) {
+        return;
+    }
 
     const job = schedule.scheduleJob(fireDate, function() {
-        // Re-check DB status — guard against a cancel that races with the fire time
-        db.get("SELECT status FROM scheduled_newsletters WHERE id = ?", [schedItem.id], async (err, row) => {
-            if (err || !row || row.status !== 'pending') {
+        // Atomic claim: only one caller can ever win this row. Replaces the old soft
+        // `db.get` status re-check, which left a real (if narrow, single-process) window for the
+        // same row to be processed twice — see the ripple note on campaigns/unified's display_status
+        // CASE, which needed a matching update for this new transient 'sending' value.
+        db.run("UPDATE scheduled_newsletters SET status = 'sending' WHERE id = ? AND status = 'pending'", [schedItem.id], async function(claimErr) {
+            if (claimErr || this.changes !== 1) {
                 delete scheduledJobs[schedItem.id];
                 return;
             }
@@ -8084,7 +8116,10 @@ app.post('/api/admin/newsletter/preview', requireAdmin, newsletterUpload.none(),
         const previewBody = applyMergeFields(content, sampleSubscriber, '#');
 
         const { socialLinks } = await getEmailFooterContext();
-        const banner = await bannerRegistry.resolveBanner('newsletter_campaign');
+        // Preview always renders the banner against the requesting host, not emailBaseUrl()'s
+        // production fallback — a banner uploaded on dev/staging otherwise 404s in the preview.
+        const previewBaseUrl = `${req.protocol}://${req.get('host')}`;
+        const banner = await bannerRegistry.resolveBanner('newsletter_campaign', { baseUrlOverride: previewBaseUrl });
         const html = emailComponents.renderPremiumEmail({
             preheaderText: previewSubject,
             bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
@@ -8162,6 +8197,16 @@ app.put('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['admini
     const { subject, content, scheduled_at, segment, segment_value } = req.body;
     const { id } = req.params;
     const newFiles = req.files || [];
+
+    // Same validation as POST — an edit that silently sets an invalid/past date would otherwise
+    // create a row that can never fire (the same "orphaned pending row" bug, reachable via the
+    // ordinary edit UI rather than just a server restart).
+    if (!scheduled_at) return res.status(400).json({ success: false, message: 'scheduled_at is required.' });
+    const editFireDate = new Date(scheduled_at);
+    if (isNaN(editFireDate.getTime()) || editFireDate <= new Date()) {
+        newFiles.forEach(f => fs.unlink(f.path, () => {}));
+        return res.status(400).json({ success: false, message: 'scheduled_at must be a valid future date and time.' });
+    }
 
     // Fetch existing row to handle attachment file management
     db.get("SELECT attachment_paths FROM scheduled_newsletters WHERE id = ? AND status = 'pending'", [id], (fetchErr, existing) => {
@@ -8441,7 +8486,7 @@ app.post('/api/admin/newsletter/birthday-settings/preview', requireAdmin, newsle
         const settings = mergeBirthdayOverrides(saved, req.body || {});
         const today = moment().tz('Africa/Johannesburg');
         const sampleSubscriber = { first_name: 'Alex', email: 'alex@example.com', birthday_day: today.date(), birthday_month: today.month() + 1 };
-        const html = await renderBirthdayEmail(settings, sampleSubscriber, '#');
+        const html = await renderBirthdayEmail(settings, sampleSubscriber, '#', `${req.protocol}://${req.get('host')}`);
         res.json({ success: true, html });
     } catch (e) {
         console.error('[Birthday Preview] Error:', e.message);
@@ -8496,9 +8541,9 @@ function getBirthdaySettings() {
 
 // Shared render path for preview/send-test/the real sweep — mirrors the newsletter campaign
 // send paths exactly (merge fields -> renderPremiumEmail -> resolved banner).
-async function renderBirthdayEmail(settings, subscriber, unsubscribeUrl) {
+async function renderBirthdayEmail(settings, subscriber, unsubscribeUrl, baseUrlOverride) {
     const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('subscriber_birthday');
+    const banner = await bannerRegistry.resolveBanner('subscriber_birthday', baseUrlOverride ? { baseUrlOverride } : undefined);
     const subject = applyMergeFields(settings.birthday_email_subject, subscriber, unsubscribeUrl);
     const heading = applyMergeFields(settings.birthday_email_heading, subscriber, unsubscribeUrl);
     const body = applyMergeFields(settings.birthday_email_body, subscriber, unsubscribeUrl);
@@ -14123,6 +14168,7 @@ app.get('/api/admin/campaigns/unified', requireAdmin, (req, res) => {
         UNION ALL
         SELECT id, 'schedule' AS source, subject, content,
             CASE WHEN status = 'pending' THEN 'scheduled'
+                 WHEN status = 'sending' THEN 'scheduled'
                  WHEN status LIKE 'sent%' THEN 'sent'
                  WHEN status = 'cancelled' THEN 'cancelled'
                  ELSE 'failed' END AS display_status,
