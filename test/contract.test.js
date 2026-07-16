@@ -1,6 +1,6 @@
 // Integration tests for the new workflow features: contract send + client e-signature (two-party),
 // state-aware bulk reminders, and the reconciliation overview. Runs against the isolated test DB.
-const { api, pub, one, q, future, sleep } = require('./support');
+const { api, pub, one, q, future, sleep, getTrackingToken } = require('./support');
 
 const SVC = 15;
 let seq = 0;
@@ -20,7 +20,10 @@ async function makeBooking(em, days, { accept = false, amount = 1000 } = {}) {
         quote_expiry_date: expiry, terms: 'T', apply_vat: false, discount: 0,
         items: [{ service_id: SVC, description: 'Travel Buyout – Gauteng', quantity: 1, unit_price: amount }],
     });
-    if (accept) await pub('POST', `/api/public/bookings/${id}/accept-quote`, { email: em, terms_agreed: true });
+    if (accept) {
+        const token = await getTrackingToken(id, em);
+        await pub('POST', `/api/public/bookings/${id}/accept-quote`, { access_token: token, terms_agreed: true });
+    }
     return id;
 }
 
@@ -42,20 +45,26 @@ module.exports = async function ({ check }) {
     const early = await api('PUT', `/api/admin/bookings/${id}/contract/sign`, { signatory_name: 'Thabiso Mhlongo' });
     check('admin countersign blocked before client signs', early.status === 400 && early.body.requires_client_signature === true, `${early.status}`);
 
-    // Wrong email rejected.
-    const wrong = await pub('POST', `/api/public/bookings/${id}/contract/sign`, { email: 'nope@example.invalid', signatory_name: 'X Y', agreed: true });
-    check('client sign with wrong email -> 401', wrong.status === 401, `${wrong.status}`);
+    // Wrong email can't even obtain a verification code (anti-enumeration: request-code always
+    // responds generically, and only actually queues an email on a real id/email match).
+    const wrongToken = await getTrackingToken(id, 'nope@example.invalid');
+    check('wrong email cannot obtain a verification token', wrongToken === null, String(wrongToken));
+    const wrong = await pub('POST', `/api/public/bookings/${id}/contract/sign`, { access_token: 'not-a-real-token', signatory_name: 'X Y', agreed: true });
+    check('client sign with invalid access_token -> 401', wrong.status === 401, `${wrong.status}`);
 
-    // Client signs.
-    const sign = await pub('POST', `/api/public/bookings/${id}/contract/sign`, { email: em, signatory_name: 'Jane Client', agreed: true });
+    // Client verifies, then signs.
+    const token = await getTrackingToken(id, em);
+    check('client obtained a verification token', !!token, String(token));
+    const sign = await pub('POST', `/api/public/bookings/${id}/contract/sign`, { access_token: token, signatory_name: 'Jane Client', agreed: true });
     check('client sign succeeds', sign.status === 200 && sign.body.success, `${sign.status} ${sign.body && sign.body.message}`);
     c = await one('SELECT status, signed_by_client_at, client_signature_data, client_ip_address FROM contracts WHERE booking_id=?', [id]);
     check('client signature recorded, status still sent', c.status === 'sent' && !!c.signed_by_client_at, JSON.stringify({ s: c.status, at: c.signed_by_client_at }));
     let sigOk = false; try { const d = JSON.parse(c.client_signature_data); sigOk = d.name === 'Jane Client' && !!d.signed_at && !!d.ip; } catch (e) {}
     check('client_signature_data holds name + timestamp + ip', sigOk, c.client_signature_data);
 
-    // Double sign is idempotent (409).
-    const again = await pub('POST', `/api/public/bookings/${id}/contract/sign`, { email: em, signatory_name: 'Jane Client', agreed: true });
+    // Double sign is idempotent (409). The access token is a session, not single-use, so it's
+    // valid to reuse across repeat calls within its TTL.
+    const again = await pub('POST', `/api/public/bookings/${id}/contract/sign`, { access_token: token, signatory_name: 'Jane Client', agreed: true });
     check('re-sign by client -> 409 already signed', again.status === 409, `${again.status}`);
 
     // Admin countersign now succeeds and freezes.
@@ -65,7 +74,7 @@ module.exports = async function ({ check }) {
     check('contract finalised: signed + frozen', c.status === 'signed' && c.is_frozen === 1, JSON.stringify(c));
 
     // Client sign after finalise is rejected.
-    const late = await pub('POST', `/api/public/bookings/${id}/contract/sign`, { email: em, signatory_name: 'Jane Client', agreed: true });
+    const late = await pub('POST', `/api/public/bookings/${id}/contract/sign`, { access_token: token, signatory_name: 'Jane Client', agreed: true });
     check('client sign after finalise -> 400', late.status === 400, `${late.status}`);
 
     // ── State-aware reminders ──

@@ -131,6 +131,16 @@ const trackRateLimiter = rateLimit ? rateLimit({
     message: { success: false, message: 'Too many tracking lookups from this device. Please wait 15 minutes and try again.' }
 }) : (req, res, next) => next();
 
+// Limiter for requesting a tracking verification code — guards against using it to email-bomb a
+// client's inbox, and against using response timing/shape to probe id/email combinations.
+const otpRequestRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 mins
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many code requests. Please wait 15 minutes and try again.' }
+}) : (req, res, next) => next();
+
 // Strict limiter for state-mutating public endpoints (accept-quote, cancel) — email-only auth
 const mutateRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
     windowMs: 15 * 60 * 1000, // 15 mins
@@ -287,7 +297,8 @@ app.use(helmet({
                 "https://upload.wikimedia.org",
                 "https://cdn-icons-png.flaticon.com",
                 "https://cdnjs.cloudflare.com",
-                "https://unpkg.com"
+                "https://unpkg.com",
+                "https://flagcdn.com"
             ],
             connectSrc: [
                 "'self'",
@@ -388,6 +399,35 @@ app.use((req, res, next) => {
 app.get('/robots.txt', (req, res) => {
     res.type('text/plain');
     res.send('User-agent: *\nDisallow: /admin\nDisallow: /api\n');
+});
+
+// Protect sensitive files and directories from static exposure
+app.use((req, res, next) => {
+    const url = req.path.toLowerCase();
+    const normalizedUrl = url.replace(/\\/g, '/');
+
+    if (
+        normalizedUrl.includes('/.git/') ||
+        normalizedUrl.includes('/.agents/') ||
+        normalizedUrl.includes('/tbc/') ||
+        normalizedUrl.includes('/backups/') ||
+        normalizedUrl.includes('/db-backups/') ||
+        normalizedUrl.includes('/scratch/') ||
+        normalizedUrl.includes('/test/') ||
+        normalizedUrl.includes('/scripts/') ||
+        normalizedUrl.includes('/docs/') ||
+        normalizedUrl.endsWith('.sqlite') ||
+        normalizedUrl.endsWith('.sqlite-shm') ||
+        normalizedUrl.endsWith('.sqlite-wal') ||
+        normalizedUrl.endsWith('.env') ||
+        normalizedUrl.endsWith('.env.example') ||
+        normalizedUrl.endsWith('.json') ||
+        normalizedUrl.endsWith('.md') ||
+        (normalizedUrl.endsWith('.js') && !normalizedUrl.endsWith('/tracker.js') && !normalizedUrl.includes('/js/'))
+    ) {
+        return res.status(403).send('Forbidden: Direct access to this file/directory is restricted.');
+    }
+    next();
 });
 
 // Enforce UTF-8 charset on all text-based static files + Cache Optimization
@@ -4690,18 +4730,164 @@ const payfastItnRateLimiter = rateLimit ? rateLimit({
     }
 }) : (req, res, next) => next();
 
+// ============================================================
+// Public booking tracker — email-verification second factor.
+//
+// Previously, "booking id + the email on file" alone was accepted as proof of ownership across
+// every public tracking route (/track, /pay, /accept-quote, /cancel, /contract/sign, downloads).
+// Booking ids are sequential and easily guessed, and an email address is often knowable to a third
+// party (a colleague, a shared inbox, a leak elsewhere) — so that pair falls short of proving the
+// caller actually controls the client's inbox. This flow adds that proof:
+//   1. POST /track/request-code  — emails a 6-digit code to the address on file.
+//   2. POST /track/verify-code   — exchanges a correct code for a booking-scoped access_token.
+// Every tracking route below now requires that access_token (via requireBookingAccessToken)
+// instead of a bare client-supplied email.
+// ============================================================
+const OTP_TTL_MINUTES = 10;
+const OTP_MAX_ATTEMPTS = 5;
+const ACCESS_TOKEN_TTL_MINUTES = 60;
+
+function generateOtpCode() {
+    return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+}
+function hashAccessToken(rawToken) {
+    return crypto.createHash('sha256').update(String(rawToken)).digest('hex');
+}
+
+// Verifies req.params.id + a bearer access_token (JSON body for POST, query string for GET
+// downloads) against booking_access_tokens. On success attaches the verified email as
+// req.trackingEmail — routes trust this, not any client-supplied `email` field, for ownership
+// checks. The token itself is high-entropy (32 random bytes), so a fast indexed sha256 lookup is
+// appropriate here — unlike the low-entropy OTP code below, which is bcrypt-hashed and rate-limited
+// on attempts instead.
+function requireBookingAccessToken(req, res, next) {
+    const bookingId = parseInt(req.params.id, 10);
+    const token = (req.body && req.body.access_token) || req.query.access_token;
+    if (!bookingId || !token) {
+        return res.status(401).json({ success: false, message: 'Please verify your booking to continue.', code: 'TOKEN_REQUIRED' });
+    }
+    db.get(
+        "SELECT id, email FROM booking_access_tokens WHERE token_hash = ? AND booking_id = ? AND expires_at > CURRENT_TIMESTAMP",
+        [hashAccessToken(token), bookingId],
+        (err, row) => {
+            if (err || !row) {
+                return res.status(401).json({ success: false, message: 'Your verification session has expired. Please verify your booking again.', code: 'TOKEN_REQUIRED' });
+            }
+            req.trackingEmail = row.email;
+            db.run("UPDATE booking_access_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
+            next();
+        }
+    );
+}
+
+// Step 1: request a code. Always responds with the same generic message regardless of whether the
+// id/email combination matches a real booking — mirrors the existing anti-enumeration pattern in
+// /api/admin/forgot-password. Only a real match actually queues an email.
+app.post('/api/public/bookings/:id/track/request-code', ipRateLimiter, otpRequestRateLimiter, (req, res) => {
+    const email = asBookingText(req.body.email);
+    const bookingId = parseInt(req.params.id, 10);
+    const generic = { success: true, message: 'If those details match a booking, a verification code has been sent to the email on file.' };
+    if (!email || !bookingId) return res.status(400).json({ success: false, message: 'Booking ID and email are required.' });
+
+    db.get("SELECT id, email, event_name, event_type FROM bookings WHERE id = ?", [bookingId], async (err, row) => {
+        if (err || !row || row.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+            return res.json(generic);
+        }
+        try {
+            // Kill any earlier unconsumed code for this booking so only the most recent one sent is live.
+            await dbRun("UPDATE booking_access_codes SET consumed = 1 WHERE booking_id = ? AND consumed = 0", [bookingId]);
+            const code = generateOtpCode();
+            const codeHash = await bcrypt.hash(code, 10);
+            const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60000).toISOString();
+            await dbRun("INSERT INTO booking_access_codes (booking_id, email, code_hash, expires_at) VALUES (?, ?, ?, ?)",
+                [bookingId, row.email, codeHash, expiresAt]);
+
+            const banner = await bannerRegistry.resolveBanner('booking_verification_code');
+            const { socialLinks } = await getEmailFooterContext();
+            await sendEmail({
+                to: row.email,
+                subject: `Your verification code: ${code}`,
+                htmlContent: emailComponents.renderPremiumEmail({
+                    preheaderText: `Your verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
+                    bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+                    headline: banner?.headline || 'Verify Your Booking',
+                    bodyHtml:
+                        `<p style="margin:0 0 12px;">Use this code to view booking <strong style="color:#FAFAFA;">#${bookingId}</strong> (${emailComponents.esc(row.event_name || row.event_type || 'your event')}):</p>` +
+                        `<p style="margin:0; color:#B0B0B0; font-size:13px;">This code expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can safely ignore this email.</p>`,
+                    cards: [{ rows: [{ label: 'Verification code', value: code, mono: true, highlight: true }] }],
+                    socialLinks
+                }),
+                preWrapped: true,
+                titleOverride: 'Verify Your Booking',
+                trigger_event: 'Booking: Tracker Verification Code'
+            });
+        } catch (e) {
+            console.error('[Tracking OTP] request-code failed:', e.message);
+        }
+        res.json(generic);
+    });
+});
+
+// Step 2: verify a code, issue a booking-scoped access token.
+app.post('/api/public/bookings/:id/track/verify-code', ipRateLimiter, mutateRateLimiter, async (req, res) => {
+    const email = asBookingText(req.body.email);
+    const code = asBookingText(req.body.code);
+    const bookingId = parseInt(req.params.id, 10);
+    if (!email || !code) return res.status(400).json({ success: false, message: 'Email and code are required.' });
+
+    try {
+        const codeRow = await dbGet(
+            `SELECT id, code_hash, attempts FROM booking_access_codes
+             WHERE booking_id = ? AND lower(email) = lower(?) AND consumed = 0 AND expires_at > CURRENT_TIMESTAMP
+             ORDER BY created_at DESC LIMIT 1`,
+            [bookingId, email]
+        );
+        if (!codeRow) {
+            return res.status(400).json({ success: false, message: 'That code is invalid or has expired. Please request a new one.' });
+        }
+        if (codeRow.attempts >= OTP_MAX_ATTEMPTS) {
+            await dbRun("UPDATE booking_access_codes SET consumed = 1 WHERE id = ?", [codeRow.id]);
+            return res.status(400).json({ success: false, message: 'Too many incorrect attempts. Please request a new code.' });
+        }
+
+        const match = await bcrypt.compare(code, codeRow.code_hash);
+        if (!match) {
+            await dbRun("UPDATE booking_access_codes SET attempts = attempts + 1 WHERE id = ?", [codeRow.id]);
+            const remaining = OTP_MAX_ATTEMPTS - (codeRow.attempts + 1);
+            return res.status(400).json({ success: false, message: remaining > 0 ? `Incorrect code. ${remaining} attempt(s) remaining.` : 'Too many incorrect attempts. Please request a new code.' });
+        }
+
+        await dbRun("UPDATE booking_access_codes SET consumed = 1 WHERE id = ?", [codeRow.id]);
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_MINUTES * 60000).toISOString();
+        await dbRun("INSERT INTO booking_access_tokens (booking_id, email, token_hash, expires_at) VALUES (?, ?, ?, ?)",
+            [bookingId, email, hashAccessToken(rawToken), expiresAt]);
+
+        res.json({ success: true, access_token: rawToken, expires_in: ACCESS_TOKEN_TTL_MINUTES * 60 });
+    } catch (e) {
+        console.error('[Tracking OTP] verify-code failed:', e.message);
+        res.status(500).json({ success: false, message: 'Could not verify your code. Please try again.' });
+    }
+});
+
 // Hardened Payment Initiation Endpoint
-app.post('/api/public/bookings/:id/pay', ipRateLimiter, (req, res) => {
+// SEC: every other public /bookings/:id/* action (track, accept-quote, cancel, contract/sign)
+// verifies the caller controls the booking's own email before returning anything. This route used
+// to skip that check entirely, so POSTing a payment_type against any (sequential, easily-guessed)
+// booking id returned the client's full name, email address and exact quoted amount — an
+// unauthenticated PII leak — and produced a live, signed PayFast redirect for someone else's
+// booking. Now gated behind the same access_token every other tracking route requires.
+app.post('/api/public/bookings/:id/pay', ipRateLimiter, requireBookingAccessToken, (req, res) => {
     const { payment_type } = req.body; // Expects 'DEPOSIT' or 'FULL'
     console.log(`[DEBUG] POST /api/public/bookings/${req.params.id}/pay - Type: ${payment_type}`);
-    
+
     if (!payment_type || !['DEPOSIT', 'FULL'].includes(payment_type)) {
         return res.status(400).json({ success: false, message: 'Invalid payment type. Must be DEPOSIT or FULL.' });
     }
 
     db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        
+
         try {
             // Status gate: only allow payment for ACCEPTED or CONFIRMED bookings
             const status = (row.status || '').toUpperCase();
@@ -5686,16 +5872,10 @@ app.post('/api/public/bookings/lookup', lookupRateLimiter, (req, res) => {
     );
 });
 
-app.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, (req, res) => {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
-
+app.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, requireBookingAccessToken, (req, res) => {
     db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        if (row.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
-            return res.status(401).json({ success: false, message: 'Email does not match our records.' });
-        }
-        
+
         // Include latest invoice if exists
         db.get("SELECT file_path, invoice_number, status FROM invoices WHERE booking_id = ? AND status != 'VOID' ORDER BY created_at DESC LIMIT 1", [row.id], (e, inv) => {
             db.all("SELECT description, due_date, expected_amount, status, updated_at FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC", [row.id], (e2, schedule) => {
@@ -5711,11 +5891,30 @@ app.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, (req
                             db.get("SELECT refund_due, refund_amount, refund_status, refunded_at, reason FROM cancellations WHERE booking_id = ?",
                                 [row.id], (cErr, cancRow) => {
                                     db.get("SELECT pdf_url, status, sent_to_client_at, signed_by_client_at, signed_by_comedian_at, is_frozen FROM contracts WHERE booking_id = ?", [row.id], (contractErr, contractRow) => {
-                                        // Strip gateway-internal fields — not needed by the public tracker
-                                        const publicBooking = { ...row };
-                                        delete publicBooking.payment_raw_data;
-                                        delete publicBooking.payment_signature;
-                                        delete publicBooking.pf_payment_id;
+                                        // SEC: build the public payload from an explicit allowlist rather than
+                                        // spreading the full `bookings` row and denylisting a few gateway fields.
+                                        // The denylist previously missed `admin_notes` — a free-text field admins
+                                        // write about the client — plus every other internal-only column (IPs,
+                                        // FK ids, reminder-sent timestamps, etc.), all of which were silently
+                                        // exposed in the JSON response to anyone tracking that booking. This
+                                        // table gains new columns constantly, so a denylist rots; an allowlist
+                                        // of exactly what the tracking UI reads does not.
+                                        const publicBooking = {
+                                            id: row.id,
+                                            status: row.status,
+                                            payment_status: row.payment_status,
+                                            event_name: row.event_name,
+                                            event_type: row.event_type,
+                                            date: row.date,
+                                            quote_amount: row.quote_amount,
+                                            quote_details: row.quote_details,
+                                            quote_expiry_date: row.quote_expiry_date,
+                                            company: row.company,
+                                            vat_number: row.vat_number,
+                                            total_amount: row.total_amount,
+                                            amount_paid: row.amount_paid,
+                                            amount_outstanding: row.amount_outstanding
+                                        };
 
                                         res.json({
                                             success: true,
@@ -5739,12 +5938,12 @@ app.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, (req
 });
 
 // Accept quote (public) — client formally accepts a sent quote
-// SECURITY NOTE (Gap 1 — accepted risk): Auth is email-match only. No OTP/token second factor is
-// required. This is an intentional decision documented in the Phase 2 audit. If the risk profile
-// changes, add a signed acceptance token embedded in the quote email.
-app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimiter, async (req, res) => {
-    const { email, terms_agreed } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
+// Gap 1 (Phase 2, resolved 2026-07-16): acceptance used to be authenticated by matching the stored
+// email address alone. Now gated behind requireBookingAccessToken — the caller must have already
+// proven control of the booking's inbox via the /track/request-code + /track/verify-code OTP flow.
+app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+    const { terms_agreed } = req.body;
+    const email = req.trackingEmail;
     if (!terms_agreed) return res.status(400).json({ success: false, message: 'You must agree to the terms and conditions to accept this quote.' });
 
     // Client-supplied and written straight to bookings.vat_number, which the admin panel renders.
@@ -5759,12 +5958,6 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
         const row = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
         if (!row) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
-        // Gap 1 (Phase 2): acceptance is authenticated by matching the stored email address alone.
-        // Reviewed 2026-07-09 and accepted as risk — the blast radius is one booking marked ACCEPTED,
-        // which an admin can reverse by re-quoting. Revisit if booking IDs ever stop being internal.
-        if (row.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
-            return res.status(401).json({ success: false, message: 'Email does not match our records.' });
-        }
         // Gap 4 (Phase 2): 'RESPONDED' was a legacy status retired in Phase 2 — only 'QUOTED' is valid here.
         if (row.status !== 'QUOTED') {
             return res.status(400).json({ success: false, message: `Cannot accept quote – current status is ${row.status}.` });
@@ -5929,9 +6122,9 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
 });
 
 // Quote revision request (public) — client requests extension or revision of a QUOTED booking
-app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, ipRateLimiter, async (req, res) => {
-    const { email, request_type, message } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
+app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+    const { request_type, message } = req.body;
+    const email = req.trackingEmail;
     if (!request_type || !['extension', 'revision'].includes(request_type)) {
         return res.status(400).json({ success: false, message: 'request_type must be "extension" or "revision".' });
     }
@@ -5941,9 +6134,6 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
 
     db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], async (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        if (row.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
-            return res.status(401).json({ success: false, message: 'Email does not match our records.' });
-        }
         // Gap 4 (Phase 2): 'RESPONDED' was a legacy status retired in Phase 2 — only 'QUOTED' is valid.
         if (row.status !== 'QUOTED') {
             return res.status(400).json({ success: false, message: 'Quote revision requests can only be made on bookings in QUOTED status.' });
@@ -7093,13 +7283,12 @@ app.post('/api/admin/bookings/bulk-remind', requireAdmin, requireRole(['administ
 // Email-verified like accept-quote (Gap 1 accepted risk). Records the client signature; the admin
 // then countersigns via PUT /contract/sign to finalise. The contract PDF is already served
 // statically, so this endpoint only captures intent + attribution.
-app.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateLimiter, (req, res) => {
+app.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, (req, res) => {
     const bookingId = req.params.id;
-    const email = asBookingText(req.body.email);
+    const email = req.trackingEmail;
     const signatoryName = asBookingText(req.body.signatory_name);
     const agreed = req.body.agreed === true || req.body.agreed === 'true';
 
-    if (!email) return res.status(400).json({ success: false, message: 'Email is required.' });
     if (!agreed) return res.status(400).json({ success: false, message: 'You must confirm your agreement to sign.' });
     if (signatoryName.length < 2 || signatoryName.length > 120) {
         return res.status(400).json({ success: false, message: 'Please enter your full legal name.' });
@@ -7108,9 +7297,6 @@ app.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateLimi
 
     db.get("SELECT id, email FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        if ((booking.email || '').trim().toLowerCase() !== email.trim().toLowerCase()) {
-            return res.status(401).json({ success: false, message: 'Email does not match our records.' });
-        }
         db.get("SELECT status, is_frozen, signed_by_client_at FROM contracts WHERE booking_id = ?", [bookingId], (cErr, contract) => {
             if (cErr) return res.status(500).json({ success: false, message: cErr.message });
             if (!contract) return res.status(404).json({ success: false, message: 'No contract is available for this booking yet.' });
@@ -11936,14 +12122,11 @@ app.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['a
 });
 
 // 3. Download Invoice (Public Secured)
-app.get('/api/public/bookings/:id/invoice/download', async (req, res) => {
-    const { email } = req.query;
-    if (!email) return res.status(400).send('Email required for verification');
-
+app.get('/api/public/bookings/:id/invoice/download', ipRateLimiter, requireBookingAccessToken, async (req, res) => {
     // A booking accumulates one invoice per revision (INV-…, INV-…-R2, …), the superseded ones VOID.
     // Without the filter and ordering this `db.get` returned the lowest rowid — the VOID original —
     // and served the client a stale invoice after any re-quote.
-    db.get(`SELECT b.email, i.file_path, i.invoice_number
+    db.get(`SELECT i.file_path, i.invoice_number
             FROM bookings b
             JOIN invoices i ON b.id = i.booking_id
             WHERE b.id = ? AND UPPER(i.status) <> 'VOID'
@@ -11951,12 +12134,31 @@ app.get('/api/public/bookings/:id/invoice/download', async (req, res) => {
             LIMIT 1`, [req.params.id], async (err, row) => {
 
         if (err || !row) return res.status(404).send('Invoice not found');
-        if (row.email.toLowerCase() !== email.toLowerCase()) return res.status(401).send('Unauthorized email');
 
         const filePath = path.join(__dirname, 'docs', 'invoices', row.file_path);
         if (fs.existsSync(filePath)) {
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename=Invoice_${row.invoice_number}.pdf`);
+            res.sendFile(filePath);
+        } else {
+            res.status(404).send('Physical PDF file not found on server.');
+        }
+    });
+});
+
+// Download Contract (Public Secured)
+app.get('/api/public/bookings/:id/contract/download', ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+    db.get(`SELECT c.pdf_url
+            FROM bookings b
+            JOIN contracts c ON b.id = c.booking_id
+            WHERE b.id = ?`, [req.params.id], async (err, row) => {
+
+        if (err || !row || !row.pdf_url) return res.status(404).send('Contract not found');
+
+        const filePath = path.join(__dirname, 'docs', 'contracts', row.pdf_url);
+        if (fs.existsSync(filePath)) {
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename=Contract_${row.pdf_url}`);
             res.sendFile(filePath);
         } else {
             res.status(404).send('Physical PDF file not found on server.');
@@ -12005,14 +12207,10 @@ app.get('/api/admin/bookings/:id/quote/download', requireAdmin, (req, res) => {
     });
 });
 
-// Public: download own quote PDF (email-verified)
-app.post('/api/public/bookings/:id/quote/download', ipRateLimiter, (req, res) => {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: 'Email required.' });
+// Public: download own quote PDF (verified via access token)
+app.post('/api/public/bookings/:id/quote/download', ipRateLimiter, requireBookingAccessToken, (req, res) => {
     db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        if (booking.email.trim().toLowerCase() !== email.trim().toLowerCase())
-            return res.status(401).json({ success: false, message: 'Email does not match.' });
         if (!['QUOTED','ACCEPTED','CONFIRMED','COMPLETED'].includes(booking.status))
             return res.status(403).json({ success: false, message: 'No quote available for your booking.' });
         db.get("SELECT file_path, quote_number FROM quotations WHERE booking_id = ? AND archived = 0 ORDER BY version DESC LIMIT 1",
@@ -12029,13 +12227,10 @@ app.post('/api/public/bookings/:id/quote/download', ipRateLimiter, (req, res) =>
 });
 
 // Public: client self-cancellation (PENDING/QUOTED/ACCEPTED only)
-app.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter, async (req, res) => {
-    const { email, reason, reason_code } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: 'Email required.' });
+app.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+    const { reason, reason_code } = req.body;
     db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        if (booking.email.trim().toLowerCase() !== email.trim().toLowerCase())
-            return res.status(401).json({ success: false, message: 'Email does not match.' });
         const cancellable = ['PENDING','QUOTED','ACCEPTED'];
         if (!cancellable.includes(booking.status))
             return res.status(400).json({ success: false, message: `Booking cannot be cancelled at status ${booking.status}. Contact us directly.` });
@@ -12093,18 +12288,14 @@ app.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter, as
     });
 });
 
-// C7: Public — submit a post-event review (COMPLETED bookings only, email-verified)
-app.post('/api/public/bookings/:id/review', mutateRateLimiter, ipRateLimiter, (req, res) => {
-    const { email, rating, review_text } = req.body;
+// C7: Public — submit a post-event review (COMPLETED bookings only, verified via access token)
+app.post('/api/public/bookings/:id/review', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, (req, res) => {
+    const { rating, review_text } = req.body;
     const ratingNum = parseInt(rating, 10);
-    if (!email) return res.status(400).json({ success: false, message: 'Email required.' });
     if (!ratingNum || ratingNum < 1 || ratingNum > 5) return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5.' });
 
     db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        const clientEmail = (booking.email || '').trim().toLowerCase();
-        if (clientEmail !== email.trim().toLowerCase())
-            return res.status(401).json({ success: false, message: 'Email does not match this booking.' });
         if (booking.status !== 'COMPLETED')
             return res.status(400).json({ success: false, message: 'Reviews can only be submitted for completed bookings.' });
 

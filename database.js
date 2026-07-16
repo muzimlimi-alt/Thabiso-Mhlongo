@@ -1997,6 +1997,40 @@ function initializeDatabase() {
             db.run(`CREATE INDEX IF NOT EXISTS idx_abandoned_email ON abandoned_bookings(email)`);
         });
 
+        // ============================================================
+        // Public booking tracker — email-verification second factor.
+        // Knowing a booking id + the email on file used to be sufficient to view the full
+        // tracker (quote, payment status, contract, invoice) and to act on it (pay, accept,
+        // cancel, sign). booking_access_codes holds short-lived OTP codes sent to the email on
+        // file; booking_access_tokens holds the session issued once a code is verified, and is
+        // what every tracking route now requires instead of trusting a client-supplied email.
+        // ============================================================
+        db.run(`CREATE TABLE IF NOT EXISTS booking_access_codes (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            booking_id  INTEGER NOT NULL REFERENCES bookings(id),
+            email       TEXT NOT NULL,
+            code_hash   TEXT NOT NULL,      -- bcrypt hash of the 6-digit code (low-entropy secret)
+            attempts    INTEGER NOT NULL DEFAULT 0,
+            consumed    INTEGER NOT NULL DEFAULT 0,
+            expires_at  DATETIME NOT NULL,
+            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, () => {
+            db.run(`CREATE INDEX IF NOT EXISTS idx_bac_booking ON booking_access_codes(booking_id, consumed)`);
+        });
+
+        db.run(`CREATE TABLE IF NOT EXISTS booking_access_tokens (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            booking_id    INTEGER NOT NULL REFERENCES bookings(id),
+            email         TEXT NOT NULL,
+            token_hash    TEXT NOT NULL UNIQUE, -- sha256 of the raw token (high-entropy: fast hash, indexed lookup)
+            expires_at    DATETIME NOT NULL,
+            created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_used_at  DATETIME
+        )`, () => {
+            db.run(`CREATE INDEX IF NOT EXISTS idx_bat_hash ON booking_access_tokens(token_hash)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_bat_booking ON booking_access_tokens(booking_id)`);
+        });
+
         // Ensure performance_end_time column exists on bookings (failsafe for older DBs)
         db.run("ALTER TABLE bookings ADD COLUMN performance_end_time TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.performance_end_time already exists or error: ' + err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN modified_on DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.modified_on already exists.'); });

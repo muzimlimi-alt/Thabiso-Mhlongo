@@ -1,7 +1,7 @@
 // Deterministic integration tests for the booking → quote → accept → pay lifecycle.
 // No PayFast-network dependency: payments go through the manual path, so these run reliably in CI.
 // Service 15 = 'Travel Buyout – Gauteng' (active, flat fee, zero lead time).
-const { api, pub, one, q, future, sleep } = require('./support');
+const { api, pub, one, q, future, sleep, getTrackingToken } = require('./support');
 
 const SVC = 15;
 let seq = 0;
@@ -22,7 +22,8 @@ async function makeAccepted(check, amount, days, em) {
         quote_expiry_date: expiry, terms: 'T', apply_vat: false, discount: 0,
         items: [{ service_id: SVC, description: 'Travel Buyout – Gauteng', quantity: 1, unit_price: amount }],
     });
-    await pub('POST', `/api/public/bookings/${id}/accept-quote`, { email: em, terms_agreed: true });
+    const token = await getTrackingToken(id, em);
+    await pub('POST', `/api/public/bookings/${id}/accept-quote`, { access_token: token, terms_agreed: true });
     return id;
 }
 
@@ -111,7 +112,8 @@ module.exports = async function ({ check }) {
     check('re-quote of a part-paid booking succeeds', rq.status === 200, `${rq.status}`);
     const backToQuoted = await one('SELECT status FROM bookings WHERE id=?', [rqId]);
     check('re-quote returns booking to QUOTED', backToQuoted.status === 'QUOTED', backToQuoted.status);
-    const acc = await pub('POST', `/api/public/bookings/${rqId}/accept-quote`, { email: rqEmail, terms_agreed: true });
+    const rqToken = await getTrackingToken(rqId, rqEmail);
+    const acc = await pub('POST', `/api/public/bookings/${rqId}/accept-quote`, { access_token: rqToken, terms_agreed: true });
     check('client can re-accept the new total', acc.status === 200, `${acc.status}`);
     const liveSched = await q("SELECT expected_amount FROM payment_schedules WHERE booking_id=? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')", [rqId]);
     const liveSum = liveSched.reduce((a, s) => a + s.expected_amount, 0);

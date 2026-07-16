@@ -1241,6 +1241,28 @@
 						</div>
 					</div>
 
+					<!-- Verification Code Screen — proves control of the booking's email inbox before
+					     anything is shown; a booking id + email alone is no longer sufficient. -->
+					<div id="trackingCodeEntry" style="display:none;">
+						<p>We've sent a 6-digit verification code to <strong id="codeEntryEmailMasked" style="color:#D4AF37;"></strong>. Enter it below to view your booking.</p>
+						<div id="trackCodeError" class="alert alert-danger" style="display:none;"></div>
+						<div class="form-group">
+							<label>Verification Code</label>
+							<input type="text" id="trackCode" class="form-control trk-input" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456">
+						</div>
+						<button id="verifyCodeBtn" class="trk-btn">
+							<i class="fa-solid fa-shield-halved"></i> Verify Code
+						</button>
+						<div style="margin-top:14px; display:flex; justify-content:space-between;">
+							<button type="button" id="resendCodeBtn" style="background:none; border:none; color:#D4AF37; font-size:12px; cursor:pointer; text-decoration:underline; padding:0;">
+								Resend code
+							</button>
+							<button type="button" id="backFromCodeBtn" style="background:none; border:none; color:#888; font-size:12px; cursor:pointer; text-decoration:underline; padding:0;">
+								&larr; Back
+							</button>
+						</div>
+					</div>
+
 					<!-- Details Screen -->
 					<div id="trackingDetails" style="display:none;">
 
@@ -1867,6 +1889,39 @@ $(function() {
 $(document).ready(function() {
     let currentBookingId = null;
     let currentBookingEmail = null;
+    let currentAccessToken = null;   // proof of email-inbox control, issued after OTP verification
+    let pendingBookingId = null;     // id/email awaiting a code (between request-code and verify-code)
+    let pendingEmail = null;
+
+    function maskEmail(email) {
+        var parts = String(email || '').split('@');
+        if (parts.length !== 2 || !parts[0]) return email;
+        var name = parts[0];
+        var masked = name.length <= 2 ? name[0] + '*' : name[0] + '***' + name.slice(-1);
+        return masked + '@' + parts[1];
+    }
+
+    // A verified session is cached client-side (not the OTP code itself, only the resulting
+    // access_token) so returning within the same browser session — e.g. straight back from the
+    // PayFast redirect, or re-opening the modal for the same booking — doesn't force a second code.
+    function getCachedToken(id) {
+        try {
+            var raw = sessionStorage.getItem('trkToken_' + id);
+            if (!raw) return null;
+            var parsed = JSON.parse(raw);
+            if (!parsed.token || !parsed.expires_at || Date.now() >= parsed.expires_at) {
+                sessionStorage.removeItem('trkToken_' + id);
+                return null;
+            }
+            return parsed.token;
+        } catch (e) { return null; }
+    }
+    function setCachedToken(id, token, expiresInSec) {
+        try { sessionStorage.setItem('trkToken_' + id, JSON.stringify({ token: token, expires_at: Date.now() + (expiresInSec * 1000) })); } catch (e) {}
+    }
+    function clearCachedToken(id) {
+        try { sessionStorage.removeItem('trkToken_' + id); } catch (e) {}
+    }
 
     const statusOrder = ['NEW','PENDING','QUOTED','ACCEPTED','CONFIRMED'];
 
@@ -1908,27 +1963,139 @@ $(document).ready(function() {
             return;
         }
 
+        // Reuse a still-valid verification from earlier in this browser session — e.g. returning
+        // from the PayFast redirect a minute later — instead of re-sending a code the user has
+        // already proven they can receive.
+        var cached = getCachedToken(id);
+        if (cached) {
+            currentBookingId = id;
+            currentBookingEmail = email;
+            currentAccessToken = cached;
+            localStorage.setItem('trkEmailCache', email);
+            $('#trackingAuth').hide();
+            await loadTrackingDetails();
+            return;
+        }
+
         var $btn = $(this);
-        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i>Searching...');
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i>Sending code...');
 
         try {
-            var res = await fetch('/api/public/bookings/' + encodeURIComponent(id) + '/track', {
+            var res = await fetch('/api/public/bookings/' + encodeURIComponent(id) + '/track/request-code', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: email })
             });
             var data = await res.json();
 
-                if (res.status === 429) {
-                    window.notificationService.showWarning('Too Many Attempts', 'Too many attempts. Please wait 15 minutes or contact support.');
-                    return;
-                }
+            if (res.status === 429) {
+                window.notificationService.showWarning('Too Many Attempts', 'Too many attempts. Please wait 15 minutes or contact support.');
+                return;
+            }
+            if (!data.success) {
+                $err.text(data.message || 'Could not send a verification code.').show();
+                return;
+            }
+
+            pendingBookingId = id;
+            pendingEmail = email;
+            $('#codeEntryEmailMasked').text(maskEmail(email));
+            $('#trackCode').val('');
+            $('#trackCodeError').hide().text('');
+            $('#trackingAuth').hide();
+            $('#trackingCodeEntry').show();
+            $('#trackCode').focus();
+        } catch (e) {
+            $err.text('Network error. Please ensure the server is running.').show();
+        } finally {
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-magnifying-glass" style="margin-right:8px;"></i>Find My Booking');
+        }
+    });
+
+    $('#verifyCodeBtn').on('click', async function() {
+        var code = $('#trackCode').val().trim();
+        var $err = $('#trackCodeError');
+        $err.hide().text('');
+        if (!/^\d{6}$/.test(code)) {
+            $err.text('Enter the 6-digit code from your email.').show();
+            return;
+        }
+        var $btn = $(this);
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i>Verifying...');
+        try {
+            var res = await fetch('/api/public/bookings/' + encodeURIComponent(pendingBookingId) + '/track/verify-code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: pendingEmail, code: code })
+            });
+            var data = await res.json();
+            if (res.status === 429) {
+                window.notificationService.showWarning('Too Many Attempts', 'Too many attempts. Please wait 15 minutes or contact support.');
+                return;
+            }
+            if (!data.success) {
+                $err.text(data.message || 'Incorrect code.').show();
+                return;
+            }
+            currentBookingId = pendingBookingId;
+            currentBookingEmail = pendingEmail;
+            currentAccessToken = data.access_token;
+            setCachedToken(currentBookingId, data.access_token, data.expires_in);
+            localStorage.setItem('trkEmailCache', currentBookingEmail);
+            $('#trackingCodeEntry').hide();
+            await loadTrackingDetails();
+        } catch (e) {
+            $err.text('Network error. Please try again.').show();
+        } finally {
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-shield-halved" style="margin-right:8px;"></i>Verify Code');
+        }
+    });
+
+    $('#resendCodeBtn').on('click', async function() {
+        if (!pendingBookingId || !pendingEmail) return;
+        var $btn = $(this);
+        $btn.prop('disabled', true).text('Sending…');
+        try {
+            await fetch('/api/public/bookings/' + encodeURIComponent(pendingBookingId) + '/track/request-code', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: pendingEmail })
+            });
+            window.notificationService.showSuccess('Code Sent', 'A new verification code has been sent, if those details match a booking.');
+        } catch (e) {}
+        $btn.prop('disabled', false).text('Resend code');
+    });
+
+    $('#backFromCodeBtn').on('click', function() {
+        $('#trackingCodeEntry').hide();
+        $('#trackingAuth').show();
+        $('#trackCode').val('');
+        $('#trackCodeError').hide().text('');
+    });
+
+    async function loadTrackingDetails() {
+        var $err = $('#trackError');
+        try {
+            var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/track', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: currentAccessToken })
+            });
+            var data = await res.json();
+
+            if (data && data.code === 'TOKEN_REQUIRED') {
+                clearCachedToken(currentBookingId);
+                currentAccessToken = null;
+                $('#trackingDetails').hide();
+                $('#trackId').val(currentBookingId);
+                $('#trackEmail').val(currentBookingEmail || '');
+                $('#trackingCodeEntry').hide();
+                $('#trackingAuth').show();
+                $err.text('Your verification session expired. Please verify your booking again.').show();
+                return;
+            }
 
                 if (data.success) {
-                currentBookingId = id;
-                currentBookingEmail = email;
-                localStorage.setItem('trkEmailCache', email); // Save email for return trips
-                $('#trackingAuth').hide();
+                var id = currentBookingId, email = currentBookingEmail;
                 var b = data.booking;
                 var bStatus = (b.status || '').toUpperCase();
                 var bPay = (b.payment_status || 'UNPAID').toUpperCase();
@@ -1940,7 +2107,7 @@ $(document).ready(function() {
                 } else if (payParam === 'cancel' && urlParams.get('track') === id) {
                     $('#trackingDetails').prepend('<div class="trk-return-alert cancel"><i class="fa-solid fa-triangle-exclamation" style="margin-right:8px;"></i>Payment was cancelled. No charges were made. You can try again below.</div>');
                 }
-                
+
                 // Clear the payParam from URL so it doesn't show again on subsequent manual searches
                 if (payParam) window.history.replaceState({}, document.title, window.location.pathname);
 
@@ -2085,7 +2252,7 @@ $(document).ready(function() {
 
                 // Invoice download link
                 if (isQuotedOrActive && data.invoice && data.invoice.file_path) {
-                    $('#invoiceDownloadLink').attr('href', '/docs/invoices/' + data.invoice.file_path);
+                    $('#invoiceDownloadLink').attr('href', '/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/invoice/download?access_token=' + encodeURIComponent(currentAccessToken));
                     $('#invoiceSection').css('display', 'flex');
                 } else {
                     $('#invoiceSection').hide();
@@ -2093,7 +2260,7 @@ $(document).ready(function() {
 
                 // Contract download link
                 if (isQuotedOrActive && data.contract && data.contract.pdf_url) {
-                    $('#contractDownloadLink').attr('href', '/docs/contracts/' + data.contract.pdf_url);
+                    $('#contractDownloadLink').attr('href', '/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/contract/download?access_token=' + encodeURIComponent(currentAccessToken));
                     $('#contractDownloadSection').css('display', 'flex');
                 } else {
                     $('#contractDownloadSection').hide();
@@ -2104,8 +2271,6 @@ $(document).ready(function() {
                 var contract = data.contract || null;
                 $('#contractSignError').hide().text('');
                 if (contract && contract.status === 'sent' && !contract.signed_by_client_at && contract.is_frozen !== 1) {
-                    window._contractSignBookingId = data.booking.id;
-                    window._contractSignEmail = $('#trackEmail').val() || '';
                     $('#contractSignAgree').prop('checked', false);
                     $('#contractSignName').val('');
                     $('#contractSignSection').show();
@@ -2207,15 +2372,30 @@ $(document).ready(function() {
                 }
 
                 $('#trackingDetails').hide().fadeIn(300);
+
+                // Deep-link to the Accept button when ?action=accept was in the URL (quote-sent
+                // email CTAs) — restored here since it now fires after the OTP step, not immediately.
+                if (urlParams.get('action') === 'accept') {
+                    setTimeout(function() {
+                        var $section = $('#acceptQuoteSection');
+                        if ($section.is(':visible')) {
+                            $section[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            $section.css({ outline: '2px solid #D4AF37', borderRadius: '4px', transition: 'outline 1.5s ease' });
+                            setTimeout(function() { $section.css({ outline: '', borderRadius: '' }); }, 3000);
+                        }
+                    }, 300);
+                }
             } else {
-                $err.text(data.message || 'Booking not found or email mismatch.').show();
+                $err.text(data.message || 'Booking not found.').show();
+                $('#trackingCodeEntry').hide();
+                $('#trackingAuth').show();
             }
         } catch (e) {
             $err.text('Network error. Please ensure the server is running.').show();
-        } finally {
-            $btn.prop('disabled', false).html('<i class="fa-solid fa-magnifying-glass" style="margin-right:8px;"></i>Find My Booking');
+            $('#trackingCodeEntry').hide();
+            $('#trackingAuth').show();
         }
-    });
+    }
 
     $(document).on('click', '.pay-btn', async function() {
         var type = $(this).attr('data-type');
@@ -2227,7 +2407,7 @@ $(document).ready(function() {
             var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/pay', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ payment_type: type })
+                body: JSON.stringify({ payment_type: type, access_token: currentAccessToken })
             });
             var data = await res.json();
             if (data.success && data.pfData) {
@@ -2264,8 +2444,7 @@ $(document).ready(function() {
     $(document).on('click', '#acceptQuoteBtn', async function() {
         var $btn = $(this);
         if ($btn.prop('disabled')) return;
-        var email = $('#trackEmail').val().trim();
-        if (!email) { window.notificationService.showWarning('Session Expired', 'Please re-enter your booking details.'); return; }
+        if (!currentAccessToken) { window.notificationService.showWarning('Session Expired', 'Please re-enter your booking details.'); return; }
         if (!$('#chkTermsAgree').is(':checked')) {
             window.notificationService.showWarning('Terms Required', 'Please agree to the Terms and Conditions before accepting.');
             return;
@@ -2288,7 +2467,7 @@ $(document).ready(function() {
             var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/accept-quote', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email, terms_agreed: true, vat_number: $('#acceptVatNumber').val().trim() || null })
+                body: JSON.stringify({ access_token: currentAccessToken, terms_agreed: true, vat_number: $('#acceptVatNumber').val().trim() || null })
             });
             var data = await res.json();
             if (data.success) {
@@ -2296,7 +2475,7 @@ $(document).ready(function() {
                 setTimeline('ACCEPTED');
                 $('#acceptQuoteSection').fadeOut(200);
                 window.notificationService.showSuccess('Quote Accepted', 'Your invoice and payment schedule have been emailed to you.');
-                setTimeout(function() { $('#trackBtn').click(); }, 500);
+                setTimeout(loadTrackingDetails, 500);
             } else {
                 window.notificationService.showError('Error', data.message || 'Failed to accept quote.');
                 $btn.prop('disabled', false).css({ opacity: '1', cursor: 'pointer' }).html('<i class="fa-solid fa-handshake" style="margin-right:6px;"></i>Accept Quote');
@@ -2321,10 +2500,9 @@ $(document).ready(function() {
 
     $(document).on('click', '#btnSubmitRevision', async function() {
         var $btn = $(this);
-        var email = $('#trackEmail').val().trim();
         var reqType = $('#revisionType').val();
         var message = $('#revisionMessage').val().trim();
-        if (!email) { window.notificationService.showWarning('Session Expired', 'Please re-enter your booking details.'); return; }
+        if (!currentAccessToken) { window.notificationService.showWarning('Session Expired', 'Please re-enter your booking details.'); return; }
         if (!message || message.length < 10) { window.notificationService.showWarning('More Detail Needed', 'Please provide more detail about your request.'); return; }
 
         $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Sending...');
@@ -2332,7 +2510,7 @@ $(document).ready(function() {
             var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/quote-revision-request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email, request_type: reqType, message: message })
+                body: JSON.stringify({ access_token: currentAccessToken, request_type: reqType, message: message })
             });
             var data = await res.json();
             if (data.success) {
@@ -2355,7 +2533,7 @@ $(document).ready(function() {
             var resp = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/quote/download', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: currentBookingEmail })
+                body: JSON.stringify({ access_token: currentAccessToken })
             });
             if (resp.ok) {
                 var blob = await resp.blob();
@@ -2390,7 +2568,7 @@ $(document).ready(function() {
             var resp = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/cancel', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: currentBookingEmail, reason: reason })
+                body: JSON.stringify({ access_token: currentAccessToken, reason: reason })
             });
             var result = await resp.json();
             if (result.success) {
@@ -2398,8 +2576,8 @@ $(document).ready(function() {
                     ? 'Booking cancelled. A refund of R' + parseFloat(result.refund_due).toFixed(2) + ' will be processed.'
                     : 'Booking cancelled. No refund applicable per our cancellation policy.';
                 window.notificationService.showSuccess(msg);
-                // Re-submit form to show updated CANCELLED state
-                setTimeout(function() { $('#trkForm').trigger('submit'); }, 1500);
+                // Re-run the lookup to show the updated CANCELLED state
+                setTimeout(loadTrackingDetails, 1500);
             } else {
                 window.notificationService.showError(result.message || 'Could not cancel booking.');
             }
@@ -2413,15 +2591,13 @@ $(document).ready(function() {
         var $err = $('#contractSignError').hide().text('');
         var name = ($('#contractSignName').val() || '').trim();
         var agreed = $('#contractSignAgree').is(':checked');
-        var bookingId = window._contractSignBookingId;
-        var email = window._contractSignEmail || $('#trackEmail').val() || '';
         if (name.length < 2) { $err.text('Please enter your full legal name.').show(); return; }
         if (!agreed) { $err.text('Please confirm your agreement to sign.').show(); return; }
         var $btn = $(this).prop('disabled', true).text('Signing...');
         try {
-            var res = await fetch('/api/public/bookings/' + bookingId + '/contract/sign', {
+            var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/contract/sign', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email, signatory_name: name, agreed: true })
+                body: JSON.stringify({ access_token: currentAccessToken, signatory_name: name, agreed: true })
             });
             var result = await res.json();
             if (res.ok && result.success) {
@@ -2446,6 +2622,7 @@ $(document).ready(function() {
 
     function resetTracker() {
         $('#trackingDetails').hide();
+        $('#trackingCodeEntry').hide();
         $('#trackingAuth').show();
         $('#quoteSection, #noQuoteSection, #paymentSuccess, #acceptQuoteSection').hide();
         $('#cancelledNotice, #completedNotice, #expiredNotice, #clientCancelSection, #quotePdfSection, #invoiceSection, #paymentScheduleSection, #contractDownloadSection, #contractSignSection, #contractSignedNotice').hide();
@@ -2453,10 +2630,14 @@ $(document).ready(function() {
         $('#paymentSection p').text('Choose a payment option to confirm your booking:');
         $('.pay-btn[data-type="DEPOSIT"]').show();
         $('.pay-btn[data-type="FULL"]').html('<i class="fa-solid fa-bolt" style="margin-right:6px;"></i>Pay Full Amount');
-        $('#trackId, #trackEmail').val('');
+        $('#trackId, #trackEmail, #trackCode').val('');
         $('#trackError').hide();
+        $('#trackCodeError').hide().text('');
         $('.pay-btn').prop('disabled', false);
         $('.trk-return-alert').remove();
+        currentAccessToken = null;
+        pendingBookingId = null;
+        pendingEmail = null;
     }
 
     $('#trackingModal').on('hidden.bs.modal', resetTracker);

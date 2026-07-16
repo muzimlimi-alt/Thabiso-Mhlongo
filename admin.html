@@ -11843,7 +11843,7 @@
             var html = '<h5 class="atl-det-title">Contract</h5>';
             html += '<p style="font-size:13px;margin:0 0 6px;">Status: <strong style="color:' + st.color + '">' + st.label + '</strong></p>';
             if (c.pdf_url) {
-                var href = /^https?:|^\//.test(c.pdf_url) ? c.pdf_url : ('/docs/contracts/' + c.pdf_url);
+                var href = '/api/admin/bookings/' + id + '/contract/download';
                 html += '<p style="font-size:12px;color:var(--atl-muted);margin:0 0 6px;">'
                     + '<i class="fa-solid fa-file-pdf" style="color:var(--atl-clay);margin-right:6px;"></i>'
                     + '<a href="' + href + '" target="_blank" rel="noopener" class="atl-det-link">'
@@ -14300,15 +14300,191 @@
         // ==========================================
         let editingFootprintId = null;
 
+        const footprintCountriesList = [
+            { code: 'af', name: 'Afghanistan' },
+            { code: 'al', name: 'Albania' },
+            { code: 'dz', name: 'Algeria' },
+            { code: 'ad', name: 'Andorra' },
+            { code: 'ao', name: 'Angola' },
+            { code: 'ag', name: 'Antigua and Barbuda' },
+            { code: 'ar', name: 'Argentina' },
+            { code: 'am', name: 'Armenia' },
+            { code: 'au', name: 'Australia' },
+            { code: 'at', name: 'Austria' },
+            { code: 'az', name: 'Azerbaijan' },
+            { code: 'bs', name: 'Bahamas' },
+            { code: 'bh', name: 'Bahrain' },
+            { code: 'bd', name: 'Bangladesh' },
+            { code: 'bb', name: 'Barbados' },
+            { code: 'by', name: 'Belarus' },
+            { code: 'be', name: 'Belgium' },
+            { code: 'bz', name: 'Belize' },
+            { code: 'bj', name: 'Benin' },
+            { code: 'bt', name: 'Bhutan' },
+            { code: 'bo', name: 'Bolivia' },
+            { code: 'ba', name: 'Bosnia and Herzegovina' },
+            { code: 'bw', name: 'Botswana' },
+            { code: 'br', name: 'Brazil' },
+            { code: 'bn', name: 'Brunei' },
+            { code: 'bg', name: 'Bulgaria' },
+            { code: 'bf', name: 'Burkina Faso' },
+            { code: 'bi', name: 'Burundi' },
+            { code: 'kh', name: 'Cambodia' },
+            { code: 'cm', name: 'Cameroon' },
+            { code: 'ca', name: 'Canada' },
+            { code: 'cv', name: 'Cape Verde' },
+            { code: 'cf', name: 'Central African Republic' },
+            { code: 'td', name: 'Chad' },
+            { code: 'cl', name: 'Chile' },
+            { code: 'cn', name: 'China' },
+            { code: 'co', name: 'Colombia' },
+            { code: 'km', name: 'Comoros' },
+            { code: 'cg', name: 'Congo' },
+            { code: 'cr', name: 'Costa Rica' },
+            { code: 'hr', name: 'Croatia' },
+            { code: 'cu', name: 'Cuba' },
+            { code: 'cy', name: 'Cyprus' },
+            { code: 'cz', name: 'Czechia' },
+            { code: 'dk', name: 'Denmark' },
+            { code: 'dj', name: 'Djibouti' },
+            { code: 'dm', name: 'Dominica' },
+            { code: 'do', name: 'Dominican Republic' },
+            { code: 'ec', name: 'Ecuador' },
+            { code: 'eg', name: 'Egypt' },
+            { code: 'sv', name: 'El Salvador' },
+            { code: 'gq', name: 'Equatorial Guinea' },
+            { code: 'er', name: 'Eritrea' },
+            { code: 'ee', name: 'Estonia' },
+            { code: 'sz', name: 'Eswatini' },
+            { code: 'et', name: 'Ethiopia' },
+            { code: 'fj', name: 'Fiji' },
+            { code: 'fi', name: 'Finland' },
+            { code: 'fr', name: 'France' },
+            { code: 'ga', name: 'Gabon' },
+            { code: 'gm', name: 'Gambia' },
+            { code: 'ge', name: 'Georgia' },
+            { code: 'de', name: 'Germany' },
+            { code: 'gh', name: 'Ghana' },
+            { code: 'gr', name: 'Greece' },
+            { code: 'gd', name: 'Grenada' },
+            { code: 'gt', name: 'Guatemala' },
+            { code: 'gn', name: 'Guinea' },
+            { code: 'gw', name: 'Guinea-Bissau' },
+            { code: 'gy', name: 'Guyana' },
+            { code: 'ht', name: 'Haiti' },
+            { code: 'hn', name: 'Honduras' },
+            { code: 'hu', name: 'Hungary' },
+            { code: 'is', name: 'Iceland' },
+            { code: 'in', name: 'India' },
+            { code: 'id', name: 'Indonesia' },
+            { code: 'ir', name: 'Iran' },
+            { code: 'iq', name: 'Iraq' },
+            { code: 'ie', name: 'Ireland' },
+            { code: 'il', name: 'Israel' },
+            { code: 'it', name: 'Italy' },
+            { code: 'jm', name: 'Jamaica' },
+            { code: 'jp', name: 'Japan' },
+            { code: 'je', name: 'Jersey' },
+            { code: 'jo', name: 'Jordan' },
+            { code: 'kz', name: 'Kazakhstan' },
+            { code: 'ke', name: 'Kenya' },
+            { code: 'kp', name: 'North Korea' },
+            { code: 'kr', name: 'South Korea' },
+            { code: 'kw', name: 'Kuwait' },
+            { code: 'kg', name: 'Kyrgyzstan' },
+            { code: 'la', name: 'Laos' },
+            { code: 'lv', name: 'Latvia' },
+            { code: 'lb', name: 'Lebanon' },
+            { code: 'ls', name: 'Lesotho' },
+            { code: 'lr', name: 'Liberia' },
+            { code: 'ly', name: 'Libya' },
+            { code: 'li', name: 'Liechtenstein' },
+            { code: 'lt', name: 'Lithuania' },
+            { code: 'lu', name: 'Luxembourg' },
+            { code: 'mg', name: 'Madagascar' },
+            { code: 'mw', name: 'Malawi' },
+            { code: 'my', name: 'Malaysia' },
+            { code: 'mv', name: 'Maldives' },
+            { code: 'ml', name: 'Mali' },
+            { code: 'mt', name: 'Malta' },
+            { code: 'mr', name: 'Mauritania' },
+            { code: 'mu', name: 'Mauritius' },
+            { code: 'mx', name: 'Mexico' },
+            { code: 'md', name: 'Moldova' },
+            { code: 'mc', name: 'Monaco' },
+            { code: 'mn', name: 'Mongolia' },
+            { code: 'me', name: 'Montenegro' },
+            { code: 'ma', name: 'Morocco' },
+            { code: 'mz', name: 'Mozambique' },
+            { code: 'mm', name: 'Myanmar' },
+            { code: 'na', name: 'Namibia' },
+            { code: 'np', name: 'Nepal' },
+            { code: 'nl', name: 'Netherlands' },
+            { code: 'nz', name: 'New Zealand' },
+            { code: 'ni', name: 'Nicaragua' },
+            { code: 'ne', name: 'Niger' },
+            { code: 'ng', name: 'Nigeria' },
+            { code: 'no', name: 'Norway' },
+            { code: 'om', name: 'Oman' },
+            { code: 'pk', name: 'Pakistan' },
+            { code: 'pa', name: 'Panama' },
+            { code: 'pg', name: 'Papua New Guinea' },
+            { code: 'py', name: 'Paraguay' },
+            { code: 'pe', name: 'Peru' },
+            { code: 'ph', name: 'Philippines' },
+            { code: 'pl', name: 'Poland' },
+            { code: 'pt', name: 'Portugal' },
+            { code: 'qa', name: 'Qatar' },
+            { code: 'ro', name: 'Romania' },
+            { code: 'ru', name: 'Russia' },
+            { code: 'rw', name: 'Rwanda' },
+            { code: 'sa', name: 'Saudi Arabia' },
+            { code: 'sn', name: 'Senegal' },
+            { code: 'rs', name: 'Serbia' },
+            { code: 'sc', name: 'Seychelles' },
+            { code: 'sl', name: 'Sierra Leone' },
+            { code: 'sg', name: 'Singapore' },
+            { code: 'sk', name: 'Slovakia' },
+            { code: 'si', name: 'Slovenia' },
+            { code: 'so', name: 'Somalia' },
+            { code: 'za', name: 'South Africa' },
+            { code: 'ss', name: 'South Sudan' },
+            { code: 'es', name: 'Spain' },
+            { code: 'lk', name: 'Sri Lanka' },
+            { code: 'sd', name: 'Sudan' },
+            { code: 'sr', name: 'Suriname' },
+            { code: 'se', name: 'Sweden' },
+            { code: 'ch', name: 'Switzerland' },
+            { code: 'sy', name: 'Syria' },
+            { code: 'tw', name: 'Taiwan' },
+            { code: 'tj', name: 'Tajikistan' },
+            { code: 'tz', name: 'Tanzania' },
+            { code: 'th', name: 'Thailand' },
+            { code: 'tg', name: 'Togo' },
+            { code: 'tt', name: 'Trinidad and Tobago' },
+            { code: 'tn', name: 'Tunisia' },
+            { code: 'tr', name: 'Turkey' },
+            { code: 'ug', name: 'Uganda' },
+            { code: 'ua', name: 'Ukraine' },
+            { code: 'ae', name: 'United Arab Emirates' },
+            { code: 'gb', name: 'United Kingdom' },
+            { code: 'us', name: 'United States' },
+            { code: 'uy', name: 'Uruguay' },
+            { code: 'uz', name: 'Uzbekistan' },
+            { code: 've', name: 'Venezuela' },
+            { code: 'vn', name: 'Vietnam' },
+            { code: 'ye', name: 'Yemen' },
+            { code: 'zm', name: 'Zambia' },
+            { code: 'zw', name: 'Zimbabwe' }
+        ];
+
         function resetFootprintForm() {
             $('#footprintForm')[0].reset();
-            $('#footprintFile').val('');
+            $('#footprintCountrySelect').val('');
             $('#footprintFlagPreview').hide();
             $('#footprintFlagPreviewImg').attr('src', '');
             $('#err-footprintForm').hide();
             editingFootprintId = null;
-            var text = document.getElementById('footprintUploadText');
-            if (text) text.textContent = 'Select or drop a flag image';
             $('#footprintDrawerTitle').html('<i class="fa-solid fa-earth-africa"></i> Add Country');
             $('#footprintSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Country').prop('disabled', false);
         }
@@ -14316,13 +14492,16 @@
         function openFootprintEditor(item) {
             resetFootprintForm();
             editingFootprintId = item.id;
-            $('#footprintCountryName').val(item.country_name || '');
+            const country = footprintCountriesList.find(c => c.name.toLowerCase() === (item.country_name || '').toLowerCase());
+            if (country) {
+                $('#footprintCountrySelect').val(country.code);
+            } else {
+                $('#footprintCountrySelect').val('');
+            }
             if (item.flag_image_path) {
                 $('#footprintFlagPreviewImg').attr('src', item.flag_image_path);
                 $('#footprintFlagPreview').show();
             }
-            var text = document.getElementById('footprintUploadText');
-            if (text) text.textContent = 'Upload a new image to replace';
             $('#footprintDrawerTitle').html('<i class="fa-solid fa-earth-africa"></i> Edit Country');
             $('#footprintSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Country');
             openAtlDrawer('footprintDrawer');
@@ -14397,82 +14576,53 @@
             }
         });
 
-        $(document).on('change', '#footprintFile', function () {
-            var file = this.files[0];
-            var text = document.getElementById('footprintUploadText');
-            if (text) text.textContent = file ? file.name : 'Select or drop a flag image';
-            if (file) {
-                var reader = new FileReader();
-                reader.onload = function (ev) {
-                    $('#footprintFlagPreviewImg').attr('src', ev.target.result);
-                    $('#footprintFlagPreview').show();
-                };
-                reader.readAsDataURL(file);
+        $(function () {
+            const $select = $('#footprintCountrySelect');
+            if ($select.length) {
+                footprintCountriesList.forEach(c => {
+                    $select.append(new Option(c.name, c.code));
+                });
             }
         });
 
-        $(function () {
-            const zone = document.getElementById('footprintUploadZone');
-            if (!zone) return;
-            ['dragenter', 'dragover'].forEach(function (ev) {
-                zone.addEventListener(ev, function (e) {
-                    e.preventDefault(); e.stopPropagation();
-                    zone.classList.add('um-upload-zone--dragging');
-                    if (ev === 'dragenter') {
-                        var t = document.getElementById('footprintUploadText');
-                        if (t) t.textContent = 'Drop image here';
-                    }
-                });
-            });
-            ['dragleave', 'drop'].forEach(function (ev) {
-                zone.addEventListener(ev, function (e) { e.preventDefault(); e.stopPropagation(); zone.classList.remove('um-upload-zone--dragging'); });
-            });
-            zone.addEventListener('drop', function (e) {
-                const dropped = e.dataTransfer && e.dataTransfer.files;
-                if (dropped && dropped.length) {
-                    const input = document.getElementById('footprintFile');
-                    try { input.files = dropped; } catch (err) { /* some browsers disallow direct assignment */ }
-                    $('#footprintFile').trigger('change');
-                }
-            });
+        $(document).on('change', '#footprintCountrySelect', function () {
+            const code = $(this).val();
+            if (code) {
+                const flagUrl = `https://flagcdn.com/w320/${code}.png`;
+                $('#footprintFlagPreviewImg').attr('src', flagUrl);
+                $('#footprintFlagPreview').show();
+            } else {
+                $('#footprintFlagPreview').hide();
+                $('#footprintFlagPreviewImg').attr('src', '');
+            }
         });
 
         $(document).on('submit', '#footprintForm', async function (e) {
             e.preventDefault();
-            var countryName = $('#footprintCountryName').val().trim();
-            var file = $('#footprintFile')[0].files[0];
-            var fallbackUrl = $('#footprintUrl').val().trim();
-            var isEdit = editingFootprintId !== null;
-
-            if (!countryName) {
-                $('#err-footprintForm').text('Country name is required.').show();
-                return;
-            }
-            if (!isEdit && !file && !fallbackUrl) {
-                $('#err-footprintForm').text('A flag image (upload or URL) is required.').show();
+            var code = $('#footprintCountrySelect').val();
+            if (!code) {
+                $('#err-footprintForm').text('Please select a country.').show();
                 return;
             }
             $('#err-footprintForm').hide();
+
+            const country = footprintCountriesList.find(c => c.code === code);
+            const countryName = country ? country.name : '';
+            const flagUrl = `https://flagcdn.com/w320/${code}.png`;
+            var isEdit = editingFootprintId !== null;
 
             var $btn = $('#footprintSubmitBtn');
             $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving...');
 
             try {
                 if (isEdit) {
-                    var jsonBody = { country_name: countryName };
-                    if (fallbackUrl) {
-                        jsonBody.fallback_url = fallbackUrl;
-                    } else if (file) {
-                        const uploaded = await uploadFileToServer(file, 'footprint');
-                        if (uploaded) jsonBody.fallback_url = uploaded;
-                    }
+                    var jsonBody = { country_name: countryName, fallback_url: flagUrl };
                     await apiCall('/api/admin/footprint/' + editingFootprintId, 'PUT', jsonBody);
                 } else {
                     var formData = new FormData();
                     formData.append('country_name', countryName);
-                    formData.append('fallback_url', fallbackUrl);
+                    formData.append('fallback_url', flagUrl);
                     formData.append('section', 'footprint');
-                    if (file) formData.append('file', file);
                     const res = await fetch('/api/admin/footprint', { method: 'POST', body: formData });
                     if (!res.ok) throw new Error('Server error saving country');
                 }
@@ -24408,37 +24558,17 @@
         <div class="atl-drawer__body">
             <form id="footprintForm" class="um-form" autocomplete="off">
                 <div class="um-field-group">
-                    <label class="um-label" for="footprintCountryName">Country Name</label>
+                    <label class="um-label" for="footprintCountrySelect">Country</label>
                     <div class="um-input-wrap">
-                        <i class="fa-solid fa-flag um-input-icon"></i>
-                        <input type="text" id="footprintCountryName" class="um-input" placeholder="e.g. Namibia" required>
+                        <i class="fa-solid fa-earth-africa um-input-icon"></i>
+                        <select id="footprintCountrySelect" class="um-input" required>
+                            <option value="" disabled selected>Select a country&hellip;</option>
+                        </select>
                     </div>
+                    <small class="help-block">The flag loads automatically — no image upload needed.</small>
                 </div>
-                <hr class="um-divider">
-                <div class="um-field-group">
-                    <label class="um-label" for="footprintFile">Flag Image</label>
-                    <label for="footprintFile" id="footprintUploadZone" class="um-upload-zone">
-                        <i class="fa-solid fa-image um-upload-icon"></i>
-                        <p class="um-upload-text" id="footprintUploadText">Select or drop a flag image</p>
-                        <input type="file" id="footprintFile" class="um-file-input" accept="image/*">
-                        <small class="help-block">A 3:2 landscape flag image works best.</small>
-                    </label>
-                    <div id="footprintFlagPreview" style="display:none; margin-top:10px; border-radius:var(--atl-r-md); overflow:hidden; position:relative; max-width:100%;">
-                        <img id="footprintFlagPreviewImg" src="" alt="Flag preview" style="display:block; width:100%; max-height:160px; object-fit:cover; border-radius:var(--atl-r-md); border:1px solid var(--atl-line);">
-                        <span style="position:absolute; top:8px; left:8px; background:rgba(0,0,0,0.55); color:#fff; font-size:11px; padding:2px 8px; border-radius:20px; pointer-events:none;">Current</span>
-                    </div>
-                </div>
-                <div style="display:flex; align-items:center; gap:12px; margin:20px 0;">
-                    <hr style="flex:1; border:0; border-top:1px solid var(--atl-line);">
-                    <span style="color:var(--atl-muted-dim); font-size:11px; font-weight:700; letter-spacing:1px;">OR</span>
-                    <hr style="flex:1; border:0; border-top:1px solid var(--atl-line);">
-                </div>
-                <div class="um-field-group">
-                    <label class="um-label" for="footprintUrl">Image URL Fallback</label>
-                    <div class="um-input-wrap">
-                        <i class="fa-solid fa-link um-input-icon"></i>
-                        <input type="text" id="footprintUrl" class="um-input" placeholder="e.g. https://example.com/flag.png">
-                    </div>
+                <div id="footprintFlagPreview" style="display:none; margin-top:14px; border-radius:var(--atl-r-md); overflow:hidden; position:relative; max-width:180px;">
+                    <img id="footprintFlagPreviewImg" src="" alt="Flag preview" style="display:block; width:100%; aspect-ratio:3/2; object-fit:cover; border-radius:var(--atl-r-md); border:1px solid var(--atl-line); background:var(--atl-surface-2, #1a1a1a);">
                 </div>
                 <div id="err-footprintForm" style="display:none;font-size:12px;color:var(--atl-clay);margin-top:4px;"></div>
                 <div class="um-form-actions" style="justify-content:flex-end; gap:10px;">

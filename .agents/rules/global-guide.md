@@ -1,5 +1,5 @@
 ---
-trigger: manual
+trigger: always_on
 ---
 
 # Project Constitution – Thabiso Mhlongo Official Site (Antigravity IDE)

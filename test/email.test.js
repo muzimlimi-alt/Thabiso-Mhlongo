@@ -2,18 +2,19 @@
 // Asserts, against the ISOLATED test app's notifications queue, that the rebuilt emails
 // (a) carry their full pre-wrapped shell exactly once, and (b) render every amount /
 // reference string VERBATIM. Styling may change; figures may not.
-const { api, pub, one, q, future, sleep } = require('./support');
+const { api, pub, one, q, future, sleep, getTrackingToken } = require('./support');
 const emailComponents = require('../js/emailComponents');
 
 const SVC = 15;
 const email = () => `eg.${Date.now()}.${Math.floor(Math.random() * 1e4)}@example.invalid`;
 
 // Latest queued email whose subject matches (the queue keeps every send).
-async function queued(subjectLike) {
-    const row = await one(
-        "SELECT subject, recipient_email, body FROM notifications WHERE type='email' AND subject LIKE ? ORDER BY id DESC LIMIT 1",
-        [subjectLike]
-    );
+async function queued(subjectLike, recipientEmail) {
+    const query = recipientEmail
+        ? "SELECT subject, recipient_email, body FROM notifications WHERE type='email' AND subject LIKE ? AND recipient_email = ? ORDER BY id DESC LIMIT 1"
+        : "SELECT subject, recipient_email, body FROM notifications WHERE type='email' AND subject LIKE ? ORDER BY id DESC LIMIT 1";
+    const params = recipientEmail ? [subjectLike, recipientEmail] : [subjectLike];
+    const row = await one(query, params);
     if (!row) return null;
     let details = {};
     try { details = JSON.parse(row.body || '{}'); } catch (e) {}
@@ -37,7 +38,8 @@ module.exports = async function ({ check }) {
         quote_expiry_date: expiry, terms: 'T', apply_vat: false, discount: 0,
         items: [{ service_id: SVC, description: 'Travel Buyout – Gauteng', quantity: 1, unit_price: 1000 }],
     });
-    await pub('POST', `/api/public/bookings/${id}/accept-quote`, { email: em, terms_agreed: true });
+    const token = await getTrackingToken(id, em);
+    await pub('POST', `/api/public/bookings/${id}/accept-quote`, { access_token: token, terms_agreed: true });
     await sleep(150);
 
     // ── Guard 1: acceptance email ('Invoice Issued') — schedule figures verbatim ──
@@ -131,7 +133,8 @@ module.exports = async function ({ check }) {
         quote_expiry_date: expiry2, terms: 'T', apply_vat: false, discount: 0,
         items: [{ service_id: SVC, description: 'Travel Buyout – Gauteng', quantity: 1, unit_price: 1000 }],
     });
-    await pub('POST', `/api/public/bookings/${id2}/accept-quote`, { email: em2, terms_agreed: true });
+    const token2 = await getTrackingToken(id2, em2);
+    await pub('POST', `/api/public/bookings/${id2}/accept-quote`, { access_token: token2, terms_agreed: true });
     await sleep(150);
 
     // ── Guard 5: exact 50% deposit -> DEPOSIT_PAID -> sendDepositBalanceDueEmail, R500.00 verbatim ──
@@ -186,7 +189,7 @@ module.exports = async function ({ check }) {
         check('confirmation email: real confirm link with this subscriber\'s token', confirmMail.html.includes(sub.unsubscribe_token) && confirmMail.html.includes('confirm-subscription.html'),
             `hasToken=${confirmMail.html.includes(sub.unsubscribe_token)} hasPath=${confirmMail.html.includes('confirm-subscription.html')}`);
     }
-    const noWelcomeYet = await queued("Welcome to Thabiso Mhlongo's Newsletter!");
+    const noWelcomeYet = await queued("Welcome to Thabiso Mhlongo's Newsletter!", subEmail);
     check('no welcome email before confirmation', !noWelcomeYet, JSON.stringify(noWelcomeYet));
 
     const confirmRes = await pub('POST', '/api/public/newsletter/confirm', { email: subEmail, token: sub.unsubscribe_token });
@@ -195,7 +198,7 @@ module.exports = async function ({ check }) {
     const subAfter = await one('SELECT status, active, confirmed_at FROM newsletter_subscribers WHERE subscriber_id=?', [sub.subscriber_id]);
     check('subscriber flipped to active with confirmed_at set', !!subAfter && subAfter.status === 'active' && subAfter.active === 1 && !!subAfter.confirmed_at, JSON.stringify(subAfter));
 
-    const welcomeMail = await queued("Welcome to Thabiso Mhlongo's Newsletter!");
+    const welcomeMail = await queued("Welcome to Thabiso Mhlongo's Newsletter!", subEmail);
     check('welcome email queued pre-wrapped after confirmation', !!welcomeMail && welcomeMail.preWrapped === true && welcomeMail.to === subEmail,
         welcomeMail && `${welcomeMail.preWrapped} ${welcomeMail.to}`);
     if (welcomeMail && sub) {

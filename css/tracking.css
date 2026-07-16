@@ -142,6 +142,9 @@
 .trk-status-badge.QUOTED   { background: rgba(59, 130, 246, .15); color: var(--info); border: 1px solid rgba(59, 130, 246, .3); }
 .trk-status-badge.ACCEPTED { background: rgba(156, 39, 176, .15); color: #ce93d8; border: 1px solid rgba(156, 39, 176, .3); }
 .trk-status-badge.CONFIRMED{ background: rgba(16, 185, 129, .15);  color: var(--success); border: 1px solid rgba(16, 185, 129, .3); }
+.trk-status-badge.COMPLETED{ background: rgba(16, 185, 129, .15);  color: var(--success); border: 1px solid rgba(16, 185, 129, .3); }
+.trk-status-badge.CANCELLED{ background: rgba(239, 68, 68, .15);   color: var(--error);   border: 1px solid rgba(239, 68, 68, .3); }
+.trk-status-badge.EXPIRED  { background: rgba(112, 112, 112, .15); color: var(--text-secondary); border: 1px solid rgba(112, 112, 112, .3); }
 
 /* ==========================================================================
    QUOTE CARD

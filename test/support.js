@@ -181,6 +181,28 @@ async function pub(method, urlPath, body) {
     return { status: r.status, body: json };
 }
 
+// Runs the public tracker's email-verification flow (request-code -> read the queued email ->
+// verify-code) and returns the resulting access_token, or null if the flow didn't succeed. Every
+// mutating/tracking public route now requires this token instead of a bare email — see
+// requireBookingAccessToken in server.js. sendEmail() queues into `notifications` synchronously,
+// before any actual SMTP dispatch happens, so the code is readable straight from the test DB
+// without waiting for (or caring whether) real delivery ever occurs.
+async function getTrackingToken(bookingId, email) {
+    const reqRes = await pub('POST', `/api/public/bookings/${bookingId}/track/request-code`, { email });
+    if (!reqRes.body || !reqRes.body.success) return null;
+    const notif = await one(
+        `SELECT body FROM notifications WHERE recipient_email = ? AND subject LIKE 'Your verification code:%' ORDER BY id DESC LIMIT 1`,
+        [email]
+    );
+    if (!notif) return null;
+    let html = '';
+    try { html = JSON.parse(notif.body).htmlContent || ''; } catch (e) { return null; }
+    const m = html.match(/\b(\d{6})\b/);
+    if (!m) return null;
+    const verifyRes = await pub('POST', `/api/public/bookings/${bookingId}/track/verify-code`, { email, code: m[1] });
+    return (verifyRes.body && verifyRes.body.access_token) || null;
+}
+
 // Authenticated multipart/form-data request (banner image upload etc). `fields` are string form
 // fields; `file` is { buffer, filename, contentType } or omitted.
 async function upload(method, urlPath, fields = {}, file) {
@@ -236,4 +258,4 @@ function makeTestPng(width, height, { random = false } = {}) {
 
 const future = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
 
-module.exports = { start, stop, restart, getChildLog, api, pub, upload, loginAs, q, one, future, makeTestPng, TEST_DB, BASE, sleep };
+module.exports = { start, stop, restart, getChildLog, api, pub, upload, loginAs, q, one, future, makeTestPng, TEST_DB, BASE, sleep, getTrackingToken };
