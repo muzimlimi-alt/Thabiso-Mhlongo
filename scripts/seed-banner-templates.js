@@ -78,7 +78,11 @@ const TEMPLATE_MAP = {
 
     // Added in the newsletter Phase 3 migration (database.js) — the real row is inserted there,
     // not by running this script; listed here only so this map stays an accurate reference.
-    subscriber_birthday: 'Birthday'
+    subscriber_birthday: 'Birthday',
+
+    // Added 2026-07-16 alongside the booking-tracker OTP second factor — real row inserted directly
+    // in database.js (same idempotent pattern as subscriber_birthday above), not via this script.
+    booking_verification_code: 'User Accounts & Security'
 };
 
 (async () => {

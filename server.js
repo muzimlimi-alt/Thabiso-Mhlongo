@@ -8727,8 +8727,26 @@ app.post('/api/admin/newsletter/birthday-settings/send-test', requireAdmin, requ
             return res.status(400).json({ success: false, message: 'Set a test recipient email first.' });
         }
         const today = moment().tz('Africa/Johannesburg');
-        const sampleSubscriber = { first_name: 'Alex', email: testRecipient, birthday_day: today.date(), birthday_month: today.month() + 1 };
-        const unsubscribeUrl = `${emailBaseUrl()}/unsubscribe.html`;
+        // Bug fix: this always built a tokenless /unsubscribe.html link, which the unsubscribe page
+        // correctly (from its own perspective) rejects as invalid — every test send's unsubscribe
+        // link was broken by construction. Mirrors runBirthdayAutomationSweep()'s real-token lookup:
+        // if the test recipient happens to be an actual subscriber, give them a working link and
+        // their real {{first_name}} (previously always hardcoded to "Alex", masking whether the
+        // real per-subscriber lookup actually works); if not (a throwaway inbox that isn't
+        // subscribed to anything), fall back to the placeholder name and the bare unsubscribe page.
+        // Also covers {{subscription_date}}: sampleSubscriber never set subscribed_at at all, so
+        // that merge field silently rendered as an empty string in every test send.
+        const testSubRow = await new Promise((resolve) => {
+            db.get("SELECT first_name, unsubscribe_token, subscribed_at FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)", [testRecipient], (err, row) => resolve(row));
+        });
+        const sampleSubscriber = {
+            first_name: (testSubRow && testSubRow.first_name) || 'Alex',
+            email: testRecipient, birthday_day: today.date(), birthday_month: today.month() + 1,
+            subscribed_at: testSubRow && testSubRow.subscribed_at
+        };
+        const unsubscribeUrl = (testSubRow && testSubRow.unsubscribe_token)
+            ? `${emailBaseUrl()}/unsubscribe.html?token=${testSubRow.unsubscribe_token}&email=${encodeURIComponent(testRecipient)}`
+            : `${emailBaseUrl()}/unsubscribe.html`;
         const html = await renderBirthdayEmail(settings, sampleSubscriber, unsubscribeUrl);
         const subject = applyMergeFields(settings.birthday_email_subject, sampleSubscriber, unsubscribeUrl);
         await sendEmail({

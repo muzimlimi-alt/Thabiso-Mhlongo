@@ -1392,6 +1392,10 @@ function initializeDatabase() {
         // Registers the Birthday newsletter template key (idempotent — mirrors the seeding scripts/
         // seed-banner-templates.js does for the other lifecycle template keys).
         db.run(`INSERT OR IGNORE INTO email_template_banners (template_key, category) VALUES ('subscriber_birthday', 'Birthday')`);
+        // Registers the booking-tracker OTP email (2026-07-16) so it's a manageable citizen of the
+        // banner registry like every other PREMIUM-track template — same idempotent pattern as above.
+        // Grouped with password_reset/dashboard_invite: same "short security/utility email" shape.
+        db.run(`INSERT OR IGNORE INTO email_template_banners (template_key, category) VALUES ('booking_verification_code', 'User Accounts & Security')`);
 
         // SCHEMA MIGRATIONS TRACKING TABLE
         db.run(`CREATE TABLE IF NOT EXISTS schema_migrations (

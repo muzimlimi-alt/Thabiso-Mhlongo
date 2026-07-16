@@ -218,7 +218,13 @@ async function sendEmailDirectly({
             db.all("SELECT platform_name, platform_url FROM social_links WHERE is_active = 1 ORDER BY display_order ASC", [], (err, rows) => resolve(err ? [] : (rows || [])));
         });
 
-        const brandAttachments = skipBrandAttachments ? [] : emailAssets.getBrandAttachments();
+        // Bug fix: this always attached the legacy logo/banner image files as real email
+        // attachments, even for preWrapped emails (every current-generation template — quote,
+        // invoice, contract, birthday, tracker OTP, etc.) that render their own images via hosted
+        // URLs and never reference these files at all. Recipients were getting unrelated,
+        // unexplained "2 Attachments" on every email. These legacy files are only meaningful to the
+        // pre-rebuild createEmailWrapper() path below, which is skipped entirely when preWrapped.
+        const brandAttachments = (skipBrandAttachments || preWrapped) ? [] : emailAssets.getBrandAttachments();
         const mergedAttachments = [...brandAttachments, ...inlineAttachments, ...attachments];
         
         let bannerSrc = null;

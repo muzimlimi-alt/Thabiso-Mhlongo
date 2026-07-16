@@ -55,6 +55,15 @@ async function spawnAndWait() {
             // Sandbox so the PayFast ITN accepts synthetic notifications (lenient signature/IP).
             PAYFAST_URL: 'https://sandbox.payfast.co.za',
             PAYFAST_MERCHANT_ID: '10000100',
+            // Real EMAIL_USER/PASS and GOOGLE_REFRESH_TOKEN now both work (2026-07-16) — without these
+            // overrides, every test run would send real Gmail messages to the business's real inbox
+            // and write real events onto its real Google Calendar for every fake test booking. SMTP_MOCK
+            // makes emailService.js use its stub transporter (still queues into `notifications` exactly
+            // as before, so every email.test.js assertion is unaffected). The bogus refresh token makes
+            // syncBookingToCalendar() fail exactly the way it already did before re-auth — caught
+            // internally, resolves null, no test depends on a real calendar write succeeding.
+            SMTP_MOCK: 'true',
+            GOOGLE_REFRESH_TOKEN: 'test-mode-invalid-refresh-token',
         },
         stdio: ['ignore', 'pipe', 'pipe'],
     });

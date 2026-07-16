@@ -71,7 +71,10 @@ module.exports = async function ({ check }) {
 
     // ── Guard 3: partial payment (R400 of R1000) — exact no-space figure strings ──
     await api('PUT', `/api/admin/bookings/${id}/manual-payment`, { amount_paid: 400 });
-    await sleep(150);
+    // manual-payment awaits syncBookingToCalendar() before queuing this email; a slow (or currently
+    // invalid_grant-rejected) Calendar OAuth round-trip pushes the queue insert well past a 150ms
+    // margin, so this one waits longer than the other guards in this file.
+    await sleep(2000);
     const pay = await queued(`Partial Payment Received – Booking #${id}`);
     check('partial-payment email queued pre-wrapped', !!pay && pay.preWrapped === true, pay && `${pay.preWrapped}`);
     if (pay) {
@@ -139,7 +142,8 @@ module.exports = async function ({ check }) {
 
     // ── Guard 5: exact 50% deposit -> DEPOSIT_PAID -> sendDepositBalanceDueEmail, R500.00 verbatim ──
     await api('PUT', `/api/admin/bookings/${id2}/manual-payment`, { amount_paid: 500 });
-    await sleep(150);
+    // Same Calendar-OAuth-round-trip-before-queuing margin as Guard 3 above.
+    await sleep(2000);
     const deposit = await queued(`Deposit Received – Balance Due R500.00 | Booking #${id2}`);
     check('deposit-balance-due email queued pre-wrapped with exact-figure subject',
         !!deposit && deposit.preWrapped === true && deposit.to === em2,

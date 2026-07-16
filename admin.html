@@ -22780,6 +22780,14 @@
             openAtlDrawer('editSubscriberDrawer');
         });
 
+        // Deferred to document.ready for the same reason as populateSubscriberBirthdaySelects()
+        // above: this script block runs before the drawer's own <form id="editSubscriberForm">
+        // markup is parsed, so a direct (non-delegated) $('#editSubscriberForm') selector matches
+        // nothing at bind time and .on('submit', ...) silently attaches to zero elements. The real
+        // form, once parsed, then has no submit handler at all — clicking Save falls through to the
+        // browser's native form submission (no action= attribute, so it just reloads the page),
+        // which is exactly the "blinks and doesn't save" symptom this fixes.
+        $(function() {
         $('#editSubscriberForm').on('submit', async function(e) {
             e.preventDefault();
             const id = $('#editSubscriberId').val();
@@ -22818,6 +22826,7 @@
             } finally {
                 $btn.prop('disabled', false);
             }
+        });
         });
 
 
@@ -22881,7 +22890,7 @@
                     $list.append(
                         '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; background:var(--atl-card); border:1px solid var(--atl-line); border-radius:6px; font-size:12px;">' +
                             '<span style="color:var(--atl-ink-dim); word-break:break-all;">' + escHtml(log.recipient_email) + (isTest ? ' <span style="color:var(--atl-muted-dim);">(test)</span>' : '') + '</span>' +
-                            '<span style="display:flex; align-items:center; gap:8px; white-space:nowrap;"><span style="color:var(--atl-muted);">' + d.toLocaleDateString() + '</span>' + statusBadge + '</span>' +
+                            '<span style="display:flex; align-items:center; gap:8px; white-space:nowrap;"><span style="color:var(--atl-muted);">' + d.toLocaleString() + '</span>' + statusBadge + '</span>' +
                         '</div>'
                     );
                 });
@@ -23510,7 +23519,7 @@
                     $list.append(
                         '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 10px; background:var(--atl-card); border:1px solid var(--atl-line); border-radius:6px; font-size:12px;">' +
                             '<span style="color:var(--atl-ink-dim); word-break:break-all;">' + escHtml(log.recipient_email) + '</span>' +
-                            '<span style="display:flex; align-items:center; gap:8px; white-space:nowrap;"><span style="color:var(--atl-muted);">' + d.toLocaleDateString() + '</span>' + statusBadge + '</span>' +
+                            '<span style="display:flex; align-items:center; gap:8px; white-space:nowrap;"><span style="color:var(--atl-muted);">' + d.toLocaleString() + '</span>' + statusBadge + '</span>' +
                         '</div>'
                     );
                 });
