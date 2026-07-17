@@ -793,7 +793,10 @@ async function hasCalendarConflict(startTime, endTime, excludeBookingId, skipGoo
                     if (err) { console.error(`[hasCalendarConflict] bookings read failed for ${targetDate} — conflict check degraded (failing open):`, err.message); return resolve(false); }
                     if (!bookings) return resolve(false);
                     for (const b of bookings) {
-                        if (!b.event_start_time) continue;
+                        // A booking with no recorded start time (e.g. an "All Day / Custom Hours"
+                        // request) occupies the whole day — treat it the same as an untimed hold
+                        // above rather than silently skipping it.
+                        if (!b.event_start_time) return resolve(true);
                         const bEnd = b.performance_end_time ||
                             addMinutesToTime(b.event_start_time, parseDurationToMinutes(b.performance_duration));
                         const gap = (b.buffer_minutes != null) ? b.buffer_minutes
@@ -1416,46 +1419,6 @@ async function generateInvoice(bookingId) {
         });
     });
 }
-
-app.get('/api/public/available-slots', async (req, res) => {
-    const { start, end } = req.query; // YYYY-MM-DD
-    if (!start || !end) return res.status(400).json({ success: false, message: 'Start and end dates required.' });
-
-    try {
-        const timeMin = moment(start).startOf('day').toISOString();
-        const timeMax = moment(end).endOf('day').toISOString();
-
-        // 1. Get Google Calendar Busy Slots
-        const gcalResponse = await calendar.freebusy.query({
-            requestBody: {
-                timeMin,
-                timeMax,
-                items: [{ id: CALENDAR_ID }]
-            }
-        });
-        const gcalBusy = gcalResponse.data.calendars[CALENDAR_ID].busy || [];
-
-        // 2. Get Internal Bookings (already confirmed or quoted)
-        db.all("SELECT date, event_start_time FROM bookings WHERE date >= ? AND date <= ? AND status NOT IN ('CANCELLED', 'REJECTED')", 
-            [start, end], (err, rows) => {
-            if (err) return res.status(500).json({ error: err.message });
-            
-            const internalBusy = rows.map(r => ({
-                start: moment(`${r.date} ${r.event_start_time || '18:00'}`).toISOString(),
-                end: moment(`${r.date} ${r.event_start_time || '18:00'}`).add(2, 'hours').toISOString()
-            }));
-
-            res.json({
-                success: true,
-                busySlots: [...gcalBusy, ...internalBusy]
-            });
-        });
-    } catch (error) {
-        console.error('Error fetching availability:', error);
-        res.status(500).json({ success: false, message: 'Could not fetch availability.' });
-    }
-});
-
 
 // ==========================================
 // BACKGROUND TASKS
@@ -3979,6 +3942,30 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
         event_start_time = `${tm[1].padStart(2, '0')}:${tm[2]}`; // zero-pad so string compares and moment() parsing are safe
     }
 
+    // CRITICAL: the public form never sends event_start_time — it sends performance_slot
+    // ("HH:MM–HH:MM", or the literal "All Day / Custom Hours"). Every conflict-detection query
+    // (checkDateAvailability, hasCalendarConflict) keys off event_start_time, so leaving it null
+    // made every public booking invisible to double-booking protection — two different clients
+    // could book the same date/time, and the working-hours gate below (which only runs
+    // `if (event_start_time)`) never ran at all. Derive it here, before any availability check,
+    // so the booking's real window drives both the pre-check and the persisted row.
+    let perfSlotStart = null, perfSlotEnd = null;
+    if (performance_slot) {
+        const slotMatch = performance_slot.match(/(\d{1,2}:\d{2})\s*[–\-]\s*(\d{1,2}:\d{2})/);
+        if (slotMatch) {
+            const padTime = (t) => { const [h, m] = t.split(':'); return `${h.padStart(2, '0')}:${m}`; };
+            perfSlotStart = padTime(slotMatch[1]);
+            perfSlotEnd = padTime(slotMatch[2]);
+        }
+    }
+    if (!event_start_time && perfSlotStart) {
+        event_start_time = perfSlotStart;
+    }
+    // A performance_slot that doesn't parse to a range (e.g. "All Day / Custom Hours") and no
+    // explicit event_start_time means the client is asking to occupy the whole day — checked
+    // against existing bookings/holds/events at step 3 below, same as any other all-day request.
+    const isAllDayRequest = !event_start_time;
+
     if (!popia_consent) {
         return res.status(400).json({ success: false, message: 'POPIA consent is required to submit a booking request.' });
     }
@@ -4102,6 +4089,13 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
         if (!availableResult.available) {
             return res.status(409).json({ success: false, message: 'The selected date is no longer available.' });
         }
+        // An all-day request ("All Day / Custom Hours", or no slot given) can't share a date with
+        // any existing timed booking — checkDateAvailability() only rejects whole-day holds/events/
+        // bookings above; a same-day timed booking still comes back as `available: true` with a
+        // busy range, which is fine for another timed request but not for one asking for the whole day.
+        if (isAllDayRequest && availableResult.busy_ranges && availableResult.busy_ranges.length > 0) {
+            return res.status(409).json({ success: false, message: 'The selected date already has a booking on it and is not available for a full-day request.' });
+        }
 
         // 4. DUPLICATE CHECK: same email + same date with an already-active booking
         const existingBooking = await new Promise((resolve, reject) =>
@@ -4212,6 +4206,10 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                     await dbRun("ROLLBACK").catch(() => {});
                     return { status: 409, body: { success: false, message: 'The selected date is no longer available.' } };
                 }
+                if (isAllDayRequest && lockedAvail.busy_ranges && lockedAvail.busy_ranges.length > 0) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 409, body: { success: false, message: 'The selected date already has a booking on it and is not available for a full-day request.' } };
+                }
 
                 // F1: re-run the time-overlap check INSIDE the write lock. skipGoogle=true keeps it to
                 // fast local reads (no network call while holding BEGIN IMMEDIATE). Because writers
@@ -4223,9 +4221,8 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                     return { status: 409, body: { success: false, message: 'This date and time were just booked. Please select another slot or contact us for special inquiries.' } };
                 }
 
-                // F3: re-run the same-email/same-date duplicate check inside the lock. The pre-lock
-                // check alone leaves a window: hasCalendarConflict() skips rows with a NULL
-                // event_start_time, so two untimed submissions for the same date never collide there.
+                // F3: re-run the same-email/same-date duplicate check inside the lock, closing the
+                // same race window F1 closes for calendar conflicts.
                 const lockedDuplicate = await dbGet(
                     `SELECT id FROM bookings
                      WHERE lower(email) = lower(?) AND date = ? AND status NOT IN ('CANCELLED','EXPIRED')
@@ -4283,15 +4280,10 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                 // from event_start_time + the occupancy duration. Both the start and the end are
                 // written: previously the event_start_time branches set only performance_end_time,
                 // leaving performance_start_time NULL on every timed booking without a slot string.
-                const slotM = performance_slot
-                    ? performance_slot.match(/(\d{1,2}:\d{2})\s*[–\-]\s*(\d{1,2}:\d{2})/)
-                    : null;
-                const pad = (t) => { const [h, m] = t.split(':'); return `${h.padStart(2, '0')}:${m}`; };
-                let perfStart = null, perfEnd = null;
-                if (slotM) {
-                    perfStart = pad(slotM[1]);
-                    perfEnd = pad(slotM[2]);
-                } else if (event_start_time) {
+                // perfSlotStart/perfSlotEnd were already parsed from performance_slot above (they're
+                // also what event_start_time was derived from, when it wasn't given explicitly).
+                let perfStart = perfSlotStart, perfEnd = perfSlotEnd;
+                if (!perfStart && event_start_time) {
                     perfStart = event_start_time;
                     perfEnd = addMinutesToTime(event_start_time, durationMins);
                 }
@@ -6214,7 +6206,7 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
 // P2.4 — Date availability check (public, rate-limited)
 const MIN_ADVANCE_HOURS = 48;
 
-function checkDateAvailability(dateStr, callback) {
+function checkDateAvailability(dateStr, callback, excludeBookingId) {
     db.all("SELECT start_time, end_time, block_type FROM date_holds WHERE hold_date = ? AND status = 'active' AND (hold_expires_at IS NULL OR hold_expires_at > datetime('now'))", [dateStr], (err, holds) => {
         if (err) return callback(err);
         
@@ -6272,17 +6264,24 @@ function checkDateAvailability(dateStr, callback) {
                 return callback(null, { available: false, reason: 'event' });
             }
             
-            // Also check confirmed bookings (exclude terminal statuses that no longer hold the date)
+            // Also check confirmed bookings (exclude terminal statuses that no longer hold the date).
+            // excludeBookingId lets a reschedule check the destination date without the booking
+            // being moved conflicting with its own (pre-move) row.
+            const excludeClause = excludeBookingId ? ' AND id != ?' : '';
+            const bookingParams = excludeBookingId ? [dateStr, excludeBookingId] : [dateStr];
             db.all(
                 `SELECT event_start_time, performance_end_time, performance_duration
-                 FROM bookings WHERE date = ? AND status NOT IN ('CANCELLED', 'EXPIRED')`,
-                [dateStr],
+                 FROM bookings WHERE date = ? AND status NOT IN ('CANCELLED', 'EXPIRED')${excludeClause}`,
+                bookingParams,
                 (err, bookings) => {
                     if (err) return callback(err);
 
                     if (bookings) {
-                        bookings.forEach(b => {
-                            if (!b.event_start_time) return;
+                        for (const b of bookings) {
+                            // A booking with no recorded start time (e.g. an "All Day / Custom
+                            // Hours" request) occupies the whole day, same as an untimed hold or
+                            // standalone event above — it must not be silently invisible here.
+                            if (!b.event_start_time) return callback(null, { available: false, reason: 'booked' });
                             let bEnd = b.performance_end_time;
                             if (!bEnd) {
                                 const mins = parseDurationToMinutes(b.performance_duration);
@@ -6291,7 +6290,7 @@ function checkDateAvailability(dateStr, callback) {
                             // Extend end by buffer so next booking can't start immediately after
                             const bufferedEnd = addMinutesToTime(bEnd, MIN_BOOKING_GAP_MINS);
                             busyRanges.push({ start: b.event_start_time, end: bufferedEnd });
-                        });
+                        }
                     }
 
                     callback(null, { available: true, busy_ranges: busyRanges });
@@ -6558,10 +6557,45 @@ app.post('/api/admin/bookings/:id/reopen', requireAdmin, (req, res) => {
 // P2.0b — Book Again — creates a new PENDING booking pre-filled from a CANCELLED booking
 app.post('/api/admin/bookings/:id/book-again', requireAdmin, async (req, res) => {
     const originalId = parseInt(req.params.id, 10);
-    db.get("SELECT * FROM bookings WHERE id = ?", [originalId], (err, orig) => {
+    db.get("SELECT * FROM bookings WHERE id = ?", [originalId], async (err, orig) => {
         if (err || !orig) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if ((orig.status || '').toUpperCase() !== 'CANCELLED') {
             return res.status(400).json({ success: false, message: `Only CANCELLED bookings can be rebooked. Current status: ${orig.status}.` });
+        }
+
+        // The original date is only free because this booking is CANCELLED — it's excluded from
+        // every conflict query. Someone else may have taken it since. Re-check before recreating a
+        // live NEW booking on it, the same way every other booking-creation path does.
+        if (!(req.body && req.body.override_conflict === true)) {
+            try {
+                let conflict;
+                if (orig.event_start_time) {
+                    const durationMins = (orig.performance_end_time && orig.event_start_time)
+                        ? (() => {
+                            const [eh, em] = orig.performance_end_time.split(':').map(Number);
+                            const [sh, sm] = orig.event_start_time.split(':').map(Number);
+                            return Math.max((eh * 60 + em) - (sh * 60 + sm), 30);
+                          })()
+                        : (parseDurationToMinutes(orig.performance_duration) || 120);
+                    const startISO = moment(`${orig.date} ${orig.event_start_time}`).toISOString();
+                    const endISO = moment(startISO).add(durationMins, 'minutes').toISOString();
+                    conflict = await hasCalendarConflict(startISO, endISO);
+                } else {
+                    const avail = await new Promise((resolve, reject) =>
+                        checkDateAvailability(orig.date, (e, r) => e ? reject(e) : resolve(r)));
+                    conflict = !avail.available || (avail.busy_ranges && avail.busy_ranges.length > 0);
+                }
+                if (conflict) {
+                    return res.status(409).json({
+                        success: false,
+                        conflict: true,
+                        message: `${orig.date} is no longer free — it has since been booked or blocked. Choose a different date, or pass override_conflict:true to rebook on this date anyway.`
+                    });
+                }
+            } catch (availErr) {
+                console.error('[Book Again] Availability check failed:', availErr.message);
+                return res.status(503).json({ success: false, message: 'Could not confirm availability just now. Please try again.' });
+            }
         }
 
         // Copy client + event fields; reset all financial and lifecycle fields
@@ -6763,11 +6797,11 @@ app.post('/api/admin/bookings/:id/complete', requireAdmin, (req, res) => {
  * PUT /api/admin/bookings/:id/refund
  * Record that a refund has been issued for a cancelled booking.
  */
-app.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+app.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
     const { refund_amount, refund_reference, notes } = req.body;
     const bookingId = req.params.id;
     const amt = parseFloat(refund_amount) || 0;
-    
+
     if (amt < 0) {
         return res.status(400).json({ success: false, message: 'Refund amount cannot be negative.' });
     }
@@ -6775,76 +6809,101 @@ app.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administra
         return res.status(400).json({ success: false, message: 'A payment reference (bank transaction ID or PayFast reference) is required when recording a refund. Process the bank/PayFast transfer first, then record the reference here.' });
     }
 
-    db.get("SELECT * FROM cancellations WHERE booking_id = ?", [bookingId], (err, row) => {
-        if (err || !row) return res.status(404).json({ success: false, message: 'No cancellation record found for this booking.' });
+    try {
+        const row = await dbGet("SELECT * FROM cancellations WHERE booking_id = ?", [bookingId]);
+        if (!row) return res.status(404).json({ success: false, message: 'No cancellation record found for this booking.' });
 
-        // Validation: Can't refund more than what was paid
-        if (amt > row.total_paid_to_date) {
-            return res.status(400).json({ success: false, message: `Refund amount (R${amt.toFixed(2)}) exceeds total paid (R${row.total_paid_to_date.toFixed(2)}).` });
+        // Validate against what has ACTUALLY been refunded so far (the transactions ledger — the
+        // same source of truth the amount_paid recalculation below reads from), not just the single
+        // amount submitted in this call. Comparing `amt` alone against total_paid_to_date let two
+        // separate calls each pass the check individually and refund more than the client ever paid.
+        const refRow = await dbGet(
+            `SELECT COALESCE(SUM(amount), 0) AS already_refunded FROM transactions
+             WHERE booking_id = ? AND transaction_type = 'refund' AND is_duplicate = 0 AND (status = 'completed' OR status IS NULL)`,
+            [bookingId]
+        );
+        const alreadyRefunded = parseFloat(refRow && refRow.already_refunded) || 0;
+        const remaining = row.total_paid_to_date - alreadyRefunded;
+
+        if (amt > remaining) {
+            return res.status(400).json({
+                success: false,
+                message: alreadyRefunded > 0
+                    ? `Refund amount (R${amt.toFixed(2)}) exceeds the remaining refundable balance (R${remaining.toFixed(2)}). R${alreadyRefunded.toFixed(2)} of R${row.total_paid_to_date.toFixed(2)} paid has already been refunded.`
+                    : `Refund amount (R${amt.toFixed(2)}) exceeds total paid (R${row.total_paid_to_date.toFixed(2)}).`
+            });
         }
 
-        db.run(
+        // refund_amount/reference/notes reflect the running total across possibly multiple partial
+        // refunds — overwriting them on each call erased the previous bank reference and understated
+        // the total refunded on the client's public tracking page.
+        const cumulativeRefund = alreadyRefunded + amt;
+        const cumulativeReference = refund_reference
+            ? (row.refund_reference ? `${row.refund_reference}; ${refund_reference}` : refund_reference)
+            : row.refund_reference || null;
+        const cumulativeNotes = notes
+            ? (row.refund_notes ? `${row.refund_notes}\n${notes}` : notes)
+            : row.refund_notes || null;
+
+        await dbRun(
             `UPDATE cancellations SET refund_status = 'processed', refund_amount = ?, refund_reference = ?, refund_notes = ?, refunded_at = CURRENT_TIMESTAMP WHERE booking_id = ?`,
-            [amt, refund_reference || null, notes || null, bookingId],
-            function(upErr) {
-                if (upErr) return res.status(500).json({ success: false, error: upErr.message });
-
-                // P2-11: Record refund transaction first, then recalculate amount_paid from
-                // SUM(transactions) to avoid ledger drift from arithmetic operations.
-                db.run(`INSERT INTO transactions (booking_id, amount, transaction_date, payment_method, reference, transaction_type, status, notes, source)
-                        VALUES (?, ?, DATE('now'), 'bank_transfer', ?, 'refund', 'completed', ?, 'admin_refund')`,
-                    [bookingId, amt, refund_reference || null, notes || `Refund for cancellation of Booking #${bookingId}`],
-                    function(tErr) {
-                        if (tErr) console.error('[Refund] Transaction log failed:', tErr.message);
-
-                        db.run(`UPDATE bookings SET
-                            amount_paid = MAX(0, (
-                                SELECT COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)
-                                FROM transactions t WHERE t.booking_id = bookings.id
-                                  AND t.is_duplicate = 0 AND (t.status = 'completed' OR t.status IS NULL)
-                            )),
-                            amount_outstanding = MAX(0, COALESCE(total_amount, 0) - MAX(0, (
-                                SELECT COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)
-                                FROM transactions t WHERE t.booking_id = bookings.id
-                                  AND t.is_duplicate = 0 AND (t.status = 'completed' OR t.status IS NULL)
-                            )))
-                            WHERE id = ?`, [bookingId], function(bErr) {
-                            if (bErr) console.error('[Refund] Ledger recalculation failed:', bErr.message);
-
-                            db.run(`INSERT OR IGNORE INTO audit_log (table_name, record_id, action, new_values) VALUES ('cancellations', ?, 'REFUND_ISSUED', ?)`,
-                                [bookingId, JSON.stringify({ refund_amount: amt, refund_reference })]);
-
-                            // Re-derive payment_status from the recomputed ledger. This route recomputed
-                            // amount_paid/amount_outstanding but left payment_status stale, so a fully
-                            // refunded booking stayed marked PAID. Same derivation the /transactions/manual
-                            // refund branch uses. (trg_auto_payment_status only ever forces PAID when
-                            // outstanding hits 0, so it cannot demote a refunded booking on its own.)
-                            db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (bErr2, bRow) => {
-                                if (bErr2 || !bRow) {
-                                    return res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.` });
-                                }
-                                const total = parseFloat(bRow.total_amount) || 0;
-                                const newPaid = parseFloat(bRow.amount_paid) || 0;
-                                let payment_status;
-                                if (total > 0 && newPaid >= total)      payment_status = 'PAID';
-                                else if (newPaid <= 0)                   payment_status = 'UNPAID';
-                                else if (total > 0 && newPaid >= total * 0.5) payment_status = 'DEPOSIT_PAID';
-                                else                                     payment_status = 'PARTIALLY_PAID';
-                                db.run("UPDATE bookings SET payment_status = ? WHERE id = ?", [payment_status, bookingId],
-                                    (psErr) => { if (psErr) console.error('[Refund] payment_status re-derivation failed:', psErr.message); });
-                                // amount_paid dropped — re-run the milestone waterfall so covered rows
-                                // that are no longer covered fall back to pending.
-                                alignMilestonePayments(bookingId, newPaid, () => {});
-
-                                sendRefundProcessedEmail(bRow, amt, refund_reference)
-                                    .catch(e => console.error('[Refund] Client email failed:', e.message));
-                                res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.`, payment_status });
-                            });
-                        });
-                    });
-            }
+            [cumulativeRefund, cumulativeReference, cumulativeNotes, bookingId]
         );
-    });
+
+        // P2-11: Record refund transaction first, then recalculate amount_paid from
+        // SUM(transactions) to avoid ledger drift from arithmetic operations.
+        await dbRun(
+            `INSERT INTO transactions (booking_id, amount, transaction_date, payment_method, reference, transaction_type, status, notes, source)
+             VALUES (?, ?, DATE('now'), 'bank_transfer', ?, 'refund', 'completed', ?, 'admin_refund')`,
+            [bookingId, amt, refund_reference || null, notes || `Refund for cancellation of Booking #${bookingId}`]
+        ).catch(tErr => console.error('[Refund] Transaction log failed:', tErr.message));
+
+        await dbRun(`UPDATE bookings SET
+                amount_paid = MAX(0, (
+                    SELECT COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)
+                    FROM transactions t WHERE t.booking_id = bookings.id
+                      AND t.is_duplicate = 0 AND (t.status = 'completed' OR t.status IS NULL)
+                )),
+                amount_outstanding = MAX(0, COALESCE(total_amount, 0) - MAX(0, (
+                    SELECT COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)
+                    FROM transactions t WHERE t.booking_id = bookings.id
+                      AND t.is_duplicate = 0 AND (t.status = 'completed' OR t.status IS NULL)
+                )))
+                WHERE id = ?`, [bookingId]
+        ).catch(bErr => console.error('[Refund] Ledger recalculation failed:', bErr.message));
+
+        db.run(`INSERT OR IGNORE INTO audit_log (table_name, record_id, action, new_values) VALUES ('cancellations', ?, 'REFUND_ISSUED', ?)`,
+            [bookingId, JSON.stringify({ refund_amount: amt, refund_reference, cumulative_refund: cumulativeRefund })]);
+
+        // Re-derive payment_status from the recomputed ledger. This route recomputed
+        // amount_paid/amount_outstanding but left payment_status stale, so a fully
+        // refunded booking stayed marked PAID. Same derivation the /transactions/manual
+        // refund branch uses. (trg_auto_payment_status only ever forces PAID when
+        // outstanding hits 0, so it cannot demote a refunded booking on its own.)
+        const bRow = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
+        if (!bRow) {
+            return res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.` });
+        }
+        const total = parseFloat(bRow.total_amount) || 0;
+        const newPaid = parseFloat(bRow.amount_paid) || 0;
+        let payment_status;
+        if (total > 0 && newPaid >= total)      payment_status = 'PAID';
+        else if (newPaid <= 0)                   payment_status = 'UNPAID';
+        else if (total > 0 && newPaid >= total * 0.5) payment_status = 'DEPOSIT_PAID';
+        else                                     payment_status = 'PARTIALLY_PAID';
+        db.run("UPDATE bookings SET payment_status = ? WHERE id = ?", [payment_status, bookingId],
+            (psErr) => { if (psErr) console.error('[Refund] payment_status re-derivation failed:', psErr.message); });
+        // amount_paid dropped — re-run the milestone waterfall so covered rows
+        // that are no longer covered fall back to pending.
+        alignMilestonePayments(bookingId, newPaid, () => {});
+
+        sendRefundProcessedEmail(bRow, amt, refund_reference)
+            .catch(e => console.error('[Refund] Client email failed:', e.message));
+        res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.`, payment_status });
+    } catch (e) {
+        console.error('[Refund] Failed:', e.message);
+        res.status(500).json({ success: false, message: 'Server error recording refund.' });
+    }
 });
 
 // P2.6 — Contract management (admin)
@@ -11195,57 +11254,53 @@ app.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
  * POST /api/admin/calendar/hold
  * Create a manual date block
  */
-app.post('/api/admin/calendar/hold', requireAdmin, (req, res) => {
-    const { date, reason, category, start_time, end_time, block_type } = req.body;
-    const notes = reason || category || 'Admin hold';
-    if (!date) return res.status(400).json({ success: false, message: 'Date required.' });
-
+// Shared by POST /calendar/hold (create) and PATCH /calendar/hold/:id/date (move) — a hold
+// landing on a date already blocked by another hold or booking must be rejected the same way
+// whether it's a brand-new hold or an existing one being dragged to a new date. excludeHoldId
+// lets a move check ignore the hold's own row (relevant if it's a no-op move back to its own date).
+function findHoldDateConflict(date, startTime, endTime, excludeHoldId, callback) {
     // Compare by minutes, not lexically (consistent with the booking-submit overlap / timeRangesOverlap):
     // a non-zero-padded time like "9:00" would break a string compare ("9:00" < "10:00" is false).
     const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
     const overlap = (s1, e1, s2, e2) => (toMin(s1) < toMin(e2)) && (toMin(s2) < toMin(e1));
 
-    // Check for conflicts
-    db.all("SELECT id, start_time, end_time FROM date_holds WHERE hold_date = ? AND status = 'active'", [date], (err, holds) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        
-        db.all("SELECT id, event_start_time, performance_end_time, performance_duration, event_type, buffer_minutes FROM bookings WHERE date = ? AND status NOT IN ('CANCELLED', 'EXPIRED')", [date], (err, bookings) => {
-            if (err) return res.status(500).json({ success: false, error: err.message });
+    const holdExclude = excludeHoldId ? ' AND id != ?' : '';
+    const holdParams = excludeHoldId ? [date, excludeHoldId] : [date];
+    db.all(`SELECT id, start_time, end_time FROM date_holds WHERE hold_date = ? AND status = 'active'${holdExclude}`, holdParams, (err, holds) => {
+        if (err) return callback(err);
 
-            let conflict = false;
-            let conflictReason = '';
+        db.all("SELECT id, event_start_time, performance_end_time, performance_duration, event_type, buffer_minutes FROM bookings WHERE date = ? AND status NOT IN ('CANCELLED', 'EXPIRED')", [date], (err2, bookings) => {
+            if (err2) return callback(err2);
 
-            if (!start_time) {
-                // New hold is all day
+            let conflictReason = null;
+
+            if (!startTime) {
+                // New/moved hold is all day
                 if ((holds && holds.length > 0) || (bookings && bookings.length > 0)) {
-                    conflict = true;
                     conflictReason = 'A block or booking already exists on this date.';
                 }
             } else {
-                // New hold is timed — default end to 1 hour after start if not provided
-                let effectiveEndTime = end_time;
+                // Timed hold — default end to 1 hour after start if not provided
+                let effectiveEndTime = endTime;
                 if (!effectiveEndTime) {
-                    const ep = start_time.split(':');
+                    const ep = startTime.split(':');
                     let eh = parseInt(ep[0]) + 1;
                     if (eh >= 24) eh = 23;
                     effectiveEndTime = `${String(eh).padStart(2, '0')}:${ep[1]}`;
                 }
-                
+
                 if (holds) {
-                    holds.forEach(h => {
-                        if (!h.start_time) {
-                            conflict = true;
-                            conflictReason = 'An all-day block exists on this date.';
-                        } else if (overlap(start_time, effectiveEndTime, h.start_time, h.end_time || h.start_time)) {
-                            conflict = true;
-                            conflictReason = 'Overlaps with an existing block.';
-                        }
-                    });
+                    for (const h of holds) {
+                        if (!h.start_time) { conflictReason = 'An all-day block exists on this date.'; break; }
+                        if (overlap(startTime, effectiveEndTime, h.start_time, h.end_time || h.start_time)) { conflictReason = 'Overlaps with an existing block.'; break; }
+                    }
                 }
-                
-                if (bookings && !conflict) {
-                    bookings.forEach(b => {
-                        if (!b.event_start_time) return;
+
+                if (!conflictReason && bookings) {
+                    for (const b of bookings) {
+                        // A booking with no recorded start time occupies the whole day, same as
+                        // everywhere else conflict detection treats an untimed booking.
+                        if (!b.event_start_time) { conflictReason = 'An all-day booking exists on this date.'; break; }
                         let bEnd = b.performance_end_time;
                         if (!bEnd) {
                             const mins = parseDurationToMinutes(b.performance_duration);
@@ -11255,30 +11310,38 @@ app.post('/api/admin/calendar/hold', requireAdmin, (req, res) => {
                             : (b.event_type && TYPE_BUFFERS[b.event_type] !== undefined) ? TYPE_BUFFERS[b.event_type]
                             : MIN_BOOKING_GAP_MINS;
                         const bufferedBEnd = addMinutesToTime(bEnd, holdGap);
-                        if (overlap(start_time, effectiveEndTime, b.event_start_time, bufferedBEnd)) {
-                            conflict = true;
-                            conflictReason = 'Overlaps with an existing booking.';
-                        }
-                    });
+                        if (overlap(startTime, effectiveEndTime, b.event_start_time, bufferedBEnd)) { conflictReason = 'Overlaps with an existing booking.'; break; }
+                    }
                 }
-            }
-            
-            if (conflict) {
-                return res.status(409).json({ success: false, message: conflictReason });
             }
 
-            const expires = new Date(date); expires.setDate(expires.getDate() + 1);
-            const expiresStr = expires.toISOString().slice(0, 19).replace('T', ' ');
-            db.run(
-                `INSERT INTO date_holds (hold_date, notes, status, hold_expires_at, start_time, end_time, block_type)
-                 VALUES (?, ?, 'active', ?, ?, ?, ?)`,
-                [date, notes, expiresStr, start_time || null, end_time || null, block_type || null],
-                function(insertErr) {
-                    if (insertErr) return res.status(500).json({ success: false, error: insertErr.message });
-                    res.json({ success: true, hold: { id: this.lastID } });
-                }
-            );
+            callback(null, conflictReason);
         });
+    });
+}
+
+app.post('/api/admin/calendar/hold', requireAdmin, (req, res) => {
+    const { date, reason, category, start_time, end_time, block_type } = req.body;
+    const notes = reason || category || 'Admin hold';
+    if (!date) return res.status(400).json({ success: false, message: 'Date required.' });
+
+    findHoldDateConflict(date, start_time, end_time, null, (err, conflictReason) => {
+        if (err) return res.status(500).json({ success: false, error: err.message });
+        if (conflictReason) {
+            return res.status(409).json({ success: false, message: conflictReason });
+        }
+
+        const expires = new Date(date); expires.setDate(expires.getDate() + 1);
+        const expiresStr = expires.toISOString().slice(0, 19).replace('T', ' ');
+        db.run(
+            `INSERT INTO date_holds (hold_date, notes, status, hold_expires_at, start_time, end_time, block_type)
+             VALUES (?, ?, 'active', ?, ?, ?, ?)`,
+            [date, notes, expiresStr, start_time || null, end_time || null, block_type || null],
+            function(insertErr) {
+                if (insertErr) return res.status(500).json({ success: false, error: insertErr.message });
+                res.json({ success: true, hold: { id: this.lastID } });
+            }
+        );
     });
 });
 
@@ -11294,15 +11357,32 @@ app.delete('/api/admin/calendar/hold/:id', requireAdmin, (req, res) => {
 
 app.patch('/api/admin/calendar/hold/:id/date', requireAdmin, (req, res) => {
     const { date } = req.body;
+    const holdId = req.params.id;
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return res.status(400).json({ success: false, message: 'Valid date (YYYY-MM-DD) required.' });
     }
-    db.run("UPDATE date_holds SET hold_date = ?, hold_expires_at = datetime(?, '+1 day') WHERE id = ?",
-        [date, date, req.params.id],
-        (err) => {
+
+    // Moving a hold was never conflict-checked against the destination date — unlike creating a
+    // new hold, which always was. A drag-drop could silently land a hold on a day that already
+    // has another block or booking.
+    db.get("SELECT start_time, end_time FROM date_holds WHERE id = ?", [holdId], (getErr, hold) => {
+        if (getErr) return res.status(500).json({ success: false, error: getErr.message });
+        if (!hold) return res.status(404).json({ success: false, message: 'Hold not found.' });
+
+        findHoldDateConflict(date, hold.start_time, hold.end_time, holdId, (err, conflictReason) => {
             if (err) return res.status(500).json({ success: false, error: err.message });
-            res.json({ success: true, newDate: date });
+            if (conflictReason) {
+                return res.status(409).json({ success: false, message: conflictReason });
+            }
+
+            db.run("UPDATE date_holds SET hold_date = ?, hold_expires_at = datetime(?, '+1 day') WHERE id = ?",
+                [date, date, holdId],
+                (updErr) => {
+                    if (updErr) return res.status(500).json({ success: false, error: updErr.message });
+                    res.json({ success: true, newDate: date });
+                });
         });
+    });
 });
 
 /**
@@ -11341,6 +11421,17 @@ app.patch('/api/admin/bookings/:id/date', requireAdmin, async (req, res) => {
             const busy = await hasCalendarConflict(newStartISO, newEndISO, parseInt(req.params.id));
             if (busy) {
                 return res.status(409).json({ success: false, message: `The new time slot on ${date} conflicts with an existing booking or block. Choose a different date/time.` });
+            }
+        } else {
+            // No time on this booking (an "All Day / Custom Hours" request) and none supplied in
+            // the move — it occupies the whole destination day, so ANY existing hold/event/booking
+            // there is a conflict. This branch used to be skipped entirely whenever effectiveTime
+            // was falsy, so an untimed booking could be dragged onto an already-fully-booked day
+            // with no warning.
+            const destAvail = await new Promise((resolve, reject) =>
+                checkDateAvailability(date, (e, r) => e ? reject(e) : resolve(r), parseInt(req.params.id)));
+            if (!destAvail.available || (destAvail.busy_ranges && destAvail.busy_ranges.length > 0)) {
+                return res.status(409).json({ success: false, message: `${date} already has a booking or block on it and is not available for a full-day booking. Choose a different date.` });
             }
         }
 
@@ -11449,7 +11540,13 @@ app.patch('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
  */
 app.get('/api/calendar/feed.ics', async (req, res) => {
     const expectedToken = process.env.CALENDAR_FEED_SECRET;
-    if (expectedToken && req.query.token !== expectedToken) {
+    // Fail CLOSED, not open: this feed lists every client's name, event and location. An unset
+    // secret previously made the whole feed public rather than blocking it.
+    if (!expectedToken) {
+        console.error('[Calendar Feed] CALENDAR_FEED_SECRET is not configured — refusing to serve the feed.');
+        return res.status(503).type('text').send('Calendar feed is not configured.');
+    }
+    if (req.query.token !== expectedToken) {
         return res.status(401).type('text').send('Unauthorized: invalid or missing calendar token.');
     }
 
@@ -11465,40 +11562,53 @@ app.get('/api/calendar/feed.ics', async (req, res) => {
             WHERE b.status IN ('ACCEPTED', 'CONFIRMED', 'COMPLETED')`, [], (err, bookings) => {
         if (err) return res.status(500).send('Error generating calendar.');
 
+        // ical-generator throws synchronously on an invalid date, and that throw was uncaught here
+        // (inside a db.all callback, several stack frames from any try/catch) — one malformed
+        // date/time value on a single row crashed the entire Node process, taking the whole site
+        // down for every request, not just this feed. Each event is now isolated so a bad record
+        // is skipped and logged instead.
         bookings.forEach(b => {
-            const bStart = moment(`${b.date}T${b.event_start_time || '18:00'}`);
-            let bEnd;
-            if (b.performance_end_time) {
-                bEnd = moment(`${b.date}T${b.performance_end_time}`);
-            } else {
-                const mins = parseDurationToMinutes(b.performance_duration);
-                bEnd = bStart.clone().add(mins, 'minutes');
+            try {
+                const bStart = moment(`${b.date}T${b.event_start_time || '18:00'}`);
+                let bEnd;
+                if (b.performance_end_time) {
+                    bEnd = moment(`${b.date}T${b.performance_end_time}`);
+                } else {
+                    const mins = parseDurationToMinutes(b.performance_duration);
+                    bEnd = bStart.clone().add(mins, 'minutes');
+                }
+                calendar.createEvent({
+                    start: bStart,
+                    end: bEnd,
+                    summary: (b.event_name || 'Booking') + ' - ' + b.name,
+                    location: b.event_location,
+                    url: `https://www.thabisomhlongo.com/admin#bookingsAdmin`
+                });
+            } catch (evErr) {
+                console.error(`[Calendar Feed] Skipped booking #${b.id} — invalid date/time on record:`, evErr.message);
             }
-            calendar.createEvent({
-                start: bStart,
-                end: bEnd,
-                summary: (b.event_name || 'Booking') + ' - ' + b.name,
-                location: b.event_location,
-                url: `https://www.thabisomhlongo.com/admin#bookingsAdmin`
-            });
         });
 
         db.all(`SELECT hold_date, notes, start_time, end_time FROM date_holds WHERE status = 'active'`, [], (err, holds) => {
             if (!err) {
                 holds.forEach(h => {
-                    if (h.start_time) {
-                        const hEnd = h.end_time || addMinutesToTime(h.start_time, 60);
-                        calendar.createEvent({
-                            start: moment(`${h.hold_date}T${h.start_time}`),
-                            end:   moment(`${h.hold_date}T${hEnd}`),
-                            summary: '[HOLD] ' + (h.notes || 'Blocked')
-                        });
-                    } else {
-                        calendar.createEvent({
-                            start: moment(h.hold_date),
-                            allDay: true,
-                            summary: '[HOLD] ' + (h.notes || 'Blocked')
-                        });
+                    try {
+                        if (h.start_time) {
+                            const hEnd = h.end_time || addMinutesToTime(h.start_time, 60);
+                            calendar.createEvent({
+                                start: moment(`${h.hold_date}T${h.start_time}`),
+                                end:   moment(`${h.hold_date}T${hEnd}`),
+                                summary: '[HOLD] ' + (h.notes || 'Blocked')
+                            });
+                        } else {
+                            calendar.createEvent({
+                                start: moment(h.hold_date),
+                                allDay: true,
+                                summary: '[HOLD] ' + (h.notes || 'Blocked')
+                            });
+                        }
+                    } catch (hErr) {
+                        console.error(`[Calendar Feed] Skipped hold on ${h.hold_date} — invalid date/time on record:`, hErr.message);
                     }
                 });
             }
