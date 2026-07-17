@@ -141,8 +141,8 @@
 .trk-status-badge.PENDING  { background: rgba(245, 158, 11, .15);  color: var(--warning); border: 1px solid rgba(245, 158, 11, .3); }
 .trk-status-badge.QUOTED   { background: rgba(59, 130, 246, .15); color: var(--info); border: 1px solid rgba(59, 130, 246, .3); }
 .trk-status-badge.ACCEPTED { background: rgba(156, 39, 176, .15); color: #ce93d8; border: 1px solid rgba(156, 39, 176, .3); }
-.trk-status-badge.CONFIRMED{ background: rgba(16, 185, 129, .15);  color: var(--success); border: 1px solid rgba(16, 185, 129, .3); }
-.trk-status-badge.COMPLETED{ background: rgba(16, 185, 129, .15);  color: var(--success); border: 1px solid rgba(16, 185, 129, .3); }
+.trk-status-badge.CONFIRMED{ background: var(--success-dim);  color: var(--success); border: 1px solid var(--success-glow); }
+.trk-status-badge.COMPLETED{ background: var(--success-dim);  color: var(--success); border: 1px solid var(--success-glow); }
 .trk-status-badge.CANCELLED{ background: rgba(239, 68, 68, .15);   color: var(--error);   border: 1px solid rgba(239, 68, 68, .3); }
 .trk-status-badge.EXPIRED  { background: rgba(112, 112, 112, .15); color: var(--text-secondary); border: 1px solid rgba(112, 112, 112, .3); }
 
@@ -243,7 +243,7 @@
 .trk-pay-badge { padding: 4px 12px; border-radius: 20px; font-size: .6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
 .trk-pay-badge.UNPAID        { background: rgba(239, 68, 68, .15);  color: var(--error); border: 1px solid rgba(239, 68, 68, .3); }
 .trk-pay-badge.DEPOSIT_PAID  { background: rgba(59, 130, 246, .15); color: var(--info); border: 1px solid rgba(59, 130, 246, .3); }
-.trk-pay-badge.PAID          { background: rgba(16, 185, 129, .15);  color: var(--success); border: 1px solid rgba(16, 185, 129, .3); }
+.trk-pay-badge.PAID          { background: var(--success-dim);  color: var(--success); border: 1px solid var(--success-glow); }
 .trk-pay-badge.PARTIALLY_PAID{ background: rgba(245, 158, 11, .15);  color: var(--warning); border: 1px solid rgba(245, 158, 11, .3); }
 .trk-pay-badge.FAILED        { background: rgba(239, 68, 68, .15);  color: var(--error); border: 1px solid rgba(239, 68, 68, .3); }
 
@@ -291,8 +291,8 @@
 
 /* Success banner */
 .trk-pay-success {
-  background: rgba(16, 185, 129, .12);
-  border: 1px solid rgba(16, 185, 129, .3);
+  background: var(--success-dim);
+  border: 1px solid var(--success-glow);
   border-radius: var(--r-lg);
   padding: 16px;
   text-align: center;
@@ -383,7 +383,7 @@
   text-align: center;
 }
 .trk-return-alert i { margin-right: 8px; }
-.trk-return-alert.success { background: rgba(16, 185, 129, .12);  border: 1px solid rgba(16, 185, 129, .3);  color: var(--success); }
+.trk-return-alert.success { background: var(--success-dim);  border: 1px solid var(--success-glow);  color: var(--success); }
 .trk-return-alert.cancel  { background: rgba(245, 158, 11, .12);  border: 1px solid rgba(245, 158, 11, .3);  color: var(--warning); }
 .trk-return-alert.failed  { background: rgba(239, 68, 68, .12);  border: 1px solid rgba(239, 68, 68, .3);  color: var(--error); }
 

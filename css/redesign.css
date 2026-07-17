@@ -41,8 +41,13 @@
   --accent-green: #4ade80;
   --accent-blue:  #60a5fa;
 
-  /* -- Semantic / System Colours -- */
-  --success: #10b981;
+  /* -- Semantic / System Colours --
+     Back to the original --success (#10b981) after a run of tweaks. --success-dim/--success-glow
+     are the same rgba(16,185,129,...) translucent variants that were previously hardcoded at every
+     usage site — kept as tokens (one source of truth) rather than reverting to scattered literals. */
+  --success:      #10b981;
+  --success-dim:  rgba(16, 185, 129, .15);
+  --success-glow: rgba(16, 185, 129, .3);
   --error:   #ef4444;
   --warning: #f59e0b;
   --info:    #3b82f6;

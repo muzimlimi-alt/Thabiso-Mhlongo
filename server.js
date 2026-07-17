@@ -8735,13 +8735,18 @@ app.post('/api/admin/newsletter/birthday-settings/send-test', requireAdmin, requ
         // real per-subscriber lookup actually works); if not (a throwaway inbox that isn't
         // subscribed to anything), fall back to the placeholder name and the bare unsubscribe page.
         // Also covers {{subscription_date}}: sampleSubscriber never set subscribed_at at all, so
-        // that merge field silently rendered as an empty string in every test send.
+        // that merge field silently rendered as an empty string in every test send. And
+        // {{birthday}}: owner decision (2026-07-16) — show the recipient's real stored birthday
+        // when they're an actual subscriber, only falling back to today's date (so the field still
+        // resolves to *something*) when the test recipient isn't a real subscriber at all.
         const testSubRow = await new Promise((resolve) => {
-            db.get("SELECT first_name, unsubscribe_token, subscribed_at FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)", [testRecipient], (err, row) => resolve(row));
+            db.get("SELECT first_name, unsubscribe_token, subscribed_at, birthday_day, birthday_month FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)", [testRecipient], (err, row) => resolve(row));
         });
         const sampleSubscriber = {
             first_name: (testSubRow && testSubRow.first_name) || 'Alex',
-            email: testRecipient, birthday_day: today.date(), birthday_month: today.month() + 1,
+            email: testRecipient,
+            birthday_day: (testSubRow && testSubRow.birthday_day) || today.date(),
+            birthday_month: (testSubRow && testSubRow.birthday_month) || (today.month() + 1),
             subscribed_at: testSubRow && testSubRow.subscribed_at
         };
         const unsubscribeUrl = (testSubRow && testSubRow.unsubscribe_token)

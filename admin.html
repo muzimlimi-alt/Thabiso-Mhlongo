@@ -4174,14 +4174,105 @@
             border-bottom-color: rgba(154,118,17,0.20) !important;
         }
 
-        /* ── 4. flatpickr overrides ── */
-        [data-theme="dark"] .flatpickr-calendar {
+        /* ── 4. flatpickr overrides — full Atelier theming ──
+           Previously only the popup's background/border were themed; everything inside (month
+           header, weekday labels, day cells, selected/today states, time inputs, nav arrows) still
+           used flatpickr's stock light-blue theme, which is why the picker looked "bolted on"
+           rather than part of the site. All tokens below are the same --atl-* variables used
+           everywhere else, so both the dark and light theme toggle stay correct automatically. */
+        .flatpickr-calendar {
             background: var(--atl-card) !important;
+            border: 1px solid var(--atl-line) !important;
+            border-radius: var(--atl-r-md) !important;
+            box-shadow: var(--atl-shadow-card) !important;
+            font-family: 'Outfit', sans-serif !important;
+        }
+        .flatpickr-calendar.arrowTop:before,
+        .flatpickr-calendar.arrowTop:after { border-bottom-color: var(--atl-line) !important; }
+        .flatpickr-calendar.arrowTop:after { border-bottom-color: var(--atl-card) !important; margin-top: 1px; }
+        .flatpickr-calendar.arrowBottom:before,
+        .flatpickr-calendar.arrowBottom:after { border-top-color: var(--atl-line) !important; }
+        .flatpickr-calendar.arrowBottom:after { border-top-color: var(--atl-card) !important; margin-bottom: 1px; }
+
+        .flatpickr-months { padding: 8px 4px 2px; }
+        .flatpickr-months .flatpickr-month { color: var(--atl-ink) !important; fill: var(--atl-ink) !important; height: 34px; }
+        .flatpickr-current-month {
+            font-family: 'Outfit', sans-serif !important; font-size: 14px !important;
+            font-weight: 600 !important; color: var(--atl-ink) !important;
+        }
+        .flatpickr-current-month input.cur-year,
+        .flatpickr-current-month .flatpickr-monthDropdown-months {
+            color: var(--atl-ink) !important; background: transparent !important;
+            font-family: 'Outfit', sans-serif !important; font-weight: 600 !important;
+        }
+        .flatpickr-current-month .flatpickr-monthDropdown-months:hover { background: var(--atl-surface2) !important; }
+        .flatpickr-current-month .numInputWrapper:hover { background: var(--atl-surface2) !important; }
+        .flatpickr-current-month .numInputWrapper span.arrowUp:after { border-bottom-color: var(--atl-muted) !important; }
+        .flatpickr-current-month .numInputWrapper span.arrowDown:after { border-top-color: var(--atl-muted) !important; }
+
+        .flatpickr-prev-month, .flatpickr-next-month { fill: var(--atl-muted) !important; color: var(--atl-muted) !important; }
+        .flatpickr-prev-month:hover, .flatpickr-next-month:hover { fill: var(--atl-amber) !important; color: var(--atl-amber) !important; }
+        .flatpickr-prev-month svg, .flatpickr-next-month svg { fill: inherit !important; }
+
+        .flatpickr-weekdays { background: transparent !important; }
+        span.flatpickr-weekday {
+            color: var(--atl-muted) !important; background: transparent !important;
+            font-family: 'JetBrains Mono', monospace !important; font-size: 10px !important;
+            font-weight: 600 !important; text-transform: uppercase; letter-spacing: 0.06em;
+        }
+
+        .flatpickr-days, .dayContainer { border: none !important; }
+        .flatpickr-day {
+            color: var(--atl-ink-dim) !important;
+            font-family: 'Outfit', sans-serif !important;
+            border-radius: var(--atl-r-sm) !important;
+            border: 1px solid transparent !important;
+        }
+        .flatpickr-day:hover, .flatpickr-day:focus {
+            background: var(--atl-surface2) !important;
             border-color: var(--atl-line) !important;
+            color: var(--atl-ink) !important;
         }
-        [data-theme="light"] .flatpickr-calendar {
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important;
+        .flatpickr-day.today { border-color: var(--atl-amber-border) !important; color: var(--atl-amber) !important; }
+        .flatpickr-day.today:hover { background: var(--atl-amber-dim) !important; color: var(--atl-amber) !important; }
+        .flatpickr-day.selected,
+        .flatpickr-day.selected:hover,
+        .flatpickr-day.startRange,
+        .flatpickr-day.endRange,
+        .flatpickr-day.startRange:hover,
+        .flatpickr-day.endRange:hover {
+            background: var(--atl-amber) !important;
+            border-color: var(--atl-amber) !important;
+            color: var(--atl-on-amber) !important;
+            font-weight: 600 !important;
         }
+        .flatpickr-day.inRange {
+            background: var(--atl-amber-dim) !important;
+            border-color: transparent !important;
+            box-shadow: -5px 0 0 var(--atl-amber-dim), 5px 0 0 var(--atl-amber-dim) !important;
+        }
+        .flatpickr-day.prevMonthDay, .flatpickr-day.nextMonthDay { color: var(--atl-muted-dim) !important; }
+        .flatpickr-day.flatpickr-disabled, .flatpickr-day.flatpickr-disabled:hover {
+            color: var(--atl-muted-dim) !important; opacity: 0.4; cursor: not-allowed;
+        }
+
+        /* Time picker (enableTime) */
+        .flatpickr-time { border-top: 1px solid var(--atl-line) !important; }
+        .flatpickr-time input {
+            color: var(--atl-ink) !important; background: transparent !important;
+            font-family: 'JetBrains Mono', monospace !important;
+        }
+        .flatpickr-time .flatpickr-time-separator,
+        .flatpickr-time .flatpickr-am-pm { color: var(--atl-muted) !important; }
+        .flatpickr-time input:hover, .flatpickr-time input:focus,
+        .flatpickr-time .flatpickr-am-pm:hover, .flatpickr-time .flatpickr-am-pm:focus {
+            background: var(--atl-surface2) !important;
+        }
+        .flatpickr-time .numInputWrapper span.arrowUp:after { border-bottom-color: var(--atl-muted) !important; }
+        .flatpickr-time .numInputWrapper span.arrowDown:after { border-top-color: var(--atl-muted) !important; }
+        .flatpickr-time .numInputWrapper:hover, .flatpickr-time .numInputWrapper span:hover { background: var(--atl-surface2) !important; }
+
+        [data-theme="light"] .flatpickr-calendar { box-shadow: 0 4px 15px rgba(0,0,0,0.1) !important; }
 
         /* ── 5. Quill overrides ── */
         [data-theme="light"] .ql-toolbar {
@@ -6429,6 +6520,7 @@
                     <!-- Tab Navigation (mirrors #usersAdmin) -->
                     <div class="atl-tab-bar" role="tablist">
                         <button class="atl-tab-btn active" data-um-tab="bkPanelPipeline" role="tab" aria-selected="true"><i class="fa-solid fa-diagram-project"></i> Pipeline</button>
+                        <button class="atl-tab-btn" data-um-tab="bkPanelArchive" role="tab" aria-selected="false"><i class="fa-solid fa-box-archive"></i> Archive</button>
                         <button class="atl-tab-btn" data-um-tab="bkPanelRecovery" role="tab" aria-selected="false"><i class="fa-solid fa-arrow-rotate-left"></i> Booking Recovery<span id="abTabCount" style="display:none; margin-left:7px; background:var(--atl-amber); color:#000; font-size:11px; font-weight:700; padding:1px 7px; border-radius:10px;">0</span></button>
                         <button class="atl-tab-btn" data-um-tab="bkPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
                     </div>
@@ -6462,19 +6554,11 @@
                                 <span class="atl-pill-dot" style="background:var(--atl-green)"></span>
                                 Confirmed <span class="atl-pill-count" id="bkStat-CONFIRMED">0</span>
                             </button>
-                            <button type="button" class="atl-pill bk-stat-pill" data-status="COMPLETED">
-                                <span class="atl-pill-dot" style="background:var(--atl-sage)"></span>
-                                Completed <span class="atl-pill-count" id="bkStat-COMPLETED">0</span>
-                            </button>
-                            <button type="button" class="atl-pill bk-stat-pill" data-status="EXPIRED">
-                                <span class="atl-pill-dot" style="background:var(--atl-muted)"></span>
-                                Expired <span class="atl-pill-count" id="bkStat-EXPIRED">0</span>
-                            </button>
-                            <button type="button" class="atl-pill bk-stat-pill" data-status="CANCELLED">
-                                <span class="atl-pill-dot" style="background:var(--atl-clay)"></span>
-                                Cancelled <span class="atl-pill-count" id="bkStat-CANCELLED">0</span>
-                            </button>
                         </div>
+                        <!-- Completed/Expired/Cancelled moved to their own Archive tab (data-um-tab="bkPanelArchive")
+                             so the Pipeline view stays focused on bookings still in play. Their #bkStat-* count
+                             spans now live in that panel instead — loadBookings()'s existing count-update loop
+                             is unchanged and just finds them wherever they are in the DOM. -->
 
                         <div class="atl-toolbar">
                             <div class="um-input-wrap" style="flex:1; min-width:180px;">
@@ -6490,9 +6574,6 @@
                                     <option value="QUOTED">Quoted</option>
                                     <option value="ACCEPTED">Accepted</option>
                                     <option value="CONFIRMED">Confirmed</option>
-                                    <option value="COMPLETED">Completed</option>
-                                    <option value="EXPIRED">Expired</option>
-                                    <option value="CANCELLED">Cancelled</option>
                                     <option disabled>&#8212;&#8212;&#8212;&#8212;</option>
                                     <option value="PAID">&#x2713; Paid</option>
                                     <option value="DEPOSIT_PAID">&#x25D0; Deposit Paid</option>
@@ -6547,6 +6628,51 @@
                     </main>
 
                     </div><!-- /#bkPanelPipeline -->
+
+                    <!-- ===== PANEL: Archive (Completed / Expired / Cancelled) ===== -->
+                    <div class="um-panel" id="bkPanelArchive">
+                        <p class="um-section-desc" style="margin:0 0 16px;">Bookings that have reached a final state — completed engagements, expired enquiries, and cancellations. Kept separate from the Pipeline so that view stays focused on bookings still in play.</p>
+
+                        <section aria-labelledby="archiveFiltersHeading" class="mb-8">
+                            <h2 id="archiveFiltersHeading" class="atl-sr-only">Archive filters and status counts</h2>
+                            <div id="bookingArchiveStatsBar" class="atl-pipeline" role="group" aria-label="Filter archive by status">
+                                <button type="button" class="atl-pill bk-archive-pill" data-status="All">
+                                    All <span class="atl-pill-count" id="bkArchiveStat-All">0</span>
+                                </button>
+                                <button type="button" class="atl-pill bk-archive-pill" data-status="COMPLETED">
+                                    <span class="atl-pill-dot" style="background:var(--atl-sage)"></span>
+                                    Completed <span class="atl-pill-count" id="bkStat-COMPLETED">0</span>
+                                </button>
+                                <button type="button" class="atl-pill bk-archive-pill" data-status="EXPIRED">
+                                    <span class="atl-pill-dot" style="background:var(--atl-muted)"></span>
+                                    Expired <span class="atl-pill-count" id="bkStat-EXPIRED">0</span>
+                                </button>
+                                <button type="button" class="atl-pill bk-archive-pill" data-status="CANCELLED">
+                                    <span class="atl-pill-dot" style="background:var(--atl-clay)"></span>
+                                    Cancelled <span class="atl-pill-count" id="bkStat-CANCELLED">0</span>
+                                </button>
+                            </div>
+
+                            <div class="atl-toolbar">
+                                <div class="um-input-wrap" style="flex:1; min-width:180px;">
+                                    <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                                    <input type="search" id="bkArchiveSearchInput" class="um-input"
+                                           placeholder="Search name, email, event, ID&hellip;" autocomplete="off" spellcheck="false">
+                                </div>
+                                <p id="bkArchiveResultCount" class="text-sm ml-auto self-center" style="color:var(--atl-muted); font-family:'Outfit', sans-serif; margin:0;" aria-live="polite"></p>
+                            </div>
+                        </section>
+
+                        <main>
+                            <h2 class="atl-sr-only" id="bookingsArchiveListHeading">Archived bookings</h2>
+                            <div id="bookingsArchiveListContainer" tabindex="-1" class="space-y-4" aria-labelledby="bookingsArchiveListHeading" style="margin-top:4px;">
+                                <div class="atl-empty-state">
+                                    <div class="atl-spinner"></div>
+                                    <p class="atl-empty-mono">Fetching booking records&hellip;</p>
+                                </div>
+                            </div>
+                        </main>
+                    </div><!-- /#bkPanelArchive -->
 
                     <!-- ===== PANEL: About ===== -->
                     <div class="um-panel" id="bkPanelAbout">
@@ -13893,6 +14019,37 @@
             if (e.detail && e.detail.id === 'evtDrawer') initEventsPickers();
         });
 
+        // Every other native <input type="date/time/datetime-local"> across the admin panel — same
+        // idempotent Flatpickr approach as initEventsPickers() above, generalised. disableMobile:true
+        // and allowInput:false match the existing mbDate/mbTime convention (manual booking modal) so
+        // behaviour is consistent everywhere, not just visuals. Guarded by !_flatpickr throughout, so
+        // calling this repeatedly (ready + every drawer open) is always safe.
+        function _fpDate(el, opts) {
+            if (typeof flatpickr === 'undefined' || !el || el._flatpickr) return;
+            flatpickr(el, Object.assign({ dateFormat: 'Y-m-d', disableMobile: true, allowInput: false, monthSelectorType: 'static' }, opts || {}));
+        }
+        function _fpTime(el, opts) {
+            if (typeof flatpickr === 'undefined' || !el || el._flatpickr) return;
+            flatpickr(el, Object.assign({ enableTime: true, noCalendar: true, time_24hr: true, minuteIncrement: 15, dateFormat: 'H:i', disableMobile: true, allowInput: false }, opts || {}));
+        }
+        function _fpDateTime(el, opts) {
+            if (typeof flatpickr === 'undefined' || !el || el._flatpickr) return;
+            flatpickr(el, Object.assign({
+                enableTime: true, dateFormat: "Y-m-d\\TH:i", altInput: true, altFormat: "D, M j, Y · H:i",
+                time_24hr: true, minuteIncrement: 30, monthSelectorType: 'static', disableMobile: true
+            }, opts || {}));
+        }
+        window.initAdminDateTimePickers = function() {
+            ['finDateFrom', 'finDateTo', 'txDateFrom', 'txDateTo', 'expenseDateFrom', 'expenseDateTo',
+             'svcValidFrom', 'svcValidTo', 'auditDateFrom', 'auditDateTo', 'contractSignedDate',
+             'expenseDate', 'manualTxDate', 'quoteModalExpiry', 'hold_date', 'boDate', 'boEndDate'
+            ].forEach(function(id) { _fpDate(document.getElementById(id)); });
+            ['bdaySendTime', 'boTime'].forEach(function(id) { _fpTime(document.getElementById(id)); });
+            _fpDateTime(document.getElementById('scheduledDateTime'));
+        };
+        $(function() { window.initAdminDateTimePickers(); });
+        document.addEventListener('atl:drawerOpened', function() { window.initAdminDateTimePickers(); });
+
         // Google Maps Places Autocomplete Integration for Venue
         window.initEventsMap = function() {
             var searchInput = document.getElementById('eventsVenueSearch');
@@ -18460,6 +18617,7 @@
 
                 // Re-apply current filter/search
                 applyBookingFilter();
+                if (typeof applyArchiveFilter === 'function') applyArchiveFilter();
             } catch(e) {
                 console.error('[loadBookings]', e);
                 $container.html('<div class="bkr-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>Failed to load bookings. Please refresh.</p></div>');
@@ -18679,8 +18837,8 @@
             return html;
         }
 
-        function renderBookingsTable(data) {
-            const $container = $('#bookingsListContainer');
+        function renderBookingsTable(data, containerSelector) {
+            const $container = $(containerSelector || '#bookingsListContainer');
             if (!$container.length) return;
             $container.empty();
 
@@ -21756,11 +21914,15 @@
             );
         }
 
+        // Bookings that have reached a final state live in the Archive tab (data-um-tab="bkPanelArchive")
+        // instead — Pipeline never shows them, under any filter mode (status, payment, or Needs Action).
+        const ARCHIVED_STATUSES = ['COMPLETED', 'EXPIRED', 'CANCELLED'];
+
         function applyBookingFilter() {
             const status = $('#bookingStatusFilter').val();
             const q      = ($('#bkSearchInput').val() || '').trim().toLowerCase();
             const paymentFilters = ['PAID', 'DEPOSIT_PAID', 'PARTIALLY_PAID', 'UNPAID', 'FAILED'];
-            let filtered = allBookingsCache;
+            let filtered = allBookingsCache.filter(b => !ARCHIVED_STATUSES.includes((b.status || '').toUpperCase()));
             if (status === 'NEEDS_ACTION') {
                 filtered = filtered.filter(bookingNeedsAction);
             } else if (status && status !== 'All') {
@@ -21792,6 +21954,54 @@
         // Live search
         $(document).on('input.bkrsearch', '#bkSearchInput', function() {
             applyBookingFilter();
+        });
+
+        // ── Archive tab (Completed / Expired / Cancelled) — mirrors applyBookingFilter() above,
+        // reusing the same allBookingsCache and the same renderBookingsTable(), just targeting the
+        // Archive panel's own container and pill/search controls instead of Pipeline's. ──
+        let archiveStatus = 'All';
+        function applyArchiveFilter() {
+            const q = ($('#bkArchiveSearchInput').val() || '').trim().toLowerCase();
+            let filtered = (allBookingsCache || []).filter(b => ARCHIVED_STATUSES.includes((b.status || '').toUpperCase()));
+            if (archiveStatus !== 'All') {
+                filtered = filtered.filter(b => (b.status || '').toUpperCase() === archiveStatus);
+            }
+            if (q) {
+                filtered = filtered.filter(b =>
+                    (b.name  || '').toLowerCase().includes(q) ||
+                    (b.email || '').toLowerCase().includes(q) ||
+                    (b.event_name || '').toLowerCase().includes(q) ||
+                    (b.event_location || '').toLowerCase().includes(q) ||
+                    String(b.id).includes(q)
+                );
+            }
+            $('#bkArchiveStat-All').text((allBookingsCache || []).filter(b => ARCHIVED_STATUSES.includes((b.status || '').toUpperCase())).length);
+            $('#bkArchiveResultCount').text(filtered.length + ' booking' + (filtered.length !== 1 ? 's' : ''));
+            renderBookingsTable(filtered, '#bookingsArchiveListContainer');
+            $('.bk-archive-pill').each(function() {
+                const s = $(this).data('status');
+                const isActive = s === archiveStatus;
+                $(this).attr('aria-pressed', String(isActive));
+                const colors = window.statusColors(s);
+                if (isActive) {
+                    $(this).css({ 'border-color': colors.color, 'background': colors.tint, 'color': colors.color });
+                    $(this).find('.atl-pill-count').css('color', colors.color);
+                } else {
+                    $(this).css({ 'border-color': '', 'background': '', 'color': '' });
+                    $(this).find('.atl-pill-count').css('color', '');
+                }
+            });
+        }
+        $(document).on('click', '.bk-archive-pill', function() {
+            archiveStatus = $(this).data('status');
+            $('#bkArchiveSearchInput').val('');
+            applyArchiveFilter();
+        });
+        $(document).on('input.bkarchivesearch', '#bkArchiveSearchInput', function() {
+            applyArchiveFilter();
+        });
+        $(document).on('click', '[data-um-tab="bkPanelArchive"]', function() {
+            if (typeof applyArchiveFilter === 'function') applyArchiveFilter();
         });
 
         // ── A3: bulk pipeline actions — select mode + CSV export + bulk cancel ─────
@@ -30711,6 +30921,14 @@
                 <button type="button" class="atl-btn atl-btn--ghost" onclick="removeMilestoneRow('${rowId}', ${bookingId})" style="padding:0;width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-color:var(--atl-line);color:var(--atl-clay);"><i class="fa-solid fa-trash-can" style="font-size:12px;"></i></button>
             </div>
         `);
+        // This row is built dynamically, so it isn't caught by the page-load Flatpickr init —
+        // style it the same way here instead (matches _fpDate's config exactly).
+        if (typeof flatpickr !== 'undefined') {
+            const dueEl = document.querySelector('#' + rowId + ' .milestone-due');
+            if (dueEl && !dueEl._flatpickr) {
+                flatpickr(dueEl, { dateFormat: 'Y-m-d', disableMobile: true, allowInput: false, monthSelectorType: 'static' });
+            }
+        }
     };
     
     window.removeMilestoneRow = function(rowId, bookingId) {
@@ -31864,6 +32082,15 @@
                     </td>`;
                 tbody.appendChild(tr);
             });
+            // These rows are rebuilt from scratch every load, so init Flatpickr here rather than
+            // relying on the page-load pass (matches _fpTime's config exactly).
+            if (typeof flatpickr !== 'undefined') {
+                tbody.querySelectorAll('.wh-start, .wh-end').forEach(el => {
+                    if (!el._flatpickr) {
+                        flatpickr(el, { enableTime: true, noCalendar: true, time_24hr: true, minuteIncrement: 15, dateFormat: 'H:i', disableMobile: true, allowInput: false });
+                    }
+                });
+            }
 
             // Cache per-type buffer defaults for use in per-booking pre-fill
             window.typeBuffersCache = data.type_buffers || {};
