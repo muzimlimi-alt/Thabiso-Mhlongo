@@ -17,3 +17,9 @@ verify_login_logs.js
 # integration test throwaway DB
 test/.test.sqlite
 test/.test.sqlite-*
+
+# Temporary and test files directory
+TBC/
+
+# IDE Workspcace
+Thabiso Mhlongo Official Website.code-workspace

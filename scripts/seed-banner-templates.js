@@ -109,7 +109,7 @@ const TEMPLATE_MAP = {
     }
     console.log(`\ninserted ${inserted} email_template_banners row(s).`);
 
-    const notesPath = path.resolve(__dirname, '..', 'docs', 'banner-migration-notes.md');
+    const notesPath = path.resolve(__dirname, '..', 'TBC', 'docs', 'banner-migration-notes.md');
     const grouped = {};
     for (const [key, category] of Object.entries(TEMPLATE_MAP)) {
         (grouped[category] = grouped[category] || []).push(key);
