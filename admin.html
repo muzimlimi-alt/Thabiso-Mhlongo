@@ -1944,17 +1944,78 @@
         @media (min-width: 480px) { .atl-det-card { padding: 15px; } }
         @media (min-width: 768px) { .atl-det-card { padding: 16px; } }
 
-        /* Panel title */
+        /* Panel title — small uppercase eyebrow label with an optional leading icon */
         .atl-det-title {
-          font-family: 'JetBrains Mono', monospace;
-          font-size: 17px;
+          font-family: 'Outfit', sans-serif;
+          font-size: 10.5px;
           font-weight: 600;
-          text-transform: none;
-          letter-spacing: normal;
-          color: var(--atl-amber);
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+          /* !important: css/redesign.css (loaded for public-site component reuse) carries a blanket
+             h1-h6{color:var(--text-primary)!important} that otherwise wins and renders every card
+             title white regardless of theme — invisible on light theme's cream card background. */
+          color: var(--atl-muted) !important;
           margin-top: 0;
-          margin-bottom: 12px;
+          margin-bottom: 11px;
+          display: flex;
+          align-items: center;
+          gap: 7px;
         }
+        .atl-det-title i { color: var(--atl-amber); font-size: 11px; }
+
+        /* Lead / sub text pairing — a card's primary line + a muted secondary line,
+           used in place of ad-hoc inline font-size/color styling on card content. */
+        .atl-lead {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--atl-ink);
+          margin-bottom: 3px;
+        }
+        .atl-lead .co { font-weight: 400; color: var(--atl-muted); }
+        .atl-sub { font-size: 12.5px; color: var(--atl-muted); }
+
+        /* Informational hint box */
+        .atl-callout {
+          font-size: 11.5px;
+          color: var(--atl-muted);
+          display: flex;
+          gap: 9px;
+          align-items: flex-start;
+          background: var(--atl-surface2);
+          border: 1px solid var(--atl-line);
+          border-radius: var(--atl-r-sm, 6px);
+          padding: 10px 12px;
+          margin-top: 12px;
+        }
+        .atl-callout i { color: var(--atl-amber); font-size: 11px; margin-top: 1px; }
+
+        /* Inline success/checkmark text (e.g. "Signed by client", "Paid 6 Nov") */
+        .atl-pill-ok { color: var(--atl-sage); font-size: 12px; font-weight: 600; }
+        .atl-pill-ok::before { content: "\2713"; margin-right: 4px; }
+
+        /* Activity timeline (Timeline & Notes tab) */
+        .atl-timeline { position: relative; padding-left: 22px; margin-top: 4px; }
+        .atl-timeline::before {
+          content: ""; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 2px;
+          background: var(--atl-line);
+        }
+        .atl-tl-item { position: relative; padding-bottom: 16px; }
+        .atl-tl-item:last-child { padding-bottom: 0; }
+        .atl-tl-item::before {
+          content: ""; position: absolute; left: -21px; top: 3px; width: 10px; height: 10px;
+          border-radius: 50%; background: var(--atl-card); border: 2px solid var(--atl-amber);
+        }
+        .atl-tl-when { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--atl-muted-dim); margin-bottom: 2px; }
+        .atl-tl-what { font-size: 13px; color: var(--atl-ink-dim); font-weight: 500; }
+        .atl-tl-meta { font-size: 11.5px; color: var(--atl-muted); margin-top: 1px; }
+
+        /* Advancing Pack editor (Advancing tab) */
+        .atl-adv-ros-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--atl-line); }
+        .atl-adv-ros-row:last-child { border-bottom: none; }
+        .atl-adv-ros-row .atl-btn { padding: 6px 8px; min-height: 30px; }
+        .atl-adv-contact { padding: 8px 0; border-bottom: 1px solid var(--atl-line); }
+        .atl-adv-contact:last-child { border-bottom: none; }
+        .atl-adv-contacts-auto { margin-bottom: 4px; }
 
         /* Two-column grid — full responsive breakpoint range */
         /* Base: single column for all phone widths */
@@ -4589,6 +4650,7 @@
         .atl-drawer--600 { width: 600px; }
         .atl-drawer--640 { width: 640px; }
         .atl-drawer--680 { width: 680px; }
+        .atl-drawer--760 { width: 760px; }
         .atl-drawer--860 { width: 860px; }
         .atl-drawer--open { transform: translateX(0); box-shadow: -10px 0 48px rgba(0,0,0,.5); }
         .atl-drawer__header {
@@ -4618,6 +4680,60 @@
             .atl-drawer__body { padding: 16px; }
             .atl-drawer__header { padding: 14px 16px; }
             .atl-drawer__footer { padding: 14px 16px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+        }
+
+        /* ── Deal View (booking) — tabbed content, built on the ATL Generic Drawer System above ── */
+        .dv-breadcrumb { font-size: 11px; color: var(--atl-muted); letter-spacing: .04em; }
+        .dv-breadcrumb .cur { color: var(--atl-ink-dim); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+        .dv-subhead { padding: 16px 24px 0; border-bottom: 1px solid var(--atl-line); flex-shrink: 0; }
+        /* !important: css/redesign.css's blanket h1-h6{color:var(--text-primary)!important} otherwise
+           wins and renders this heading white regardless of theme (see .atl-det-title above). */
+        .dv-title { font-family: 'Cormorant Garamond', Georgia, serif; font-size: clamp(22px,4vw,28px); font-weight: 600; line-height: 1.1; margin: 0 0 4px; color: var(--atl-ink) !important; }
+        .dv-subtitle { font-size: 13px; color: var(--atl-muted); margin-bottom: 12px; }
+        .dv-subtitle b { color: var(--atl-ink-dim); font-weight: 500; }
+        .dv-statusrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px; }
+        .dv-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+        .dv-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--atl-ink-dim); background: var(--atl-input-bg); border: 1px solid var(--atl-line); border-radius: var(--atl-r-pill); padding: 5px 12px; }
+        .dv-chip.gold { color: var(--atl-amber); border-color: var(--atl-amber-border); background: var(--atl-amber-dim); }
+        .dv-chip .m { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+        .dv-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+
+        .dv-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+        .dv-tabs::-webkit-scrollbar { display: none; }
+        .dv-tab { position: relative; white-space: nowrap; background: transparent; border: none; padding: 11px 13px 13px; font-size: 12.5px; font-weight: 500; color: var(--atl-muted); font-family: 'Outfit', sans-serif; letter-spacing: .01em; transition: color .2s ease; cursor: pointer; }
+        .dv-tab:hover { color: var(--atl-ink-dim); }
+        .dv-tab[aria-selected="true"] { color: var(--atl-amber); font-weight: 600; }
+        .dv-tab[aria-selected="true"]::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: -1px; height: 2px; background: var(--atl-amber); border-radius: 2px 2px 0 0; }
+
+        .dv-panel[hidden] { display: none; }
+        .dv-panel { animation: dvFade .3s ease; }
+        @keyframes dvFade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .dv-panel { animation: none; } }
+
+        /* Advancing tab — presentational stub reserving the slot; Part II fills it in */
+        .dv-empty { text-align: center; padding: 26px 20px 22px; border: 1.5px dashed var(--atl-line-strong); border-radius: var(--atl-r-lg); background: var(--atl-input-bg); margin-bottom: 18px; }
+        .dv-empty .ico { font-size: 24px; color: var(--atl-amber); opacity: .85; margin-bottom: 8px; }
+        .dv-empty h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 19px; font-weight: 600; margin: 0 0 6px; color: var(--atl-ink) !important; }
+        .dv-empty p { font-size: 12.5px; color: var(--atl-muted); max-width: 420px; margin: 0 auto 14px; line-height: 1.55; }
+        .dv-ghost-sketch { opacity: .5; pointer-events: none; }
+        .dv-ghost-label { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--atl-muted-dim); text-align: center; margin: 4px 0 12px; }
+        .dv-ghost-card { background: var(--atl-input-bg); border: 1px dashed var(--atl-line); border-radius: var(--atl-r-md); padding: 12px; margin-bottom: 8px; }
+        .dv-ghost-card .gt { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--atl-muted); font-weight: 600; margin-bottom: 6px; }
+        .dv-ghost-line { height: 8px; border-radius: 4px; background: var(--atl-surface2); margin-bottom: 6px; }
+        .dv-ghost-line.s { width: 55%; } .dv-ghost-line.m { width: 80%; }
+        .dv-ghost-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        @media (max-width: 560px) { .dv-ghost-grid { grid-template-columns: 1fr; } }
+
+        /* Files tab */
+        .dv-filegrid { display: grid; grid-template-columns: repeat(auto-fill,minmax(170px,1fr)); gap: 10px; }
+        .dv-file { display: flex; align-items: center; gap: 10px; background: var(--atl-surface2); border: 1px solid var(--atl-line); border-radius: var(--atl-r-sm); padding: 11px; text-decoration: none; transition: all .2s ease; }
+        .dv-file:hover { border-color: var(--atl-amber-border); background: var(--atl-input-bg); }
+        .dv-file .ico { width: 32px; height: 32px; border-radius: 7px; display: grid; place-items: center; font-size: 12px; flex-shrink: 0; background: var(--atl-amber-dim); color: var(--atl-amber); font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+        .dv-file .fn { font-size: 11.5px; color: var(--atl-ink-dim); font-weight: 500; word-break: break-word; line-height: 1.3; }
+        .dv-file .fm { font-size: 10.5px; color: var(--atl-muted-dim); margin-top: 2px; }
+
+        @media (max-width: 640px) {
+            .dv-subhead { padding: 14px 16px 0; }
         }
 
         /* ── Legal & Compliance Centre ── */
@@ -6605,6 +6721,36 @@
                         .bk-bulk-selectall { font-size:12.5px; color:var(--atl-muted); display:inline-flex; align-items:center; gap:6px; cursor:pointer; margin:0; }
                         .bk-bulk-selectall input { accent-color:var(--atl-amber); cursor:pointer; }
                         .bk-bulk-actions { display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
+
+                        /* ── Bookings list — compact table (Pipeline + Archive), mirrors the
+                           atelier-deal-view-mockup.html reference table ── */
+                        .atl-bk-table-wrap { overflow-x:auto; border:1px solid var(--atl-line); border-radius:var(--atl-r-lg); background:var(--atl-card); -webkit-overflow-scrolling:touch; }
+                        .atl-bk-table { width:100%; border-collapse:collapse; }
+                        .atl-bk-table thead th {
+                          text-align:left; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--atl-muted-dim);
+                          font-weight:600; padding:13px 16px; border-bottom:1px solid var(--atl-line); background:var(--atl-surface2);
+                          white-space:nowrap;
+                        }
+                        .atl-bk-table thead th.r { text-align:right; }
+                        .atl-bk-table tbody tr { cursor:pointer; transition:background var(--atl-t-fast); border-bottom:1px solid var(--atl-line); }
+                        .atl-bk-table tbody tr:last-child { border-bottom:none; }
+                        .atl-bk-table tbody tr:hover { background:var(--atl-surface2); }
+                        .atl-bk-table tbody tr:focus-visible { outline:2px solid var(--atl-focus); outline-offset:-2px; }
+                        .atl-bk-table td { padding:14px 16px; font-size:13px; color:var(--atl-ink-dim); vertical-align:top; }
+                        .atl-bk-ref { font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--atl-muted); white-space:nowrap; }
+                        .atl-bk-ev { font-weight:600; color:var(--atl-ink); font-size:13.5px; margin-bottom:4px; }
+                        .atl-bk-client { white-space:nowrap; }
+                        .atl-bk-date { white-space:nowrap; font-size:12.5px; }
+                        .atl-bk-status { white-space:nowrap; }
+                        .atl-bk-status .atl-payment-badge { margin-left:6px; }
+                        .atl-bk-fee { font-family:'JetBrains Mono', monospace; font-size:12.5px; text-align:right; white-space:nowrap; }
+                        .atl-bk-select-cell, .atl-bk-select-th { width:36px; padding-left:16px; padding-right:0; display:none; }
+                        #bookingsListContainer.bk-select-mode .atl-bk-select-cell,
+                        #bookingsListContainer.bk-select-mode .atl-bk-select-th { display:table-cell; }
+                        .atl-bk-select-cell .bk-select-box, .atl-bk-select-th .bk-select-box { position:static; display:block; }
+                        @media (max-width:900px) {
+                          .atl-bk-th-ref, .atl-bk-ref, .atl-bk-th-date, .atl-bk-date { display:none; }
+                        }
                     </style>
                     <div id="bkBulkBar" class="bk-bulk-bar" style="display:none;">
                         <span class="bk-bulk-count"><span id="bkBulkCount">0</span> selected</span>
@@ -12026,193 +12172,527 @@
             $panel.html(html);
         }
 
-        window.toggleBookingDetail = function(bookingId, forceOpen) {
-            const $card = $(`.atl-booking-card:not(.atl-event-card)[data-id="${bookingId}"]`);
-            if (!$card.length) return;
-            const $region = $card.find('.atl-detail-region');
+        // Once-only guards, keyed per booking id — mirror the old per-row $region.data('loaded'),
+        // but keyed on id instead of a DOM node since the drawer's panels are now rebuilt per open.
+        let dealViewLoadedIds = {};
+        let dealViewTimelineLoaded = {};
+        let dealViewAdvancingLoaded = {};
+        let dealViewTriggerBookingId = null;
 
-            const currentOpen = $region.hasClass('open');
-            const nextOpen = (forceOpen !== undefined) ? forceOpen : !currentOpen;
-            
-            if (nextOpen === currentOpen) return;
-            
-            if (nextOpen) {
-                $region.addClass('open');
-                
-                // Initialize autocomplete for venue linking
-                if (typeof window.initBookingVenueAutocomplete === 'function') {
-                    window.initBookingVenueAutocomplete(bookingId);
-                }
-                
-                // Auto-load and display notes when card expands
-                fetch('/api/admin/bookings/' + bookingId + '/notes', { credentials: 'same-origin' })
-                    .then(r => r.json())
-                    .then(d => {
-                        if (d.success && d.notes) {
-                            renderNotesThread(bookingId, d.notes);
-                            $(`#notes-thread-${bookingId}`).show();
-                        }
-                    }).catch(() => {});
-
-                // Auto-load email communication history when card expands
-                fetch('/api/admin/bookings/' + bookingId + '/communications', { credentials: 'same-origin' })
-                    .then(r => r.json())
-                    .then(function(d) { renderCommsThread(bookingId, d.logs); })
-                    .catch(function() {});
-
-                // Determine if lazy-loaded info was already loaded
-                if ($region.data('loaded')) {
-                    return;
-                }
-                $region.data('loaded', true);
-
-                Promise.all([
-                    fetch('/api/admin/bookings/' + bookingId + '/details',       { credentials:'same-origin' }).then(r => r.json()),
-                    fetch('/api/admin/bookings/' + bookingId + '/quote-history',  { credentials:'same-origin' }).then(r => r.json()).catch(() => []),
-                    fetch('/api/admin/bookings/' + bookingId + '/contract',       { credentials:'same-origin' }).then(r => r.json()).catch(() => null)
-                ]).then(function([d, history, contract]) {
-                    // 1. Line Items Panel
-                    let lineItemsHtml = '';
-                    if (d.line_items && d.line_items.length) {
-                        var liRows = d.line_items.map(function(li) {
-                            var qty  = li.quantity_minutes || li.quantity || 0;
-                            var unit = parseFloat(li.unit_price);
-                            var tot  = parseFloat(li.total_price || unit * qty);
-                            return '<tr>'
-                                + '<td data-label="Service">'      + (li.service_name || li.description || '—') + '</td>'
-                                + '<td data-label="Qty" class="right atl-det-tabular">'   + qty + ' ' + (li.display_unit || 'min') + '</td>'
-                                + '<td data-label="Unit" class="right atl-det-tabular">R ' + unit.toFixed(2) + '</td>'
-                                + '<td data-label="Total" class="right atl-det-tabular" style="font-weight:700;">R ' + tot.toFixed(2) + '</td>'
-                                + '</tr>';
-                        }).join('');
-
-                        lineItemsHtml =
-                            '<div class="atl-det-card">'
-                            + '<h5 class="atl-det-title">Line items</h5>'
-                            + '<div class="atl-det-table-wrap">'
-                            + '<table class="atl-det-table atl-det-table-responsive">'
-                            + '<thead><tr>'
-                            + '<th>Service</th>'
-                            + '<th class="right">Qty</th>'
-                            + '<th class="right">Unit</th>'
-                            + '<th class="right">Total</th>'
-                            + '</tr></thead>'
-                            + '<tbody>' + liRows + '</tbody>'
-                            + '</table></div></div>';
-                    }
-                    var emptyLineItemsHtml = '<div class="atl-det-card">'
-                        + '<h5 class="atl-det-title">Line items</h5>'
-                        + '<p class="atl-det-empty">No line items on record.</p>'
-                        + '</div>';
-                    $('#atl-lineitems-' + bookingId).html(lineItemsHtml || emptyLineItemsHtml);
-
-                    // 2. Transactions Panel
-                    let transactionsHtml = '';
-                    if (d.transactions && d.transactions.length) {
-                        var txRows = d.transactions.map(function(t) {
-                            var isRefund = (t.transaction_type || '').toLowerCase() === 'refund';
-                            var sc = isRefund ? 'var(--atl-clay)'
-                                   : t.status === 'completed' ? 'var(--atl-sage)'
-                                   : t.status === 'failed'    ? 'var(--atl-clay)'
-                                   : 'var(--atl-orange)';
-                            var amtStyle  = isRefund ? 'color:var(--atl-clay);font-weight:700;' : 'font-weight:700;';
-                            var refundBadge = isRefund
-                                ? '<span style="font-size:9px;background:rgba(248,113,113,0.12);color:var(--atl-clay);'
-                                  + 'padding:1px 5px;border-radius:3px;margin-right:4px;font-weight:700;">REFUND</span>'
-                                : '';
-                            var dateStr = t.transaction_date
-                                ? new Date(t.transaction_date).toLocaleDateString('en-ZA') : '—';
-                            return '<tr>'
-                                + '<td data-label="Date">' + dateStr + '</td>'
-                                + '<td data-label="Method">' + refundBadge + (t.payment_method || '—') + '</td>'
-                                + '<td data-label="Reference" style="font-size:11px;opacity:.75;">'
-                                  + (t.reference || t.reference_number || '—') + '</td>'
-                                + '<td data-label="Amount" class="right atl-det-tabular" style="' + amtStyle + '">'
-                                  + (isRefund ? '–' : '') + 'R ' + parseFloat(t.amount).toFixed(2) + '</td>'
-                                + '<td data-label="Status" style="color:' + sc + ';font-size:11px;">' + t.status + '</td>'
-                                + '</tr>';
-                        }).join('');
-
-                        transactionsHtml =
-                            '<div class="atl-det-card">'
-                            + '<h5 class="atl-det-title">Transactions</h5>'
-                            + '<div class="atl-det-table-wrap">'
-                            + '<table class="atl-det-table atl-det-table-responsive">'
-                            + '<thead><tr>'
-                            + '<th>Date</th><th>Method</th><th>Reference</th>'
-                            + '<th class="right">Amount</th><th>Status</th>'
-                            + '</tr></thead>'
-                            + '<tbody>' + txRows + '</tbody>'
-                            + '</table></div></div>';
-                    } else {
-                        transactionsHtml =
-                            '<div class="atl-det-card">'
-                            + '<h5 class="atl-det-title">Transactions</h5>'
-                            + '<p class="atl-det-empty">No transactions recorded.</p>'
-                            + '</div>';
-                    }
-                    $('#atl-transactions-' + bookingId).html(transactionsHtml);
-
-                    // 3. History Panel
-                    let historyHtml = '';
-                    if (history.length >= 2) {
-                        var histRows = history.map(function(q) {
-                            var active  = !q.archived;
-                            var qDate   = q.created_at ? new Date(q.created_at).toLocaleDateString('en-ZA') : '—';
-                            var pdfLink = q.pdf_url
-                                ? '<a href="' + q.pdf_url + '" target="_blank" rel="noopener" class="atl-det-link">View PDF</a>'
-                                : '—';
-                            var stHtml = active
-                                ? '<span style="color:var(--atl-sage);font-weight:600;">● Active</span>'
-                                : '<span style="color:var(--atl-muted);">Superseded</span>';
-                            return '<tr class="' + (active ? 'atl-det-active-row' : '') + '">'
-                                + '<td data-label="Version" style="color:' + (active ? 'var(--atl-amber)' : 'var(--atl-muted)') + ';">'
-                                  + 'v' + q.version + (active ? ' ✦' : '') + '</td>'
-                                + '<td data-label="Date">' + qDate + '</td>'
-                                + '<td data-label="Total" class="right atl-det-tabular">R ' + parseFloat(q.total_amount||0).toFixed(2) + '</td>'
-                                + '<td data-label="Status">' + stHtml + '</td>'
-                                + '<td data-label="PDF">' + pdfLink + '</td>'
-                                + '</tr>';
-                        }).join('');
-
-                        historyHtml =
-                            '<div class="atl-det-card">'
-                            + '<h5 class="atl-det-title">Quote history</h5>'
-                            + '<div class="atl-det-table-wrap">'
-                            + '<table class="atl-det-table atl-det-table-responsive">'
-                            + '<thead><tr>'
-                            + '<th>Version</th><th>Date</th>'
-                            + '<th class="right">Total</th><th>Status</th><th>PDF</th>'
-                            + '</tr></thead>'
-                            + '<tbody>' + histRows + '</tbody>'
-                            + '</table></div></div>';
-                    }
-                    $('#atl-history-' + bookingId).html(historyHtml || '');
-
-                    // 4. Contract panel
-                    // GET /contract returns an envelope { success, contract } — pass the row, not the
-                    // envelope, or pdf_url/status read as undefined and the panel falsely shows
-                    // "Generate Contract" with no PDF (same unwrap as the post-generate path below).
-                    renderInlineContractPanel(bookingId, contract && contract.contract);
-
-                    // 5. Cancellation panel
-                    var statusBadgeText = ($card.find('.atl-status-badge').text() || '').replace(/\s+/g, ' ').trim().toUpperCase();
-                    if (statusBadgeText.includes('CANCELLED')) {
-                        renderInlineCancellationPanel(bookingId, d);
-                    }
-
-                    // 6. Payment schedule lazy loading
-                    if (typeof window.loadBookingPaymentSchedule === 'function') {
-                        window.loadBookingPaymentSchedule(bookingId);
+        function loadDealViewTimelineData(bookingId) {
+            fetch('/api/admin/bookings/' + bookingId + '/notes', { credentials: 'same-origin' })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.success && d.notes) {
+                        renderNotesThread(bookingId, d.notes);
+                        $(`#notes-thread-${bookingId}`).show();
                     }
                 }).catch(function(err) {
-                    console.error("Error loading lazy details: ", err);
-                    $('#atl-lineitems-' + bookingId).html('<div class="atl-det-card"><p class="atl-det-empty">Failed to load details.</p></div>');
-                    $('#atl-transactions-' + bookingId).html('<div class="atl-det-card"><p class="atl-det-empty">Failed to load details.</p></div>');
+                    console.error('Error loading notes:', err);
+                    if (window.notificationService) window.notificationService.showError('Could not load notes for this booking.');
                 });
-            } else {
-                $region.removeClass('open');
+
+            fetch('/api/admin/bookings/' + bookingId + '/communications', { credentials: 'same-origin' })
+                .then(r => r.json())
+                .then(function(d) { renderCommsThread(bookingId, d.logs); })
+                .catch(function(err) {
+                    console.error('Error loading communications:', err);
+                    if (window.notificationService) window.notificationService.showError('Could not load email history for this booking.');
+                });
+        }
+
+        // Advancing tab is rebuilt wholesale from a fresh GET after every save/CRUD action —
+        // simplest way to stay in sync with server-assigned ids and re-derived status/timestamps.
+        function advReloadPanel(bookingId) {
+            fetch('/api/admin/bookings/' + bookingId + '/advancing', { credentials: 'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(d) {
+                    if (d.success) $('#dv-panel-advancing').html(buildAdvancingPanel(d, bookingId));
+                    else if (window.notificationService) window.notificationService.showError(d.message || 'Could not load the advancing pack.');
+                })
+                .catch(function(err) {
+                    console.error('Error loading advancing pack:', err);
+                    if (window.notificationService) window.notificationService.showError('Could not load the advancing pack.');
+                });
+        }
+        function loadDealViewAdvancingData(bookingId) { advReloadPanel(bookingId); }
+
+        // Collects every .adv-field (Technical/Hospitality/Travel/Notes) for the Save Draft button —
+        // scoped to this booking's panel via the data-booking-id wrapper, not a global selector.
+        function advCollectFields(bookingId) {
+            const fields = {};
+            $(`.atl-det-col[data-booking-id="${bookingId}"] .adv-field`).each(function() {
+                fields[$(this).data('field')] = $(this).val();
+            });
+            return fields;
+        }
+
+        // ARIA tabs controller for the Deal View drawer (mirrors the .cal-sidebar-tab pattern).
+        // Deliberately NOT named switchTab — that name is already the admin-section navigator.
+        function dvActivateTab(tabEl, moveFocus) {
+            if (!tabEl) return;
+            var tabs = Array.prototype.slice.call(document.querySelectorAll('#dvTabs .dv-tab'));
+            tabs.forEach(function(t) {
+                var on = t === tabEl;
+                t.setAttribute('aria-selected', on ? 'true' : 'false');
+                t.setAttribute('tabindex', on ? '0' : '-1');
+                var panel = document.getElementById(t.getAttribute('aria-controls'));
+                if (panel) panel.hidden = !on;
+            });
+            if (moveFocus !== false) tabEl.focus();
+            $('#dealViewDrawer .atl-drawer__body').scrollTop(0);
+
+            if (tabEl.id === 'dv-tab-timeline') {
+                var bookingId = $('#dealViewDrawer').data('bookingId');
+                if (bookingId && !dealViewTimelineLoaded[bookingId]) {
+                    dealViewTimelineLoaded[bookingId] = true;
+                    loadDealViewTimelineData(bookingId);
+                }
             }
+            if (tabEl.id === 'dv-tab-advancing') {
+                var advBookingId = $('#dealViewDrawer').data('bookingId');
+                if (advBookingId && !dealViewAdvancingLoaded[advBookingId]) {
+                    var advRow = allBookingsCache.find(function(b) { return b.id == advBookingId; });
+                    var advStatus = advRow ? (advRow.status || '').toUpperCase() : '';
+                    if (advStatus === 'CONFIRMED' || advStatus === 'COMPLETED') {
+                        dealViewAdvancingLoaded[advBookingId] = true;
+                        loadDealViewAdvancingData(advBookingId);
+                    }
+                }
+            }
+        }
+        $(document).off('click.dvtab').on('click.dvtab', '#dvTabs .dv-tab', function() {
+            dvActivateTab(this, false);
+        });
+        $(document).off('keydown.dvtab').on('keydown.dvtab', '#dvTabs .dv-tab', function(e) {
+            var tabs = Array.prototype.slice.call(document.querySelectorAll('#dvTabs .dv-tab'));
+            var i = tabs.indexOf(this);
+            var idx = null;
+            if (e.key === 'ArrowRight') idx = (i + 1) % tabs.length;
+            else if (e.key === 'ArrowLeft') idx = (i - 1 + tabs.length) % tabs.length;
+            else if (e.key === 'Home') idx = 0;
+            else if (e.key === 'End') idx = tabs.length - 1;
+            if (idx !== null) { e.preventDefault(); dvActivateTab(tabs[idx]); }
+        });
+        // Return focus to the triggering row when the Deal View drawer closes (any close path —
+        // overlay click, close button, or the global Esc handler already wired to .atl-drawer--open).
+        document.addEventListener('atl:drawerClosed', function(e) {
+            if (!e.detail || e.detail.id !== 'dealViewDrawer' || !dealViewTriggerBookingId) return;
+            var $row = $(`.atl-bk-row[data-id="${dealViewTriggerBookingId}"]`);
+            if ($row.length) { $row.attr('tabindex', '-1').trigger('focus'); }
+            dealViewTriggerBookingId = null;
+        });
+
+        // ═══ Advancing Pack — actions bar ═══
+        $(document).on('click', '.adv-save-btn', async function() {
+            const id = $(this).data('id');
+            try {
+                const res = await apiCall('/api/admin/bookings/' + id + '/advancing', 'PUT', advCollectFields(id));
+                if (res && res.success) { if (window.notificationService) window.notificationService.showSuccess('Advancing pack saved.'); }
+                else if (window.notificationService) window.notificationService.showError((res && res.message) || 'Could not save the advancing pack.');
+            } catch (e) {
+                console.error('Advancing save failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not save the advancing pack.');
+            }
+        });
+
+        $(document).on('click', '.adv-preview-btn', async function() {
+            const id = $(this).data('id');
+            try {
+                const res = await apiCall('/api/admin/bookings/' + id + '/advancing/pdf', 'POST', {});
+                if (res && res.success) window.open('/api/admin/bookings/' + id + '/advancing/download', '_blank');
+                else if (window.notificationService) window.notificationService.showError((res && res.message) || 'Could not generate the PDF.');
+            } catch (e) {
+                console.error('Advancing PDF generation failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not generate the PDF.');
+            }
+        });
+
+        $(document).on('click', '.adv-send-btn', async function() {
+            const id = $(this).data('id');
+            const ok = await window.notificationService.showConfirm({ message: 'Send the advancing pack to the client and venue now?' });
+            if (!ok) return;
+            try {
+                const res = await apiCall('/api/admin/bookings/' + id + '/advancing/send', 'POST', {});
+                if (res && res.success) { if (window.notificationService) window.notificationService.showSuccess('Advancing pack sent.'); advReloadPanel(id); }
+                else if (window.notificationService) window.notificationService.showError((res && res.message) || 'Could not send the advancing pack.');
+            } catch (e) {
+                console.error('Advancing send failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not send the advancing pack.');
+            }
+        });
+
+        $(document).on('click', '.adv-confirm-btn', async function() {
+            const id = $(this).data('id');
+            try {
+                const res = await apiCall('/api/admin/bookings/' + id + '/advancing/confirm', 'POST', {});
+                if (res && res.success) { if (window.notificationService) window.notificationService.showSuccess('Advancing pack marked confirmed.'); advReloadPanel(id); }
+                else if (window.notificationService) window.notificationService.showError((res && res.message) || 'Could not confirm the advancing pack.');
+            } catch (e) {
+                console.error('Advancing confirm failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not confirm the advancing pack.');
+            }
+        });
+
+        // ═══ Advancing Pack — run-of-show ═══
+        $(document).on('click', '.adv-ros-add', async function() {
+            const bookingId = $(this).data('id');
+            const $card = $(this).closest('.atl-det-card');
+            const time_label = $card.find('.adv-ros-new-time').val();
+            const title = $card.find('.adv-ros-new-title').val();
+            if (!title || !title.trim()) { if (window.notificationService) window.notificationService.showWarning('Title required', 'Enter a run-of-show title.'); return; }
+            try {
+                const res = await apiCall('/api/admin/bookings/' + bookingId + '/advancing/run-of-show', 'POST', { time_label, title });
+                if (res && res.success) advReloadPanel(bookingId);
+                else if (window.notificationService) window.notificationService.showError((res && res.message) || 'Could not add the item.');
+            } catch (e) {
+                console.error('ROS add failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not add the run-of-show item.');
+            }
+        });
+
+        $(document).on('change', '.atl-adv-ros-row input', async function() {
+            const $row = $(this).closest('.atl-adv-ros-row');
+            const body = {
+                time_label: $row.find('.adv-ros-time').val(),
+                title: $row.find('.adv-ros-title').val(),
+                detail: $row.find('.adv-ros-detail').val(),
+                responsible: $row.find('.adv-ros-resp').val()
+            };
+            if (!body.title || !body.title.trim()) { if (window.notificationService) window.notificationService.showWarning('Title required', 'A run-of-show item needs a title.'); return; }
+            try {
+                await apiCall('/api/admin/advancing/run-of-show/' + $row.data('id'), 'PUT', body);
+            } catch (e) {
+                console.error('ROS update failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not save that change.');
+            }
+        });
+
+        $(document).on('click', '.adv-ros-delete', async function() {
+            const itemId = $(this).data('id');
+            const bookingId = $(this).closest('.atl-det-col').data('booking-id');
+            try {
+                const res = await apiCall('/api/admin/advancing/run-of-show/' + itemId, 'DELETE');
+                if (res && res.success) advReloadPanel(bookingId);
+            } catch (e) {
+                console.error('ROS delete failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not delete the item.');
+            }
+        });
+
+        $(document).on('click', '.adv-ros-up, .adv-ros-down', async function() {
+            const up = $(this).hasClass('adv-ros-up');
+            const bookingId = $(this).closest('.atl-det-col').data('booking-id');
+            const ids = $(this).closest('.atl-adv-ros-list').find('.atl-adv-ros-row').map(function() { return $(this).data('id'); }).get();
+            const idx = ids.indexOf($(this).data('id'));
+            const swapWith = up ? idx - 1 : idx + 1;
+            if (swapWith < 0 || swapWith >= ids.length) return;
+            const tmp = ids[idx]; ids[idx] = ids[swapWith]; ids[swapWith] = tmp;
+            try {
+                const res = await apiCall('/api/admin/bookings/' + bookingId + '/advancing/run-of-show/reorder', 'PUT', { orderedIds: ids });
+                if (res && res.success) advReloadPanel(bookingId);
+            } catch (e) {
+                console.error('ROS reorder failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not reorder the run-of-show.');
+            }
+        });
+
+        // ═══ Advancing Pack — extra contacts ═══
+        $(document).on('click', '.adv-contact-add', async function() {
+            const bookingId = $(this).data('id');
+            const $card = $(this).closest('.atl-det-card');
+            const role = $card.find('.adv-contact-new-role').val();
+            const name = $card.find('.adv-contact-new-name').val();
+            const phone = $card.find('.adv-contact-new-phone').val();
+            const email = $card.find('.adv-contact-new-email').val();
+            if (!name || !name.trim()) { if (window.notificationService) window.notificationService.showWarning('Name required', 'Enter a contact name.'); return; }
+            try {
+                const res = await apiCall('/api/admin/bookings/' + bookingId + '/advancing/contacts', 'POST', { role, name, phone, email });
+                if (res && res.success) advReloadPanel(bookingId);
+                else if (window.notificationService) window.notificationService.showError((res && res.message) || 'Could not add the contact.');
+            } catch (e) {
+                console.error('Contact add failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not add the contact.');
+            }
+        });
+
+        $(document).on('click', '.adv-contact-delete', async function() {
+            const contactId = $(this).data('id');
+            const bookingId = $(this).closest('.atl-det-col').data('booking-id');
+            try {
+                const res = await apiCall('/api/admin/advancing/contacts/' + contactId, 'DELETE');
+                if (res && res.success) advReloadPanel(bookingId);
+            } catch (e) {
+                console.error('Contact delete failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not delete the contact.');
+            }
+        });
+
+        window.toggleBookingDetail = function(bookingId, forceOpen) {
+            const row = allBookingsCache.find(function(b) { return b.id == bookingId; });
+            if (!row) return;
+
+            const $drawer = $('#dealViewDrawer');
+            const isThisOneOpen = $drawer.hasClass('atl-drawer--open') && $drawer.data('bookingId') == bookingId;
+            const nextOpen = (forceOpen !== undefined) ? forceOpen : !isThisOneOpen;
+
+            if (!nextOpen) {
+                window.closeAtlDrawer('dealViewDrawer');
+                return;
+            }
+
+            const $card = $(`.atl-bk-row[data-id="${bookingId}"]`);
+            dealViewTriggerBookingId = bookingId;
+            $drawer.data('bookingId', bookingId);
+
+            const s  = (row.status || 'PENDING').toUpperCase();
+            const ps = (row.payment_status || 'UNPAID').toUpperCase();
+            const sLbl   = { NEW:'New', PENDING:'Pending', QUOTED:'Quoted', ACCEPTED:'Accepted', CONFIRMED:'Confirmed', COMPLETED:'Completed', EXPIRED:'Expired', CANCELLED:'Cancelled', REJECTED:'Rejected' };
+            const payLbl = { PAID:'✓ Paid', DEPOSIT_PAID:'◐ Deposit', PARTIALLY_PAID:'◑ Partial', UNPAID:'○ Unpaid', FAILED:'✕ Failed', CANCELLED:'✕ Cancelled' };
+            const colors = window.statusColors(s);
+
+            // ── Header ──
+            $('#dvBreadcrumbCur').text('#' + row.id);
+            $('#dvTitle').text(row.event_name || row.event_type || '—');
+            $('#dvSubtitle').html(`${row.event_type ? row.event_type + ' · ' : ''}<b>${row.name}</b>${row.company ? ' · ' + row.company : ''}`);
+            $('#dvStatusRow').html(
+                `<span class="atl-status-badge" style="background:${colors.tint}; color:${colors.color}; padding:4px 10px; border-radius:999px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+                    <span class="atl-pill-dot" style="background:${colors.color}; width:7px; height:7px; border-radius:50%; display:inline-block;"></span>
+                    ${s === 'ACCEPTED' ? 'Accepted' : (sLbl[s] || s)}
+                 </span>
+                 <span class="atl-payment-badge">${payLbl[ps] || ps}</span>`
+            );
+            const chips = [];
+            if (row.date) chips.push(`<span class="dv-chip"><i class="fa-regular fa-calendar"></i>&nbsp;${row.date}${row.event_start_time ? ' · ' + row.event_start_time : ''}</span>`);
+            if (row.event_location) chips.push(`<span class="dv-chip"><i class="fa-solid fa-location-dot"></i>&nbsp;${row.event_location}</span>`);
+            if (row.quote_amount) chips.push(`<span class="dv-chip gold"><span class="m">R ${parseFloat(row.quote_amount).toFixed(2)}</span></span>`);
+            if (parseFloat(row.amount_outstanding) > 0) chips.push(`<span class="dv-chip"><span class="m">Outstanding R ${parseFloat(row.amount_outstanding).toFixed(2)}</span></span>`);
+            $('#dvChips').html(chips.join(''));
+
+            // Actions — reuse the row's own already-rendered action bar verbatim, so every
+            // delegated handler (bk-action-quote, bk-action-gen-invoice, etc.) keeps working untouched.
+            $('#dvActions').html($card.find('.atl-card-actions-bar').first().html() || '');
+
+            // ── Panels ──
+            $('#dv-panel-overview').html(buildOverviewPanel(row));
+            $('#dv-panel-offer').html(buildOfferPanel(row));
+            $('#dv-panel-invoices').html(buildInvoicesPanel(row));
+            // Real editor loads lazily on first Advancing-tab activation (dvActivateTab) once
+            // CONFIRMED+ — until then (or while waiting), show the locked stub / a loading state.
+            $('#dv-panel-advancing').html(
+                (s === 'CONFIRMED' || s === 'COMPLETED')
+                    ? '<div class="atl-det-loading"><span class="atl-spinner" aria-hidden="true"></span><span>Loading advancing pack…</span></div>'
+                    : buildAdvancingStub(row)
+            );
+            $('#dv-panel-timeline').html(buildTimelinePanel(row));
+            $('#dv-panel-files').html(buildFilesPanel(row));
+
+            // Always land on Overview when opening (possibly a different) booking.
+            dvActivateTab(document.getElementById('dv-tab-overview'), false);
+
+            window.openAtlDrawer('dealViewDrawer');
+            $drawer.find('.atl-drawer__close').trigger('focus');
+
+            // Venue autocomplete lives on the Overview panel — re-run every open (F5).
+            if (typeof window.initBookingVenueAutocomplete === 'function') {
+                window.initBookingVenueAutocomplete(bookingId);
+            }
+
+            // Once-only guard (F3) — fetch the heavier resources at most once per booking per
+            // list-render, matching the old $region.data('loaded') behaviour.
+            if (dealViewLoadedIds[bookingId]) return;
+            dealViewLoadedIds[bookingId] = true;
+
+            Promise.all([
+                fetch('/api/admin/bookings/' + bookingId + '/details',       { credentials:'same-origin' }).then(r => r.json()),
+                fetch('/api/admin/bookings/' + bookingId + '/quote-history',  { credentials:'same-origin' }).then(r => r.json()).catch(() => []),
+                fetch('/api/admin/bookings/' + bookingId + '/contract',       { credentials:'same-origin' }).then(r => r.json()).catch(() => null)
+            ]).then(function([d, history, contract]) {
+                // 1. Line Items Panel
+                let lineItemsHtml = '';
+                if (d.line_items && d.line_items.length) {
+                    var liRows = d.line_items.map(function(li) {
+                        var qty  = li.quantity_minutes || li.quantity || 0;
+                        var unit = parseFloat(li.unit_price);
+                        var tot  = parseFloat(li.total_price || unit * qty);
+                        return '<tr>'
+                            + '<td data-label="Service">'      + (li.service_name || li.description || '—') + '</td>'
+                            + '<td data-label="Qty" class="right atl-det-tabular">'   + qty + ' ' + (li.display_unit || 'min') + '</td>'
+                            + '<td data-label="Unit" class="right atl-det-tabular">R ' + unit.toFixed(2) + '</td>'
+                            + '<td data-label="Total" class="right atl-det-tabular" style="font-weight:700;">R ' + tot.toFixed(2) + '</td>'
+                            + '</tr>';
+                    }).join('');
+
+                    lineItemsHtml =
+                        '<div class="atl-det-card">'
+                        + '<h5 class="atl-det-title">Line items</h5>'
+                        + '<div class="atl-det-table-wrap">'
+                        + '<table class="atl-det-table atl-det-table-responsive">'
+                        + '<thead><tr>'
+                        + '<th>Service</th>'
+                        + '<th class="right">Qty</th>'
+                        + '<th class="right">Unit</th>'
+                        + '<th class="right">Total</th>'
+                        + '</tr></thead>'
+                        + '<tbody>' + liRows + '</tbody>'
+                        + '</table></div></div>';
+                }
+                var emptyLineItemsHtml = '<div class="atl-det-card">'
+                    + '<h5 class="atl-det-title">Line items</h5>'
+                    + '<p class="atl-det-empty">No line items on record.</p>'
+                    + '</div>';
+                $('#atl-lineitems-' + bookingId).html(lineItemsHtml || emptyLineItemsHtml);
+
+                // 2. Transactions Panel
+                let transactionsHtml = '';
+                if (d.transactions && d.transactions.length) {
+                    var txRows = d.transactions.map(function(t) {
+                        var isRefund = (t.transaction_type || '').toLowerCase() === 'refund';
+                        var sc = isRefund ? 'var(--atl-clay)'
+                               : t.status === 'completed' ? 'var(--atl-sage)'
+                               : t.status === 'failed'    ? 'var(--atl-clay)'
+                               : 'var(--atl-orange)';
+                        var amtStyle  = isRefund ? 'color:var(--atl-clay);font-weight:700;' : 'font-weight:700;';
+                        var refundBadge = isRefund
+                            ? '<span style="font-size:9px;background:rgba(248,113,113,0.12);color:var(--atl-clay);'
+                              + 'padding:1px 5px;border-radius:3px;margin-right:4px;font-weight:700;">REFUND</span>'
+                            : '';
+                        var dateStr = t.transaction_date
+                            ? new Date(t.transaction_date).toLocaleDateString('en-ZA') : '—';
+                        return '<tr>'
+                            + '<td data-label="Date">' + dateStr + '</td>'
+                            + '<td data-label="Method">' + refundBadge + (t.payment_method || '—') + '</td>'
+                            + '<td data-label="Reference" style="font-size:11px;opacity:.75;">'
+                              + (t.reference || t.reference_number || '—') + '</td>'
+                            + '<td data-label="Amount" class="right atl-det-tabular" style="' + amtStyle + '">'
+                              + (isRefund ? '–' : '') + 'R ' + parseFloat(t.amount).toFixed(2) + '</td>'
+                            + '<td data-label="Status" style="color:' + sc + ';font-size:11px;">' + t.status + '</td>'
+                            + '</tr>';
+                    }).join('');
+
+                    transactionsHtml =
+                        '<div class="atl-det-card">'
+                        + '<h5 class="atl-det-title">Transactions</h5>'
+                        + '<div class="atl-det-table-wrap">'
+                        + '<table class="atl-det-table atl-det-table-responsive">'
+                        + '<thead><tr>'
+                        + '<th>Date</th><th>Method</th><th>Reference</th>'
+                        + '<th class="right">Amount</th><th>Status</th>'
+                        + '</tr></thead>'
+                        + '<tbody>' + txRows + '</tbody>'
+                        + '</table></div></div>';
+                } else {
+                    transactionsHtml =
+                        '<div class="atl-det-card">'
+                        + '<h5 class="atl-det-title">Transactions</h5>'
+                        + '<p class="atl-det-empty">No transactions recorded.</p>'
+                        + '</div>';
+                }
+                $('#atl-transactions-' + bookingId).html(transactionsHtml);
+
+                // 3. History Panel
+                let historyHtml = '';
+                if (history.length >= 2) {
+                    var histRows = history.map(function(q) {
+                        var active  = !q.archived;
+                        var qDate   = q.created_at ? new Date(q.created_at).toLocaleDateString('en-ZA') : '—';
+                        var pdfLink = q.pdf_url
+                            ? '<a href="' + q.pdf_url + '" target="_blank" rel="noopener" class="atl-det-link">View PDF</a>'
+                            : '—';
+                        var stHtml = active
+                            ? '<span style="color:var(--atl-sage);font-weight:600;">● Active</span>'
+                            : '<span style="color:var(--atl-muted);">Superseded</span>';
+                        return '<tr class="' + (active ? 'atl-det-active-row' : '') + '">'
+                            + '<td data-label="Version" style="color:' + (active ? 'var(--atl-amber)' : 'var(--atl-muted)') + ';">'
+                              + 'v' + q.version + (active ? ' ✦' : '') + '</td>'
+                            + '<td data-label="Date">' + qDate + '</td>'
+                            + '<td data-label="Total" class="right atl-det-tabular">R ' + parseFloat(q.total_amount||0).toFixed(2) + '</td>'
+                            + '<td data-label="Status">' + stHtml + '</td>'
+                            + '<td data-label="PDF">' + pdfLink + '</td>'
+                            + '</tr>';
+                    }).join('');
+
+                    historyHtml =
+                        '<div class="atl-det-card">'
+                        + '<h5 class="atl-det-title">Quote history</h5>'
+                        + '<div class="atl-det-table-wrap">'
+                        + '<table class="atl-det-table atl-det-table-responsive">'
+                        + '<thead><tr>'
+                        + '<th>Version</th><th>Date</th>'
+                        + '<th class="right">Total</th><th>Status</th><th>PDF</th>'
+                        + '</tr></thead>'
+                        + '<tbody>' + histRows + '</tbody>'
+                        + '</table></div></div>';
+                }
+                $('#atl-history-' + bookingId).html(historyHtml || '');
+
+                // 4. Contract panel
+                // GET /contract returns an envelope { success, contract } — pass the row, not the
+                // envelope, or pdf_url/status read as undefined and the panel falsely shows
+                // "Generate Contract" with no PDF (same unwrap as the post-generate path below).
+                renderInlineContractPanel(bookingId, contract && contract.contract);
+
+                // 5. Cancellation panel
+                if (s === 'CANCELLED') {
+                    renderInlineCancellationPanel(bookingId, d);
+                }
+
+                // 6. Payment schedule lazy loading
+                if (typeof window.loadBookingPaymentSchedule === 'function') {
+                    window.loadBookingPaymentSchedule(bookingId);
+                }
+
+                // 7. Activity timeline (Timeline & Notes) — synthesized from fields already on
+                // hand, no new endpoint. Only entries with a real timestamp are shown.
+                var fmtTlWhen = function(iso) {
+                    var d = new Date(iso);
+                    if (isNaN(d)) return '';
+                    var day = d.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short' }).toUpperCase();
+                    var time = d.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', hour12: false });
+                    return day + ' · ' + time;
+                };
+                var tlEntries = [];
+                if (row.created_at) tlEntries.push({ when: row.created_at, what: 'Enquiry received', meta: 'Booking submitted' });
+                if (row.quoted_at) tlEntries.push({ when: row.quoted_at, what: 'Quote sent', meta: row.quote_amount ? ('R ' + parseFloat(row.quote_amount).toFixed(2)) : '' });
+                if (row.accepted_at) tlEntries.push({ when: row.accepted_at, what: 'Quote accepted', meta: 'By client' });
+                if (contract && contract.contract && contract.contract.signed_date) {
+                    tlEntries.push({ when: contract.contract.signed_date, what: 'Contract signed', meta: contract.contract.signed_by ? ('Signed by ' + contract.contract.signed_by) : 'IP logged' });
+                }
+                if (row.payment_date) {
+                    tlEntries.push({ when: row.payment_date, what: 'Payment received', meta: [row.amount_paid ? 'R ' + parseFloat(row.amount_paid).toFixed(2) : '', row.payment_method === 'payfast' ? 'PayFast' : ''].filter(Boolean).join(' · ') });
+                }
+                tlEntries.sort(function(a, b) { return new Date(a.when) - new Date(b.when); });
+                var activityHtml = tlEntries.length
+                    ? '<div class="atl-det-card"><h5 class="atl-det-title"><i class="fa-solid fa-clock-rotate-left"></i>Activity</h5><div class="atl-timeline">'
+                      + tlEntries.map(function(e) {
+                          return '<div class="atl-tl-item"><div class="atl-tl-when">' + fmtTlWhen(e.when) + '</div><div class="atl-tl-what">' + e.what + '</div>'
+                              + (e.meta ? '<div class="atl-tl-meta">' + e.meta + '</div>' : '') + '</div>';
+                      }).join('')
+                      + '</div></div>'
+                    : '';
+                $('#atl-activity-' + bookingId).html(activityHtml);
+
+                // 8. Files tab — generated document chips, alongside the client attachments
+                // buildFilesPanel() already rendered synchronously from row.attachment_files.
+                var fileChips = [];
+                if (contract && contract.contract && contract.contract.pdf_url) {
+                    var cStatus = contract.contract.status === 'signed' ? 'Signed' : 'Draft';
+                    fileChips.push('<a class="dv-file" href="/api/admin/bookings/' + bookingId + '/contract/download" target="_blank" rel="noopener"><span class="ico">&#9993;</span><span><span class="fn">Contract</span><span class="fm">' + cStatus + '</span></span></a>');
+                }
+                var activeQuote = history && history.length ? (history.find(function(q) { return !q.archived; }) || history[history.length - 1]) : null;
+                if (activeQuote && activeQuote.pdf_url) {
+                    fileChips.push('<a class="dv-file" href="' + activeQuote.pdf_url + '" target="_blank" rel="noopener"><span class="ico">Q</span><span><span class="fn">Quote v' + activeQuote.version + '</span><span class="fm">PDF</span></span></a>');
+                }
+                if (row.invoice_number) {
+                    fileChips.push('<a class="dv-file" href="/api/admin/bookings/' + bookingId + '/invoice/download" target="_blank" rel="noopener"><span class="ico">&#8965;</span><span><span class="fn">Invoice ' + row.invoice_number + '</span><span class="fm">PDF</span></span></a>');
+                }
+                $('#atl-filedocs-' + bookingId).html(fileChips.length ? '<div class="dv-filegrid" style="margin-top:10px;">' + fileChips.join('') + '</div>' : '');
+            }).catch(function(err) {
+                console.error("Error loading lazy details: ", err);
+                if (window.notificationService) window.notificationService.showError("Could not load this booking's financial details.");
+                $('#atl-lineitems-' + bookingId).html('<div class="atl-det-card"><p class="atl-det-empty">Failed to load details.</p></div>');
+                $('#atl-transactions-' + bookingId).html('<div class="atl-det-card"><p class="atl-det-empty">Failed to load details.</p></div>');
+            });
         };
 
         window.initBookingVenueAutocomplete = function(bookingId) {
@@ -13648,8 +14128,7 @@
                     e.preventDefault();
                     switchTab('bookingsAdmin');
                     setTimeout(function() {
-                        var $card = $('.atl-booking-card[data-id="' + item.booking_id + '"]');
-                        if ($card.length) $card[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(item.booking_id, true);
                     }, 300);
                 });
                 $('#eventsConflictResolutionGroup').hide();
@@ -18837,6 +19316,610 @@
             return html;
         }
 
+        // ═══ Deal View panel builders ═══
+        // Each returns the exact card HTML the old two-column detail region used to stamp
+        // inline (same classes/ids/data-ids), just grouped by tab instead of by column.
+        // Called on-demand from toggleBookingDetail() rather than eagerly per row.
+        function buildOverviewPanel(row) {
+            const s = (row.status || 'PENDING').toUpperCase();
+            const payLbl = { PAID:'✓ Paid', DEPOSIT_PAID:'◐ Deposit', PARTIALLY_PAID:'◑ Partial', UNPAID:'○ Unpaid', FAILED:'✕ Failed', CANCELLED:'✕ Cancelled' };
+            const ps = (row.payment_status || 'UNPAID').toUpperCase();
+            const _typeDefault = (window.typeBuffersCache && row.event_type && window.typeBuffersCache[row.event_type] != null)
+                ? window.typeBuffersCache[row.event_type]
+                : (window.defaultGapCache || 30);
+            const _bufVal   = row.buffer_minutes != null ? row.buffer_minutes : _typeDefault;
+            const _isCustom = row.buffer_minutes != null;
+
+            return `
+      <div class="atl-det-col">
+          <!-- Client Card -->
+          <div class="atl-det-card">
+            <h5 class="atl-det-title"><i class="fa-solid fa-user"></i>Client</h5>
+            <p class="atl-lead">
+              ${row.name}${row.company ? ` <span class="co">· ${row.company}</span>` : ''}
+            </p>
+            <p class="atl-sub">
+              <a href="mailto:${row.email}" class="atl-det-link">${row.email}</a>
+              ${row.cell ? ` · <a href="tel:${row.cell.replace(/\s/g,'')}" class="atl-det-link">${row.cell}</a>` : ''}
+              &nbsp;<a href="#" class="bk-view-client-history atl-det-link" data-email="${row.email}" style="font-size:11px; color:var(--atl-amber);">View all bookings ›</a>
+            </p>
+          </div>
+
+          <!-- Event Card -->
+          <div class="atl-det-card">
+            <h5 class="atl-det-title"><i class="fa-solid fa-calendar-day"></i>Event</h5>
+            <p class="atl-lead" style="margin-bottom:8px;">
+              ${row.event_name || row.event_type || '—'}
+            </p>
+            <dl class="atl-det-dl">
+              <dt>Date</dt>
+              <dd>${row.date || '—'}${row.event_start_time ? ' · ' + row.event_start_time : ''}</dd>
+              <dt>Location</dt>
+              <dd>${row.event_location || '—'}</dd>
+              ${row.performance_slot     ? `<dt>Slot</dt><dd>${row.performance_slot}</dd>` : ''}
+              ${row.performance_duration ? `<dt>Duration</dt><dd>${row.performance_duration}</dd>` : ''}
+              ${row.venue_type           ? `<dt>Venue type</dt><dd>${row.venue_type}</dd>` : ''}
+            </dl>
+            <div style="border-top:1px solid var(--atl-line);margin-top:10px;padding-top:10px;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--atl-muted);white-space:nowrap;">
+                  <i class="fa-solid fa-clock-rotate-left" style="margin-right:4px;opacity:.7;"></i>Travel &amp; logistics buffer
+                </span>
+                <input type="number" class="bk-buffer-input atl-input"
+                       id="bk-buf-${row.id}" data-id="${row.id}" data-default="${_typeDefault}"
+                       value="${_bufVal}" min="0" max="480" step="5"
+                       style="width:68px;padding:4px 8px;font-size:12px;text-align:center;">
+                <span style="font-size:11px;color:var(--atl-muted);">min</span>
+                <button type="button" class="bk-save-buffer-btn atl-btn"
+                        data-id="${row.id}"
+                        style="font-size:11px;padding:4px 10px;min-height:28px;background:rgba(212,175,55,0.10);border:1px solid rgba(212,175,55,0.35);color:var(--atl-amber);border-radius:6px;cursor:pointer;">
+                  Save
+                </button>
+                <span class="bk-buf-hint" id="bk-buf-hint-${row.id}"
+                      style="font-size:10px;color:var(--atl-muted-dim);">
+                  ${_isCustom ? '' : '← type default'}
+                </span>
+              </div>
+              <p style="font-size:10px;color:var(--atl-muted-dim);margin:5px 0 0;">
+                Post-event buffer for travel, weather &amp; logistics
+              </p>
+            </div>
+          </div>
+
+          <!-- Audience & Budget Card (conditional) -->
+          ${(row.audience_size || row.audience_demographic || row.budget_range || row.travel_accommodation != null) ? `
+          <div class="atl-det-card">
+            <h5 class="atl-det-title"><i class="fa-solid fa-chart-pie"></i>Audience &amp; Budget</h5>
+            <dl class="atl-det-dl">
+              ${row.audience_size        ? `<dt>Audience size</dt><dd>${row.audience_size}</dd>` : ''}
+              ${row.audience_demographic ? `<dt>Demographic</dt><dd>${row.audience_demographic}</dd>` : ''}
+              ${row.budget_range         ? `<dt>Budget range</dt><dd class="atl-det-gold">${row.budget_range}</dd>` : ''}
+              ${row.travel_accommodation != null
+                ? `<dt>Travel provided</dt>
+                   <dd style="color:${row.travel_accommodation && row.travel_accommodation !== 'Not required' && row.travel_accommodation !== 0 && row.travel_accommodation !== '0' ? 'var(--atl-sage)' : 'var(--atl-muted)'}; font-weight:600;">
+                     ${row.travel_accommodation && row.travel_accommodation !== 'Not required' && row.travel_accommodation !== 0 && row.travel_accommodation !== '0' ? 'Yes' : 'No'}
+                   </dd>` : ''}
+            </dl>
+          </div>` : ''}
+
+          <!-- Ledger Card -->
+          <div class="atl-det-card">
+            <h5 class="atl-det-title"><i class="fa-solid fa-table-list"></i>Ledger</h5>
+            <dl class="atl-det-dl">
+              <dt>Payment</dt>
+              <dd>${payLbl[ps] || ps}</dd>
+              <dt>Quoted total</dt>
+              <dd class="atl-det-tabular">R ${parseFloat(row.quote_amount||0).toFixed(2)}</dd>
+              <dt>Paid</dt>
+              <dd class="atl-det-tabular">R ${parseFloat(row.amount_paid||0).toFixed(2)}</dd>
+              <dt>Outstanding</dt>
+              <dd class="atl-det-tabular ${parseFloat(row.amount_outstanding)>0 ? 'atl-det-negative' : 'atl-det-positive'}">
+                R ${parseFloat(row.amount_outstanding||0).toFixed(2)}
+              </dd>
+              ${row.payment_date
+                ? `<dt>Last payment</dt>
+                   <dd>${new Date(row.payment_date).toLocaleDateString('en-ZA')}
+                       ${row.payment_reference ? ' · ' + row.payment_reference : ''}</dd>`
+                : ''}
+            </dl>
+          </div>
+
+          <!-- Venue Card -->
+          ${row.venue_id ? `
+          <div class="atl-det-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <h5 class="atl-det-title" style="margin:0;"><i class="fa-solid fa-location-dot"></i>Venue</h5>
+              <button type="button" class="bk-unlink-venue-btn atl-btn atl-btn--ghost" data-booking-id="${row.id}" style="font-size:11px; padding:2px 8px; min-height:24px; color:var(--atl-clay);">
+                <i class="fa-solid fa-link-slash" style="margin-right:4px;"></i>Unlink
+              </button>
+            </div>
+            <p class="atl-lead" style="font-family:'Cormorant Garamond',serif; font-size:clamp(15px,4.5vw,17px);">
+              ${row.venue_name || row.event_location || '—'}
+            </p>
+            <p class="atl-sub">
+              ${row.venue_city ? row.venue_city + ' · ' : ''}
+              ${row.venue_capacity ? 'Cap. ' + row.venue_capacity.toLocaleString() + ' · ' : ''}
+              ${row.venue_contact
+                ? `<a href="mailto:${row.venue_contact}" class="atl-det-link">${row.venue_contact}</a>`
+                : ''}
+            </p>
+            ${row.venue_contact_phone
+              ? `<p style="font-size:12px;color:var(--atl-muted);margin-top:4px;">${row.venue_contact_phone}</p>`
+              : ''}
+            ${row.venue_notes
+              ? `<p style="font-size:11px;color:var(--atl-muted);margin-top:6px;font-style:italic;">${row.venue_notes}</p>`
+              : ''}
+          </div>` : `
+          <div class="atl-det-card">
+            <h5 class="atl-det-title"><i class="fa-solid fa-location-dot"></i>Venue
+              <span style="font-size:10px;color:var(--atl-clay);margin-left:2px;font-weight:400;text-transform:none;letter-spacing:normal;">· Unlinked</span>
+            </h5>
+            <p class="atl-sub" style="margin-bottom:10px;">${row.event_location || '—'}</p>
+            <div class="bkr-venue-edit-row" id="venue-edit-row-${row.id}" style="display:none; margin-top:8px;">
+              <input type="text" id="venue-loc-${row.id}" placeholder="Venue / location name" value="${row.event_location || ''}" class="atl-venue-input" style="margin-bottom:6px;">
+              <input type="text" id="venue-addr-${row.id}" placeholder="Street address (optional)" value="${row.venue_address || ''}" class="atl-venue-input" style="margin-bottom:6px;">
+              <div style="display:flex; gap:6px; margin-bottom:6px;">
+                <input type="text" id="venue-city-${row.id}" placeholder="City" value="${row.city || ''}" class="atl-venue-input">
+                <input type="text" id="venue-country-${row.id}" placeholder="Country" value="${row.country || ''}" class="atl-venue-input">
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button type="button" class="bk-venue-save-btn atl-btn atl-btn--primary" data-id="${row.id}" style="flex:1; min-height:44px;">Save Location</button>
+                <button type="button" class="bk-venue-cancel-btn atl-btn atl-btn--ghost" data-id="${row.id}" style="flex:1; min-height:44px;">Cancel</button>
+              </div>
+            </div>
+            <div class="bkr-venue-link-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;width:100%;">
+              <label for="venueLinkGoogle-${row.id}" class="atl-panel-label" style="margin:0;flex-shrink:0;">Link a venue</label>
+              <input type="text"
+                     class="atl-venue-autocomplete-input atl-venue-input"
+                     id="venueLinkGoogle-${row.id}"
+                     placeholder="Search Google for a venue..."
+                     style="flex:1;min-width:160px;margin-bottom:0;"
+                     data-booking-id="${row.id}">
+              <button type="button"
+                      class="bkr-venue-link-google-btn bk-link-venue-google-btn atl-btn atl-btn--primary"
+                      id="venueLinkGoogleBtn-${row.id}"
+                      data-booking-id="${row.id}"
+                      disabled>
+                <i class="fa-solid fa-link"></i> Link
+              </button>
+            </div>
+            <button type="button" class="bk-venue-edit-btn atl-btn atl-btn--ghost" data-id="${row.id}" style="margin-top:8px;"><i class="fa-solid fa-pen-to-square" style="margin-right:6px;"></i>Edit Location</button>
+          </div>`}
+
+          <!-- Public Promotion Card -->
+          ${['ACCEPTED','CONFIRMED','COMPLETED'].includes(s) ? `
+          <div class="atl-det-card" id="promote-panel-${row.id}">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:140px;">
+                <h5 class="atl-det-title" id="promoLabel-${row.id}" style="margin-bottom:4px;">
+                  <i class="fa-solid fa-bullhorn" aria-hidden="true" style="color:var(--atl-amber);margin-right:6px;"></i>
+                  Public Promotion
+                  <span class="atl-promote-live-badge ${row.is_public ? '' : 'atl-promote-live-badge--off'}" id="promote-badge-${row.id}">
+                    ${row.is_public ? 'LIVE' : 'Not Promoted'}
+                  </span>
+                </h5>
+                <p style="font-size:clamp(12px,3vw,13px);color:var(--atl-muted);margin:0;">
+                  List this booking on the public events page.
+                </p>
+              </div>
+              <button type="button"
+                      class="atl-switch promote-toggle"
+                      role="switch"
+                      id="promote-${row.id}"
+                      data-id="${row.id}"
+                      aria-checked="${row.is_public ? 'true' : 'false'}"
+                      aria-labelledby="promoLabel-${row.id}"
+                      style="flex-shrink:0;">
+              </button>
+            </div>
+
+            <!-- Missing field warnings -->
+            ${(!row.event_name && !row.event_type) || !row.event_location ? `
+            <div class="atl-promote-warn" id="promote-warn-${row.id}">
+              <i class="fa-solid fa-triangle-exclamation" style="margin-top:2px;"></i>
+              <span>Missing info for a good public listing:
+                ${!row.event_name && !row.event_type ? '<span class="atl-promote-warn-item">event name</span>' : ''}
+                ${!row.event_location ? '<span class="atl-promote-warn-item">venue / location</span>' : ''}
+              </span>
+            </div>` : ''}
+
+            <!-- Live preview card -->
+            <div class="atl-promote-preview ${row.is_public ? '' : 'atl-promote-preview--hidden'}" id="promote-preview-${row.id}">
+              <div class="atl-promote-preview__eyebrow"><i class="fa-solid fa-eye" style="margin-right:4px;"></i>Public listing preview</div>
+              <div>
+                <div class="atl-promote-preview__name">${row.event_name || row.event_type || '— No event name set —'}</div>
+                <div class="atl-promote-preview__meta">
+                  <span><i class="fa-regular fa-calendar" style="margin-right:4px; opacity:.6;"></i>${row.date || '—'}</span>
+                  ${row.event_start_time ? `<span><i class="fa-regular fa-clock" style="margin-right:4px; opacity:.6;"></i>${row.event_start_time}</span>` : ''}
+                  <span><i class="fa-solid fa-location-dot" style="margin-right:4px; opacity:.6;"></i>${row.event_location || row.venue_name || '— No venue set —'}</span>
+                  ${row.event_type ? `<span><i class="fa-solid fa-tag" style="margin-right:4px; opacity:.6;"></i>${row.event_type}</span>` : ''}
+                </div>
+                ${row.ticket_link ? `<div style="margin-top:8px; font-size:12px;"><i class="fa-solid fa-ticket" style="margin-right:6px; color:var(--atl-amber);"></i><a href="${row.ticket_link}" target="_blank" rel="noopener" class="atl-det-link" style="word-break:break-all;">${row.ticket_link}</a></div>` : ''}
+              </div>
+            </div>
+
+            <!-- Ticket URL input -->
+            <div id="promote-ticket-area-${row.id}" style="margin-top: 12px; border-top: 1px solid var(--atl-line); padding-top: 12px;">
+              <label class="atl-panel-label" for="promote-ticket-${row.id}" style="margin-bottom:6px; display:block;">
+                <i class="fa-solid fa-ticket" style="margin-right:6px;"></i>Ticket / RSVP Link <span style="font-weight:400; text-transform:none;">(optional)</span>
+              </label>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="url" class="atl-venue-input bkr-promote-ticket-input" id="promote-ticket-${row.id}"
+                  placeholder="https://tickets.example.com/event"
+                  value="${row.ticket_link || ''}" style="margin-bottom:0;">
+                <button type="button" class="atl-btn bkr-promote-ticket-save atl-promote-ticket-save" data-id="${row.id}">
+                  <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save
+                </button>
+              </div>
+              <div class="bkr-promote-ticket-msg" id="promote-ticket-msg-${row.id}" style="font-size:11px; margin-top:6px; display:none;"></div>
+            </div>
+          </div>` : ''}
+      </div>`;
+        }
+
+        function buildOfferPanel(row) {
+            return `
+      <div class="atl-det-col">
+          <!-- Quote Card -->
+          <div class="atl-det-card">
+            <h5 class="atl-det-title"><i class="fa-solid fa-file-pen"></i>Quote</h5>
+            ${row.quote_amount
+              ? `<div class="atl-det-table-wrap">${formatQuoteDetailsAtelier(row.quote_details, row.quote_amount, row.quote_expiry_date, row.id, row.quote_sent_at)}</div>`
+              : `<p class="atl-det-empty" style="margin-bottom:10px;">No quote prepared yet.</p>
+                 <div class="atl-doc-actions-row">
+                   <button type="button" class="atl-det-link bk-action-quote" data-id="${row.id}" style="background:none;border:none;cursor:pointer;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;">
+                     <i class="fa-solid fa-file-pen"></i> Prepare Quote
+                   </button>
+                 </div>`}
+          </div>
+
+          <!-- Contract Card placeholder (populated via lazy-load) -->
+          <div class="atl-det-card" id="atl-contract-${row.id}">
+            <h5 class="atl-det-title"><i class="fa-solid fa-file-contract"></i>Contract</h5>
+            <div class="atl-det-loading">
+              <span class="atl-spinner" aria-hidden="true"></span>
+              <span>Loading contract status…</span>
+            </div>
+          </div>
+
+          <!-- Quote History placeholder -->
+          <div id="atl-history-${row.id}"></div>
+      </div>`;
+        }
+
+        function buildInvoicesPanel(row) {
+            return `
+      <div class="atl-det-col">
+          <!-- Invoice Card -->
+          <div class="atl-det-card">
+            <h5 class="atl-det-title"><i class="fa-solid fa-file-invoice-dollar"></i>Invoice</h5>
+            ${row.invoice_number
+              ? `<div class="atl-det-table-wrap">${formatInvoiceDetailsAtelier(row.quote_details, row.total_amount, row.invoice_number, row.invoice_status, row.id, row.invoice_id, row.invoice_sent_at, row.payment_status)}</div>`
+              : row.status === 'CONFIRMED'
+                ? `<p class="atl-det-empty" style="margin-bottom:10px;">No invoice prepared yet.</p>
+                   <div class="atl-doc-actions-row">
+                     <button type="button" class="atl-det-link bk-action-gen-invoice" data-id="${row.id}" style="background:none;border:none;cursor:pointer;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;">
+                       <i class="fa-solid fa-file-circle-plus"></i> Generate Invoice
+                     </button>
+                   </div>`
+                : `<p class="atl-det-empty">No invoice prepared yet.</p>`}
+          </div>
+
+          <!-- Line Items placeholder -->
+          <div id="atl-lineitems-${row.id}">
+            <div class="atl-det-card">
+              <h5 class="atl-det-title"><i class="fa-solid fa-list"></i>Line items</h5>
+              <div class="atl-det-loading">
+                <span class="atl-spinner" aria-hidden="true"></span><span>Loading…</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transactions placeholder -->
+          <div id="atl-transactions-${row.id}">
+            <div class="atl-det-card">
+              <h5 class="atl-det-title"><i class="fa-solid fa-arrow-right-arrow-left"></i>Transactions</h5>
+              <div class="atl-det-loading">
+                <span class="atl-spinner" aria-hidden="true"></span><span>Loading…</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment Schedule placeholder -->
+          <div id="atl-paymentschedule-${row.id}"></div>
+      </div>`;
+        }
+
+        function buildTimelinePanel(row) {
+            const s = (row.status || 'PENDING').toUpperCase();
+            return `
+      <div class="atl-det-col">
+          <!-- Activity timeline placeholder (populated via lazy-load) -->
+          <div id="atl-activity-${row.id}"></div>
+
+          <!-- Client Message Card -->
+          ${row.message ? `
+          <div class="atl-det-card">
+            <h5 class="atl-det-title"><i class="fa-solid fa-quote-left"></i>Client message</h5>
+            <p style="font-family:'Cormorant Garamond',Georgia,serif;
+                       font-size:clamp(14px,4vw,15px);
+                       font-style:italic;
+                       line-height:1.6;
+                       color:var(--atl-muted);
+                       margin:0;
+                       word-wrap:break-word;
+                       overflow-wrap:break-word;">
+              &ldquo;${row.message}&rdquo;
+            </p>
+          </div>` : ''}
+
+          <!-- Cancellation Card (conditional) -->
+          ${s === 'CANCELLED' ? `
+          <div class="atl-det-card atl-det-card--cancel" id="atl-cancel-${row.id}">
+            <div class="atl-det-loading">
+              <span class="atl-spinner" aria-hidden="true"></span>
+              <span>Loading cancellation details…</span>
+            </div>
+          </div>` : ''}
+
+          <!-- Internal Notes Card -->
+          <div class="atl-det-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;">
+              <h5 class="atl-det-title" style="margin:0;"><i class="fa-solid fa-note-sticky"></i>Internal notes</h5>
+              <button type="button" class="bk-notes-load-btn atl-btn atl-btn--ghost"
+                      data-id="${row.id}"
+                      style="font-size:10px;padding:8px 12px;white-space:nowrap;min-height:36px;">
+                <i class="fa-solid fa-rotate" style="margin-right:4px;"></i>Load
+              </button>
+            </div>
+            <div class="bk-notes-thread" id="notes-thread-${row.id}"
+                 style="max-height:180px;overflow-y:auto;
+                        background:var(--atl-input-bg);
+                        border:1px solid var(--atl-line);
+                        border-radius:8px;
+                        padding:10px;
+                        margin-bottom:10px;
+                        font-family:'Outfit',sans-serif;
+                        font-size:12px;
+                        line-height:1.5;
+                        color:var(--atl-muted);
+                        display:none;
+                        -webkit-overflow-scrolling:touch;">
+              No notes yet.
+            </div>
+            <div style="display:flex;gap:8px;align-items:flex-end;">
+              <textarea class="bk-note-input atl-textarea" id="note-input-${row.id}" rows="2" aria-label="Add a private note"
+                        placeholder="Add a private note…"></textarea>
+              <button type="button" class="bk-add-note-btn atl-btn"
+                      data-id="${row.id}"
+                      style="background:rgba(212,175,55,0.10);
+                             border:1px solid rgba(212,175,55,0.35);
+                             color:var(--atl-amber);
+                             border-radius:8px;
+                             padding:10px 14px;
+                             min-height:44px;
+                             white-space:nowrap;
+                             font-size:12px;
+                             font-weight:600;
+                             display:flex;
+                             align-items:center;
+                             gap:6px;
+                             cursor:pointer;
+                             transition:background 0.15s ease;
+                             flex-shrink:0;">
+                <i class="fa-solid fa-plus"></i> Add
+              </button>
+            </div>
+          </div>
+
+          <!-- Email History card -->
+          <div class="atl-det-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;">
+              <h5 class="atl-det-title" style="margin:0;"><i class="fa-solid fa-envelope"></i>Email history</h5>
+              <button type="button" class="bk-comms-load-btn atl-btn atl-btn--ghost"
+                      data-id="${row.id}"
+                      style="font-size:10px;padding:8px 12px;white-space:nowrap;min-height:36px;">
+                <i class="fa-solid fa-arrows-rotate" style="margin-right:4px;"></i>Refresh
+              </button>
+            </div>
+            <div class="bk-comms-thread" id="comms-thread-${row.id}"
+                 style="max-height:160px;overflow-y:auto;font-size:12px;color:var(--atl-muted);">
+              <p style="color:var(--atl-muted);font-size:12px;margin:0;">Loading email history…</p>
+            </div>
+          </div>
+      </div>`;
+        }
+
+        function buildFilesPanel(row) {
+            let attachmentsHtml = '';
+            try {
+                const files = JSON.parse(row.attachment_files || '[]');
+                if (files && files.length) {
+                    attachmentsHtml = `
+          <div class="atl-det-card">
+            <h5 class="atl-det-title"><i class="fa-solid fa-paperclip"></i>Attached files</h5>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              ${files.map(f =>
+                `<a href="/api/admin/booking-attachments/${encodeURIComponent(f.filename)}"
+                    target="_blank" rel="noopener"
+                    class="atl-tag-badge"
+                    style="font-size:11px;padding:8px 12px;border-radius:6px;
+                           text-decoration:none;min-height:36px;display:inline-flex;
+                           align-items:center;gap:6px;
+                           background:rgba(212,175,55,0.08);
+                           color:var(--atl-amber) !important;
+                           border:1px solid rgba(212,175,55,0.35);">
+                   <i class="fa-solid fa-paperclip" style="font-size:10px;flex-shrink:0;color:var(--atl-amber);"></i>
+                   <span style="word-break:break-all;max-width:180px;">${f.original_name}</span>
+                 </a>`
+              ).join('')}
+            </div>
+          </div>`;
+                }
+            } catch (e) { /* no attachments */ }
+
+            return `
+      <div class="atl-det-col">
+          ${attachmentsHtml || '<p class="atl-det-empty">No client attachments on this booking.</p>'}
+          <div id="atl-filedocs-${row.id}"></div>
+      </div>`;
+        }
+
+        // Shown only for bookings that haven't reached CONFIRMED yet — the real editor
+        // (buildAdvancingPanel) takes over once the gate opens, fetched lazily on first tab activation.
+        function buildAdvancingStub(row) {
+            return `
+      <div class="dv-empty">
+        <div class="ico">◈</div>
+        <h3>Confirm this booking to unlock its advancing pack</h3>
+        <p>Once confirmed, build the run-of-show, technical rider, hospitality and show-day contacts here, then send one pack to the client and the venue.</p>
+        <button type="button" class="atl-btn atl-btn--primary" disabled title="Confirm this booking first"><i class="fa-solid fa-lock" style="margin-right:6px;"></i>Advancing pack locked</button>
+      </div>
+      <div class="dv-ghost-label">— what this tab will hold —</div>
+      <div class="dv-ghost-sketch">
+        <div class="dv-ghost-card"><div class="gt">Run-of-show</div><div class="dv-ghost-line m"></div><div class="dv-ghost-line s"></div><div class="dv-ghost-line m"></div></div>
+        <div class="dv-ghost-grid">
+          <div class="dv-ghost-card"><div class="gt">Technical</div><div class="dv-ghost-line m"></div><div class="dv-ghost-line s"></div></div>
+          <div class="dv-ghost-card"><div class="gt">Hospitality</div><div class="dv-ghost-line m"></div><div class="dv-ghost-line s"></div></div>
+          <div class="dv-ghost-card"><div class="gt">Contacts</div><div class="dv-ghost-line s"></div><div class="dv-ghost-line m"></div></div>
+          <div class="dv-ghost-card"><div class="gt">Travel &amp; stay</div><div class="dv-ghost-line m"></div><div class="dv-ghost-line s"></div></div>
+        </div>
+      </div>
+      <div class="atl-callout"><i class="fa-solid fa-circle-info"></i>Contacts &amp; load-in time are already on the linked venue record — the pack would pre-fill from there rather than re-typing.</div>`;
+        }
+
+        // A labelled text field bound to PUT /advancing via data-field — collected by
+        // advCollectFields() when the Save Draft button is clicked.
+        function advField(field, label, value) {
+            const safe = value ? String(value).replace(/"/g, '&quot;') : '';
+            return `<div style="margin-bottom:10px;"><label class="atl-panel-label" style="margin-bottom:4px;display:block;">${label}</label>`
+                 + `<input type="text" class="atl-input adv-field" data-field="${field}" value="${safe}" style="width:100%;"></div>`;
+        }
+
+        // Real Advancing tab editor — replaces buildAdvancingStub() once a booking reaches
+        // CONFIRMED. `data` is the GET /advancing response: { pack, run_of_show, contacts,
+        // auto_contacts, venue }. Rebuilt wholesale (advReloadPanel) after every save/CRUD action
+        // rather than patched in place — simplest way to stay in sync with server-assigned ids
+        // (new ROS rows, new contacts) and re-derived state (status, sent/confirmed timestamps).
+        function buildAdvancingPanel(data, bookingId) {
+            const pack = data.pack || {};
+            const ros = data.run_of_show || [];
+            const contacts = data.contacts || [];
+            const autoContacts = data.auto_contacts || [];
+            const statusLbl = { draft: 'Draft', sent: 'Sent', confirmed: 'Confirmed' };
+            const statusColor = pack.status === 'confirmed' ? 'var(--atl-sage)' : pack.status === 'sent' ? 'var(--atl-blue)' : 'var(--atl-muted)';
+            const venueHasEmail = !!(data.venue && data.venue.contact_email);
+
+            const rosRowsHtml = ros.map(function(item, idx) {
+                return `
+            <div class="atl-adv-ros-row" data-id="${item.id}">
+              <input type="text" class="atl-input adv-ros-time" data-field="time_label" value="${item.time_label || ''}" placeholder="18:30" style="width:76px;">
+              <input type="text" class="atl-input adv-ros-title" data-field="title" value="${item.title || ''}" placeholder="Title" style="flex:1;min-width:120px;">
+              <input type="text" class="atl-input adv-ros-detail" data-field="detail" value="${item.detail || ''}" placeholder="Detail" style="flex:2;min-width:140px;">
+              <input type="text" class="atl-input adv-ros-resp" data-field="responsible" value="${item.responsible || ''}" placeholder="Responsible" style="width:120px;">
+              <button type="button" class="atl-btn atl-btn--ghost adv-ros-up" data-id="${item.id}" ${idx === 0 ? 'disabled' : ''} title="Move up"><i class="fa-solid fa-arrow-up"></i></button>
+              <button type="button" class="atl-btn atl-btn--ghost adv-ros-down" data-id="${item.id}" ${idx === ros.length - 1 ? 'disabled' : ''} title="Move down"><i class="fa-solid fa-arrow-down"></i></button>
+              <button type="button" class="atl-btn atl-btn--ghost adv-ros-delete" data-id="${item.id}" style="color:var(--atl-clay);" title="Delete"><i class="fa-solid fa-trash-can"></i></button>
+            </div>`;
+            }).join('');
+
+            const autoContactsHtml = autoContacts.map(function(c) {
+                const originLbl = c.source === 'booking' ? 'client' : c.source === 'comedians' ? 'artist record' : c.source === 'manager_details' ? 'manager record' : 'linked venue';
+                return `
+            <div class="atl-adv-contact">
+              <div class="atl-lead" style="font-size:13px;">${c.role} <span class="co">· auto-sourced from ${originLbl}</span></div>
+              <div class="atl-sub">${c.name || '—'}${c.phone ? ' · ' + c.phone : ''}${c.email ? ' · ' + c.email : ''}</div>
+            </div>`;
+            }).join('');
+
+            const extraContactsHtml = contacts.map(function(c) {
+                return `
+            <div class="atl-adv-contact" data-id="${c.id}">
+              <div class="atl-lead" style="font-size:13px;">${c.role || 'Contact'}
+                <button type="button" class="adv-contact-delete" data-id="${c.id}" style="background:none;border:none;color:var(--atl-clay);cursor:pointer;font-size:11px;margin-left:8px;" title="Remove"><i class="fa-solid fa-trash-can"></i></button>
+              </div>
+              <div class="atl-sub">${c.name || '—'}${c.phone ? ' · ' + c.phone : ''}${c.email ? ' · ' + c.email : ''}</div>
+            </div>`;
+            }).join('');
+
+            return `
+      <div class="atl-det-col" data-booking-id="${bookingId}">
+        <div class="atl-det-card">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <h5 class="atl-det-title" style="margin:0;"><i class="fa-solid fa-clipboard-list"></i>Advancing Pack</h5>
+            <span class="atl-status-badge" style="background:${statusColor}22;color:${statusColor};">${statusLbl[pack.status] || 'Draft'}</span>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;">
+            <button type="button" class="atl-btn atl-btn--primary adv-save-btn" data-id="${bookingId}"><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Draft</button>
+            <button type="button" class="atl-btn adv-preview-btn" data-id="${bookingId}"><i class="fa-solid fa-file-pdf" style="margin-right:6px;"></i>Preview PDF</button>
+            <button type="button" class="atl-btn adv-send-btn" data-id="${bookingId}" ${venueHasEmail ? '' : 'disabled title="Link a venue with a contact email first"'}><i class="fa-solid fa-paper-plane" style="margin-right:6px;"></i>Send to Client &amp; Venue</button>
+            <button type="button" class="atl-btn atl-btn--ghost adv-confirm-btn" data-id="${bookingId}"><i class="fa-solid fa-circle-check" style="margin-right:6px;"></i>Mark Confirmed</button>
+          </div>
+          ${pack.sent_to_client_at ? `<p class="atl-sub" style="margin-top:8px;">Sent ${new Date(pack.sent_to_client_at).toLocaleString('en-ZA')}</p>` : ''}
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-list-check"></i>Run of Show</h5>
+          <div class="atl-adv-ros-list" id="adv-ros-list-${bookingId}">${rosRowsHtml || '<p class="atl-det-empty">No run-of-show items yet.</p>'}</div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <input type="text" class="atl-input adv-ros-new-time" placeholder="Time (e.g. 18:30)" style="width:120px;">
+            <input type="text" class="atl-input adv-ros-new-title" placeholder="Title (e.g. Doors open)" style="flex:1;min-width:140px;">
+            <button type="button" class="atl-btn adv-ros-add" data-id="${bookingId}"><i class="fa-solid fa-plus"></i></button>
+          </div>
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-sliders"></i>Technical</h5>
+          ${advField('mic_type', 'Mic type', pack.mic_type)}
+          ${advField('pa_spec', 'PA spec', pack.pa_spec)}
+          ${advField('monitors', 'Monitors', pack.monitors)}
+          ${advField('lighting', 'Lighting', pack.lighting)}
+          ${advField('stage_layout', 'Stage layout', pack.stage_layout)}
+          ${advField('equipment_responsibility', 'Equipment responsibility', pack.equipment_responsibility)}
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-mug-hot"></i>Hospitality</h5>
+          ${!pack.id && pack.green_room_notes ? '<div class="atl-callout"><i class="fa-solid fa-circle-info"></i>Green room notes pre-filled from the linked venue.</div>' : ''}
+          ${advField('green_room_notes', 'Green room notes', pack.green_room_notes)}
+          ${advField('meals', 'Meals', pack.meals)}
+          ${advField('dietary', 'Dietary', pack.dietary)}
+          ${advField('parking_wifi', 'Parking / Wi-Fi', pack.parking_wifi)}
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-address-book"></i>Contacts</h5>
+          <div class="atl-adv-contacts-auto">${autoContactsHtml}</div>
+          <div class="atl-adv-contacts-extra" id="adv-contacts-extra-${bookingId}">${extraContactsHtml}</div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+            <input type="text" class="atl-input adv-contact-new-role" placeholder="Role (e.g. Stage Manager)" style="width:150px;">
+            <input type="text" class="atl-input adv-contact-new-name" placeholder="Name" style="flex:1;min-width:100px;">
+            <input type="text" class="atl-input adv-contact-new-phone" placeholder="Phone" style="width:120px;">
+            <input type="text" class="atl-input adv-contact-new-email" placeholder="Email" style="width:170px;">
+            <button type="button" class="atl-btn adv-contact-add" data-id="${bookingId}"><i class="fa-solid fa-plus"></i></button>
+          </div>
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-plane"></i>Travel &amp; Accommodation</h5>
+          <label class="atl-panel-label" style="margin-bottom:4px;display:block;">Travel type</label>
+          <select class="atl-input adv-field" data-field="travel_type" style="margin-bottom:10px;width:100%;">
+            <option value="" ${!pack.travel_type ? 'selected' : ''}>—</option>
+            <option value="local" ${pack.travel_type === 'local' ? 'selected' : ''}>Local</option>
+            <option value="out_of_town" ${pack.travel_type === 'out_of_town' ? 'selected' : ''}>Out of town</option>
+          </select>
+          ${advField('flights', 'Flights', pack.flights)}
+          ${advField('hotel', 'Hotel', pack.hotel)}
+          ${advField('ground_transport', 'Ground transport', pack.ground_transport)}
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-note-sticky"></i>Notes</h5>
+          <textarea class="atl-textarea adv-field" data-field="internal_notes" rows="3" placeholder="Internal notes — never sent to the client or venue…" style="width:100%;">${pack.internal_notes || ''}</textarea>
+        </div>
+      </div>`;
+        }
+
         function renderBookingsTable(data, containerSelector) {
             const $container = $(containerSelector || '#bookingsListContainer');
             if (!$container.length) return;
@@ -18855,6 +19938,7 @@
             const payLbl = { PAID:'✓ Paid', DEPOSIT_PAID:'◐ Deposit', PARTIALLY_PAID:'◑ Partial', UNPAID:'○ Unpaid', FAILED:'✕ Failed', CANCELLED:'✕ Cancelled' };
             // Gap 4 (Phase 2): 'RESPONDED' removed — it was a legacy status retired in Phase 2.
             const sLbl   = { NEW:'New', PENDING:'Pending', QUOTED:'Quoted', ACCEPTED:'Accepted', CONFIRMED:'Confirmed', COMPLETED:'Completed', EXPIRED:'Expired', CANCELLED:'Cancelled', REJECTED:'Rejected' };
+            let rowsHtml = '';
 
             data.forEach(function(row, _idx) {
                 const s  = (row.status || 'PENDING').toUpperCase();
@@ -19060,508 +20144,86 @@
                 const isInvoiceOverdue   = !!invoiceOverdue;
                 const hasAnyBadge  = !!(row.event_id || row.venue_id || isInvoiceGenerated || isCalSynced || isQuoteSent || isAccepted || hasAttachments || isPayFast || isRefunded || isPopiaDone || row.rebooked_from_id || row.rebooked_as_id);
 
-                // Buffer pre-fill: use booking-specific value, or fall back to type default, then global default
-                const _typeDefault = (window.typeBuffersCache && row.event_type && window.typeBuffersCache[row.event_type] != null)
-                    ? window.typeBuffersCache[row.event_type]
-                    : (window.defaultGapCache || 30);
-                const _bufVal   = row.buffer_minutes != null ? row.buffer_minutes : _typeDefault;
-                const _isCustom = row.buffer_minutes != null;
+                // quote_amount/total_amount can arrive as pre-formatted currency strings (e.g. "R 45,000.00")
+                // on some legacy rows — strip everything but digits/./- before parsing, or the Fee column shows NaN.
+                const feeRaw = row.quote_amount || row.total_amount;
+                const feeParsed = feeRaw != null ? parseFloat(String(feeRaw).replace(/[^0-9.-]/g, '')) : NaN;
+                const feeAmount = isFinite(feeParsed) ? feeParsed : null;
 
-                $container.append(`
-<article class="atl-booking-card" data-id="${row.id}" style="animation-delay:${_idx*40}ms">
-  <label class="bk-select-box" title="Select booking"><input type="checkbox" class="bk-select-cb" data-id="${row.id}" aria-label="Select booking #${row.id}"></label>
-  <!-- Padded inner container -->
-  <div class="atl-card-inner">
-    <!-- Card header area -->
-    <div class="atl-booking-card-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; cursor:pointer;">
-      <div style="flex:1; min-width:0;">
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:nowrap; margin-bottom:6px;">
-          <span class="atl-booking-id">#${row.id}</span>
-          <span class="atl-status-badge" style="background:${colors.tint}; color:${colors.color}; padding:4px 10px; border-radius:999px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
-            <span class="atl-pill-dot" style="background:${colors.color}; width:7px; height:7px; border-radius:50%; display:inline-block;"></span>
-            ${s === 'ACCEPTED' ? (acceptedStage === 'paid' ? 'Paid · Confirmed' : acceptedStage === 'invoiced' ? 'Invoiced' : 'Accepted') : (sLbl[s] || s)}
-          </span>
-          <span class="atl-payment-badge">${payLbl[ps] || ps}</span>
-        </div>
-        
-        <!-- Event title -->
-        <h3 class="atl-event-title" style="margin: 0; font-family:'Cormorant Garamond', Georgia, serif; font-size:clamp(22px, 3.5vw, 30px); font-weight:500; line-height:1.1; color:var(--atl-ink);">${row.event_name || row.event_type || '—'}</h3>
-        
-        <!-- Client Details -->
-        <p style="color:var(--atl-muted); font-size:13px; margin:4px 0 2px 0; font-family:'Outfit', sans-serif;">
-          ${row.name}${row.company ? ` · ${row.company}` : ''} · <time>${evDate}</time>${row.event_location ? ' · ' + row.event_location : ''}${daysUntilHtml}
-        </p>
-        
-        <!-- Submission Age -->
-        <p style="font-size:11px; margin:0;">${ageLine}</p>
-        
-        <!-- Tag badges -->
-        <div class="atl-tag-badges-container" id="tag-badges-${row.id}" style="display:${hasAnyBadge ? 'flex' : 'none'}; flex-wrap:wrap; gap:6px; margin-top:10px;">
-          <span class="atl-tag-badge atl-tag-badge--promoted" style="display:${row.event_id            ? 'inline-flex' : 'none'};">Promoted</span>
-          <span class="atl-tag-badge atl-tag-badge--venue"    style="display:${row.venue_id            ? 'inline-flex' : 'none'};">Venue linked</span>
-          <span class="atl-tag-badge atl-tag-badge--invoice"  style="display:${isInvoiceGenerated && !isInvoiceSent && !isInvoiceOverdue ? 'inline-flex' : 'none'};">Invoice</span>
-          <span class="atl-tag-badge atl-tag-badge--invoice-sent" style="display:${isInvoiceSent && !isInvoiceOverdue && ps !== 'PAID' ? 'inline-flex' : 'none'};">Inv. Sent</span>
-          <span class="atl-tag-badge atl-tag-badge--overdue"  style="display:${isInvoiceOverdue        ? 'inline-flex' : 'none'};" title="Invoice overdue — payment not received">Overdue</span>
-          <span class="atl-tag-badge atl-tag-badge--cal"      style="display:${isCalSynced             ? 'inline-flex' : 'none'};">Cal synced</span>
-          <span class="atl-tag-badge atl-tag-badge--quote"    style="display:${isQuoteSent             ? 'inline-flex' : 'none'};">Quote sent</span>
-          <span class="atl-tag-badge atl-tag-badge--accepted" style="display:${isAccepted              ? 'inline-flex' : 'none'};">Accepted</span>
-          <span class="atl-tag-badge atl-tag-badge--attached" style="display:${hasAttachments     ? 'inline-flex' : 'none'};">Brief attached</span>
-          <span class="atl-tag-badge atl-tag-badge--popia"    style="display:${isPopiaDone        ? 'inline-flex' : 'none'};">POPIA</span>
-          <span class="atl-tag-badge atl-tag-badge--refunded" style="display:${isRefunded         ? 'inline-flex' : 'none'};">Refunded</span>
-          <span class="atl-tag-badge atl-tag-badge--payfast"  style="display:${isPayFast          ? 'inline-flex' : 'none'};">PayFast</span>
-          <span class="atl-tag-badge atl-tag-badge--rebooked" style="display:${row.rebooked_from_id ? 'inline-flex' : 'none'};" title="This booking was created from cancelled booking #${row.rebooked_from_id}">&#x21BA; From #${row.rebooked_from_id}</span>
-          <span class="atl-tag-badge atl-tag-badge--rebooked" style="display:${row.rebooked_as_id  ? 'inline-flex' : 'none'};" title="This cancelled booking was rebooked as #${row.rebooked_as_id}">Rebooked &#x2192; #${row.rebooked_as_id}</span>
-        </div>
-        ${hasAnyBadge ? `<button type="button" class="atl-tag-more-btn" data-id="${row.id}" style="display:none;">+ more</button>` : ''}
-      </div>
-
-      <!-- Right Aside (Next Step hint) -->
-      <div style="display:flex; align-items:center; gap:12px; flex-shrink:0; align-self:flex-start; margin-top:2px; flex-wrap:wrap;">
-        ${nextStepHtml}
-      </div>
+                // Compact table row (Pipeline + Archive) — mirrors atelier-deal-view-mockup.html's
+                // reference table. Status/payment pills and tag badges are retained; the inline
+                // next-step hint and per-row action buttons are dropped from the visible row (the
+                // Deal View drawer's own header/action-bar covers that) but actionButtonsHtml is
+                // still rendered, just hidden — toggleBookingDetail() clones it into the drawer,
+                // so every delegated handler keeps working unchanged.
+                rowsHtml += `
+<tr class="atl-bk-row" data-id="${row.id}" tabindex="0">
+  <td class="atl-bk-select-cell"><label class="bk-select-box" title="Select booking"><input type="checkbox" class="bk-select-cb" data-id="${row.id}" aria-label="Select booking #${row.id}"></label></td>
+  <td class="atl-bk-ref">#${row.id}</td>
+  <td>
+    <div class="atl-bk-ev">${row.event_name || row.event_type || '—'}</div>
+    <div class="atl-tag-badges-container" id="tag-badges-${row.id}" style="display:${hasAnyBadge ? 'flex' : 'none'}; flex-wrap:wrap; gap:6px; margin-top:6px;">
+      <span class="atl-tag-badge atl-tag-badge--promoted" style="display:${row.event_id            ? 'inline-flex' : 'none'};">Promoted</span>
+      <span class="atl-tag-badge atl-tag-badge--venue"    style="display:${row.venue_id            ? 'inline-flex' : 'none'};">Venue linked</span>
+      <span class="atl-tag-badge atl-tag-badge--invoice"  style="display:${isInvoiceGenerated && !isInvoiceSent && !isInvoiceOverdue ? 'inline-flex' : 'none'};">Invoice</span>
+      <span class="atl-tag-badge atl-tag-badge--invoice-sent" style="display:${isInvoiceSent && !isInvoiceOverdue && ps !== 'PAID' ? 'inline-flex' : 'none'};">Inv. Sent</span>
+      <span class="atl-tag-badge atl-tag-badge--overdue"  style="display:${isInvoiceOverdue        ? 'inline-flex' : 'none'};" title="Invoice overdue — payment not received">Overdue</span>
+      <span class="atl-tag-badge atl-tag-badge--cal"      style="display:${isCalSynced             ? 'inline-flex' : 'none'};">Cal synced</span>
+      <span class="atl-tag-badge atl-tag-badge--quote"    style="display:${isQuoteSent             ? 'inline-flex' : 'none'};">Quote sent</span>
+      <span class="atl-tag-badge atl-tag-badge--accepted" style="display:${isAccepted              ? 'inline-flex' : 'none'};">Accepted</span>
+      <span class="atl-tag-badge atl-tag-badge--attached" style="display:${hasAttachments     ? 'inline-flex' : 'none'};">Brief attached</span>
+      <span class="atl-tag-badge atl-tag-badge--popia"    style="display:${isPopiaDone        ? 'inline-flex' : 'none'};">POPIA</span>
+      <span class="atl-tag-badge atl-tag-badge--refunded" style="display:${isRefunded         ? 'inline-flex' : 'none'};">Refunded</span>
+      <span class="atl-tag-badge atl-tag-badge--payfast"  style="display:${isPayFast          ? 'inline-flex' : 'none'};">PayFast</span>
+      <span class="atl-tag-badge atl-tag-badge--rebooked" style="display:${row.rebooked_from_id ? 'inline-flex' : 'none'};" title="This booking was created from cancelled booking #${row.rebooked_from_id}">&#x21BA; From #${row.rebooked_from_id}</span>
+      <span class="atl-tag-badge atl-tag-badge--rebooked" style="display:${row.rebooked_as_id  ? 'inline-flex' : 'none'};" title="This cancelled booking was rebooked as #${row.rebooked_as_id}">Rebooked &#x2192; #${row.rebooked_as_id}</span>
     </div>
-    
-    <!-- Actions Bar (Direct primary actions) -->
-    <div class="atl-card-actions-bar">
-      ${actionButtonsHtml}
-    </div>
-  </div>
-  
-  <!-- Expanded Details Panel -->
-  <div id="bookingDetail-${row.id}" class="atl-detail-region" role="region" aria-label="Details for ${row.event_name || row.event_type}">
-    <div class="atl-detail-inner">
-      <div class="atl-det-grid">
-        <!-- LEFT COLUMN -->
-        <div class="atl-det-col">
-          <!-- Client Card -->
-          <div class="atl-det-card">
-            <h5 class="atl-det-title">Client</h5>
-            <p style="font-size:clamp(12px,3.2vw,13px); font-weight:600; color:var(--atl-ink); margin:0 0 4px;">
-              ${row.name}${row.company ? ` <span style="font-weight:400;color:var(--atl-muted)">· ${row.company}</span>` : ''}
-            </p>
-            <p style="font-size:clamp(12px,3.2vw,13px); margin:0; color:var(--atl-muted);">
-              <a href="mailto:${row.email}" class="atl-det-link">${row.email}</a>
-              ${row.cell ? ` · <a href="tel:${row.cell.replace(/\s/g,'')}" class="atl-det-link">${row.cell}</a>` : ''}
-              &nbsp;<a href="#" class="bk-view-client-history atl-det-link" data-email="${row.email}" style="font-size:11px; color:var(--atl-amber);">View all bookings ›</a>
-            </p>
-          </div>
-
-          <!-- Event Card -->
-          <div class="atl-det-card">
-            <h5 class="atl-det-title">Event</h5>
-            <p style="font-size:clamp(12px,3.2vw,13px); font-weight:600; color:var(--atl-ink); margin:0 0 8px;">
-              ${row.event_name || row.event_type || '—'}
-            </p>
-            <dl class="atl-det-dl">
-              <dt>Date</dt>
-              <dd>${row.date || '—'}${row.event_start_time ? ' · ' + row.event_start_time : ''}</dd>
-              <dt>Location</dt>
-              <dd>${row.event_location || '—'}</dd>
-              ${row.performance_slot     ? `<dt>Slot</dt><dd>${row.performance_slot}</dd>` : ''}
-              ${row.performance_duration ? `<dt>Duration</dt><dd>${row.performance_duration}</dd>` : ''}
-              ${row.venue_type           ? `<dt>Venue type</dt><dd>${row.venue_type}</dd>` : ''}
-            </dl>
-            <div style="border-top:1px solid var(--atl-line);margin-top:10px;padding-top:10px;">
-              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--atl-muted);white-space:nowrap;">
-                  <i class="fa-solid fa-clock-rotate-left" style="margin-right:4px;opacity:.7;"></i>Travel &amp; logistics buffer
-                </span>
-                <input type="number" class="bk-buffer-input atl-input"
-                       id="bk-buf-${row.id}" data-id="${row.id}" data-default="${_typeDefault}"
-                       value="${_bufVal}" min="0" max="480" step="5"
-                       style="width:68px;padding:4px 8px;font-size:12px;text-align:center;">
-                <span style="font-size:11px;color:var(--atl-muted);">min</span>
-                <button type="button" class="bk-save-buffer-btn atl-btn"
-                        data-id="${row.id}"
-                        style="font-size:11px;padding:4px 10px;min-height:28px;background:rgba(212,175,55,0.10);border:1px solid rgba(212,175,55,0.35);color:var(--atl-amber);border-radius:6px;cursor:pointer;">
-                  Save
-                </button>
-                <span class="bk-buf-hint" id="bk-buf-hint-${row.id}"
-                      style="font-size:10px;color:var(--atl-muted-dim);">
-                  ${_isCustom ? '' : '← type default'}
-                </span>
-              </div>
-              <p style="font-size:10px;color:var(--atl-muted-dim);margin:5px 0 0;">
-                Post-event buffer for travel, weather &amp; logistics
-              </p>
-            </div>
-          </div>
-
-          <!-- Audience & Budget Card (conditional) -->
-          ${(row.audience_size || row.audience_demographic || row.budget_range || row.travel_accommodation != null) ? `
-          <div class="atl-det-card">
-            <h5 class="atl-det-title">Audience &amp; Budget</h5>
-            <dl class="atl-det-dl">
-              ${row.audience_size        ? `<dt>Audience size</dt><dd>${row.audience_size}</dd>` : ''}
-              ${row.audience_demographic ? `<dt>Demographic</dt><dd>${row.audience_demographic}</dd>` : ''}
-              ${row.budget_range         ? `<dt>Budget range</dt><dd class="atl-det-gold">${row.budget_range}</dd>` : ''}
-              ${row.travel_accommodation != null
-                ? `<dt>Travel provided</dt>
-                   <dd style="color:${row.travel_accommodation && row.travel_accommodation !== 'Not required' && row.travel_accommodation !== 0 && row.travel_accommodation !== '0' ? 'var(--atl-sage)' : 'var(--atl-muted)'}; font-weight:600;">
-                     ${row.travel_accommodation && row.travel_accommodation !== 'Not required' && row.travel_accommodation !== 0 && row.travel_accommodation !== '0' ? 'Yes' : 'No'}
-                   </dd>` : ''}
-            </dl>
-          </div>` : ''}
-
-          <!-- Ledger Card -->
-          <div class="atl-det-card">
-            <h5 class="atl-det-title">Ledger</h5>
-            <dl class="atl-det-dl">
-              <dt>Payment</dt>
-              <dd>${payLbl[ps] || ps}</dd>
-              <dt>Quoted total</dt>
-              <dd class="atl-det-tabular">R ${parseFloat(row.quote_amount||0).toFixed(2)}</dd>
-              <dt>Paid</dt>
-              <dd class="atl-det-tabular">R ${parseFloat(row.amount_paid||0).toFixed(2)}</dd>
-              <dt>Outstanding</dt>
-              <dd class="atl-det-tabular ${parseFloat(row.amount_outstanding)>0 ? 'atl-det-negative' : 'atl-det-positive'}">
-                R ${parseFloat(row.amount_outstanding||0).toFixed(2)}
-              </dd>
-              ${row.payment_date
-                ? `<dt>Last payment</dt>
-                   <dd>${new Date(row.payment_date).toLocaleDateString('en-ZA')}
-                       ${row.payment_reference ? ' · ' + row.payment_reference : ''}</dd>`
-                : ''}
-            </dl>
-          </div>
-
-          <!-- Venue Card -->
-          ${row.venue_id ? `
-          <div class="atl-det-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-              <h5 class="atl-det-title" style="margin:0;"><span aria-hidden="true">⌖</span> Venue</h5>
-              <button type="button" class="bk-unlink-venue-btn atl-btn atl-btn--ghost" data-booking-id="${row.id}" style="font-size:11px; padding:2px 8px; min-height:24px; color:var(--atl-clay);">
-                <i class="fa-solid fa-link-slash" style="margin-right:4px;"></i>Unlink
-              </button>
-            </div>
-            <p style="font-family:'Cormorant Garamond',serif;
-                       font-size:clamp(15px,4.5vw,17px);
-                       font-weight:600;
-                       color:var(--atl-ink);
-                       margin:0 0 6px;
-                       line-height:1.2;">
-              ${row.venue_name || row.event_location || '—'}
-            </p>
-            <p style="font-size:clamp(12px,3vw,13px); color:var(--atl-muted); margin:0;">
-              ${row.venue_city ? row.venue_city + ' · ' : ''}
-              ${row.venue_capacity ? 'Cap. ' + row.venue_capacity.toLocaleString() + ' · ' : ''}
-              ${row.venue_contact
-                ? `<a href="mailto:${row.venue_contact}" class="atl-det-link">${row.venue_contact}</a>`
-                : ''}
-            </p>
-            ${row.venue_contact_phone
-              ? `<p style="font-size:12px;color:var(--atl-muted);margin-top:4px;">${row.venue_contact_phone}</p>`
-              : ''}
-            ${row.venue_notes
-              ? `<p style="font-size:11px;color:var(--atl-muted);margin-top:6px;font-style:italic;">${row.venue_notes}</p>`
-              : ''}
-          </div>` : `
-          <div class="atl-det-card">
-            <h5 class="atl-det-title">Venue
-              <span style="font-size:10px;color:var(--atl-clay);margin-left:6px;font-weight:400;">· Unlinked</span>
-            </h5>
-            <p style="font-size:13px;color:var(--atl-muted);margin:0 0 10px;">${row.event_location || '—'}</p>
-            <div class="bkr-venue-edit-row" id="venue-edit-row-${row.id}" style="display:none; margin-top:8px;">
-              <input type="text" id="venue-loc-${row.id}" placeholder="Venue / location name" value="${row.event_location || ''}" class="atl-venue-input" style="margin-bottom:6px;">
-              <input type="text" id="venue-addr-${row.id}" placeholder="Street address (optional)" value="${row.venue_address || ''}" class="atl-venue-input" style="margin-bottom:6px;">
-              <div style="display:flex; gap:6px; margin-bottom:6px;">
-                <input type="text" id="venue-city-${row.id}" placeholder="City" value="${row.city || ''}" class="atl-venue-input">
-                <input type="text" id="venue-country-${row.id}" placeholder="Country" value="${row.country || ''}" class="atl-venue-input">
-              </div>
-              <div style="display:flex; gap:6px;">
-                <button type="button" class="bk-venue-save-btn atl-btn atl-btn--primary" data-id="${row.id}" style="flex:1; min-height:44px;">Save Location</button>
-                <button type="button" class="bk-venue-cancel-btn atl-btn atl-btn--ghost" data-id="${row.id}" style="flex:1; min-height:44px;">Cancel</button>
-              </div>
-            </div>
-            <div class="bkr-venue-link-row" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;width:100%;">
-              <label for="venueLinkGoogle-${row.id}" class="atl-panel-label" style="margin:0;flex-shrink:0;">Link a venue</label>
-              <input type="text"
-                     class="atl-venue-autocomplete-input atl-venue-input"
-                     id="venueLinkGoogle-${row.id}"
-                     placeholder="Search Google for a venue..."
-                     style="flex:1;min-width:160px;margin-bottom:0;"
-                     data-booking-id="${row.id}">
-              <button type="button"
-                      class="bkr-venue-link-google-btn bk-link-venue-google-btn atl-btn atl-btn--primary"
-                      id="venueLinkGoogleBtn-${row.id}"
-                      data-booking-id="${row.id}"
-                      disabled>
-                <i class="fa-solid fa-link"></i> Link
-              </button>
-            </div>
-            <button type="button" class="bk-venue-edit-btn atl-btn atl-btn--ghost" data-id="${row.id}" style="margin-top:8px;"><i class="fa-solid fa-pen-to-square" style="margin-right:6px;"></i>Edit Location</button>
-          </div>`}
-
-          <!-- Public Promotion Card -->
-          ${['ACCEPTED','CONFIRMED','COMPLETED'].includes(s) ? `
-          <div class="atl-det-card" id="promote-panel-${row.id}">
-            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:140px;">
-                <h5 class="atl-det-title" id="promoLabel-${row.id}" style="margin-bottom:4px;">
-                  <i class="fa-solid fa-bullhorn" aria-hidden="true" style="color:var(--atl-amber);margin-right:6px;"></i>
-                  Public Promotion
-                  <span class="atl-promote-live-badge ${row.is_public ? '' : 'atl-promote-live-badge--off'}" id="promote-badge-${row.id}">
-                    ${row.is_public ? 'LIVE' : 'Not Promoted'}
-                  </span>
-                </h5>
-                <p style="font-size:clamp(12px,3vw,13px);color:var(--atl-muted);margin:0;">
-                  List this booking on the public events page.
-                </p>
-              </div>
-              <button type="button"
-                      class="atl-switch promote-toggle"
-                      role="switch"
-                      id="promote-${row.id}"
-                      data-id="${row.id}"
-                      aria-checked="${row.is_public ? 'true' : 'false'}"
-                      aria-labelledby="promoLabel-${row.id}"
-                      style="flex-shrink:0;">
-              </button>
-            </div>
-
-            <!-- Missing field warnings -->
-            ${(!row.event_name && !row.event_type) || !row.event_location ? `
-            <div class="atl-promote-warn" id="promote-warn-${row.id}">
-              <i class="fa-solid fa-triangle-exclamation" style="margin-top:2px;"></i>
-              <span>Missing info for a good public listing:
-                ${!row.event_name && !row.event_type ? '<span class="atl-promote-warn-item">event name</span>' : ''}
-                ${!row.event_location ? '<span class="atl-promote-warn-item">venue / location</span>' : ''}
-              </span>
-            </div>` : ''}
-
-            <!-- Live preview card -->
-            <div class="atl-promote-preview ${row.is_public ? '' : 'atl-promote-preview--hidden'}" id="promote-preview-${row.id}">
-              <div class="atl-promote-preview__eyebrow"><i class="fa-solid fa-eye" style="margin-right:4px;"></i>Public listing preview</div>
-              <div>
-                <div class="atl-promote-preview__name">${row.event_name || row.event_type || '— No event name set —'}</div>
-                <div class="atl-promote-preview__meta">
-                  <span><i class="fa-regular fa-calendar" style="margin-right:4px; opacity:.6;"></i>${row.date || '—'}</span>
-                  ${row.event_start_time ? `<span><i class="fa-regular fa-clock" style="margin-right:4px; opacity:.6;"></i>${row.event_start_time}</span>` : ''}
-                  <span><i class="fa-solid fa-location-dot" style="margin-right:4px; opacity:.6;"></i>${row.event_location || row.venue_name || '— No venue set —'}</span>
-                  ${row.event_type ? `<span><i class="fa-solid fa-tag" style="margin-right:4px; opacity:.6;"></i>${row.event_type}</span>` : ''}
-                </div>
-                ${row.ticket_link ? `<div style="margin-top:8px; font-size:12px;"><i class="fa-solid fa-ticket" style="margin-right:6px; color:var(--atl-amber);"></i><a href="${row.ticket_link}" target="_blank" rel="noopener" class="atl-det-link" style="word-break:break-all;">${row.ticket_link}</a></div>` : ''}
-              </div>
-            </div>
-
-            <!-- Ticket URL input -->
-            <div id="promote-ticket-area-${row.id}" style="margin-top: 12px; border-top: 1px solid var(--atl-line); padding-top: 12px;">
-              <label class="atl-panel-label" for="promote-ticket-${row.id}" style="margin-bottom:6px; display:block;">
-                <i class="fa-solid fa-ticket" style="margin-right:6px;"></i>Ticket / RSVP Link <span style="font-weight:400; text-transform:none;">(optional)</span>
-              </label>
-              <div style="display:flex; gap:8px; align-items:center;">
-                <input type="url" class="atl-venue-input bkr-promote-ticket-input" id="promote-ticket-${row.id}"
-                  placeholder="https://tickets.example.com/event"
-                  value="${row.ticket_link || ''}" style="margin-bottom:0;">
-                <button type="button" class="atl-btn bkr-promote-ticket-save atl-promote-ticket-save" data-id="${row.id}">
-                  <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save
-                </button>
-              </div>
-              <div class="bkr-promote-ticket-msg" id="promote-ticket-msg-${row.id}" style="font-size:11px; margin-top:6px; display:none;"></div>
-            </div>
-          </div>` : ''}
-
-          <!-- Contract Card placeholder (populated via lazy-load) -->
-          <div class="atl-det-card" id="atl-contract-${row.id}">
-            <h5 class="atl-det-title">Contract</h5>
-            <div class="atl-det-loading">
-              <span class="atl-spinner" aria-hidden="true"></span>
-              <span>Loading contract status…</span>
-            </div>
-          </div>
-
-          <!-- Cancellation Card (conditional) -->
-          ${s === 'CANCELLED' ? `
-          <div class="atl-det-card atl-det-card--cancel" id="atl-cancel-${row.id}">
-            <div class="atl-det-loading">
-              <span class="atl-spinner" aria-hidden="true"></span>
-              <span>Loading cancellation details…</span>
-            </div>
-          </div>` : ''}
-        </div>
-
-        <!-- RIGHT COLUMN -->
-        <div class="atl-det-col">
-          <!-- Client Message Card -->
-          ${row.message ? `
-          <div class="atl-det-card">
-            <h5 class="atl-det-title">Client message</h5>
-            <p style="font-family:'Cormorant Garamond',Georgia,serif;
-                       font-size:clamp(14px,4vw,15px);
-                       font-style:italic;
-                       line-height:1.6;
-                       color:var(--atl-muted);
-                       margin:0;
-                       word-wrap:break-word;
-                       overflow-wrap:break-word;">
-              &ldquo;${row.message}&rdquo;
-            </p>
-          </div>` : ''}
-
-          <!-- Attachments Card -->
-          ${(function() {
-            try {
-              const files = JSON.parse(row.attachment_files || '[]');
-              if (!files || !files.length) return '';
-              return `
-              <div class="atl-det-card">
-                <h5 class="atl-det-title">Attached files</h5>
-                <div style="display:flex;flex-wrap:wrap;gap:8px;">
-                  ${files.map(f =>
-                    `<a href="/api/admin/booking-attachments/${encodeURIComponent(f.filename)}"
-                        target="_blank" rel="noopener"
-                        class="atl-tag-badge"
-                        style="font-size:11px;padding:8px 12px;border-radius:6px;
-                               text-decoration:none;min-height:36px;display:inline-flex;
-                               align-items:center;gap:6px;
-                               background:rgba(212,175,55,0.08);
-                               color:var(--atl-amber) !important;
-                               border:1px solid rgba(212,175,55,0.35);">
-                       <i class="fa-solid fa-paperclip" style="font-size:10px;flex-shrink:0;color:var(--atl-amber);"></i>
-                       <span style="word-break:break-all;max-width:180px;">${f.original_name}</span>
-                     </a>`
-                  ).join('')}
-                </div>
-              </div>`;
-            } catch(e) { return ''; }
-          })()}
-
-          <!-- Quote Card -->
-          <div class="atl-det-card">
-            <h5 class="atl-det-title">Quote</h5>
-            ${row.quote_amount
-              ? `<div class="atl-det-table-wrap">${formatQuoteDetailsAtelier(row.quote_details, row.quote_amount, row.quote_expiry_date, row.id, row.quote_sent_at)}</div>`
-              : `<p class="atl-det-empty" style="margin-bottom:10px;">No quote prepared yet.</p>
-                 <div class="atl-doc-actions-row">
-                   <button type="button" class="atl-det-link bk-action-quote" data-id="${row.id}" style="background:none;border:none;cursor:pointer;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;">
-                     <i class="fa-solid fa-file-pen"></i> Prepare Quote
-                   </button>
-                 </div>`}
-          </div>
-
-          <!-- Invoice Card -->
-          <div class="atl-det-card">
-            <h5 class="atl-det-title">Invoice</h5>
-            ${row.invoice_number
-              ? `<div class="atl-det-table-wrap">${formatInvoiceDetailsAtelier(row.quote_details, row.total_amount, row.invoice_number, row.invoice_status, row.id, row.invoice_id, row.invoice_sent_at, row.payment_status)}</div>`
-              : row.status === 'CONFIRMED'
-                ? `<p class="atl-det-empty" style="margin-bottom:10px;">No invoice prepared yet.</p>
-                   <div class="atl-doc-actions-row">
-                     <button type="button" class="atl-det-link bk-action-gen-invoice" data-id="${row.id}" style="background:none;border:none;cursor:pointer;padding:0;font-family:inherit;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;">
-                       <i class="fa-solid fa-file-circle-plus"></i> Generate Invoice
-                     </button>
-                   </div>`
-                : `<p class="atl-det-empty">No invoice prepared yet.</p>`}
-          </div>
-
-          <!-- Internal Notes Card -->
-          <div class="atl-det-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;">
-              <h5 class="atl-det-title" style="margin:0;">Internal notes</h5>
-              <button type="button" class="bk-notes-load-btn atl-btn atl-btn--ghost"
-                      data-id="${row.id}"
-                      style="font-size:10px;padding:8px 12px;white-space:nowrap;min-height:36px;">
-                <i class="fa-solid fa-rotate" style="margin-right:4px;"></i>Load
-              </button>
-            </div>
-            <div class="bk-notes-thread" id="notes-thread-${row.id}"
-                 style="max-height:180px;overflow-y:auto;
-                        background:var(--atl-input-bg);
-                        border:1px solid var(--atl-line);
-                        border-radius:8px;
-                        padding:10px;
-                        margin-bottom:10px;
-                        font-family:'Outfit',sans-serif;
-                        font-size:12px;
-                        line-height:1.5;
-                        color:var(--atl-muted);
-                        display:none;
-                        -webkit-overflow-scrolling:touch;">
-              No notes yet.
-            </div>
-            <div style="display:flex;gap:8px;align-items:flex-end;">
-              <textarea class="bk-note-input atl-textarea" id="note-input-${row.id}" rows="2" aria-label="Add a private note"
-                        placeholder="Add a private note…"></textarea>
-              <button type="button" class="bk-add-note-btn atl-btn"
-                      data-id="${row.id}"
-                      style="background:rgba(212,175,55,0.10);
-                             border:1px solid rgba(212,175,55,0.35);
-                             color:var(--atl-amber);
-                             border-radius:8px;
-                             padding:10px 14px;
-                             min-height:44px;
-                             white-space:nowrap;
-                             font-size:12px;
-                             font-weight:600;
-                             display:flex;
-                             align-items:center;
-                             gap:6px;
-                             cursor:pointer;
-                             transition:background 0.15s ease;
-                             flex-shrink:0;">
-                <i class="fa-solid fa-plus"></i> Add
-              </button>
-            </div>
-          </div>
-
-          <!-- Email History card (Gap 10) -->
-          <div class="atl-det-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:8px;">
-              <h5 class="atl-det-title" style="margin:0;">Email history</h5>
-              <button type="button" class="bk-comms-load-btn atl-btn atl-btn--ghost"
-                      data-id="${row.id}"
-                      style="font-size:10px;padding:8px 12px;white-space:nowrap;min-height:36px;">
-                <i class="fa-solid fa-arrows-rotate" style="margin-right:4px;"></i>Refresh
-              </button>
-            </div>
-            <div class="bk-comms-thread" id="comms-thread-${row.id}"
-                 style="max-height:160px;overflow-y:auto;font-size:12px;color:var(--atl-muted);">
-              <p style="color:var(--atl-muted);font-size:12px;margin:0;">Loading email history…</p>
-            </div>
-          </div>
-
-          <!-- Line Items placeholder -->
-          <div id="atl-lineitems-${row.id}">
-            <div class="atl-det-card">
-              <h5 class="atl-det-title">Line items</h5>
-              <div class="atl-det-loading">
-                <span class="atl-spinner" aria-hidden="true"></span><span>Loading…</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Transactions placeholder -->
-          <div id="atl-transactions-${row.id}">
-            <div class="atl-det-card">
-              <h5 class="atl-det-title">Transactions</h5>
-              <div class="atl-det-loading">
-                <span class="atl-spinner" aria-hidden="true"></span><span>Loading…</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Payment Schedule placeholder -->
-          <div id="atl-paymentschedule-${row.id}"></div>
-
-          <!-- Quote History placeholder -->
-          <div id="atl-history-${row.id}"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</article>`);
+    ${hasAnyBadge ? `<button type="button" class="atl-tag-more-btn" data-id="${row.id}" style="display:none;">+ more</button>` : ''}
+    <div class="atl-card-actions-bar" style="display:none;" aria-hidden="true">${actionButtonsHtml}</div>
+  </td>
+  <td class="atl-bk-client">${row.name}${row.company ? ` · ${row.company}` : ''}</td>
+  <td class="atl-bk-date">${evDate || '—'}</td>
+  <td class="atl-bk-status">
+    <span class="atl-status-badge" style="background:${colors.tint}; color:${colors.color}; padding:4px 10px; border-radius:999px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
+      <span class="atl-pill-dot" style="background:${colors.color}; width:7px; height:7px; border-radius:50%; display:inline-block;"></span>
+      ${s === 'ACCEPTED' ? (acceptedStage === 'paid' ? 'Paid · Confirmed' : acceptedStage === 'invoiced' ? 'Invoiced' : 'Accepted') : (sLbl[s] || s)}
+    </span>
+    <span class="atl-payment-badge">${payLbl[ps] || ps}</span>
+  </td>
+  <td class="atl-bk-fee">${feeAmount ? 'R ' + feeAmount.toFixed(2) : '—'}</td>
+</tr>`;
             }); // end forEach
 
-            // Click to toggle expand/collapse details
-            $(document).off('click.bkrdet').on('click.bkrdet', '.atl-booking-card:not(.atl-event-card) .atl-booking-card-header', function(e) {
-                if ($(e.target).closest('button, a, select, input, label, .bkr-more-menu').length) {
-                    if (!$(e.target).closest('.atl-expand-btn').length) {
-                        return;
-                    }
-                }
-                const $card = $(this).closest('.atl-booking-card');
-                const bookingId = $card.data('id');
+            $container.html(`
+                <div class="atl-bk-table-wrap">
+                  <table class="atl-bk-table">
+                    <thead>
+                      <tr>
+                        <th class="atl-bk-select-th"></th>
+                        <th class="atl-bk-th-ref">Ref</th>
+                        <th>Event</th>
+                        <th>Client</th>
+                        <th class="atl-bk-th-date">Date</th>
+                        <th>Status</th>
+                        <th class="r">Fee</th>
+                      </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                  </table>
+                </div>
+            `);
+
+            // Click a row (or Enter/Space while focused) to open its Deal View
+            $(document).off('click.bkrdet').on('click.bkrdet', '.atl-bk-row', function(e) {
+                if ($(e.target).closest('label, input, a').length) return;
+                const bookingId = $(this).data('id');
                 window.toggleBookingDetail(bookingId);
+            });
+            $(document).off('keydown.bkrdet').on('keydown.bkrdet', '.atl-bk-row', function(e) {
+                if (e.key !== 'Enter' && e.key !== ' ') return;
+                if ($(e.target).closest('label, input, a').length) return;
+                e.preventDefault();
+                window.toggleBookingDetail($(this).data('id'));
             });
 
             // Reveal "show more" button for any tag container that overflows 2 rows
@@ -20241,9 +20903,8 @@
             if (d.success) {
                 window.notificationService.showSuccess(`Booking #${id} → ${newStatus}`);
                 await loadBookings();
-                // Re-expand the row if it's still visible after the filter is re-applied
-                const $detail = $(`#bookingDetail-${id}`);
-                if ($detail.length) $detail.collapse('show');
+                // Re-open the Deal View if it's still visible after the filter is re-applied
+                if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(id, true);
 
                 if (newStatus === 'CONFIRMED') {
                     const bk = allBookingsCache.find(b => b.id == id);
@@ -23835,8 +24496,7 @@
                     setTimeout(async () => {
                         closeAtlDrawer('recordPaymentDrawer');
                         await loadBookings();
-                        const $detail = $(`#bookingDetail-${id}`);
-                        if ($detail.length) $detail.collapse('show');
+                        if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(id, true);
                     }, 800);
                 } else {
                     window.notificationService.showError((r && r.message) || 'Failed to record payment.');
@@ -27525,7 +28185,7 @@
                     if (ev.extendedProps.type === 'booking') {
                         dotColor = 'var(--atl-amber)';
                         isClickable = true;
-                        onclickAttr = `onclick="switchTab('bookingsAdmin'); $('#bookingStatusFilter').val('All').trigger('change'); setTimeout(() => { const el = document.getElementById('bookingDetail-${ev.extendedProps.dbId}'); if(el) { $(el).collapse('show'); el.scrollIntoView({behavior:'smooth',block:'center'}); } }, 300);"`;
+                        onclickAttr = `onclick="switchTab('bookingsAdmin'); $('#bookingStatusFilter').val('All').trigger('change'); setTimeout(() => { if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(${ev.extendedProps.dbId}, true); }, 300);"`;
                     } else if (ev.extendedProps.type === 'hold') {
                         dotColor = '#777';
                     } else if (ev.extendedProps.type === 'event' || ev.extendedProps.type === 'public_event') {
@@ -30417,8 +31077,7 @@
                 window.notificationService.showSuccess('Success: Invoice PDF generated and dispatched. Booking updated.');
                 $btn.html('<i class="fa-solid fa-check"></i> Regenerate Invoice').css('background','var(--atl-sage)').css('color', '#fff').prop('disabled', false);
                 await loadBookings();
-                const $detail = $(`#bookingDetail-${bookingId}`);
-                if ($detail.length) $detail.collapse('show');
+                if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(bookingId, true);
             } else {
                 window.notificationService.showError('Error: ' + res.message);
                 $btn.prop('disabled', false).html(orig);
@@ -31902,8 +32561,7 @@
             if (typeof switchTab === 'function') switchTab('bookingsAdmin');
             try { $('#bookingStatusFilter').val('All').trigger('change'); } catch (e) {}
             setTimeout(function () {
-                var el = document.getElementById('bookingDetail-' + bookingId);
-                if (el) { try { $(el).collapse('show'); } catch (e) {} el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+                if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(bookingId, true);
             }, 400);
         };
         $(document).on('input', '#lcContractSearch', lcDebounce(function () { loadLegalContracts(true); }, 300));
@@ -33654,6 +34312,43 @@
         </button>
     </div>
 </div>
+
+<!-- ============================================================
+     DEAL VIEW — tabbed booking detail drawer (Overview · Offer & Contract ·
+     Invoices & Payments · Advancing · Timeline & Notes · Files)
+============================================================ -->
+<!-- dealViewDrawer backdrop -->
+<div id="dealViewDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('dealViewDrawer')"></div>
+<!-- dealViewDrawer -->
+<aside id="dealViewDrawer" class="atl-drawer atl-drawer--760" role="dialog" aria-labelledby="dvTitle" aria-modal="true">
+    <div class="atl-drawer__header">
+        <div class="dv-breadcrumb">Bookings <span aria-hidden="true">&rsaquo;</span> <span class="cur" id="dvBreadcrumbCur">#—</span></div>
+        <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('dealViewDrawer')" aria-label="Close deal view">&times;</button>
+    </div>
+    <div class="dv-subhead">
+        <h2 class="dv-title" id="dvTitle">—</h2>
+        <div class="dv-subtitle" id="dvSubtitle"></div>
+        <div class="dv-statusrow" id="dvStatusRow"></div>
+        <div class="dv-chips" id="dvChips"></div>
+        <div class="dv-actions" id="dvActions"></div>
+        <div class="dv-tabs" role="tablist" aria-label="Deal sections" id="dvTabs">
+            <button type="button" class="dv-tab" role="tab" id="dv-tab-overview"  aria-controls="dv-panel-overview"  aria-selected="true"  tabindex="0">Overview</button>
+            <button type="button" class="dv-tab" role="tab" id="dv-tab-offer"     aria-controls="dv-panel-offer"     aria-selected="false" tabindex="-1">Offer &amp; Contract</button>
+            <button type="button" class="dv-tab" role="tab" id="dv-tab-invoices" aria-controls="dv-panel-invoices"  aria-selected="false" tabindex="-1">Invoices &amp; Payments</button>
+            <button type="button" class="dv-tab" role="tab" id="dv-tab-advancing" aria-controls="dv-panel-advancing" aria-selected="false" tabindex="-1">Advancing</button>
+            <button type="button" class="dv-tab" role="tab" id="dv-tab-timeline" aria-controls="dv-panel-timeline"  aria-selected="false" tabindex="-1">Timeline &amp; Notes</button>
+            <button type="button" class="dv-tab" role="tab" id="dv-tab-files"    aria-controls="dv-panel-files"     aria-selected="false" tabindex="-1">Files</button>
+        </div>
+    </div>
+    <div class="atl-drawer__body">
+        <section class="dv-panel" role="tabpanel" id="dv-panel-overview"  aria-labelledby="dv-tab-overview"  tabindex="0"></section>
+        <section class="dv-panel" role="tabpanel" id="dv-panel-offer"     aria-labelledby="dv-tab-offer"     tabindex="0" hidden></section>
+        <section class="dv-panel" role="tabpanel" id="dv-panel-invoices" aria-labelledby="dv-tab-invoices"  tabindex="0" hidden></section>
+        <section class="dv-panel" role="tabpanel" id="dv-panel-advancing" aria-labelledby="dv-tab-advancing" tabindex="0" hidden></section>
+        <section class="dv-panel" role="tabpanel" id="dv-panel-timeline" aria-labelledby="dv-tab-timeline"  tabindex="0" hidden></section>
+        <section class="dv-panel" role="tabpanel" id="dv-panel-files"    aria-labelledby="dv-tab-files"     tabindex="0" hidden></section>
+    </div>
+</aside>
 
 <!-- ── Manual Booking Modal ─────────────────────────────────────────────── -->
 <!-- manualBookingDrawer backdrop -->

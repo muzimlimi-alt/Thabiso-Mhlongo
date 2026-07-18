@@ -1156,7 +1156,7 @@ header .navbar {
 }
 
 /* ---------- FOOTPRINT ---------- */
-.tm-footprint{ background:var(--bg-page); }
+.tm-footprint{ background:var(--bg-section); }
 .fp-grid{
   display:grid;
   grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));

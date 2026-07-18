@@ -648,6 +648,113 @@ class PDFService {
             } catch (e) { reject(e); }
         });
     }
+
+    // Show-day operations pack (run-of-show, technical, hospitality, contacts, travel).
+    // Structurally a free-form sectioned document like generateContract(), not a line-items
+    // invoice, so it does NOT go through generateDocument()'s type dispatch. `contacts` is a
+    // caller-supplied snapshot (auto-sourced + extras already merged) — this method just renders
+    // whatever it's given. `pack.internal_notes` is intentionally never rendered here — it's
+    // office-only and must not leak into a document sent to the client or venue.
+    async generateAdvancingPack(booking, pack, rosItems, contacts, outputPath) {
+        return new Promise((resolve, reject) => {
+            try {
+                const doc = new PDFDocument({ margin: 28 });
+                const stream = fs.createWriteStream(outputPath);
+                doc.pipe(stream);
+
+                const LEFT = 28, WIDTH = 556;
+                const packNo = `ADV-${booking.id}`;
+
+                this._drawHeader(doc, 'Advancing Pack', packNo, false);
+
+                const pageBreakGuard = () => { if (doc.y > doc.page.height - 110) doc.addPage(); };
+                const sectionTitle = (t) => {
+                    pageBreakGuard();
+                    doc.moveDown(0.7);
+                    doc.font('Helvetica-Bold').fontSize(11).fillColor(DARK).text(t, LEFT, doc.y, { width: WIDTH });
+                    const yy = doc.y + 2;
+                    doc.rect(LEFT, yy, 42, 1.5).fillColor(GOLD).fill();
+                    doc.moveDown(0.7);
+                };
+                const para = (t, o = {}) => {
+                    pageBreakGuard();
+                    doc.font(o.font || 'Helvetica').fontSize(o.size || 9).fillColor(o.color || '#333333')
+                       .text(t, LEFT, doc.y, { width: WIDTH, align: o.align || 'left', lineGap: 1.5 });
+                };
+                const kv = (k, v) => {
+                    pageBreakGuard();
+                    doc.font('Helvetica-Bold').fontSize(9).fillColor(DARK).text(k + ':  ', LEFT, doc.y, { continued: true });
+                    doc.font('Helvetica').fillColor('#333333').text(String(v == null || v === '' ? 'TBC' : v));
+                };
+
+                doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Advancing Pack', LEFT, 150, { width: WIDTH });
+                doc.font('Helvetica').fontSize(9).fillColor(GREY).text(`${packNo}  ·  Prepared ${moment().format('DD MMMM YYYY')}`, LEFT, doc.y + 2, { width: WIDTH });
+                doc.moveDown(0.5);
+
+                sectionTitle('Event');
+                kv('Event', booking.event_name || booking.event_type);
+                kv('Date', booking.date);
+                kv('Venue', booking.event_location);
+
+                sectionTitle('Run of Show');
+                if (rosItems && rosItems.length) {
+                    rosItems.forEach((item) => {
+                        pageBreakGuard();
+                        doc.font('Helvetica-Bold').fontSize(9).fillColor(DARK)
+                           .text(`${item.time_label || '—'}   ${item.title}`, LEFT, doc.y);
+                        const meta = [item.detail, item.responsible ? 'Responsible: ' + item.responsible : ''].filter(Boolean).join('  ·  ');
+                        if (meta) doc.font('Helvetica').fontSize(8).fillColor(GREY).text(meta, LEFT + 8, doc.y);
+                        doc.moveDown(0.35);
+                    });
+                } else {
+                    para('No run-of-show items recorded.', { color: GREY, size: 8.5 });
+                }
+
+                sectionTitle('Technical');
+                kv('Mic type', pack.mic_type);
+                kv('PA spec', pack.pa_spec);
+                kv('Monitors', pack.monitors);
+                kv('Lighting', pack.lighting);
+                kv('Stage layout', pack.stage_layout);
+                kv('Equipment responsibility', pack.equipment_responsibility);
+
+                sectionTitle('Hospitality');
+                kv('Green room notes', pack.green_room_notes);
+                kv('Meals', pack.meals);
+                kv('Dietary', pack.dietary);
+                kv('Parking / Wi-Fi', pack.parking_wifi);
+
+                sectionTitle('Contacts');
+                if (contacts && contacts.length) {
+                    contacts.forEach((c) => {
+                        pageBreakGuard();
+                        doc.font('Helvetica-Bold').fontSize(9).fillColor(DARK).text(`${c.role || 'Contact'}: ${c.name || 'TBC'}`, LEFT, doc.y);
+                        const meta = [c.phone, c.email].filter(Boolean).join('  ·  ');
+                        if (meta) doc.font('Helvetica').fontSize(8).fillColor(GREY).text(meta, LEFT + 8, doc.y);
+                        doc.moveDown(0.35);
+                    });
+                } else {
+                    para('No contacts recorded.', { color: GREY, size: 8.5 });
+                }
+
+                sectionTitle('Travel & Accommodation');
+                kv('Travel type', pack.travel_type);
+                kv('Flights', pack.flights);
+                kv('Hotel', pack.hotel);
+                kv('Ground transport', pack.ground_transport);
+
+                const bottom = doc.page.height - 66;
+                doc.rect(28, bottom, 556, 1.5).fillColor(GOLD).fill();
+                doc.fillColor(GREY).font('Helvetica').fontSize(7.5)
+                   .text(`${this.companyInfo.name}  ·  ${this.companyInfo.email}  ·  ${this.companyInfo.website}`, 28, bottom + 8, { align: 'center', width: 556 })
+                   .text('This document was generated by the Thabiso Mhlongo Official Booking System.', 28, bottom + 19, { align: 'center', width: 556 });
+
+                doc.end();
+                stream.on('finish', () => resolve({ success: true, path: outputPath, number: packNo }));
+                stream.on('error', reject);
+            } catch (e) { reject(e); }
+        });
+    }
 }
 
 module.exports = new PDFService();

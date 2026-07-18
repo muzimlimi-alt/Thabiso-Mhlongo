@@ -750,6 +750,43 @@ function initializeDatabase() {
             db.run("ALTER TABLE venues ADD COLUMN negotiated_rates TEXT", () => {});
         });
 
+        // Advancing Pack — show-day operations (run-of-show, technical rider, hospitality,
+        // contacts, travel), editable from the Deal View's Advancing tab. 1:1 with a booking.
+        db.run(`CREATE TABLE IF NOT EXISTS advancing_packs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            booking_id INTEGER NOT NULL UNIQUE REFERENCES bookings(id),
+            status TEXT DEFAULT 'draft' CHECK(status IN ('draft','sent','confirmed')),
+            mic_type TEXT, pa_spec TEXT, monitors TEXT, lighting TEXT,
+            stage_layout TEXT, equipment_responsibility TEXT,
+            green_room_notes TEXT, meals TEXT, dietary TEXT, parking_wifi TEXT,
+            travel_type TEXT, flights TEXT, hotel TEXT, ground_transport TEXT,
+            internal_notes TEXT, pdf_url TEXT,
+            sent_to_client_at DATETIME, sent_to_venue_at DATETIME, confirmed_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, (err) => { if (err) console.error("Error creating advancing_packs table:", err.message); });
+
+        db.run(`CREATE TABLE IF NOT EXISTS run_of_show_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pack_id INTEGER NOT NULL REFERENCES advancing_packs(id) ON DELETE CASCADE,
+            sort_order INTEGER DEFAULT 0,
+            time_label TEXT,
+            duration_minutes INTEGER,
+            title TEXT NOT NULL,
+            detail TEXT,
+            responsible TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, (err) => { if (err) console.error("Error creating run_of_show_items table:", err.message); });
+        db.run(`CREATE INDEX IF NOT EXISTS idx_ros_pack ON run_of_show_items(pack_id)`);
+
+        db.run(`CREATE TABLE IF NOT EXISTS advancing_contacts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pack_id INTEGER NOT NULL REFERENCES advancing_packs(id) ON DELETE CASCADE,
+            role TEXT, name TEXT, phone TEXT, email TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, (err) => { if (err) console.error("Error creating advancing_contacts table:", err.message); });
+        db.run(`CREATE INDEX IF NOT EXISTS idx_advcontacts_pack ON advancing_contacts(pack_id)`);
+
         db.run(`CREATE TABLE IF NOT EXISTS comedians (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             stage_name TEXT NOT NULL,

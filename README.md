@@ -80,12 +80,14 @@ cp .env.example .env
 ```
 Ensure database configurations, secrets, ports, and external APIs (such as Google Calendar API credentials and SMTP configurations) are set.
 
-### 4. Run Server
-Launch the server in development mode:
-```bash
-npm start
-```
-The application will boot, initialize schemas in `database.sqlite` (if missing), and run.
+### 4. Build & Start Commands
+
+*   **Build Step**: Because this application is built with a vanilla HTML, CSS, and Javascript frontend and an Express backend, **no build step is necessary** (there is no compilation or bundle compilation step).
+*   **Start Command**: Launch the server locally by running:
+    ```bash
+    npm start
+    ```
+    The application will boot, initialize schemas in `database.sqlite` (if missing), and begin listening on the configured port.
 
 ---
 
@@ -102,3 +104,52 @@ To take a snapshot backup of the current database:
 ```bash
 npm run backup
 ```
+
+---
+
+## ── Usage Examples
+
+### Running the Email Banner Seeding Script
+To configure template keys and register image placeholders in the database:
+```bash
+node scripts/seed-banner-templates.js --apply
+```
+
+### Simulating a Booking Request Flow
+The booking flow can be initiated by POSTing a JSON request to the admin intake route:
+```bash
+curl -X POST http://localhost:3000/api/admin/bookings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Jane Client",
+    "email": "jane@example.com",
+    "cell": "+27821234567",
+    "event_date": "2027-10-10",
+    "event_name": "Comedy Show Headline",
+    "event_type": "Public",
+    "event_location": "Cape Town Arena",
+    "message": "Booking inquiry for a public event.",
+    "services": [{"service_id": 15}],
+    "status": "NEW",
+    "override_working_hours": true
+  }'
+```
+
+---
+
+## ── Contribution Rules
+
+When contributing to this repository, please adhere to the following developer guidelines:
+
+1.  **Strict Folder Separation**: All temporary, test, scratch scripts, mockups, or experimental code **must** be stored in the `/TBC` directory to keep the root clean.
+2.  **Editorial-Luxe Guidelines**: All UI modifications must strictly comply with the HSL tailored dark-mode palette (`#0A0A0A`, `#111111`, `#1A1A1A`, `#D4AF37`) and typography guidelines.
+3.  **Testing Mandate**: Any new features, endpoints, or database schema additions must have associated integration tests. Ensure the entire suite passes successfully by running `npm test` before submitting changes.
+4.  **No Unapproved Dependencies**: Check with the project maintainers before importing new packages to avoid CVE or licensing conflicts.
+
+---
+
+## ── Licensing & Credits
+
+*   **Credits**: Developed for Thabiso Mhlongo.
+*   **License**: All Rights Reserved. Private repository for authorized administrative use only.
+
