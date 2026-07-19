@@ -1242,11 +1242,62 @@ function computeDocumentTotals(items, { discount = 0, applyVat = false, vatRate 
 }
 
 /**
- * Generates an invoice for a booking, saves to DB and sends email.
+ * Auto-builds the default 50/50 deposit+balance payment schedule for a booking, unless the admin
+ * has already configured live (non-superseded/cancelled/paid) milestones — in which case it leaves
+ * them alone. Idempotent and safe to re-run. Shared by BOTH acceptance paths (client self-accept
+ * and admin QUOTED→ACCEPTED) so the milestone behaviour can never diverge between them again.
+ * Uses the ambient dbRun, so the caller controls transactionality: call it inside an open
+ * BEGIN IMMEDIATE (client path) or wrap it in withDbTransaction (admin path).
+ *
+ * Invariant: SUM(expected_amount) over live rows == totalAmount. The split covers the OUTSTANDING
+ * balance (total − already-paid milestones), so a re-quote after a deposit schedules only what's left.
  * @param {number|string} bookingId
+ * @param {number} totalAmount
+ * @param {string|null} eventDate  YYYY-MM-DD; balance falls due 2 days before, else +30 days.
+ */
+async function autoBuildDepositBalanceSchedule(bookingId, totalAmount, eventDate) {
+    if (!(totalAmount > 0)) return;
+    const liveRow = await dbGet(
+        "SELECT COUNT(*) AS cnt FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled','paid')",
+        [bookingId]);
+    if ((liveRow ? liveRow.cnt : 0) > 0) return; // admin-configured milestones exist — don't touch
+    const paidRow = await dbGet(
+        "SELECT COALESCE(SUM(expected_amount),0) AS paidSum FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) = 'paid'",
+        [bookingId]);
+    const paidSum = paidRow ? (parseFloat(paidRow.paidSum) || 0) : 0;
+    const remaining = Math.round((totalAmount - paidSum) * 100) / 100;
+    if (remaining <= 0.009) {
+        console.warn(`[Auto-Schedule] Booking #${bookingId}: paid milestones (R${paidSum.toFixed(2)}) already cover the total (R${totalAmount.toFixed(2)}) — no new milestones created.`);
+        return;
+    }
+    const depositAmount = Math.round((remaining * 0.5) * 100) / 100;
+    const balanceAmount = Math.round((remaining - depositAmount) * 100) / 100;
+    const depositDue = moment().add(7, 'days').format('YYYY-MM-DD');
+    const balanceDue = eventDate
+        ? moment(eventDate).subtract(2, 'days').format('YYYY-MM-DD')
+        : moment().add(30, 'days').format('YYYY-MM-DD');
+    // Distinct labels once a payment exists, so the invoice PDF never shows two rows both called
+    // "50% Deposit" for different amounts.
+    const depositLabel = paidSum > 0 ? 'Outstanding Balance – Deposit (50%)' : '50% Deposit';
+    const balanceLabel = paidSum > 0 ? 'Outstanding Balance – Final (50%)'   : '50% Balance';
+    await dbRun("INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
+        [bookingId, depositLabel, depositDue, depositAmount]);
+    await dbRun("INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
+        [bookingId, balanceLabel, balanceDue, balanceAmount]);
+}
+
+/**
+ * Generates an invoice for a booking and saves it to the DB.
+ * Draft-then-send model: by default the invoice is created as a reviewable DRAFT and NO email is
+ * sent — the admin reviews it, then explicitly Sends (POST /invoices/:id/send flips DRAFT→SENT and
+ * emails). Pass { autoSend: true } to create it as SENT and email immediately in one step — used by
+ * the public accept-quote flow, where the client is actively expecting the invoice.
+ * @param {number|string} bookingId
+ * @param {{autoSend?: boolean}} [opts]
  * @returns {Promise<Object>}
  */
-async function generateInvoice(bookingId) {
+async function generateInvoice(bookingId, opts = {}) {
+    const autoSend = !!opts.autoSend;
     return new Promise((resolve, reject) => {
         db.get(`SELECT b.*, c.vat_number AS client_vat_number
                 FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`, [bookingId], async (err, booking) => {
@@ -1379,9 +1430,11 @@ async function generateInvoice(bookingId) {
                         try {
                             await dbRun("UPDATE invoices SET status='VOID', void_reason='superseded', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [bookingId]);
 
+                            // Draft-then-send: created as DRAFT for admin review unless autoSend
+                            // (client accept-quote) asks to publish + email immediately as SENT.
                             const ins = await dbRun(`INSERT INTO invoices (booking_id, client_id, invoice_number, invoice_date, due_date, subtotal, tax_amount, total_amount, status, file_path)
-                                    VALUES (?, ?, ?, CURRENT_DATE, date('now', '+7 days'), ?, ?, ?, 'SENT', ?)`,
-                                [bookingId, booking.client_id, invNumber, subtotal, tax, total, pdfFileName]);
+                                    VALUES (?, ?, ?, CURRENT_DATE, date('now', '+7 days'), ?, ?, ?, ?, ?)`,
+                                [bookingId, booking.client_id, invNumber, subtotal, tax, total, autoSend ? 'SENT' : 'DRAFT', pdfFileName]);
                             const newInvoiceId = ins.lastID;
 
                             // Sequential and error-checked. These previously ran as a parallel forEach
@@ -1404,13 +1457,16 @@ async function generateInvoice(bookingId) {
                         }
                     });
 
-                    // Side effects only after the commit.
-                    try {
-                        await sendInvoiceEmail(booking, pdfPath);
-                        db.run("UPDATE invoices SET sent_at = CURRENT_TIMESTAMP WHERE id = ?", [invoiceId], () => {});
-                    } catch (emErr) { console.error("Invoice Email Error:", emErr); }
+                    // Side effects only after the commit. A draft is NOT emailed — the admin reviews
+                    // it and sends explicitly. Only autoSend (client accept-quote) emails here.
+                    if (autoSend) {
+                        try {
+                            await sendInvoiceEmail(booking, pdfPath);
+                            db.run("UPDATE invoices SET sent_at = CURRENT_TIMESTAMP WHERE id = ?", [invoiceId], () => {});
+                        } catch (emErr) { console.error("Invoice Email Error:", emErr); }
+                    }
 
-                    resolve({ success: true, message: 'Invoice generated successfully', invoice_id: invoiceId, pdfUrl: `/docs/invoices/${pdfFileName}` });
+                    resolve({ success: true, message: autoSend ? 'Invoice generated and emailed.' : 'Invoice generated as a draft.', invoice_id: invoiceId, status: autoSend ? 'SENT' : 'DRAFT', pdfUrl: `/docs/invoices/${pdfFileName}` });
                 } catch (ex) {
                     console.error("Invoice Gen Error:", ex);
                     reject(ex);
@@ -6039,41 +6095,9 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
                 // expected_amount, and expected_amount is what the invoice PDF renders.
                 //
                 // Invariant: SUM(expected_amount) over live (non-superseded, non-cancelled) rows == total_amount.
+                // Shared with the admin QUOTED→ACCEPTED path (applyStatusChange) so the two never diverge.
                 const totalAmount = quotedTotal || parseFloat(row.total_amount) || 0;
-                if (totalAmount > 0) {
-                    const liveRow = await dbGet(
-                        "SELECT COUNT(*) AS cnt FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled','paid')",
-                        [bookingId]);
-                    const hasLiveUnpaid = (liveRow ? liveRow.cnt : 0) > 0;
-                    if (!hasLiveUnpaid) { // no admin-configured milestones — (re)build the auto split
-                        const paidRow = await dbGet(
-                            "SELECT COALESCE(SUM(expected_amount),0) AS paidSum FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) = 'paid'",
-                            [bookingId]);
-                        const paidSum = paidRow ? (parseFloat(paidRow.paidSum) || 0) : 0;
-                        const remaining = Math.round((totalAmount - paidSum) * 100) / 100;
-
-                        if (remaining > 0.009) {
-                            const depositAmount = Math.round((remaining * 0.5) * 100) / 100;
-                            const balanceAmount = Math.round((remaining - depositAmount) * 100) / 100;
-                            const depositDue = moment().add(7, 'days').format('YYYY-MM-DD');
-                            const eventDate = row.date || row.event_date;
-                            const balanceDue = eventDate
-                                ? moment(eventDate).subtract(2, 'days').format('YYYY-MM-DD')
-                                : moment().add(30, 'days').format('YYYY-MM-DD');
-                            // Distinct labels once a payment exists, so the invoice PDF never shows two
-                            // rows both called "50% Deposit" for different amounts.
-                            const depositLabel = paidSum > 0 ? 'Outstanding Balance – Deposit (50%)' : '50% Deposit';
-                            const balanceLabel = paidSum > 0 ? 'Outstanding Balance – Final (50%)'   : '50% Balance';
-                            await dbRun("INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
-                                [bookingId, depositLabel, depositDue, depositAmount]);
-                            await dbRun("INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
-                                [bookingId, balanceLabel, balanceDue, balanceAmount]);
-                        } else {
-                            // A re-quote to a lower total that payments already cover. Nothing left to schedule.
-                            console.warn(`[Accept-Quote] Booking #${bookingId}: paid milestones (R${paidSum.toFixed(2)}) already cover the total (R${totalAmount.toFixed(2)}) — no new milestones created.`);
-                        }
-                    }
-                }
+                await autoBuildDepositBalanceSchedule(bookingId, totalAmount, row.date || row.event_date);
 
                 // Read back what the CASE above actually resolved to, so the response and the client
                 // email report the real status rather than assuming ACCEPTED.
@@ -6101,7 +6125,9 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
         // is accepted; only the invoice email promise changes.
         let invoiceGenerated = false;
         try {
-            await generateInvoice(bookingId);
+            // Client is actively expecting the invoice — generate AND email it (autoSend), unlike the
+            // admin acceptance path which produces a DRAFT for review first.
+            await generateInvoice(bookingId, { autoSend: true });
             invoiceGenerated = true;
         } catch(invErr) {
             console.error('[Invoice] Auto-generation failed during acceptance (booking #' + bookingId + '):', invErr);
@@ -10251,11 +10277,17 @@ app.post('/api/admin/invoices/:id/send', requireAdmin, requireRole(['administrat
         if (!invoiceFilePath || !fs.existsSync(invoiceFilePath)) {
             return res.status(400).json({ error: 'Invoice PDF not found. Please regenerate the invoice first.' });
         }
+        if ((inv.status || '').toUpperCase() === 'VOID') {
+            return res.status(400).json({ error: 'This invoice is void and cannot be sent.' });
+        }
         try {
             const bookingObj = { id: inv.booking_id, name: inv.name, email: inv.email, event_name: inv.event_name, event_type: inv.event_type, date: inv.date };
             await sendInvoiceEmail(bookingObj, invoiceFilePath);
-            db.run("UPDATE invoices SET sent_at = CURRENT_TIMESTAMP WHERE id = ?", [req.params.id], () => {});
-            res.json({ success: true, message: `Invoice ${inv.invoice_number} resent to ${inv.email}.` });
+            // Draft-then-send: first send publishes the draft (DRAFT→SENT). A later resend leaves an
+            // already-advanced status (SENT/OVERDUE/PAID) untouched — only sent_at refreshes.
+            const wasDraft = (inv.status || '').toUpperCase() === 'DRAFT';
+            db.run("UPDATE invoices SET sent_at = CURRENT_TIMESTAMP, status = CASE WHEN status = 'DRAFT' THEN 'SENT' ELSE status END WHERE id = ?", [req.params.id], () => {});
+            res.json({ success: true, message: `Invoice ${inv.invoice_number} ${wasDraft ? 'sent' : 'resent'} to ${inv.email}.` });
         } catch (e) {
             res.status(500).json({ error: e.message });
         }
@@ -10508,10 +10540,10 @@ app.get('/api/admin/bookings/full', requireAdmin, (req, res) => {
     params.push(pageLimit, pageOffset);
 
     db.all(`SELECT b.*,
-        COALESCE(c.full_name, b.name) AS name,
-        COALESCE(c.email, b.email) AS email,
-        COALESCE(c.phone, b.cell) AS cell,
-        COALESCE(c.company_name, b.company) AS company,
+        COALESCE(b.name, c.full_name) AS name,
+        COALESCE(b.email, c.email) AS email,
+        COALESCE(b.cell, c.phone) AS cell,
+        COALESCE(b.company, c.company_name) AS company,
         COALESCE(v.name, b.event_location) AS event_location,
         COALESCE(v.address, b.venue_address) AS venue_address,
         COALESCE(v.city, b.city) AS city,
@@ -10536,11 +10568,17 @@ app.get('/api/admin/bookings/full', requireAdmin, (req, res) => {
          ORDER BY created_at DESC LIMIT 1) AS invoice_sent_at,
         (SELECT due_date FROM invoices WHERE booking_id = b.id AND UPPER(status) != 'VOID'
          ORDER BY created_at DESC LIMIT 1) AS invoice_due_date,
-        (SELECT id FROM bookings WHERE rebooked_from_id = b.id LIMIT 1) AS rebooked_as_id
+        (SELECT id FROM bookings WHERE rebooked_from_id = b.id LIMIT 1) AS rebooked_as_id,
+        ct.status AS contract_status,
+        ct.is_frozen AS contract_is_frozen,
+        ct.pdf_url AS contract_pdf_url,
+        ct.sent_to_client_at AS contract_sent_at,
+        ct.signed_by_client_at AS contract_signed_by_client_at
       FROM bookings b
       LEFT JOIN venues v ON b.venue_id = v.id
       LEFT JOIN clients c ON b.client_id = c.id
       LEFT JOIN quotations lq ON lq.id = (SELECT MAX(id) FROM quotations WHERE booking_id = b.id AND UPPER(status) != 'VOID')
+      LEFT JOIN contracts ct ON ct.booking_id = b.id
       ${whereClause}
       ORDER BY b.created_at DESC LIMIT ? OFFSET ?`, params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -11080,10 +11118,10 @@ app.get('/api/admin/bookings', requireAdmin, (req, res) => {
         const total = countRow ? countRow.total : 0;
 
         const dataSql = `SELECT b.*,
-            COALESCE(c.full_name, b.name) AS name,
-            COALESCE(c.email, b.email) AS email,
-            COALESCE(c.phone, b.cell) AS cell,
-            COALESCE(c.company_name, b.company) AS company,
+            COALESCE(b.name, c.full_name) AS name,
+            COALESCE(b.email, c.email) AS email,
+            COALESCE(b.cell, c.phone) AS cell,
+            COALESCE(b.company, c.company_name) AS company,
             COALESCE(v.name, b.event_location) AS event_location,
             COALESCE(v.address, b.venue_address) AS venue_address,
             COALESCE(v.city, b.city) AS city,
@@ -11099,12 +11137,18 @@ app.get('/api/admin/bookings', requireAdmin, (req, res) => {
             li.id AS invoice_id,
             li.sent_at AS invoice_sent_at,
             li.status AS invoice_status,
-            li.due_date AS invoice_due_date
+            li.due_date AS invoice_due_date,
+            ct.status AS contract_status,
+            ct.is_frozen AS contract_is_frozen,
+            ct.pdf_url AS contract_pdf_url,
+            ct.sent_to_client_at AS contract_sent_at,
+            ct.signed_by_client_at AS contract_signed_by_client_at
           FROM bookings b
           LEFT JOIN venues v ON b.venue_id = v.id
           LEFT JOIN clients c ON b.client_id = c.id
           LEFT JOIN quotations lq ON lq.id = (SELECT MAX(id) FROM quotations WHERE booking_id = b.id AND archived = 0)
           LEFT JOIN invoices li ON li.id = (SELECT MAX(id) FROM invoices WHERE booking_id = b.id AND status NOT IN ('void','VOID'))
+          LEFT JOIN contracts ct ON ct.booking_id = b.id
           ${whereClause}
           ORDER BY ${safeSortBy} ${safeOrder}
           LIMIT ? OFFSET ?`;
@@ -11117,10 +11161,10 @@ app.get('/api/admin/bookings', requireAdmin, (req, res) => {
 });
 app.get('/api/admin/bookings/:id', requireAdmin, (req, res) => {
     db.get(`SELECT b.*,
-        COALESCE(c.full_name, b.name) AS name,
-        COALESCE(c.email, b.email) AS email,
-        COALESCE(c.phone, b.cell) AS cell,
-        COALESCE(c.company_name, b.company) AS company,
+        COALESCE(b.name, c.full_name) AS name,
+        COALESCE(b.email, c.email) AS email,
+        COALESCE(b.cell, c.phone) AS cell,
+        COALESCE(b.company, c.company_name) AS company,
         COALESCE(v.name, b.event_location) AS event_location,
         COALESCE(v.address, b.venue_address) AS venue_address,
         COALESCE(v.city, b.city) AS city,
@@ -11139,13 +11183,19 @@ app.get('/api/admin/bookings/:id', requireAdmin, (req, res) => {
         li.id AS invoice_id,
         li.sent_at AS invoice_sent_at,
         li.status AS invoice_status,
-        li.due_date AS invoice_due_date
+        li.due_date AS invoice_due_date,
+        ct.status AS contract_status,
+        ct.is_frozen AS contract_is_frozen,
+        ct.pdf_url AS contract_pdf_url,
+        ct.sent_to_client_at AS contract_sent_at,
+        ct.signed_by_client_at AS contract_signed_by_client_at
       FROM bookings b
       LEFT JOIN venues v ON b.venue_id = v.id
       LEFT JOIN clients c ON b.client_id = c.id
       LEFT JOIN quotations lq ON lq.id = (SELECT MAX(id) FROM quotations WHERE booking_id = b.id AND archived = 0)
       LEFT JOIN cancellations cnl ON cnl.booking_id = b.id
       LEFT JOIN invoices li ON li.id = (SELECT MAX(id) FROM invoices WHERE booking_id = b.id AND status NOT IN ('void','VOID'))
+      LEFT JOIN contracts ct ON ct.booking_id = b.id
       WHERE b.id = ?`, [req.params.id], (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(404).json({ error: "Booking not found" });
@@ -11255,6 +11305,27 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                         if (err) console.error('[Status Change] Failed to update quotation status to accepted:', err.message);
                     });
                     sendQuoteAcceptedEmail(b).catch(e => console.error('Invoiced email failed:', e.message));
+                    // Parity with client self-acceptance: build the deposit/balance schedule + a DRAFT
+                    // invoice (admin reviews & sends, unlike the client path which emails immediately) +
+                    // a draft contract — so admin-accept and client-accept leave identical state instead
+                    // of admin-accept leaving the booking bare. Fire-and-forget with logging, matching
+                    // the other post-status side effects; a refresh reflects it.
+                    (async () => {
+                        try {
+                            const total = parseFloat(b.total_amount) || 0;
+                            await withDbTransaction(async () => {
+                                await dbRun("BEGIN IMMEDIATE");
+                                try {
+                                    await autoBuildDepositBalanceSchedule(b.id, total, b.date);
+                                    await dbRun("COMMIT");
+                                } catch (schErr) { await dbRun("ROLLBACK").catch(() => {}); throw schErr; }
+                            });
+                            await generateInvoice(b.id, { autoSend: false }); // DRAFT — admin sends explicitly
+                            await generateContract(b.id).catch(cErr => console.error('[Status Accept] Contract draft failed:', cErr.message));
+                        } catch (finErr) {
+                            console.error('[Status Accept] Auto-finalize failed for booking #' + b.id + ':', finErr.message);
+                        }
+                    })();
                 }
                 if (requestedStatus === 'QUOTED') {
                     // Revert active quotation's status to 'sent'
@@ -12415,11 +12486,13 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
         try {
             if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found' });
 
-            // Ensure we handle both legacy and relational fields for compatibility with pdfService
-            booking.name = booking.client_name || booking.name;
+            // Name/company stay as THIS booking's own values for the document — the shared clients
+            // row can silently diverge from what this specific booking recorded (e.g. a later,
+            // differently-named booking under the same email updates the one shared clients row),
+            // which used to make a re-quoted PDF show a different name than the booking itself.
+            // generateInvoice()/generateContract() already get this right by never overwriting it.
             booking.email = booking.client_email || booking.email;
             booking.cell = booking.client_phone || booking.cell;
-            booking.company = booking.client_company || booking.company;
 
             // Ensure client_id is resolved and updated in booking record if missing
             let clientId = booking.client_id;

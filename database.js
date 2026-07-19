@@ -986,7 +986,10 @@ function initializeDatabase() {
             tax_amount DECIMAL(10,2) DEFAULT 0,
             total_amount DECIMAL(10,2) NOT NULL,
             is_vat_inclusive BOOLEAN DEFAULT 1,
-            status TEXT DEFAULT 'draft',
+            -- Invoice status runs an UPPERCASE lifecycle (DRAFT→SENT→OVERDUE→PAID/VOID); enforced by
+            -- trg_invoices_status_* below. Fresh installs default to 'DRAFT'; on the existing DB this
+            -- default is dormant (every INSERT specifies status explicitly).
+            status TEXT DEFAULT 'DRAFT',
             void_reason TEXT,
             voided_at DATETIME,
             replacement_invoice_id INTEGER,
@@ -1561,6 +1564,33 @@ function initializeDatabase() {
                     UPDATE bookings SET payment_status = 'PAID' WHERE id = NEW.id;
                 END`, (err) => { if (err && !err.message.includes('already exists')) console.log('Note (trigger):', err.message); });
 
+        // ── Status-value guards (migration 50) ─────────────────────────────────────────────
+        // invoices/contracts/payment_schedules/quotations were created without a CHECK(status IN …)
+        // constraint (unlike ~14 other tables in this schema). SQLite can't ALTER-add a CHECK to an
+        // existing table without a full rebuild — risky here (invoices has inbound FKs + a self-FK,
+        // and the DB lives in OneDrive). These BEFORE INSERT/UPDATE triggers deliver the same
+        // fail-loud enforcement: an out-of-set status RAISEs ABORT instead of silently persisting a
+        // value the app's UPPER()/exact-match reads would then never match. Live data is already
+        // clean and every literal the code writes is in-set, so no existing write breaks.
+        const statusGuard = (table, col, allowed) => {
+            const inList = allowed.map(v => `'${v}'`).join(',');
+            const mkErr = `${table}.${col} must be one of ${allowed.join('/')}`;
+            db.run(`CREATE TRIGGER IF NOT EXISTS trg_${table}_${col}_insert
+                    BEFORE INSERT ON ${table}
+                    FOR EACH ROW WHEN NEW.${col} IS NOT NULL AND NEW.${col} NOT IN (${inList})
+                    BEGIN SELECT RAISE(ABORT, '${mkErr}'); END`,
+                (err) => { if (err && !err.message.includes('already exists')) console.log('Note (trigger):', err.message); });
+            db.run(`CREATE TRIGGER IF NOT EXISTS trg_${table}_${col}_update
+                    BEFORE UPDATE OF ${col} ON ${table}
+                    FOR EACH ROW WHEN NEW.${col} IS NOT NULL AND NEW.${col} NOT IN (${inList})
+                    BEGIN SELECT RAISE(ABORT, '${mkErr}'); END`,
+                (err) => { if (err && !err.message.includes('already exists')) console.log('Note (trigger):', err.message); });
+        };
+        statusGuard('invoices', 'status', ['DRAFT', 'SENT', 'OVERDUE', 'PAID', 'VOID']);
+        statusGuard('contracts', 'status', ['draft', 'sent', 'signed']);
+        statusGuard('payment_schedules', 'status', ['pending', 'paid', 'overdue', 'superseded', 'cancelled']);
+        statusGuard('quotations', 'status', ['draft', 'sent', 'accepted', 'void', 'archived']);
+
         // Seed initial schema_migrations entries (idempotent)
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (1, 'initial_tables')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (2, 'add_clients_venues_quotations')`);
@@ -1612,6 +1642,7 @@ function initializeDatabase() {
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (46, 'inquiry_notes')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (47, 'inquiries_bookings_conversion_link')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (48, 'inquiries_sla_response_tracking')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (50, 'status_guard_triggers_invoices_contracts_schedules_quotations')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (99, 'full_schema_history_reconstructed_2026_06_19')`);
         // END schema_migrations seeds
 
