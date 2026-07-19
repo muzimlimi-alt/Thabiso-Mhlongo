@@ -528,7 +528,11 @@ class PDFService {
     // Branded booking contract, generated from booking data. Reuses the same header/
     // wordmark/brand palette as invoices & quotes; renders a legal-document body
     // (parties, engagement, fee & schedule, terms, signatures). opts:
-    //   { policies:{cancellation_policy,payment_terms,deposit_percentage}, schedules:[], totals:{total,applyVat}, contractNo }
+    //   { policies:{cancellation_policy,payment_terms,deposit_percentage}, schedules:[], totals:{total,applyVat}, contractNo,
+    //     clauses:{paymentTerms,cancellation,forceMajeure,travelHospitality,rightsRecording,additionalClauses} }
+    // `clauses` fields are final resolved text (server.js already picked override-vs-default) —
+    // this method just renders whatever it's given, falling back to `policies`/hardcoded copy
+    // only if called without `clauses` at all (defensive; the one real call site always passes it).
     async generateContract(booking, lineItems, outputPath, opts = {}) {
         return new Promise((resolve, reject) => {
             try {
@@ -539,6 +543,7 @@ class PDFService {
                 const policies   = opts.policies || {};
                 const schedules  = opts.schedules || [];
                 const totals     = opts.totals || {};
+                const clauses    = opts.clauses || {};
                 const contractNo = opts.contractNo || `AGR-${booking.id}`;
                 const LEFT = 28, WIDTH = 556;
                 const money = n => 'R ' + (parseFloat(n) || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -557,10 +562,11 @@ class PDFService {
                 this._drawHeader(doc, 'Agreement', contractNo, false);
 
                 const pageBreakGuard = () => { if (doc.y > doc.page.height - 110) doc.addPage(); };
+                let sectionNum = 1;
                 const sectionTitle = (t) => {
                     pageBreakGuard();
                     doc.moveDown(0.7);
-                    doc.font('Helvetica-Bold').fontSize(11).fillColor(DARK).text(t, LEFT, doc.y, { width: WIDTH });
+                    doc.font('Helvetica-Bold').fontSize(11).fillColor(DARK).text(`${sectionNum++}. ${t}`, LEFT, doc.y, { width: WIDTH });
                     const yy = doc.y + 2;
                     doc.rect(LEFT, yy, 42, 1.5).fillColor(GOLD).fill();
                     doc.moveDown(0.7);
@@ -582,12 +588,12 @@ class PDFService {
                 doc.moveDown(0.5);
                 para('This Agreement records the terms on which the Artist will provide the engagement described below to the Client. It becomes binding once signed by both parties.', { color: GREY, size: 8.5 });
 
-                sectionTitle('1. Parties');
+                sectionTitle('Parties');
                 kv('The Artist', `${this.companyInfo.name}  (${this.companyInfo.email})`);
                 kv('The Client', `${clientLine}  (${booking.email || ''}${booking.cell ? ' · ' + booking.cell : ''})`);
                 if (booking.vat_number || booking.client_vat_number) kv('Client VAT No', booking.vat_number || booking.client_vat_number);
 
-                sectionTitle('2. Engagement Details');
+                sectionTitle('Engagement Details');
                 kv('Event', booking.event_name || booking.event_type);
                 kv('Type', booking.event_type);
                 kv('Date', booking.date);
@@ -595,10 +601,11 @@ class PDFService {
                 kv('Duration', booking.performance_duration ? this.formatDuration(parseInt(booking.performance_duration)) : 'TBC');
                 kv('Venue', booking.event_location);
 
-                sectionTitle('3. Fee & Payment');
+                sectionTitle('Fee & Payment');
                 para(`Total engagement fee: ${money(fee)}${totals.applyVat ? ' (VAT inclusive)' : ''}.`, { size: 9.5, color: DARK, font: 'Helvetica-Bold' });
                 para(`A deposit of ${depositPct}% (${money(depositAmt)}) secures the booking; the balance of ${money(balanceAmt)} is payable per the schedule below.`);
-                if (policies.payment_terms) para(policies.payment_terms, { color: GREY, size: 8.5 });
+                const paymentTermsText = clauses.paymentTerms || policies.payment_terms;
+                if (paymentTermsText) para(paymentTermsText, { color: GREY, size: 8.5 });
                 if (schedules.length) {
                     doc.moveDown(0.3);
                     schedules.forEach((s, i) => {
@@ -609,17 +616,34 @@ class PDFService {
                     });
                 }
 
-                sectionTitle('4. Cancellation Policy');
-                para(policies.cancellation_policy || 'Cancellations are subject to the standard cancellation policy; the deposit may be non-refundable depending on the notice given before the event date.', { size: 8.5 });
+                sectionTitle('Cancellation Policy');
+                para(clauses.cancellation || policies.cancellation_policy || 'Cancellations are subject to the standard cancellation policy; the deposit may be non-refundable depending on the notice given before the event date.', { size: 8.5 });
 
-                sectionTitle('5. General Terms');
+                sectionTitle('Force Majeure');
+                para(clauses.forceMajeure || 'Neither party is liable for a failure to perform caused by events beyond reasonable control (illness, extreme weather, disaster, or lawful restriction); the parties will act in good faith to reschedule or refund fairly.', { size: 8.5 });
+
+                if (clauses.travelHospitality) {
+                    sectionTitle('Travel & Hospitality');
+                    para(clauses.travelHospitality, { size: 8.5 });
+                }
+
+                if (clauses.rightsRecording) {
+                    sectionTitle('Rights & Recording');
+                    para(clauses.rightsRecording, { size: 8.5 });
+                }
+
+                if (clauses.additionalClauses) {
+                    sectionTitle('Additional Clauses');
+                    para(clauses.additionalClauses, { size: 8.5 });
+                }
+
+                sectionTitle('General Terms');
                 [
                     'The Artist will perform professionally and to the best of their ability for the agreed duration. The Client will provide a safe, suitable performance environment and any technical requirements agreed in advance.',
-                    'Force majeure: neither party is liable for a failure to perform caused by events beyond reasonable control (illness, extreme weather, disaster, or lawful restriction); the parties will act in good faith to reschedule or refund fairly.',
                     'This Agreement is governed by and construed under the laws of the Republic of South Africa.'
                 ].forEach((c, i) => para(`${i + 1}. ${c}`, { size: 8.5 }));
 
-                sectionTitle('6. Signatures');
+                sectionTitle('Signatures');
                 if (doc.y > doc.page.height - 150) doc.addPage();
                 doc.moveDown(1.2);
                 const sigY = doc.y;

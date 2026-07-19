@@ -1619,6 +1619,9 @@ function initializeDatabase() {
         db.run("ALTER TABLE contracts ADD COLUMN signed_by TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: contracts.signed_by already exists or error: " + err.message); });
         db.run("ALTER TABLE contracts ADD COLUMN uploaded_by TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: contracts.uploaded_by already exists or error: " + err.message); });
         db.run("ALTER TABLE contracts ADD COLUMN signed_date TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: contracts.signed_date already exists or error: " + err.message); });
+        // Contract Builder: JSON snapshot of the last-submitted/resolved clause text (parties/fee/cancellation/etc.),
+        // so re-opening the editor on an unsigned draft restores prior edits instead of resetting to raw defaults.
+        db.run("ALTER TABLE contracts ADD COLUMN builder_clauses TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: contracts.builder_clauses already exists or error: " + err.message); });
 
         // Reconciliation columns for transactions
         db.run("ALTER TABLE transactions ADD COLUMN source TEXT DEFAULT 'manual'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: transactions.source already exists or error: " + err.message); });

@@ -12103,7 +12103,7 @@
                     + '<i class="fa-solid fa-file-circle-plus" style="margin-right:6px;"></i>' + label + '</button>';
             };
             if (!c || c.error) {
-                $panel.html('<h5 class="atl-det-title">Contract</h5><p class="atl-det-empty">No contract on file.</p>' + genBtn('Generate Contract'));
+                $panel.html('<h5 class="atl-det-title">Contract</h5><p class="atl-det-empty">No contract on file.</p>' + genBtn('Build Contract'));
                 return;
             }
             var states = {
@@ -12129,20 +12129,164 @@
             if (c.uploaded_by) {
                 html += '<p style="font-size:11px;color:var(--atl-muted);margin:0;">' + (c.uploaded_by === 'system' ? 'Auto-generated' : 'Uploaded by ' + c.uploaded_by) + '</p>';
             }
-            // Auto-generate / regenerate — hidden once the contract is signed & frozen.
+            // Build/edit — hidden once the contract is signed & frozen.
             if (c.status !== 'signed' && c.is_frozen !== 1) {
-                html += genBtn(c.pdf_url ? 'Regenerate Contract' : 'Generate Contract');
+                html += genBtn(c.pdf_url ? 'Edit & Regenerate' : 'Build Contract');
             }
             $panel.html(html);
         }
 
-        // Auto-generate a booking contract PDF (draft) on demand, then refresh the panel.
+        // A labelled clause textarea bound to POST /contract/generate + /preview via data-field —
+        // collected by ctbCollectClauses() (mirrors advField()/advCollectFields() for Advancing).
+        function ctbField(field, label, value, rows) {
+            const safe = value ? String(value).replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+            return '<div style="margin-bottom:10px;"><label class="atl-panel-label" style="margin-bottom:4px;display:block;">' + label + '</label>'
+                 + '<textarea class="atl-textarea ctb-field" data-field="' + field + '" rows="' + (rows || 3) + '" style="width:100%;">' + safe + '</textarea></div>';
+        }
+
+        function ctbCollectClauses(bookingId) {
+            const clauses = {};
+            $('.ctb-editor[data-booking-id="' + bookingId + '"] .ctb-field').each(function() {
+                clauses[$(this).data('field')] = $(this).val();
+            });
+            return clauses;
+        }
+
+        // Contract Builder editor — clause-by-clause form pre-filled from GET /contract/builder-data.
+        // Parties/Performance/Fee are read-only display (they're facts sourced from the booking/quote —
+        // editing them belongs on those records, not the contract). Payment Terms/Cancellation/Force
+        // Majeure/Travel & Hospitality/Rights & Recording/Additional Clauses are editable free text.
+        function buildContractEditorPanel(data, bookingId) {
+            const b = data.booking || {};
+            const artist = data.artist || {};
+            const fee = data.fee || {};
+            const c = data.clauses || {};
+            const money = function(n) { return 'R ' + (parseFloat(n) || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+            return `
+      <div class="atl-det-col ctb-editor" data-booking-id="${bookingId}">
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-users"></i>Parties</h5>
+          <p class="atl-sub">Artist: ${artist.name || '—'} (${artist.email || '—'})</p>
+          <p class="atl-sub">Client: ${b.name || '—'}${b.company ? ' / ' + b.company : ''} (${b.email || '—'}${b.cell ? ' · ' + b.cell : ''})</p>
+          ${b.vat_number ? `<p class="atl-sub">Client VAT No: ${b.vat_number}</p>` : ''}
+          <div class="atl-callout"><i class="fa-solid fa-circle-info"></i>Sourced from the booking &amp; client record — edit there, not here.</div>
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-calendar-day"></i>Performance Details</h5>
+          <p class="atl-sub">${b.event_name || b.event_type || '—'}${b.event_type ? ' · ' + b.event_type : ''}</p>
+          <p class="atl-sub">${b.date || 'TBC'} · ${b.event_location || 'TBC'}</p>
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-file-invoice-dollar"></i>Fee &amp; Payment</h5>
+          <p class="atl-sub">Total fee: <strong>${money(fee.total)}${fee.applyVat ? ' (VAT incl.)' : ''}</strong></p>
+          ${!fee.total ? '<div class="atl-callout"><i class="fa-solid fa-circle-info"></i>No accepted quote found — the contract will still generate with a placeholder fee line.</div>' : ''}
+          ${ctbField('paymentTerms', 'Payment Terms', c.paymentTerms, 3)}
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-ban"></i>Cancellation</h5>
+          ${ctbField('cancellation', 'Cancellation Policy', c.cancellation, 4)}
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-cloud-bolt"></i>Force Majeure</h5>
+          ${ctbField('forceMajeure', 'Force Majeure Clause', c.forceMajeure, 4)}
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-plane"></i>Travel &amp; Hospitality</h5>
+          ${ctbField('travelHospitality', 'Travel & Hospitality Terms (optional)', c.travelHospitality, 3)}
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-video"></i>Rights &amp; Recording</h5>
+          ${ctbField('rightsRecording', 'Rights & Recording Terms (optional)', c.rightsRecording, 3)}
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-plus"></i>Additional Clauses</h5>
+          ${ctbField('additionalClauses', 'Additional Clauses (optional)', c.additionalClauses, 3)}
+        </div>
+
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-signature"></i>E-Sign Settings</h5>
+          <p class="atl-sub">Template: Standard Agreement</p>
+          <p class="atl-sub">Once sent, ${b.email || 'the client'} will receive a signing link by email — no separate settings needed here.</p>
+        </div>
+
+        <div class="atl-det-card" id="ctb-preview-card-${bookingId}" style="display:none;">
+          <h5 class="atl-det-title"><i class="fa-solid fa-eye"></i>Preview</h5>
+          <iframe class="ctb-preview-frame" style="width:100%;height:420px;border:1px solid var(--atl-border);border-radius:6px;background:#fff;"></iframe>
+        </div>
+
+        <div class="atl-det-card">
+          <div style="display:flex;flex-wrap:wrap;gap:8px;">
+            <button type="button" class="atl-btn ctb-preview-btn" data-id="${bookingId}"><i class="fa-solid fa-eye" style="margin-right:6px;"></i>Preview</button>
+            <button type="button" class="atl-btn atl-btn--primary ctb-generate-btn" data-id="${bookingId}"><i class="fa-solid fa-file-circle-plus" style="margin-right:6px;"></i>Generate &amp; Save</button>
+            <button type="button" class="atl-btn atl-btn--ghost ctb-cancel-btn" data-id="${bookingId}">Cancel</button>
+          </div>
+        </div>
+      </div>`;
+        }
+
+        // Opens the Contract Builder editor inline, replacing the status card. Fetches fresh every
+        // time (contract edits are infrequent enough that a cache isn't worth the complexity).
         $(document).on('click', '.bk-gen-contract', async function() {
+            var id = $(this).data('id');
+            var $panel = $('#atl-contract-' + id);
+            $panel.html('<h5 class="atl-det-title">Contract</h5><div class="atl-det-loading"><span class="atl-spinner"></span><span>Loading contract builder…</span></div>');
+            try {
+                var res = await apiCall('/api/admin/bookings/' + id + '/contract/builder-data', 'GET');
+                if (res && res.success) {
+                    if (res.locked) {
+                        if (window.notificationService) window.notificationService.showError('This contract has already been signed and cannot be edited.');
+                        var lockedFresh = await fetch('/api/admin/bookings/' + id + '/contract', { credentials: 'same-origin' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+                        renderInlineContractPanel(id, lockedFresh && lockedFresh.contract);
+                        return;
+                    }
+                    $panel.html('<h5 class="atl-det-title">Contract</h5>' + buildContractEditorPanel(res, id));
+                } else if (window.notificationService) {
+                    window.notificationService.showError((res && res.message) || 'Could not load the contract builder.');
+                }
+            } catch (e) {
+                console.error('Error loading contract builder:', e);
+                if (window.notificationService) window.notificationService.showError((e && e.message) || 'Could not load the contract builder.');
+            }
+        });
+
+        $(document).on('click', '.ctb-cancel-btn', async function() {
+            var id = $(this).data('id');
+            var fresh = await fetch('/api/admin/bookings/' + id + '/contract', { credentials: 'same-origin' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
+            renderInlineContractPanel(id, fresh && fresh.contract);
+        });
+
+        $(document).on('click', '.ctb-preview-btn', async function() {
+            var id = $(this).data('id');
+            var $btn = $(this), orig = $btn.html();
+            $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Rendering…');
+            try {
+                var res = await apiCall('/api/admin/bookings/' + id + '/contract/preview', 'POST', { clauses: ctbCollectClauses(id) });
+                if (res && res.success) {
+                    $('#ctb-preview-card-' + id).show().find('.ctb-preview-frame').attr('srcdoc', res.content_html);
+                } else if (window.notificationService) {
+                    window.notificationService.showError((res && res.message) || 'Could not render preview.');
+                }
+            } catch (e) {
+                console.error('Error rendering contract preview:', e);
+                if (window.notificationService) window.notificationService.showError((e && e.message) || 'Could not render preview.');
+            } finally {
+                $btn.prop('disabled', false).html(orig);
+            }
+        });
+
+        $(document).on('click', '.ctb-generate-btn', async function() {
             var id = $(this).data('id');
             var $btn = $(this), orig = $btn.html();
             $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Generating…');
             try {
-                var res = await apiCall('/api/admin/bookings/' + id + '/contract/generate', 'POST', {});
+                var res = await apiCall('/api/admin/bookings/' + id + '/contract/generate', 'POST', { clauses: ctbCollectClauses(id) });
                 if (res && res.success) {
                     if (window.notificationService) window.notificationService.showSuccess('Contract generated as a draft.');
                     var fresh = await fetch('/api/admin/bookings/' + id + '/contract', { credentials: 'same-origin' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
@@ -12207,8 +12351,17 @@
             fetch('/api/admin/bookings/' + bookingId + '/advancing', { credentials: 'same-origin' })
                 .then(function(r) { return r.json(); })
                 .then(function(d) {
-                    if (d.success) $('#dv-panel-advancing').html(buildAdvancingPanel(d, bookingId));
-                    else if (window.notificationService) window.notificationService.showError(d.message || 'Could not load the advancing pack.');
+                    if (d.success) {
+                        $('#dv-panel-advancing').html(buildAdvancingPanel(d, bookingId));
+                        // Files tab has its own dedicated slot for this so it never races with, or
+                        // overwrites, the Quote/Contract/Invoice chips the main lazy-load populates.
+                        var $advFiles = $('#atl-filedocs-advancing-' + bookingId);
+                        if ($advFiles.length) {
+                            $advFiles.html(d.pack && d.pack.pdf_url
+                                ? '<div class="dv-filegrid" style="margin-top:10px;"><a class="dv-file" href="/api/admin/bookings/' + bookingId + '/advancing/download" target="_blank" rel="noopener"><span class="ico"><i class="fa-solid fa-clipboard-list"></i></span><span><span class="fn">Advancing Pack</span><span class="fm">PDF</span></span></a></div>'
+                                : '');
+                        }
+                    } else if (window.notificationService) window.notificationService.showError(d.message || 'Could not load the advancing pack.');
                 })
                 .catch(function(err) {
                     console.error('Error loading advancing pack:', err);
@@ -12357,7 +12510,8 @@
                 time_label: $row.find('.adv-ros-time').val(),
                 title: $row.find('.adv-ros-title').val(),
                 detail: $row.find('.adv-ros-detail').val(),
-                responsible: $row.find('.adv-ros-resp').val()
+                responsible: $row.find('.adv-ros-resp').val(),
+                booking_id: $row.closest('.atl-det-col').data('booking-id')
             };
             if (!body.title || !body.title.trim()) { if (window.notificationService) window.notificationService.showWarning('Title required', 'A run-of-show item needs a title.'); return; }
             try {
@@ -12372,7 +12526,7 @@
             const itemId = $(this).data('id');
             const bookingId = $(this).closest('.atl-det-col').data('booking-id');
             try {
-                const res = await apiCall('/api/admin/advancing/run-of-show/' + itemId, 'DELETE');
+                const res = await apiCall('/api/admin/advancing/run-of-show/' + itemId, 'DELETE', { booking_id: bookingId });
                 if (res && res.success) advReloadPanel(bookingId);
             } catch (e) {
                 console.error('ROS delete failed:', e);
@@ -12420,7 +12574,7 @@
             const contactId = $(this).data('id');
             const bookingId = $(this).closest('.atl-det-col').data('booking-id');
             try {
-                const res = await apiCall('/api/admin/advancing/contacts/' + contactId, 'DELETE');
+                const res = await apiCall('/api/admin/advancing/contacts/' + contactId, 'DELETE', { booking_id: bookingId });
                 if (res && res.success) advReloadPanel(bookingId);
             } catch (e) {
                 console.error('Contact delete failed:', e);
@@ -19089,6 +19243,16 @@
 
                 allBookingsCache = data;
 
+                // Bug fix: the Deal View's once-only lazy-load guards (quote-history/contract/
+                // line-items/transactions/payment-schedule/files, notes+comms, advancing pack) never
+                // invalidated, so a booking whose Offer/Timeline/Advancing tab was visited earlier in
+                // the session kept showing stale data on reopen even after e.g. generating a contract
+                // via the separate Legal Contracts drawer. loadBookings() re-fetching the canonical
+                // list is the right moment to drop all three — cheap re-fetches, always fresh.
+                if (typeof dealViewLoadedIds !== 'undefined') dealViewLoadedIds = {};
+                if (typeof dealViewTimelineLoaded !== 'undefined') dealViewTimelineLoaded = {};
+                if (typeof dealViewAdvancingLoaded !== 'undefined') dealViewAdvancingLoaded = {};
+
                 // Update pipeline pill counts
                 ['NEW','PENDING','QUOTED','ACCEPTED','CONFIRMED','COMPLETED','EXPIRED','CANCELLED'].forEach(s => {
                     $(`#bkStat-${s}`).text(data.filter(b => (b.status||'').toUpperCase() === s).length);
@@ -19762,6 +19926,7 @@
       <div class="atl-det-col">
           ${attachmentsHtml || '<p class="atl-det-empty">No client attachments on this booking.</p>'}
           <div id="atl-filedocs-${row.id}"></div>
+          <div id="atl-filedocs-advancing-${row.id}"></div>
       </div>`;
         }
 
@@ -27039,6 +27204,7 @@
     body.role-assistant .bk-action-send-invoice,
     body.role-assistant .bk-action-record-payment,
     body.role-assistant .bk-action-refund,
+    body.role-assistant .adv-send-btn,
     body.role-assistant #inqReadReplyBtn,
     body.role-assistant #inqReadArchiveBtn,
     body.role-assistant #inqReadToggleReadBtn,

@@ -3856,7 +3856,10 @@ const BOOKING_TEXT_LIMITS = {
     city: 100, country: 100, venue_type: 60, event_type: 60,
     audience_size: 40, audience_demographic: 120, budget_range: 60,
     performance_slot: 40, performance_duration: 40,
-    vat_number: 30, source: 100, referrer: 500
+    vat_number: 30, source: 100, referrer: 500,
+    // Was the one client-supplied free-text field with no cap (real Google Place IDs run
+    // ~27-100 chars; 300 is generous headroom) — found in an end-to-end booking-flow audit.
+    venuePlaceId: 300
 };
 
 // A JSON body may send a number, array or object where a string is expected. Calling
@@ -3896,7 +3899,11 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
     message = asBookingText(message);         vat_number = asBookingText(vat_number);
     venuePlaceId = asBookingText(venuePlaceId);
 
-    if (!name || !email || !cell || !event_date || !event_location || !event_type || !message) {
+    // Bug fix: `message` ("Additional Notes") is explicitly labelled optional on the public form
+    // (index.html) and the client-side validator deliberately never blocks on it — but this check
+    // and the length-minimum below still required it server-side, so a client leaving it blank sailed
+    // through all 4 steps and only got rejected at final submit with a generic, unrouted error.
+    if (!name || !email || !cell || !event_date || !event_location || !event_type) {
         return res.status(400).json({ success: false, message: 'Missing required booking fields.' });
     }
 
@@ -3910,8 +3917,9 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
         return res.status(400).json({ success: false, message: 'Please enter a valid phone number (e.g. +27821234567 or +442071234567).' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(event_date))
         return res.status(400).json({ success: false, message: 'Invalid event date format.' });
-    if (message.length < 10)
-        return res.status(400).json({ success: false, message: 'Please provide a message of at least 10 characters.' });
+    // Only enforce a minimum when something was actually typed — matches the "optional" label.
+    if (message && message.length < 10)
+        return res.status(400).json({ success: false, message: 'Please provide a message of at least 10 characters, or leave it blank.' });
     if (message.length > 2000)
         return res.status(400).json({ success: false, message: 'Message must be under 2000 characters.' });
 
@@ -3933,6 +3941,15 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
         return res.status(400).json({ success: false, message: 'The event date cannot be in the past.' });
     if (eventMoment.isAfter(moment().add(5, 'years')))
         return res.status(400).json({ success: false, message: 'The event date is too far in the future. Please contact us directly for bookings more than 5 years ahead.' });
+
+    // Bug fix: MIN_ADVANCE_HOURS was previously enforced only by GET /api/public/availability (the
+    // calendar's "too soon" warning) — never re-checked here, so a direct API call or an edited
+    // hidden #bookDate value bypassed it entirely. Mirrors that endpoint's exact midnight-based
+    // check (server.js ~6318) so a date the calendar already approved is never re-rejected here.
+    const advanceHoursCheck = (new Date(event_date + 'T00:00:00') - new Date()) / (1000 * 60 * 60);
+    if (advanceHoursCheck < MIN_ADVANCE_HOURS) {
+        return res.status(400).json({ success: false, message: `Bookings require at least ${MIN_ADVANCE_HOURS} hours advance notice. Please choose a later date.` });
+    }
 
     // event_start_time reaches moment(), addMinutesToTime() and the working-hours gate unvalidated.
     // A non-time value ("abc") produced "NaN:NaN" end times and an Invalid-date ISO conversion.
@@ -4256,7 +4273,7 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                         encodeUserHtml(event_name) || null, event_date, event_start_time || null, encodeUserHtml(performance_slot) || null, encodeUserHtml(performance_duration) || null,
                         encodeUserHtml(event_location), encodeUserHtml(venue_address) || null, encodeUserHtml(city) || null, encodeUserHtml(country) || null, encodeUserHtml(venue_type) || null,
                         encodeUserHtml(event_type), encodeUserHtml(audience_size) || null, encodeUserHtml(audience_demographic) || null, encodeUserHtml(budget_range) || null, travel_accommodation ? 1 : 0, encodeUserHtml(message),
-                        clientId, venueId, initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, vat_number || null, venuePlaceId || null, defaultQuoteExpiry, CURRENT_POLICY_VERSION,
+                        clientId, venueId, initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, vat_number || null, encodeUserHtml(venuePlaceId) || null, defaultQuoteExpiry, CURRENT_POLICY_VERSION,
                         encodeUserHtml(asBookingText(req.body.source)) || null, encodeUserHtml(asBookingText(req.body.referrer)) || null
                     ]
                 );
@@ -4869,7 +4886,7 @@ app.post('/api/public/bookings/:id/track/verify-code', ipRateLimiter, mutateRate
 // booking id returned the client's full name, email address and exact quoted amount — an
 // unauthenticated PII leak — and produced a live, signed PayFast redirect for someone else's
 // booking. Now gated behind the same access_token every other tracking route requires.
-app.post('/api/public/bookings/:id/pay', ipRateLimiter, requireBookingAccessToken, (req, res) => {
+app.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, requireBookingAccessToken, (req, res) => {
     const { payment_type } = req.body; // Expects 'DEPOSIT' or 'FULL'
     console.log(`[DEBUG] POST /api/public/bookings/${req.params.id}/pay - Type: ${payment_type}`);
 
@@ -6928,21 +6945,22 @@ const contractUpload = multer({
     limits: { fileSize: 10 * 1024 * 1024 }
 });
 
-// Auto-generate a branded booking contract PDF from booking data (mirrors generateInvoice).
-// Saves as a DRAFT; never overwrites a signed/frozen contract. Returns { success, contract } or { skipped }.
-async function generateContract(bookingId) {
-    const existing = await new Promise(r => db.get("SELECT status, is_frozen FROM contracts WHERE booking_id = ?", [bookingId], (e, row) => r(row || null)));
-    if (existing && (existing.status === 'signed' || existing.is_frozen === 1)) {
-        return { skipped: true, reason: 'signed' };
-    }
+// Contract Builder — seed/fallback clause text. Copied verbatim from what pdfService.generateContract()
+// used to hardcode, so the builder form's placeholders match what a contract would render if a field
+// is left blank, and the legacy (no-override) auto-generate path keeps producing byte-identical prose.
+const DEFAULT_CONTRACT_CLAUSES = {
+    cancellation: 'Cancellations are subject to the standard cancellation policy; the deposit may be non-refundable depending on the notice given before the event date.',
+    forceMajeure: 'Neither party is liable for a failure to perform caused by events beyond reasonable control (illness, extreme weather, disaster, or lawful restriction); the parties will act in good faith to reschedule or refund fairly.',
+    travelHospitality: '',
+    rightsRecording: '',
+    additionalClauses: ''
+};
 
-    const booking = await new Promise((res, rej) => db.get(
-        `SELECT b.*, c.vat_number AS client_vat_number FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
-        [bookingId], (e, row) => e ? rej(e) : (row ? res(row) : rej(new Error('Booking not found')))));
-
+// Resolves fee/line-items/schedule the same way generateInvoice does (quotations → quote_line_items,
+// fallback quote_details) — shared by generateContract() (actual PDF math) and the builder-data
+// pre-fill route (display only), so both always agree on the same numbers.
+async function resolveContractFeeData(bookingId, booking) {
     const vatRate = await getVatRate();
-
-    // Resolve line items + fee the same way generateInvoice does (quotations → quote_line_items, fallback quote_details).
     const activeQuote = await new Promise(r => db.get(
         `SELECT * FROM quotations WHERE booking_id = ? AND archived = 0 AND status NOT IN ('void','archived') ORDER BY version DESC LIMIT 1`,
         [bookingId], (e, row) => r(e ? null : row)));
@@ -6973,9 +6991,106 @@ async function generateContract(bookingId) {
         "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
         [bookingId], (e, rows) => r(e ? [] : (rows || []))));
 
+    return { items, total, applyVat, schedules };
+}
+
+// Assembles the contract as a self-contained HTML snapshot (makes `contracts.content_html` live —
+// previously defined in the schema but never written). Used for both the stored record and the
+// Builder's live Preview. Every free-text clause is HTML-escaped before interpolation — this is
+// what makes it safe to assemble server-side from admin-submitted text.
+function assembleContractHtml(booking, feeData, clauses, contractNo) {
+    const esc = (s) => (encodeUserHtml(s) || '').replace(/\n/g, '<br>');
+    const money = n => 'R ' + (parseFloat(n) || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const clientLine = `${booking.name || ''}${booking.company ? ' / ' + booking.company : ''}`;
+    const depositPct = parseFloat(clauses.depositPercentage) || 50;
+    const depositAmt = Math.round(feeData.total * depositPct) / 100;
+    const balanceAmt = Math.max(0, feeData.total - depositAmt);
+
+    const optionalSection = (title, text) => text ? `<h3>${esc(title)}</h3><p>${esc(text)}</p>` : '';
+
+    const scheduleRows = (feeData.schedules || []).map((s, i) =>
+        `<li>${esc(s.description || 'Milestone')} — due ${esc(s.due_date || 'TBC')}: <strong>${money(s.expected_amount)}</strong></li>`
+    ).join('');
+
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Agreement ${esc(contractNo)}</title>
+<style>
+  body{font-family:Helvetica,Arial,sans-serif;color:#222;max-width:720px;margin:32px auto;padding:0 16px;line-height:1.5;}
+  h1{font-size:20px;margin-bottom:4px;} h2{font-size:12px;color:#888;font-weight:normal;margin-top:0;}
+  h3{font-size:14px;border-bottom:2px solid #C9A44C;padding-bottom:4px;margin-top:28px;}
+  p{font-size:13px;} table{border-collapse:collapse;width:100%;font-size:13px;} td{padding:3px 0;}
+  ul{font-size:13px;padding-left:18px;}
+</style></head><body>
+<h1>Performance Engagement Agreement</h1>
+<h2>Agreement ${esc(contractNo)} &middot; Prepared ${esc(moment().format('DD MMMM YYYY'))}</h2>
+<p>This Agreement records the terms on which the Artist will provide the engagement described below to the Client. It becomes binding once signed by both parties.</p>
+
+<h3>Parties</h3>
+<table>
+<tr><td><strong>The Client</strong></td><td>${esc(clientLine)} (${esc(booking.email)}${booking.cell ? ' &middot; ' + esc(booking.cell) : ''})</td></tr>
+${(booking.vat_number || booking.client_vat_number) ? `<tr><td><strong>Client VAT No</strong></td><td>${esc(booking.vat_number || booking.client_vat_number)}</td></tr>` : ''}
+</table>
+
+<h3>Engagement Details</h3>
+<table>
+<tr><td><strong>Event</strong></td><td>${esc(booking.event_name || booking.event_type)}</td></tr>
+<tr><td><strong>Type</strong></td><td>${esc(booking.event_type)}</td></tr>
+<tr><td><strong>Date</strong></td><td>${esc(booking.date)}</td></tr>
+<tr><td><strong>Venue</strong></td><td>${esc(booking.event_location)}</td></tr>
+</table>
+
+<h3>Fee &amp; Payment</h3>
+<p><strong>Total engagement fee: ${money(feeData.total)}${feeData.applyVat ? ' (VAT inclusive)' : ''}.</strong><br>
+A deposit of ${depositPct}% (${money(depositAmt)}) secures the booking; the balance of ${money(balanceAmt)} is payable per the schedule below.</p>
+<p>${esc(clauses.paymentTerms)}</p>
+${scheduleRows ? `<ul>${scheduleRows}</ul>` : ''}
+
+<h3>Cancellation Policy</h3>
+<p>${esc(clauses.cancellation)}</p>
+
+<h3>Force Majeure</h3>
+<p>${esc(clauses.forceMajeure)}</p>
+
+${optionalSection('Travel & Hospitality', clauses.travelHospitality)}
+${optionalSection('Rights & Recording', clauses.rightsRecording)}
+${optionalSection('Additional Clauses', clauses.additionalClauses)}
+
+<h3>General Terms</h3>
+<p>1. The Artist will perform professionally and to the best of their ability for the agreed duration. The Client will provide a safe, suitable performance environment and any technical requirements agreed in advance.<br>
+2. This Agreement is governed by and construed under the laws of the Republic of South Africa.</p>
+</body></html>`;
+}
+
+// Auto-generate a branded booking contract PDF from booking data (mirrors generateInvoice).
+// Saves as a DRAFT; never overwrites a signed/frozen contract. Returns { success, contract } or { skipped }.
+// `clauseOverrides` is optional — when omitted (the quote-acceptance auto-call, unchanged), clause
+// text resolves from policies + DEFAULT_CONTRACT_CLAUSES exactly as before this Builder existed;
+// when provided (the Builder route), submitted text wins per-field, defaulting only for blanks.
+async function generateContract(bookingId, clauseOverrides = null) {
+    const existing = await new Promise(r => db.get("SELECT status, is_frozen FROM contracts WHERE booking_id = ?", [bookingId], (e, row) => r(row || null)));
+    if (existing && (existing.status === 'signed' || existing.is_frozen === 1)) {
+        return { skipped: true, reason: 'signed' };
+    }
+
+    const booking = await new Promise((res, rej) => db.get(
+        `SELECT b.*, c.vat_number AS client_vat_number FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
+        [bookingId], (e, row) => e ? rej(e) : (row ? res(row) : rej(new Error('Booking not found')))));
+
+    const feeData = await resolveContractFeeData(bookingId, booking);
+
     const policyRows = await new Promise(r => db.all("SELECT policy_key, policy_value FROM policies", [], (e, rows) => r(e ? [] : (rows || []))));
     const policies = {};
     policyRows.forEach(p => { policies[p.policy_key] = p.policy_value; });
+
+    const overrides = clauseOverrides || {};
+    const finalClauses = {
+        paymentTerms: overrides.paymentTerms || policies.payment_terms || '',
+        cancellation: overrides.cancellation || policies.cancellation_policy || DEFAULT_CONTRACT_CLAUSES.cancellation,
+        forceMajeure: overrides.forceMajeure || DEFAULT_CONTRACT_CLAUSES.forceMajeure,
+        travelHospitality: overrides.travelHospitality || DEFAULT_CONTRACT_CLAUSES.travelHospitality,
+        rightsRecording: overrides.rightsRecording || DEFAULT_CONTRACT_CLAUSES.rightsRecording,
+        additionalClauses: overrides.additionalClauses || DEFAULT_CONTRACT_CLAUSES.additionalClauses,
+        depositPercentage: policies.deposit_percentage || '50'
+    };
 
     const contractNo = `AGR-${moment().format('YYYY')}-${String(bookingId).padStart(4, '0')}`;
     const pdfFileName = `${contractNo}-${moment().format('YYYYMMDDHHmmss')}.pdf`;
@@ -6983,24 +7098,28 @@ async function generateContract(bookingId) {
     if (!fs.existsSync(contractsDir)) fs.mkdirSync(contractsDir, { recursive: true });
     const pdfPath = path.join(contractsDir, pdfFileName);
 
-    await pdfService.generateContract(booking, items, pdfPath, { policies, schedules, totals: { total, applyVat }, contractNo });
+    await pdfService.generateContract(booking, feeData.items, pdfPath, {
+        policies, schedules: feeData.schedules, totals: { total: feeData.total, applyVat: feeData.applyVat }, contractNo, clauses: finalClauses
+    });
 
-    const contentHash = crypto.createHash('sha256')
-        .update(`${bookingId}|${total}|${contractNo}|${policies.cancellation_policy || ''}|${policies.payment_terms || ''}`)
-        .digest('hex');
+    const contentHtml = assembleContractHtml(booking, feeData, finalClauses, contractNo);
+    const contentHash = crypto.createHash('sha256').update(contentHtml).digest('hex');
+    const templateVersion = clauseOverrides ? 'builder-v1' : 'auto-v1';
 
     await new Promise((res, rej) => db.run(
-        `INSERT INTO contracts (booking_id, template_version, pdf_url, content_hash, status, uploaded_by, updated_at)
-         VALUES (?, 'auto-v1', ?, ?, 'draft', 'system', CURRENT_TIMESTAMP)
+        `INSERT INTO contracts (booking_id, template_version, pdf_url, content_html, content_hash, builder_clauses, status, uploaded_by, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'draft', 'system', CURRENT_TIMESTAMP)
          ON CONFLICT(booking_id) DO UPDATE SET
             pdf_url = excluded.pdf_url,
             template_version = excluded.template_version,
+            content_html = excluded.content_html,
             content_hash = excluded.content_hash,
+            builder_clauses = excluded.builder_clauses,
             status = 'draft',
             uploaded_by = 'system',
             is_frozen = 0,
             updated_at = CURRENT_TIMESTAMP`,
-        [bookingId, pdfFileName, contentHash], (e) => e ? rej(e) : res()));
+        [bookingId, templateVersion, pdfFileName, contentHtml, contentHash, JSON.stringify(finalClauses)], (e) => e ? rej(e) : res()));
 
     db.run(`INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json) VALUES ('contracts', ?, 'GENERATE', 'system', ?)`,
         [bookingId, JSON.stringify({ file: pdfFileName, contract_no: contractNo, status: 'draft' })], () => {});
@@ -7009,10 +7128,12 @@ async function generateContract(bookingId) {
     return { success: true, contract: row };
 }
 
-// POST — auto-generate a booking contract PDF (admin, on demand). Signed contracts are protected.
+// POST — generate a booking contract PDF (admin, on demand). `{ clauses }` in the body drives the
+// Contract Builder path; an empty/absent body keeps today's zero-customization auto-generate
+// behavior. Signed contracts are protected.
 app.post('/api/admin/bookings/:id/contract/generate', requireAdmin, async (req, res) => {
     try {
-        const result = await generateContract(req.params.id);
+        const result = await generateContract(req.params.id, (req.body && req.body.clauses) || null);
         if (result.skipped) {
             return res.status(400).json({ success: false, message: 'This contract has already been signed and cannot be regenerated. Create a separate amendment instead.' });
         }
@@ -7020,6 +7141,93 @@ app.post('/api/admin/bookings/:id/contract/generate', requireAdmin, async (req, 
     } catch (e) {
         console.error('[Contract Generate] Failed for booking #' + req.params.id + ':', e.message);
         res.status(500).json({ success: false, message: 'Failed to generate contract: ' + e.message });
+    }
+});
+
+// GET — pre-fill data for the Contract Builder editor: booking/party facts, resolved fee/schedule,
+// policy defaults, and (if a draft already exists) the last-submitted clause text so re-opening
+// the editor restores prior edits instead of resetting to raw defaults.
+app.get('/api/admin/bookings/:id/contract/builder-data', requireAdmin, async (req, res) => {
+    try {
+        const bookingId = req.params.id;
+        const booking = await dbGet(
+            `SELECT b.*, c.vat_number AS client_vat_number FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
+            [bookingId]);
+        if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+
+        const feeData = await resolveContractFeeData(bookingId, booking);
+
+        const policyRows = await new Promise(r => db.all("SELECT policy_key, policy_value FROM policies", [], (e, rows) => r(e ? [] : (rows || []))));
+        const policies = {};
+        policyRows.forEach(p => { policies[p.policy_key] = p.policy_value; });
+
+        const artist = await dbGet("SELECT stage_name AS name, email, phone FROM comedians WHERE id = 1");
+        const manager = await dbGet("SELECT name, email, cell_number AS phone FROM manager_details ORDER BY manager_id ASC LIMIT 1");
+
+        const existingContract = await dbGet("SELECT status, is_frozen, builder_clauses FROM contracts WHERE booking_id = ?", [bookingId]);
+        let savedClauses = null;
+        if (existingContract && existingContract.builder_clauses) {
+            try { savedClauses = JSON.parse(existingContract.builder_clauses); } catch (e) {}
+        }
+        const clauses = savedClauses || {
+            paymentTerms: policies.payment_terms || '',
+            cancellation: policies.cancellation_policy || DEFAULT_CONTRACT_CLAUSES.cancellation,
+            forceMajeure: DEFAULT_CONTRACT_CLAUSES.forceMajeure,
+            travelHospitality: DEFAULT_CONTRACT_CLAUSES.travelHospitality,
+            rightsRecording: DEFAULT_CONTRACT_CLAUSES.rightsRecording,
+            additionalClauses: DEFAULT_CONTRACT_CLAUSES.additionalClauses
+        };
+
+        res.json({
+            success: true,
+            booking: { name: booking.name, company: booking.company, email: booking.email, cell: booking.cell,
+                       vat_number: booking.vat_number || booking.client_vat_number, event_name: booking.event_name,
+                       event_type: booking.event_type, date: booking.date, event_location: booking.event_location },
+            artist: artist || null,
+            manager: manager || null,
+            fee: { total: feeData.total, applyVat: feeData.applyVat, schedules: feeData.schedules },
+            clauses,
+            locked: !!(existingContract && (existingContract.status === 'signed' || existingContract.is_frozen === 1))
+        });
+    } catch (e) {
+        console.error('[Contract Builder Data] Failed for booking #' + req.params.id + ':', e.message);
+        res.status(500).json({ success: false, message: 'Could not load contract builder data.' });
+    }
+});
+
+// POST — stateless HTML preview of the contract as currently drafted in the Builder. No DB write,
+// no PDF/file write — just runs the same assembly function generate() uses, so preview always
+// matches what Generate would actually produce.
+app.post('/api/admin/bookings/:id/contract/preview', requireAdmin, async (req, res) => {
+    try {
+        const bookingId = req.params.id;
+        const booking = await dbGet(
+            `SELECT b.*, c.vat_number AS client_vat_number FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
+            [bookingId]);
+        if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+
+        const feeData = await resolveContractFeeData(bookingId, booking);
+        const policyRows = await new Promise(r => db.all("SELECT policy_key, policy_value FROM policies", [], (e, rows) => r(e ? [] : (rows || []))));
+        const policies = {};
+        policyRows.forEach(p => { policies[p.policy_key] = p.policy_value; });
+
+        const submitted = (req.body && req.body.clauses) || {};
+        const finalClauses = {
+            paymentTerms: submitted.paymentTerms || policies.payment_terms || '',
+            cancellation: submitted.cancellation || policies.cancellation_policy || DEFAULT_CONTRACT_CLAUSES.cancellation,
+            forceMajeure: submitted.forceMajeure || DEFAULT_CONTRACT_CLAUSES.forceMajeure,
+            travelHospitality: submitted.travelHospitality || DEFAULT_CONTRACT_CLAUSES.travelHospitality,
+            rightsRecording: submitted.rightsRecording || DEFAULT_CONTRACT_CLAUSES.rightsRecording,
+            additionalClauses: submitted.additionalClauses || DEFAULT_CONTRACT_CLAUSES.additionalClauses,
+            depositPercentage: policies.deposit_percentage || '50'
+        };
+
+        const contractNo = `AGR-${moment().format('YYYY')}-${String(bookingId).padStart(4, '0')}`;
+        const contentHtml = assembleContractHtml(booking, feeData, finalClauses, contractNo);
+        res.json({ success: true, content_html: contentHtml });
+    } catch (e) {
+        console.error('[Contract Preview] Failed for booking #' + req.params.id + ':', e.message);
+        res.status(500).json({ success: false, message: 'Could not render preview.' });
     }
 });
 
@@ -8979,10 +9187,13 @@ function findOrCreateClient(name, email, phone, company, vat_number) {
 
 function findOrCreateVenueFromPlace(venueName, address, city, country, placeId) {
     // ADMIN-XSS: encode HTML in stored venue text (rendered unescaped in admin venue/booking views).
+    // placeId was the one field here missed by the original pass — it's client-supplied (the public
+    // booking form's Google Places autocomplete) and stored/rendered exactly like its siblings.
     venueName = encodeUserHtml(venueName);
     address = encodeUserHtml(address);
     city = encodeUserHtml(city);
     country = encodeUserHtml(country);
+    placeId = encodeUserHtml(placeId);
     return new Promise((resolve, reject) => {
         if (!venueName && !address) return resolve(null);
         const searchName = venueName || address;
@@ -11704,16 +11915,44 @@ app.post('/api/admin/bookings/:id/advancing/run-of-show', requireAdmin, async (r
     }
 });
 
+// These two run-of-show routes and the contact-delete route below aren't nested under
+// /bookings/:id (mirroring the original spec's route shape), so without an explicit ownership
+// check any admin session could edit/delete another booking's row just by guessing/replaying an
+// id — found in an end-to-end booking-flow audit. The frontend already knows the booking id it's
+// editing, so it sends it along and the server verifies the item's pack actually belongs to it.
+async function verifyRosOwnership(itemId, bookingId) {
+    if (!bookingId) return false;
+    const row = await dbGet(
+        `SELECT r.id FROM run_of_show_items r
+         JOIN advancing_packs ap ON ap.id = r.pack_id
+         WHERE r.id = ? AND ap.booking_id = ?`,
+        [itemId, bookingId]
+    );
+    return !!row;
+}
+async function verifyAdvancingContactOwnership(contactId, bookingId) {
+    if (!bookingId) return false;
+    const row = await dbGet(
+        `SELECT c.id FROM advancing_contacts c
+         JOIN advancing_packs ap ON ap.id = c.pack_id
+         WHERE c.id = ? AND ap.booking_id = ?`,
+        [contactId, bookingId]
+    );
+    return !!row;
+}
+
 app.put('/api/admin/advancing/run-of-show/:itemId', requireAdmin, async (req, res) => {
     try {
-        const { time_label, duration_minutes, title, detail, responsible } = req.body;
+        const { time_label, duration_minutes, title, detail, responsible, booking_id } = req.body;
         if (!title || !title.trim()) return res.status(400).json({ success: false, message: 'title is required.' });
+        if (!(await verifyRosOwnership(req.params.itemId, booking_id))) {
+            return res.status(404).json({ success: false, message: 'Item not found.' });
+        }
         await dbRun(
             `UPDATE run_of_show_items SET time_label = ?, duration_minutes = ?, title = ?, detail = ?, responsible = ? WHERE id = ?`,
             [time_label || null, duration_minutes || null, title.trim(), detail || null, responsible || null, req.params.itemId]
         );
         const item = await dbGet("SELECT * FROM run_of_show_items WHERE id = ?", [req.params.itemId]);
-        if (!item) return res.status(404).json({ success: false, message: 'Item not found.' });
         res.json({ success: true, item });
     } catch (e) {
         console.error('[Advancing] ROS update failed:', e.message);
@@ -11723,6 +11962,10 @@ app.put('/api/admin/advancing/run-of-show/:itemId', requireAdmin, async (req, re
 
 app.delete('/api/admin/advancing/run-of-show/:itemId', requireAdmin, async (req, res) => {
     try {
+        const bookingId = req.body && req.body.booking_id;
+        if (!(await verifyRosOwnership(req.params.itemId, bookingId))) {
+            return res.status(404).json({ success: false, message: 'Item not found.' });
+        }
         await dbRun("DELETE FROM run_of_show_items WHERE id = ?", [req.params.itemId]);
         res.json({ success: true });
     } catch (e) {
@@ -11738,6 +11981,16 @@ app.put('/api/admin/bookings/:id/advancing/run-of-show/reorder', requireAdmin, a
     const { orderedIds } = req.body;
     if (!Array.isArray(orderedIds) || !orderedIds.length) {
         return res.status(400).json({ success: false, message: 'orderedIds must be a non-empty array.' });
+    }
+    // Verify every id actually belongs to this booking's pack before touching anything — this route
+    // IS booking-scoped in its URL, but the UPDATE loop below wasn't checking that.
+    const pack = await dbGet("SELECT id FROM advancing_packs WHERE booking_id = ?", [req.params.id]);
+    if (!pack) return res.status(404).json({ success: false, message: 'No advancing pack for this booking.' });
+    const owned = await new Promise((resolve, reject) =>
+        db.all("SELECT id FROM run_of_show_items WHERE pack_id = ?", [pack.id], (e, r) => e ? reject(e) : resolve(r)));
+    const ownedIds = new Set(owned.map(r => Number(r.id)));
+    if (!orderedIds.every(id => ownedIds.has(Number(id)))) {
+        return res.status(403).json({ success: false, message: 'One or more items do not belong to this booking.' });
     }
     const outcome = await withDbTransaction(async () => {
         try {
@@ -11780,6 +12033,10 @@ app.post('/api/admin/bookings/:id/advancing/contacts', requireAdmin, async (req,
 
 app.delete('/api/admin/advancing/contacts/:contactId', requireAdmin, async (req, res) => {
     try {
+        const bookingId = req.body && req.body.booking_id;
+        if (!(await verifyAdvancingContactOwnership(req.params.contactId, bookingId))) {
+            return res.status(404).json({ success: false, message: 'Contact not found.' });
+        }
         await dbRun("DELETE FROM advancing_contacts WHERE id = ?", [req.params.contactId]);
         res.json({ success: true });
     } catch (e) {
@@ -11848,7 +12105,9 @@ app.get('/api/admin/bookings/:id/advancing/download', requireAdmin, async (req, 
     }
 });
 
-app.post('/api/admin/bookings/:id/advancing/send', requireAdmin, mutateRateLimiter, async (req, res) => {
+// Sends real outbound email to a third party (the venue) — restricted to manager+, matching every
+// other outbound-communication-to-a-third-party route in this codebase (e.g. requireRoleForInquiryEmail).
+app.post('/api/admin/bookings/:id/advancing/send', requireAdmin, requireRole(['administrator', 'manager']), mutateRateLimiter, async (req, res) => {
     try {
         const bookingId = req.params.id;
         const booking = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
@@ -12624,7 +12883,7 @@ app.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['a
 });
 
 // 3. Download Invoice (Public Secured)
-app.get('/api/public/bookings/:id/invoice/download', ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+app.get('/api/public/bookings/:id/invoice/download', ipRateLimiter, trackRateLimiter, requireBookingAccessToken, async (req, res) => {
     // A booking accumulates one invoice per revision (INV-…, INV-…-R2, …), the superseded ones VOID.
     // Without the filter and ordering this `db.get` returned the lowest rowid — the VOID original —
     // and served the client a stale invoice after any re-quote.
@@ -12649,7 +12908,7 @@ app.get('/api/public/bookings/:id/invoice/download', ipRateLimiter, requireBooki
 });
 
 // Download Contract (Public Secured)
-app.get('/api/public/bookings/:id/contract/download', ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+app.get('/api/public/bookings/:id/contract/download', ipRateLimiter, trackRateLimiter, requireBookingAccessToken, async (req, res) => {
     db.get(`SELECT c.pdf_url
             FROM bookings b
             JOIN contracts c ON b.id = c.booking_id
@@ -12710,7 +12969,7 @@ app.get('/api/admin/bookings/:id/quote/download', requireAdmin, (req, res) => {
 });
 
 // Public: download own quote PDF (verified via access token)
-app.post('/api/public/bookings/:id/quote/download', ipRateLimiter, requireBookingAccessToken, (req, res) => {
+app.post('/api/public/bookings/:id/quote/download', ipRateLimiter, trackRateLimiter, requireBookingAccessToken, (req, res) => {
     db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if (!['QUOTED','ACCEPTED','CONFIRMED','COMPLETED'].includes(booking.status))
@@ -12756,6 +13015,12 @@ app.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter, re
                     // Released with the cancellation, not after it: this ran post-COMMIT and could
                     // leave the date held against a booking that no longer holds it.
                     await dbRun("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [req.params.id]);
+                    // Bug fix: this cascade was missing here even though both admin cancel paths
+                    // (the dedicated /cancel route and the generic status-change handler) apply it —
+                    // without it, a client self-cancelling an ACCEPTED booking left its invoice SENT
+                    // and its payment-schedule rows pending, corrupting AR/outstanding-balance reporting.
+                    await dbRun("UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [req.params.id]);
+                    await dbRun("UPDATE payment_schedules SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status='pending'", [req.params.id]);
 
                     await dbRun("COMMIT");
                     return { ok: true };
@@ -14258,7 +14523,14 @@ const BOOKING_DELETE_PURGE = [
     "DELETE FROM events WHERE booking_id = ?",
     "DELETE FROM consent_audit WHERE booking_id = ?",
     "DELETE FROM payment_logs WHERE booking_id = ?",
-    "DELETE FROM reminders_log WHERE booking_id = ?"
+    "DELETE FROM reminders_log WHERE booking_id = ?",
+    // Added after an end-to-end booking-flow audit found these missing — any booking a client had
+    // tracked, or that had an Advancing Pack started, was undeletable (FK constraint failure).
+    "DELETE FROM booking_access_codes WHERE booking_id = ?",
+    "DELETE FROM booking_access_tokens WHERE booking_id = ?",
+    // run_of_show_items / advancing_contacts cascade automatically via their own ON DELETE CASCADE
+    // from advancing_packs(id) — only the parent row needs an explicit purge here.
+    "DELETE FROM advancing_packs WHERE booking_id = ?"
 ];
 
 // Records that outlive the booking. An expense is a cost the business incurred and a bank statement
@@ -17200,14 +17472,17 @@ setTimeout(() => {
 // S6-1: Post-event follow-up job — sends review-request email the day after a COMPLETED event
 async function runPostEventFollowupJob() {
     const baseUrl = process.env.SITE_URL || '';
+    // Bug fix: this previously selected c.name/b.client_name and c.email/b.client_email — none of
+    // which exist (bookings.name/email are the real columns; clients has full_name, not name). The
+    // query threw "no such column" on every run, silently swallowed by the resolve(err ? [] : ...)
+    // below, so this job — the only automatic trigger for review-request emails — never fired.
     const bookings = await new Promise(resolve => {
-        db.all(`SELECT b.*, COALESCE(c.name, b.client_name) as name, COALESCE(c.email, b.client_email) as email
+        db.all(`SELECT b.*, b.name AS name, b.email AS email
                 FROM bookings b
-                LEFT JOIN clients c ON b.client_id = c.id
                 WHERE b.status = 'COMPLETED'
                   AND b.review_email_sent_at IS NULL
                   AND date(b.date) <= date('now', '-1 day')`,
-            [], (err, rows) => resolve(err ? [] : (rows || [])));
+            [], (err, rows) => { if (err) console.error('[Post-Event Followup] query failed:', err.message); resolve(err ? [] : (rows || [])); });
     });
 
     let sent = 0, errors = 0;
