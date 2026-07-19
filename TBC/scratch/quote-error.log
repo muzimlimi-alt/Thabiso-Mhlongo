@@ -1,1 +1,0 @@
-SQLITE_CONSTRAINT: UNIQUE constraint failed: quotations.quote_number
