@@ -10565,6 +10565,10 @@ app.post('/api/admin/bookings/:id/review-request', requireAdmin, (req, res) => {
             if (err || !b) return res.status(404).json({ success: false });
             if (b.status !== 'COMPLETED') return res.status(400).json({ success: false, message: 'Booking not completed.' });
             await sendReviewRequestEmail(b);
+            // The cron (runPostEventFollowupJob) only sends when review_email_sent_at IS NULL — this
+            // manual trigger never stamped it, so an admin clicking "Request Review" the same day an
+            // event completes would get a second, duplicate auto-send from the cron the next day.
+            db.run("UPDATE bookings SET review_email_sent_at = CURRENT_TIMESTAMP WHERE id = ?", [b.id]);
             res.json({ success: true });
         });
 });
@@ -11964,6 +11968,16 @@ app.patch('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
                     `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values) VALUES ('bookings', ?, 'UPDATE', ?, ?)`,
                     [req.params.id, JSON.stringify({ event_location: oldLocation }), JSON.stringify({ event_location: event_location.trim() })]
                 );
+                // Propagate to the linked event's venue fields — this free-text venue editor was the
+                // only one of the three venue-editing endpoints (PUT .../venue, PUT .../venue-google
+                // both already do this) that left events.venue_name/venue_map_link stale after a change.
+                if (row.event_id) {
+                    const mapLink = `https://maps.google.com/?q=${encodeURIComponent(event_location.trim() + ' ' + (venue_address || ''))}`;
+                    db.run(
+                        `UPDATE events SET venue_name = ?, venue_map_link = ?, modified_on = CURRENT_TIMESTAMP WHERE event_id = ?`,
+                        [event_location.trim(), mapLink, row.event_id]
+                    );
+                }
                 db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (e, updated) => {
                     if (!e && updated) {
                         syncBookingToCalendar(updated).catch(ce => console.error('[Venue Change] Calendar sync failed:', ce.message));
@@ -15039,35 +15053,56 @@ app.put('/api/admin/events/:id', requireAdmin, (req, res) => {
     if (event_status && !VALID_EVENT_STATUSES.includes(event_status)) return res.status(400).json({ success: false, error: 'Invalid event_status value' });
     if (event_type && !VALID_EVENT_TYPES.includes(event_type)) return res.status(400).json({ success: false, error: 'Invalid event_type value' });
 
-    checkEventConflicts(event_datetime, booking_id, eventId, (conflictErr, hasConflict) => {
-        if (conflictErr) return res.status(500).json({ success: false, error: 'Conflict check failed: ' + conflictErr.message });
-        if (hasConflict) return res.status(409).json({ success: false, message: 'Calendar conflict: The selected date is already booked or held.' });
+    // Read the old row first — checkEventConflicts() deliberately no-ops whenever booking_id is set
+    // (on the assumption the booking's own creation path already checked), so a booking-linked event
+    // edited through this full-edit form had NO conflict re-check at all if its date changed here.
+    // Mirrors the same guard PATCH /api/admin/events/:id/date already applies for the drag-reschedule case.
+    db.get("SELECT event_datetime, booking_id AS old_booking_id FROM events WHERE event_id = ?", [eventId], async (selErr, oldRow) => {
+        if (selErr || !oldRow) return res.status(404).json({ success: false, error: 'Event not found' });
+        const resolvedBookingIdForCheck = booking_id || oldRow.old_booking_id;
+        const dateChanged = event_datetime && event_datetime !== oldRow.event_datetime;
 
-        // Read old datetime before updating so we can detect date changes
-        db.get("SELECT event_datetime, booking_id AS old_booking_id FROM events WHERE event_id = ?", [eventId], (selErr, oldRow) => {
-            db.run("UPDATE events SET event_title = ?, event_description = ?, event_datetime = ?, event_end_time = ?, event_type = ?, venue_name = ?, venue_id = ?, venue_map_link = ?, ticket_sales_link = ?, poster_image_path = ?, event_status = ?, event_capacity = ?, cancellation_reason = ?, booking_id = ?, modified_by = ?, modified_on = CURRENT_TIMESTAMP, ip_address = ?, user_agent = ? WHERE event_id = ?",
-                [event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, venue_id || null, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity || null, cancellation_reason || null, booking_id || null, req.session.adminId, ip_address, user_agent, eventId],
-                async function(err) {
-                    if (err) return res.status(500).json({ success: false, error: err.message });
-                    const resolvedBookingId = booking_id || (oldRow && oldRow.old_booking_id);
-                    if (resolvedBookingId) {
-                        db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [eventId, resolvedBookingId]);
-                        // Sync booking date if event_datetime changed
-                        if (event_datetime && oldRow && event_datetime !== oldRow.event_datetime) {
-                            const datePart = event_datetime.substring(0, 10);
-                            const timePart = event_datetime.length >= 16 ? event_datetime.substring(11, 16) : null;
-                            db.run("UPDATE bookings SET date = ?" + (timePart ? ", event_start_time = ?" : "") + " WHERE id = ?",
-                                timePart ? [datePart, timePart, resolvedBookingId] : [datePart, resolvedBookingId]);
-                        }
+        if (resolvedBookingIdForCheck && dateChanged) {
+            const booking = await new Promise(r => db.get("SELECT * FROM bookings WHERE id = ?", [resolvedBookingIdForCheck], (e, x) => r(e ? null : x)));
+            if (booking && !['CANCELLED', 'EXPIRED', 'COMPLETED'].includes((booking.status || '').toUpperCase())) {
+                const datePart = event_datetime.substring(0, 10);
+                const timePart = event_datetime.length >= 16 ? event_datetime.substring(11, 16) : (booking.event_start_time || '00:00');
+                const startISO = moment(`${datePart} ${timePart}`).toISOString();
+                const durMins = (booking.performance_end_time && booking.event_start_time)
+                    ? Math.max(30, moment(`2000-01-01 ${booking.performance_end_time}`).diff(moment(`2000-01-01 ${booking.event_start_time}`), 'minutes'))
+                    : parseDurationToMinutes(booking.performance_duration);
+                const endISO = moment(startISO).add(durMins, 'minutes').toISOString();
+                const busy = await hasCalendarConflict(startISO, endISO, parseInt(resolvedBookingIdForCheck));
+                if (busy) return res.status(409).json({ success: false, message: `That date/time conflicts with another booking or hold. Choose a different date/time.` });
+            }
+        } else if (!resolvedBookingIdForCheck) {
+            const conflictCheck = await new Promise(r => checkEventConflicts(event_datetime, booking_id, eventId, (e, hasConflict) => r({ e, hasConflict })));
+            if (conflictCheck.e) return res.status(500).json({ success: false, error: 'Conflict check failed: ' + conflictCheck.e.message });
+            if (conflictCheck.hasConflict) return res.status(409).json({ success: false, message: 'Calendar conflict: The selected date is already booked or held.' });
+        }
+
+        db.run("UPDATE events SET event_title = ?, event_description = ?, event_datetime = ?, event_end_time = ?, event_type = ?, venue_name = ?, venue_id = ?, venue_map_link = ?, ticket_sales_link = ?, poster_image_path = ?, event_status = ?, event_capacity = ?, cancellation_reason = ?, booking_id = ?, modified_by = ?, modified_on = CURRENT_TIMESTAMP, ip_address = ?, user_agent = ? WHERE event_id = ?",
+            [event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, venue_id || null, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity || null, cancellation_reason || null, booking_id || null, req.session.adminId, ip_address, user_agent, eventId],
+            async function(err) {
+                if (err) return res.status(500).json({ success: false, error: err.message });
+                const resolvedBookingId = booking_id || (oldRow && oldRow.old_booking_id);
+                if (resolvedBookingId) {
+                    db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [eventId, resolvedBookingId]);
+                    // Sync booking date if event_datetime changed
+                    if (event_datetime && oldRow && event_datetime !== oldRow.event_datetime) {
+                        const datePart = event_datetime.substring(0, 10);
+                        const timePart = event_datetime.length >= 16 ? event_datetime.substring(11, 16) : null;
+                        db.run("UPDATE bookings SET date = ?" + (timePart ? ", event_start_time = ?" : "") + " WHERE id = ?",
+                            timePart ? [datePart, timePart, resolvedBookingId] : [datePart, resolvedBookingId]);
                     }
-                    let gcalSynced = false;
-                    if (req.body.sync_to_gcal !== false) {
-                        try { gcalSynced = !!(await syncEventToCalendar(eventId)); }
-                        catch(e) { console.error('GCal sync error:', e); }
-                    }
-                    res.json({ success: true, message: 'Event updated', gcal_synced: gcalSynced });
-                });
-        });
+                }
+                let gcalSynced = false;
+                if (req.body.sync_to_gcal !== false) {
+                    try { gcalSynced = !!(await syncEventToCalendar(eventId)); }
+                    catch(e) { console.error('GCal sync error:', e); }
+                }
+                res.json({ success: true, message: 'Event updated', gcal_synced: gcalSynced });
+            });
     });
 });
 app.delete('/api/admin/events/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
