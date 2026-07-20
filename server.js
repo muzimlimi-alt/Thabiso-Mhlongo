@@ -1633,7 +1633,13 @@ function startBackgroundClerk() {
             if (rows && rows.length > 0) {
                 rows.forEach(row => {
                     db.run("UPDATE bookings SET status = 'EXPIRED' WHERE id = ?", [row.id]);
-                    if (row.google_event_id) deleteGoogleEvent(row.google_event_id);
+                    // Null the local ID once we've asked Google to delete it — otherwise every future
+                    // syncBookingToCalendar() for this booking takes the "already synced" update branch
+                    // against an event that no longer exists on Google, fails, and never re-creates it.
+                    if (row.google_event_id) {
+                        deleteGoogleEvent(row.google_event_id);
+                        db.run("UPDATE bookings SET google_event_id = NULL WHERE id = ?", [row.id]);
+                    }
                     sendQuoteExpiredEmail(row).catch(e => console.error(`Quote expiry email failed for booking #${row.id}:`, e.message));
                 });
                 console.log(`✓ Expired ${rows.length} overdue quotes (clients notified).`);
@@ -6802,6 +6808,10 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
                 deleteGoogleEvent(booking.google_event_id).catch(calErr => {
                     console.error(`[Cancel] Google Calendar event removal failed for booking #${bookingId}:`, calErr.message);
                 });
+                // Null it regardless of the delete's outcome above — deleteGoogleEvent() never rejects
+                // (it swallows its own errors), and leaving a stale ID here permanently breaks any later
+                // sync attempt for this booking (update-against-a-deleted-event fails silently forever).
+                db.run("UPDATE bookings SET google_event_id = NULL WHERE id = ?", [bookingId]);
             }
             booking.name = booking.client_name || booking.name;
             booking.email = booking.client_email || booking.email;
@@ -11361,6 +11371,10 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                 if (requestedStatus === 'CANCELLED') {
                     const reason = options.reason || 'Booking cancelled by admin';
                     await deleteGoogleEvent(b.google_event_id);
+                    // Null it now that we've asked Google to delete it, or any later sync attempt for
+                    // this booking silently fails forever (update-against-a-deleted-event, never
+                    // falls back to re-creating it — see the identical fix in POST /:id/cancel).
+                    if (b.google_event_id) db.run("UPDATE bookings SET google_event_id = NULL WHERE id = ?", [bookingId]);
                     // E1: store cancellation reason/attribution AND run the SAME financial + hold
                     // cascade as POST /api/admin/bookings/:id/cancel, so cancelling via the status
                     // API leaves an identical state (previously this path skipped payment_status,
