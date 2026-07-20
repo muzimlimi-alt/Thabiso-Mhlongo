@@ -6748,6 +6748,7 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
             // cascades (holds, invoices, payment schedules, events) used to run AFTER `COMMIT` with
             // their errors logged and ignored, so a cancelled booking could keep an open invoice the
             // admin would go on chasing.
+            let linkedEventGoogleId = null;
             const outcome = await withDbTransaction(async () => {
                 try {
                     await dbRun("BEGIN IMMEDIATE");
@@ -6788,8 +6789,31 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
                     await dbRun("UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [bookingId]);
                     // Cascade: cancel pending payment schedule items
                     await dbRun("UPDATE payment_schedules SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status='pending'", [bookingId]);
-                    // Cascade: delink events so they don't appear as booking-linked
-                    await dbRun("UPDATE events SET booking_id=NULL WHERE booking_id=?", [bookingId]);
+                    // Cascade: demote the linked event to draft/cancelled AND clear both cross-reference
+                    // FKs (bookings.event_id <-> events.booking_id) — this used to only clear the event's
+                    // side (booking_id=NULL) while applyStatusChange's CANCELLED branch only cleared the
+                    // booking's side (event_id=NULL) and demoted the event, so depending on which of the
+                    // two cancellation entry points fired, the pair ended up pointing at each other
+                    // inconsistently and a publicly-listed show could keep showing 'upcoming' after its
+                    // booking was cancelled. Matches by booking_id (the event's own pointer) rather than
+                    // only booking.event_id, so a pre-existing orphaned cross-reference left by that
+                    // inconsistency still gets cleaned up here rather than silently skipped.
+                    const linkedEvent = await dbGet("SELECT event_id, google_calendar_event_id FROM events WHERE booking_id = ?", [bookingId]);
+                    if (linkedEvent) linkedEventGoogleId = linkedEvent.google_calendar_event_id || null;
+                    await dbRun(
+                        "UPDATE events SET booking_id = NULL, event_status = 'draft', cancelled_at = CURRENT_TIMESTAMP, cancellation_reason = ? WHERE booking_id = ?",
+                        ['Linked booking #' + bookingId + ' was cancelled', bookingId]
+                    );
+                    if (booking.event_id) {
+                        await dbRun("UPDATE bookings SET is_public = 0, event_id = NULL WHERE id = ?", [bookingId]);
+                    }
+                    // The event may have its own separate Google Calendar entry (synced via
+                    // syncEventToCalendar, independent of the booking's own google_event_id, handled as
+                    // a post-commit side effect below alongside it) — without clearing it here too, it
+                    // stays live/public on Google even though it's now locally demoted to draft.
+                    if (linkedEventGoogleId) {
+                        await dbRun("UPDATE events SET google_calendar_event_id = NULL WHERE event_id = ?", [linkedEvent.event_id]);
+                    }
 
                     await dbRun("COMMIT");
                     return { ok: true };
@@ -6813,6 +6837,10 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
                 // sync attempt for this booking (update-against-a-deleted-event fails silently forever).
                 db.run("UPDATE bookings SET google_event_id = NULL WHERE id = ?", [bookingId]);
             }
+            // The linked event's own separate Google Calendar entry (if any) — already nulled in the DB
+            // inside the transaction above; the actual Google delete call happens here, after commit,
+            // same as the booking's own event above.
+            if (linkedEventGoogleId) deleteGoogleEvent(linkedEventGoogleId);
             booking.name = booking.client_name || booking.name;
             booking.email = booking.client_email || booking.email;
             // SC-3: Pass policy rule + timing so client knows what was applied
@@ -11361,10 +11389,23 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
             if (!e && b) {
                 if (b.event_id && !['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(requestedStatus)) {
                     db.run("UPDATE bookings SET is_public = 0, event_id = NULL WHERE id = ?", [bookingId]);
-                    // On cancellation, switch the linked public event to draft rather than deleting it
+                    // On cancellation, switch the linked public event to draft rather than deleting it.
+                    // Also clears events.booking_id — matches POST /:id/cancel's identical cascade
+                    // (see that route) so both cancellation entry points leave the same state instead of
+                    // each clearing only one side of the bookings.event_id <-> events.booking_id pair.
                     if (requestedStatus === 'CANCELLED') {
-                        db.run("UPDATE events SET event_status = 'draft', cancelled_at = CURRENT_TIMESTAMP, cancellation_reason = ? WHERE event_id = ?",
-                            ['Linked booking #' + bookingId + ' was cancelled', b.event_id]);
+                        db.get("SELECT google_calendar_event_id FROM events WHERE event_id = ?", [b.event_id], (evErr, evRow) => {
+                            db.run("UPDATE events SET booking_id = NULL, event_status = 'draft', cancelled_at = CURRENT_TIMESTAMP, cancellation_reason = ? WHERE event_id = ?",
+                                ['Linked booking #' + bookingId + ' was cancelled', b.event_id]);
+                            // The event may have its own separate Google Calendar entry (synced via
+                            // syncEventToCalendar, independent of the booking's own google_event_id
+                            // handled above) — without this it stays live/public on Google even though
+                            // it's now locally demoted to draft.
+                            if (!evErr && evRow && evRow.google_calendar_event_id) {
+                                deleteGoogleEvent(evRow.google_calendar_event_id);
+                                db.run("UPDATE events SET google_calendar_event_id = NULL WHERE event_id = ?", [b.event_id]);
+                            }
+                        });
                     }
                 }
 
@@ -11467,6 +11508,12 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                     sendAdminCompletionSummaryEmail(b).catch(e => console.error('Admin completion summary failed:', e.message));
                     // S6-4: Auto-mark invoice as paid when booking is completed with full payment
                     db.run("UPDATE invoices SET status = 'PAID', updated_at = CURRENT_TIMESTAMP WHERE booking_id = ? AND status NOT IN ('VOID','PAID')", [b.id]);
+                    // Parity with the dedicated POST /:id/complete route and the hourly auto-complete
+                    // sweep — both advance the linked event; this generic status path used to leave it
+                    // stuck at 'upcoming' when completed via PUT /:id or /:id/status instead.
+                    if (b.event_id) {
+                        db.run("UPDATE events SET event_status = 'completed', modified_on = CURRENT_TIMESTAMP WHERE event_id = ? AND event_status NOT IN ('cancelled', 'completed')", [b.event_id]);
+                    }
                 }
             }
         });
