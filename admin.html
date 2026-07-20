@@ -12567,9 +12567,10 @@
                         // overwrites, the Quote/Contract/Invoice chips the main lazy-load populates.
                         var $advFiles = $('#atl-filedocs-advancing-' + bookingId);
                         if ($advFiles.length) {
+                            var packStatusLbl = { draft: 'Draft', sent: 'Sent', confirmed: 'Confirmed' }[d.pack && d.pack.status] || 'Draft';
                             $advFiles.html(d.pack && d.pack.pdf_url
-                                ? '<div class="dv-filegrid" style="margin-top:10px;"><a class="dv-file" href="/api/admin/bookings/' + bookingId + '/advancing/download" target="_blank" rel="noopener"><span class="ico"><i class="fa-solid fa-clipboard-list"></i></span><span><span class="fn">Advancing Pack</span><span class="fm">PDF</span></span></a></div>'
-                                : '');
+                                ? '<div class="dv-filegrid"><a class="dv-file" href="/api/admin/bookings/' + bookingId + '/advancing/download" target="_blank" rel="noopener"><span class="ico" style="background:rgba(212,175,55,0.14);color:var(--atl-amber);"><i class="fa-solid fa-clipboard-list"></i></span><span><span class="fn">Advancing Pack</span><span class="fm">' + packStatusLbl + '</span></span></a></div>'
+                                : '<p class="atl-det-empty">No advancing pack generated yet.</p>');
                         }
                     } else if (window.notificationService) window.notificationService.showError(d.message || 'Could not load the advancing pack.');
                 })
@@ -13039,20 +13040,32 @@
                 $('#atl-activity-' + bookingId).html(activityHtml);
 
                 // 8. Files tab — generated document chips, alongside the client attachments
-                // buildFilesPanel() already rendered synchronously from row.attachment_files.
-                var fileChips = [];
+                // buildFilesPanel() already rendered synchronously from row.attachment_files. Split
+                // across two phase cards that mirror the Deal View's own tabs (Quote & Contract /
+                // Invoices & Payments), each keeping the same accent colour it uses everywhere else
+                // (contract=purple, quote=amber-light, invoice=blue) so the colour itself is a
+                // recognisable label across surfaces, not just here.
+                var qcChips = [];
                 if (contract && contract.contract && contract.contract.pdf_url) {
-                    var cStatus = contract.contract.status === 'signed' ? 'Signed' : 'Draft';
-                    fileChips.push('<a class="dv-file" href="/api/admin/bookings/' + bookingId + '/contract/download" target="_blank" rel="noopener"><span class="ico">&#9993;</span><span><span class="fn">Contract</span><span class="fm">' + cStatus + '</span></span></a>');
+                    var cStatus = contract.contract.status === 'signed' ? 'Signed'
+                                : contract.contract.status === 'sent' ? 'Sent · awaiting signature'
+                                : 'Draft';
+                    qcChips.push('<a class="dv-file" href="/api/admin/bookings/' + bookingId + '/contract/download" target="_blank" rel="noopener"><span class="ico" style="background:rgba(149,117,205,0.14);color:#9575CD;"><i class="fa-solid fa-file-contract"></i></span><span><span class="fn">Contract</span><span class="fm">' + cStatus + '</span></span></a>');
                 }
                 var activeQuote = history && history.length ? (history.find(function(q) { return !q.archived; }) || history[history.length - 1]) : null;
                 if (activeQuote && activeQuote.pdf_url) {
-                    fileChips.push('<a class="dv-file" href="' + activeQuote.pdf_url + '" target="_blank" rel="noopener"><span class="ico">Q</span><span><span class="fn">Quote v' + activeQuote.version + '</span><span class="fm">PDF</span></span></a>');
+                    var qStatus = activeQuote.archived ? 'Superseded' : 'Active';
+                    qcChips.push('<a class="dv-file" href="' + activeQuote.pdf_url + '" target="_blank" rel="noopener"><span class="ico" style="background:rgba(212,175,55,0.14);color:var(--atl-amber-light);"><i class="fa-solid fa-file-invoice-dollar"></i></span><span><span class="fn">Quote v' + activeQuote.version + '</span><span class="fm">' + qStatus + '</span></span></a>');
                 }
+                $('#atl-filedocs-qc-' + bookingId).html(qcChips.length ? '<div class="dv-filegrid">' + qcChips.join('') + '</div>' : '<p class="atl-det-empty">No quote or contract generated yet.</p>');
+
+                var invChips = [];
                 if (row.invoice_number) {
-                    fileChips.push('<a class="dv-file" href="/api/admin/bookings/' + bookingId + '/invoice/download" target="_blank" rel="noopener"><span class="ico">&#8965;</span><span><span class="fn">Invoice ' + row.invoice_number + '</span><span class="fm">PDF</span></span></a>');
+                    var invRaw = row.invoice_status || 'DRAFT';
+                    var invStatusLbl = invRaw.charAt(0).toUpperCase() + invRaw.slice(1).toLowerCase();
+                    invChips.push('<a class="dv-file" href="/api/admin/bookings/' + bookingId + '/invoice/download" target="_blank" rel="noopener"><span class="ico" style="background:rgba(96,165,250,0.14);color:var(--atl-blue);"><i class="fa-solid fa-file-invoice"></i></span><span><span class="fn">Invoice ' + row.invoice_number + '</span><span class="fm">' + invStatusLbl + '</span></span></a>');
                 }
-                $('#atl-filedocs-' + bookingId).html(fileChips.length ? '<div class="dv-filegrid" style="margin-top:10px;">' + fileChips.join('') + '</div>' : '');
+                $('#atl-filedocs-inv-' + bookingId).html(invChips.length ? '<div class="dv-filegrid">' + invChips.join('') + '</div>' : '<p class="atl-det-empty">No invoice generated yet.</p>');
             }).catch(function(err) {
                 console.error("Error loading lazy details: ", err);
                 if (window.notificationService) window.notificationService.showError("Could not load this booking's financial details.");
@@ -20240,39 +20253,78 @@
       </div>`;
         }
 
+        // Human-readable size for a client attachment (server stores raw bytes; nothing else on
+        // this row lends itself to a "file" reading otherwise — no upload timestamp is captured).
+        function formatFileSize(bytes) {
+            var n = parseInt(bytes, 10);
+            if (!n || n <= 0) return '';
+            if (n < 1024) return n + ' B';
+            if (n < 1024 * 1024) return (n / 1024).toFixed(0) + ' KB';
+            return (n / (1024 * 1024)).toFixed(1) + ' MB';
+        }
+        // Icon by mime type — client uploads are arbitrary files, unlike the generated documents
+        // below which always know their own type.
+        function attachmentIcon(mimeType) {
+            var t = (mimeType || '').toLowerCase();
+            if (t === 'application/pdf') return 'fa-file-pdf';
+            if (t.indexOf('image/') === 0) return 'fa-file-image';
+            if (t.indexOf('word') !== -1) return 'fa-file-word';
+            if (t.indexOf('sheet') !== -1 || t.indexOf('excel') !== -1) return 'fa-file-excel';
+            return 'fa-file';
+        }
+
+        // Files tab: two clearly separated groups sharing one visual language (.dv-file cards) —
+        // what the CLIENT sent in versus what the BUSINESS generated — rather than the old mismatch
+        // of small amber pill-badges for attachments alongside full file-cards for documents.
         function buildFilesPanel(row) {
-            let attachmentsHtml = '';
+            let attachmentsInner = '<p class="atl-det-empty">No client attachments on this booking.</p>';
             try {
                 const files = JSON.parse(row.attachment_files || '[]');
                 if (files && files.length) {
-                    attachmentsHtml = `
-          <div class="atl-det-card">
-            <h5 class="atl-det-title"><i class="fa-solid fa-paperclip"></i>Attached files</h5>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-              ${files.map(f =>
-                `<a href="/api/admin/booking-attachments/${encodeURIComponent(f.filename)}"
-                    target="_blank" rel="noopener"
-                    class="atl-tag-badge"
-                    style="font-size:11px;padding:8px 12px;border-radius:6px;
-                           text-decoration:none;min-height:36px;display:inline-flex;
-                           align-items:center;gap:6px;
-                           background:rgba(212,175,55,0.08);
-                           color:var(--atl-amber) !important;
-                           border:1px solid rgba(212,175,55,0.35);">
-                   <i class="fa-solid fa-paperclip" style="font-size:10px;flex-shrink:0;color:var(--atl-amber);"></i>
-                   <span style="word-break:break-all;max-width:180px;">${f.original_name}</span>
-                 </a>`
-              ).join('')}
-            </div>
-          </div>`;
+                    attachmentsInner = '<div class="dv-filegrid">' + files.map(function(f) {
+                        var icon = attachmentIcon(f.mime_type);
+                        var size = formatFileSize(f.size);
+                        return `<a class="dv-file" href="/api/admin/booking-attachments/${encodeURIComponent(f.filename)}" target="_blank" rel="noopener">`
+                             + `<span class="ico" style="background:rgba(74,222,128,0.12);color:var(--atl-sage);"><i class="fa-solid ${icon}"></i></span>`
+                             + `<span><span class="fn">${f.original_name}</span><span class="fm">${size || 'Client upload'}</span></span>`
+                             + `</a>`;
+                    }).join('') + '</div>';
                 }
             } catch (e) { /* no attachments */ }
 
+            // Advancing only actually fetches once the Advancing tab itself is activated on a
+            // CONFIRMED/COMPLETED booking (see dvActivateTab) — Files never triggers that fetch on
+            // its own. So: show the always-true "locked" fact when it's genuinely locked; otherwise
+            // a neutral hint rather than either an empty-looking card or a "Loading…" claim for a
+            // fetch that may never run this session (misleading if the admin never visits Advancing).
+            var advStatusUC = (row.status || '').toUpperCase();
+            var advLocked = advStatusUC !== 'CONFIRMED' && advStatusUC !== 'COMPLETED';
+            var advPlaceholder = '<p class="atl-det-empty">' + (advLocked
+                ? 'Confirm this booking to unlock its advancing pack.'
+                : 'Open the Advancing tab to view or generate a pack.') + '</p>';
+
+            // Generated documents split into three phase cards that mirror the Deal View's own
+            // tabs (Quote & Contract / Invoices & Payments / Advancing) — so "which tab manages
+            // this document" is legible straight from the Files list, not just one undifferentiated
+            // pile of chips.
             return `
       <div class="atl-det-col">
-          ${attachmentsHtml || '<p class="atl-det-empty">No client attachments on this booking.</p>'}
-          <div id="atl-filedocs-${row.id}"></div>
-          <div id="atl-filedocs-advancing-${row.id}"></div>
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-paperclip"></i>Client Attachments</h5>
+          ${attachmentsInner}
+        </div>
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-file-signature"></i>Quote &amp; Contract</h5>
+          <div id="atl-filedocs-qc-${row.id}"><p class="atl-det-empty">Loading&hellip;</p></div>
+        </div>
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-file-invoice-dollar"></i>Invoices &amp; Payments</h5>
+          <div id="atl-filedocs-inv-${row.id}"><p class="atl-det-empty">Loading&hellip;</p></div>
+        </div>
+        <div class="atl-det-card">
+          <h5 class="atl-det-title"><i class="fa-solid fa-clipboard-list"></i>Advancing</h5>
+          <div id="atl-filedocs-advancing-${row.id}">${advPlaceholder}</div>
+        </div>
       </div>`;
         }
 

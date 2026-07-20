@@ -282,6 +282,13 @@ const PORT = process.env.PORT || 3000;
 const CURRENT_POLICY_VERSION = 'v2.2';
 
 app.use(helmet({
+    // Helmet's default Referrer-Policy is "no-referrer", which strips the Referer header from
+    // cross-origin requests. YouTube's embedded player uses that header to verify the embedding
+    // domain and returns "Error 153" (video player configuration error) when it's absent, so no
+    // milestone/social video could ever play. "strict-origin-when-cross-origin" (the modern browser
+    // default) sends only the origin — never the path or query — cross-origin over equal-or-better
+    // transport, which is enough for YouTube/Vimeo to validate the domain without leaking anything.
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],

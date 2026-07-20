@@ -651,6 +651,11 @@ $(function() {
         // that to work, hence the always-visible "Watch on YouTube" fallback link this pairs with.
         return 'https://www.youtube.com/embed/' + videoId + '?autoplay=1&origin=' + encodeURIComponent(window.location.origin);
     }
+    function msYouTubeThumb(videoId) {
+        // Same derivation the admin Career editor uses so a video milestone shows its poster frame
+        // even while collapsed, and behind the player before it finishes loading.
+        return 'https://img.youtube.com/vi/' + videoId + '/hqdefault.jpg';
+    }
 
     function msEmbedVideo($opt) {
         var embedUrl = $opt.attr('data-embed-url');
@@ -662,7 +667,7 @@ $(function() {
         var watchLinkHtml = watchUrl
             ? '<a class="ms-option__watch-link" href="' + watchUrl + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();"><i class="fa-solid fa-arrow-up-right-from-square"></i> Watch on ' + (watchUrl.includes('vimeo') ? 'Vimeo' : 'YouTube') + '</a>'
             : '';
-        $opt.append('<div class="ms-option__embed"><iframe src="' + embedUrl + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>' + watchLinkHtml + '</div>');
+        $opt.append('<div class="ms-option__embed"><iframe src="' + embedUrl + '" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>' + watchLinkHtml + '</div>');
     }
 
     function msWireInteractions() {
@@ -713,6 +718,7 @@ $(function() {
             var mediaType = 'none';
             var embedUrl = null;
             var watchUrl = null;
+            var thumbUrl = null;
 
             if (media) {
                 if (media.startsWith('data:image') || media.match(/\.(jpeg|jpg|gif|png|webp)$/i) != null) {
@@ -723,6 +729,7 @@ $(function() {
                         mediaType = 'video';
                         embedUrl = msYouTubeEmbedUrl(ytId);
                         watchUrl = 'https://www.youtube.com/watch?v=' + ytId;
+                        thumbUrl = msYouTubeThumb(ytId);
                     }
                 } else if (media.includes('vimeo')) {
                     mediaType = 'video';
@@ -751,6 +758,7 @@ $(function() {
                     'data-watch-url': watchUrl || ''
                 });
             if (mediaType === 'image') $opt.css('background-image', 'url("' + media + '")');
+            else if (mediaType === 'video' && thumbUrl) $opt.css('background-image', 'url("' + thumbUrl + '")');
 
             $opt.append('<div class="ms-option__wash"></div>');
             $opt.append('<div class="ms-option__badge"><i class="fa-solid ' + iconClass + '"></i></div>');
