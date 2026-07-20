@@ -1590,6 +1590,10 @@ function initializeDatabase() {
         statusGuard('contracts', 'status', ['draft', 'sent', 'signed']);
         statusGuard('payment_schedules', 'status', ['pending', 'paid', 'overdue', 'superseded', 'cancelled']);
         statusGuard('quotations', 'status', ['draft', 'sent', 'accepted', 'void', 'archived']);
+        // Mirrors VALID_EVENT_STATUSES in server.js — events.event_status had no DB-level guard at all
+        // (unlike invoices/contracts/payment_schedules/quotations above), so a bad literal from any of
+        // the several write paths that bypass the app-level whitelist (see server.js) would persist silently.
+        statusGuard('events', 'event_status', ['upcoming', 'draft', 'live', 'completed', 'cancelled', 'postponed', 'sold_out']);
 
         // Seed initial schema_migrations entries (idempotent)
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (1, 'initial_tables')`);
@@ -1648,6 +1652,7 @@ function initializeDatabase() {
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (53, 'contracts_number_column_for_invoice_citation')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (54, 'bookings_disposition_soft_decline')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (55, 'bookings_alt_dates_content_notes_heard_about')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (56, 'events_status_guard_date_holds_audit_trail')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (99, 'full_schema_history_reconstructed_2026_06_19')`);
         // END schema_migrations seeds
 
@@ -1843,6 +1848,33 @@ function initializeDatabase() {
                 json_object('event_title', OLD.event_title, 'event_datetime', OLD.event_datetime, 'event_status', OLD.event_status, 'booking_id', OLD.booking_id),
                 CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_events_delete trigger:", err.message); });
+
+        // date_holds had no audit trail at all (unlike events above) — every calendar block
+        // create/move/release was invisible to audit_log.
+        db.run(`CREATE TRIGGER IF NOT EXISTS audit_date_holds_insert AFTER INSERT ON date_holds
+        BEGIN
+            INSERT INTO audit_log (table_name, record_id, action, new_values, change_timestamp)
+            VALUES ('date_holds', NEW.id, 'INSERT',
+                json_object('hold_date', NEW.hold_date, 'status', NEW.status, 'block_type', NEW.block_type, 'notes', NEW.notes),
+                CURRENT_TIMESTAMP);
+        END`, (err) => { if (err) console.error("Error creating audit_date_holds_insert trigger:", err.message); });
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS audit_date_holds_update AFTER UPDATE ON date_holds
+        BEGIN
+            INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, change_timestamp)
+            VALUES ('date_holds', NEW.id, 'UPDATE',
+                json_object('hold_date', OLD.hold_date, 'status', OLD.status),
+                json_object('hold_date', NEW.hold_date, 'status', NEW.status),
+                CURRENT_TIMESTAMP);
+        END`, (err) => { if (err) console.error("Error creating audit_date_holds_update trigger:", err.message); });
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS audit_date_holds_delete AFTER DELETE ON date_holds
+        BEGIN
+            INSERT INTO audit_log (table_name, record_id, action, old_values, change_timestamp)
+            VALUES ('date_holds', OLD.id, 'DELETE',
+                json_object('hold_date', OLD.hold_date, 'status', OLD.status, 'block_type', OLD.block_type, 'notes', OLD.notes),
+                CURRENT_TIMESTAMP);
+        END`, (err) => { if (err) console.error("Error creating audit_date_holds_delete trigger:", err.message); });
 
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_inquiries_insert AFTER INSERT ON inquiries
         BEGIN
