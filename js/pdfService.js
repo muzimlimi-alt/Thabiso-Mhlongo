@@ -119,7 +119,7 @@ class PDFService {
     }
 
     // Returns the Y coordinate of the bottom of the cards
-    _drawInfoSection(doc, booking, clientVat, type) {
+    _drawInfoSection(doc, booking, clientVat, type, opts = {}) {
         const topY   = 148;
         const cardW  = 270;
         const leftX  = 28;
@@ -137,6 +137,12 @@ class PDFService {
             ['VENUE',  booking.event_location || 'TBD'],
             type === 'Quote' ? ['VALID UNTIL', expDate] : ['DOC DATE', docDate],
         ];
+        // Opportunistic cross-reference: only present when a contract already existed at the time
+        // this invoice was generated (see generateInvoice in server.js) — older/earlier invoices
+        // simply omit the row, same optional-citation pattern as the contract's quote citation.
+        if (type === 'Invoice' && opts.contractNumber) {
+            eventRows.push(['AGREEMENT', opts.contractNumber]);
+        }
 
         // Pre-measure each event row so we know exact heights before drawing
         const rowHeights = eventRows.map(([, val]) => {
@@ -245,7 +251,7 @@ class PDFService {
      *   itself, and the derived `INV-<bookingId>-<YYMM>` below never matched the stored number, so
      *   the number on the client's PDF disagreed with the ledger.
      */
-    async generateDocument(type, booking, lineItems, outputPath, schedules = [], docNumberOverride = null) {
+    async generateDocument(type, booking, lineItems, outputPath, schedules = [], docNumberOverride = null, opts = {}) {
         return new Promise((resolve, reject) => {
             const doc = new PDFDocument({ margin: 28 });
             const stream = fs.createWriteStream(outputPath);
@@ -271,7 +277,7 @@ class PDFService {
             this._drawHeader(doc, type, docNumber, isTaxInvoice);
 
             // 2. Info cards — returns bottom Y so table starts below cards
-            const cardsBottomY = this._drawInfoSection(doc, booking, clientVat, type);
+            const cardsBottomY = this._drawInfoSection(doc, booking, clientVat, type, opts);
 
             // 3. Line items table — starts 14px below the cards
             let currentY = this._drawTableHeader(doc, cardsBottomY + 14);
@@ -545,6 +551,7 @@ class PDFService {
                 const totals     = opts.totals || {};
                 const clauses    = opts.clauses || {};
                 const contractNo = opts.contractNo || `AGR-${booking.id}`;
+                const sourceQuoteNumber = opts.sourceQuoteNumber || null;
                 const LEFT = 28, WIDTH = 556;
                 const money = n => 'R ' + (parseFloat(n) || 0).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -584,7 +591,7 @@ class PDFService {
 
                 // Title
                 doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Performance Engagement Agreement', LEFT, 150, { width: WIDTH });
-                doc.font('Helvetica').fontSize(9).fillColor(GREY).text(`Agreement ${contractNo}  ·  Prepared ${moment().format('DD MMMM YYYY')}`, LEFT, doc.y + 2, { width: WIDTH });
+                doc.font('Helvetica').fontSize(9).fillColor(GREY).text(`Agreement ${contractNo}  ·  Prepared ${moment().format('DD MMMM YYYY')}${sourceQuoteNumber ? '  ·  Per accepted quote ' + sourceQuoteNumber : ''}`, LEFT, doc.y + 2, { width: WIDTH });
                 doc.moveDown(0.5);
                 para('This Agreement records the terms on which the Artist will provide the engagement described below to the Client. It becomes binding once signed by both parties.', { color: GREY, size: 8.5 });
 

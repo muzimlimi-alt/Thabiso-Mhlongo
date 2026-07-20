@@ -1417,10 +1417,17 @@ async function generateInvoice(bookingId, opts = {}) {
                             (e, rows) => resolve(e ? [] : (rows || []))
                         );
                     });
+                    // Cite the related contract if one already exists at invoice-generation time (it
+                    // often doesn't — accept-parity generates the invoice before the contract — so this
+                    // is opportunistic, same as the contract PDF's optional "Per accepted quote" line).
+                    const existingContract = await new Promise(resolve => {
+                        db.get("SELECT contract_number FROM contracts WHERE booking_id = ?", [bookingId], (e, r) => resolve(e ? null : r));
+                    });
                     // invNumber is passed through so the number on the client's PDF is the number in
                     // the ledger. generateDocument() otherwise derives `INV-<bookingId>-<YYMM>`, which
                     // has never matched invoices.invoice_number.
-                    const pdfResult = await pdfService.generateDocument('Invoice', booking, items, pdfPath, paymentSchedules, invNumber);
+                    const pdfResult = await pdfService.generateDocument('Invoice', booking, items, pdfPath, paymentSchedules, invNumber,
+                        { contractNumber: existingContract ? existingContract.contract_number : null });
 
                     // Create the invoice record. Voiding the superseded invoice, inserting the new
                     // invoice and its line items, and updating the booking are one atomic unit,
@@ -3915,7 +3922,10 @@ const BOOKING_TEXT_LIMITS = {
     vat_number: 30, source: 100, referrer: 500,
     // Was the one client-supplied free-text field with no cap (real Google Place IDs run
     // ~27-100 chars; 300 is generous headroom) — found in an end-to-end booking-flow audit.
-    venuePlaceId: 300
+    venuePlaceId: 300,
+    // Alternative/backup dates, content-suitability note, optional self-reported lead source —
+    // all optional, no required-field check added for any of them.
+    alternative_dates: 300, content_notes: 500, heard_about: 200
 };
 
 // A JSON body may send a number, array or object where a string is expected. Calling
@@ -3934,6 +3944,7 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
         event_name, event_date, event_start_time, performance_slot, performance_duration,
         event_location, venue_address, city, country, venue_type,
         event_type, audience_size, audience_demographic, budget_range, travel_accommodation, message,
+        alternative_dates, content_notes, heard_about,
         services, venuePlaceId, popia_consent, vat_number
     } = req.body;
     // req.body.policy_version is deliberately ignored — see CURRENT_POLICY_VERSION.
@@ -3952,6 +3963,9 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
     audience_size = asBookingText(audience_size);
     audience_demographic = asBookingText(audience_demographic);
     budget_range = asBookingText(budget_range);
+    alternative_dates = asBookingText(alternative_dates);
+    content_notes = asBookingText(content_notes);
+    heard_about = asBookingText(heard_about);
     message = asBookingText(message);         vat_number = asBookingText(vat_number);
     venuePlaceId = asBookingText(venuePlaceId);
 
@@ -4322,13 +4336,15 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
                             event_name, date, event_start_time, performance_slot, performance_duration,
                             event_location, venue_address, city, country, venue_type,
                             event_type, audience_size, audience_demographic, budget_range, travel_accommodation, message, status,
+                            alternative_dates, content_notes, heard_about,
                             client_id, venue_id, quote_amount, total_amount, amount_outstanding, payment_status, popia_consent, consent_timestamp, vat_number, venue_place_id, quote_expiry_date, policy_version, source, referrer, consent_source
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "NEW", ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, 'public_form')`,
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, "NEW", ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, 'public_form')`,
                     [
                         encodeUserHtml(name), encodeUserHtml(company) || null, email, cell,
                         encodeUserHtml(event_name) || null, event_date, event_start_time || null, encodeUserHtml(performance_slot) || null, encodeUserHtml(performance_duration) || null,
                         encodeUserHtml(event_location), encodeUserHtml(venue_address) || null, encodeUserHtml(city) || null, encodeUserHtml(country) || null, encodeUserHtml(venue_type) || null,
                         encodeUserHtml(event_type), encodeUserHtml(audience_size) || null, encodeUserHtml(audience_demographic) || null, encodeUserHtml(budget_range) || null, travel_accommodation ? 1 : 0, encodeUserHtml(message),
+                        encodeUserHtml(alternative_dates) || null, encodeUserHtml(content_notes) || null, encodeUserHtml(heard_about) || null,
                         clientId, venueId, initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, vat_number || null, encodeUserHtml(venuePlaceId) || null, defaultQuoteExpiry, CURRENT_POLICY_VERSION,
                         encodeUserHtml(asBookingText(req.body.source)) || null, encodeUserHtml(asBookingText(req.body.referrer)) || null
                     ]
@@ -7017,7 +7033,7 @@ async function resolveContractFeeData(bookingId, booking) {
         "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
         [bookingId], (e, rows) => r(e ? [] : (rows || []))));
 
-    return { items, total, applyVat, schedules };
+    return { items, total, applyVat, schedules, quoteNumber: activeQuote ? activeQuote.quote_number : null };
 }
 
 // Assembles the contract as a self-contained HTML snapshot (makes `contracts.content_html` live —
@@ -7091,6 +7107,11 @@ ${optionalSection('Additional Clauses', clauses.additionalClauses)}
 // `clauseOverrides` is optional — when omitted (the quote-acceptance auto-call, unchanged), clause
 // text resolves from policies + DEFAULT_CONTRACT_CLAUSES exactly as before this Builder existed;
 // when provided (the Builder route), submitted text wins per-field, defaulting only for blanks.
+// Booking must be past quote acceptance before a contract can exist — a contract embodies an
+// accepted engagement, so it may not precede acceptance. Shared by generateContract() and the
+// send/upload routes so the ordering can't be bypassed from any entry point.
+const CONTRACT_ELIGIBLE_STATUSES = ['ACCEPTED', 'CONFIRMED', 'COMPLETED'];
+
 async function generateContract(bookingId, clauseOverrides = null) {
     const existing = await new Promise(r => db.get("SELECT status, is_frozen FROM contracts WHERE booking_id = ?", [bookingId], (e, row) => r(row || null)));
     if (existing && (existing.status === 'signed' || existing.is_frozen === 1)) {
@@ -7100,6 +7121,13 @@ async function generateContract(bookingId, clauseOverrides = null) {
     const booking = await new Promise((res, rej) => db.get(
         `SELECT b.*, c.vat_number AS client_vat_number FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
         [bookingId], (e, row) => e ? rej(e) : (row ? res(row) : rej(new Error('Booking not found')))));
+
+    // Acceptance-before-contract: don't generate a contract for a booking that hasn't accepted its
+    // quote yet. The auto-generate on acceptance runs after the status is already ACCEPTED, so it
+    // passes; only premature manual attempts are blocked.
+    if (!CONTRACT_ELIGIBLE_STATUSES.includes((booking.status || '').toUpperCase())) {
+        return { skipped: true, reason: 'not_accepted' };
+    }
 
     const feeData = await resolveContractFeeData(bookingId, booking);
 
@@ -7125,7 +7153,8 @@ async function generateContract(bookingId, clauseOverrides = null) {
     const pdfPath = path.join(contractsDir, pdfFileName);
 
     await pdfService.generateContract(booking, feeData.items, pdfPath, {
-        policies, schedules: feeData.schedules, totals: { total: feeData.total, applyVat: feeData.applyVat }, contractNo, clauses: finalClauses
+        policies, schedules: feeData.schedules, totals: { total: feeData.total, applyVat: feeData.applyVat }, contractNo, clauses: finalClauses,
+        sourceQuoteNumber: feeData.quoteNumber
     });
 
     const contentHtml = assembleContractHtml(booking, feeData, finalClauses, contractNo);
@@ -7133,19 +7162,22 @@ async function generateContract(bookingId, clauseOverrides = null) {
     const templateVersion = clauseOverrides ? 'builder-v1' : 'auto-v1';
 
     await new Promise((res, rej) => db.run(
-        `INSERT INTO contracts (booking_id, template_version, pdf_url, content_html, content_hash, builder_clauses, status, uploaded_by, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'draft', 'system', CURRENT_TIMESTAMP)
+        `INSERT INTO contracts (booking_id, template_version, pdf_url, content_html, content_hash, builder_clauses, contract_amount, source_quote_number, contract_number, status, uploaded_by, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', 'system', CURRENT_TIMESTAMP)
          ON CONFLICT(booking_id) DO UPDATE SET
             pdf_url = excluded.pdf_url,
             template_version = excluded.template_version,
             content_html = excluded.content_html,
             content_hash = excluded.content_hash,
             builder_clauses = excluded.builder_clauses,
+            contract_amount = excluded.contract_amount,
+            source_quote_number = excluded.source_quote_number,
+            contract_number = excluded.contract_number,
             status = 'draft',
             uploaded_by = 'system',
             is_frozen = 0,
             updated_at = CURRENT_TIMESTAMP`,
-        [bookingId, templateVersion, pdfFileName, contentHtml, contentHash, JSON.stringify(finalClauses)], (e) => e ? rej(e) : res()));
+        [bookingId, templateVersion, pdfFileName, contentHtml, contentHash, JSON.stringify(finalClauses), feeData.total, feeData.quoteNumber, contractNo], (e) => e ? rej(e) : res()));
 
     db.run(`INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json) VALUES ('contracts', ?, 'GENERATE', 'system', ?)`,
         [bookingId, JSON.stringify({ file: pdfFileName, contract_no: contractNo, status: 'draft' })], () => {});
@@ -7161,7 +7193,10 @@ app.post('/api/admin/bookings/:id/contract/generate', requireAdmin, async (req, 
     try {
         const result = await generateContract(req.params.id, (req.body && req.body.clauses) || null);
         if (result.skipped) {
-            return res.status(400).json({ success: false, message: 'This contract has already been signed and cannot be regenerated. Create a separate amendment instead.' });
+            const msg = result.reason === 'not_accepted'
+                ? 'A contract can only be generated once the quote has been accepted. Accept the quote first.'
+                : 'This contract has already been signed and cannot be regenerated. Create a separate amendment instead.';
+            return res.status(400).json({ success: false, message: msg });
         }
         res.json({ success: true, message: 'Contract generated.', contract: result.contract });
     } catch (e) {
@@ -7281,6 +7316,12 @@ app.post('/api/admin/bookings/:id/contract', requireAdmin, (req, res, next) => {
     const templateVersion = (req.body.template_version || '1.0').substring(0, 20);
     const uploadedBy = req.session.username || 'system';
 
+    db.get("SELECT status FROM bookings WHERE id = ?", [bookingId], (bErr, bk) => {
+        if (bErr || !bk) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        // Acceptance-before-contract: don't attach a contract to a booking that hasn't accepted its quote.
+        if (!CONTRACT_ELIGIBLE_STATUSES.includes((bk.status || '').toUpperCase())) {
+            return res.status(400).json({ success: false, message: 'The quote must be accepted before a contract can be added.' });
+        }
     db.get("SELECT status, is_frozen, signed_by, signed_date FROM contracts WHERE booking_id = ?", [bookingId], (selErr, existing) => {
         if (existing && (existing.status === 'signed' || existing.is_frozen === 1)) {
             return res.status(400).json({
@@ -7315,6 +7356,7 @@ app.post('/api/admin/bookings/:id/contract', requireAdmin, (req, res, next) => {
             }
         );
     });
+    });
 });
 
 // PUT — mark a contract as signed
@@ -7329,7 +7371,7 @@ app.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => {
     }
 
     const forceCountersign = req.body && req.body.force === true;
-    db.get("SELECT status, is_frozen, signed_by_client_at FROM contracts WHERE booking_id = ?", [bookingId], (checkErr, existing) => {
+    db.get("SELECT status, is_frozen, signed_by_client_at, pdf_url, client_signature_data FROM contracts WHERE booking_id = ?", [bookingId], (checkErr, existing) => {
         if (checkErr) return res.status(500).json({ success: false, message: checkErr.message });
         if (!existing) return res.status(404).json({ success: false, message: 'No contract found for this booking. Upload a PDF first.' });
         if (existing.is_frozen === 1 || existing.status === 'signed') {
@@ -7345,6 +7387,25 @@ app.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => {
             });
         }
 
+        // Integrity check: re-hash the PDF now and compare against the hash captured when the client
+        // signed. A mismatch means the document changed between the client's signature and this
+        // countersignature — surfaced in the audit trail (not hard-blocked; the admin is finalising).
+        let integrityVerified = null;
+        try {
+            let clientHash = null;
+            if (existing.client_signature_data) {
+                try { clientHash = (JSON.parse(existing.client_signature_data) || {}).signed_file_sha256 || null; } catch (pe) {}
+            }
+            if (clientHash && existing.pdf_url) {
+                const cpath = path.join(__dirname, 'docs', 'contracts', existing.pdf_url);
+                if (fs.existsSync(cpath)) {
+                    const nowHash = crypto.createHash('sha256').update(fs.readFileSync(cpath)).digest('hex');
+                    integrityVerified = (nowHash === clientHash);
+                    if (integrityVerified === false) console.warn(`[Contract Countersign] PDF hash changed since client signed (booking #${bookingId}) — possible tamper.`);
+                }
+            }
+        } catch (hErr) { console.error('[Contract Countersign] Integrity check failed for booking #' + bookingId + ':', hErr.message); }
+
         db.run(
             `UPDATE contracts
              SET signed_by_comedian_at = CURRENT_TIMESTAMP,
@@ -7352,22 +7413,24 @@ app.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => {
                  signed_date = ?,
                  status = 'signed',
                  is_frozen = 1,
+                 integrity_verified = ?,
                  updated_at = CURRENT_TIMESTAMP
              WHERE booking_id = ?`,
-            [signatoryName, signedDate, bookingId], function(err) {
+            [signatoryName, signedDate, integrityVerified === null ? null : (integrityVerified ? 1 : 0), bookingId], function(err) {
                 if (err || this.changes === 0) {
                     return res.status(404).json({ success: false, message: err ? err.message : 'No contract found for this booking. Upload a PDF first.' });
                 }
 
-                // Audit log
+                // Audit log (previously passed 5 params to a 3-placeholder INSERT — the extra literals
+                // meant the row silently failed to write; corrected to match the columns).
                 db.run(
                     `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json)
                      VALUES ('contracts', ?, 'SIGN', ?, ?)`,
-                    ['contracts', bookingId, 'SIGN', signedBy, JSON.stringify({ signed_by: signatoryName, signed_date: signedDate })],
+                    [bookingId, signedBy, JSON.stringify({ signed_by: signatoryName, signed_date: signedDate, integrity_verified: integrityVerified })],
                     () => {}
                 );
 
-                res.json({ success: true, message: 'Contract marked as signed.', signed_by: signatoryName, signed_date: signedDate });
+                res.json({ success: true, message: 'Contract marked as signed.', signed_by: signatoryName, signed_date: signedDate, integrity_verified: integrityVerified });
             }
         );
     });
@@ -7390,9 +7453,13 @@ app.get('/api/admin/bookings/:id/contract/download', requireAdmin, (req, res) =>
 // and advances draft -> sent so the client tracking page exposes the review-and-sign flow.
 app.post('/api/admin/bookings/:id/contract/send', requireAdmin, mutateRateLimiter, (req, res) => {
     const bookingId = req.params.id;
-    db.get(`SELECT b.id, b.name, COALESCE(c.email, b.email) AS email, b.event_name, b.event_type, b.date
+    db.get(`SELECT b.id, b.name, b.status, COALESCE(c.email, b.email) AS email, b.event_name, b.event_type, b.date
             FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`, [bookingId], (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        // Acceptance-before-contract: a contract may not be sent for signing before the quote is accepted.
+        if (!CONTRACT_ELIGIBLE_STATUSES.includes((booking.status || '').toUpperCase())) {
+            return res.status(400).json({ success: false, message: 'The quote must be accepted before a contract can be sent to the client.' });
+        }
         db.get("SELECT pdf_url, status, is_frozen FROM contracts WHERE booking_id = ?", [bookingId], async (cErr, contract) => {
             if (cErr) return res.status(500).json({ success: false, message: cErr.message });
             if (!contract || !contract.pdf_url) return res.status(404).json({ success: false, message: 'No contract on file. Generate or upload one first.' });
@@ -7590,7 +7657,7 @@ app.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateLimi
 
     db.get("SELECT id, email FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        db.get("SELECT status, is_frozen, signed_by_client_at FROM contracts WHERE booking_id = ?", [bookingId], (cErr, contract) => {
+        db.get("SELECT status, is_frozen, signed_by_client_at, pdf_url, content_hash FROM contracts WHERE booking_id = ?", [bookingId], (cErr, contract) => {
             if (cErr) return res.status(500).json({ success: false, message: cErr.message });
             if (!contract) return res.status(404).json({ success: false, message: 'No contract is available for this booking yet.' });
             if (contract.is_frozen === 1 || contract.status === 'signed') {
@@ -7603,12 +7670,26 @@ app.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateLimi
                 return res.status(409).json({ success: false, message: 'You have already signed this contract. It is now awaiting our countersignature.' });
             }
 
-            // Signature = intent + attribution. Store the typed name, server-stamped time, IP and UA.
+            // Bind the signature to the exact document signed: hash the actual PDF bytes on disk (works
+            // for both generated and uploaded contracts) so the signed version is provable and any later
+            // change to the file is detectable. Stored inside client_signature_data alongside attribution.
+            let signedFileHash = null;
+            try {
+                if (contract.pdf_url) {
+                    const cpath = path.join(__dirname, 'docs', 'contracts', contract.pdf_url);
+                    if (fs.existsSync(cpath)) signedFileHash = crypto.createHash('sha256').update(fs.readFileSync(cpath)).digest('hex');
+                }
+            } catch (hErr) { console.error('[Contract Sign] Could not hash PDF for booking #' + bookingId + ':', hErr.message); }
+
+            // Signature = intent + attribution, bound to the document. Store the typed name,
+            // server-stamped time, IP, UA, the signed PDF's hash, and the content_hash of record.
             const signatureData = JSON.stringify({
                 name: signatoryName,
                 signed_at: new Date().toISOString(),
                 ip: clientIp,
-                user_agent: (req.headers['user-agent'] || '').slice(0, 300)
+                user_agent: (req.headers['user-agent'] || '').slice(0, 300),
+                signed_file_sha256: signedFileHash,
+                content_hash_at_signing: contract.content_hash || null
             });
             db.run(
                 `UPDATE contracts
@@ -9401,13 +9482,16 @@ app.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (req,
                 // Queue the invitation email so the user can set their password.
                 createAndSendInvite({ id: newId, email: normalizedEmail, full_name: cleanName, role: targetRole }, 72, function (mail) {
                     const emailSent = !!(mail && mail.success);
+                    let message = 'User created and invitation sent.';
+                    if (!emailSent) {
+                        const reason = (mail && mail.error) ? mail.error : 'Unknown SMTP error';
+                        message = 'User created, but the invitation email could not be sent: ' + reason + '. Use "Resend invite".';
+                    }
                     res.json({
                         success: true,
                         id: newId,
                         email_sent: emailSent,
-                        message: emailSent
-                            ? 'User created and invitation sent.'
-                            : 'User created, but the invitation email could not be sent. Use "Resend invite".'
+                        message: message
                     });
                 });
             }
@@ -9424,10 +9508,15 @@ app.post('/api/admin/users/:id/resend-invite', requireAdmin, requireRole(['admin
         db.run("DELETE FROM password_reset_tokens WHERE admin_id = ?", [userId], () => {
             createAndSendInvite(user, 72, function (mail) {
                 const emailSent = !!(mail && mail.success);
+                let message = 'Invitation re-sent to ' + user.email + '.';
+                if (!emailSent) {
+                    const reason = (mail && mail.error) ? mail.error : 'Unknown SMTP error';
+                    message = 'Could not send the invitation email: ' + reason + '. Please try again.';
+                }
                 res.json({
                     success: true,
                     email_sent: emailSent,
-                    message: emailSent ? 'Invitation re-sent to ' + user.email + '.' : 'Could not send the invitation email. Please try again.'
+                    message: message
                 });
             });
         });
@@ -10150,7 +10239,8 @@ app.get('/api/admin/legal/contracts', requireAdmin, (req, res) => {
         if (e1) return res.status(500).json({ success: false, message: e1.message });
         db.all(`SELECT c.id, c.booking_id, c.template_version, c.status, c.is_frozen, c.pdf_url, c.uploaded_by, c.signed_by, c.signed_date,
                        c.sent_to_client_at, c.signed_by_client_at, c.created_at, c.updated_at,
-                       b.name AS client_name, b.email AS client_email, b.event_name, b.date AS event_date
+                       b.name AS client_name, b.email AS client_email, b.event_name, b.date AS event_date,
+                       b.status AS booking_status, b.payment_status AS booking_payment_status
                 FROM contracts c LEFT JOIN bookings b ON b.id = c.booking_id
                 ${where} ORDER BY c.updated_at DESC, c.id DESC LIMIT ? OFFSET ?`, [...qp, limit, offset], (e2, contracts) => {
             if (e2) return res.status(500).json({ success: false, message: e2.message });
@@ -10573,7 +10663,8 @@ app.get('/api/admin/bookings/full', requireAdmin, (req, res) => {
         ct.is_frozen AS contract_is_frozen,
         ct.pdf_url AS contract_pdf_url,
         ct.sent_to_client_at AS contract_sent_at,
-        ct.signed_by_client_at AS contract_signed_by_client_at
+        ct.signed_by_client_at AS contract_signed_by_client_at,
+        COALESCE(b.disposition, 'active') AS disposition
       FROM bookings b
       LEFT JOIN venues v ON b.venue_id = v.id
       LEFT JOIN clients c ON b.client_id = c.id
@@ -12473,6 +12564,33 @@ app.put('/api/admin/bookings/:id/status', requireAdmin, (req, res) => {
         applyStatusChange(req.params.id, requestedStatus, (row.status || '').toUpperCase(), res, { reason, adminId: req.session.adminId });
     });
 });
+
+// PUT /api/admin/bookings/:id/disposition — booking triage (soft-decline). Deliberately NOT
+// routed through applyStatusChange/ALLOWED_TRANSITIONS: disposition is an orthogonal axis (same
+// pattern as payment_status alongside status) so declining a bad-fit lead as "not a fit" or
+// shelving it as "archived" doesn't touch the pipeline state machine and doesn't read as a
+// cancelled deal in the audit trail or conversion analytics.
+const BOOKING_DISPOSITIONS = ['active', 'not_a_fit', 'archived'];
+app.put('/api/admin/bookings/:id/disposition', requireAdmin, (req, res) => {
+    const bookingId = req.params.id;
+    const disposition = req.body.disposition;
+    if (!BOOKING_DISPOSITIONS.includes(disposition)) {
+        return res.status(400).json({ success: false, message: `disposition must be one of: ${BOOKING_DISPOSITIONS.join(', ')}` });
+    }
+    db.get("SELECT disposition FROM bookings WHERE id = ?", [bookingId], (err, row) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (!row) return res.status(404).json({ success: false, message: 'Booking not found' });
+        const previous = row.disposition || 'active';
+        db.run("UPDATE bookings SET disposition = ? WHERE id = ?", [disposition, bookingId], function(upErr) {
+            if (upErr) return res.status(500).json({ success: false, message: upErr.message });
+            db.run(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
+                    VALUES ('bookings', ?, 'DISPOSITION', ?, ?, ?, CURRENT_TIMESTAMP)`,
+                [bookingId, JSON.stringify({ disposition: previous }), JSON.stringify({ disposition }), req.session.adminId || 'admin'],
+                (aErr) => { if (aErr) console.error('[Audit] Disposition change log failed:', aErr.message); });
+            res.json({ success: true, disposition });
+        });
+    });
+});
 app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
     const bookingId = req.params.id;
     const isStructured = Array.isArray(req.body.items);
@@ -12689,6 +12807,25 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
                         if (reQuotingCommitted) {
                             await dbRun("UPDATE payment_schedules SET status = 'superseded' WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) != 'paid'", [bookingId]);
                             await dbRun("UPDATE invoices SET status = 'VOID', void_reason = 'superseded_by_requote', voided_at = CURRENT_TIMESTAMP WHERE booking_id = ? AND UPPER(status) NOT IN ('VOID','PAID')", [bookingId]);
+                            // A contract embodies the amount the client accepted; a re-quote changes that
+                            // amount, so any existing contract — draft, sent, or even signed/frozen — is
+                            // superseded and reset to draft. This clears the client's signature and the
+                            // freeze so a fresh contract must be generated and re-signed at the new figure,
+                            // preventing an old-amount (possibly already-signed) contract from surviving a
+                            // re-quote. A SUPERSEDED_BY_REQUOTE audit row records the invalidation.
+                            const supersededContract = await dbGet("SELECT status, is_frozen, contract_amount FROM contracts WHERE booking_id = ?", [bookingId]);
+                            await dbRun(
+                                `UPDATE contracts SET status = 'draft', is_frozen = 0,
+                                        sent_to_client_at = NULL, signed_by_client_at = NULL, signed_by_comedian_at = NULL,
+                                        client_signature_data = NULL, client_ip_address = NULL, signed_by = NULL, signed_date = NULL,
+                                        content_hash = NULL, updated_at = CURRENT_TIMESTAMP
+                                 WHERE booking_id = ?`,
+                                [bookingId]);
+                            if (supersededContract) {
+                                await dbRun(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
+                                        VALUES ('contracts', ?, 'SUPERSEDED_BY_REQUOTE', ?, ?, CURRENT_TIMESTAMP)`,
+                                    [bookingId, JSON.stringify({ previous_status: supersededContract.status, was_frozen: supersededContract.is_frozen === 1, previous_amount: supersededContract.contract_amount }), req.session.adminId || 'admin']);
+                            }
                             await dbRun(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
                                     VALUES ('bookings', ?, 'REQUOTE_AFTER_ACCEPTED', ?, ?, CURRENT_TIMESTAMP)`,
                                 [bookingId, JSON.stringify({ previous_status: currentStatus, new_status: 'QUOTED' }), req.session.adminId || 'admin']);
@@ -14178,6 +14315,9 @@ app.get('/api/admin/financials/stats', requireAdmin, requireRole(['administrator
     `;
 
     // 3. Booking status counts
+    // Soft-declined leads (disposition 'not_a_fit'/'archived') are excluded from the active
+    // pipeline funnel — they were never a live deal, so counting them would inflate/distort
+    // conversion math the same way a raw status overload would have (see BOOKING_DISPOSITIONS).
     const countsQuery = `
         SELECT
             COUNT(CASE WHEN status = 'PENDING'   THEN 1 END) AS pending_count,
@@ -14185,6 +14325,7 @@ app.get('/api/admin/financials/stats', requireAdmin, requireRole(['administrator
             COUNT(CASE WHEN status = 'CONFIRMED' THEN 1 END) AS confirmed_count
         FROM bookings
         WHERE status NOT IN ('CANCELLED', 'EXPIRED')
+          AND (disposition = 'active' OR disposition IS NULL)
     `;
 
     db.get(revenueQuery, [periodFrom, periodTo], (err, revRow) => {

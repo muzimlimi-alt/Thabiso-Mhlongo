@@ -1101,6 +1101,46 @@
 									</div>
 								</div>
 							</div>
+							<div class="row">
+								<div class="col-md-6 form-group">
+									<label class="bk-label">Budget Range <span aria-hidden="true" style="color:#9a9a9a;font-weight:400;font-size:0.85em;">(optional)</span></label>
+									<div class="bk-field">
+										<i class="fa-solid fa-money-bill-wave bk-field-ico"></i>
+										<select id="bookBudget" class="bk-input form-control bk-ico-input">
+											<option value="">Select...</option>
+											<option value="Under R10,000">Under R10,000</option>
+											<option value="R10,000 – R25,000">R10,000 – R25,000</option>
+											<option value="R25,000 – R50,000">R25,000 – R50,000</option>
+											<option value="R50,000+">R50,000+</option>
+											<option value="Prefer not to say">Prefer not to say</option>
+										</select>
+									</div>
+								</div>
+								<div class="col-md-6 form-group">
+									<label class="bk-label">Alternative Dates <span aria-hidden="true" style="color:#9a9a9a;font-weight:400;font-size:0.85em;">(optional)</span></label>
+									<div class="bk-field">
+										<i class="fa-solid fa-calendar-days bk-field-ico"></i>
+										<input type="text" id="bookAltDates" class="bk-input form-control bk-ico-input" placeholder="e.g. any Friday in December" maxlength="300">
+									</div>
+									<div class="bk-step-err" id="err-bookAltDates" style="display:none;"></div>
+								</div>
+							</div>
+							<div class="form-group">
+								<label class="bk-label">Content Suitability <span aria-hidden="true" style="color:#9a9a9a;font-weight:400;font-size:0.85em;">(optional)</span></label>
+								<div class="bk-field bk-field--textarea">
+									<i class="fa-solid fa-shield-halved bk-field-ico bk-field-ico--top"></i>
+									<textarea id="bookContentNotes" class="bk-input form-control bk-ico-input" rows="2" placeholder="e.g. corporate-safe, no explicit material" maxlength="500"></textarea>
+								</div>
+								<div class="bk-step-err" id="err-bookContentNotes" style="display:none;"></div>
+							</div>
+							<div class="form-group">
+								<label class="bk-label">How Did You Hear About Us? <span aria-hidden="true" style="color:#9a9a9a;font-weight:400;font-size:0.85em;">(optional)</span></label>
+								<div class="bk-field">
+									<i class="fa-solid fa-bullhorn bk-field-ico"></i>
+									<input type="text" id="bookHeardAbout" class="bk-input form-control bk-ico-input" placeholder="e.g. Instagram, a friend, a past event" maxlength="200">
+								</div>
+								<div class="bk-step-err" id="err-bookHeardAbout" style="display:none;"></div>
+							</div>
 							<div class="form-group" id="bookTravelGroup">
 								<label class="bk-label">Travel &amp; Accommodation</label>
 								<div class="bk-field">

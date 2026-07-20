@@ -2045,7 +2045,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
         var _bkDraftFields = ['bookEventName','bookType','bookDate','bookName','bookEmail','bookCell',
             'bookCompany','bookLocation','bookAddress','bookCity',
-            'bookCountry','bookAudience','bookDemographic','bookTravel','bookNotes'];
+            'bookCountry','bookAudience','bookDemographic','bookTravel','bookNotes',
+            'bookBudget','bookAltDates','bookContentNotes','bookHeardAbout'];
 
         function saveBkDraft() {
             try {
@@ -2429,6 +2430,10 @@ document.addEventListener("DOMContentLoaded", function() {
                 ['Notes / Requirements',  $('#bookNotes').val() || '\u2014'],
                 ['Audience Size',         $('#bookAudience').val() || '\u2014'],
                 ['Audience Demographic',  $('#bookDemographic').val() || '\u2014'],
+                ['Budget Range',          $('#bookBudget').val() || '\u2014'],
+                ['Alternative Dates',     $('#bookAltDates').val() || '\u2014'],
+                ['Content Suitability',   $('#bookContentNotes').val() || '\u2014'],
+                ['How You Heard About Us', $('#bookHeardAbout').val() || '\u2014'],
                 ['Full Name',             $('#bookName').val()],
                 ['Company / Organization', $('#bookCompany').val() || '\u2014'],
                 ['Email',                 $('#bookEmail').val()],
@@ -2732,6 +2737,10 @@ $bookingForm.on('blur', '#bookName', function() {
                 event_type: $('#bookType').val(),
                 audience_size: $('#bookAudience').val().trim(),
                 audience_demographic: $('#bookDemographic').val().trim(),
+                budget_range: $('#bookBudget').val() || null,
+                alternative_dates: $('#bookAltDates').val().trim(),
+                content_notes: $('#bookContentNotes').val().trim(),
+                heard_about: $('#bookHeardAbout').val().trim(),
                 travel_accommodation: $('#bookTravel').val() || null,
                 message: $('#bookNotes').val().trim(),
                 services: srvItems,
@@ -2873,6 +2882,18 @@ $bookingForm.on('blur', '#bookName', function() {
                     // time slot overlap
                     $('#err-bookSlot').text(msg).show();
                     $('#bkTimeSlotsGrid').addClass('bk-input--err').attr('aria-invalid', 'true').attr('aria-describedby', 'err-bookSlot');
+                    mapped = true;
+                } else if (msg.includes('alternative dates')) {
+                    // Checked ahead of the generic 'characters' branch below — that one would
+                    // otherwise catch this message too (it also contains the word "characters")
+                    // and incorrectly highlight bookNotes instead of this field.
+                    setFieldState('bookAltDates', false, msg);
+                    mapped = true;
+                } else if (msg.includes('content notes')) {
+                    setFieldState('bookContentNotes', false, msg);
+                    mapped = true;
+                } else if (msg.includes('heard about')) {
+                    setFieldState('bookHeardAbout', false, msg);
                     mapped = true;
                 } else if (msg.includes('message') || msg.includes('characters')) {
                     setFieldState('bookNotes', false, msg);

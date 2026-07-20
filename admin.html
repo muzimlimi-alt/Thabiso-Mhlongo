@@ -1179,6 +1179,16 @@
             color: var(--atl-blue, #818cf8);
             border: 1px solid rgba(129,140,248,0.3);
         }
+        .atl-tag-badge--contract-unsigned {
+            background: rgba(212,175,55,0.12);
+            color: var(--atl-amber, #d4af37);
+            border: 1px solid rgba(212,175,55,0.35);
+        }
+        .atl-tag-badge--triaged {
+            background: rgba(148,148,148,0.12);
+            color: var(--atl-muted, #949494);
+            border: 1px solid rgba(148,148,148,0.3);
+        }
         @keyframes atl-pulse-overdue {
             0%, 100% { opacity: 1; }
             50%       { opacity: 0.65; }
@@ -6720,6 +6730,14 @@
                                     <option value="NEEDS_ACTION">&#x26A0; Needs Action</option>
                                 </select>
                             </div>
+                            <div>
+                                <select id="bookingDispositionFilter" class="atl-filter-select" title="Triage: fresh enquiries dispositioned Not a Fit / Archived are hidden here by default">
+                                    <option value="active">Active</option>
+                                    <option value="not_a_fit">Not a Fit</option>
+                                    <option value="archived">Archived</option>
+                                    <option value="ALL">All (incl. triaged)</option>
+                                </select>
+                            </div>
                             <button type="button" id="clearFilters" class="atl-clear-btn">
                                 Clear filters
                             </button>
@@ -6847,19 +6865,24 @@
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                 <div>
                                     <h4 class="um-section-label" style="margin-bottom:4px;">About Bookings</h4>
-                                    <p class="um-section-desc">The operational heart of the platform &mdash; how the booking pipeline works, what each control does, and how to recover lost enquiries.</p>
+                                    <p class="um-section-desc">The operational heart of the platform &mdash; how the booking pipeline, the quote/contract/invoice paperwork, and triage all fit together, for both you and the client.</p>
                                 </div>
                             </div>
 
                             <div class="um-divider"></div>
 
                             <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
-                                <strong style="color:var(--atl-ink);">Bookings</strong> manages every artist engagement from first contact to final payment. It has two working tabs &mdash; the <strong style="color:var(--atl-ink);">Pipeline</strong> (all live bookings) and <strong style="color:var(--atl-ink);">Booking Recovery</strong> (visitors who started a request but didn't finish). Each enquiry moves through an eight-stage lifecycle &mdash; <strong style="color:var(--atl-ink);">New &rarr; Pending &rarr; Quoted &rarr; Accepted &rarr; Confirmed &rarr; Completed</strong>, with <strong style="color:var(--atl-ink);">Expired</strong> and <strong style="color:var(--atl-ink);">Cancelled</strong> as terminal states. Every status transition is validated and recorded server-side.
+                                <strong style="color:var(--atl-ink);">Bookings</strong> manages every artist engagement from first contact to final payment. It has two working tabs &mdash; the <strong style="color:var(--atl-ink);">Pipeline</strong> (all live bookings) and <strong style="color:var(--atl-ink);">Booking Recovery</strong> (visitors who started a request but didn't finish). Each enquiry moves through an eight-stage lifecycle &mdash; <strong style="color:var(--atl-ink);">New &rarr; Pending &rarr; Quoted &rarr; Accepted &rarr; Confirmed &rarr; Completed</strong>, with <strong style="color:var(--atl-ink);">Expired</strong> and <strong style="color:var(--atl-ink);">Cancelled</strong> as terminal states. Every status transition is validated and recorded server-side &mdash; and a separate, non-pipeline <strong style="color:var(--atl-ink);">Triage</strong> flag (further down this page) lets you soft-decline a bad-fit enquiry without cancelling it.
                             </p>
 
-                            <h4 class="um-section-label" style="margin: 4px 0 12px;">The booking lifecycle</h4>
+                            <p class="um-section-desc" style="margin-top:0; margin-bottom:20px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-blue) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-blue) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-circle-info" style="color:var(--atl-blue); margin-top:2px;"></i>
+                                <span>This page reads two ways. The <strong style="color:var(--atl-ink);">timeline below</strong> walks the whole journey stage by stage, spelling out what the <strong style="color:var(--atl-ink);">client</strong> experiences alongside what <strong style="color:var(--atl-ink);">you</strong> see and do at each point. Skip to <strong style="color:var(--atl-ink);">&ldquo;How it works&rdquo;</strong> for a quicker reference once you know the shape of it.</span>
+                            </p>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;">The booking lifecycle &mdash; client &amp; admin, step by step</h4>
                             <p class="um-section-desc" style="width:100%; margin-bottom:16px; line-height:1.6;">
-                                Every enquiry travels down this pipeline. Each stage is colour-coded &mdash; the same colours you see on the pills and status badges &mdash; and tells you what it means and what to do next.
+                                Every enquiry travels down this pipeline. Each stage is colour-coded &mdash; the same colours you see on the pills and status badges. <i class="fa-solid fa-user" style="color:var(--atl-blue); margin:0 4px 0 2px;"></i><strong style="color:var(--atl-ink);">Client</strong> lines describe what the client sees or can do at that point; <span class="arrow" style="color:var(--atl-amber); font-weight:700; margin:0 4px 0 2px;">&rarr;</span><strong style="color:var(--atl-ink);">Admin</strong> lines describe what you see and the action to take.
                             </p>
 
                             <div class="bk-timeline">
@@ -6869,8 +6892,9 @@
                                     <span class="bk-tl-dot"></span>
                                     <div class="bk-tl-body">
                                         <div class="bk-tl-head"><span class="bk-tl-name">New</span></div>
-                                        <p class="bk-tl-meaning">A fresh enquiry has arrived &mdash; from the public booking form or logged manually &mdash; and hasn't been quoted yet.</p>
-                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span>Review the details, then <strong>Send Quote</strong>. Left untouched it auto-moves to Pending after 24h.</p>
+                                        <p class="bk-tl-meaning">A fresh enquiry has arrived &mdash; from the public booking form or logged manually &mdash; and hasn't been quoted yet. The card now also carries anything the client added: budget range, alternative/backup dates, a content-suitability note, and how they heard about the business.</p>
+                                        <p class="bk-tl-next"><i class="fa-solid fa-user" style="color:var(--atl-blue); margin-right:6px; width:14px;"></i><strong>Client:</strong> has just submitted the form (or been logged after a call/email) and is waiting to hear back. No action needed from them yet.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Admin:</strong> review the card, then <strong>Send Quote</strong>. Left untouched for 24 hours, the system promotes it to Pending on its own and emails the client an &ldquo;under review&rdquo; notice.</p>
                                     </div>
                                 </div>
 
@@ -6878,8 +6902,9 @@
                                     <span class="bk-tl-dot"></span>
                                     <div class="bk-tl-body">
                                         <div class="bk-tl-head"><span class="bk-tl-name">Pending</span><span class="bk-tl-tag">auto</span></div>
-                                        <p class="bk-tl-meaning">Awaiting a quote. A New enquiry becomes Pending automatically after 24 hours if it isn't actioned.</p>
-                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Send Quote.</strong> Left unquoted it auto-Expires ~48h after it first arrived &mdash; you'll get a heads-up email before that happens.</p>
+                                        <p class="bk-tl-meaning">Awaiting a quote. A New enquiry becomes Pending automatically after 24 hours if it isn't actioned; it can also be logged directly as Pending.</p>
+                                        <p class="bk-tl-next"><i class="fa-solid fa-user" style="color:var(--atl-blue); margin-right:6px; width:14px;"></i><strong>Client:</strong> if they were auto-promoted from New, they received the &ldquo;still reviewing&rdquo; email above; otherwise nothing has changed for them yet.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Admin:</strong> <strong>Send Quote.</strong> Left unquoted, you get a warning digest 24&ndash;48h after it first arrived, and it auto-Expires at the 48h mark &mdash; the client is notified their request lapsed.</p>
                                     </div>
                                 </div>
 
@@ -6889,8 +6914,9 @@
                                     <span class="bk-tl-dot"></span>
                                     <div class="bk-tl-body">
                                         <div class="bk-tl-head"><span class="bk-tl-name">Quoted</span></div>
-                                        <p class="bk-tl-meaning">A formal quote has been emailed to the client; you're waiting on their decision.</p>
-                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span>No action needed &mdash; the client accepts via the quote link. <strong>Follow Up</strong> if it goes stale.</p>
+                                        <p class="bk-tl-meaning">A formal PDF quote has been generated and emailed with a secure online-accept link; you're waiting on the client's decision.</p>
+                                        <p class="bk-tl-next"><i class="fa-solid fa-user" style="color:var(--atl-blue); margin-right:6px; width:14px;"></i><strong>Client:</strong> receives the quote by email and can review and <strong>accept it online</strong> at their own pace. They also get a reminder email 24h before it lapses if they haven't responded.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Admin:</strong> no action needed &mdash; the client's own click drives the next stage. <strong>Follow Up</strong> if it goes stale, or <strong>Revise &amp; Send Quote</strong> to replace it (safe here &mdash; nothing has been accepted yet). If it lapses unaccepted it auto-Expires; <strong>Reopen Booking</strong> to try again.</p>
                                     </div>
                                 </div>
 
@@ -6898,8 +6924,9 @@
                                     <span class="bk-tl-dot"></span>
                                     <div class="bk-tl-body">
                                         <div class="bk-tl-head"><span class="bk-tl-name">Accepted</span></div>
-                                        <p class="bk-tl-meaning">The client accepted the quote and agreed to the terms.</p>
-                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Generate the invoice</strong>, then record payment when it arrives.</p>
+                                        <p class="bk-tl-meaning">The client accepted the quote and agreed to the terms &mdash; this is also the moment the invoice and contract paperwork track begins (see &ldquo;The paperwork track&rdquo; below). A payment schedule, an invoice and a draft contract are built automatically the instant a booking reaches Accepted, whichever way it got there.</p>
+                                        <p class="bk-tl-next"><i class="fa-solid fa-user" style="color:var(--atl-blue); margin-right:6px; width:14px;"></i><strong>Client:</strong> if <em>they</em> clicked Accept online, the invoice is emailed to them immediately &mdash; no waiting on you. If <em>you</em> marked it accepted on their behalf (e.g. a phone confirmation), nothing is emailed yet; the invoice sits as a draft for you to check first.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Admin:</strong> if you accepted it yourself, watch for a second toast a couple of seconds later confirming the draft invoice and draft contract were created (or flagging if either failed). <strong>Send Invoice</strong> if it's still a draft, and start the contract from the <strong>Quote &amp; Contract</strong> tab &mdash; it can only be built or sent from this stage onward.</p>
                                     </div>
                                 </div>
 
@@ -6910,7 +6937,8 @@
                                     <div class="bk-tl-body">
                                         <div class="bk-tl-head"><span class="bk-tl-name">Confirmed</span></div>
                                         <p class="bk-tl-meaning">The booking is locked in and now appears on the Calendar as an event.</p>
-                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span>Send the invoice and <strong>record payment</strong>; the card's next-step hint guides you until the event.</p>
+                                        <p class="bk-tl-next"><i class="fa-solid fa-user" style="color:var(--atl-blue); margin-right:6px; width:14px;"></i><strong>Client:</strong> this can happen without you doing anything &mdash; the moment they pay <em>any</em> real amount (even just a deposit) on an Accepted invoice, the booking auto-jumps to Confirmed and they get a &ldquo;booking confirmed&rdquo; email. If a contract is still awaiting their signature, they can sign it online at any point.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Admin:</strong> if payment hasn't started, send/chase the invoice and record it when it lands. Watch the Deal View's Overview-tab <strong>Next Step</strong> callout &mdash; it now prioritises a client-signed contract waiting on your countersignature above everything else, since that's the one step where <em>they're</em> waiting on <em>you</em>. An amber <strong>&ldquo;Unsigned Contract&rdquo;</strong> badge marks any Confirmed booking whose contract isn't finalised yet.</p>
                                     </div>
                                 </div>
 
@@ -6920,8 +6948,9 @@
                                     <span class="bk-tl-dot"></span>
                                     <div class="bk-tl-body">
                                         <div class="bk-tl-head"><span class="bk-tl-name">Completed</span><span class="bk-tl-tag">auto</span></div>
-                                        <p class="bk-tl-meaning">The event has been delivered and the booking is closed. Set automatically once a confirmed event date passes.</p>
-                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Request a review</strong> to build the profile.</p>
+                                        <p class="bk-tl-meaning">The event has been delivered and the booking is closed.</p>
+                                        <p class="bk-tl-next"><i class="fa-solid fa-user" style="color:var(--atl-blue); margin-right:6px; width:14px;"></i><strong>Client:</strong> receives a completion / thank-you email automatically the moment the system closes the booking out, and may later get a review request.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Admin:</strong> this fires automatically only once <em>both</em> the event date has passed <em>and</em> the invoice is fully Paid &mdash; the invoice is force-marked Paid at the same moment, for consistency. If the date passes with money still owing, it stays Confirmed with a <strong>&ldquo;Collect &amp; Close&rdquo;</strong> prompt instead (you'll also get an admin digest about it) &mdash; collect payment, then mark it Completed yourself. Either way, finish with <strong>Request Review</strong>.</p>
                                     </div>
                                 </div>
 
@@ -6931,8 +6960,9 @@
                                     <span class="bk-tl-dot"></span>
                                     <div class="bk-tl-body">
                                         <div class="bk-tl-head"><span class="bk-tl-name" style="color:var(--atl-ink-dim);">Expired</span><span class="bk-tl-tag">terminal</span></div>
-                                        <p class="bk-tl-meaning">A quote lapsed without acceptance, or a Pending enquiry went stale.</p>
-                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Reopen Booking</strong> to restore it to Pending and quote afresh.</p>
+                                        <p class="bk-tl-meaning">A quote lapsed without acceptance, or a Pending enquiry went stale, without any admin action.</p>
+                                        <p class="bk-tl-next"><i class="fa-solid fa-user" style="color:var(--atl-blue); margin-right:6px; width:14px;"></i><strong>Client:</strong> automatically emailed that their request/quote has lapsed. Nothing further is expected of them.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Admin:</strong> nothing is lost &mdash; <strong>Reopen Booking</strong> restores it to Pending so you can quote afresh.</p>
                                     </div>
                                 </div>
 
@@ -6940,11 +6970,55 @@
                                     <span class="bk-tl-dot"></span>
                                     <div class="bk-tl-body">
                                         <div class="bk-tl-head"><span class="bk-tl-name">Cancelled</span><span class="bk-tl-tag">terminal</span></div>
-                                        <p class="bk-tl-meaning">The booking was cancelled; its payment status is set to Cancelled too.</p>
-                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Record a refund</strong> if one is owed, or <strong>Book Again</strong> to rebook.</p>
+                                        <p class="bk-tl-meaning">The booking was called off &mdash; by the client, by you, by mutual agreement, or force majeure. Its payment status is set to Cancelled too.</p>
+                                        <p class="bk-tl-next"><i class="fa-solid fa-user" style="color:var(--atl-blue); margin-right:6px; width:14px;"></i><strong>Client:</strong> receives a cancellation email that states the refund amount owed (if any), which policy rule produced it, and how many days out from the event this was.</p>
+                                        <p class="bk-tl-next"><span class="arrow">&rarr;</span><strong>Admin:</strong> one cascade fires automatically &mdash; the calendar event is removed, any date hold is released, the invoice is voided, pending payment-schedule instalments are cancelled, and a refund is calculated from the cancellation policy. <strong>Record the refund</strong> once it's paid out, or <strong>Book Again</strong> to start a fresh booking for the same client.</p>
                                     </div>
                                 </div>
                             </div>
+
+                            <h4 class="um-section-label" style="margin: 22px 0 12px;">The paperwork track &mdash; Quote, Contract &amp; Invoice run in parallel</h4>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:14px; line-height:1.6;">
+                                Once a booking reaches <strong style="color:var(--atl-ink);">Accepted</strong>, three linked-but-independent documents move through their own small lifecycles alongside the main pipeline above. They don't have their own pills on the board &mdash; you track them from the <strong style="color:var(--atl-ink);">Quote &amp; Contract</strong> and <strong style="color:var(--atl-ink);">Invoices &amp; Payments</strong> tabs inside the booking.
+                            </p>
+                            <div class="um-roles-grid" style="margin-bottom:16px;">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-file-invoice-dollar" style="color:var(--atl-amber-light);"></i> Quote</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> <code>draft &rarr; sent &rarr; accepted</code>, or <code>archived</code>/<code>void</code> the moment a newer version replaces it</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> Re-quoting an <strong style="color:var(--atl-ink);">Accepted/Confirmed</strong> booking is a live change to a committed deal, not a fresh draft &mdash; see the warning below</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> If the client sits on an emailed quote too long, they get an automatic follow-up nudge; you get a separate alert if an Accepted booking still has no invoice after a few days</span></li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-file-contract" style="color:#9575CD;"></i> Contract</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> <code>draft &rarr; sent &rarr; signed</code> &mdash; only buildable/sendable once the booking is Accepted or later</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> Client signs online first; you <strong style="color:var(--atl-ink);">countersign</strong> to finalise &mdash; countersigning is normally blocked until the client has signed</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> Countersigning re-checks the signed PDF's fingerprint and shows a <strong style="color:var(--atl-ink);">&ldquo;Document integrity verified&rdquo;</strong> note (or a red alert if it doesn't match &mdash; effectively a tamper check)</span></li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i><span> A <strong style="color:var(--atl-ink);">signed &amp; finalised</strong> contract can no longer be built, edited or re-sent</span></li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-file-invoice" style="color:var(--atl-blue);"></i> Invoice</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> <code>DRAFT &rarr; SENT &rarr; OVERDUE &rarr; PAID</code>, or <code>VOID</code></span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> <strong style="color:var(--atl-ink);">Generate Invoice</strong> always creates a silent draft for you to check first &mdash; the client is only emailed once you click <strong style="color:var(--atl-ink);">Send</strong>. The one exception: a client accepting their own quote online is emailed the invoice immediately, no draft step</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> A sent, unpaid invoice past its due date is automatically flagged <strong style="color:var(--atl-ink);">Overdue</strong> overnight; going Void requires a reason and is admin-only</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <p class="um-section-desc" style="margin-top:0; margin-bottom:20px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">Re-quoting an Accepted/Confirmed booking automatically resets its contract to Draft &mdash; even a signed one.</strong> The signature is cleared and a fresh send-and-sign is required at the new figure, and the live invoice plus any pending payment instalments are voided/superseded at the same time. If you initiate the re-quote yourself you'll see a confirmation naming this before it happens; if a client's own action triggers it, the amber drift warning on the Quote &amp; Contract tab is how you'll notice afterwards.</span>
+                            </p>
 
                             <h4 class="um-section-label" style="margin: 22px 0 10px;">Payment status</h4>
                             <p class="um-section-desc" style="width:100%; margin-bottom:10px; line-height:1.6;">
@@ -6958,16 +7032,47 @@
                                 <span class="bk-pay-chip" style="--bk-c: var(--atl-clay);">Payment Failed</span>
                             </div>
 
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-amber) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-amber) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-bolt" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">A client's own payment can move the booking forward with zero action from you.</strong> The instant they pay <em>anything real</em> (even a partial deposit) through the invoice's payment link on an Accepted or Confirmed booking, it auto-jumps straight to <strong style="color:var(--atl-ink);">Confirmed</strong>. Paying in full on an earlier-stage booking jumps it to <strong style="color:var(--atl-ink);">Accepted</strong>. Check the Overview tab's next-step hint after any payment lands &mdash; it may already have moved.</span>
+                            </p>
+
+                            <h4 class="um-section-label" style="margin: 22px 0 12px;">Booking Triage &mdash; soft-declining without cancelling</h4>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:14px; line-height:1.6;">
+                                Every booking also carries a <strong style="color:var(--atl-ink);">disposition</strong> &mdash; <strong style="color:var(--atl-ink);">Active</strong> (the default), <strong style="color:var(--atl-ink);">Not a Fit</strong>, or <strong style="color:var(--atl-ink);">Archived</strong> &mdash; a completely separate flag from the status pipeline above. It exists for enquiries that were never really going anywhere: wrong budget, wrong content, spam, a duplicate. Cancelling one of those would count it as a deal that fell through and skew your conversion numbers; Triage lets you set it aside cleanly instead.
+                            </p>
+                            <div class="um-roles-grid" style="margin-bottom:4px;">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-user" style="color:var(--atl-blue);"></i> Client side</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i><span> The client never sees or is told about this &mdash; it is purely an internal note for you</span></li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i><span> It doesn't touch their booking's status, and no email is triggered by a disposition change</span></li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-solid fa-gauge" style="color:var(--atl-amber);"></i> Admin side</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> Open the row's <strong style="color:var(--atl-ink);">More</strong> menu &rarr; <strong style="color:var(--atl-ink);">Mark Not a Fit</strong> or <strong style="color:var(--atl-ink);">Archive</strong>; <strong style="color:var(--atl-ink);">Restore to Active</strong> reverses it at any time</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> The Bookings list's disposition filter defaults to <strong style="color:var(--atl-ink);">Active</strong>, hiding triaged rows &mdash; switch it to Not a Fit / Archived / All to find them again</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> A grey badge marks a triaged booking wherever it appears, and it's excluded from the pipeline's pending/quoted/confirmed counts</span></li>
+                                    </ul>
+                                </div>
+                            </div>
+
                             <h4 class="um-section-label" style="margin: 22px 0 14px;">How it works</h4>
-                            <div class="um-roles-grid" style="margin-bottom:26px;">
+                            <div class="um-roles-grid" style="margin-bottom:26px; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));">
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
                                         <span class="um-feature-title"><i class="fa-solid fa-diagram-project" style="color:var(--atl-amber);"></i> The lifecycle</span>
                                     </div>
                                     <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> Eight stages carry a booking from enquiry to completion; each stage colour-coded</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Status only advances through <strong style="color:var(--atl-ink);">validated actions inside a card</strong> &mdash; never by editing a field</li>
-                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> You can't skip stages or move backwards past a terminal state</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> Eight stages carry a booking from enquiry to completion; each stage colour-coded</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> Status only advances through <strong style="color:var(--atl-ink);">validated actions inside a card</strong> &mdash; never by editing a field, and several steps also advance <strong style="color:var(--atl-ink);">automatically</strong> (see the timeline's &ldquo;auto&rdquo; tags above)</span></li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i><span> You can't skip stages or move backwards past a terminal state &mdash; <strong style="color:var(--atl-ink);">disposition</strong> (Active/Not a Fit/Archived) is the separate, non-pipeline way to set an enquiry aside</span></li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -6975,9 +7080,9 @@
                                         <span class="um-feature-title"><i class="fa-solid fa-filter" style="color:var(--atl-amber);"></i> Pills &amp; filters</span>
                                     </div>
                                     <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> The coloured pills are <strong style="color:var(--atl-ink);">filter shortcuts</strong>, not status changers &mdash; each shows a live count</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> The dropdown filters by <strong style="color:var(--atl-ink);">booking status</strong> or <strong style="color:var(--atl-ink);">payment status</strong> &mdash; they are distinct</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Search by name, email, event or booking ID; <strong style="color:var(--atl-ink);">Clear filters</strong> resets the view</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> The coloured pills are <strong style="color:var(--atl-ink);">filter shortcuts</strong>, not status changers &mdash; each shows a live count</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> One dropdown filters by <strong style="color:var(--atl-ink);">booking status</strong> or <strong style="color:var(--atl-ink);">payment status</strong>; a second filters by <strong style="color:var(--atl-ink);">disposition</strong> (defaults to Active) &mdash; all three are independent</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> Search by name, email, event or booking ID; <strong style="color:var(--atl-ink);">Clear filters</strong> resets every filter, including disposition, back to its default</span></li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -6985,9 +7090,10 @@
                                         <span class="um-feature-title"><i class="fa-solid fa-id-card" style="color:var(--atl-amber);"></i> Inside a booking</span>
                                     </div>
                                     <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> Click any card to expand its full lifecycle panel &mdash; quote, invoice and payments</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Send a quote, mark it accepted, confirm the date and complete the job from here</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Every action is timestamped to the audit trail in <strong style="color:var(--atl-ink);">Security</strong></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> Click any card to open the Deal View &mdash; six tabs: <strong style="color:var(--atl-ink);">Overview</strong> (summary + next-step hint), <strong style="color:var(--atl-ink);">Quote &amp; Contract</strong>, <strong style="color:var(--atl-ink);">Invoices &amp; Payments</strong>, <strong style="color:var(--atl-ink);">Advancing</strong> (event-day logistics), <strong style="color:var(--atl-ink);">Timeline &amp; Notes</strong>, and <strong style="color:var(--atl-ink);">Files</strong></span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> The Overview tab's callout always names the single next action &mdash; and now weighs a client-signed contract awaiting your countersignature above a payment chase</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> An amber <strong style="color:var(--atl-ink);">&ldquo;Unsigned Contract&rdquo;</strong> badge flags any Accepted/Confirmed/Completed booking whose contract isn't finalised yet; confirming or completing one still works, but warns you first</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> Every action is timestamped to the audit trail in <strong style="color:var(--atl-ink);">Security</strong></span></li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -6995,9 +7101,9 @@
                                         <span class="um-feature-title"><i class="fa-solid fa-plus" style="color:var(--atl-amber);"></i> Create &amp; sync</span>
                                     </div>
                                     <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">New enquiry</strong> opens the manual booking modal for phone / email leads</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Refresh</strong> reloads the pipeline and re-syncs the Calendar</li>
-                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Deleting a booking is administrator-only and permanent</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> <strong style="color:var(--atl-ink);">New enquiry</strong> opens the manual booking modal for phone / email leads</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> <strong style="color:var(--atl-ink);">Refresh</strong> reloads the pipeline and re-syncs the Calendar</span></li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i><span> Deleting a booking is administrator-only and permanent</span></li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -7005,9 +7111,9 @@
                                         <span class="um-feature-title"><i class="fa-solid fa-arrow-rotate-left" style="color:var(--atl-amber);"></i> Booking Recovery</span>
                                     </div>
                                     <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> Lists visitors who started a request but didn't submit; the tab badge shows how many</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Resend</strong> a reminder to anyone manually at any time</li>
-                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Automatic reminders go <em>only</em> to those who reached the final step and consented</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> Lists visitors who started a request but didn't submit; the tab badge shows how many</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i><span> <strong style="color:var(--atl-ink);">Resend</strong> a reminder to anyone manually at any time</span></li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i><span> Automatic reminders go <em>only</em> to those who reached the final step and consented &mdash; up to 3 nudges (roughly 1h, then +24h, then +72h later), and an unconverted draft is purged after 30 days</span></li>
                                     </ul>
                                 </div>
                             </div>
@@ -7016,7 +7122,10 @@
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
                                 <li><strong style="color:var(--atl-ink);">Log a phone / email lead</strong> &mdash; click <strong style="color:var(--atl-ink);">New enquiry</strong>, fill in the client and event details, and save. It enters the pipeline as <strong style="color:var(--atl-amber);">New</strong>.</li>
                                 <li><strong style="color:var(--atl-ink);">Move a booking forward</strong> &mdash; open the card, send a quote, mark it accepted, confirm the date, then mark it completed once the job is done.</li>
-                                <li><strong style="color:var(--atl-ink);">Find what needs chasing</strong> &mdash; set the dropdown to a booking status (e.g. Confirmed) or a payment status (e.g. Unpaid) to isolate exactly those cards.</li>
+                                <li><strong style="color:var(--atl-ink);">Get a contract signed</strong> &mdash; on an Accepted booking, open <strong style="color:var(--atl-ink);">Quote &amp; Contract</strong>, Build the contract, Send it to the client, then <strong style="color:var(--atl-ink);">Countersign</strong> once they've signed online to finalise it.</li>
+                                <li><strong style="color:var(--atl-ink);">Soft-decline a bad-fit enquiry</strong> &mdash; instead of cancelling it, open the row's <strong style="color:var(--atl-ink);">More</strong> menu and choose <strong style="color:var(--atl-ink);">Mark Not a Fit</strong> or <strong style="color:var(--atl-ink);">Archive</strong>; it drops out of the pipeline view without counting as a lost deal.</li>
+                                <li><strong style="color:var(--atl-ink);">Change the terms after acceptance</strong> &mdash; re-quoting an Accepted/Confirmed booking is allowed, but read the confirmation carefully: it resets any existing contract to Draft (clearing a signature if there was one) and voids the live invoice.</li>
+                                <li><strong style="color:var(--atl-ink);">Find what needs chasing</strong> &mdash; set the dropdown to a booking status (e.g. Confirmed) or a payment status (e.g. Unpaid) to isolate exactly those cards; remember the disposition filter is separate and defaults to hiding triaged rows.</li>
                                 <li><strong style="color:var(--atl-ink);">Recover a lost request</strong> &mdash; open the <strong style="color:var(--atl-ink);">Booking Recovery</strong> tab and use <strong style="color:var(--atl-ink);">Resend</strong> to nudge an abandoned enquiry.</li>
                             </ol>
 
@@ -7027,12 +7136,17 @@
 
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
                                 <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
-                                <span>All status transitions, quotes, invoices and payments are validated and recorded server-side with an audit trail &mdash; the pipeline view is a window onto that, not the source of truth. <strong style="color:var(--atl-ink);">Deleting a booking is permanent</strong> and cannot be undone.</span>
+                                <span>All status transitions, quotes, contracts, invoices and payments are validated and recorded server-side with an audit trail &mdash; the pipeline view is a window onto that, not the source of truth. <strong style="color:var(--atl-ink);">Deleting a booking is permanent</strong> and cannot be undone; a <strong style="color:var(--atl-ink);">signed &amp; finalised</strong> contract cannot be edited or replaced either &mdash; only a re-quote can supersede it.</span>
+                            </p>
+
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-blue) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-blue) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-bell" style="color:var(--atl-blue); margin-top:2px;"></i>
+                                <span><strong style="color:var(--atl-ink);">You'll get a digest email, not just an in-app badge, for the things worth chasing:</strong> PENDING enquiries about to auto-expire, an Accepted booking that still has no invoice after a few days, and CONFIRMED bookings whose event date has passed with payment still outstanding. Treat those as prompts to open the booking, not just the badges on the board.</span>
                             </p>
 
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Finance</strong> for invoices, payments and refunds; <strong style="color:var(--atl-ink);">Calendar</strong>, where confirmed bookings appear as events; <strong style="color:var(--atl-ink);">Inquiries</strong> for general messages that aren't yet bookings; and <strong style="color:var(--atl-ink);">Security</strong> for the audit trail of every change.</span>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Finance</strong> for invoices, payments and refunds; <strong style="color:var(--atl-ink);">Legal</strong> for the full contracts registry across every booking; <strong style="color:var(--atl-ink);">Calendar</strong>, where confirmed bookings appear as events; <strong style="color:var(--atl-ink);">Inquiries</strong> for general messages that aren't yet bookings; and <strong style="color:var(--atl-ink);">Security</strong> for the audit trail of every change.</span>
                             </p>
                         </div>
                     </div>
@@ -8717,7 +8831,7 @@
                                 </div>
                                 <div class="lc-table-wrap">
                                     <table class="lc-table">
-                                        <thead><tr><th>ID</th><th>Client</th><th>Event</th><th>Event Date</th><th>Status</th><th>Template</th><th>Signed By</th><th>Signed Date</th><th>Actions</th></tr></thead>
+                                        <thead><tr><th>ID</th><th>Client</th><th>Event</th><th>Event Date</th><th>Status</th><th>Booking</th><th>Template</th><th>Signed By</th><th>Signed Date</th><th>Actions</th></tr></thead>
                                         <tbody id="lcContractsTbody"></tbody>
                                     </table>
                                 </div>
@@ -12115,9 +12229,21 @@
         // Reflect the saved theme in the toggle icon on load (the button precedes this script).
         initThemeToggleUI();
 
+        // Contracts are only legal once the client has accepted the quote (server enforces this
+        // in generateContract/send/upload — see CONTRACT_ELIGIBLE_STATUSES in server.js). Mirrored
+        // here so the button itself doesn't invite a doomed click on a NEW/QUOTED booking, and so a
+        // booking that got reset to QUOTED by a re-quote (see reQuotingCommitted) doesn't keep
+        // showing "Send to Client" for the leftover draft contract it just invalidated.
+        var CONTRACT_ELIGIBLE_STATUSES = ['ACCEPTED', 'CONFIRMED', 'COMPLETED'];
         function renderInlineContractPanel(id, c) {
             var $panel = $('#atl-contract-' + id);
             if (!$panel.length) return;
+            var driftBk = (typeof allBookingsCache !== 'undefined') ? allBookingsCache.find(function(b){ return b.id == id; }) : null;
+            var bkStatus = driftBk ? String(driftBk.status || '').toUpperCase() : null;
+            // If the booking isn't cached (shouldn't normally happen — the Deal View always loads it
+            // first), don't block on missing info; the server still enforces this either way.
+            var isEligible = !bkStatus || CONTRACT_ELIGIBLE_STATUSES.indexOf(bkStatus) !== -1;
+            var notEligibleNote = '<p class="atl-det-empty" style="font-size:12px;"><i class="fa-solid fa-circle-info" style="margin-right:4px;"></i>The client needs to accept the quote before a contract can be built or sent.</p>';
             var genBtn = function(label) {
                 return '<button type="button" class="atl-btn atl-btn--ghost bk-gen-contract" data-id="' + id + '">'
                     + '<i class="fa-solid fa-file-circle-plus" style="margin-right:6px;"></i>' + label + '</button>';
@@ -12127,7 +12253,10 @@
                     + '<i class="fa-solid fa-paper-plane" style="margin-right:6px;"></i>' + label + '</button>';
             };
             if (!c || c.error) {
-                $panel.html('<h5 class="atl-det-title">Contract</h5><p class="atl-det-empty">No contract on file.</p><div class="atl-doc-actions-row" style="margin-top:10px;">' + genBtn('Build Contract') + '</div>');
+                var emptyActions = isEligible
+                    ? ('<div class="atl-doc-actions-row" style="margin-top:10px;">' + genBtn('Build Contract') + '</div>')
+                    : notEligibleNote;
+                $panel.html('<h5 class="atl-det-title">Contract</h5><p class="atl-det-empty">No contract on file.</p>' + emptyActions);
                 return;
             }
             var states = {
@@ -12138,6 +12267,19 @@
             var st = states[c.status] || states.draft;
             var html = '<h5 class="atl-det-title">Contract</h5>';
             html += '<p style="font-size:13px;margin:0 0 6px;">Status: <strong style="color:' + st.color + '">' + st.label + '</strong></p>';
+            // Amount-drift warning: the contract's snapshotted amount vs the booking's current total.
+            // A mismatch means the quote changed (e.g. a re-quote) after this contract was generated —
+            // regenerate so the contract reflects the current figure before sending/signing.
+            var driftBk = (typeof allBookingsCache !== 'undefined') ? allBookingsCache.find(function(b){ return b.id == id; }) : null;
+            if (driftBk && c.contract_amount != null) {
+                var bkTotal = parseFloat(driftBk.total_amount) || parseFloat(String(driftBk.quote_amount||'').replace(/[^0-9.-]/g,'')) || 0;
+                var conAmt = parseFloat(c.contract_amount) || 0;
+                if (bkTotal > 0 && Math.abs(bkTotal - conAmt) > 0.01) {
+                    html += '<div class="atl-callout" style="border-color:var(--atl-amber);color:var(--atl-amber);margin:0 0 8px;">'
+                        + '<i class="fa-solid fa-triangle-exclamation"></i>'
+                        + '<span>This contract was generated for <strong>R ' + conAmt.toFixed(2) + '</strong> but the booking total is now <strong>R ' + bkTotal.toFixed(2) + '</strong>. Regenerate the contract so it reflects the current amount' + (c.source_quote_number ? ' (was per quote ' + c.source_quote_number + ')' : '') + '.</span></div>';
+                }
+            }
             if (c.pdf_url) {
                 var href = '/api/admin/bookings/' + id + '/contract/download';
                 html += '<p style="font-size:12px;color:var(--atl-muted);margin:0 0 6px;">'
@@ -12150,15 +12292,29 @@
                     + c.signed_by + '</strong>'
                     + (c.signed_date ? ' on ' + new Date(c.signed_date).toLocaleDateString('en-ZA') : '') + '</p>';
             }
+            // Countersign re-hashes the PDF and compares it to the hash captured when the client
+            // signed (see PUT /contract/sign in server.js). integrity_verified is NULL when there was
+            // nothing to compare against (e.g. a forced countersign before the client signed).
+            if (c.integrity_verified === 1) {
+                html += '<p style="font-size:11px;color:var(--atl-sage);margin:0 0 4px;"><i class="fa-solid fa-shield-halved" style="margin-right:4px;"></i>Document integrity verified — unchanged since the client signed.</p>';
+            } else if (c.integrity_verified === 0) {
+                html += '<div class="atl-callout" style="border-color:var(--atl-clay);color:var(--atl-clay);margin:0 0 8px;"><i class="fa-solid fa-triangle-exclamation"></i><span>Integrity check FAILED — this PDF changed after the client signed it. Investigate before relying on this contract.</span></div>';
+            }
             if (c.uploaded_by) {
                 html += '<p style="font-size:11px;color:var(--atl-muted);margin:0;">' + (c.uploaded_by === 'system' ? 'Auto-generated' : 'Uploaded by ' + c.uploaded_by) + '</p>';
             }
-            // Build/edit — hidden once the contract is signed & frozen.
+            // Build/edit — hidden once the contract is signed & frozen, or once the booking is no
+            // longer in an accepted-or-later status (e.g. a re-quote just reset this contract to
+            // draft and rolled the booking back to QUOTED).
             if (c.status !== 'signed' && c.is_frozen !== 1) {
-                var contractActions = genBtn(c.pdf_url ? 'Edit & Regenerate' : 'Build Contract');
-                // Send-to-client is the delivery step; needs a PDF to attach, offered while unsigned.
-                if (c.pdf_url) contractActions += sendBtn(c.status === 'draft' ? 'Send to Client' : 'Re-send to Client');
-                html += '<div class="atl-doc-actions-row" style="margin-top:10px;">' + contractActions + '</div>';
+                if (isEligible) {
+                    var contractActions = genBtn(c.pdf_url ? 'Edit & Regenerate' : 'Build Contract');
+                    // Send-to-client is the delivery step; needs a PDF to attach, offered while unsigned.
+                    if (c.pdf_url) contractActions += sendBtn(c.status === 'draft' ? 'Send to Client' : 'Re-send to Client');
+                    html += '<div class="atl-doc-actions-row" style="margin-top:10px;">' + contractActions + '</div>';
+                } else {
+                    html += notEligibleNote;
+                }
             }
             $panel.html(html);
         }
@@ -12663,12 +12819,14 @@
             $('#dvBreadcrumbCur').text('#' + row.id);
             $('#dvTitle').text(row.event_name || row.event_type || '—');
             $('#dvSubtitle').html(`${row.event_type ? row.event_type + ' · ' : ''}<b>${row.name}</b>${row.company ? ' · ' + row.company : ''}`);
+            const dvDisposition = row.disposition || 'active';
             $('#dvStatusRow').html(
                 `<span class="atl-status-badge" style="background:${colors.tint}; color:${colors.color}; padding:4px 10px; border-radius:999px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
                     <span class="atl-pill-dot" style="background:${colors.color}; width:7px; height:7px; border-radius:50%; display:inline-block;"></span>
                     ${s === 'ACCEPTED' ? 'Accepted' : (sLbl[s] || s)}
                  </span>
-                 <span class="atl-payment-badge">${payLbl[ps] || ps}</span>`
+                 <span class="atl-payment-badge">${payLbl[ps] || ps}</span>
+                 ${dvDisposition !== 'active' ? `<span class="atl-tag-badge atl-tag-badge--triaged" title="Soft-declined — excluded from the active pipeline and conversion counts">${dvDisposition === 'not_a_fit' ? 'Not a Fit' : 'Archived'}</span>` : ''}`
             );
             const chips = [];
             if (row.date) chips.push(`<span class="dv-chip"><i class="fa-regular fa-calendar"></i>&nbsp;${row.date}${row.event_start_time ? ' · ' + row.event_start_time : ''}</span>`);
@@ -19566,10 +19724,27 @@
             if ((s === 'NEW' || s === 'PENDING') && row.quote_amount) return hint('fa-file-pen', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Revise Quote', 'A quote has already been sent. Review the booking and resend a revised quote if the client has not yet responded.');
             if (s === 'QUOTED' && !row.accepted_at && quotedAgeDays >= 7) return hint('fa-bell', 'var(--atl-clay)', 'rgba(192,54,44,0.08)', 'rgba(192,54,44,0.25)', 'Follow Up', `The quote has been pending for over ${quotedAgeDays} days. Consider sending a follow-up email to prompt the client to respond.`);
             if (s === 'QUOTED' && !row.accepted_at) return hint('fa-hourglass-half', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Awaiting Client', "The quote has been sent. Waiting for the client to accept. No action needed unless you'd like to follow up.");
-            if (s === 'ACCEPTED' && acceptedStage === 'none') return hint('fa-file-invoice-dollar', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Generate Invoice', 'No invoice yet. Click Generate Invoice to create a draft for review — it is not emailed until you Send it.');
-            if (s === 'ACCEPTED' && acceptedStage === 'invoice_draft') return hint('fa-paper-plane', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Invoice', 'A draft invoice is ready. Review it, then use Send Invoice on the Invoices & Payments tab to email it to the client.');
-            if (s === 'ACCEPTED' && acceptedStage === 'invoiced') return hint('fa-hourglass-half', 'var(--atl-amber-light)', 'rgba(251,146,60,0.1)', 'rgba(251,146,60,0.25)', 'Awaiting Payment', 'Invoice has been sent to the client. Awaiting payment. Record payment once funds are received, then Confirm the booking.');
-            if (s === 'ACCEPTED' && acceptedStage === 'paid') return hint('fa-clipboard-check', 'var(--atl-sage)', 'rgba(74,222,128,0.1)', 'rgba(74,222,128,0.25)', 'Event Preparation', 'Payment is recorded. Click Confirm to lock in the booking and send the client a confirmation email.');
+            if (s === 'ACCEPTED') {
+                // Countersigning is the one contract action where the CLIENT is waiting on the
+                // business, not the other way round — it wins over any invoice/payment nudge no
+                // matter what stage the money side is at, and it only takes a moment to clear.
+                if (contractClientSigned && !contractFinalised) return hint('fa-signature', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Countersign Contract', 'The client has signed the contract online. Countersign it on the Offer & Contract tab to finalise the agreement.');
+                if (acceptedStage === 'none') return hint('fa-file-invoice-dollar', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Generate Invoice', 'No invoice yet. Click Generate Invoice to create a draft for review — it is not emailed until you Send it.');
+                if (acceptedStage === 'invoice_draft') return hint('fa-paper-plane', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Invoice', 'A draft invoice is ready. Review it, then use Send Invoice on the Invoices & Payments tab to email it to the client.');
+                // Once the invoice is out and there's nothing left to actively chase on the money
+                // side, surface the contract if it still needs building/sending/signing — otherwise
+                // a booking can sail straight through payment (even auto-confirm on a client's own
+                // deposit — see deriveBookingStatusAfterPayment) with an unsigned contract nobody
+                // was ever nudged about, since these acceptedStage branches used to be the only ones
+                // considered here and never mentioned the contract at all.
+                if (acceptedStage === 'invoiced' || acceptedStage === 'paid') {
+                    if (!contractExists) return hint('fa-file-contract', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Build Contract', "The client has accepted but no contract has been generated yet. Use 'Build Contract' on the Offer & Contract tab.");
+                    if (!contractFinalised && !contractSent) return hint('fa-paper-plane', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Contract', "A contract has been drafted but not yet sent to the client for signature. Use 'Send to Client' on the Offer & Contract tab.");
+                    if (!contractFinalised && contractSent && !contractClientSigned) return hint('fa-hourglass-half', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Awaiting Signature', 'The contract has been sent. Waiting for the client to sign it online.');
+                }
+                if (acceptedStage === 'invoiced') return hint('fa-hourglass-half', 'var(--atl-amber-light)', 'rgba(251,146,60,0.1)', 'rgba(251,146,60,0.25)', 'Awaiting Payment', 'Invoice has been sent to the client. Awaiting payment. Record payment once funds are received, then Confirm the booking.');
+                if (acceptedStage === 'paid') return hint('fa-clipboard-check', 'var(--atl-sage)', 'rgba(74,222,128,0.1)', 'rgba(74,222,128,0.25)', 'Event Preparation', 'Payment is recorded. Click Confirm to lock in the booking and send the client a confirmation email.');
+            }
             if (s === 'CONFIRMED') {
                 if (!hasInvoice && ps !== 'PAID' && !eventPassed) return hint('fa-file-circle-plus', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Generate Invoice', "Booking is confirmed but no invoice has been generated yet. Use 'Generate Invoice' to create and send the client a formal invoice.");
                 if (hasInvoice && !invoiceSent && ps !== 'PAID' && !eventPassed) return hint('fa-paper-plane', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Invoice', "An invoice has been generated but not yet emailed to the client. Use 'Send Invoice' on the Invoice card to deliver it.");
@@ -19691,6 +19866,8 @@
               ${row.performance_slot     ? `<dt>Slot</dt><dd>${row.performance_slot}</dd>` : ''}
               ${row.performance_duration ? `<dt>Duration</dt><dd>${row.performance_duration}</dd>` : ''}
               ${row.venue_type           ? `<dt>Venue type</dt><dd>${row.venue_type}</dd>` : ''}
+              ${row.alternative_dates    ? `<dt>Alternative dates</dt><dd>${row.alternative_dates}</dd>` : ''}
+              ${row.content_notes        ? `<dt>Content suitability</dt><dd>${row.content_notes}</dd>` : ''}
             </dl>
             <div style="border-top:1px solid var(--atl-line);margin-top:10px;padding-top:10px;">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
@@ -19719,13 +19896,14 @@
           </div>
 
           <!-- Audience & Budget Card (conditional) -->
-          ${(row.audience_size || row.audience_demographic || row.budget_range || row.travel_accommodation != null) ? `
+          ${(row.audience_size || row.audience_demographic || row.budget_range || row.heard_about || row.travel_accommodation != null) ? `
           <div class="atl-det-card">
             <h5 class="atl-det-title"><i class="fa-solid fa-chart-pie"></i>Audience &amp; Budget</h5>
             <dl class="atl-det-dl">
               ${row.audience_size        ? `<dt>Audience size</dt><dd>${row.audience_size}</dd>` : ''}
               ${row.audience_demographic ? `<dt>Demographic</dt><dd>${row.audience_demographic}</dd>` : ''}
               ${row.budget_range         ? `<dt>Budget range</dt><dd class="atl-det-gold">${row.budget_range}</dd>` : ''}
+              ${row.heard_about          ? `<dt>How they heard about us</dt><dd>${row.heard_about}</dd>` : ''}
               ${row.travel_accommodation != null
                 ? `<dt>Travel provided</dt>
                    <dd style="color:${row.travel_accommodation && row.travel_accommodation !== 'Not required' && row.travel_accommodation !== 0 && row.travel_accommodation !== '0' ? 'var(--atl-sage)' : 'var(--atl-muted)'}; font-weight:600;">
@@ -20276,6 +20454,7 @@
             data.forEach(function(row, _idx) {
                 const s  = (row.status || 'PENDING').toUpperCase();
                 const ps = (row.payment_status || 'UNPAID').toUpperCase();
+                const disposition = row.disposition || 'active';
                 const evDate = row.date || '';
                 const subDate = new Date(row.created_at).toLocaleDateString('en-ZA', { day:'2-digit', month:'short', year:'numeric' });
 
@@ -20466,6 +20645,11 @@
                     ${s === 'EXPIRED' ? `<button type="button" class="atl-actions-dropdown-item bk-action-reopen" data-id="${row.id}"><i class="fa-solid fa-rotate-left" style="color:var(--atl-sage);width:14px;"></i> Reopen Booking</button>` : ''}
                     ${s === 'CANCELLED' ? `<button type="button" class="atl-actions-dropdown-item bk-action-book-again" data-id="${row.id}"><i class="fa-solid fa-rotate-right" style="color:var(--atl-amber);width:14px;"></i> Book Again</button>` : ''}
                     <div class="atl-actions-dropdown-sep"></div>
+                    ${disposition !== 'active'
+                        ? `<button type="button" class="atl-actions-dropdown-item bk-action-disposition" data-id="${row.id}" data-disposition="active"><i class="fa-solid fa-rotate-left" style="color:var(--atl-sage);width:14px;"></i> Restore to Active</button>`
+                        : `<button type="button" class="atl-actions-dropdown-item bk-action-disposition" data-id="${row.id}" data-disposition="not_a_fit"><i class="fa-solid fa-thumbs-down" style="color:var(--atl-amber-light);width:14px;"></i> Mark Not a Fit</button>
+                           <button type="button" class="atl-actions-dropdown-item bk-action-disposition" data-id="${row.id}" data-disposition="archived"><i class="fa-solid fa-box-archive" style="color:var(--atl-muted);width:14px;"></i> Archive</button>`}
+                    <div class="atl-actions-dropdown-sep"></div>
                     ${s!=='CANCELLED'?`<button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger cancel-booking-btn" data-id="${row.id}"><i class="fa-solid fa-ban" style="width:14px;"></i> Cancel Booking</button>`:''}
                     ${(parseFloat(row.amount_paid || 0) > 0 || hasInvoice || row.quoted_at) ? 
                     `<button type="button" class="atl-actions-dropdown-item atl-actions-dropdown-item--danger" style="opacity:0.5; cursor:not-allowed;" title="Cannot delete a booking with financial or quotation records. Cancel it instead." disabled><i class="fa fa-trash" style="width:14px;"></i> Delete Booking</button>` :
@@ -20483,7 +20667,14 @@
                 const isInvoiceGenerated = hasInvoice;
                 const isInvoiceSent      = invoiceSent;
                 const isInvoiceOverdue   = !!invoiceOverdue;
-                const hasAnyBadge  = !!(row.event_id || row.venue_id || isInvoiceGenerated || isCalSynced || isQuoteSent || isAccepted || hasAttachments || isPayFast || isRefunded || isPopiaDone || row.rebooked_from_id || row.rebooked_as_id);
+                // Flags a booking that's moved past acceptance (money may already be flowing — see
+                // deriveBookingStatusAfterPayment, which can auto-confirm on a client's own deposit
+                // payment with zero admin involvement) while its contract still isn't signed & frozen.
+                // Only meaningful from ACCEPTED onward — a contract isn't expected before that.
+                const contractFinalisedRow = (String(row.contract_status || '').toLowerCase() === 'signed') || row.contract_is_frozen === 1;
+                const contractUnsigned = ['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(s) && !contractFinalisedRow;
+                const isTriaged = disposition !== 'active';
+                const hasAnyBadge  = !!(row.event_id || row.venue_id || isInvoiceGenerated || isCalSynced || isQuoteSent || isAccepted || hasAttachments || isPayFast || isRefunded || isPopiaDone || contractUnsigned || isTriaged || row.rebooked_from_id || row.rebooked_as_id);
 
                 // quote_amount/total_amount can arrive as pre-formatted currency strings (e.g. "R 45,000.00")
                 // on some legacy rows — strip everything but digits/./- before parsing, or the Fee column shows NaN.
@@ -20512,6 +20703,8 @@
       <span class="atl-tag-badge atl-tag-badge--cal"      style="display:${isCalSynced             ? 'inline-flex' : 'none'};">Cal synced</span>
       <span class="atl-tag-badge atl-tag-badge--quote"    style="display:${isQuoteSent             ? 'inline-flex' : 'none'};">Quote sent</span>
       <span class="atl-tag-badge atl-tag-badge--accepted" style="display:${isAccepted              ? 'inline-flex' : 'none'};">Accepted</span>
+      <span class="atl-tag-badge atl-tag-badge--contract-unsigned" style="display:${contractUnsigned ? 'inline-flex' : 'none'};" title="Booking has moved past acceptance but the contract isn't signed & finalised yet">Unsigned Contract</span>
+      <span class="atl-tag-badge atl-tag-badge--triaged" style="display:${isTriaged ? 'inline-flex' : 'none'};" title="Soft-declined — excluded from the active pipeline and conversion counts">${disposition === 'not_a_fit' ? 'Not a Fit' : 'Archived'}</span>
       <span class="atl-tag-badge atl-tag-badge--attached" style="display:${hasAttachments     ? 'inline-flex' : 'none'};">Brief attached</span>
       <span class="atl-tag-badge atl-tag-badge--popia"    style="display:${isPopiaDone        ? 'inline-flex' : 'none'};">POPIA</span>
       <span class="atl-tag-badge atl-tag-badge--refunded" style="display:${isRefunded         ? 'inline-flex' : 'none'};">Refunded</span>
@@ -20714,6 +20907,13 @@
         $('#quoteModalBookingId').val(id);
         $('#quoteDrawer').data('has-existing-quote', !!(booking.quoted_at || booking.quote_amount));
         $('#quoteDrawer').data('perf-duration', booking.performance_duration || 60);
+        // Re-quoting a booking that's already ACCEPTED/CONFIRMED auto-supersedes its contract back
+        // to draft (see reQuotingCommitted in the /quote route) — including a signed one. Stash what
+        // we know about the current contract so the submit handler can warn before that happens,
+        // instead of it landing silently in the audit log only.
+        $('#quoteDrawer').data('booking-status', booking.status);
+        $('#quoteDrawer').data('contract-status', booking.contract_status || null);
+        $('#quoteDrawer').data('contract-signed', !!booking.contract_signed_by_client_at || booking.contract_status === 'signed');
 
         // Populate Client/Event info
         $('#qbClientName').text(booking.name);
@@ -21169,7 +21369,23 @@
         const $btn = $(this);
         const originalText = $btn.html();
 
-        if ($('#quoteDrawer').data('has-existing-quote')) {
+        const qbBookingStatus = String($('#quoteDrawer').data('booking-status') || '').toUpperCase();
+        const qbContractStatus = $('#quoteDrawer').data('contract-status');
+        const qbContractSigned = !!$('#quoteDrawer').data('contract-signed');
+        // Only ACCEPTED/CONFIRMED bookings trip the server's contract-supersede logic — matches
+        // reQuotingCommitted in the /quote route exactly, so this warning only fires when it's true.
+        if (['ACCEPTED', 'CONFIRMED'].includes(qbBookingStatus) && qbContractStatus && qbContractStatus !== 'draft') {
+            const confirmed = await window.notificationService.showConfirm({
+                title: qbContractSigned ? 'This Will Invalidate a Signed Contract' : 'This Will Reset an In-Progress Contract',
+                message: qbContractSigned
+                    ? 'This booking has a SIGNED contract at the current amount. Saving a new quote will reset that contract to draft and clear the signature — the client will need to sign again at the new figure.'
+                    : 'This booking has a contract that has already been sent to the client for signing. Saving a new quote will reset it to draft, and it will need to be re-sent.',
+                confirmText: 'Re-Quote Anyway',
+                cancelText: 'Cancel',
+                isDestructive: true
+            });
+            if (!confirmed) return;
+        } else if ($('#quoteDrawer').data('has-existing-quote')) {
             const confirmed = await window.notificationService.showConfirm({
                 title: 'Create New Quote Version?',
                 message: 'This booking already has a quote. Saving will create a new version and archive the previous one.',
@@ -21234,10 +21450,30 @@
     });
 
     // Status action buttons
+    // A contract is "finalised" once signed & frozen — mirrors computeNextStepHint's contractFinalised
+    // and server.js's own signed/is_frozen check. Used to warn (not block) Confirm/Complete when the
+    // booking is about to move forward — or collect final payment — with no signed agreement on file.
+    function bkContractFinalised(bk) {
+        return !!bk && (String(bk.contract_status || '').toLowerCase() === 'signed' || bk.contract_is_frozen === 1);
+    }
+    function bkUnsignedContractNote(bk) {
+        if (!bk) return '';
+        if (bkContractFinalised(bk)) return '';
+        if (!bk.contract_pdf_url) return ' Note: no contract has been generated for this booking yet.';
+        if (!bk.contract_sent_at) return ' Note: a contract exists but has not been sent to the client for signature yet.';
+        if (!bk.contract_signed_by_client_at) return ' Note: the contract has been sent but the client has not signed it yet.';
+        return ' Note: the client has signed the contract but it has not been countersigned yet.';
+    }
+
     $(document).off('click.bkact').on('click.bkact', '.bk-action-status', async function() {
         const id = $(this).data('id');
         const newStatus = $(this).data('status');
-        if (!(await window.notificationService.showConfirm({ message: `Change booking #${id} status to ${newStatus}?`, isDestructive: false }))) return;
+        let confirmMsg = `Change booking #${id} status to ${newStatus}?`;
+        if (newStatus === 'CONFIRMED') {
+            const bk = allBookingsCache.find(b => b.id == id);
+            confirmMsg += bkUnsignedContractNote(bk);
+        }
+        if (!(await window.notificationService.showConfirm({ message: confirmMsg, isDestructive: false }))) return;
         try {
             const r = await fetch(`/api/admin/bookings/${id}/status`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status: newStatus }) });
             const d = await r.json();
@@ -21246,6 +21482,30 @@
                 await loadBookings();
                 // Re-open the Deal View if it's still visible after the filter is re-applied
                 if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(id, true);
+
+                if (newStatus === 'ACCEPTED') {
+                    // Accepting fires a server-side chain (payment schedule + draft invoice + draft
+                    // contract, see applyStatusChange's ACCEPTED branch) that runs fire-and-forget
+                    // AFTER this response — so it isn't done yet. Poll once, after giving it a beat,
+                    // and tell the admin what actually landed rather than leaving them to discover it
+                    // (or its silent absence) by clicking into the Invoices/Offer & Contract tabs.
+                    setTimeout(async () => {
+                        try {
+                            const fresh = await apiCall(`/api/admin/bookings/${id}`, 'GET');
+                            const created = [];
+                            const missing = [];
+                            if (fresh && fresh.invoice_id) created.push('a draft invoice'); else missing.push('invoice');
+                            if (fresh && fresh.contract_status) created.push('a draft contract'); else missing.push('contract');
+                            if (created.length) window.notificationService.showSuccess(`Booking #${id}: ${created.join(' + ')} ready for review.`);
+                            if (missing.length) window.notificationService.showError(`Booking #${id}: ${missing.join(' & ')} didn't auto-create — check the relevant tab or generate manually.`);
+                            await loadBookings();
+                            const $dv = $('#dealViewDrawer');
+                            if ($dv.hasClass('atl-drawer--open') && $dv.data('bookingId') == id && typeof window.toggleBookingDetail === 'function') {
+                                window.toggleBookingDetail(id, true);
+                            }
+                        } catch (e) { /* best-effort follow-up only, initial status change already succeeded */ }
+                    }, 2500);
+                }
 
                 if (newStatus === 'CONFIRMED') {
                     const bk = allBookingsCache.find(b => b.id == id);
@@ -21261,10 +21521,31 @@
         } catch(e) { window.notificationService.showError('Network error.'); }
     });
 
+    // Booking triage (soft-decline) — orthogonal to status/ALLOWED_TRANSITIONS, see
+    // PUT /api/admin/bookings/:id/disposition. Confirm→PUT→toast→refresh mirrors .bk-action-status.
+    $(document).off('click.bkdisposition').on('click.bkdisposition', '.bk-action-disposition', async function() {
+        const id = $(this).data('id');
+        const disposition = $(this).data('disposition');
+        const actions = { active: `Restore booking #${id} to Active?`, not_a_fit: `Mark booking #${id} as Not a Fit?`, archived: `Archive booking #${id}?` };
+        const msg = (actions[disposition] || `Change the disposition of booking #${id}?`)
+            + (disposition !== 'active' ? ' This removes it from the active pipeline view and conversion counts — it can be restored at any time.' : '');
+        if (!(await window.notificationService.showConfirm({ message: msg, isDestructive: false }))) return;
+        try {
+            const r = await fetch(`/api/admin/bookings/${id}/disposition`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disposition }) });
+            const d = await r.json();
+            if (d.success) {
+                window.notificationService.showSuccess(`Booking #${id}: disposition set to ${disposition === 'active' ? 'Active' : (disposition === 'not_a_fit' ? 'Not a Fit' : 'Archived')}.`);
+                await loadBookings();
+            } else { window.notificationService.showError(d.message || 'Could not update disposition.'); }
+        } catch(e) { window.notificationService.showError('Network error.'); }
+    });
+
     // Mark as Completed
     $(document).off('click.bkcomplete').on('click.bkcomplete', '.bk-action-complete', async function() {
         const id = $(this).data('id');
-        if (!(await window.notificationService.showConfirm({ message: `Mark booking #${id} as COMPLETED? A thank-you email will be sent to the client.`, isDestructive: false }))) return;
+        const bk = allBookingsCache.find(b => b.id == id);
+        const completeMsg = `Mark booking #${id} as COMPLETED? A thank-you email will be sent to the client.` + bkUnsignedContractNote(bk);
+        if (!(await window.notificationService.showConfirm({ message: completeMsg, isDestructive: false }))) return;
         try {
             const r = await fetch(`/api/admin/bookings/${id}/complete`, { method: 'POST', headers: { 'Content-Type': 'application/json' } });
             const d = await r.json();
@@ -21364,7 +21645,8 @@
     // Clear Filters Click Handler
     $(document).off('click.clearfilters').on('click.clearfilters', '#clearFilters', function() {
         $('#bkSearchInput').val('');
-        $('#bookingStatusFilter').val('All').trigger('change');
+        $('#bookingStatusFilter').val('All');
+        $('#bookingDispositionFilter').val('active').trigger('change');
         if (typeof window.updatePills === 'function') window.updatePills();
     });
 
@@ -22923,8 +23205,14 @@
         function applyBookingFilter() {
             const status = $('#bookingStatusFilter').val();
             const q      = ($('#bkSearchInput').val() || '').trim().toLowerCase();
+            const disposition = $('#bookingDispositionFilter').val() || 'active';
             const paymentFilters = ['PAID', 'DEPOSIT_PAID', 'PARTIALLY_PAID', 'UNPAID', 'FAILED'];
             let filtered = allBookingsCache.filter(b => !ARCHIVED_STATUSES.includes((b.status || '').toUpperCase()));
+            // Triage (soft-decline): hides not_a_fit/archived leads from the pipeline view by
+            // default — they were never a live deal — without touching `status`/ALLOWED_TRANSITIONS.
+            if (disposition !== 'ALL') {
+                filtered = filtered.filter(b => (b.disposition || 'active') === disposition);
+            }
             if (status === 'NEEDS_ACTION') {
                 filtered = filtered.filter(bookingNeedsAction);
             } else if (status && status !== 'All') {
@@ -22951,6 +23239,10 @@
         $('#bookingStatusFilter').on('change', function() {
             applyBookingFilter();
             if (typeof window.updatePills === 'function') window.updatePills();
+        });
+
+        $('#bookingDispositionFilter').on('change', function() {
+            applyBookingFilter();
         });
 
         // Live search
@@ -32892,8 +33184,20 @@
                         if (c.booking_id && c.pdf_url && c.status !== 'signed' && c.is_frozen !== 1) {
                             act += ' <button class="um-btn um-btn--ghost um-btn--sm" onclick="lcSendContract(' + c.booking_id + ', this)">' + (c.status === 'draft' ? 'Send' : 'Re-send') + '</button>';
                         }
+                        // Booking/payment column exists to catch the exact risk this registry can't
+                        // otherwise show: a booking that's moved past acceptance (or already fully
+                        // paid — including via a client's own self-service deposit, which can
+                        // auto-confirm with no admin click at all) while this contract is still
+                        // unsigned. Flag that specific combination in clay; otherwise render plainly.
+                        var bStatus = c.booking_status || '—';
+                        var pStatus = c.booking_payment_status || '';
+                        var payLblMap = { PAID: '✓ Paid', DEPOSIT_PAID: '◐ Deposit', PARTIALLY_PAID: '◑ Partial', UNPAID: '○ Unpaid' };
+                        var payText = payLblMap[pStatus] || pStatus || '';
+                        var riskyGap = ['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(bStatus) && c.status !== 'signed' && c.is_frozen !== 1;
+                        var bookingCell = '<span' + (riskyGap ? ' style="color:var(--atl-clay);font-weight:600;" title="Booking has moved past acceptance but this contract is not signed"' : '') + '>' + esc(bStatus) + (payText ? ' · ' + esc(payText) : '') + '</span>';
                         return '<tr><td>' + c.id + '</td><td>' + client + '<br><small style="color:var(--atl-muted)">' + esc(c.client_email || '') + '</small></td>' +
                             '<td>' + esc(c.event_name || '—') + '</td><td>' + (c.event_date ? formatDate(c.event_date) : '—') + '</td><td>' + st + '</td>' +
+                            '<td>' + bookingCell + '</td>' +
                             '<td>' + esc(c.template_version || '—') + '</td><td>' + esc(c.signed_by || '—') + '</td><td>' + (c.signed_date ? formatDate(c.signed_date) : '—') + '</td><td>' + act + '</td></tr>';
                     }).join('');
                 }

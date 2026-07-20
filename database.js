@@ -1643,6 +1643,11 @@ function initializeDatabase() {
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (47, 'inquiries_bookings_conversion_link')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (48, 'inquiries_sla_response_tracking')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (50, 'status_guard_triggers_invoices_contracts_schedules_quotations')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (51, 'contracts_amount_snapshot_source_quote_link')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (52, 'contracts_integrity_verified_flag')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (53, 'contracts_number_column_for_invoice_citation')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (54, 'bookings_disposition_soft_decline')`);
+        db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (55, 'bookings_alt_dates_content_notes_heard_about')`);
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (99, 'full_schema_history_reconstructed_2026_06_19')`);
         // END schema_migrations seeds
 
@@ -1653,6 +1658,39 @@ function initializeDatabase() {
         // Contract Builder: JSON snapshot of the last-submitted/resolved clause text (parties/fee/cancellation/etc.),
         // so re-opening the editor on an unsigned draft restores prior edits instead of resetting to raw defaults.
         db.run("ALTER TABLE contracts ADD COLUMN builder_clauses TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: contracts.builder_clauses already exists or error: " + err.message); });
+        // Contract↔quote link + amount snapshot (migration 51). Captured at generate time so the
+        // contract stays traceable to the quote it embodies, and a drift between this figure and the
+        // booking's current total (e.g. after a re-quote) can be detected and warned on.
+        db.run("ALTER TABLE contracts ADD COLUMN contract_amount DECIMAL(10,2)", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: contracts.contract_amount already exists or error: " + err.message); });
+        db.run("ALTER TABLE contracts ADD COLUMN source_quote_number TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: contracts.source_quote_number already exists or error: " + err.message); });
+        // Migration 52: surfaces the countersign-time PDF-hash comparison (previously logged only to
+        // audit_log) directly on the row, so the admin UI can show it without a separate lookup.
+        // NULL = not yet checked (no client hash to compare against, e.g. force-countersigned before
+        // the client signed); 1 = hash matched; 0 = mismatch — the PDF changed after the client signed.
+        db.run("ALTER TABLE contracts ADD COLUMN integrity_verified INTEGER", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: contracts.integrity_verified already exists or error: " + err.message); });
+        // Migration 53: the human-facing contract number (e.g. AGR-2026-0042) previously only ever
+        // existed transiently inside generateContract() as a local variable, baked into the PDF
+        // filename but never stored on the row — so nothing else could cite it. Storing it lets
+        // generateInvoice() look it up and print "Issued under Agreement AGR-…" on invoice PDFs
+        // generated after the contract exists (older contracts predating this column just show
+        // nothing, same optional-citation pattern as contracts.source_quote_number).
+        db.run("ALTER TABLE contracts ADD COLUMN contract_number TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: contracts.contract_number already exists or error: " + err.message); });
+
+        // Migration 54 — booking triage (soft-decline). Orthogonal to `status`/ALLOWED_TRANSITIONS:
+        // dispositioning a fresh enquiry as "not a fit" or "archived" is a simple UPDATE, not a
+        // pipeline transition, so a bad-fit lead can be declined without it reading as a cancelled
+        // deal and without polluting conversion analytics (mirrors the existing status/payment_status
+        // two-axis pattern). NULL/legacy rows are treated as 'active' everywhere they're read.
+        db.run("ALTER TABLE bookings ADD COLUMN disposition TEXT DEFAULT 'active'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: bookings.disposition already exists or error: " + err.message); });
+        db.run("CREATE INDEX IF NOT EXISTS idx_bookings_disposition ON bookings(disposition)");
+
+        // Migration 55 — public booking form fields: alternative/backup dates, a content-suitability
+        // note, and an optional self-reported "how did you hear about us" (kept alongside the
+        // existing auto-captured source/referrer, not a replacement for them). All optional, capped
+        // via BOOKING_TEXT_LIMITS in server.js. `budget_range` already existed — not re-added here.
+        db.run("ALTER TABLE bookings ADD COLUMN alternative_dates TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: bookings.alternative_dates already exists or error: " + err.message); });
+        db.run("ALTER TABLE bookings ADD COLUMN content_notes TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: bookings.content_notes already exists or error: " + err.message); });
+        db.run("ALTER TABLE bookings ADD COLUMN heard_about TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: bookings.heard_about already exists or error: " + err.message); });
 
         // Reconciliation columns for transactions
         db.run("ALTER TABLE transactions ADD COLUMN source TEXT DEFAULT 'manual'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: transactions.source already exists or error: " + err.message); });
