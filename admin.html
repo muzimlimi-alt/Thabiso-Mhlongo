@@ -4137,7 +4137,7 @@
         }
         @media (min-width: 480px)  { .db-summary-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
         @media (min-width: 768px)  { .db-summary-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; } }
-        @media (min-width: 1024px) { .db-summary-grid { grid-template-columns: repeat(5, 1fr); } }
+        @media (min-width: 1024px) { .db-summary-grid { grid-template-columns: repeat(6, 1fr); } }
 
         .db-social-grid {
             display: grid;
@@ -5334,6 +5334,13 @@
                                 <span class="db-stat-value" id="dashStat-eventsAdmin">...</span>
                             </div>
                         </div>
+                        <div class="db-stat-card" onclick="switchTab('calendarAdmin');">
+                            <div class="db-stat-icon"><i class="fa-solid fa-calendar-days"></i></div>
+                            <div class="db-stat-content">
+                                <span class="db-stat-label">Upcoming (Calendar)</span>
+                                <span class="db-stat-value" id="dashStat-calendarAdmin">...</span>
+                            </div>
+                        </div>
                         <div class="db-stat-card" onclick="switchTab('bookingsAdmin'); setTimeout(()=>{ $('#bookingStatusFilter').val('NEEDS_ACTION').trigger('change'); }, 300);" style="cursor:pointer;" title="Click to view bookings needing action">
                             <div class="db-stat-icon"><i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-orange);"></i></div>
                             <div class="db-stat-content">
@@ -5566,7 +5573,7 @@
                         gap: 12px;
                     }
                     @media (min-width: 576px) { .db-summary-grid { grid-template-columns: repeat(2,1fr); } }
-                    @media (min-width: 992px) { .db-summary-grid { grid-template-columns: repeat(5,1fr); } }
+                    @media (min-width: 992px) { .db-summary-grid { grid-template-columns: repeat(6,1fr); } }
 
                     .db-stat-card {
                         background: var(--atl-card);
