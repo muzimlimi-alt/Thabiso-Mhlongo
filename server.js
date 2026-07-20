@@ -198,6 +198,14 @@ const RATE_LIMIT_WINDOW = 3600000; // 1 hour
 const MAX_REQUESTS = 100; // Increased for test suite automation
 
 const ipRateLimiter = (req, res, next) => {
+    // Every other hand-tuned limiter in this file (bookingRateLimiter, otpRequestRateLimiter,
+    // mutateRateLimiter, adminRateLimiter) already bypasses entirely under NODE_ENV=test — this one
+    // predates that convention and instead just had MAX_REQUESTS bumped to 100 "for test suite
+    // automation". That shared, IP-keyed budget is spent across every *.test.js file in one npm test
+    // run (they all share one server boot), so as the suite grows, legitimate requests in later files
+    // get 429'd and crash on the assumption they succeeded — not an actual abuse case to guard against
+    // in test env at all.
+    if (process.env.NODE_ENV === 'test') return next();
     const ip = req.ip || req.connection.remoteAddress || 'unknown';
     const now = Date.now();
     const limit = rateLimits.get(ip) || { count: 0, resetTime: now + RATE_LIMIT_WINDOW };
@@ -14896,7 +14904,18 @@ app.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrator'
 app.get('/api/public/events', (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 100, 200);
     const offset = parseInt(req.query.offset) || 0;
-    db.all("SELECT * FROM events WHERE event_status NOT IN ('cancelled', 'draft') ORDER BY event_datetime ASC LIMIT ? OFFSET ?", [limit, offset], (err, siteEvents) => {
+    // Every CONFIRMED private booking auto-creates an events row (event_status='upcoming') purely so
+    // it shows on the admin calendar — those are NOT meant to be public. The only reliable signal that
+    // a booking-linked event should actually be listed here is bookings.is_public=1 (set only by the
+    // explicit "Promote to public" action); the status filter alone let every private client's booking
+    // details (event title, venue) leak onto the public tour-dates page.
+    db.all(
+        `SELECT e.* FROM events e
+         LEFT JOIN bookings b ON b.id = e.booking_id
+         WHERE e.event_status NOT IN ('cancelled', 'draft')
+           AND (e.booking_id IS NULL OR b.is_public = 1)
+         ORDER BY e.event_datetime ASC LIMIT ? OFFSET ?`,
+        [limit, offset], (err, siteEvents) => {
         if (err) return res.status(500).json({ error: err.message });
         const mapped = (siteEvents || []).map(e => ({...e, source: 'event'}));
         res.json(mapped);
@@ -14938,9 +14957,20 @@ app.get('/api/admin/events', requireAdmin, (req, res) => {
     const limit = Math.min(parseInt(req.query.limit) || 200, 500);
     const offset = parseInt(req.query.offset) || 0;
     const status = req.query.status || null;
+    // Same public/private distinction as GET /api/public/events (see comment there) — without it,
+    // this tab (and the dashboard KPI tile reading it) mixed every private CONFIRMED booking's
+    // auto-generated calendar shadow row in with genuine public tour-date listings, so neither the
+    // count nor the list actually reflected "public shows." Pass include_private=1 to see everything
+    // (e.g. for troubleshooting a specific booking's shadow row).
+    const includePrivate = req.query.include_private === '1';
+    const conditions = includePrivate ? [] : ['(e.booking_id IS NULL OR b.is_public = 1)'];
+    if (status) conditions.push('e.event_status = ?');
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
     const params = status ? [status, limit, offset] : [limit, offset];
-    const where = status ? "WHERE event_status = ?" : "";
-    db.all(`SELECT * FROM events ${where} ORDER BY event_datetime DESC LIMIT ? OFFSET ?`, params, (err, rows) => {
+    db.all(
+        `SELECT e.* FROM events e LEFT JOIN bookings b ON b.id = e.booking_id
+         ${where} ORDER BY e.event_datetime DESC LIMIT ? OFFSET ?`,
+        params, (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
     });
