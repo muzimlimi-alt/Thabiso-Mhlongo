@@ -1026,44 +1026,6 @@
             gap: 12px;
             margin-bottom: 16px;
         }
-        .atl-search-wrap {
-            position: relative;
-            flex: 1;
-            min-width: 220px;
-        }
-        .atl-search-wrap i {
-            position: absolute;
-            left: 12px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 13px;
-            color: var(--atl-placeholder);
-            pointer-events: none;
-            z-index: 1;
-            transition: color 0.18s;
-        }
-        .atl-search-wrap:focus-within i { color: var(--atl-amber) !important; }
-        .atl-search {
-            background: var(--atl-input-bg) !important;
-            border: 1px solid var(--atl-line) !important;
-            border-radius: var(--atl-r-md) !important;
-            padding: 8px 12px 8px 38px !important;
-            font-family: 'Outfit', sans-serif;
-            font-size: 13px;
-            color: var(--atl-ink) !important;
-            color-scheme: inherit;
-            width: 100%;
-            height: auto;
-            box-sizing: border-box;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-        .atl-search:focus {
-            outline: none !important;
-            border-color: var(--atl-amber) !important;
-            box-shadow: 0 0 0 2px rgba(212,175,55,0.22) !important;
-        }
-        .atl-search::placeholder { color: var(--atl-placeholder) !important; }
-
         .atl-filter-select {
             background: var(--atl-input-bg) !important;
             border: 1px solid var(--atl-line) !important;
@@ -1289,7 +1251,6 @@
 
         /* Toolbar overflow prevention on XS */
         @media (max-width: 479px) {
-            .atl-search-wrap { min-width: 0; }
             .atl-filter-select { min-width: 0; width: 100%; }
             .atl-toolbar { gap: 8px; }
         }
@@ -1320,29 +1281,6 @@
             .atl-card-actions-bar .atl-primary-cta { flex: 0 0 auto; }
         }
 
-        /* Defect 10 — Tag chip 2-row cap + show-more */
-        .atl-tag-badges-container {
-            max-height: 58px; /* ~2 rows of 22px chips + 6px gap */
-            overflow: hidden;
-            position: relative;
-        }
-        .atl-tag-badges-container.expanded { max-height: none; }
-        @media (min-width: 600px) {
-            .atl-tag-badges-container { max-height: none; }
-        }
-        .atl-tag-more-btn {
-            font-size: 11px;
-            font-weight: 600;
-            padding: 2px 8px;
-            border: 1px solid var(--atl-line);
-            border-radius: 999px;
-            background: transparent;
-            color: var(--atl-muted);
-            cursor: pointer;
-            flex-shrink: 0;
-            margin-top: 4px;
-        }
-        .atl-tag-more-btn:hover { border-color: var(--atl-amber); color: var(--atl-ink); }
 
         /* Event-card meta — date and venue each on their own line (separator hidden),
            icons top-aligned, nothing truncated. */
@@ -2018,6 +1956,23 @@
         .atl-tl-when { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--atl-muted-dim); margin-bottom: 2px; }
         .atl-tl-what { font-size: 13px; color: var(--atl-ink-dim); font-weight: 500; }
         .atl-tl-meta { font-size: 11.5px; color: var(--atl-muted); margin-top: 1px; }
+
+        /* Progress tab — lifecycle checklist (Overdue/Pending/Completed groups) */
+        .dv-progress-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+        .dv-progress-item { display: flex; align-items: flex-start; gap: 10px; }
+        .dv-progress-item i { font-size: 13px; margin-top: 2px; flex-shrink: 0; }
+        .dv-progress-item > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+        .dv-progress-item__label { font-size: 13px; font-weight: 600; color: var(--atl-ink); }
+        .dv-progress-item__detail { font-size: 11.5px; color: var(--atl-muted); }
+        .dv-progress-item--done i { color: var(--atl-sage); }
+        .dv-progress-item--pending i { color: var(--atl-muted-dim); font-size: 7px; margin-top: 6px; }
+        .dv-progress-item--overdue i { color: var(--atl-clay); }
+        .dv-progress-count {
+          font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+          background: var(--atl-surface2); border: 1px solid var(--atl-line); border-radius: 999px;
+          padding: 1px 7px; margin-left: auto; color: var(--atl-muted) !important;
+        }
+        .dv-progress-tags { display: flex; flex-wrap: wrap; gap: 6px; }
 
         /* Advancing Pack editor (Advancing tab) */
         .atl-adv-ros-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--atl-line); }
@@ -2879,10 +2834,11 @@
         }
 
         /* ── UNIVERSAL FORM CONTROLS ──
-           .adm-search__input, .inq-search-input, and .atl-search are excluded here because
-           they have embedded left-side icons that require extra padding-left.
-           Their full styles (including correct padding) live in dedicated blocks. */
-        input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.adm-search__input):not(.inq-search-input):not(.atl-search),
+           .adm-search__input is excluded here because it has an embedded left-side icon that
+           requires extra padding-left — its full styles (including correct padding) live in its
+           own dedicated block. Every other search box on the site (list-filter search bars) uses
+           the shared .um-input-wrap/.um-input-icon/.um-input pattern instead of a bespoke class. */
+        input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.adm-search__input),
         select,
         textarea,
         .form-control,
@@ -2900,9 +2856,9 @@
             color-scheme: inherit;
         }
         /* Icon-bearing .um-input-wrap inputs need extra left padding so the text clears the leading icon.
-           The broad input:not(…) rule above is now (0,7,1) (7 :not() clauses), which would otherwise beat
-           a plain (0,6,1) selector here and collapse padding-left back to 12px (text overlaps the icon).
-           Prefixing with body.admin-body lifts these to (0,7,2)/(0,3,2) so they win the padding-left cascade. */
+           The broad input:not(…) rule above would otherwise beat a plain selector here on source order
+           and collapse padding-left back to 12px (text overlaps the icon). Prefixing with body.admin-body
+           adds specificity so these rules win the padding-left cascade regardless. */
         body.admin-body .um-input-wrap > input.um-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
         body.admin-body .um-input-wrap > select.um-input {
             padding-left: 38px !important;
@@ -3389,22 +3345,6 @@
         .inq-compose-btn:hover { background: var(--atl-amber-hover); transform: translateY(-1px); }
         .inq-compose-btn:active { transform: translateY(0); }
 
-        .inq-search-wrap { position: relative; margin-bottom: 6px; }
-        .inq-search-wrap i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--atl-placeholder); font-size: 11px; pointer-events: none; }
-        .inq-search-input {
-            width: 100%;
-            background: var(--atl-input-bg);
-            border: 1px solid var(--atl-line);
-            border-radius: var(--atl-r-md);
-            padding: 8px 10px 8px 28px;
-            color: var(--atl-ink);
-            font-family: 'Outfit', sans-serif;
-            font-size: 12px;
-            transition: border-color var(--atl-t-base);
-            box-sizing: border-box;
-        }
-        .inq-search-input:focus { outline: none; border-color: var(--atl-amber); box-shadow: 0 0 0 2px var(--atl-amber-dim); }
-        .inq-search-input::placeholder { color: var(--atl-placeholder); }
 
         .inq-folders { display: flex; flex-direction: column; gap: 1px; }
         .inq-folder {
@@ -3696,7 +3636,6 @@
             }
             .inq-folder.active { background: var(--atl-amber-dim); border-color: var(--atl-amber-border); color: var(--atl-amber); font-weight: 600; }
             .inq-folder-count { margin-left: 4px; font-size: 9px; padding: 2px 6px; }
-            .inq-search-wrap { flex: 1; min-width: 100%; }
             .inq-list-panel { border-right: none; }
             .inq-send-btn, .inq-cancel-btn { font-size: 11px; padding: 8px 12px; }
         }
@@ -4726,7 +4665,14 @@
         .dv-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--atl-ink-dim); background: var(--atl-input-bg); border: 1px solid var(--atl-line); border-radius: var(--atl-r-pill); padding: 5px 12px; }
         .dv-chip.gold { color: var(--atl-amber); border-color: var(--atl-amber-border); background: var(--atl-amber-dim); }
         .dv-chip .m { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
-        .dv-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+        /* Right-aligned as a group (Refresh, primary CTA, More) — DOM order is preserved (Refresh
+           first) since, unlike .atl-card-actions-bar, nothing here reorders the primary CTA. */
+        .dv-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-bottom: 14px; }
+        @media (max-width: 479px) {
+            .dv-actions { flex-direction: column; }
+            .dv-actions > * { width: 100%; }
+            .dv-actions .atl-btn { justify-content: center; text-align: center; }
+        }
 
         .dv-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
         .dv-tabs::-webkit-scrollbar { display: none; }
@@ -4842,15 +4788,14 @@
 
         @media (max-width: 767px) {
             /* 16px inputs stop iOS Safari auto-zooming the page on focus (a11y + no reflow). */
-            .atl-input, .atl-search, .atl-textarea, .um-input, .tm-form-input,
+            .atl-input, .atl-textarea, .um-input, .tm-form-input,
             .atl-filter-select, select.um-input, select.atl-input,
             .atl-modal-body input, .atl-modal-body select, .atl-modal-body textarea,
             input.form-control, textarea.form-control {
                 font-size: 16px !important;
             }
             /* Keep leading icons optically centred against the taller inputs. */
-            .um-input-icon,
-            .atl-search-wrap > i { top: 50%; transform: translateY(-50%); line-height: 1; }
+            .um-input-icon { top: 50%; transform: translateY(-50%); line-height: 1; }
 
             /* Touch targets for the secondary button system; no button overruns its row. */
             .um-btn { min-height: 44px; }
@@ -6738,6 +6683,16 @@
                                     <option value="ALL">All (incl. triaged)</option>
                                 </select>
                             </div>
+                            <div>
+                                <select id="bkSortSelect" class="atl-filter-select" title="Sort bookings">
+                                    <option value="created_desc">Newest enquiry</option>
+                                    <option value="created_asc">Oldest enquiry</option>
+                                    <option value="event_asc">Event date (soonest)</option>
+                                    <option value="event_desc">Event date (latest)</option>
+                                    <option value="fee_desc">Fee (highest)</option>
+                                    <option value="fee_asc">Fee (lowest)</option>
+                                </select>
+                            </div>
                             <button type="button" id="clearFilters" class="atl-clear-btn">
                                 Clear filters
                             </button>
@@ -6789,6 +6744,12 @@
                         @media (max-width:900px) {
                           .atl-bk-th-ref, .atl-bk-ref, .atl-bk-th-date, .atl-bk-date { display:none; }
                         }
+
+                        /* Pipeline/Archive pagination bar */
+                        .atl-pagination-bar { display:flex; align-items:center; justify-content:center; gap:14px; margin-top:16px; }
+                        .atl-pagination-indicator { font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--atl-muted); white-space:nowrap; }
+                        .atl-pagination-bar .atl-btn { padding:8px 12px; }
+                        .atl-btn:disabled { opacity:.4; cursor:not-allowed; pointer-events:none; }
                     </style>
                     <div id="bkBulkBar" class="bk-bulk-bar" style="display:none;">
                         <span class="bk-bulk-count"><span id="bkBulkCount">0</span> selected</span>
@@ -6810,6 +6771,11 @@
                             </div>
                         </div>
                     </main>
+                    <div id="bkPaginationBar" class="atl-pagination-bar" style="display:none;">
+                        <button type="button" id="bkPagePrev" class="atl-btn atl-btn--ghost" aria-label="Previous page"><i class="fa-solid fa-chevron-left"></i></button>
+                        <span id="bkPageIndicator" class="atl-pagination-indicator">Page 1 of 1</span>
+                        <button type="button" id="bkPageNext" class="atl-btn atl-btn--ghost" aria-label="Next page"><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
 
                     </div><!-- /#bkPanelPipeline -->
 
@@ -6843,6 +6809,16 @@
                                     <input type="search" id="bkArchiveSearchInput" class="um-input"
                                            placeholder="Search name, email, event, ID&hellip;" autocomplete="off" spellcheck="false">
                                 </div>
+                                <div>
+                                    <select id="bkArchiveSortSelect" class="atl-filter-select" title="Sort bookings">
+                                        <option value="created_desc">Newest enquiry</option>
+                                        <option value="created_asc">Oldest enquiry</option>
+                                        <option value="event_asc">Event date (soonest)</option>
+                                        <option value="event_desc">Event date (latest)</option>
+                                        <option value="fee_desc">Fee (highest)</option>
+                                        <option value="fee_asc">Fee (lowest)</option>
+                                    </select>
+                                </div>
                                 <p id="bkArchiveResultCount" class="text-sm ml-auto self-center" style="color:var(--atl-muted); font-family:'Outfit', sans-serif; margin:0;" aria-live="polite"></p>
                             </div>
                         </section>
@@ -6856,6 +6832,11 @@
                                 </div>
                             </div>
                         </main>
+                        <div id="bkArchivePaginationBar" class="atl-pagination-bar" style="display:none;">
+                            <button type="button" id="bkArchivePagePrev" class="atl-btn atl-btn--ghost" aria-label="Previous page"><i class="fa-solid fa-chevron-left"></i></button>
+                            <span id="bkArchivePageIndicator" class="atl-pagination-indicator">Page 1 of 1</span>
+                            <button type="button" id="bkArchivePageNext" class="atl-btn atl-btn--ghost" aria-label="Next page"><i class="fa-solid fa-chevron-right"></i></button>
+                        </div>
                     </div><!-- /#bkPanelArchive -->
 
                     <!-- ===== PANEL: About ===== -->
@@ -7179,10 +7160,10 @@
                         <div id="abFunnel" class="atl-card" style="padding:14px 18px; margin-bottom:16px; display:none;"></div>
 
                         <!-- Toolbar -->
-                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px;">
-                            <div class="atl-search-wrap" style="flex:1; min-width:200px;">
-                                <i class="fa-solid fa-magnifying-glass"></i>
-                                <input type="text" id="abSearchInput" class="atl-search" placeholder="Search name, email, event&hellip;" autocomplete="off" spellcheck="false">
+                        <div class="atl-toolbar">
+                            <div class="um-input-wrap" style="flex:1; min-width:180px;">
+                                <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                                <input type="search" id="abSearchInput" class="um-input" placeholder="Search name, email, event&hellip;" autocomplete="off" spellcheck="false">
                             </div>
                             <select id="abStatusFilter" class="atl-filter-select">
                                 <option value="all">All statuses</option>
@@ -7624,7 +7605,10 @@
                                     <!-- Transactions Filters -->
                                     <div style="padding:0 0 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between;">
                                         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                                            <input type="text" id="txSearchInput" class="atl-input" placeholder="Search client or reference…" style="flex:1;min-width:160px;max-width:260px;font-size:13px;background:var(--atl-card);color:var(--atl-ink);border-color:var(--atl-line);" oninput="filterTransactions()">
+                                            <div class="um-input-wrap" style="flex:1;min-width:160px;max-width:260px;">
+                                                <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                                                <input type="search" id="txSearchInput" class="um-input" placeholder="Search client or reference…" oninput="filterTransactions()">
+                                            </div>
                                             <select id="txTypeFilter" class="atl-input" style="width:auto;font-size:13px;background:var(--atl-card);color:var(--atl-ink);border-color:var(--atl-line);" onchange="filterTransactions()">
                                                 <option value="">All Types</option>
                                                 <option value="payment">Payments</option>
@@ -8717,7 +8701,7 @@
                         <div class="lc-panel-inner">
                             <div class="atl-card">
                                 <div class="lc-toolbar">
-                                    <div class="um-input-wrap"><i class="fa-solid fa-magnifying-glass um-input-icon"></i><input type="text" id="lcConsentSearch" class="atl-input" placeholder="Search name, email, IP…"></div>
+                                    <div class="um-input-wrap"><i class="fa-solid fa-magnifying-glass um-input-icon"></i><input type="search" id="lcConsentSearch" class="um-input" placeholder="Search name, email, IP…"></div>
                                     <select id="lcConsentType" class="atl-input" style="width:auto;"><option value="all">All Types</option><option value="booking">Booking</option></select>
                                     <select id="lcConsentLimit" class="atl-input" style="width:auto;"><option value="20">20 / page</option><option value="50">50 / page</option></select>
                                     <button class="atl-btn atl-btn--ghost" onclick="exportConsentCsv()"><i class="fa-solid fa-file-csv" style="margin-right:6px;"></i>Export CSV</button>
@@ -8825,7 +8809,7 @@
                         <div class="lc-panel-inner">
                             <div class="atl-card">
                                 <div class="lc-toolbar">
-                                    <div class="um-input-wrap"><i class="fa-solid fa-magnifying-glass um-input-icon"></i><input type="text" id="lcContractSearch" class="atl-input" placeholder="Search client, email, event…"></div>
+                                    <div class="um-input-wrap"><i class="fa-solid fa-magnifying-glass um-input-icon"></i><input type="search" id="lcContractSearch" class="um-input" placeholder="Search client, email, event…"></div>
                                     <select id="lcContractStatus" class="atl-input" style="width:auto;"><option value="all">All Statuses</option><option value="draft">Draft</option><option value="signed">Signed</option></select>
                                     <select id="lcContractLimit" class="atl-input" style="width:auto;"><option value="20">20 / page</option><option value="50">50 / page</option></select>
                                 </div>
@@ -8856,7 +8840,7 @@
                                         <option value="terms_of_use">Terms of Use</option>
                                         <option value="cookie_policy">Cookie &amp; Consent</option>
                                     </select>
-                                    <div class="um-input-wrap"><i class="fa-solid fa-magnifying-glass um-input-icon"></i><input type="text" id="lcVhSearch" class="atl-input" placeholder="Search summaries…"></div>
+                                    <div class="um-input-wrap"><i class="fa-solid fa-magnifying-glass um-input-icon"></i><input type="search" id="lcVhSearch" class="um-input" placeholder="Search summaries…"></div>
                                 </div>
                                 <div id="lcVhList"><p class="text-muted">Loading…</p></div>
                             </div>
@@ -10576,7 +10560,7 @@
                                     <div class="atl-toolbar">
                                         <div class="um-input-wrap" style="flex:2;min-width:180px;">
                                             <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
-                                            <input type="text" id="campaignsSearchInput" class="um-input" placeholder="Search by subject…" style="padding-left:34px;font-size:12px;">
+                                            <input type="text" id="campaignsSearchInput" class="um-input" placeholder="Search by subject…">
                                         </div>
                                         <select id="campaignsSortSelect" class="atl-filter-select" style="flex:1;min-width:140px;">
                                             <option value="date_desc">Newest First</option>
@@ -11043,7 +11027,7 @@
                                     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:18px;">
                                         <div class="um-input-wrap" style="flex:1 1 220px;">
                                             <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
-                                            <input type="text" id="secSearch" class="um-input" placeholder="Search sections…" style="padding-left:38px;" aria-label="Search sections">
+                                            <input type="text" id="secSearch" class="um-input" placeholder="Search sections…" aria-label="Search sections">
                                         </div>
                                         <button type="button" class="atl-btn atl-btn--ghost" id="secEnableAll"><i class="fa-solid fa-eye" style="margin-right:6px;"></i>Enable All</button>
                                         <button type="button" class="atl-btn atl-btn--ghost" id="secDisableAll"><i class="fa-solid fa-eye-slash" style="margin-right:6px;"></i>Disable All</button>
@@ -11588,8 +11572,8 @@
                         <!-- ADVANCED CONTROLS (Search, Filter, Sort) -->
                         <div class="um-logs-controls" style="display:flex; flex-wrap:wrap; gap:15px; margin: 20px 0; background: var(--atl-surface2); padding: 15px; border-radius: 8px; border: 1px solid var(--atl-line);">
                             <div class="um-input-wrap" style="flex:1; min-width: 250px;">
-                                <i class="fa-solid fa-magnifying-glass um-input-icon" style="color: var(--atl-amber) !important; opacity:0.6;"></i>
-                                <input type="text" id="logSearch" placeholder="Search by recipient or subject..." class="um-input" style="padding-left:42px !important;" oninput="debounceLogSearch()">
+                                <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                                <input type="search" id="logSearch" placeholder="Search by recipient or subject..." class="um-input" oninput="debounceLogSearch()">
                             </div>
                             <div style="width: 160px;">
                                 <select id="logStatusFilter" class="um-input" onchange="applyLogFilters()">
@@ -11802,8 +11786,8 @@
 
                                     <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:16px; margin-bottom:10px;">
                                         <div class="um-input-wrap" style="flex:1; min-width:220px;">
-                                            <i class="fa-solid fa-magnifying-glass um-input-icon" style="color: var(--atl-amber) !important; opacity:0.6;"></i>
-                                            <input type="text" id="auditSearch" placeholder="Search by table, action or user…" class="um-input" style="padding-left:42px !important;" oninput="debounceAuditSearch()">
+                                            <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                                            <input type="search" id="auditSearch" placeholder="Search by table, action or user…" class="um-input" oninput="debounceAuditSearch()">
                                         </div>
                                         <select id="auditTableFilter" class="atl-input" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color: var(--atl-line);font-size:12px;">
                                             <option value="">All Tables</option>
@@ -12806,9 +12790,20 @@
                 return;
             }
 
-            const $card = $(`.atl-bk-row[data-id="${bookingId}"]`);
             dealViewTriggerBookingId = bookingId;
+            dvRenderFromRow(row, false);
+        };
+
+        // Renders the whole Deal View drawer (header/chips/actions/all tab panels) from a booking
+        // row. Shared by toggleBookingDetail (a fresh open — lands on Overview, opens/focuses the
+        // drawer) and refreshDealView (isRefresh=true — re-renders in place on whichever tab is
+        // already active, and force-fetches every tab's data regardless of lazy-load state, since a
+        // manual refresh shouldn't depend on which tabs the admin happens to have clicked into).
+        function dvRenderFromRow(row, isRefresh) {
+            const bookingId = row.id;
+            const $drawer = $('#dealViewDrawer');
             $drawer.data('bookingId', bookingId);
+            const $card = $(`.atl-bk-row[data-id="${bookingId}"]`);
 
             const s  = (row.status || 'PENDING').toUpperCase();
             const ps = (row.payment_status || 'UNPAID').toUpperCase();
@@ -12839,9 +12834,16 @@
             // Actions — reuse the row's own already-rendered action bar verbatim, so every
             // delegated handler (bk-action-quote, bk-action-gen-invoice, etc.) keeps working untouched.
             $('#dvActions').html($card.find('.atl-card-actions-bar').first().html() || '');
+            // Refresh is always the first button — re-inserted every render since #dvActions'
+            // contents get fully replaced above (both on open and on refresh).
+            $('#dvActions').prepend(
+                '<button type="button" class="atl-btn atl-btn--ghost" id="dvRefreshBtn" title="Refresh this booking\'s data" aria-label="Refresh booking data">'
+                + '<i class="fa-solid fa-arrows-rotate" style="margin-right:6px;"></i>Refresh</button>'
+            );
 
             // ── Panels ──
             $('#dv-panel-overview').html(buildOverviewPanel(row));
+            $('#dv-panel-progress').html(buildProgressPanel(row));
             $('#dv-panel-offer').html(buildOfferPanel(row));
             $('#dv-panel-invoices').html(buildInvoicesPanel(row));
             // Real editor loads lazily on first Advancing-tab activation (dvActivateTab) once
@@ -12854,19 +12856,35 @@
             $('#dv-panel-timeline').html(buildTimelinePanel(row));
             $('#dv-panel-files').html(buildFilesPanel(row));
 
-            // Always land on Overview when opening (possibly a different) booking.
-            dvActivateTab(document.getElementById('dv-tab-overview'), false);
+            if (!isRefresh) {
+                // Always land on Overview when opening (possibly a different) booking.
+                dvActivateTab(document.getElementById('dv-tab-overview'), false);
 
-            window.openAtlDrawer('dealViewDrawer');
-            $drawer.find('.atl-drawer__close').trigger('focus');
+                window.openAtlDrawer('dealViewDrawer');
+                $drawer.find('.atl-drawer__close').trigger('focus');
+            }
 
             // Venue autocomplete lives on the Overview panel — re-run every open (F5).
             if (typeof window.initBookingVenueAutocomplete === 'function') {
                 window.initBookingVenueAutocomplete(bookingId);
             }
 
+            // A refresh forces the Timeline (notes+comms) and, when relevant, Advancing pack to
+            // re-fetch immediately regardless of which tab is active — normally these are lazy,
+            // only loading the first time their tab is clicked (see dvActivateTab).
+            if (isRefresh) {
+                dealViewTimelineLoaded[bookingId] = true;
+                loadDealViewTimelineData(bookingId);
+                if (s === 'CONFIRMED' || s === 'COMPLETED') {
+                    dealViewAdvancingLoaded[bookingId] = true;
+                    loadDealViewAdvancingData(bookingId);
+                }
+            }
+
             // Once-only guard (F3) — fetch the heavier resources at most once per booking per
-            // list-render, matching the old $region.data('loaded') behaviour.
+            // list-render, matching the old $region.data('loaded') behaviour. loadBookings() (called
+            // by refreshDealView before this function runs) clears this map globally, so a refresh
+            // naturally passes this check and re-fetches too.
             if (dealViewLoadedIds[bookingId]) return;
             dealViewLoadedIds[bookingId] = true;
 
@@ -13072,7 +13090,38 @@
                 $('#atl-lineitems-' + bookingId).html('<div class="atl-det-card"><p class="atl-det-empty">Failed to load details.</p></div>');
                 $('#atl-transactions-' + bookingId).html('<div class="atl-det-card"><p class="atl-det-empty">Failed to load details.</p></div>');
             });
+        }
+
+        // Manual refresh — pulls the freshest booking data via the same canonical fetch loadBookings()
+        // already uses (avoids the "3 overlapping booking endpoints" trap: mixing a different
+        // single-booking route here risks a field-shape mismatch with what the row list/drawer
+        // otherwise expect), then re-renders the already-open drawer in place without switching tabs
+        // or replaying the open animation.
+        window.refreshDealView = async function() {
+            const bookingId = $('#dealViewDrawer').data('bookingId');
+            if (!bookingId) return;
+            const $btn = $('#dvRefreshBtn');
+            $btn.prop('disabled', true).find('i').addClass('fa-spin');
+            try {
+                await loadBookings();
+                const row = allBookingsCache.find(function(b) { return b.id == bookingId; });
+                if (!row) {
+                    // Booking no longer exists (deleted elsewhere) — nothing left to refresh.
+                    window.closeAtlDrawer('dealViewDrawer');
+                    return;
+                }
+                dvRenderFromRow(row, true);
+                if (window.notificationService) window.notificationService.showSuccess('Booking data refreshed.');
+            } catch (e) {
+                console.error('Deal View refresh failed:', e);
+                if (window.notificationService) window.notificationService.showError('Could not refresh this booking.');
+            } finally {
+                $('#dvRefreshBtn').prop('disabled', false).find('i').removeClass('fa-spin');
+            }
         };
+        $(document).off('click.dvrefresh').on('click.dvrefresh', '#dvRefreshBtn', function() {
+            window.refreshDealView();
+        });
 
         window.initBookingVenueAutocomplete = function(bookingId) {
             const input = document.getElementById(`venueLinkGoogle-${bookingId}`);
@@ -17937,7 +17986,11 @@
             $body.html(rows);
         }
 
-        window.abCloseDrawer = function () { $('#abDrawerWrap').remove(); };
+        window.abCloseDrawer = function () {
+            var nowTop = typeof atlDrawerPop === 'function' ? atlDrawerPop('abDrawerWrap') : null;
+            $('#abDrawerWrap').remove();
+            if (typeof atlDrawerFocusEntry === 'function') atlDrawerFocusEntry(nowTop);
+        };
 
         async function openAbandonedDetail(id) {
             try {
@@ -17977,7 +18030,19 @@
                     + '</div>'
                     + '</aside></div>';
                 $('body').append(html);
-                setTimeout(function () { $('#abDrawerWrap .atl-drawer').addClass('atl-drawer--open'); }, 10);
+                // Same drawer-stacking bookkeeping as .atl-drawer/.qb-drawer/.svc-drawer (see
+                // atlDrawerPush) — this quick view is built fresh each time rather than toggling a
+                // static id/idBackdrop pair, so it can't go through openAtlDrawer() directly, but it
+                // still needs a z-index above whatever else might already be open.
+                if (typeof atlDrawerPush === 'function') {
+                    var abZ = atlDrawerPush('abDrawerWrap', function () { abCloseDrawer(); });
+                    $('#abDrawerWrap .atl-drawer-backdrop').css('z-index', abZ.backdropZ);
+                    $('#abDrawerWrap .atl-drawer').css('z-index', abZ.drawerZ);
+                }
+                setTimeout(function () {
+                    $('#abDrawerWrap .atl-drawer').addClass('atl-drawer--open');
+                    if (typeof atlDrawerFocusEntry === 'function') atlDrawerFocusEntry({ id: 'abDrawerWrap' });
+                }, 10);
             } catch (e) { /* apiCall already toasts */ }
         }
 
@@ -19742,8 +19807,16 @@
                 // business, not the other way round — it wins over any invoice/payment nudge no
                 // matter what stage the money side is at, and it only takes a moment to clear.
                 if (contractClientSigned && !contractFinalised) return hint('fa-signature', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Countersign Contract', 'The client has signed the contract online. Countersign it on the Offer & Contract tab to finalise the agreement.');
-                if (acceptedStage === 'none') return hint('fa-file-invoice-dollar', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Generate Invoice', 'No invoice yet. Click Generate Invoice to create a draft for review — it is not emailed until you Send it.');
-                if (acceptedStage === 'invoice_draft') return hint('fa-paper-plane', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Invoice', 'A draft invoice is ready. Review it, then use Send Invoice on the Invoices & Payments tab to email it to the client.');
+                // Nothing in the payment/invoice routes checks contract state — a client can pay in
+                // full with no contract ever built or signed. The invoice still wins as the primary
+                // next step here (money first), but the contract's own state is now always mentioned
+                // in the detail line too, instead of staying silent until the invoice is fully sent.
+                const contractFlagNote = contractFinalised ? ''
+                    : contractSent ? " The contract is also still awaiting the client's signature."
+                    : contractExists ? ' The contract has also been drafted but not sent yet.'
+                    : ' No contract has been built yet either.';
+                if (acceptedStage === 'none') return hint('fa-file-invoice-dollar', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Generate Invoice', 'No invoice yet. Click Generate Invoice to create a draft for review — it is not emailed until you Send it.' + contractFlagNote);
+                if (acceptedStage === 'invoice_draft') return hint('fa-paper-plane', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Invoice', 'A draft invoice is ready. Review it, then use Send Invoice on the Invoices & Payments tab to email it to the client.' + contractFlagNote);
                 // Once the invoice is out and there's nothing left to actively chase on the money
                 // side, surface the contract if it still needs building/sending/signing — otherwise
                 // a booking can sail straight through payment (even auto-confirm on a client's own
@@ -19832,6 +19905,137 @@
             const duColor = daysUntil <= 7 ? 'var(--atl-clay)' : daysUntil <= 30 ? 'var(--atl-amber)' : 'var(--atl-sage)';
             const duLabel = daysUntil === 0 ? 'TODAY' : daysUntil === 1 ? '1 day' : `${daysUntil} days`;
             return `<span style="font-size:10px; background:rgba(212,175,55,0.08); color:${duColor}; border:1px solid var(--atl-line); border-radius:3px; padding:1px 5px; margin-left:6px; font-weight:600;">${duLabel}</span>`;
+        }
+
+        // Progress tab — a lifecycle checklist derived from the exact same booleans that used to
+        // drive the booking list row's tag badges (hasInvoice/invoiceSent/invoiceOverdue/isAccepted/
+        // etc.), just re-expressed as done/pending/overdue instead of a flat row of pills. "Overdue"
+        // is reserved for the three signals this codebase already treats as urgent elsewhere (the
+        // row's --overdue/--contract-unsigned badges and computeNextStepHint's "Follow Up" branch) —
+        // everything else not yet done is "Pending", not "Overdue", to avoid inventing new severity
+        // levels the rest of the app doesn't share.
+        function computeBookingProgressChecklist(row) {
+            const s  = (row.status || 'PENDING').toUpperCase();
+            const ps = (row.payment_status || 'UNPAID').toUpperCase();
+            const today = new Date().toISOString().split('T')[0];
+
+            const isQuoteSent = !!row.quoted_at;
+            const isAccepted  = !!row.accepted_at;
+            const quotedAgeDays = row.quoted_at ? Math.floor((new Date(today) - new Date(row.quoted_at)) / 86400000) : 0;
+            const quoteStale = s === 'QUOTED' && !isAccepted && quotedAgeDays >= 7;
+
+            const hasInvoice  = !!row.invoice_id;
+            const invoiceSent = !!row.invoice_sent_at;
+            const invoiceOverdue = invoiceSent && row.invoice_due_date && row.invoice_due_date < today && ps !== 'PAID';
+            const isPaid = ps === 'PAID';
+
+            const contractFinalised = (String(row.contract_status || '').toLowerCase() === 'signed') || row.contract_is_frozen === 1;
+            const contractUnsigned = ['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(s) && !contractFinalised;
+
+            const isCalSynced = !!row.google_event_id;
+            const isPopiaDone = !!row.popia_consent;
+            const isCompleted = s === 'COMPLETED';
+
+            return [
+                { label: 'Quote sent', state: isQuoteSent ? 'done' : (quoteStale ? 'overdue' : 'pending'),
+                  detail: isQuoteSent ? (row.quote_amount ? 'R ' + parseFloat(row.quote_amount).toFixed(2) + ' sent to client' : 'Sent to client') : (quoteStale ? `Pending ${quotedAgeDays} days with no response — consider a follow-up.` : 'Not yet sent to the client.') },
+                { label: 'Client accepted', state: isAccepted ? 'done' : 'pending',
+                  detail: isAccepted ? 'Accepted by the client' : 'Awaiting client acceptance of the quote.' },
+                { label: 'Contract signed', state: contractFinalised ? 'done' : (contractUnsigned ? 'overdue' : 'pending'),
+                  detail: contractFinalised ? 'Signed and finalised' : (contractUnsigned ? "Booking has moved past acceptance but the contract isn't signed yet." : 'Not needed until the booking is accepted.') },
+                { label: 'Invoice generated', state: hasInvoice ? 'done' : 'pending',
+                  detail: hasInvoice ? ('Invoice ' + (row.invoice_number ? '#' + row.invoice_number : 'on record')) : 'No invoice generated yet.' },
+                { label: 'Invoice sent', state: invoiceSent ? 'done' : 'pending',
+                  detail: invoiceSent ? 'Emailed to the client' : (hasInvoice ? 'Drafted but not yet emailed to the client.' : 'Generate the invoice first.') },
+                { label: 'Payment received', state: isPaid ? 'done' : (invoiceOverdue ? 'overdue' : 'pending'),
+                  detail: isPaid ? 'Paid in full' : (invoiceOverdue ? `Overdue since ${row.invoice_due_date} — follow up with the client.` : 'No payment recorded yet.') },
+                { label: 'Synced to calendar', state: isCalSynced ? 'done' : 'pending',
+                  detail: isCalSynced ? 'Google Calendar event created' : 'Not yet synced to Google Calendar.' },
+                { label: 'POPIA consent', state: isPopiaDone ? 'done' : 'pending',
+                  detail: isPopiaDone ? 'Consent on file' : 'No consent recorded yet.' },
+                { label: 'Event completed', state: isCompleted ? 'done' : 'pending',
+                  detail: isCompleted ? 'Marked as completed' : (s === 'CANCELLED' ? 'Booking was cancelled.' : 'Event has not taken place yet.') }
+            ];
+        }
+
+        // Tag badges relocated verbatim from the booking list row (renderBookingsTable) — same
+        // classes/flags, just rendered once here instead of per-row, and unclamped (the drawer has
+        // room to show them all, so the row's 2-line "+more" cap doesn't apply).
+        function buildProgressTagsCard(row) {
+            const s  = (row.status || 'PENDING').toUpperCase();
+            const ps = (row.payment_status || 'UNPAID').toUpperCase();
+            const today = new Date().toISOString().split('T')[0];
+            const disposition = row.disposition || 'active';
+            const hasInvoice = !!row.invoice_id;
+            const invoiceSent = !!row.invoice_sent_at;
+            const invoiceOverdue = invoiceSent && row.invoice_due_date && row.invoice_due_date < today && ps !== 'PAID';
+            const hasAttachments = (function() { try { const f = JSON.parse(row.attachment_files || '[]'); return Array.isArray(f) && f.length > 0; } catch(e) { return false; } })();
+            const isCalSynced  = !!row.google_event_id;
+            const isQuoteSent  = !!row.quoted_at;
+            const isAccepted   = !!row.accepted_at;
+            const isPayFast    = row.payment_method === 'payfast';
+            const isRefunded   = Number(row.refund_amount) > 0;
+            const isPopiaDone  = !!row.popia_consent;
+            const contractFinalisedRow = (String(row.contract_status || '').toLowerCase() === 'signed') || row.contract_is_frozen === 1;
+            const contractUnsigned = ['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(s) && !contractFinalisedRow;
+            const isTriaged = disposition !== 'active';
+            const hasAnyBadge = !!(row.event_id || row.venue_id || hasInvoice || isCalSynced || isQuoteSent || isAccepted || hasAttachments || isPayFast || isRefunded || isPopiaDone || contractUnsigned || isTriaged || row.rebooked_from_id || row.rebooked_as_id);
+
+            if (!hasAnyBadge) return '';
+
+            return `<div class="atl-det-card">
+                <h5 class="atl-det-title"><i class="fa-solid fa-tags"></i> Tags</h5>
+                <div class="dv-progress-tags">
+                    <span class="atl-tag-badge atl-tag-badge--promoted" style="display:${row.event_id ? 'inline-flex' : 'none'};">Promoted</span>
+                    <span class="atl-tag-badge atl-tag-badge--venue" style="display:${row.venue_id ? 'inline-flex' : 'none'};">Venue linked</span>
+                    <span class="atl-tag-badge atl-tag-badge--invoice" style="display:${hasInvoice && !invoiceSent && !invoiceOverdue ? 'inline-flex' : 'none'};">Invoice</span>
+                    <span class="atl-tag-badge atl-tag-badge--invoice-sent" style="display:${invoiceSent && !invoiceOverdue && ps !== 'PAID' ? 'inline-flex' : 'none'};">Inv. Sent</span>
+                    <span class="atl-tag-badge atl-tag-badge--overdue" style="display:${invoiceOverdue ? 'inline-flex' : 'none'};" title="Invoice overdue — payment not received">Overdue</span>
+                    <span class="atl-tag-badge atl-tag-badge--cal" style="display:${isCalSynced ? 'inline-flex' : 'none'};">Cal synced</span>
+                    <span class="atl-tag-badge atl-tag-badge--quote" style="display:${isQuoteSent ? 'inline-flex' : 'none'};">Quote sent</span>
+                    <span class="atl-tag-badge atl-tag-badge--accepted" style="display:${isAccepted ? 'inline-flex' : 'none'};" title="Booking has been accepted by the client.">Accepted</span>
+                    <span class="atl-tag-badge atl-tag-badge--contract-unsigned" style="display:${contractUnsigned ? 'inline-flex' : 'none'};" title="Booking has moved past acceptance but the contract isn't signed & finalised yet.">Unsigned Contract</span>
+                    <span class="atl-tag-badge atl-tag-badge--triaged" style="display:${isTriaged ? 'inline-flex' : 'none'};" title="Soft-declined — excluded from the active pipeline and conversion counts">${disposition === 'not_a_fit' ? 'Not a Fit' : 'Archived'}</span>
+                    <span class="atl-tag-badge atl-tag-badge--attached" style="display:${hasAttachments ? 'inline-flex' : 'none'};">Brief attached</span>
+                    <span class="atl-tag-badge atl-tag-badge--popia" style="display:${isPopiaDone ? 'inline-flex' : 'none'};">POPIA</span>
+                    <span class="atl-tag-badge atl-tag-badge--refunded" style="display:${isRefunded ? 'inline-flex' : 'none'};">Refunded</span>
+                    <span class="atl-tag-badge atl-tag-badge--payfast" style="display:${isPayFast ? 'inline-flex' : 'none'};">PayFast</span>
+                    <span class="atl-tag-badge atl-tag-badge--rebooked" style="display:${row.rebooked_from_id ? 'inline-flex' : 'none'};" title="This booking was created from cancelled booking #${row.rebooked_from_id}">&#x21BA; From #${row.rebooked_from_id}</span>
+                    <span class="atl-tag-badge atl-tag-badge--rebooked" style="display:${row.rebooked_as_id ? 'inline-flex' : 'none'};" title="This cancelled booking was rebooked as #${row.rebooked_as_id}">Rebooked &#x2192; #${row.rebooked_as_id}</span>
+                </div>
+            </div>`;
+        }
+
+        function buildProgressPanel(row) {
+            const checklist = computeBookingProgressChecklist(row);
+            const groups = { overdue: [], pending: [], done: [] };
+            checklist.forEach(function(item) { groups[item.state].push(item); });
+
+            const stateMeta = {
+                overdue: { icon: 'fa-triangle-exclamation', color: 'var(--atl-clay)', label: 'Overdue' },
+                pending: { icon: 'fa-hourglass-half',       color: 'var(--atl-amber)', label: 'Pending' },
+                done:    { icon: 'fa-circle-check',         color: 'var(--atl-sage)',  label: 'Completed' }
+            };
+            const itemIcon = { overdue: 'fa-triangle-exclamation', pending: 'fa-circle', done: 'fa-circle-check' };
+
+            function renderGroup(state) {
+                const items = groups[state];
+                if (!items.length) return '';
+                const meta = stateMeta[state];
+                const rows = items.map(function(item) {
+                    return `<li class="dv-progress-item dv-progress-item--${state}">
+                        <i class="fa-solid ${itemIcon[state]}"></i>
+                        <div><span class="dv-progress-item__label">${item.label}</span><span class="dv-progress-item__detail">${item.detail}</span></div>
+                    </li>`;
+                }).join('');
+                return `<div class="atl-det-card">
+                    <h5 class="atl-det-title" style="color:${meta.color} !important;"><i class="fa-solid ${meta.icon}" style="color:${meta.color};"></i> ${meta.label} <span class="dv-progress-count">${items.length}</span></h5>
+                    <ul class="dv-progress-list">${rows}</ul>
+                </div>`;
+            }
+
+            // Overdue first (needs attention now), then Pending (what's left), then Completed (confirms progress so far).
+            return renderGroup('overdue') + renderGroup('pending') + renderGroup('done') + buildProgressTagsCard(row);
         }
 
         function buildOverviewPanel(row) {
@@ -20709,25 +20913,6 @@
                   </div>
                 </div>`;
 
-                const hasAttachments = (() => { try { const f = JSON.parse(row.attachment_files || '[]'); return Array.isArray(f) && f.length > 0; } catch(e) { return false; } })();
-                const isCalSynced  = !!row.google_event_id;
-                const isQuoteSent  = !!row.quoted_at;
-                const isAccepted   = !!row.accepted_at;
-                const isPayFast    = row.payment_method === 'payfast';
-                const isRefunded   = Number(row.refund_amount) > 0;
-                const isPopiaDone  = !!row.popia_consent;
-                const isInvoiceGenerated = hasInvoice;
-                const isInvoiceSent      = invoiceSent;
-                const isInvoiceOverdue   = !!invoiceOverdue;
-                // Flags a booking that's moved past acceptance (money may already be flowing — see
-                // deriveBookingStatusAfterPayment, which can auto-confirm on a client's own deposit
-                // payment with zero admin involvement) while its contract still isn't signed & frozen.
-                // Only meaningful from ACCEPTED onward — a contract isn't expected before that.
-                const contractFinalisedRow = (String(row.contract_status || '').toLowerCase() === 'signed') || row.contract_is_frozen === 1;
-                const contractUnsigned = ['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(s) && !contractFinalisedRow;
-                const isTriaged = disposition !== 'active';
-                const hasAnyBadge  = !!(row.event_id || row.venue_id || isInvoiceGenerated || isCalSynced || isQuoteSent || isAccepted || hasAttachments || isPayFast || isRefunded || isPopiaDone || contractUnsigned || isTriaged || row.rebooked_from_id || row.rebooked_as_id);
-
                 // quote_amount/total_amount can arrive as pre-formatted currency strings (e.g. "R 45,000.00")
                 // on some legacy rows — strip everything but digits/./- before parsing, or the Fee column shows NaN.
                 const feeRaw = row.quote_amount || row.total_amount;
@@ -20735,36 +20920,17 @@
                 const feeAmount = isFinite(feeParsed) ? feeParsed : null;
 
                 // Compact table row (Pipeline + Archive) — mirrors atelier-deal-view-mockup.html's
-                // reference table. Status/payment pills and tag badges are retained; the inline
-                // next-step hint and per-row action buttons are dropped from the visible row (the
-                // Deal View drawer's own header/action-bar covers that) but actionButtonsHtml is
-                // still rendered, just hidden — toggleBookingDetail() clones it into the drawer,
-                // so every delegated handler keeps working unchanged.
+                // reference table. The inline next-step hint, per-row action buttons, and tag badges
+                // are all dropped from the visible row — the Deal View drawer's own header/action-bar
+                // and Progress tab cover that now — but actionButtonsHtml is still rendered, just
+                // hidden — toggleBookingDetail() clones it into the drawer, so every delegated
+                // handler keeps working unchanged.
                 rowsHtml += `
 <tr class="atl-bk-row" data-id="${row.id}" tabindex="0">
   <td class="atl-bk-select-cell"><label class="bk-select-box" title="Select booking"><input type="checkbox" class="bk-select-cb" data-id="${row.id}" aria-label="Select booking #${row.id}"></label></td>
   <td class="atl-bk-ref">#${row.id}</td>
   <td>
     <div class="atl-bk-ev">${row.event_name || row.event_type || '—'}</div>
-    <div class="atl-tag-badges-container" id="tag-badges-${row.id}" style="display:${hasAnyBadge ? 'flex' : 'none'}; flex-wrap:wrap; gap:6px; margin-top:6px;">
-      <span class="atl-tag-badge atl-tag-badge--promoted" style="display:${row.event_id            ? 'inline-flex' : 'none'};">Promoted</span>
-      <span class="atl-tag-badge atl-tag-badge--venue"    style="display:${row.venue_id            ? 'inline-flex' : 'none'};">Venue linked</span>
-      <span class="atl-tag-badge atl-tag-badge--invoice"  style="display:${isInvoiceGenerated && !isInvoiceSent && !isInvoiceOverdue ? 'inline-flex' : 'none'};">Invoice</span>
-      <span class="atl-tag-badge atl-tag-badge--invoice-sent" style="display:${isInvoiceSent && !isInvoiceOverdue && ps !== 'PAID' ? 'inline-flex' : 'none'};">Inv. Sent</span>
-      <span class="atl-tag-badge atl-tag-badge--overdue"  style="display:${isInvoiceOverdue        ? 'inline-flex' : 'none'};" title="Invoice overdue — payment not received">Overdue</span>
-      <span class="atl-tag-badge atl-tag-badge--cal"      style="display:${isCalSynced             ? 'inline-flex' : 'none'};">Cal synced</span>
-      <span class="atl-tag-badge atl-tag-badge--quote"    style="display:${isQuoteSent             ? 'inline-flex' : 'none'};">Quote sent</span>
-      <span class="atl-tag-badge atl-tag-badge--accepted" style="display:${isAccepted              ? 'inline-flex' : 'none'};">Accepted</span>
-      <span class="atl-tag-badge atl-tag-badge--contract-unsigned" style="display:${contractUnsigned ? 'inline-flex' : 'none'};" title="Booking has moved past acceptance but the contract isn't signed & finalised yet">Unsigned Contract</span>
-      <span class="atl-tag-badge atl-tag-badge--triaged" style="display:${isTriaged ? 'inline-flex' : 'none'};" title="Soft-declined — excluded from the active pipeline and conversion counts">${disposition === 'not_a_fit' ? 'Not a Fit' : 'Archived'}</span>
-      <span class="atl-tag-badge atl-tag-badge--attached" style="display:${hasAttachments     ? 'inline-flex' : 'none'};">Brief attached</span>
-      <span class="atl-tag-badge atl-tag-badge--popia"    style="display:${isPopiaDone        ? 'inline-flex' : 'none'};">POPIA</span>
-      <span class="atl-tag-badge atl-tag-badge--refunded" style="display:${isRefunded         ? 'inline-flex' : 'none'};">Refunded</span>
-      <span class="atl-tag-badge atl-tag-badge--payfast"  style="display:${isPayFast          ? 'inline-flex' : 'none'};">PayFast</span>
-      <span class="atl-tag-badge atl-tag-badge--rebooked" style="display:${row.rebooked_from_id ? 'inline-flex' : 'none'};" title="This booking was created from cancelled booking #${row.rebooked_from_id}">&#x21BA; From #${row.rebooked_from_id}</span>
-      <span class="atl-tag-badge atl-tag-badge--rebooked" style="display:${row.rebooked_as_id  ? 'inline-flex' : 'none'};" title="This cancelled booking was rebooked as #${row.rebooked_as_id}">Rebooked &#x2192; #${row.rebooked_as_id}</span>
-    </div>
-    ${hasAnyBadge ? `<button type="button" class="atl-tag-more-btn" data-id="${row.id}" style="display:none;">+ more</button>` : ''}
     <div class="atl-card-actions-bar" style="display:none;" aria-hidden="true">${actionButtonsHtml}</div>
   </td>
   <td class="atl-bk-client">${row.name}${row.company ? ` · ${row.company}` : ''}</td>
@@ -20812,23 +20978,7 @@
                 window.toggleBookingDetail($(this).data('id'));
             });
 
-            // Reveal "show more" button for any tag container that overflows 2 rows
-            requestAnimationFrame(function() {
-                $('.atl-tag-badges-container').each(function() {
-                    if (this.scrollHeight > this.clientHeight + 4) {
-                        $(this).siblings('.atl-tag-more-btn').show();
-                    }
-                });
-            });
         } // end renderBookingsTable
-    // Tag chip show-more toggle
-    $(document).on('click.tagmore', '.atl-tag-more-btn', function() {
-        var id = $(this).data('id');
-        var $container = $('#tag-badges-' + id);
-        var expanded = $container.hasClass('expanded');
-        $container.toggleClass('expanded', !expanded);
-        $(this).text(expanded ? '+ more' : '− less');
-    });
 
     // ─── Quote Builder Auto-Save & Recovery ───
     let qbAutoSaveTimeout = null;
@@ -23072,30 +23222,6 @@
             $ticketDiv.html(`<i class="fa-solid fa-ticket" style="margin-right:5px;color:var(--atl-amber);"></i><a href="${preview.ticket_link}" target="_blank" rel="noopener" class="atl-det-link" style="word-break:break-all;">${preview.ticket_link}</a>`);
         }
 
-        // Update the tag badge in the booking list card
-        const hasEventId = preview && preview.event_id;
-        const $container = $(`#tag-badges-${id}`);
-        if ($container.length) {
-            const $promotedBadge = $container.find('.atl-tag-badge--promoted');
-            if (hasEventId) {
-                $promotedBadge.show();
-            } else {
-                $promotedBadge.hide();
-            }
-            
-            // Check if any badge is visible
-            let anyVisible = false;
-            $container.children().each(function() {
-                if ($(this).css('display') !== 'none') {
-                    anyVisible = true;
-                }
-            });
-            if (anyVisible) {
-                $container.show().css('display', 'flex');
-            } else {
-                $container.hide();
-            }
-        }
     }
 
     $(document).off('click.promote').on('click.promote', '.promote-toggle', async function() {
@@ -23254,10 +23380,69 @@
         // instead — Pipeline never shows them, under any filter mode (status, payment, or Needs Action).
         const ARCHIVED_STATUSES = ['COMPLETED', 'EXPIRED', 'CANCELLED'];
 
+        // ── Sort + pagination — shared by Pipeline and Archive, both of which already filter
+        // client-side over the fully-cached allBookingsCache (same array the search box already
+        // filters), so sorting/paging is pure in-memory slicing with no new API calls needed. ──
+        const BK_PAGE_SIZE = 20;
+        let bkCurrentPage = 1;
+        let bkArchiveCurrentPage = 1;
+
+        function bkFeeValue(b) {
+            // quote_amount/total_amount can arrive as a pre-formatted currency string (e.g. "R 45,000.00")
+            // on legacy rows — strip everything but digits/./- before parsing (same fix used elsewhere
+            // in this file for the Fee column). A booking with no quote yet sorts as R0, which is
+            // genuinely accurate and needs no special-casing on either sort direction.
+            const raw = b.quote_amount || b.total_amount;
+            const n = raw != null ? parseFloat(String(raw).replace(/[^0-9.-]/g, '')) : NaN;
+            return isFinite(n) ? n : 0;
+        }
+        function bkEventDateValue(b) {
+            return b.date ? new Date(b.date).getTime() : null;
+        }
+        function bkSortRows(rows, sortValue) {
+            const sorted = rows.slice();
+            if (sortValue === 'created_asc') {
+                sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+            } else if (sortValue === 'event_asc' || sortValue === 'event_desc') {
+                // Bookings without an event date yet (fresh enquiries) always sort last, regardless
+                // of direction — a soonest/latest sort would otherwise be meaningless for them.
+                const dir = sortValue === 'event_asc' ? 1 : -1;
+                sorted.sort((a, b) => {
+                    const da = bkEventDateValue(a), db = bkEventDateValue(b);
+                    if (da === null && db === null) return 0;
+                    if (da === null) return 1;
+                    if (db === null) return -1;
+                    return (da - db) * dir;
+                });
+            } else if (sortValue === 'fee_desc') {
+                sorted.sort((a, b) => bkFeeValue(b) - bkFeeValue(a));
+            } else if (sortValue === 'fee_asc') {
+                sorted.sort((a, b) => bkFeeValue(a) - bkFeeValue(b));
+            } else {
+                sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)); // created_desc (default)
+            }
+            return sorted;
+        }
+        // Slices `rows` to the given 1-indexed page (clamped to the valid range) and updates the
+        // pagination bar's Prev/Next state + "Page X of Y" indicator. Returns the clamped page so
+        // the caller can persist it back into its own currentPage variable (e.g. after a filter
+        // change shrinks the result set below the page the admin was previously on).
+        function bkPaginate(rows, page, barSel, prevSel, nextSel, indicatorSel) {
+            const totalPages = Math.max(1, Math.ceil(rows.length / BK_PAGE_SIZE));
+            const clampedPage = Math.min(Math.max(1, page), totalPages);
+            const start = (clampedPage - 1) * BK_PAGE_SIZE;
+            $(barSel).css('display', rows.length > BK_PAGE_SIZE ? 'flex' : 'none');
+            $(indicatorSel).text('Page ' + clampedPage + ' of ' + totalPages);
+            $(prevSel).prop('disabled', clampedPage <= 1);
+            $(nextSel).prop('disabled', clampedPage >= totalPages);
+            return { pageRows: rows.slice(start, start + BK_PAGE_SIZE), page: clampedPage };
+        }
+
         function applyBookingFilter() {
             const status = $('#bookingStatusFilter').val();
             const q      = ($('#bkSearchInput').val() || '').trim().toLowerCase();
             const disposition = $('#bookingDispositionFilter').val() || 'active';
+            const sort   = $('#bkSortSelect').val() || 'created_desc';
             const paymentFilters = ['PAID', 'DEPOSIT_PAID', 'PARTIALLY_PAID', 'UNPAID', 'FAILED'];
             let filtered = allBookingsCache.filter(b => !ARCHIVED_STATUSES.includes((b.status || '').toUpperCase()));
             // Triage (soft-decline): hides not_a_fit/archived leads from the pipeline view by
@@ -23283,22 +23468,46 @@
                     String(b.id).includes(q)
                 );
             }
-            $('#bkResultCount').text(filtered.length + ' booking' + (filtered.length !== 1 ? 's' : ''));
-            renderBookingsTable(filtered);
+            filtered = bkSortRows(filtered, sort);
+            const { pageRows, page } = bkPaginate(filtered, bkCurrentPage, '#bkPaginationBar', '#bkPagePrev', '#bkPageNext', '#bkPageIndicator');
+            bkCurrentPage = page;
+            const rangeStart = filtered.length ? (page - 1) * BK_PAGE_SIZE + 1 : 0;
+            const rangeEnd = Math.min(page * BK_PAGE_SIZE, filtered.length);
+            $('#bkResultCount').text(filtered.length
+                ? (rangeStart + '–' + rangeEnd + ' of ' + filtered.length + ' booking' + (filtered.length !== 1 ? 's' : ''))
+                : '0 bookings');
+            renderBookingsTable(pageRows);
             if (typeof bkUpdateBulkCount === 'function') bkUpdateBulkCount(); // A3: keep bulk count in sync after re-render
         }
 
         $('#bookingStatusFilter').on('change', function() {
+            bkCurrentPage = 1;
             applyBookingFilter();
             if (typeof window.updatePills === 'function') window.updatePills();
         });
 
         $('#bookingDispositionFilter').on('change', function() {
+            bkCurrentPage = 1;
+            applyBookingFilter();
+        });
+
+        $('#bkSortSelect').on('change', function() {
+            bkCurrentPage = 1;
+            applyBookingFilter();
+        });
+
+        $('#bkPagePrev').on('click', function() {
+            bkCurrentPage = Math.max(1, bkCurrentPage - 1);
+            applyBookingFilter();
+        });
+        $('#bkPageNext').on('click', function() {
+            bkCurrentPage = bkCurrentPage + 1;
             applyBookingFilter();
         });
 
         // Live search
         $(document).on('input.bkrsearch', '#bkSearchInput', function() {
+            bkCurrentPage = 1;
             applyBookingFilter();
         });
 
@@ -23308,6 +23517,7 @@
         let archiveStatus = 'All';
         function applyArchiveFilter() {
             const q = ($('#bkArchiveSearchInput').val() || '').trim().toLowerCase();
+            const sort = $('#bkArchiveSortSelect').val() || 'created_desc';
             let filtered = (allBookingsCache || []).filter(b => ARCHIVED_STATUSES.includes((b.status || '').toUpperCase()));
             if (archiveStatus !== 'All') {
                 filtered = filtered.filter(b => (b.status || '').toUpperCase() === archiveStatus);
@@ -23322,8 +23532,17 @@
                 );
             }
             $('#bkArchiveStat-All').text((allBookingsCache || []).filter(b => ARCHIVED_STATUSES.includes((b.status || '').toUpperCase())).length);
-            $('#bkArchiveResultCount').text(filtered.length + ' booking' + (filtered.length !== 1 ? 's' : ''));
-            renderBookingsTable(filtered, '#bookingsArchiveListContainer');
+
+            filtered = bkSortRows(filtered, sort);
+            const { pageRows, page } = bkPaginate(filtered, bkArchiveCurrentPage, '#bkArchivePaginationBar', '#bkArchivePagePrev', '#bkArchivePageNext', '#bkArchivePageIndicator');
+            bkArchiveCurrentPage = page;
+            const rangeStart = filtered.length ? (page - 1) * BK_PAGE_SIZE + 1 : 0;
+            const rangeEnd = Math.min(page * BK_PAGE_SIZE, filtered.length);
+            $('#bkArchiveResultCount').text(filtered.length
+                ? (rangeStart + '–' + rangeEnd + ' of ' + filtered.length + ' booking' + (filtered.length !== 1 ? 's' : ''))
+                : '0 bookings');
+
+            renderBookingsTable(pageRows, '#bookingsArchiveListContainer');
             $('.bk-archive-pill').each(function() {
                 const s = $(this).data('status');
                 const isActive = s === archiveStatus;
@@ -23341,9 +23560,23 @@
         $(document).on('click', '.bk-archive-pill', function() {
             archiveStatus = $(this).data('status');
             $('#bkArchiveSearchInput').val('');
+            bkArchiveCurrentPage = 1;
             applyArchiveFilter();
         });
         $(document).on('input.bkarchivesearch', '#bkArchiveSearchInput', function() {
+            bkArchiveCurrentPage = 1;
+            applyArchiveFilter();
+        });
+        $('#bkArchiveSortSelect').on('change', function() {
+            bkArchiveCurrentPage = 1;
+            applyArchiveFilter();
+        });
+        $('#bkArchivePagePrev').on('click', function() {
+            bkArchiveCurrentPage = Math.max(1, bkArchiveCurrentPage - 1);
+            applyArchiveFilter();
+        });
+        $('#bkArchivePageNext').on('click', function() {
+            bkArchiveCurrentPage = bkArchiveCurrentPage + 1;
             applyArchiveFilter();
         });
         $(document).on('click', '[data-um-tab="bkPanelArchive"]', function() {
@@ -32711,6 +32944,17 @@
         $('#svcFilterCount').text(filtered.length < total ? `${filtered.length} of ${total}` : `${total} service${total !== 1 ? 's' : ''}`);
     };
 
+    // Shared open step for #svcDrawer (called from both toggleServiceForm and editService) — folds
+    // in the same drawer-stacking bookkeeping as .atl-drawer/.qb-drawer (see atlDrawerPush) so
+    // this drawer can't silently render behind another one that's already open.
+    function svcDrawerOpen() {
+        var z = atlDrawerPush('svcDrawer', function() { cancelServiceForm(); });
+        $('#svcDrawerBackdrop').css('z-index', z.backdropZ).fadeIn(200);
+        $('#svcDrawer').css('z-index', z.drawerZ).addClass('svc-drawer--open');
+        $('#svcDrawer .svc-drawer__body').scrollTop(0);
+        atlDrawerFocusEntry({ id: 'svcDrawer' });
+    }
+
     window.toggleServiceForm = function() {
         if ($('#svcDrawer').hasClass('svc-drawer--open')) { cancelServiceForm(); return; }
         $('#svcEditId').val(''); $('#svcName,#svcDesc,#svcPrice,#svcUnit,#svcBasePrice').val('');
@@ -32730,9 +32974,7 @@
         $('#svcValidFrom,#svcValidTo').val('');
         $('#svcDrawerTitle').text('New Service');
         window.togglePricingFields();
-        $('#svcDrawerBackdrop').fadeIn(200);
-        $('#svcDrawer').addClass('svc-drawer--open');
-        $('#svcDrawer .svc-drawer__body').scrollTop(0);
+        svcDrawerOpen();
     };
 
     window.togglePricingFields = function() {
@@ -32749,37 +32991,89 @@
     window.cancelServiceForm = function() {
         $('#svcDrawer').removeClass('svc-drawer--open');
         $('#svcDrawerBackdrop').fadeOut(200);
+        atlDrawerFocusEntry(atlDrawerPop('svcDrawer'));
         $('#svcEditId').val('');
     };
+
+        // ── Drawer stacking — shared by every drawer system on this page (.atl-drawer, the Quote
+        // Builder's .qb-drawer, the Services form's .svc-drawer, and the bespoke Booking-Recovery
+        // quick view) ──
+        // Every drawer of a given type shares one static CSS z-index, so when two are open at
+        // once — e.g. a secondary drawer launched from the More menu of a still-open Deal View, or
+        // the Quote Builder opened via Deal View's own "Send Quote" CTA — whichever happened to
+        // come later in the HTML source would otherwise win the paint-order tie regardless of
+        // which was actually opened more recently, burying the drawer the user just asked for
+        // behind the one they were already in. atlDrawerStack tracks every currently-open drawer
+        // (id + its own close function, since not every drawer type closes the same way) in open
+        // order; each push hands out a fresh, always-higher z-index pair so the most-recently-
+        // opened drawer is always on top, older ones stay visible-but-dimmed underneath, body
+        // scroll only unlocks once the whole stack empties (not on every single close), and Escape
+        // closes just the top of the stack — stepping back one drawer at a time — instead of every
+        // open drawer at once, so the user never loses their place in whatever's underneath.
+        let atlDrawerZ = 1050;
+        let atlDrawerStack = [];
+        function atlDrawerPush(id, closeFn) {
+            atlDrawerStack = atlDrawerStack.filter(function(e) { return e.id !== id; });
+            atlDrawerStack.push({ id: id, close: closeFn });
+            document.body.style.overflow = 'hidden';
+            atlDrawerZ += 2;
+            return { backdropZ: atlDrawerZ, drawerZ: atlDrawerZ + 1 };
+        }
+        function atlDrawerPop(id) {
+            atlDrawerStack = atlDrawerStack.filter(function(e) { return e.id !== id; });
+            if (!atlDrawerStack.length) document.body.style.overflow = '';
+            return atlDrawerStack.length ? atlDrawerStack[atlDrawerStack.length - 1] : null;
+        }
+        // Moves focus into whichever drawer is now topmost (a fresh open, or the one revealed once
+        // a stacked drawer above it closes) — tries each drawer type's own close button first, then
+        // falls back to the drawer element itself so this works regardless of internal markup.
+        function atlDrawerFocusEntry(entry) {
+            if (!entry) return;
+            setTimeout(function() {
+                var $el = $('#' + entry.id);
+                if (!$el.length) return;
+                var $target = $el.find('.atl-drawer__close, [aria-label="Close"]').first();
+                if ($target.length) { $target.trigger('focus'); return; }
+                if (!$el.attr('tabindex')) $el.attr('tabindex', '-1');
+                $el.trigger('focus');
+            }, 50);
+        }
 
         window.openAtlDrawer = function(id) {
             var $drawer = $('#' + id);
             var $backdrop = $('#' + id + 'Backdrop');
-            $backdrop.fadeIn(200);
-            $drawer.addClass('atl-drawer--open');
+            var z = atlDrawerPush(id, function() { closeAtlDrawer(id); });
+            $backdrop.css('z-index', z.backdropZ).fadeIn(200);
+            $drawer.css('z-index', z.drawerZ).addClass('atl-drawer--open');
             $drawer.find('.atl-drawer__body').scrollTop(0);
-            document.body.style.overflow = 'hidden';
             document.dispatchEvent(new CustomEvent('atl:drawerOpened', { detail: { id: id } }));
+            atlDrawerFocusEntry({ id: id });
         };
         window.closeAtlDrawer = function(id) {
             $('#' + id).removeClass('atl-drawer--open');
             $('#' + id + 'Backdrop').fadeOut(200);
-            document.body.style.overflow = '';
+            atlDrawerFocusEntry(atlDrawerPop(id));
             document.dispatchEvent(new CustomEvent('atl:drawerClosed', { detail: { id: id } }));
         };
         $(document).off('keydown.atlDrawer').on('keydown.atlDrawer', function(e) {
-            if (e.key !== 'Escape') return;
-            $('.atl-drawer--open').each(function() { closeAtlDrawer(this.id); });
+            if (e.key !== 'Escape' || !atlDrawerStack.length) return;
+            atlDrawerStack[atlDrawerStack.length - 1].close();
         });
 
     window.openQuoteDrawer = function() {
-        $('#qbDrawerBackdrop').fadeIn(200);
-        $('#quoteDrawer').addClass('qb-drawer--open');
+        // Same stacking bookkeeping as .atl-drawer (see atlDrawerPush) — the Quote Builder can be
+        // opened via Deal View's own "Send Quote" CTA while the Deal View drawer is still open
+        // behind it, and both share one static CSS z-index without this.
+        var z = atlDrawerPush('quoteDrawer', function() { closeQuoteDrawer(); });
+        $('#qbDrawerBackdrop').css('z-index', z.backdropZ).fadeIn(200);
+        $('#quoteDrawer').css('z-index', z.drawerZ).addClass('qb-drawer--open');
         $('#quoteDrawer .qb-drawer__body').scrollTop(0);
+        atlDrawerFocusEntry({ id: 'quoteDrawer' });
     };
     window.closeQuoteDrawer = function() {
         $('#quoteDrawer').removeClass('qb-drawer--open');
         $('#qbDrawerBackdrop').fadeOut(200);
+        atlDrawerFocusEntry(atlDrawerPop('quoteDrawer'));
         if (qbAutoSaveTimeout) {
             clearTimeout(qbAutoSaveTimeout);
             qbAutoSaveTimeout = null;
@@ -32827,9 +33121,7 @@
         }
         $('#svcDrawerTitle').text('Edit: ' + s.name);
         window.togglePricingFields();
-        $('#svcDrawerBackdrop').fadeIn(200);
-        $('#svcDrawer').addClass('svc-drawer--open');
-        $('#svcDrawer .svc-drawer__body').scrollTop(0);
+        svcDrawerOpen();
     };
 
     window.saveService = async function() {
@@ -35035,7 +35327,7 @@
 </div>
 
 <!-- ============================================================
-     DEAL VIEW — tabbed booking detail drawer (Overview · Quote & Contract ·
+     DEAL VIEW — tabbed booking detail drawer (Overview · Progress · Quote & Contract ·
      Invoices & Payments · Advancing · Timeline & Notes · Files)
 ============================================================ -->
 <!-- dealViewDrawer backdrop -->
@@ -35054,6 +35346,7 @@
         <div class="dv-actions" id="dvActions"></div>
         <div class="dv-tabs" role="tablist" aria-label="Deal sections" id="dvTabs">
             <button type="button" class="dv-tab" role="tab" id="dv-tab-overview"  aria-controls="dv-panel-overview"  aria-selected="true"  tabindex="0">Overview</button>
+            <button type="button" class="dv-tab" role="tab" id="dv-tab-progress" aria-controls="dv-panel-progress"  aria-selected="false" tabindex="-1">Progress</button>
             <button type="button" class="dv-tab" role="tab" id="dv-tab-offer"     aria-controls="dv-panel-offer"     aria-selected="false" tabindex="-1">Quote &amp; Contract</button>
             <button type="button" class="dv-tab" role="tab" id="dv-tab-invoices" aria-controls="dv-panel-invoices"  aria-selected="false" tabindex="-1">Invoices &amp; Payments</button>
             <button type="button" class="dv-tab" role="tab" id="dv-tab-advancing" aria-controls="dv-panel-advancing" aria-selected="false" tabindex="-1">Advancing</button>
@@ -35063,6 +35356,7 @@
     </div>
     <div class="atl-drawer__body">
         <section class="dv-panel" role="tabpanel" id="dv-panel-overview"  aria-labelledby="dv-tab-overview"  tabindex="0"></section>
+        <section class="dv-panel" role="tabpanel" id="dv-panel-progress" aria-labelledby="dv-tab-progress"  tabindex="0" hidden></section>
         <section class="dv-panel" role="tabpanel" id="dv-panel-offer"     aria-labelledby="dv-tab-offer"     tabindex="0" hidden></section>
         <section class="dv-panel" role="tabpanel" id="dv-panel-invoices" aria-labelledby="dv-tab-invoices"  tabindex="0" hidden></section>
         <section class="dv-panel" role="tabpanel" id="dv-panel-advancing" aria-labelledby="dv-tab-advancing" tabindex="0" hidden></section>

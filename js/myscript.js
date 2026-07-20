@@ -667,6 +667,7 @@ $(function() {
         var watchLinkHtml = watchUrl
             ? '<a class="ms-option__watch-link" href="' + watchUrl + '" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();"><i class="fa-solid fa-arrow-up-right-from-square"></i> Watch on ' + (watchUrl.includes('vimeo') ? 'Vimeo' : 'YouTube') + '</a>'
             : '';
+        $opt.addClass('is-playing');
         $opt.append('<div class="ms-option__embed"><iframe src="' + embedUrl + '" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>' + watchLinkHtml + '</div>');
     }
 
@@ -674,14 +675,18 @@ $(function() {
         var $row = $('#milestonesRow');
         $row.off('click.milestones keydown.milestones');
 
-        // One click both expands a panel AND plays its video, if it has one — matches the old
-        // accordion's single-click-to-watch behavior. No separate play-button click required.
+        // A click on a collapsed panel only expands it, showing its YouTube poster + play badge —
+        // never autoplays. A click on the panel that's already expanded is the "play" action: it
+        // embeds and starts the video (if there is one and it hasn't started already). This applies
+        // uniformly, including the panel that's active by default on page load.
         $row.on('click.milestones', '.ms-option', function() {
             var $opt = $(this);
-            if ($opt.hasClass('is-active')) return;
-            $row.find('.ms-option').removeClass('is-active').attr('aria-expanded', 'false').find('.ms-option__embed').remove();
+            if ($opt.hasClass('is-active')) {
+                if ($opt.attr('data-embed-url') && !$opt.find('.ms-option__embed').length) msEmbedVideo($opt);
+                return;
+            }
+            $row.find('.ms-option').removeClass('is-active is-playing').attr('aria-expanded', 'false').find('.ms-option__embed').remove();
             $opt.addClass('is-active').attr('aria-expanded', 'true');
-            msEmbedVideo($opt);
         });
 
         $row.on('keydown.milestones', '.ms-option', function(e) {
@@ -695,7 +700,18 @@ $(function() {
             const response = await fetch('/api/public/highlights');
             const data = await response.json();
             if (Array.isArray(data)) {
-                parsed = data;
+                // The API's own order is admin-entry order (display_order is unused/null today,
+                // so it falls back to created_at DESC), which has no relation to the highlight's
+                // year. The public timeline reads oldest-to-newest, so re-sort by year here —
+                // undated items (no parsable year) sort after all dated ones, oldest first among themselves.
+                parsed = data.slice().sort(function(a, b) {
+                    var ya = parseInt(a.year, 10), yb = parseInt(b.year, 10);
+                    var na = isNaN(ya), nb = isNaN(yb);
+                    if (na && nb) return 0;
+                    if (na) return 1;
+                    if (nb) return -1;
+                    return ya - yb;
+                });
             }
         } catch (err) {
             console.error("Failed to load career highlights from server:", err);
@@ -772,10 +788,9 @@ $(function() {
                 '</div>'
             );
             $row.append($opt);
-            // The first panel starts active without going through the click handler — embed its
-            // video immediately too, so a video-type highlight autoplays on page load like any
-            // other active panel, not just after the visitor clicks something else first.
-            if (index === 0 && mediaType === 'video' && embedUrl) msEmbedVideo($opt);
+            // The first panel starts expanded (is-active) without going through the click handler,
+            // but its video should NOT autoplay on page load — it shows the YouTube poster and a
+            // play badge, and only embeds once the visitor clicks it (handled in msWireInteractions).
         });
 
         msWireInteractions();
