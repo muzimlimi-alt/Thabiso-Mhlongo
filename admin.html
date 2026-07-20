@@ -28845,10 +28845,22 @@
                     }
                     showCalEventPopup(info);
                 },
-                eventDrop: function(info) {
+                eventDrop: async function(info) {
                     var props = info.event.extendedProps;
                     if (!props || props.isBgFill) { info.revert(); return; }
                     var newDate = info.event.startStr.split('T')[0];
+
+                    // Dragging a booking moves its real date/time and — on success — the server emails
+                    // the client that their event date changed (sendDateChangedEmail), with no
+                    // confirmation step before this fired. An accidental drag used to reschedule a
+                    // real booking and notify the client instantly.
+                    if (props.type === 'booking') {
+                        const confirmed = await window.notificationService.showConfirm({
+                            title: 'Reschedule booking',
+                            message: `Move this booking to ${newDate}? The client will be emailed that their event date changed.`
+                        });
+                        if (!confirmed) { info.revert(); return; }
+                    }
 
                     if (props.type === 'hold') {
                         fetch('/api/admin/calendar/hold/' + props.dbId + '/date', {
@@ -29469,7 +29481,14 @@
                     if (res.status === 409) {
                         var data = await res.json();
                         if (data.conflict) {
-                            var confirmOverride = confirm(data.message);
+                            // Was a bare native confirm() — the quote drawer's identical override
+                            // prompt already used the shared, accessible notificationService dialog
+                            // (see the Send Quote handler above); this is the same prompt, just for
+                            // manual booking creation, now using the same component.
+                            var confirmOverride = await window.notificationService.showConfirm({
+                                title: 'Scheduling conflict',
+                                message: data.message
+                            });
                             if (confirmOverride) {
                                 body.override_conflict = true;
                                 btn.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Overriding…';
