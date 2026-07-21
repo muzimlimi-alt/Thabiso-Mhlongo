@@ -1160,9 +1160,21 @@
             font-size: clamp(22px, 3.5vw, 30px);
             font-weight: 500;
             line-height: 1.1;
-            color: var(--atl-ink);
+            /* redesign.css has an unscoped h1-h6{color:var(--text-primary)!important} with no light-theme
+               override (see reference_redesign_css_heading_bleed) - it silently made every event card
+               title pure white regardless of admin theme, i.e. invisible white-on-white in light mode.
+               Matches the same !important workaround already used for .svc-drawer__header h3/.dv-empty h3. */
+            color: var(--atl-ink) !important;
             margin: 4px 0;
         }
+
+        /* .um-section-label (h3/h4/h5, used across Calendar/Financial/Events/etc. section panels) had
+           no base color rule of its own, so it fell through to the same redesign.css h1-h6!important
+           bleed as .atl-event-title above - e.g. every heading in the Events "About" tab ("About Events
+           Management", "How it works", "Common tasks") was pure white-on-white in light theme.
+           :not([style*="color"]) excludes the couple of instances that set an intentional inline
+           color (e.g. the clay-red POPIA erasure heading) - this only fixes the un-styled default case. */
+        .um-section-label:not([style*="color"]) { color: var(--atl-ink) !important; }
 
         .atl-expand-btn {
             display: inline-flex;
@@ -10073,7 +10085,7 @@
                             <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
                             <input type="search" id="eventsSearchInput" class="um-input" placeholder="Search by title or venue…">
                         </div>
-                        <button type="button" id="evtBulkToggle" class="atl-btn atl-btn--ghost" title="Select events for bulk actions">
+                        <button type="button" id="evtBulkToggle" class="atl-btn atl-btn--ghost" title="Select events for bulk actions" aria-pressed="false">
                             <i class="fa-regular fa-square-check"></i> Select
                         </button>
                     </div>
@@ -14338,7 +14350,7 @@
             var $section = $('#eventsAdmin');
             var entering = !$section.hasClass('evt-card-selectable');
             $section.toggleClass('evt-card-selectable', entering);
-            $(this).toggleClass('atl-btn--primary', entering);
+            $(this).toggleClass('atl-btn--primary', entering).attr('aria-pressed', String(entering));
             if (!entering) {
                 $('.evt-select-cb').prop('checked', false);
                 $('.atl-event-card').removeClass('evt-selected');
@@ -14358,7 +14370,7 @@
             $('.evt-select-cb').prop('checked', false);
             $('.atl-event-card').removeClass('evt-selected');
             $('#eventsAdmin').removeClass('evt-card-selectable');
-            $('#evtBulkToggle').removeClass('atl-btn--primary');
+            $('#evtBulkToggle').removeClass('atl-btn--primary').attr('aria-pressed', 'false');
             $('#evtBulkBar').hide();
         });
 
@@ -14616,6 +14628,7 @@
                 $card.find('.atl-expand-btn, .evt-expand-btn').attr('aria-expanded', 'true');
                 mountEventEditor($region.find('.evt-form-mount')[0]);
                 if (typeof initEventsPickers === 'function') initEventsPickers();
+                if (typeof window.initEventsMap === 'function') window.initEventsMap();
                 populateEventEditorFromCard(eventId);
             } else {
                 $region.removeClass('open');
@@ -14663,6 +14676,11 @@
             $('#eventsForm')[0].reset();
             $('#eventsId').val('');
             $('#eventsFallbackUrl').val('');
+            // form.reset() only touches native form controls, not this preview <img>/<div> - without
+            // this, opening "Add New Event" right after viewing any event with a poster left that
+            // event's poster visibly showing on the blank "new event" form (a misleading, unsubmitted
+            // artifact - cancelEventEdit() already clears it, this parallel reset path never did).
+            $('#evtPosterPreview').hide(); $('#evtPosterPreviewImg').attr('src', '');
             $('#eventsGcalLinkBadge').hide();
             $('#eventsLinkedBookingBadge').hide();
             $('#eventsConflictResolutionGroup').show();
@@ -14933,9 +14951,15 @@
                 });
             }
         };
-        $(function() { initEventsPickers(); });   // in case the drawer is already in the DOM by ready
+        $(function() { initEventsPickers(); if (typeof window.initEventsMap === 'function') window.initEventsMap(); });   // in case the drawer is already in the DOM by ready
         document.addEventListener('atl:drawerOpened', function(e) {
-            if (e.detail && e.detail.id === 'evtDrawer') initEventsPickers();
+            if (e.detail && e.detail.id === 'evtDrawer') {
+                initEventsPickers();
+                // initEventsMap was defined but never called anywhere - the "Venue Search (Google
+                // Maps)" field was a complete dead end, identical to the earlier-documented booking
+                // venue-search dead-end, but worse (this one never even attempted to initialize).
+                if (typeof window.initEventsMap === 'function') window.initEventsMap();
+            }
         });
 
         // Every other native <input type="date/time/datetime-local"> across the admin panel — same
@@ -14972,7 +14996,8 @@
         // Google Maps Places Autocomplete Integration for Venue
         window.initEventsMap = function() {
             var searchInput = document.getElementById('eventsVenueSearch');
-            if(window.google && window.google.maps && window.google.maps.places && searchInput) {
+            if(searchInput && !searchInput._placesInited && window.google && window.google.maps && window.google.maps.places) {
+                searchInput._placesInited = true;
                 var autocomplete = new google.maps.places.Autocomplete(searchInput);
                 autocomplete.addListener('place_changed', function() {
                     var place = autocomplete.getPlace();
