@@ -2095,6 +2095,139 @@ function initializeDatabase() {
         db.run(`CREATE INDEX IF NOT EXISTS idx_consent_audit_booking ON consent_audit(booking_id)`);
 
         // ============================================================
+        // POPIA Data Erasure — the "request" record for the right-to-erasure workflow.
+        // Deliberately NOT the same table as audit_log: this one has a mutable lifecycle
+        // status (pending -> approved/rejected -> processing -> processed/failed) that a
+        // pure append-only audit log can't represent. Every lifecycle transition still writes
+        // its own row to the existing audit_log table (table_name='popia_erasure_requests',
+        // record_id=this row's id) — this table is the searchable/reviewable request queue,
+        // audit_log remains the immutable trail of what happened and when.
+        // ============================================================
+        db.run(`CREATE TABLE IF NOT EXISTS popia_erasure_requests (
+            id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+            reference_number            TEXT UNIQUE,
+            email                       TEXT NOT NULL,
+            reason                      TEXT NOT NULL CHECK(reason IN (
+                                            'no_longer_a_client','privacy_concerns','no_longer_wish_to_be_contacted',
+                                            'duplicate_or_test_submission','incorrect_information_on_file','other'
+                                        )),
+            reason_other_text           TEXT,
+            additional_comments         TEXT,
+            consequences_acknowledged   INTEGER NOT NULL DEFAULT 0 CHECK(consequences_acknowledged IN (0,1)),
+            source                      TEXT NOT NULL DEFAULT 'public' CHECK(source IN ('public','admin')),
+            status                      TEXT NOT NULL DEFAULT 'pending',
+            requested_at                DATETIME DEFAULT CURRENT_TIMESTAMP,
+            requested_ip                TEXT,
+            requested_user_agent        TEXT,
+            reviewed_by                 INTEGER REFERENCES admins(id),
+            reviewed_by_name            TEXT,
+            reviewed_at                 DATETIME,
+            review_notes                TEXT,
+            processed_by                INTEGER REFERENCES admins(id),
+            processed_by_name           TEXT,
+            processed_at                DATETIME,
+            affected_tables_json        TEXT,
+            error_message               TEXT,
+            updated_at                  DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, () => {});
+        db.run(`CREATE INDEX IF NOT EXISTS idx_popia_requests_email       ON popia_erasure_requests(email)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_popia_requests_status     ON popia_erasure_requests(status)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_popia_requests_requested_at ON popia_erasure_requests(requested_at)`);
+
+        // One-time defensive rebuild: popia_erasure_requests.status originally shipped with an INLINE
+        // CHECK (baked in forever) instead of the trigger-based pattern used by transactions.status/
+        // contracts.status/bookings.status/etc — moved to triggers below so 'awaiting_refund' (and any
+        // future value) can be added without another rebuild. Self-verifying against the stored CREATE
+        // TABLE sql, same shape as the banners.category migration above (PRAGMA foreign_keys off/on,
+        // full BEGIN/CREATE-new/COPY/DROP/RENAME/COMMIT) — safe to run on every boot, a no-op once done.
+        db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='popia_erasure_requests'", (sqlErr, row) => {
+            if (sqlErr || !row || !row.sql.includes("CHECK(status IN")) return;
+            console.log('[migration] Removing inline status CHECK from popia_erasure_requests (moving to triggers)...');
+            db.run("PRAGMA foreign_keys=OFF", () => {
+                db.run("BEGIN TRANSACTION", (beginErr) => {
+                    if (beginErr) { console.error('[migration] BEGIN failed:', beginErr.message); return; }
+                    db.run(`CREATE TABLE popia_erasure_requests_new (
+                        id                          INTEGER PRIMARY KEY AUTOINCREMENT,
+                        reference_number            TEXT UNIQUE,
+                        email                       TEXT NOT NULL,
+                        reason                      TEXT NOT NULL CHECK(reason IN (
+                                                        'no_longer_a_client','privacy_concerns','no_longer_wish_to_be_contacted',
+                                                        'duplicate_or_test_submission','incorrect_information_on_file','other'
+                                                    )),
+                        reason_other_text           TEXT,
+                        additional_comments         TEXT,
+                        consequences_acknowledged   INTEGER NOT NULL DEFAULT 0 CHECK(consequences_acknowledged IN (0,1)),
+                        source                      TEXT NOT NULL DEFAULT 'public' CHECK(source IN ('public','admin')),
+                        status                      TEXT NOT NULL DEFAULT 'pending',
+                        requested_at                DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        requested_ip                TEXT,
+                        requested_user_agent        TEXT,
+                        reviewed_by                 INTEGER REFERENCES admins(id),
+                        reviewed_by_name            TEXT,
+                        reviewed_at                 DATETIME,
+                        review_notes                TEXT,
+                        processed_by                INTEGER REFERENCES admins(id),
+                        processed_by_name           TEXT,
+                        processed_at                DATETIME,
+                        affected_tables_json        TEXT,
+                        error_message               TEXT,
+                        updated_at                  DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )`, (createErr) => {
+                        if (createErr) { console.error('[migration] create popia_erasure_requests_new failed:', createErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                        db.run("INSERT INTO popia_erasure_requests_new SELECT * FROM popia_erasure_requests", (copyErr) => {
+                            if (copyErr) { console.error('[migration] copy popia_erasure_requests failed:', copyErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                            db.run("DROP TABLE popia_erasure_requests", (dropErr) => {
+                                if (dropErr) { console.error('[migration] drop popia_erasure_requests failed:', dropErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                                db.run("ALTER TABLE popia_erasure_requests_new RENAME TO popia_erasure_requests", (renameErr) => {
+                                    if (renameErr) { console.error('[migration] rename popia_erasure_requests_new failed:', renameErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                                    db.run(`CREATE INDEX IF NOT EXISTS idx_popia_requests_email ON popia_erasure_requests(email)`);
+                                    db.run(`CREATE INDEX IF NOT EXISTS idx_popia_requests_status ON popia_erasure_requests(status)`);
+                                    db.run(`CREATE INDEX IF NOT EXISTS idx_popia_requests_requested_at ON popia_erasure_requests(requested_at)`);
+                                    db.run("COMMIT", (commitErr) => {
+                                        db.run("PRAGMA foreign_keys=ON");
+                                        if (commitErr) { console.error('[migration] commit failed:', commitErr.message); return; }
+                                        console.log('[migration] popia_erasure_requests.status moved to trigger-based validation.');
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_popia_requests_status_insert
+        BEFORE INSERT ON popia_erasure_requests
+        WHEN NEW.status NOT IN ('pending','approved','rejected','processing','awaiting_refund','processed','failed')
+        BEGIN SELECT RAISE(ABORT, 'Invalid popia_erasure_requests.status value'); END`);
+
+        db.run(`CREATE TRIGGER IF NOT EXISTS chk_popia_requests_status_update
+        BEFORE UPDATE OF status ON popia_erasure_requests
+        WHEN NEW.status NOT IN ('pending','approved','rejected','processing','awaiting_refund','processed','failed')
+        BEGIN SELECT RAISE(ABORT, 'Invalid popia_erasure_requests.status value'); END`);
+
+        // POPIA erasure request email-ownership verification — same low-entropy-code shape as
+        // booking_access_codes, but keyed by email alone (no booking_id: there's no prior booking
+        // record to match against here, this proves mailbox ownership, not an existing account).
+        // No matching "session token" table — the raw code itself is re-verified (not re-consumed)
+        // across the preview call and the final submit call, which is the only place it's consumed.
+        db.run(`CREATE TABLE IF NOT EXISTS popia_verification_codes (
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            email       TEXT NOT NULL,
+            code_hash   TEXT NOT NULL,
+            attempts    INTEGER NOT NULL DEFAULT 0,
+            consumed    INTEGER NOT NULL DEFAULT 0,
+            expires_at  DATETIME NOT NULL,
+            created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, () => {
+            db.run(`CREATE INDEX IF NOT EXISTS idx_pvc_email ON popia_verification_codes(email, consumed)`);
+        });
+
+        // Registers the POPIA erasure OTP email as a manageable banner-registry citizen, same
+        // idempotent pattern as booking_verification_code above.
+        db.run(`INSERT OR IGNORE INTO email_template_banners (template_key, category) VALUES ('popia_verification_code', 'User Accounts & Security')`);
+
+        // ============================================================
         // Booking Recovery — abandoned booking drafts (abandoned-cart style)
         // Captures partial booking-wizard progress so admins can recover lost
         // opportunities. PII is minimised, auto-purged after 30 days (see

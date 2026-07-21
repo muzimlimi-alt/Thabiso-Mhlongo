@@ -703,6 +703,7 @@
 					<li><a href="#" data-toggle="modal" data-target="#privacyModal">Privacy Policy</a></li>
 					<li><a href="#" data-toggle="modal" data-target="#termsModal">Terms of Use</a></li>
 					<li><a href="#" id="openCookieSettings">Cookie Settings</a></li>
+					<li><a href="#" data-toggle="modal" data-target="#popiaErasureModal">POPIA Data Erasure</a></li>
 					<li><a href="admin.html">Admin Portal</a></li>
 				</ul>
 			</div>
@@ -1830,6 +1831,125 @@
                             <span class="tm-field-error" id="errTsConsent" role="alert"></span>
                         </div>
                         <button type="submit" id="testimonialSubmitBtn" class="btn btn-primary btn-block">Submit Testimonial</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade tm-modal" id="popiaErasureModal" tabindex="-1" role="dialog" aria-labelledby="popiaErasureModalLabel">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div>
+                        <h4 class="modal-title" id="popiaErasureModalLabel">
+                            <i class="fa-solid fa-user-slash"></i>POPIA Data Erasure
+                        </h4>
+                        <small class="tm-modal-subtitle">Right to request anonymisation of your personal information</small>
+                    </div>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="tm-modal-scrollbody">
+                        <div class="legal-ms">
+                            <h5><i class="fa-solid fa-circle-info"></i>What Is POPIA Data Erasure?</h5>
+                            <p>Under South Africa&rsquo;s <strong>Protection of Personal Information Act (POPIA)</strong>, you have the right to request that we anonymise the personal information we hold about you. This form lets you submit that request &mdash; our team will review it and action it in line with our data retention obligations.</p>
+
+                            <hr>
+                            <h5><i class="fa-solid fa-eraser"></i>What Gets Anonymised</h5>
+                            <p>Once approved and processed, we replace your identifying details across our systems, including:</p>
+                            <ul>
+                                <li>Your name, email address, phone number and company name on file.</li>
+                                <li>Booking and enquiry records &mdash; personal details are replaced, while the record itself is kept for business continuity.</li>
+                                <li>Newsletter subscription &mdash; removed entirely.</li>
+                                <li>Contracts, quotes and internal notes &mdash; signatures and identifying content are redacted.</li>
+                                <li>Communication and email logs referencing you.</li>
+                            </ul>
+
+                            <hr>
+                            <h5><i class="fa-solid fa-scale-balanced"></i>What We Must Retain</h5>
+                            <p>South African tax and financial record-keeping law (SARS) requires certain records to be kept for a minimum of five years. Where this applies &mdash; invoices, transaction amounts, and financial ledger entries &mdash; we retain the record but strip out your personal identifiers wherever possible. Our internal audit log, which records administrative actions for compliance purposes, is also retained in full and is not itself subject to anonymisation.</p>
+
+                            <hr>
+                            <h5><i class="fa-solid fa-triangle-exclamation"></i>How This Affects You Going Forward</h5>
+                            <ul>
+                                <li><strong>Future bookings:</strong> you'll need to submit your details again — we won't have a record to pre-fill or recognise you by.</li>
+                                <li><strong>Communication &amp; support:</strong> our team won't be able to reference your booking history when assisting you.</li>
+                                <li><strong>Newsletter:</strong> you'll be unsubscribed and will need to opt in again if you'd like to hear from us.</li>
+                                <li><strong>Contracts &amp; invoices:</strong> existing signed documents remain valid business records, but identifying content within them is redacted.</li>
+                            </ul>
+                            <p><strong>This action cannot easily be reversed.</strong> Once your data has been anonymised, the original personal details cannot be recovered.</p>
+
+                            <hr>
+                            <h5><i class="fa-solid fa-clock"></i>Processing Time</h5>
+                            <p>Requests are reviewed by our team and are typically processed within <strong>5&ndash;10 business days</strong>. You'll receive a confirmation email with a reference number when you submit, and can quote this reference in any follow-up correspondence.</p>
+
+                            <hr>
+                            <h5><i class="fa-solid fa-headset"></i>Need Help?</h5>
+                            <p>Questions about this process can be directed to <a href="mailto:bookings@thabisomhlongo.com">bookings@thabisomhlongo.com</a>. To read the legislation in full, see the <a href="https://www.gov.za/documents/protection-personal-information-act" target="_blank" rel="noopener noreferrer">Protection of Personal Information Act on gov.za</a>.</p>
+                        </div>
+                    </div>
+
+                    <hr style="border:0; border-top:1px solid var(--border-low); margin:18px 0;">
+
+                    <!-- Phase 1: email -> send a verification code. We don't act on any request until
+                         the requester proves they control the inbox, so this is always step one. -->
+                    <form id="popiaPhase1Form" class="tm-form ts-form" novalidate>
+                        <p class="ts-submit-desc" style="margin-bottom:16px;">To protect your data, we first need to verify you own this email address.</p>
+                        <div class="tm-form-group">
+                            <label for="popiaEmail" class="tm-newsletter-label">Your Email Address</label>
+                            <input type="email" id="popiaEmail" class="form-control bk-input" placeholder="you@example.com" maxlength="180" required>
+                            <span class="tm-field-error" id="errPopiaEmail" role="alert"></span>
+                        </div>
+                        <button type="submit" id="popiaSendCodeBtn" class="btn btn-primary btn-block">Send Verification Code</button>
+                    </form>
+
+                    <!-- Phase 2: enter the code just emailed. Not yet consumed on a correct match — the
+                         same code is re-verified by the final submit in Phase 3. -->
+                    <form id="popiaPhase2Form" class="tm-form ts-form" novalidate style="display:none;">
+                        <p class="ts-submit-desc" style="margin-bottom:16px;">Enter the 6-digit code we just sent to <strong id="popiaPhase2Email" style="color:var(--text-primary);"></strong>.</p>
+                        <div class="tm-form-group">
+                            <label for="popiaOtpCode" class="tm-newsletter-label">Verification Code</label>
+                            <input type="text" id="popiaOtpCode" class="form-control bk-input" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+                            <span class="tm-field-error" id="errPopiaOtpCode" role="alert"></span>
+                        </div>
+                        <button type="submit" id="popiaVerifyCodeBtn" class="btn btn-primary btn-block">Verify Code</button>
+                        <button type="button" id="popiaResendCodeBtn" class="btn btn-link btn-block" style="margin-top:6px;">Didn't get a code? Resend</button>
+                    </form>
+
+                    <!-- Phase 3: booking impact (if any) + reason/comments/acknowledgement + final submit. -->
+                    <form id="popiaPhase3Form" class="tm-form ts-form" novalidate style="display:none;">
+                        <div id="popiaBookingImpact"></div>
+                        <div class="tm-form-group">
+                            <label for="popiaReason" class="tm-newsletter-label">Reason for Request</label>
+                            <select id="popiaReason" class="form-control bk-input" required>
+                                <option value="" selected disabled>Select a reason&hellip;</option>
+                                <option value="no_longer_a_client">I am no longer a client</option>
+                                <option value="privacy_concerns">I have privacy concerns</option>
+                                <option value="no_longer_wish_to_be_contacted">I no longer wish to be contacted</option>
+                                <option value="duplicate_or_test_submission">This was a duplicate or test submission</option>
+                                <option value="incorrect_information_on_file">The information on file is incorrect</option>
+                                <option value="other">Other</option>
+                            </select>
+                            <span class="tm-field-error" id="errPopiaReason" role="alert"></span>
+                        </div>
+                        <div class="tm-form-group" id="popiaReasonOtherGroup" style="display:none;">
+                            <label for="popiaReasonOther" class="tm-newsletter-label">Please Specify</label>
+                            <input type="text" id="popiaReasonOther" class="form-control bk-input" placeholder="Tell us your reason" maxlength="500">
+                            <span class="tm-field-error" id="errPopiaReasonOther" role="alert"></span>
+                        </div>
+                        <div class="tm-form-group">
+                            <label for="popiaComments" class="tm-newsletter-label">Additional Comments <span class="tm-newsletter-label__hint">(optional)</span></label>
+                            <textarea id="popiaComments" class="form-control bk-input" rows="3" placeholder="Anything else we should know?" maxlength="2000"></textarea>
+                        </div>
+                        <div class="tm-newsletter-consent">
+                            <label class="bk-checkbox-label">
+                                <input type="checkbox" id="popiaConsequencesAck" class="bk-checkbox" required>
+                                <span class="bk-checkbox-text" id="popiaAckText">I understand this request will anonymise my personal information, cannot easily be reversed, and may affect future bookings, communication and newsletter delivery as described above.</span>
+                            </label>
+                            <span class="tm-field-error" id="errPopiaConsequencesAck" role="alert"></span>
+                        </div>
+                        <button type="submit" id="popiaErasureSubmitBtn" class="btn btn-primary btn-block">Submit Erasure Request</button>
                     </form>
                 </div>
             </div>

@@ -11938,25 +11938,63 @@
                     ============================================================ -->
                     <div class="um-panel" id="secPanelErasure">
                         <div class="row">
-                            <!-- POPIA / GDPR Data Erasure -->
                             <div class="col-md-12">
-                                <div class="atl-card" style="border-left:3px solid var(--atl-clay);">
-                                    <h4 class="um-section-label" style="color:var(--atl-clay) !important;"><i class="fa-solid fa-user-slash" style="margin-right:8px;"></i>POPIA Data Erasure</h4>
-                                    <p class="um-section-desc" style="font-size:13px;">Anonymize all personal data linked to a client email address. Financial records (bookings, invoices, transactions) are retained for the legally required 5-year period but personal identifiers are replaced. This action is irreversible.</p>
-                                    <div class="row" style="margin-top:16px;">
-                                        <div class="col-md-6">
-                                            <label style="font-size:12px;color:var(--atl-muted);display:block;margin-bottom:6px;">Client Email Address to Anonymize</label>
-                                            <div style="display:flex;gap:10px;align-items:center;">
-                                                <input type="email" id="gdprDeleteEmail" class="atl-input" placeholder="client@example.com" style="background: var(--atl-card);color: var(--atl-ink);border-color:var(--atl-line);font-size:13px;flex:1;">
-                                                <button id="btnGdprDelete" class="um-btn" style="background:var(--atl-clay);color:var(--atl-ink);border:none;padding:8px 18px;border-radius:6px;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer;">
-                                                    <i class="fa-solid fa-user-slash"></i> Anonymize
-                                                </button>
-                                            </div>
+                                <div class="atl-card">
+                                    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                                        <div>
+                                            <h4 class="um-section-label"><i class="fa-solid fa-user-slash" style="margin-right:8px;"></i>POPIA Data Erasure Requests</h4>
+                                            <p class="um-section-desc" style="font-size:13px;">Review, approve and process client requests to anonymise their personal information. Financial records (bookings, invoices, transactions) are retained for the legally required 5-year period — only personal identifiers are replaced. Processing is irreversible.</p>
                                         </div>
-                                        <div class="col-md-6" style="font-size:12px;color:var(--atl-muted-dim);padding-top:6px;">
-                                            <p style="margin:0;"><strong style="color:var(--atl-muted-dim);">What gets anonymized:</strong> Name → "POPIA ANONYMIZED", email → unique deleted alias, phone → 0000000000, company, message content, newsletter subscription.</p>
-                                            <p style="margin:6px 0 0;"><strong style="color:var(--atl-muted-dim);">What is retained:</strong> Booking IDs, invoice amounts, transaction records, dates — as required by SARS (5-year financial record obligation).</p>
+                                        <span id="popiaPendingBadge" class="atl-badge atl-badge--pending" style="display:none;"></span>
+                                    </div>
+
+                                    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:16px; margin-bottom:10px;">
+                                        <div class="um-input-wrap" style="flex:1; min-width:220px;">
+                                            <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                                            <input type="search" id="popiaSearch" placeholder="Search by email or reference…" class="um-input" oninput="debouncePopiaSearch()">
                                         </div>
+                                        <select id="popiaStatusFilter" class="atl-input" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color: var(--atl-line);font-size:12px;" onchange="popiaState.page=1; loadPopiaRequests();">
+                                            <option value="">All Statuses</option>
+                                            <option value="pending">Pending</option>
+                                            <option value="approved">Approved</option>
+                                            <option value="processing">Processing</option>
+                                            <option value="processed">Processed</option>
+                                            <option value="rejected">Rejected</option>
+                                            <option value="failed">Failed</option>
+                                        </select>
+                                        <select id="popiaSourceFilter" class="atl-input" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color: var(--atl-line);font-size:12px;" onchange="popiaState.page=1; loadPopiaRequests();">
+                                            <option value="">All Sources</option>
+                                            <option value="public">Public Website</option>
+                                            <option value="admin">Admin</option>
+                                        </select>
+                                        <input type="date" id="popiaDateFrom" class="atl-input" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color: var(--atl-line);font-size:12px;" onchange="popiaState.page=1; loadPopiaRequests();">
+                                        <input type="date" id="popiaDateTo" class="atl-input" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color: var(--atl-line);font-size:12px;" onchange="popiaState.page=1; loadPopiaRequests();">
+                                        <button class="atl-btn atl-btn--primary" style="font-size:12px; padding:5px 14px;" onclick="popiaState.page=1; loadPopiaRequests()"><i class="fa-solid fa-magnifying-glass" style="margin-right:5px;"></i>Search</button>
+                                        <button class="atl-btn atl-btn--ghost" style="font-size:12px; padding:5px 14px;" onclick="popiaExportCsv()"><i class="fa-solid fa-file-csv"></i> Export</button>
+                                        <button id="btnPopiaAnonymizeNow" class="atl-btn" style="font-size:12px; padding:5px 14px; background:var(--atl-clay); color:#fff; border:none;" onclick="openAtlDrawer('popiaAnonymizeNowDrawer')"><i class="fa-solid fa-user-slash"></i> Anonymize Now</button>
+                                    </div>
+
+                                    <div class="table-responsive">
+                                        <table class="table" style="color: var(--atl-ink-dim); background: transparent; width: 100%;">
+                                            <thead>
+                                                <tr style="color: var(--atl-amber); border-bottom: 1px solid var(--atl-line);">
+                                                    <th>Reference</th>
+                                                    <th>Email</th>
+                                                    <th>Reason</th>
+                                                    <th>Source</th>
+                                                    <th>Status</th>
+                                                    <th>Requested</th>
+                                                    <th style="text-align:right;">Actions</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="popiaRequestsBody">
+                                                <tr><td colspan="7" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Loading requests...</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div style="margin-top: 20px; display:flex; justify-content:space-between; align-items:center; border-top: 1px solid var(--atl-line); padding-top:16px; flex-wrap:wrap; gap:10px;">
+                                        <div id="popiaStats" style="font-size:13px; color: var(--atl-muted);">Showing 0 of 0 entries</div>
+                                        <div id="popiaPagination" class="um-pagination-btns"></div>
                                     </div>
                                 </div>
                             </div>
@@ -26540,6 +26578,63 @@
         </div>
     </div>
 
+    <!-- POPIA erasure request review drawer -->
+    <div id="popiaRequestDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="popiaRequestDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="popiaRequestDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="popiaRequestDrawerTitle"><i class="fa-solid fa-user-slash"></i> Erasure Request</h5>
+            <button type="button" class="atl-drawer__close" id="popiaRequestDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <div id="popiaRequestDrawerBody" style="font-size:13px; color:var(--atl-ink-dim);">
+                <div style="text-align:center; padding:40px 0; opacity:0.6;"><i class="fa fa-spinner fa-spin"></i> Loading…</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- POPIA "Anonymize Now" — admin-initiated create+process, replaces the old one-click mini-form -->
+    <div id="popiaAnonymizeNowDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="popiaAnonymizeNowDrawer" class="atl-drawer atl-drawer--480" role="dialog" aria-labelledby="popiaAnonymizeNowDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="popiaAnonymizeNowDrawerTitle"><i class="fa-solid fa-user-slash"></i> Anonymize Now</h5>
+            <button type="button" class="atl-drawer__close" id="popiaAnonymizeNowDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <form id="popiaAnonymizeNowForm" class="um-form" autocomplete="off">
+                <p class="um-section-desc" style="font-size:12px; margin-bottom:16px;">Creates a request, approves it and anonymizes the client's personal data immediately — in one step. Financial records are retained. This cannot be undone.</p>
+                <div class="um-field-group">
+                    <label class="um-label" for="popiaAnonEmail">Client Email Address</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-envelope um-input-icon"></i>
+                        <input type="email" id="popiaAnonEmail" class="um-input" placeholder="client@example.com" required>
+                    </div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="popiaAnonReason">Reason</label>
+                    <select id="popiaAnonReason" class="um-input">
+                        <option value="no_longer_a_client">No longer a client</option>
+                        <option value="privacy_concerns">Privacy concerns</option>
+                        <option value="no_longer_wish_to_be_contacted">No longer wish to be contacted</option>
+                        <option value="duplicate_or_test_submission">Duplicate or test submission</option>
+                        <option value="incorrect_information_on_file">Incorrect information on file</option>
+                        <option value="other" selected>Administrator-initiated</option>
+                    </select>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="popiaAnonComments">Notes (Optional)</label>
+                    <textarea id="popiaAnonComments" class="um-input" rows="3" placeholder="Internal note about why this is being processed directly"></textarea>
+                </div>
+                <div id="err-popiaAnonymizeNowForm" style="display:none;font-size:12px;color:var(--atl-clay);margin-top:4px;"></div>
+                <div class="um-form-actions" style="justify-content:flex-end; gap:10px;">
+                    <button type="button" class="atl-btn atl-btn--ghost" id="popiaAnonymizeNowCancelBtn">Cancel</button>
+                    <button type="submit" class="atl-btn" id="popiaAnonymizeNowSubmitBtn" style="background:var(--atl-clay); color:#fff; border:none;">
+                        <i class="fa-solid fa-user-slash"></i> Anonymize Now
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Gallery media editor drawer (Add) / docks into expanded cards (Edit) -->
     <div id="galleryDrawerBackdrop" class="atl-drawer-backdrop"></div>
     <div id="galleryDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="galleryDrawerTitle" aria-modal="true" aria-hidden="true">
@@ -27997,7 +28092,13 @@
     body.role-manager #campaignsBulkDeleteBtn,
     body.role-manager #bulkDeleteBtn,
     body.role-manager .delete-subscriber-btn,
-    body.role-manager #btnGdprDelete,
+    body.role-manager #btnPopiaAnonymizeNow,
+    body.role-manager .popia-approve-btn,
+    body.role-manager .popia-process-btn,
+    body.role-manager #popiaApproveBtn,
+    body.role-manager #popiaRejectBtn,
+    body.role-manager #popiaProcessBtn,
+    body.role-manager #popiaCompleteBtn,
     body.role-manager #inqReadDeleteBtn,
     body.role-manager #evtBulkDelete,
     body.role-manager .remove-events-action,
@@ -28013,7 +28114,13 @@
     body.role-assistant #campaignsBulkDeleteBtn,
     body.role-assistant #bulkDeleteBtn,
     body.role-assistant .delete-subscriber-btn,
-    body.role-assistant #btnGdprDelete,
+    body.role-assistant #btnPopiaAnonymizeNow,
+    body.role-assistant .popia-approve-btn,
+    body.role-assistant .popia-process-btn,
+    body.role-assistant #popiaApproveBtn,
+    body.role-assistant #popiaRejectBtn,
+    body.role-assistant #popiaProcessBtn,
+    body.role-assistant #popiaCompleteBtn,
     body.role-assistant #inqReadDeleteBtn,
     body.role-assistant #evtBulkDelete,
     body.role-assistant .remove-events-action,
@@ -32754,46 +32861,335 @@
         auditSearchTimer = setTimeout(() => { auditState.search = (qs('#auditSearch') || {}).value || ''; auditState.page = 1; loadAuditLogs(); }, 400);
     };
 
-    // --- POPIA/GDPR Data Erasure ---
-    (function() {
-        const btn = document.getElementById('btnGdprDelete');
-        if (!btn) return;
-        btn.addEventListener('click', async function() {
-            const emailEl = document.getElementById('gdprDeleteEmail');
-            const resultEl = document.getElementById('gdprDeleteResult');
-            const email = (emailEl && emailEl.value || '').trim();
-            if (!email) { 
-                window.notificationService.showError('Please enter a client email address.'); 
-                return; 
-            }
-            if (!await window.notificationService.showConfirm({ 
-                title: "Confirm Data Erasure",
-                message: 'WARNING: This will permanently anonymize all personal data for ' + email + '. Financial records are retained as required by law. This cannot be undone. Proceed?',
-                isDestructive: true 
-            })) return;
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
-            try {
-                const r = await fetch('/api/admin/gdpr/delete', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email })
-                });
-                const d = await r.json();
-                if (d.success) {
-                    window.notificationService.showSuccess(d.message || 'Data anonymized successfully.');
-                    emailEl.value = '';
+    // --- POPIA Data Erasure Request Management ---
+    let popiaState = { page: 1, limit: 20, search: '', status: '', source: '', dateFrom: '', dateTo: '' };
+    let popiaSearchTimer;
+
+    const POPIA_REASON_LABELS = {
+        no_longer_a_client: 'No longer a client',
+        privacy_concerns: 'Privacy concerns',
+        no_longer_wish_to_be_contacted: 'No longer wishes to be contacted',
+        duplicate_or_test_submission: 'Duplicate/test submission',
+        incorrect_information_on_file: 'Incorrect information on file',
+        other: 'Other'
+    };
+    const POPIA_STATUS_BADGE = {
+        pending: 'atl-badge--pending', approved: 'atl-badge--accepted', processing: 'atl-badge--warning',
+        awaiting_refund: 'atl-badge--info', processed: 'atl-badge--confirmed', rejected: 'atl-badge--cancelled', failed: 'atl-badge--cancelled'
+    };
+
+    async function popiaFetch(url, method, body) {
+        const opts = { method: method || 'GET', credentials: 'include' };
+        if (body) { opts.headers = { 'Content-Type': 'application/json' }; opts.body = JSON.stringify(body); }
+        const r = await fetch(url, opts);
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok || d.success === false) throw new Error(d.message || 'Request failed.');
+        return d;
+    }
+
+    function popiaQueryParams() {
+        const p = new URLSearchParams({ page: popiaState.page, limit: popiaState.limit });
+        if (popiaState.search) p.set('search', popiaState.search);
+        if (popiaState.status) p.set('status', popiaState.status);
+        if (popiaState.source) p.set('source', popiaState.source);
+        if (popiaState.dateFrom) p.set('date_from', popiaState.dateFrom);
+        if (popiaState.dateTo) p.set('date_to', popiaState.dateTo);
+        return p;
+    }
+
+    window.loadPopiaRequests = async function() {
+        const body = qs('#popiaRequestsBody');
+        if (!body) return;
+        body.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Loading requests...</td></tr>';
+        try {
+            popiaState.status = (qs('#popiaStatusFilter') || {}).value || '';
+            popiaState.source = (qs('#popiaSourceFilter') || {}).value || '';
+            popiaState.dateFrom = (qs('#popiaDateFrom') || {}).value || '';
+            popiaState.dateTo = (qs('#popiaDateTo') || {}).value || '';
+            const response = await fetch('/api/admin/popia/requests?' + popiaQueryParams().toString(), { credentials: 'include' });
+            if (response.status === 401) return;
+            const res = await response.json();
+            if (res && res.success) {
+                body.innerHTML = '';
+                if (!res.requests.length) {
+                    body.innerHTML = '<tr><td colspan="7" style="border:none;"><div class="atl-empty-state"><i class="fa-solid fa-user-slash" style="font-size:32px; color:var(--atl-muted); opacity:0.4;"></i><p class="atl-empty-display">No erasure requests found</p><p class="atl-empty-sub">Try adjusting your search or filters.</p></div></td></tr>';
                 } else {
-                    window.notificationService.showError(d.message || 'Anonymization failed.');
+                    res.requests.forEach(function(reqRow) { body.appendChild(renderPopiaRow(reqRow)); });
                 }
-            } catch (e) {
-                window.notificationService.showError('Network error: ' + e.message);
-            } finally {
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-user-slash"></i> Anonymize';
+                const total = parseInt(res.total) || 0;
+                const start = total === 0 ? 0 : (popiaState.page - 1) * popiaState.limit + 1;
+                const end = Math.min(popiaState.page * popiaState.limit, total);
+                var stats = qs('#popiaStats'); if (stats) stats.textContent = 'Showing ' + start + '-' + end + ' of ' + total + ' entries';
+                renderPopiaPagination(parseInt(res.totalPages) || 0);
+                updatePopiaPendingBadge();
             }
-        });
-    })();
+        } catch (e) {
+            console.error('POPIA Requests Error:', e);
+            if (body) body.innerHTML = '<tr><td colspan="7" style="border:none;"><div class="atl-empty-state"><i class="fa-solid fa-triangle-exclamation" style="font-size:32px; color:var(--atl-clay); opacity:0.6;"></i><p class="atl-empty-display">Could not load erasure requests</p><p class="atl-empty-sub">Please try again.</p></div></td></tr>';
+        }
+    };
+
+    function renderPopiaRow(r) {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
+        const badgeClass = POPIA_STATUS_BADGE[r.status] || 'atl-badge--info';
+        const reasonLabel = POPIA_REASON_LABELS[r.reason] || r.reason;
+        const date = r.requested_at ? new Date(r.requested_at).toLocaleString() : '';
+        let actions = '<button type="button" class="atl-btn atl-btn--ghost popia-view-btn" data-id="' + r.id + '" title="View"><i class="fa-solid fa-eye"></i></button>';
+        if (r.status === 'pending') {
+            actions += '<button type="button" class="atl-btn atl-btn--ghost popia-approve-btn" data-id="' + r.id + '" title="Approve" style="color:#34d399;"><i class="fa-solid fa-check"></i></button>'
+                     + '<button type="button" class="atl-btn atl-btn--ghost popia-view-btn" data-id="' + r.id + '" title="Reject (opens review)" style="color:#f87171;"><i class="fa-solid fa-xmark"></i></button>';
+        } else if (r.status === 'approved') {
+            actions += '<button type="button" class="atl-btn atl-btn--ghost popia-process-btn" data-id="' + r.id + '" title="Process — Anonymize Now" style="color:var(--atl-clay);"><i class="fa-solid fa-user-slash"></i></button>';
+        }
+        tr.innerHTML = ''
+            + '<td style="padding:12px; font-weight:bold; color: var(--atl-amber); font-family:\'JetBrains Mono\',monospace; font-size:11px;">' + escHtml(r.reference_number || '—') + '</td>'
+            + '<td style="padding:12px; font-size:12px;">' + escHtml(r.email) + '</td>'
+            + '<td style="padding:12px; font-size:12px;">' + escHtml(reasonLabel) + '</td>'
+            + '<td style="padding:12px; font-size:12px; text-transform:capitalize;">' + escHtml(r.source) + '</td>'
+            + '<td style="padding:12px;"><span class="atl-badge ' + badgeClass + '">' + escHtml(r.status) + '</span></td>'
+            + '<td style="padding:12px; font-size:11px; opacity:0.7;">' + date + '</td>'
+            + '<td style="padding:12px; text-align:right; white-space:nowrap;">' + actions + '</td>';
+        return tr;
+    }
+
+    function renderPopiaPagination(totalPages) {
+        const container = qs('#popiaPagination');
+        if (!container) return;
+        container.innerHTML = '';
+        if (totalPages <= 1) return;
+        const prev = document.createElement('button');
+        prev.className = 'um-btn um-btn--ghost' + (popiaState.page === 1 ? ' disabled' : '');
+        prev.innerHTML = '<i class="fa fa-chevron-left"></i>';
+        prev.onclick = function() { if (popiaState.page > 1) { popiaState.page--; loadPopiaRequests(); } };
+        container.appendChild(prev);
+        for (let i = 1; i <= totalPages; i++) {
+            if (totalPages > 7 && i > 5 && i < totalPages) {
+                if (i === 6) { const sp = document.createElement('span'); sp.textContent = '…'; sp.style.color = 'var(--atl-muted)'; sp.style.padding = '0 4px'; container.appendChild(sp); }
+                continue;
+            }
+            const b = document.createElement('button');
+            b.className = 'um-btn ' + (popiaState.page === i ? 'um-btn--primary' : 'um-btn--ghost');
+            b.textContent = i;
+            (function(p) { b.onclick = function() { popiaState.page = p; loadPopiaRequests(); }; })(i);
+            container.appendChild(b);
+        }
+        const next = document.createElement('button');
+        next.className = 'um-btn um-btn--ghost' + (popiaState.page === totalPages ? ' disabled' : '');
+        next.innerHTML = '<i class="fa fa-chevron-right"></i>';
+        next.onclick = function() { if (popiaState.page < totalPages) { popiaState.page++; loadPopiaRequests(); } };
+        container.appendChild(next);
+    }
+
+    window.debouncePopiaSearch = function() {
+        clearTimeout(popiaSearchTimer);
+        popiaSearchTimer = setTimeout(function() { popiaState.search = (qs('#popiaSearch') || {}).value || ''; popiaState.page = 1; loadPopiaRequests(); }, 400);
+    };
+
+    async function updatePopiaPendingBadge() {
+        try {
+            const r = await fetch('/api/admin/popia/requests?status=pending&limit=1', { credentials: 'include' });
+            const d = await r.json();
+            const badge = qs('#popiaPendingBadge');
+            if (!badge) return;
+            const total = parseInt(d && d.total) || 0;
+            if (total > 0) { badge.style.display = 'inline-flex'; badge.textContent = total + ' pending'; }
+            else { badge.style.display = 'none'; }
+        } catch (e) {}
+    }
+
+    async function openPopiaRequestDrawer(id) {
+        const bodyEl = qs('#popiaRequestDrawerBody');
+        bodyEl.innerHTML = '<div style="text-align:center; padding:40px 0; opacity:0.6;"><i class="fa fa-spinner fa-spin"></i> Loading…</div>';
+        openAtlDrawer('popiaRequestDrawer');
+        try {
+            const res = await popiaFetch('/api/admin/popia/requests/' + id);
+            const r = res.request, preview = res.preview;
+            const bookingImpact = res.booking_impact || [];
+            const pendingRefundBookingIds = res.pending_refund_booking_ids || [];
+            const badgeClass = POPIA_STATUS_BADGE[r.status] || 'atl-badge--info';
+            const reasonLabel = POPIA_REASON_LABELS[r.reason] || r.reason;
+            let affected = null;
+            try { affected = r.affected_tables_json ? JSON.parse(r.affected_tables_json) : null; } catch (e2) {}
+
+            let html = ''
+                + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">'
+                + '<span style="font-family:\'JetBrains Mono\',monospace; font-size:13px; color:var(--atl-amber);">' + escHtml(r.reference_number || '—') + '</span>'
+                + '<span class="atl-badge ' + badgeClass + '">' + escHtml(r.status) + '</span></div>'
+                + '<div class="um-field-group"><label class="um-label">Email</label><div style="font-size:14px;">' + escHtml(r.email) + '</div></div>'
+                + '<div class="um-field-group"><label class="um-label">Reason</label><div style="font-size:13px;">' + escHtml(reasonLabel) + (r.reason === 'other' && r.reason_other_text ? ' — ' + escHtml(r.reason_other_text) : '') + '</div></div>'
+                + (r.additional_comments ? '<div class="um-field-group"><label class="um-label">Additional Comments</label><div style="font-size:13px; white-space:pre-wrap;">' + escHtml(r.additional_comments) + '</div></div>' : '')
+                + '<div class="um-field-group"><label class="um-label">Source</label><div style="font-size:13px; text-transform:capitalize;">' + escHtml(r.source) + ' &middot; ' + (r.requested_ip ? escHtml(r.requested_ip) : 'IP not recorded') + '</div></div>'
+                + '<div class="um-field-group"><label class="um-label">Requested</label><div style="font-size:13px;">' + (r.requested_at ? new Date(r.requested_at).toLocaleString() : '—') + '</div></div>'
+                + (r.reviewed_at ? '<div class="um-field-group"><label class="um-label">Reviewed</label><div style="font-size:13px;">' + new Date(r.reviewed_at).toLocaleString() + ' by ' + escHtml(r.reviewed_by_name || '—') + (r.review_notes ? '<br><span style="opacity:0.8;">' + escHtml(r.review_notes) + '</span>' : '') + '</div></div>' : '')
+                + (r.processed_at ? '<div class="um-field-group"><label class="um-label">Processed</label><div style="font-size:13px;">' + new Date(r.processed_at).toLocaleString() + ' by ' + escHtml(r.processed_by_name || '—') + '</div></div>' : '')
+                + (r.error_message ? '<div class="um-field-group"><label class="um-label" style="color:var(--atl-clay);">Error</label><div style="font-size:12px; color:var(--atl-clay);">' + escHtml(r.error_message) + '</div></div>' : '')
+                + '<hr class="um-divider">'
+                + '<div class="um-field-group"><label class="um-label">' + (affected ? 'Records Anonymized' : 'Records That Will Be Affected') + '</label>'
+                + '<div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 16px; font-size:12px;">'
+                + Object.entries(affected || preview || {}).map(function(entry) {
+                    return '<div style="display:flex; justify-content:space-between; border-bottom:1px dashed var(--atl-line); padding-bottom:2px;"><span style="color:var(--atl-muted);">' + escHtml(entry[0].replace(/_/g, ' ')) + '</span><span style="font-weight:600;">' + entry[1] + '</span></div>';
+                }).join('')
+                + '</div></div>';
+
+            if (bookingImpact.length) {
+                html += ''
+                    + '<hr class="um-divider">'
+                    + '<div class="um-field-group"><label class="um-label" style="color:var(--atl-clay);">Booking Impact' + (r.status === 'awaiting_refund' ? ' — cancelled, refund status' : ' — will be cancelled on Process') + '</label>'
+                    + bookingImpact.map(function(b) {
+                        const blocked = pendingRefundBookingIds.indexOf(b.booking_id) !== -1;
+                        const hasRefundedFigure = b.refunded_so_far !== undefined;
+                        const refundLine = hasRefundedFigure
+                            ? 'Refunded so far: R ' + parseFloat(b.refunded_so_far || 0).toFixed(2) + ' / R ' + parseFloat(b.estimated_refund_due || 0).toFixed(2) + ' due'
+                            : 'Est. refund due: R ' + parseFloat(b.estimated_refund_due || 0).toFixed(2);
+                        return '<div style="border:1px solid ' + (blocked ? 'var(--atl-clay)' : 'var(--atl-line)') + '; border-radius:8px; padding:10px 12px; margin-top:8px; font-size:12px;">'
+                            + '<div style="display:flex; justify-content:space-between; font-weight:600;"><span>#' + b.booking_id + ' — ' + escHtml(b.event_name || b.event_type || 'Event') + '</span><span>' + escHtml(b.date || '') + '</span></div>'
+                            + (b.policy_rule ? '<div style="color:var(--atl-muted); margin-top:4px;">' + escHtml(b.policy_rule) + '</div>' : '')
+                            + '<div style="display:flex; justify-content:space-between; margin-top:6px;"><span>Amount paid: R ' + parseFloat(b.amount_paid || 0).toFixed(2) + '</span><span style="color:var(--atl-clay); font-weight:600;">' + refundLine + '</span></div>'
+                            + (blocked ? '<div style="color:var(--atl-clay); margin-top:6px;"><i class="fa-solid fa-triangle-exclamation"></i> Blocking anonymization until this refund is recorded</div>' : '')
+                            + '</div>';
+                    }).join('')
+                    + '</div>';
+            }
+
+            if (r.status === 'awaiting_refund') {
+                html += '<div class="um-form-actions" style="justify-content:flex-end; gap:10px; margin-top:12px;">'
+                    + '<button type="button" class="atl-btn" style="background:var(--atl-clay); color:#fff; border:none;" id="popiaCompleteBtn"' + (pendingRefundBookingIds.length ? ' disabled title="Record the refund(s) above via that booking\'s Deal View first"' : '') + '><i class="fa-solid fa-user-slash"></i> Complete Anonymization</button></div>';
+            } else if (r.status === 'pending') {
+                html += ''
+                    + '<hr class="um-divider">'
+                    + '<div class="um-field-group"><label class="um-label" for="popiaReviewNotes">Review Notes (required to reject)</label>'
+                    + '<textarea id="popiaReviewNotes" class="um-input" rows="2" placeholder="Reason for approval/rejection"></textarea></div>'
+                    + '<div class="um-form-actions" style="justify-content:flex-end; gap:10px;">'
+                    + '<button type="button" class="atl-btn" style="background:#f87171; color:#111; border:none;" id="popiaRejectBtn"><i class="fa-solid fa-xmark"></i> Reject</button>'
+                    + '<button type="button" class="atl-btn" style="background:#34d399; color:#111; border:none;" id="popiaApproveBtn"><i class="fa-solid fa-check"></i> Approve</button>'
+                    + '</div>';
+            } else if (r.status === 'approved') {
+                html += '<div class="um-form-actions" style="justify-content:flex-end; gap:10px;">'
+                    + '<button type="button" class="atl-btn" style="background:var(--atl-clay); color:#fff; border:none;" id="popiaProcessBtn"><i class="fa-solid fa-user-slash"></i> Process — Anonymize Now</button></div>';
+            }
+
+            bodyEl.innerHTML = html;
+
+            const approveBtn = qs('#popiaApproveBtn');
+            if (approveBtn) approveBtn.addEventListener('click', async function() {
+                if (!await window.notificationService.showConfirm({ title: 'Approve Erasure Request', message: 'Approve this request for ' + r.email + '? You will still need to Process it separately to anonymize the data.' })) return;
+                await popiaApprove(r.id);
+            });
+            const rejectBtn = qs('#popiaRejectBtn');
+            if (rejectBtn) rejectBtn.addEventListener('click', async function() {
+                const notes = (qs('#popiaReviewNotes') || {}).value || '';
+                if (!notes.trim()) { window.notificationService.showError('Please add review notes before rejecting.'); return; }
+                if (!await window.notificationService.showConfirm({ title: 'Reject Erasure Request', message: 'Reject this request for ' + r.email + '?', isDestructive: true })) return;
+                await popiaReject(r.id, notes);
+            });
+            const processBtn = qs('#popiaProcessBtn');
+            if (processBtn) processBtn.addEventListener('click', async function() {
+                if (!await window.notificationService.showConfirm({ title: 'Process Erasure Request', message: 'WARNING: This will permanently anonymize all personal data for ' + r.email + '. Financial records are retained. This cannot be undone. Proceed?', isDestructive: true })) return;
+                await popiaProcess(r.id);
+            });
+            const completeBtn = qs('#popiaCompleteBtn');
+            if (completeBtn) completeBtn.addEventListener('click', async function() {
+                if (!await window.notificationService.showConfirm({ title: 'Complete Anonymization', message: 'WARNING: This will permanently anonymize all personal data for ' + r.email + '. This cannot be undone. Proceed?', isDestructive: true })) return;
+                await popiaCompleteAnonymization(r.id);
+            });
+        } catch (e) {
+            bodyEl.innerHTML = '<div class="atl-empty-state"><i class="fa-solid fa-triangle-exclamation" style="font-size:28px; color:var(--atl-clay);"></i><p class="atl-empty-display">Could not load request</p></div>';
+        }
+    }
+
+    async function popiaApprove(id) {
+        try {
+            await popiaFetch('/api/admin/popia/requests/' + id + '/approve', 'PUT');
+            window.notificationService.showSuccess('Request approved.');
+            closeAtlDrawer('popiaRequestDrawer');
+            loadPopiaRequests();
+        } catch (e) { window.notificationService.showError(e.message); }
+    }
+    async function popiaReject(id, notes) {
+        try {
+            await popiaFetch('/api/admin/popia/requests/' + id + '/reject', 'PUT', { review_notes: notes });
+            window.notificationService.showSuccess('Request rejected.');
+            closeAtlDrawer('popiaRequestDrawer');
+            loadPopiaRequests();
+        } catch (e) { window.notificationService.showError(e.message); }
+    }
+    async function popiaProcess(id) {
+        try {
+            const res = await popiaFetch('/api/admin/popia/requests/' + id + '/process', 'POST');
+            window.notificationService.showSuccess(res.awaiting_refund
+                ? 'Booking cancelled — a refund is now owing. Record it, then complete anonymization.'
+                : 'Data anonymized successfully.');
+            closeAtlDrawer('popiaRequestDrawer');
+            loadPopiaRequests();
+        } catch (e) { window.notificationService.showError(e.message); }
+    }
+    async function popiaCompleteAnonymization(id) {
+        try {
+            await popiaFetch('/api/admin/popia/requests/' + id + '/complete-anonymization', 'POST');
+            window.notificationService.showSuccess('Refund resolved — data anonymized successfully.');
+            closeAtlDrawer('popiaRequestDrawer');
+            loadPopiaRequests();
+        } catch (e) { window.notificationService.showError(e.message); }
+    }
+
+    window.popiaExportCsv = function() {
+        const p = popiaQueryParams();
+        p.delete('page'); p.delete('limit');
+        window.open('/api/admin/popia/requests/export?' + p.toString(), '_blank');
+    };
+
+    $(document).on('click', '.popia-view-btn', function() { openPopiaRequestDrawer($(this).data('id')); });
+    $(document).on('click', '.popia-approve-btn', async function() {
+        const id = $(this).data('id');
+        if (!await window.notificationService.showConfirm({ title: 'Approve Erasure Request', message: 'Approve this request? You will still need to Process it separately to anonymize the data.' })) return;
+        await popiaApprove(id);
+    });
+    $(document).on('click', '.popia-process-btn', async function() {
+        const id = $(this).data('id');
+        if (!await window.notificationService.showConfirm({ title: 'Process Erasure Request', message: 'WARNING: This will permanently anonymize all personal data for this client. Financial records are retained. This cannot be undone. Proceed?', isDestructive: true })) return;
+        await popiaProcess(id);
+    });
+    $(document).on('click', '#popiaRequestDrawerClose, #popiaRequestDrawerBackdrop', function() {
+        closeAtlDrawer('popiaRequestDrawer');
+    });
+
+    // --- POPIA "Anonymize Now" (admin-initiated create + immediate process) ---
+    $(document).on('click', '#popiaAnonymizeNowCancelBtn, #popiaAnonymizeNowDrawerClose, #popiaAnonymizeNowDrawerBackdrop', function() {
+        closeAtlDrawer('popiaAnonymizeNowDrawer');
+    });
+    $(document).on('submit', '#popiaAnonymizeNowForm', async function(e) {
+        e.preventDefault();
+        const emailEl = qs('#popiaAnonEmail');
+        const email = (emailEl && emailEl.value || '').trim();
+        const reason = (qs('#popiaAnonReason') || {}).value;
+        const comments = ((qs('#popiaAnonComments') || {}).value || '').trim();
+        const errEl = qs('#err-popiaAnonymizeNowForm');
+        if (errEl) errEl.style.display = 'none';
+        if (!email) { if (errEl) { errEl.textContent = 'Please enter a client email address.'; errEl.style.display = 'block'; } return; }
+        if (!await window.notificationService.showConfirm({
+            title: 'Confirm Data Erasure',
+            message: 'WARNING: This will permanently anonymize all personal data for ' + email + '. Financial records are retained as required by law. This cannot be undone. Proceed?',
+            isDestructive: true
+        })) return;
+
+        const btn = qs('#popiaAnonymizeNowSubmitBtn');
+        const originalHtml = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+        try {
+            const res = await popiaFetch('/api/admin/popia/requests', 'POST', { email: email, reason: reason, additional_comments: comments, auto_process: true });
+            window.notificationService.showSuccess(res.message || 'Data anonymized successfully.');
+            qs('#popiaAnonymizeNowForm').reset();
+            closeAtlDrawer('popiaAnonymizeNowDrawer');
+            loadPopiaRequests();
+        } catch (e) {
+            window.notificationService.showError(e.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    });
 
     // --- Global Upload Zone Logic ---
     $(document).on('dragover dragenter', '.um-upload-zone', function(e) {
@@ -32875,6 +33271,7 @@
         });
         $('a[href="#securityAdmin"]').on('shown.bs.tab', function() {
             loadAuditLogs();
+            if (typeof loadPopiaRequests === 'function') loadPopiaRequests();
         });
         $('a[href="#servicesAdmin"]').on('shown.bs.tab', function() {
             loadAdminServices();

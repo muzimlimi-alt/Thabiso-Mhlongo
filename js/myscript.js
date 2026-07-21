@@ -1037,6 +1037,186 @@ $(function() {
         tsResetPhotoZone();
     });
 
+    // ── POPIA Data Erasure request form — 3 phases in one modal: (1) email -> send code,
+    // (2) enter code -> verify + fetch a real per-client booking/refund preview, (3) review that
+    // preview + reason/comments/acknowledgement -> submit. The email and code are carried in these
+    // two variables between phases (the code is verified-not-consumed in phase 2 so it's still
+    // valid when phase 3 re-sends it to actually create the request).
+    var popiaVerifiedEmail = '';
+    var popiaOtpCode = '';
+
+    function popiaShowPhase(n) {
+        $('#popiaPhase1Form').toggle(n === 1);
+        $('#popiaPhase2Form').toggle(n === 2);
+        $('#popiaPhase3Form').toggle(n === 3);
+    }
+
+    function popiaRenderBookingImpact(bookings) {
+        var $container = $('#popiaBookingImpact');
+        if (!bookings || !bookings.length) { $container.html(''); return; }
+        var html = '<div class="tm-form-group" style="background:rgba(212,175,55,0.06); border:1px solid var(--border-low); border-radius:6px; padding:14px 16px;">'
+            + '<p style="margin:0 0 10px; font-weight:600; color:var(--text-primary);"><i class="fa-solid fa-triangle-exclamation" style="color:var(--y-base); margin-right:6px;"></i>This will cancel the following booking(s)</p>'
+            + '<p style="margin:0 0 12px; font-size:13px; color:var(--text-secondary);">Any refund due will be processed per our Refund Policy, Terms &amp; Conditions and your booking agreement. This may delay completion of your erasure request until that refund is resolved.</p>';
+        bookings.forEach(function (b) {
+            html += '<div style="border-top:1px solid var(--border-low); padding-top:10px; margin-top:10px; font-size:13px;">'
+                + '<div style="display:flex; justify-content:space-between; font-weight:600; color:var(--text-primary);"><span>' + (b.event_name || b.event_type || 'Event') + '</span><span>' + (b.date || '') + '</span></div>'
+                + '<div style="color:var(--text-secondary); margin-top:2px;">' + (b.policy_rule || '') + '</div>'
+                + '<div style="display:flex; justify-content:space-between; margin-top:4px;"><span>Amount paid: R ' + parseFloat(b.amount_paid || 0).toFixed(2) + '</span><span style="color:var(--y-base); font-weight:600;">Estimated refund: R ' + parseFloat(b.estimated_refund_due || 0).toFixed(2) + '</span></div>'
+                + '</div>';
+        });
+        html += '</div>';
+        $container.html(html);
+    }
+
+    // Phase 1: email -> send code
+    $(document).on('submit', '#popiaPhase1Form', async function (e) {
+        e.preventDefault();
+        $('#errPopiaEmail').text('');
+        var email = $('#popiaEmail').val().trim();
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+            $('#errPopiaEmail').text('Please enter a valid email address.');
+            $('#popiaEmail').trigger('focus');
+            return;
+        }
+
+        var $btn = $('#popiaSendCodeBtn');
+        var originalHtml = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i>');
+        try {
+            const res = await fetch('/api/public/popia/request-otp', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email })
+            });
+            const result = await res.json();
+            if (!res.ok || !result.success) throw new Error(result.message || 'Could not send a verification code.');
+            popiaVerifiedEmail = email;
+            $('#popiaPhase2Email').text(email);
+            popiaShowPhase(2);
+        } catch (err) {
+            window.notificationService.showError(err.message || 'Could not send a verification code. Please try again.');
+        } finally {
+            $btn.prop('disabled', false).html(originalHtml);
+        }
+    });
+
+    // Phase 2: verify code (not yet consumed) + fetch the real booking/refund preview
+    $(document).on('submit', '#popiaPhase2Form', async function (e) {
+        e.preventDefault();
+        $('#errPopiaOtpCode').text('');
+        var code = $('#popiaOtpCode').val().trim();
+        if (!code) {
+            $('#errPopiaOtpCode').text('Please enter the verification code.');
+            $('#popiaOtpCode').trigger('focus');
+            return;
+        }
+
+        var $btn = $('#popiaVerifyCodeBtn');
+        var originalHtml = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i>');
+        try {
+            const res = await fetch('/api/public/popia/preview', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: popiaVerifiedEmail, otp_code: code })
+            });
+            const result = await res.json();
+            if (!res.ok || !result.success) throw new Error(result.message || 'That code is invalid or has expired.');
+            popiaOtpCode = code;
+            popiaRenderBookingImpact(result.bookings);
+            popiaShowPhase(3);
+        } catch (err) {
+            $('#errPopiaOtpCode').text(err.message || 'That code is invalid or has expired.');
+        } finally {
+            $btn.prop('disabled', false).html(originalHtml);
+        }
+    });
+
+    $(document).on('click', '#popiaResendCodeBtn', async function () {
+        var $btn = $(this);
+        var originalHtml = $btn.html();
+        $btn.prop('disabled', true).text('Sending…');
+        try {
+            const res = await fetch('/api/public/popia/request-otp', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: popiaVerifiedEmail })
+            });
+            const result = await res.json();
+            if (!res.ok || !result.success) throw new Error(result.message || 'Could not resend the code.');
+            window.notificationService.showSuccess('A new code has been sent.');
+        } catch (err) {
+            window.notificationService.showError(err.message || 'Could not resend the code. Please try again.');
+        } finally {
+            $btn.prop('disabled', false).html(originalHtml);
+        }
+    });
+
+    $(document).on('change', '#popiaReason', function () {
+        $('#popiaReasonOtherGroup').toggle($(this).val() === 'other');
+    });
+
+    // Phase 3: reason/comments/acknowledgement -> actually create the request (this is what
+    // consumes the OTP code server-side).
+    $(document).on('submit', '#popiaPhase3Form', async function (e) {
+        e.preventDefault();
+        var $form = $(this);
+        $form.find('.tm-field-error').text('');
+
+        var reason = $('#popiaReason').val();
+        var reasonOther = $('#popiaReasonOther').val().trim();
+        var comments = $('#popiaComments').val().trim();
+        var ack = $('#popiaConsequencesAck').is(':checked');
+
+        var firstInvalid = null;
+        function invalid($field, errId, message) {
+            $('#' + errId).text(message);
+            if (!firstInvalid) firstInvalid = $field;
+        }
+        if (!reason) invalid($('#popiaReason'), 'errPopiaReason', 'Please select a reason for your request.');
+        if (reason === 'other' && !reasonOther) invalid($('#popiaReasonOther'), 'errPopiaReasonOther', 'Please describe your reason.');
+        if (!ack) invalid($('#popiaConsequencesAck'), 'errPopiaConsequencesAck', 'Please confirm you understand the consequences before submitting.');
+        if (firstInvalid) { firstInvalid.trigger('focus'); return; }
+
+        var $btn = $('#popiaErasureSubmitBtn');
+        var originalBtnHtml = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i>');
+
+        try {
+            const res = await fetch('/api/public/popia/erasure-requests', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: popiaVerifiedEmail,
+                    otp_code: popiaOtpCode,
+                    reason: reason,
+                    reason_other_text: reason === 'other' ? reasonOther : undefined,
+                    additional_comments: comments || undefined,
+                    consequences_acknowledged: ack
+                })
+            });
+            const result = await res.json();
+            if (!res.ok || !result.success) throw new Error(result.message || 'Submission failed');
+            $('#popiaErasureModal').modal('hide');
+            window.notificationService.showSuccess(
+                (result.message || 'Your data erasure request has been received.') +
+                (result.reference_number ? ' Reference: ' + result.reference_number : '')
+            );
+        } catch (err) {
+            console.error('POPIA erasure request error:', err);
+            window.notificationService.showError(err.message || 'Could not submit your request. Please try again later.');
+        } finally {
+            $btn.prop('disabled', false).html(originalBtnHtml);
+        }
+    });
+
+    $('#popiaErasureModal').on('hidden.bs.modal', function () {
+        popiaVerifiedEmail = '';
+        popiaOtpCode = '';
+        $('#popiaPhase1Form, #popiaPhase2Form, #popiaPhase3Form').each(function () {
+            this.reset();
+            $(this).find('.tm-field-error').text('');
+        });
+        $('#popiaReasonOtherGroup').hide();
+        $('#popiaBookingImpact').html('');
+        popiaShowPhase(1);
+    });
+
 
     // 11. Dynamic Social Icons & Embeds Rendering
     async function renderSocial() {
