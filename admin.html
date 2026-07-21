@@ -818,7 +818,7 @@
             --atl-surface2:    #f1ece1;
             --atl-surface3:    #e8e2d6;
             --atl-input-bg:    #fbf9f4;
-            --atl-sidebar-bg:  #1a1a1a;   /* sidebar stays dark in light theme */
+            --atl-sidebar-bg:  #ffffff;   /* clean white sidebar, separated from --atl-paper by --atl-line */
             --atl-topbar-bg:   #ffffff;
             --atl-ink:         #1c1a16;
             --atl-ink-dim:     #2a2723;
@@ -2619,7 +2619,12 @@
             font-weight: 500 !important;
             letter-spacing: 0.25em !important;
             text-transform: uppercase !important;
-            color: var(--atl-muted-dim) !important;
+            /* Each <span> carries an inline style="color:var(--atl-amber)" (the intended design -
+               amber section labels), which this !important always silently defeated in both themes.
+               --atl-muted-dim only reaches ~3.1:1 against the new white light-theme sidebar (fails
+               WCAG AA); --atl-amber-hover restores the amber accent at ~5.2:1 in light theme and
+               remains a valid bright gold against the unchanged dark sidebar. */
+            color: var(--atl-amber-hover) !important;
         }
         .tm-admin-sidebar .nav.admin-sidebar > li > a {
             color: var(--atl-muted) !important;
@@ -2634,12 +2639,15 @@
         }
         .tm-admin-sidebar .nav.admin-sidebar > li > a:hover {
             color: var(--atl-ink) !important;
-            background: rgba(212,175,55,0.07) !important;
+            /* was a hardcoded dark-theme-amber rgba() literal, identical in both themes - light
+               theme's amber is a different, more muted gold, so this looked mismatched against a
+               light sidebar. color-mix reads the theme's own --atl-amber at all times. */
+            background: color-mix(in srgb, var(--atl-amber) 7%, transparent) !important;
         }
         .tm-admin-sidebar .nav.admin-sidebar > li > a:hover > i { color: var(--atl-amber) !important; }
         .tm-admin-sidebar .nav.admin-sidebar > li.active > a {
             color: var(--atl-amber) !important;
-            background: rgba(212,175,55,0.12) !important;
+            background: var(--atl-amber-dim) !important;
             border-left: 2px solid var(--atl-amber) !important;
         }
         .tm-admin-sidebar .nav.admin-sidebar > li.active > a > i { color: var(--atl-amber) !important; }
@@ -2874,11 +2882,42 @@
             border: 1px solid var(--atl-line) !important;
             border-radius: var(--atl-r-md) !important;
             font-family: 'Outfit', sans-serif !important;
+        }
+        /* redesign.css:4058 has ".admin-body input, .admin-body textarea, .admin-body select
+           {background:var(--bg-page)!important; color:var(--text-primary)!important; height:45px!important}"
+           - --bg-page/--text-primary are that stylesheet's OWN single-theme (always-dark) tokens with
+           no light variant, and its specificity (0,1,1) actually beats the bare-tag branches of the
+           rule just above ((0,0,1) for select/textarea). In dark theme --atl-input-bg happens to be a
+           near-identical near-black, hiding the bug completely; in light theme every plain select/
+           textarea/input rendered with a hardcoded dark background and white text regardless of theme.
+           body.admin-body-prefixing gives (0,1,2)/(0,2,1), beating it outright regardless of source order -
+           same technique already used for body.admin-body textarea's font-family below. */
+        body.admin-body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.adm-search__input),
+        body.admin-body select,
+        body.admin-body textarea,
+        body.admin-body .form-control,
+        body.admin-body .um-input,
+        body.admin-body .tm-form-input {
+            background: var(--atl-input-bg) !important;
+            color: var(--atl-ink) !important;
+            border: 1px solid var(--atl-line) !important;
+            border-radius: var(--atl-r-md) !important;
+            font-family: 'Outfit', sans-serif !important;
+            height: auto !important;
             font-size: 13px !important;
             padding: 9px 12px !important;
             min-height: 40px !important;
             transition: border-color var(--atl-t-base), box-shadow var(--atl-t-base) !important;
             color-scheme: inherit;
+        }
+        /* [type="file"] is excluded above (some are hidden behind a .um-upload-zone label and get
+           their own sizing there) but redesign.css's .admin-body input still matches it - visible
+           file inputs (e.g. #brandLogoFile, #newsletterAttachments) had the same dark-bg/white-text
+           leak via their own non-!important inline color:var(--atl-ink) losing to it. Background/
+           color only - deliberately not touching padding/height so hidden-upload-zone inputs are unaffected. */
+        body.admin-body input[type="file"] {
+            background: var(--atl-input-bg) !important;
+            color: var(--atl-ink) !important;
         }
         /* Icon-bearing .um-input-wrap inputs need extra left padding so the text clears the leading icon.
            The broad input:not(…) rule above would otherwise beat a plain selector here on source order
@@ -2978,7 +3017,22 @@
             border-color: var(--atl-amber) !important;
             box-shadow: 0 0 0 2px rgba(212,175,55,0.22) !important;
         }
+        /* redesign.css's .admin-body input:focus/etc (specificity 0,2,1) beats the rule just above
+           (0,1,1) - its border-color/box-shadow hardcode --y-base/--y-muted (dark-theme-only gold,
+           #D4AF37), so every focused field got that instead of the theme's own --atl-amber. Also
+           replaces the box-shadow's own hardcoded dark-amber rgba() literal with color-mix so the
+           ring itself is theme-aware, not just a fixed win over redesign.css. */
+        body.admin-body input:focus, body.admin-body select:focus, body.admin-body textarea:focus,
+        body.admin-body .form-control:focus, body.admin-body .um-input:focus {
+            outline: none !important;
+            border-color: var(--atl-amber) !important;
+            box-shadow: 0 0 0 2px color-mix(in srgb, var(--atl-amber) 22%, transparent) !important;
+        }
         select option { background: var(--atl-card) !important; color: var(--atl-ink) !important; }
+        /* Newsletter's select.tm-nl-input (redesign.css) hardcodes its <option> list to
+           background-color:#0c0c0c/color:#fff regardless of theme - specificity (0,1,2) beats the
+           rule just above (0,0,2). */
+        body.admin-body select option { background: var(--atl-card) !important; color: var(--atl-ink) !important; }
         label, .um-label, .tm-form-label {
             font-family: 'Outfit', sans-serif !important;
             font-size: 11px !important;
@@ -10486,7 +10540,7 @@
                                                 <button type="button" class="atl-btn atl-btn--ghost merge-field-btn" data-toggle="dropdown" data-target-input="newsletterSubject" title="Insert a personalization token" style="font-size:11px; padding:5px 10px;">
                                                     <i class="fa-solid fa-code"></i> Insert Field
                                                 </button>
-                                                <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:#282828; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.5); min-width:280px;"></ul>
+                                                <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:var(--atl-card); border:1px solid var(--atl-line); box-shadow:var(--atl-shadow-card); min-width:280px;"></ul>
                                             </div>
                                         </div>
                                         <div class="um-input-wrap">
@@ -10502,7 +10556,7 @@
                                                 <button type="button" class="atl-btn atl-btn--ghost merge-field-btn" data-toggle="dropdown" data-quill-var="newsletterQuill" title="Insert a personalization token" style="font-size:11px; padding:5px 10px;">
                                                     <i class="fa-solid fa-code"></i> Insert Field
                                                 </button>
-                                                <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:#282828; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.5); min-width:280px;"></ul>
+                                                <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:var(--atl-card); border:1px solid var(--atl-line); box-shadow:var(--atl-shadow-card); min-width:280px;"></ul>
                                             </div>
                                         </div>
                                         <textarea id="newsletterMessage" style="display:none;"></textarea>
@@ -10775,7 +10829,7 @@
                                             <button type="button" class="atl-btn atl-btn--ghost merge-field-btn" data-toggle="dropdown" data-target-input="bdaySubject" title="Insert a personalization token" style="font-size:11px; padding:5px 10px;">
                                                 <i class="fa-solid fa-code"></i> Insert Field
                                             </button>
-                                            <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:#282828; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.5); min-width:280px;"></ul>
+                                            <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:var(--atl-card); border:1px solid var(--atl-line); box-shadow:var(--atl-shadow-card); min-width:280px;"></ul>
                                         </div>
                                     </div>
                                     <div class="um-input-wrap">
@@ -10796,7 +10850,7 @@
                                             <button type="button" class="atl-btn atl-btn--ghost merge-field-btn" data-toggle="dropdown" data-quill-var="birthdayBodyQuill" title="Insert a personalization token" style="font-size:11px; padding:5px 10px;">
                                                 <i class="fa-solid fa-code"></i> Insert Field
                                             </button>
-                                            <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:#282828; border:1px solid #444; box-shadow:0 4px 12px rgba(0,0,0,0.5); min-width:280px;"></ul>
+                                            <ul class="dropdown-menu dropdown-menu-right merge-field-menu" style="background:var(--atl-card); border:1px solid var(--atl-line); box-shadow:var(--atl-shadow-card); min-width:280px;"></ul>
                                         </div>
                                     </div>
                                     <div id="bdayBodyContainer" class="atl-quill-wrap"><div id="bdayBodyEditor"></div></div>
@@ -16987,7 +17041,7 @@
                                 <button class="btn btn-link dropdown-toggle embed-kebab-btn" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" style="color: var(--atl-ink-dim); font-size: 18px; text-decoration: none; padding: 5px 10px; border: none; outline: none;">
                                     <i class="fa-solid fa-ellipsis-vertical"></i>
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-right" style="background: #282828; border: 1px solid #444; box-shadow: 0 4px 12px rgba(0,0,0,0.5); min-width: 120px;">
+                                <ul class="dropdown-menu dropdown-menu-right" style="background: var(--atl-card); border: 1px solid var(--atl-line); box-shadow: var(--atl-shadow-card); min-width: 120px;">
                                     <li><a href="#" class="edit-social-action" data-index="${index}" style="color: var(--atl-ink); padding: 8px 20px;"><i class="fa-solid fa-pencil" style="margin-right: 12px; color: var(--atl-amber);"></i>Edit</a></li>
                                     <li class="divider" style="background-color: #444; margin: 4px 0;"></li>
                                     <li><a href="#" class="remove-social-action" data-id="${item.id}" style="color: var(--atl-clay); padding: 8px 20px;"><i class="fa-solid fa-trash" style="margin-right: 12px;"></i>Delete</a></li>
@@ -17147,9 +17201,9 @@
                 if ($('#adminEmbedStyles').length === 0) {
                     $('head').append(`
                         <style id="adminEmbedStyles">
-                            .embed-kebab-btn:hover, .embed-kebab-btn:focus { color: var(--atl-ink) !important; background: rgba(255,255,255,0.1); border-radius: 50%; }
-                            .dropdown-menu > li > a.edit-embed-action:hover { background-color: #333 !important; color: var(--atl-ink) !important; }
-                            .dropdown-menu > li > a.remove-embed-action:hover { background-color: rgba(255, 77, 77, 0.1) !important; color: var(--atl-clay) !important; }
+                            .embed-kebab-btn:hover, .embed-kebab-btn:focus { color: var(--atl-ink) !important; background: var(--atl-amber-dim); border-radius: 50%; }
+                            .dropdown-menu > li > a.edit-embed-action:hover { background-color: var(--atl-surface2) !important; color: var(--atl-ink) !important; }
+                            .dropdown-menu > li > a.remove-embed-action:hover { background-color: color-mix(in srgb, var(--atl-clay) 10%, transparent) !important; color: var(--atl-clay) !important; }
                         </style>
                     `);
                 }
@@ -17217,7 +17271,7 @@
                                 <button class="btn btn-link dropdown-toggle embed-kebab-btn" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="true" style="color: var(--atl-ink-dim); font-size: 18px; text-decoration: none; padding: 5px 10px; border: none; outline: none;">
                                     <i class="fa-solid fa-ellipsis-vertical"></i>
                                 </button>
-                                <ul class="dropdown-menu dropdown-menu-right" style="background: #282828; border: 1px solid #444; box-shadow: 0 4px 12px rgba(0,0,0,0.5); min-width: 120px;">
+                                <ul class="dropdown-menu dropdown-menu-right" style="background: var(--atl-card); border: 1px solid var(--atl-line); box-shadow: var(--atl-shadow-card); min-width: 120px;">
                                     <li><a href="#" class="edit-embed-action" data-id="${item.id}" data-index="${index}" style="color: var(--atl-ink); padding: 8px 20px;"><i class="fa-solid fa-pencil" style="margin-right: 12px; color: var(--atl-amber);"></i>Edit</a></li>
                                     <li class="divider" style="background-color: #444; margin: 4px 0;"></li>
                                     <li><a href="#" class="remove-embed-action" data-id="${item.id}" style="color: var(--atl-clay); padding: 8px 20px;"><i class="fa-solid fa-trash" style="margin-right: 12px;"></i>Delete</a></li>
