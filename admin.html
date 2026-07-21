@@ -4942,19 +4942,29 @@
             transition: border-color 0.18s, box-shadow 0.18s !important;
         }
         .adm-search__input::placeholder,
-        .adm-mobile-search-inner .adm-search__input::placeholder { color: #444 !important; }
+        .adm-mobile-search-inner .adm-search__input::placeholder { color: var(--atl-placeholder) !important; }
         .adm-search__input:focus,
         .adm-mobile-search-inner .adm-search__input:focus {
             border-color: var(--atl-amber) !important;
             box-shadow: 0 0 0 2px rgba(212,175,55,0.22) !important;
             background: var(--atl-input-bg) !important;
         }
-        .adm-search__icon { left: 13px !important; top: 50% !important; transform: translateY(-50%) !important; color: #555 !important; font-size: 13px !important; }
+        .adm-search__icon { left: 13px !important; top: 50% !important; transform: translateY(-50%) !important; color: var(--atl-muted) !important; font-size: 13px !important; }
         /* The mobile panel wrapper adds 12px side padding, and the icon is positioned
            against that wrapper — so add 12px to keep it the same 13px inside the input
            (aligned with the text) as on desktop and the events search. */
         .adm-mobile-search-inner .adm-search__icon { left: 25px !important; }
-        .adm-search:focus-within .adm-search__icon { color: #D4AF37 !important; }
+        .adm-search:focus-within .adm-search__icon { color: var(--atl-amber) !important; }
+        /* redesign.css's .admin-body input (specificity 0,1,1) still beats .adm-search__input alone
+           (0,1,0) despite the dedicated block above - same root cause as every other form control
+           fixed earlier in this pass (see body.admin-body input/select/textarea nearby), just missed
+           here because this box was assumed to be fully covered by its own "dedicated" rule. */
+        body.admin-body .adm-search__input,
+        body.admin-body .adm-mobile-search-inner .adm-search__input {
+            background: var(--atl-input-bg) !important;
+            color: var(--atl-ink) !important;
+            border: 1px solid var(--atl-line) !important;
+        }
         /* Filter selects share the 40px search height for tidy, aligned toolbar rows. */
         .atl-filter-select { min-height: 40px !important; }
     </style>
