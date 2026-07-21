@@ -1176,6 +1176,15 @@
            color (e.g. the clay-red POPIA erasure heading) - this only fixes the un-styled default case. */
         .um-section-label:not([style*="color"]) { color: var(--atl-ink) !important; }
 
+        /* .um-profile-hero__name (Users admin profile card) had no dedicated style rule at all -
+           fully at the mercy of the redesign.css h1-h6 bleed, invisible in light theme. */
+        .um-profile-hero__name { color: var(--atl-ink) !important; }
+
+        /* Policies section's rendered legal-document headings (Privacy Policy/Terms/Cookie tab
+           previews - "1. Introduction", "2. Information We Collect", etc.) are plain, unstyled <h5>
+           tags with no class - fully at the mercy of the redesign.css h1-h6 bleed. */
+        #policiesAdmin h5:not([style*="color"]) { color: var(--atl-ink) !important; }
+
         .atl-expand-btn {
             display: inline-flex;
             align-items: center;
@@ -1408,7 +1417,11 @@
         }
         .atl-edit-card__title {
             margin: 0 0 4px; font-family: 'Cormorant Garamond', Georgia, serif;
-            font-size: clamp(18px,2.5vw,24px); font-weight: 500; line-height: 1.15; color: var(--atl-ink);
+            font-size: clamp(18px,2.5vw,24px); font-weight: 500; line-height: 1.15;
+            /* redesign.css h1-h6{color:var(--text-primary)!important} bleed - see
+               reference_redesign_css_heading_bleed. Widely shared card-title component
+               (Home/Career/Gallery/Branding/Testimonials/Footprint), was invisible in light theme. */
+            color: var(--atl-ink) !important;
         }
         .atl-edit-card__subtitle { color: var(--atl-amber); font-size: 13px; font-weight: 500; margin: 0 0 4px; }
         .atl-edit-card__desc {
@@ -4544,7 +4557,7 @@
         .svc-cat--travel      { background:rgba(59,130,246,.15);  color:var(--atl-blue); }
         .svc-cat--production  { background:rgba(52,211,153,.15);  color:var(--atl-sage); }
         .svc-cat--other       { background:rgba(150,150,150,.12); color:var(--atl-muted); }
-        .svc-card__name { font-family:'Cormorant Garamond',Georgia,serif; font-size:17px; font-weight:600; color:var(--atl-ink); margin:0; line-height:1.25; }
+        .svc-card__name { font-family:'Cormorant Garamond',Georgia,serif; font-size:17px; font-weight:600; color:var(--atl-ink) !important; margin:0; line-height:1.25; }
         .svc-card__desc { font-size:11px; color:var(--atl-muted); margin:0; line-height:1.4; display:-webkit-box; -webkit-line-clamp:2; line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
         .svc-card__price { display:flex; align-items:baseline; gap:8px; font-size:18px; font-weight:700; color:var(--atl-amber); margin-top:4px; }
         .svc-card__model-badge { font-size:10px; font-weight:600; color:var(--atl-muted); background:rgba(255,255,255,.05); border:1px solid var(--atl-line); border-radius:20px; padding:2px 7px; }
@@ -8800,7 +8813,7 @@
                                     <textarea id="polCancellation" class="atl-input um-input" rows="4" placeholder="Cancellations 30+ days before..."></textarea>
                                 </div>
                                 <div class="um-divider"></div>
-                                <h5 style="color: var(--atl-amber); margin-bottom:4px;"><i class="fa-solid fa-bell" style="margin-right:8px;"></i>Payment Reminder Timings</h5>
+                                <h5 style="color: var(--atl-amber) !important; margin-bottom:4px;"><i class="fa-solid fa-bell" style="margin-right:8px;"></i>Payment Reminder Timings</h5>
                                 <p class="text-muted small" style="margin-bottom:16px;">Automated reminders are sent to clients this many days before each scheduled payment due date. Duplicates are suppressed.</p>
                                 <div class="row">
                                     <div class="col-md-4">
@@ -9157,7 +9170,7 @@
                             <hr class="um-divider" style="margin-top:0;">
                             <div class="live-preview-box" style="padding:22px 20px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper);">
                                 <p id="svcPrevEyebrow" style="text-transform:uppercase; letter-spacing:2px; font-size:11px; font-weight:700; color:var(--atl-amber); margin:0 0 6px; text-align:center;">What I do</p>
-                                <h3 id="svcPrevHeading" style="text-align:center; margin:0 0 20px; color:var(--atl-ink); font-weight:400;">From the mic to the <em>moment</em></h3>
+                                <h3 id="svcPrevHeading" style="text-align:center; margin:0 0 20px; color:var(--atl-ink) !important; font-weight:400;">From the mic to the <em>moment</em></h3>
                                 <div id="svcPrevGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px;"></div>
                             </div>
                         </div>
@@ -10680,7 +10693,7 @@
                                 </div>
 
                                 <div style="background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: 10px; padding: 15px; max-height: 500px; overflow-y: auto;">
-                                    <h4 style="margin-top: 0; font-size: 13px; color: var(--atl-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; border-bottom: 1px solid var(--atl-line); padding-bottom: 10px; margin-bottom: 15px;">
+                                    <h4 style="margin-top: 0; font-size: 13px; color: var(--atl-muted) !important; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; border-bottom: 1px solid var(--atl-line); padding-bottom: 10px; margin-bottom: 15px;">
                                         <span id="subscriberCount" style="font-size: 22px; color: var(--atl-amber); font-weight: 700; text-transform: none; letter-spacing: 0;">0</span> <span id="subscriberCountLabel">Total Subscribers</span>
                                     </h4>
 
@@ -11855,7 +11868,7 @@
                             <!-- POPIA / GDPR Data Erasure -->
                             <div class="col-md-12">
                                 <div class="atl-card" style="border-left:3px solid var(--atl-clay);">
-                                    <h4 class="um-section-label" style="color:var(--atl-clay);"><i class="fa-solid fa-user-slash" style="margin-right:8px;"></i>POPIA Data Erasure</h4>
+                                    <h4 class="um-section-label" style="color:var(--atl-clay) !important;"><i class="fa-solid fa-user-slash" style="margin-right:8px;"></i>POPIA Data Erasure</h4>
                                     <p class="um-section-desc" style="font-size:13px;">Anonymize all personal data linked to a client email address. Financial records (bookings, invoices, transactions) are retained for the legally required 5-year period but personal identifiers are replaced. This action is irreversible.</p>
                                     <div class="row" style="margin-top:16px;">
                                         <div class="col-md-6">
@@ -13992,7 +14005,7 @@
                 var rows = SECTION_REGISTRY.filter(function (s) { return s.cat === cat; });
                 if (!rows.length) return;
                 html += '<div class="sec-group" data-cat="' + cat + '" style="margin-bottom:22px;">'
-                     +    '<h5 class="um-section-label" style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--atl-muted); margin:0 0 10px;">' + cat + '</h5>';
+                     +    '<h5 class="um-section-label" style="font-size:12px; text-transform:uppercase; letter-spacing:1px; color:var(--atl-muted) !important; margin:0 0 10px;">' + cat + '</h5>';
                 rows.forEach(function (s) {
                     html += '<div class="sec-row" data-key="' + s.key + '" data-search="' + secEsc((s.label + ' ' + s.desc).toLowerCase()) + '" '
                          +      'style="display:flex; align-items:center; gap:14px; padding:12px 14px; border:1px solid var(--atl-line); border-radius:10px; margin-bottom:8px; background:var(--atl-card);">'
@@ -27789,10 +27802,10 @@
 				</button>
 			</div>
 			<div class="modal-body" style="max-height:65vh;overflow-y:auto;padding:28px 30px;">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-circle-info" style="margin-right:7px;"></i>1. Introduction</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-circle-info" style="margin-right:7px;"></i>1. Introduction</h5>
 				<p>Welcome to the official website of <strong style="color: var(--atl-ink);">Thabiso Mhlongo</strong>. We respect your privacy and are committed to protecting the personal information you share with us.</p>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-database" style="margin-right:7px;"></i>2. Information We Collect</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-database" style="margin-right:7px;"></i>2. Information We Collect</h5>
 				<ul style="color:var(--atl-ink-dim);line-height:1.9;padding-left:20px;">
 					<li><strong>Contact &amp; booking forms:</strong> Name, email, phone, event details, and notes.</li>
 					<li><strong>Newsletter subscriptions:</strong> Your email address.</li>
@@ -27800,7 +27813,7 @@
 				</ul>
 				<p>We do <strong>not</strong> collect payment card details &mdash; payments are processed securely by PayFast.</p>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-gears" style="margin-right:7px;"></i>3. How We Use Your Information</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-gears" style="margin-right:7px;"></i>3. How We Use Your Information</h5>
 				<ul style="color:var(--atl-ink-dim);line-height:1.9;padding-left:20px;">
 					<li>To respond to contact and booking requests.</li>
 					<li>To send newsletters to opted-in subscribers.</li>
@@ -27809,20 +27822,20 @@
 					<li>To comply with applicable legal obligations.</li>
 				</ul>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-cookie-bite" style="margin-right:7px;"></i>4. Cookies &amp; Local Storage</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-cookie-bite" style="margin-right:7px;"></i>4. Cookies &amp; Local Storage</h5>
 				<ul style="color:var(--atl-ink-dim);line-height:1.9;padding-left:20px;">
 					<li><strong>Session cookies:</strong> Admin authentication sessions only.</li>
 					<li><strong>Local storage:</strong> Cookie consent preference and personalisation settings.</li>
 					<li><strong>Third-party embeds:</strong> YouTube, Instagram, TikTok, Facebook may set their own cookies.</li>
 				</ul>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-user-shield" style="margin-right:7px;"></i>5. Your Rights (POPIA)</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-user-shield" style="margin-right:7px;"></i>5. Your Rights (POPIA)</h5>
 				<p>Under South Africa&rsquo;s <strong style="color: var(--atl-ink);">POPIA</strong>, you have the right to access, correct, or delete your data, and to unsubscribe from newsletters at any time. Contact: <a href="mailto:bookings@thabisomhlongo.com" style="color: var(--atl-amber);">bookings@thabisomhlongo.com</a></p>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-lock" style="margin-right:7px;"></i>6. Data Security</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-lock" style="margin-right:7px;"></i>6. Data Security</h5>
 				<p>We implement bcrypt password hashing, session-based authentication, rate limiting on public forms, and duplicate submission prevention.</p>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-rotate-right" style="margin-right:7px;"></i>7. Changes to This Policy</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-rotate-right" style="margin-right:7px;"></i>7. Changes to This Policy</h5>
 				<p>We may update this policy at any time. Continued use of the website after changes constitutes acceptance of the revised policy.</p>
 			</div>
 			<div class="modal-footer" style="border-top: 1px solid var(--atl-line);display:flex;justify-content:space-between;align-items:center;padding:14px 24px;">
@@ -27851,10 +27864,10 @@
 				</button>
 			</div>
 			<div class="modal-body" style="max-height:65vh;overflow-y:auto;padding:28px 30px;">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-circle-info" style="margin-right:7px;"></i>1. Introduction</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-circle-info" style="margin-right:7px;"></i>1. Introduction</h5>
 				<p>These Terms &amp; Conditions govern your use of the official website of <strong style="color: var(--atl-ink);">Thabiso Mhlongo</strong>. By using this website, you agree to these Terms.</p>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-globe" style="margin-right:7px;"></i>2. Use of the Website</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-globe" style="margin-right:7px;"></i>2. Use of the Website</h5>
 				<ul style="color:var(--atl-ink-dim);line-height:1.9;padding-left:20px;">
 					<li>Do not access unauthorised areas or attempt to bypass security.</li>
 					<li>Do not use bots or scrapers to collect data without consent.</li>
@@ -27862,22 +27875,22 @@
 					<li>Do not impersonate others or use the site fraudulently.</li>
 				</ul>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-calendar-plus" style="margin-right:7px;"></i>3. Bookings &amp; Inquiries</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-calendar-plus" style="margin-right:7px;"></i>3. Bookings &amp; Inquiries</h5>
 				<p>Submitting a booking request does <strong>not</strong> constitute a confirmed booking. All bookings are subject to availability, management review, and a separate written agreement confirmed only upon written confirmation and receipt of any required deposit.</p>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-copyright" style="margin-right:7px;"></i>4. Intellectual Property</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-copyright" style="margin-right:7px;"></i>4. Intellectual Property</h5>
 				<p>All content is the exclusive property of Thabiso Mhlongo or licensed to him. You may not copy, reproduce, or use any content for commercial purposes without prior written consent.</p>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-triangle-exclamation" style="margin-right:7px;"></i>5. Limitation of Liability</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:7px;"></i>5. Limitation of Liability</h5>
 				<p>Thabiso Mhlongo and his management shall not be liable for any direct, indirect, or consequential damages arising from use of this website. The site is provided &ldquo;as is&rdquo; without warranties of any kind.</p>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-shield-halved" style="margin-right:7px;"></i>6. Privacy</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-shield-halved" style="margin-right:7px;"></i>6. Privacy</h5>
 				<p>Use of this website is also governed by our <a href="#" data-dismiss="modal" data-toggle="modal" data-target="#privacyModalAdmin" style="color: var(--atl-amber);">Privacy Policy</a>, incorporated into these Terms by reference.</p>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-scale-balanced" style="margin-right:7px;"></i>7. Governing Law</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-scale-balanced" style="margin-right:7px;"></i>7. Governing Law</h5>
 				<p>These Terms are governed by the laws of the <strong style="color: var(--atl-ink);">Republic of South Africa</strong>.</p>
 				<hr style="border-color: var(--atl-line);">
-				<h5 style="color: var(--atl-amber);"><i class="fa-solid fa-envelope" style="margin-right:7px;"></i>8. Contact</h5>
+				<h5 style="color: var(--atl-amber) !important;"><i class="fa-solid fa-envelope" style="margin-right:7px;"></i>8. Contact</h5>
 				<p><a href="mailto:bookings@thabisomhlongo.com" style="color: var(--atl-amber);">bookings@thabisomhlongo.com</a> &mdash; WhatsApp: <a href="https://wa.me/27843235075" target="_blank" style="color: var(--atl-amber);">+27 84 323 5075</a></p>
 			</div>
 			<div class="modal-footer" style="border-top: 1px solid var(--atl-line);display:flex;justify-content:space-between;align-items:center;padding:14px 24px;">
