@@ -3033,6 +3033,15 @@
            background-color:#0c0c0c/color:#fff regardless of theme - specificity (0,1,2) beats the
            rule just above (0,0,2). */
         body.admin-body select option { background: var(--atl-card) !important; color: var(--atl-ink) !important; }
+        /* Disabled state - the universal rules above force full-opacity background/color on every
+           input/select/textarea unconditionally (no :not(:disabled) exclusion), so a disabled field
+           would otherwise look identical to an editable one. Matches the existing .inq-crm-select:disabled
+           convention (opacity 0.6 + not-allowed cursor). */
+        input:disabled, select:disabled, textarea:disabled, .form-control:disabled, .um-input:disabled,
+        input[readonly], textarea[readonly] {
+            opacity: 0.6 !important;
+            cursor: not-allowed !important;
+        }
         label, .um-label, .tm-form-label {
             font-family: 'Outfit', sans-serif !important;
             font-size: 11px !important;
