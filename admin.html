@@ -3914,6 +3914,13 @@
             color: var(--atl-muted) !important;
         }
         #calendarAdmin .fc-day-today { background: var(--atl-amber-dim) !important; }
+        /* --atl-amber-dim is only a 12% amber tint - reads fine over the light theme's paper
+           background but nearly disappears over the dark theme's near-black one, unlike the
+           mini-calendar's solid "today" cell. Bump just this indicator in dark mode. */
+        [data-theme="dark"] #calendarAdmin .fc-day-today {
+            background: rgba(212, 175, 55, 0.22) !important;
+            box-shadow: inset 0 0 0 1px var(--atl-amber-border);
+        }
         #calendarAdmin .fc-daygrid-event {
             border-radius: var(--atl-r-sm) !important;
         }
@@ -5337,7 +5344,7 @@
                         <div class="db-stat-card" onclick="switchTab('calendarAdmin');">
                             <div class="db-stat-icon"><i class="fa-solid fa-calendar-days"></i></div>
                             <div class="db-stat-content">
-                                <span class="db-stat-label">Upcoming (Calendar)</span>
+                                <span class="db-stat-label">Calendar</span>
                                 <span class="db-stat-value" id="dashStat-calendarAdmin">...</span>
                             </div>
                         </div>
@@ -15106,7 +15113,6 @@
 
         function resetCareerForm() {
             $('#careerForm')[0].reset();
-            $('#careerIcon').val('');
             $('#careerFile').val('');
             initCareerYears();
             $('#careerVideoWarning').hide();
@@ -15126,7 +15132,6 @@
             initCareerYears();                       // ensure year options exist before setting
             $('#careerYear').val(item.year);
             $('#careerTitle').val(item.title || '');
-            $('#careerIcon').val(item.icon || '');
             $('#careerBadge').val(item.badge || '');
             $('#careerLocation').val(item.location || '');
             $('#careerDesc').val(item.description || '');
@@ -15238,7 +15243,7 @@
             var formData = new FormData();
             formData.append('year', $('#careerYear').val());
             formData.append('title', $('#careerTitle').val().trim());
-            formData.append('icon', $('#careerIcon').val());
+            formData.append('icon', '');
             formData.append('badge', $('#careerBadge').val().trim());
             formData.append('location', $('#careerLocation').val().trim());
             formData.append('description', $('#careerDesc').val().trim());
@@ -26280,20 +26285,7 @@
                             <input type="text" id="careerTitle" class="um-input" placeholder="e.g. One Man Special: 'Taxi Stories'" required>
                         </div>
                     </div>
-                    <div class="um-field-group">
-                        <label class="um-label" for="careerIcon">Milestone Icon (Optional)</label>
-                        <select id="careerIcon" class="um-input">
-                            <option value="">Default (Star)</option>
-                            <option value="mic">Microphone — Stand-Up / Live Show</option>
-                            <option value="tv">TV — Television</option>
-                            <option value="headphones">Headphones — Podcast / Radio</option>
-                            <option value="plane">Plane — Touring / Travel</option>
-                            <option value="pen">Pen — Writing</option>
-                            <option value="trophy">Trophy — Award</option>
-                            <option value="camera">Camera — Film</option>
-                            <option value="star">Star — General</option>
-                        </select>
-                    </div>
+
                     <div class="um-field-group">
                         <label class="um-label" for="careerBadge">Short Impact Label (Optional)</label>
                         <div class="um-input-wrap">
@@ -28749,7 +28741,9 @@
 
         if (!adminCalendar) {
             adminCalendar = new FullCalendar.Calendar(calendarEl, {
-                initialView: 'dayGridMonth',
+                // Month-grid cells are too narrow on phones to show more than a truncated
+                // sliver of an event title - list view reads correctly at any width.
+                initialView: window.innerWidth < 576 ? 'listMonth' : 'dayGridMonth',
                 headerToolbar: {
                     left: 'prev,next today',
                     center: 'title',
@@ -29049,7 +29043,7 @@
             const events = await res.json();
             
             if (!events || events.length === 0) {
-                listContainer.innerHTML = '<li style="color: #666; padding: 20px; text-align: center;">No upcoming events.</li>';
+                listContainer.innerHTML = '<li style="color: var(--atl-muted); padding: 20px; text-align: center;">No upcoming events.</li>';
                 return;
             }
 
@@ -29067,7 +29061,7 @@
             upcoming.sort((a, b) => new Date(a.start) - new Date(b.start));
 
             if (upcoming.length === 0) {
-                listContainer.innerHTML = '<li style="color: #666; padding: 20px; text-align: center;">No upcoming events.</li>';
+                listContainer.innerHTML = '<li style="color: var(--atl-muted); padding: 20px; text-align: center;">No upcoming events.</li>';
                 return;
             }
 
@@ -29078,19 +29072,34 @@
                 const dateStr = date.toLocaleDateString('en-ZA', { month: 'short', day: 'numeric' });
                 const timeStr = date.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' });
                 
+                // Mirrors the main calendar's eventDidMount color mapping so the same booking/hold
+                // reads as the same color everywhere, instead of collapsing every status to one dot.
                 let dotColor = 'var(--atl-amber)'; // Default gold
                 let isClickable = false;
                 let onclickAttr = '';
 
                 if (ev.extendedProps) {
                     if (ev.extendedProps.type === 'booking') {
-                        dotColor = 'var(--atl-amber)';
+                        var s = (ev.extendedProps.status || '').toUpperCase();
+                        if      (s === 'NEW' || s === 'PENDING')       dotColor = 'var(--atl-muted)';
+                        else if (s === 'QUOTED')                       dotColor = 'var(--atl-orange)';
+                        else if (s === 'ACCEPTED')                     dotColor = 'var(--atl-blue)';
+                        else if (s === 'CONFIRMED')                    dotColor = 'var(--atl-amber)';
+                        else if (s === 'COMPLETED')                    dotColor = 'var(--atl-sage)';
+                        else if (s === 'CANCELLED' || s === 'EXPIRED') dotColor = 'var(--atl-clay)';
+                        else                                           dotColor = 'var(--atl-amber)';
                         isClickable = true;
                         onclickAttr = `onclick="switchTab('bookingsAdmin'); $('#bookingStatusFilter').val('All').trigger('change'); setTimeout(() => { if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(${ev.extendedProps.dbId}, true); }, 300);"`;
                     } else if (ev.extendedProps.type === 'hold') {
-                        dotColor = '#777';
+                        var bt = (ev.extendedProps.blockType || ev.extendedProps.block_type || '').toLowerCase();
+                        if      (bt === 'travel')      dotColor = 'var(--atl-sage)';
+                        else if (bt === 'personal')    dotColor = 'var(--atl-blue)';
+                        else if (bt === 'maintenance') dotColor = 'var(--atl-orange)';
+                        else                           dotColor = 'var(--atl-clay)';
                     } else if (ev.extendedProps.type === 'event' || ev.extendedProps.type === 'public_event') {
                         dotColor = 'var(--atl-blue)';
+                    } else if (ev.extendedProps.type === 'milestone') {
+                        dotColor = ev.extendedProps.isOverdue ? 'var(--atl-clay)' : 'var(--atl-orange)';
                     }
                 }
 
@@ -29117,7 +29126,7 @@
 
         } catch (err) {
             console.error('Error fetching schedule:', err);
-            listContainer.innerHTML = '<li style="color: #666; padding: 20px; text-align: center;">Error loading events.</li>';
+            listContainer.innerHTML = '<li style="color: var(--atl-muted); padding: 20px; text-align: center;">Error loading events.</li>';
         }
     }
 
