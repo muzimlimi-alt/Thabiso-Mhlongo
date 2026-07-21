@@ -1621,6 +1621,22 @@ function startBackgroundClerk() {
             }
         });
 
+        // S7: Auto-complete standalone public events (no linked booking) whose date has passed.
+        // Booking-linked events already advance via S6 above - a standalone event (created directly
+        // in the Events module) had no equivalent, so it could sit at "Upcoming" indefinitely after
+        // the show had already happened, until an admin noticed and fixed it manually.
+        db.all(`SELECT event_id FROM events
+                WHERE booking_id IS NULL
+                AND event_status IN ('upcoming', 'live')
+                AND event_datetime < ?`, [nowLocal], (err, rows) => {
+            if (rows && rows.length > 0) {
+                rows.forEach(row => {
+                    db.run(`UPDATE events SET event_status = 'completed', modified_on = CURRENT_TIMESTAMP WHERE event_id = ?`, [row.event_id]);
+                });
+                console.log(`✓ [S7] Auto-completed ${rows.length} past standalone event(s).`);
+            }
+        });
+
         // 1. Expire unquoted PENDING bookings after 48 hours of inactivity
         db.all(`SELECT id, name, email, event_name, event_type, date FROM bookings
                 WHERE status = 'PENDING'
@@ -15008,7 +15024,7 @@ function checkEventConflicts(event_datetime, booking_id, excludeEventId, callbac
             if (conflict) return callback(null, true);
 
             db.all(
-                `SELECT id, start_time, end_time FROM date_holds 
+                `SELECT id, start_time, end_time FROM date_holds
                  WHERE hold_date = ? AND status = 'active' AND (event_id IS NULL OR event_id != ?)`,
                 [eventDateStr, excludeId], (err2, hRows) => {
                     if (err2) return callback(err2);
@@ -15023,7 +15039,37 @@ function checkEventConflicts(event_datetime, booking_id, excludeEventId, callbac
                             }
                         }
                     }
-                    callback(null, conflict);
+                    if (conflict) return callback(null, true);
+
+                    // Standalone events were never checked against each other here — only against
+                    // bookings and holds — so two public events could silently double-book the same
+                    // slot. Booking-linked events are excluded since the bookings query above already
+                    // covers them (their date/time always mirrors their booking).
+                    db.all(
+                        `SELECT event_id, event_datetime, event_end_time FROM events
+                         WHERE date(event_datetime) = ? AND event_id != ? AND booking_id IS NULL
+                           AND event_status NOT IN ('cancelled', 'draft')`,
+                        [eventDateStr, excludeId], (err3, eRows) => {
+                            if (err3) return callback(err3);
+                            if (eRows && eRows.length > 0) {
+                                if (!eventTime) {
+                                    conflict = true; // all-day event — any other event on the same day blocks
+                                } else {
+                                    for (const ev of eRows) {
+                                        const evTime = ev.event_datetime && ev.event_datetime.length > 10 ? ev.event_datetime.substring(11, 16) : null;
+                                        if (!evTime) { conflict = true; break; }
+                                        // event_end_time is stored as a full "YYYY-MM-DDTHH:MM" datetime
+                                        // (or a legacy bare "HH:MM") - timeRangesOverlap needs HH:MM only.
+                                        let evEnd = ev.event_end_time;
+                                        if (evEnd && evEnd.includes('T')) evEnd = evEnd.substring(11, 16);
+                                        if (!evEnd || !/^\d{2}:\d{2}$/.test(evEnd)) evEnd = addMinutesToTime(evTime, 60);
+                                        if (timeRangesOverlap(eventTime, eventEndTime, evTime, evEnd)) { conflict = true; break; }
+                                    }
+                                }
+                            }
+                            callback(null, conflict);
+                        }
+                    );
                 }
             );
         }
@@ -15061,7 +15107,19 @@ app.post('/api/admin/events', requireAdmin, (req, res) => {
                 if (block_type === 'hold') {
                     db.run("INSERT INTO date_holds (hold_date, hold_expires_at, status, notes, event_id) VALUES (?, datetime('now', '+30 days'), 'active', ?, ?)", [eventDateStr, `Hold for ${event_title}`, newEventId]);
                 } else if (block_type === 'booking') {
-                    db.run("INSERT INTO bookings (name, email, date, event_name, status, event_id) VALUES (?, ?, ?, ?, ?, ?)", ['Placeholder', 'placeholder@example.com', eventDateStr, event_title, 'PENDING', newEventId]);
+                    // cell/event_location/event_type/message are all NOT NULL with no default - the
+                    // original INSERT omitted them, so this branch had silently thrown a NOT NULL
+                    // constraint error and created no booking at all, every single time, since day one.
+                    db.run("INSERT INTO bookings (name, email, cell, date, event_name, event_location, event_type, message, status, event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                        ['Placeholder', 'placeholder@example.com', '0000000000', eventDateStr, event_title, venue_name || 'TBD', event_type || 'Other', `Calendar placeholder for event: ${event_title}`, 'PENDING', newEventId],
+                        function(bkErr) {
+                        if (bkErr) { console.error('[Events] Placeholder booking insert failed:', bkErr.message); return; }
+                        // bookings.event_id was set above, but the reverse events.booking_id link was
+                        // never written back - every later lookup that finds a booking FROM its event
+                        // (cancel/complete/venue-sync cascades all do "WHERE booking_id = ?") silently
+                        // found nothing for a placeholder created this way.
+                        db.run("UPDATE events SET booking_id = ? WHERE event_id = ?", [this.lastID, newEventId]);
+                    });
                 }
 
                 let gcalSynced = false;
@@ -15087,7 +15145,7 @@ app.put('/api/admin/events/:id', requireAdmin, (req, res) => {
     // (on the assumption the booking's own creation path already checked), so a booking-linked event
     // edited through this full-edit form had NO conflict re-check at all if its date changed here.
     // Mirrors the same guard PATCH /api/admin/events/:id/date already applies for the drag-reschedule case.
-    db.get("SELECT event_datetime, booking_id AS old_booking_id FROM events WHERE event_id = ?", [eventId], async (selErr, oldRow) => {
+    db.get("SELECT event_datetime, booking_id AS old_booking_id, google_calendar_event_id FROM events WHERE event_id = ?", [eventId], async (selErr, oldRow) => {
         if (selErr || !oldRow) return res.status(404).json({ success: false, error: 'Event not found' });
         const resolvedBookingIdForCheck = booking_id || oldRow.old_booking_id;
         const dateChanged = event_datetime && event_datetime !== oldRow.event_datetime;
@@ -15127,7 +15185,20 @@ app.put('/api/admin/events/:id', requireAdmin, (req, res) => {
                     }
                 }
                 let gcalSynced = false;
-                if (req.body.sync_to_gcal !== false) {
+                if (event_status === 'cancelled') {
+                    // Cancelling should drop the calendar hold entirely, not leave a stale entry
+                    // sitting on the calendar as if the event were still on. This runs regardless of
+                    // sync_to_gcal - every cancel path (single edit, the Cancel-event modal, bulk
+                    // cancel) previously passed sync_to_gcal:false specifically to skip a plain sync,
+                    // which also skipped this cleanup since it lived inside that same branch.
+                    if (oldRow.google_calendar_event_id) {
+                        // Matches the booking-cancellation pattern: null the local tracking column
+                        // unconditionally rather than gating it behind the network call's success, so
+                        // our own state can't be left stale forever by a transient Google API failure.
+                        deleteGoogleEvent(oldRow.google_calendar_event_id).catch(e => console.error('GCal delete error:', e));
+                        db.run("UPDATE events SET google_calendar_event_id = NULL WHERE event_id = ?", [eventId]);
+                    }
+                } else if (req.body.sync_to_gcal !== false) {
                     try { gcalSynced = !!(await syncEventToCalendar(eventId)); }
                     catch(e) { console.error('GCal sync error:', e); }
                 }
@@ -15139,12 +15210,17 @@ app.delete('/api/admin/events/:id', requireAdmin, requireRole(['administrator'])
     db.get("SELECT google_calendar_event_id FROM events WHERE event_id = ?", [req.params.id], (selErr, evRow) => {
         // Null out any booking that references this event before deleting to prevent dangling FK
         db.run("UPDATE bookings SET event_id = NULL WHERE event_id = ?", [req.params.id], () => {
-            db.run("DELETE FROM events WHERE event_id = ?", [req.params.id], function(err) {
-                if (err) return res.status(500).json({ success: false, error: err.message });
-                res.json({ success: true, message: 'Event deleted' });
-                if (evRow && evRow.google_calendar_event_id) {
-                    deleteGoogleEvent(evRow.google_calendar_event_id).catch(e => console.error('GCal delete error:', e));
-                }
+            // date_holds.event_id was left unhandled here - with foreign_keys=ON (see database.js),
+            // deleting an event that still had a hold referencing it (from block_type:'hold' at
+            // creation) threw a bare FOREIGN KEY constraint error instead of deleting.
+            db.run("UPDATE date_holds SET event_id = NULL WHERE event_id = ?", [req.params.id], () => {
+                db.run("DELETE FROM events WHERE event_id = ?", [req.params.id], function(err) {
+                    if (err) return res.status(500).json({ success: false, error: err.message });
+                    res.json({ success: true, message: 'Event deleted' });
+                    if (evRow && evRow.google_calendar_event_id) {
+                        deleteGoogleEvent(evRow.google_calendar_event_id).catch(e => console.error('GCal delete error:', e));
+                    }
+                });
             });
         });
     });
@@ -15205,6 +15281,12 @@ app.patch('/api/admin/events/:id/date', requireAdmin, async (req, res) => {
                         }
                     );
                 }
+                // The event's own google_calendar_event_id is a separate GCal entry from the
+                // booking's (see events.google_calendar_event_id vs bookings.google_event_id) -
+                // syncBookingToCalendar() above only refreshes the booking's copy. Without this,
+                // every calendar-drag reschedule of a public event left its own GCal entry on the
+                // old date, and a standalone (non-booking) event never got re-synced at all.
+                syncEventToCalendar(eventId).catch(e => console.error('[Event Date Change] Event GCal sync failed:', e.message));
                 res.json({ success: true, event_datetime: newDatetime });
             }
         );
