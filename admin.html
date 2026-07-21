@@ -14371,7 +14371,6 @@
                     var card = $('.atl-event-card[data-id="' + ids[i] + '"]');
                     var payload = JSON.parse(decodeURIComponent(card.attr('data-payload') || '{}'));
                     payload.event_status = 'upcoming';
-                    payload.sync_to_gcal = false;
                     await apiCall('/api/admin/events/' + ids[i], 'PUT', payload);
                 } catch(e) { console.error('[evtBulkPublish]', e); failed++; }
             }
@@ -14390,7 +14389,6 @@
                     var card = $('.atl-event-card[data-id="' + ids[i] + '"]');
                     var payload = JSON.parse(decodeURIComponent(card.attr('data-payload') || '{}'));
                     payload.event_status = 'draft';
-                    payload.sync_to_gcal = false;
                     await apiCall('/api/admin/events/' + ids[i], 'PUT', payload);
                 } catch(e) { console.error('[evtBulkUnpublish]', e); failed++; }
             }
@@ -14443,7 +14441,7 @@
                 try {
                     var card = $('.atl-event-card[data-id="' + ids[i] + '"]');
                     var payload = JSON.parse(decodeURIComponent(card.attr('data-payload') || '{}'));
-                    payload.event_status = 'postponed'; payload.sync_to_gcal = false;
+                    payload.event_status = 'postponed';
                     await apiCall('/api/admin/events/' + ids[i], 'PUT', payload);
                 } catch(e) { console.error('[evtBulkPostpone]', e); failed++; }
             }
@@ -14461,7 +14459,7 @@
                 try {
                     var card = $('.atl-event-card[data-id="' + ids[i] + '"]');
                     var payload = JSON.parse(decodeURIComponent(card.attr('data-payload') || '{}'));
-                    payload.event_status = 'completed'; payload.sync_to_gcal = false;
+                    payload.event_status = 'completed';
                     await apiCall('/api/admin/events/' + ids[i], 'PUT', payload);
                 } catch(e) { console.error('[evtBulkComplete]', e); failed++; }
             }
@@ -28789,7 +28787,9 @@
                 eventAllow: function(dropInfo, draggedEvent) {
                     const t = draggedEvent && draggedEvent.extendedProps && draggedEvent.extendedProps.type;
                     const isBg = draggedEvent && draggedEvent.extendedProps && draggedEvent.extendedProps.isBgFill;
-                    return !isBg && (t === 'booking' || t === 'hold');
+                    // 'public_event' has a full eventDrop branch (PATCH /api/admin/events/:id/date) and
+                    // server-side support already built, but was never allowed to actually start a drag.
+                    return !isBg && (t === 'booking' || t === 'hold' || t === 'public_event');
                 },
                 eventClick: function(info) {
                     const props = info.event.extendedProps || {};
@@ -28830,6 +28830,11 @@
                     }
 
                     if (props.type === 'public_event') {
+                        const confirmedEvt = await window.notificationService.showConfirm({
+                            title: 'Reschedule event',
+                            message: `Move this public event to ${newDate}? Its Google Calendar entry and ticket page date will both need to be checked afterward.`
+                        });
+                        if (!confirmedEvt) { info.revert(); return; }
                         var startStr = info.event.startStr;
                         var newTime = startStr.includes('T') ? startStr.substring(11, 16) : undefined;
                         var body = { date: newDate };
