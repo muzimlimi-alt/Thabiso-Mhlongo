@@ -33916,10 +33916,16 @@
             });
             const d = await r.json();
             if (d.success) {
-                // Emails and PDFs need absolute URLs
-                const fullUrl = d.filePath.startsWith('http') ? d.filePath : window.location.origin + '/' + d.filePath;
-                $('#' + targetInputId).val(fullUrl);
-                if (previewImgId) $('#' + previewImgId).attr('src', fullUrl).show();
+                // Store the relative path as-is (matches every other /upload consumer in this
+                // codebase — gallery, events, footprint, testimonials, etc.). Prefixing with
+                // window.location.origin baked in whatever host was open at upload time (e.g.
+                // localhost:3000 during local dev), which then silently broke on any other
+                // host/port/deployment. None of the three assets this feeds — site logo,
+                // favicon, login background — are ever rendered outside this site's own pages,
+                // so none of them need an absolute URL.
+                const relativeUrl = d.filePath;
+                $('#' + targetInputId).val(relativeUrl);
+                if (previewImgId) $('#' + previewImgId).attr('src', relativeUrl).show();
                 window.notificationService.showSuccess('Asset uploaded successfully.');
             } else {
                 window.notificationService.showError(d.message || 'Upload failed.');

@@ -635,7 +635,6 @@ $(function() {
 
     // 9. Dynamic Milestones Rendering (expanding-panel selector) — same /api/public/highlights
     // contract and image/YouTube/Vimeo trichotomy the old accordion used, new presentation only.
-    var MS_ICON_MAP = { mic: 'fa-microphone', tv: 'fa-tv', headphones: 'fa-headphones', plane: 'fa-plane', pen: 'fa-pen-nib', trophy: 'fa-trophy', camera: 'fa-camera', star: 'fa-star' };
 
     function msYouTubeVideoId(url) {
         var videoId = '';
@@ -729,7 +728,6 @@ $(function() {
 
         $row.empty();
         parsed.forEach(function(item, index) {
-            var iconClass = MS_ICON_MAP[item.icon] || MS_ICON_MAP.star;
             var media = item.image_path || '';
             var mediaType = 'none';
             var embedUrl = null;
@@ -777,7 +775,7 @@ $(function() {
             else if (mediaType === 'video' && thumbUrl) $opt.css('background-image', 'url("' + thumbUrl + '")');
 
             $opt.append('<div class="ms-option__wash"></div>');
-            $opt.append('<div class="ms-option__badge"><i class="fa-solid ' + iconClass + '"></i></div>');
+            if (item.year) $opt.append('<div class="ms-option__collapsed-year">' + item.year + '</div>');
             if (mediaType === 'video' && embedUrl) $opt.append('<div class="ms-option__video-badge" title="Includes video"><i class="fa-solid fa-play"></i></div>');
             $opt.append(
                 '<div class="ms-option__content">' +
