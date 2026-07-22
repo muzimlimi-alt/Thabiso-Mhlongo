@@ -4737,6 +4737,23 @@
             padding-bottom: max(14px, env(safe-area-inset-bottom));
             border-top: 1px solid var(--atl-line); flex-shrink: 0;
         }
+        /* "Last Updated By" meta footer — subtle caption shown at the bottom of every editable
+           record, refreshed live from each save response's `last_updated` field (see
+           js/notificationService.js's success-hook + window.showMetaFooter in admin.html).
+           Inside a real .atl-drawer__footer it sits as the first flex child (margin-right:auto
+           pushes Save/Cancel to the right); the --standalone variant is used when JS inserts it
+           just above a bare .um-form-actions row instead (drawers with no dedicated footer bar). */
+        .atl-meta-footer {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 11px; color: var(--atl-muted-dim);
+            margin-right: auto;
+        }
+        .atl-meta-footer i { font-size: 10px; }
+        .atl-meta-footer strong { color: var(--atl-muted); font-weight: 600; }
+        .atl-meta-footer--standalone {
+            width: 100%; margin: 4px 0 0;
+            padding: 10px 2px 0; border-top: 1px solid var(--atl-line);
+        }
         @media (max-width: 640px) {
             .atl-drawer { width: 100vw !important; }
             .atl-drawer__body { padding: 16px; }
@@ -11406,6 +11423,14 @@
                         </div>
                     </div>
 
+                    <!-- Save Identity dock -->
+                    <div class="atl-save-dock">
+                        <span class="atl-save-dock__hint">Changes apply across the site &amp; emails after saving.</span>
+                        <button type="button" class="atl-btn atl-btn--primary" onclick="saveBranding('identity')">
+                            <i class="fa-solid fa-floppy-disk"></i> Save Identity
+                        </button>
+                    </div>
+
                     </div>
 
                     <div class="um-panel" id="brandPanelEmail">
@@ -11553,8 +11578,16 @@
                             </div>
                             <p class="um-section-desc" style="margin-top:12px; font-size:12px; display:flex; align-items:flex-start; gap:6px;">
                                 <i class="fa-solid fa-circle-info" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span>Click <strong style="color:var(--atl-ink);">Save Branding</strong> to apply. To remove it, clear the URL field and save &mdash; the sign-in screen returns to its default background.</span>
+                                <span>Click <strong style="color:var(--atl-ink);">Save Site Settings</strong> to apply. To remove it, clear the URL field and save &mdash; the sign-in screen returns to its default background.</span>
                             </p>
+                        </div>
+
+                        <!-- Save Site Settings dock -->
+                        <div class="atl-save-dock">
+                            <span class="atl-save-dock__hint">Changes apply to the admin sign-in screen after saving.</span>
+                            <button type="button" class="atl-btn atl-btn--primary" onclick="saveBranding('site')">
+                                <i class="fa-solid fa-floppy-disk"></i> Save Site Settings
+                            </button>
                         </div>
 
                     </div>
@@ -11633,14 +11666,6 @@
                                 <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">About Me</strong> and <strong style="color:var(--atl-ink);">Home Slider</strong> for the public content this styles; <strong style="color:var(--atl-ink);">Newsletter</strong>, which wraps campaigns in this brand; and <strong style="color:var(--atl-ink);">System Settings</strong> for the mail server behind branded emails.</span>
                             </p>
                         </div>
-                    </div>
-
-                    <!-- Sticky save dock — keeps Save reachable without scrolling to the top (esp. mobile) -->
-                    <div class="atl-save-dock">
-                        <span class="atl-save-dock__hint">Changes apply across the site &amp; emails after saving.</span>
-                        <button class="atl-btn atl-btn--primary" onclick="saveBranding()">
-                            <i class="fa-solid fa-floppy-disk"></i> Save Branding
-                        </button>
                     </div>
                 </div>
             </div>
@@ -11903,7 +11928,17 @@
                                         </div>
                                         <select id="auditTableFilter" class="atl-input" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color: var(--atl-line);font-size:12px;">
                                             <option value="">All Tables</option>
-                                            <option>bookings</option><option>invoices</option><option>transactions</option><option>cancellations</option><option>quotations</option>
+                                            <option value="bookings">Bookings</option>
+                                            <option value="admins">Users</option>
+                                            <option value="events">Events</option>
+                                            <option value="date_holds">Calendar</option>
+                                            <option value="gallery_images">Gallery</option>
+                                            <option value="inquiries">Inquiries</option>
+                                            <option value="invoices">Invoices</option>
+                                            <option value="transactions">Financials</option>
+                                            <option value="cancellations">Cancellations</option>
+                                            <option value="quotations">Quotations</option>
+                                            <option value="contracts">Contracts</option>
                                         </select>
                                         <input type="date" id="auditDateFrom" class="atl-input" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color: var(--atl-line);font-size:12px;" placeholder="From">
                                         <input type="date" id="auditDateTo" class="atl-input" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color: var(--atl-line);font-size:12px;" placeholder="To">
@@ -11916,11 +11951,14 @@
                                                     <th style="cursor:pointer;" onclick="toggleAuditSort('table_name')" aria-sort="none">Event <i class="fa-solid fa-sort" id="auditsort-table_name" style="font-size:10px; margin-left:5px; opacity:0.5;"></i></th>
                                                     <th>Section</th>
                                                     <th style="cursor:pointer;" onclick="toggleAuditSort('action')" aria-sort="none">Action <i class="fa-solid fa-sort" id="auditsort-action" style="font-size:10px; margin-left:5px; opacity:0.5;"></i></th>
+                                                    <th>Updated By</th>
+                                                    <th>Role</th>
+                                                    <th>IP Address</th>
                                                     <th style="cursor:pointer;" onclick="toggleAuditSort('change_timestamp')" aria-sort="descending">Timestamp <i class="fa-solid fa-sort-down" id="auditsort-change_timestamp" style="font-size:10px; margin-left:5px; opacity:1;"></i></th>
                                                 </tr>
                                             </thead>
                                             <tbody id="auditLogsBody">
-                                                <tr><td colspan="4" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Initializing log stream...</td></tr>
+                                                <tr><td colspan="7" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Initializing log stream...</td></tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -12095,6 +12133,78 @@
         window.qs = (sel, ctx) => (ctx || document).querySelector(sel);
         window.qsa = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
         window.escHtml = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        // --- "Last Updated By" meta footer (shared across every editable drawer/modal/panel) ---
+        // Renders from a save response's `last_updated: {name, role, at}` field. The global fetch
+        // interceptor (js/notificationService.js) calls showMetaFooter automatically whenever a
+        // response has this shape, so individual save handlers don't need to call this directly —
+        // it's exposed on window mainly for Deal View's per-tab override and manual refresh cases.
+        window.renderMetaFooterHtml = function(meta) {
+            if (!meta || !meta.name) return '';
+            var roleLabel = meta.role ? (meta.role.charAt(0).toUpperCase() + meta.role.slice(1)) : '';
+            var whenStr = '';
+            if (meta.at) {
+                var d = new Date(meta.at);
+                if (!isNaN(d.getTime())) {
+                    var datePart = d.toLocaleDateString('en-ZA', { day: 'numeric', month: 'long', year: 'numeric' });
+                    var timePart = d.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit', hour12: false });
+                    whenStr = datePart + ' at ' + timePart;
+                }
+            }
+            return '<div class="atl-meta-footer"><i class="fa-solid fa-clock-rotate-left"></i><span>Last updated by <strong>' +
+                window.escHtml(meta.name) + '</strong>' + (roleLabel ? ' (' + window.escHtml(roleLabel) + ')' : '') +
+                (whenStr ? ' &middot; ' + whenStr : '') + '</span></div>';
+        };
+
+        // Renders/replaces the meta footer inside `container` (a drawer or panel root element).
+        // Prefers a real .atl-drawer__footer if one exists; otherwise inserts a standalone block
+        // just above .um-form-actions (covers the ~19 drawers with no dedicated footer bar).
+        window.showMetaFooter = function(container, meta) {
+            if (!container) return;
+            var old = container.querySelector('.atl-meta-footer');
+            if (old) old.remove();
+
+            var html = window.renderMetaFooterHtml(meta);
+            if (!html) return;
+
+            var footerBar = container.querySelector('.atl-drawer__footer');
+            if (footerBar) { footerBar.insertAdjacentHTML('afterbegin', html); return; }
+
+            var formActions = container.querySelector('.um-form-actions');
+            if (formActions) {
+                formActions.insertAdjacentHTML('beforebegin', html);
+                var inserted = formActions.previousElementSibling;
+                if (inserted && inserted.classList.contains('atl-meta-footer')) inserted.classList.add('atl-meta-footer--standalone');
+                return;
+            }
+            container.insertAdjacentHTML('beforeend', html);
+        };
+
+        // Registry for modules that need the footer placed somewhere other than the drawer's own
+        // footer bar — keyed by the open drawer's element id. Deal View registers itself here (see
+        // its init code) so the footer lands in whichever tab panel is currently visible, since its
+        // one drawer covers many tabs each backed by a different record/table.
+        window._metaFooterOverrides = window._metaFooterOverrides || {};
+
+        // Entry point called by js/notificationService.js's fetch interceptor for every API response
+        // shaped like `{ last_updated: {name, role, at} }` — locates whichever drawer is currently on
+        // top (stacked drawers share one z-index scheme; see atlDrawerStack) and renders the footer
+        // there, deferring to a registered per-drawer override when one exists.
+        window.applyLastUpdatedMeta = function(meta) {
+            var drawers = qsa('.atl-drawer--open');
+            if (!drawers.length) return;
+            var active = drawers[0];
+            if (drawers.length > 1) {
+                var bestZ = -1;
+                drawers.forEach(function(d) {
+                    var z = parseInt(window.getComputedStyle(d).zIndex, 10) || 0;
+                    if (z >= bestZ) { bestZ = z; active = d; }
+                });
+            }
+            var override = window._metaFooterOverrides[active.id];
+            if (typeof override === 'function') { override(meta); return; }
+            window.showMetaFooter(active, meta);
+        };
 
         // --- Atelier Redesign Helpers ---
         (function() {
@@ -12762,6 +12872,16 @@
         $(document).off('click.dvtab').on('click.dvtab', '#dvTabs .dv-tab', function() {
             dvActivateTab(this, false);
         });
+
+        // "Last Updated By" — Deal View covers many tabs, each backed by a different record/table
+        // (Overview -> bookings, Offer & Contract -> quotations/contracts, Invoices -> invoices,
+        // etc.), so per the per-tab scoping decision the footer must land inside whichever tab panel
+        // is currently visible, not the drawer's single shared footer bar. Registered once here;
+        // applyLastUpdatedMeta (admin.html global helpers) looks this up by the open drawer's id.
+        window._metaFooterOverrides['dealViewDrawer'] = function(meta) {
+            var activePanel = document.querySelector('#dealViewDrawer .dv-panel:not([hidden])');
+            if (activePanel) window.showMetaFooter(activePanel, meta);
+        };
         $(document).off('keydown.dvtab').on('keydown.dvtab', '#dvTabs .dv-tab', function(e) {
             var tabs = Array.prototype.slice.call(document.querySelectorAll('#dvTabs .dv-tab'));
             var i = tabs.indexOf(this);
@@ -13005,6 +13125,7 @@
             );
             $('#dv-panel-timeline').html(buildTimelinePanel(row));
             $('#dv-panel-files').html(buildFilesPanel(row));
+            if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('dv-change-history-' + row.id, 'bookings', row.id);
 
             if (!isRefresh) {
                 // Always land on Overview when opening (possibly a different) booking.
@@ -14729,6 +14850,9 @@
             } else {
                 $('#evtCancelEventBtn').hide();
             }
+
+            $('#evtChangeHistoryGroup').show();
+            if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('evtChangeHistoryList', 'events', item.event_id);
         }
 
         function populateEventEditorFromCard(eventId) {
@@ -14770,6 +14894,7 @@
                 if ($('#eventsDate')[0]._flatpickr) $('#eventsDate')[0]._flatpickr.clear();
                 $('#evtPosterPreview').hide(); $('#evtPosterPreviewImg').attr('src', '');
                 $('#eventsSubmitBtn').html('<i class="fa-solid fa-calendar-check"></i> Add Event');
+                $('#evtChangeHistoryGroup').hide();
             }
         };
 
@@ -14790,6 +14915,7 @@
             $('#evtPosterPreview').hide(); $('#evtPosterPreviewImg').attr('src', '');
             $('#eventsSubmitBtn').html('<i class="fa-solid fa-calendar-check"></i> Add Event');
             $('#evtCancelEventBtn').hide();
+            $('#evtChangeHistoryGroup').hide();
             collapseAllEventCards({ redock: true });
             closeAtlDrawer('evtDrawer');
         }
@@ -14810,6 +14936,7 @@
             $('#eventsConflictResolutionGroup').show();
             $('#eventsSubmitBtn').html('<i class="fa-solid fa-calendar-check"></i> Add Event');
             $('#evtCancelEventBtn').hide();
+            $('#evtChangeHistoryGroup').hide();
             openAtlDrawer('evtDrawer');
             $('#eventsTitle').focus();
         });
@@ -20613,6 +20740,13 @@
               <p style="color:var(--atl-muted);font-size:12px;margin:0;">Loading email history…</p>
             </div>
           </div>
+
+          <!-- Change History card — who edited this booking's own fields and when (distinct from the
+               Activity timeline above, which is the business-lifecycle story: quoted/accepted/paid/etc). -->
+          <div class="atl-det-card">
+            <h5 class="atl-det-title" style="margin:0 0 10px;"><i class="fa-solid fa-timeline"></i>Change history</h5>
+            <div id="dv-change-history-${row.id}" style="font-size:12px;color:var(--atl-muted);"></div>
+          </div>
       </div>`;
         }
 
@@ -26237,6 +26371,12 @@
                         Synced to Google Calendar &mdash; <a id="eventsGcalLink" href="#" target="_blank" style="color:var(--atl-blue);text-decoration:underline;">View Event</a>
                     </div>
 
+                    <!-- Change History (read-only, edit mode only) -->
+                    <div id="evtChangeHistoryGroup" style="display:none; margin-bottom:16px; padding:12px; background:var(--atl-surface2); border: 1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
+                        <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
+                        <div id="evtChangeHistoryList"></div>
+                    </div>
+
                     <div class="um-form-actions" style="justify-content:flex-end; gap:10px;">
                         <button type="button" class="atl-btn um-btn--danger evt-form-action-btn" id="evtCancelEventBtn" style="display:none; margin-right:auto;">
                             <i class="fa-solid fa-ban"></i> Cancel Event
@@ -27334,6 +27474,11 @@
                         <div><strong>Modified By:</strong> <span id="umAuditModifiedBy">—</span></div>
                         <div><strong>Modified On:</strong> <span id="umAuditModifiedOn">—</span></div>
                     </div>
+                </div>
+                <!-- Change History (read-only, edit mode only) — full audit_log trail for this account -->
+                <div id="umChangeHistoryGroup" style="display:none; margin-top:14px; padding:12px; background:var(--atl-surface2); border: 1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
+                    <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
+                    <div id="umChangeHistoryList"></div>
                 </div><br>
                 <!-- Create-mode notice: the new user sets their own password via an emailed invite link -->
                 <div class="um-invite-notice" id="umInviteNotice" style="display:none;">
@@ -30625,6 +30770,11 @@
                 qs('#umAuditModifiedBy').textContent = modifierDisplay;
                 qs('#umAuditModifiedOn').textContent = user.modified_on ? fmtDate(user.modified_on) : '—';
             }
+            var histGroup = qs('#umChangeHistoryGroup');
+            if (histGroup) {
+                histGroup.style.display = 'block';
+                if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('umChangeHistoryList', 'admins', user.id);
+            }
         } else {
             // Create mode: invitation flow — no admin-set password; hide the password field + tips.
             if (pwdGroup) pwdGroup.style.display = 'none';
@@ -30637,9 +30787,11 @@
             if (pwdInput) pwdInput.placeholder = 'Minimum 8 characters';
             if (submitBtn) submitBtn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
 
-            // Hide audit group in create mode
+            // Hide audit group + change history in create mode (no record exists yet)
             var auditGroup = qs('#umAuditGroup');
             if (auditGroup) auditGroup.style.display = 'none';
+            var histGroupNew = qs('#umChangeHistoryGroup');
+            if (histGroupNew) histGroupNew.style.display = 'none';
         }
 
         if (window.openAtlDrawer) window.openAtlDrawer('umAddUserDrawer');
@@ -30726,6 +30878,15 @@
                 try {
                     var data = await apiCall('/api/admin/users' + (isEdit ? '/' + userId : ''), isEdit ? 'PUT' : 'POST', payload);
                     if (data && data.success) {
+                        // "Last Updated By": populate straight from this save's own response rather
+                        // than waiting on the next drawer-open's LEFT JOIN — that only reflected fresh
+                        // data on a subsequent reopen, never immediately after the save that caused it.
+                        if (data.last_updated) {
+                            var mBy = qs('#umAuditModifiedBy'), mOn = qs('#umAuditModifiedOn');
+                            var roleLabel = data.last_updated.role ? (data.last_updated.role.charAt(0).toUpperCase() + data.last_updated.role.slice(1)) : '';
+                            if (mBy) mBy.textContent = data.last_updated.name + (roleLabel ? ' (' + roleLabel + ')' : '');
+                            if (mOn) mOn.textContent = data.last_updated.at ? fmtDate(data.last_updated.at) : '—';
+                        }
                         umCloseDrawer();
                         loadAllUsers();
                         if (isEdit) {
@@ -32756,10 +32917,112 @@
     let auditState = { page: 1, limit: 50, search: '', sort: 'change_timestamp', order: 'DESC' };
     let auditSearchTimer;
 
+    // Friendly Section labels for audit_log.table_name. Previously this was a broken 3-bucket guess
+    // (bookings -> "Bookings", users -> "Security" — but the actual table is "admins", so that branch
+    // never matched — everything else silently fell through to "Events", mislabeling invoices,
+    // transactions, quotations, gallery_images, etc.). Anything not explicitly listed here is
+    // humanized from its raw table_name instead of guessed into an unrelated bucket.
+    const AUDIT_TABLE_LABELS = {
+        bookings: 'Bookings', admins: 'Users', events: 'Events', date_holds: 'Calendar',
+        gallery_images: 'Gallery', inquiries: 'Inquiries', invoices: 'Invoices',
+        transactions: 'Financials', cancellations: 'Cancellations', quotations: 'Quotations',
+        contracts: 'Contracts', payment_schedules: 'Payment Schedules', expenses: 'Expenses',
+        services: 'Services', clients: 'Clients',
+        popia_erasure_requests: 'POPIA Erasure', popia_verification_codes: 'POPIA Verification'
+    };
+    function auditSectionLabel(tableName) {
+        if (AUDIT_TABLE_LABELS[tableName]) return AUDIT_TABLE_LABELS[tableName];
+        return String(tableName || '—').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    // snake_case/camelCase column name -> readable label ("total_amount" -> "Total Amount").
+    function prettyFieldKey(k) {
+        return String(k || '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\b\w/g, c => c.toUpperCase());
+    }
+    function formatAuditFieldValue(v) {
+        if (v === null || v === undefined || v === '') return '—';
+        if (typeof v === 'object') { try { return JSON.stringify(v); } catch (e) { return String(v); } }
+        return String(v);
+    }
+
+    // Renders the actual field-level diff for one audit_log row — what changed, not just that a
+    // change happened. UPDATE rows compare old_values -> new_values field-by-field (both are JSON
+    // snapshots the DB trigger or logAudit() wrote at save time — only the columns each writer
+    // captures are diffable, so coverage varies by table); CREATE/DELETE rows have only one side, so
+    // they show the record's field values at that moment instead of a before/after pair.
+    function buildAuditDiffHtml(log) {
+        let ov = null, nv = null;
+        try { if (log.old_values) ov = JSON.parse(log.old_values); } catch (e) {}
+        try { if (log.new_values) nv = JSON.parse(log.new_values); } catch (e) {}
+        const action = String(log.action || '').toUpperCase();
+
+        let rows = [];
+        if (ov && nv) {
+            rows = Object.keys(nv)
+                .filter(k => JSON.stringify(nv[k]) !== JSON.stringify(ov[k]))
+                .map(k => ({ key: k, from: ov[k], to: nv[k], isDiff: true }));
+        } else if (nv && (action === 'CREATE' || action === 'INSERT')) {
+            rows = Object.keys(nv).map(k => ({ key: k, to: nv[k], isDiff: false }));
+        } else if (ov && !nv) {
+            rows = Object.keys(ov).map(k => ({ key: k, to: ov[k], isDiff: false }));
+        }
+        if (!rows.length) return '';
+
+        const rowsHtml = rows.map(r => {
+            const label = window.escHtml(prettyFieldKey(r.key));
+            const toVal = window.escHtml(formatAuditFieldValue(r.to));
+            const valueHtml = r.isDiff
+                ? '<s style="opacity:0.55;">' + window.escHtml(formatAuditFieldValue(r.from)) + '</s> <i class="fa-solid fa-arrow-right" style="font-size:8px; opacity:0.5;"></i> <strong style="color:var(--atl-ink);">' + toVal + '</strong>'
+                : '<strong style="color:var(--atl-ink);">' + toVal + '</strong>';
+            return '<div style="display:flex; justify-content:space-between; gap:10px; padding:3px 0; font-size:11px;">' +
+                '<span style="color:var(--atl-muted-dim); flex-shrink:0;">' + label + '</span>' +
+                '<span style="color:var(--atl-muted); text-align:right; word-break:break-word;">' + valueHtml + '</span>' +
+                '</div>';
+        }).join('');
+
+        return '<div style="margin-top:6px; padding:8px 10px; background:var(--atl-input-bg); border-radius:6px;">' + rowsHtml + '</div>';
+    }
+
+    // Shared per-record "Change History" card — reuses the same GET /api/admin/audit_log endpoint
+    // the global Audit Trail list uses (table + record_id filter), so there's exactly one place that
+    // reads audit_log. Used by Bookings (Deal View's Timeline & Notes tab, alongside — not replacing —
+    // its existing business-lifecycle Activity timeline), Events, and Users.
+    window.loadChangeHistoryCard = async function(containerId, tableName, recordId) {
+        const el = qs('#' + containerId);
+        if (!el) return;
+        if (!recordId) { el.innerHTML = '<div style="padding:6px 0; font-size:12px; color:var(--atl-muted);">No change history yet.</div>'; return; }
+        el.innerHTML = '<div style="padding:6px 0; font-size:12px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin"></i> Loading history…</div>';
+        try {
+            const res = await fetch('/api/admin/audit_log?table=' + encodeURIComponent(tableName) + '&record_id=' + encodeURIComponent(recordId) + '&limit=20', { credentials: 'include' });
+            const data = await res.json();
+            if (!data || !data.success || !data.logs || !data.logs.length) {
+                el.innerHTML = '<div style="padding:6px 0; font-size:12px; color:var(--atl-muted);">No change history recorded yet.</div>';
+                return;
+            }
+            el.innerHTML = data.logs.map(function(log) {
+                const actorName = log.actor_full_name || log.actor_username || log.changed_by || 'System';
+                const actorRole = log.actor_role ? (log.actor_role.charAt(0).toUpperCase() + log.actor_role.slice(1)) : '';
+                const when = log.change_timestamp ? new Date(log.change_timestamp).toLocaleString('en-ZA') : '—';
+                return '<div style="padding:8px 0; border-bottom:1px solid var(--atl-line);">' +
+                    '<div style="display:flex; justify-content:space-between; gap:8px; font-size:12px;">' +
+                    '<strong style="color:var(--atl-ink);">' + window.escHtml(String(log.action || '').toUpperCase()) + '</strong>' +
+                    '<span style="color:var(--atl-muted-dim); font-size:10.5px; white-space:nowrap;">' + when + '</span>' +
+                    '</div>' +
+                    '<div style="font-size:11.5px; color:var(--atl-muted); margin-top:2px;">' +
+                    window.escHtml(actorName) + (actorRole ? ' (' + window.escHtml(actorRole) + ')' : '') +
+                    '</div>' +
+                    buildAuditDiffHtml(log) +
+                '</div>';
+            }).join('');
+        } catch (e) {
+            el.innerHTML = '<div style="padding:6px 0; font-size:12px; color:var(--atl-clay);">Could not load change history.</div>';
+        }
+    };
+
     window.loadAuditLogs = async function() {
         const body = qs('#auditLogsBody');
         if (!body) return;
-        body.innerHTML = '<tr><td colspan="4" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Refreshing trail...</td></tr>';
+        body.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Refreshing trail...</td></tr>';
 
         try {
             const tableF = (qs('#auditTableFilter') && qs('#auditTableFilter').value) || '';
@@ -32777,7 +33040,7 @@
             if (res && res.success && res.logs) {
                 body.innerHTML = '';
                 if (res.logs.length === 0) {
-                    body.innerHTML = '<tr><td colspan="4" style="border:none;"><div class="atl-empty-state"><i class="fa-solid fa-clipboard-list" style="font-size:32px; color:var(--atl-muted); opacity:0.4;"></i><p class="atl-empty-display">No audit events found</p><p class="atl-empty-sub">Try adjusting your search or filters.</p></div></td></tr>';
+                    body.innerHTML = '<tr><td colspan="7" style="border:none;"><div class="atl-empty-state"><i class="fa-solid fa-clipboard-list" style="font-size:32px; color:var(--atl-muted); opacity:0.4;"></i><p class="atl-empty-display">No audit events found</p><p class="atl-empty-sub">Try adjusting your search or filters.</p></div></td></tr>';
                     var _as0 = qs('#auditStats'); if (_as0) _as0.textContent = 'Showing 0 of 0 entries';
                     renderAuditPagination(0);
                     return;
@@ -32787,11 +33050,19 @@
                     tr.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
                     const date = new Date(log.change_timestamp || log.timestamp).toLocaleString();
                     const actionColor = log.action === 'UPDATE' ? 'var(--atl-orange)' : (log.action === 'INSERT' ? 'var(--atl-sage)' : 'var(--atl-clay)');
-                    
+                    // actor_full_name/actor_username come from the LEFT JOIN admins the endpoint now
+                    // does against numeric changed_by values; raw changed_by covers the pre-migration
+                    // literals ('system'/'public'/an email) that join can never resolve.
+                    const actorName = log.actor_full_name || log.actor_username || log.changed_by || '—';
+                    const actorRole = log.actor_role ? (log.actor_role.charAt(0).toUpperCase() + log.actor_role.slice(1)) : '—';
+
                     tr.innerHTML = `
                         <td style="padding:12px; font-weight:bold; color: var(--atl-amber);">${escHtml(log.table_name)} <span style="font-size:10px; opacity:0.5; font-weight:normal;">#${log.record_id}</span></td>
-                        <td style="padding:12px; font-size:12px;">${escHtml(log.table_name === 'bookings' ? 'Bookings' : (log.table_name === 'users' ? 'Security' : 'Events'))}</td>
+                        <td style="padding:12px; font-size:12px;">${escHtml(auditSectionLabel(log.table_name))}</td>
                         <td style="padding:12px;"><span style="color:${actionColor}; font-weight:bold; font-size:11px;">${escHtml(log.action)}</span></td>
+                        <td style="padding:12px; font-size:12px;">${escHtml(actorName)}</td>
+                        <td style="padding:12px; font-size:11px; opacity:0.75;">${escHtml(actorRole)}</td>
+                        <td style="padding:12px; font-size:11px; opacity:0.6; font-family:'JetBrains Mono',monospace;">${escHtml(log.ip_address || '—')}</td>
                         <td style="padding:12px; font-size:11px; opacity:0.6;">${date}</td>
                     `;
                     body.appendChild(tr);
@@ -32804,7 +33075,7 @@
             }
         } catch (e) {
             console.error("Audit Log Error:", e);
-            if (body) body.innerHTML = '<tr><td colspan="4" style="border:none;"><div class="atl-empty-state"><i class="fa-solid fa-triangle-exclamation" style="font-size:32px; color:var(--atl-clay); opacity:0.6;"></i><p class="atl-empty-display">Could not load the audit trail</p><p class="atl-empty-sub">Please try again.</p></div></td></tr>';
+            if (body) body.innerHTML = '<tr><td colspan="7" style="border:none;"><div class="atl-empty-state"><i class="fa-solid fa-triangle-exclamation" style="font-size:32px; color:var(--atl-clay); opacity:0.6;"></i><p class="atl-empty-display">Could not load the audit trail</p><p class="atl-empty-sub">Please try again.</p></div></td></tr>';
             if (window.notificationService) window.notificationService.showError('Could not load the audit trail. Please try again.');
         }
     };
@@ -34390,33 +34661,51 @@
         }
     };
 
-    window.saveBranding = async function() {
-        const settings = {
-            site_logo:     $('#brandLogoUrl').val().trim(),
-            favicon:       $('#brandFaviconUrl').val().trim(),
-            primary_color: $('#brandColorHex').val().trim() || $('#brandPrimaryColor').val(),
-            theme_font:    $('#brandThemeFont').val()
-        };
-        // G5 — accent-colour hex validation (no other Branding fields are mandatory)
-        const _fe = (id, msg) => { const e = document.getElementById(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
-        _fe('errBrandColor', '');
-        const _hex = $('#brandColorHex').val().trim();
-        if (_hex && !/^#[0-9a-fA-F]{6}$/.test(_hex)) { _fe('errBrandColor', 'Enter a 6-digit hex colour, e.g. #D4AF37.'); window.notificationService.showError('Please fix the highlighted fields.'); return; }
-        Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
-        // Always send the login background (even empty) so it can be set or cleared.
-        const _loginBg = $('#brandLoginBgUrl').val().trim();
-        settings.login_background = _loginBg;
+    window.saveBranding = async function(scope) {
+        const settings = {};
+        const isIdentity = !scope || scope === 'identity';
+        const isSite = !scope || scope === 'site';
+
+        if (isIdentity) {
+            // G5 — accent-colour hex validation (no other Branding fields are mandatory)
+            const _fe = (id, msg) => { const e = document.getElementById(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
+            _fe('errBrandColor', '');
+            const _hex = $('#brandColorHex').val().trim();
+            if (_hex && !/^#[0-9a-fA-F]{6}$/.test(_hex)) {
+                _fe('errBrandColor', 'Enter a 6-digit hex colour, e.g. #D4AF37.');
+                window.notificationService.showError('Please fix the highlighted fields.');
+                return;
+            }
+            settings.site_logo = $('#brandLogoUrl').val().trim();
+            settings.favicon = $('#brandFaviconUrl').val().trim();
+            settings.primary_color = $('#brandColorHex').val().trim() || $('#brandPrimaryColor').val();
+            settings.theme_font = $('#brandThemeFont').val();
+            Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
+        }
+
+        if (isSite) {
+            // Always send the login background (even empty) so it can be set or cleared.
+            settings.login_background = $('#brandLoginBgUrl').val().trim();
+        }
+
         try {
             await apiCall('/api/admin/branding', 'PUT', { settings });
-            if (settings.theme_font) {
-                document.documentElement.style.setProperty('--theme-font', settings.theme_font);
-            } else {
-                document.documentElement.style.setProperty('--theme-font', '"Open Sans", sans-serif');
+            if (isIdentity) {
+                if (settings.theme_font) {
+                    document.documentElement.style.setProperty('--theme-font', settings.theme_font);
+                } else {
+                    document.documentElement.style.setProperty('--theme-font', '"Open Sans", sans-serif');
+                }
             }
-            // Keep the live login-screen background in sync immediately.
-            window.tmLoginBg = _loginBg || null;
-            if (window.applyAdminBackgrounds) window.applyAdminBackgrounds();
-            window.notificationService.showSuccess('Branding saved successfully.');
+            if (isSite) {
+                // Keep the live login-screen background in sync immediately.
+                window.tmLoginBg = settings.login_background || null;
+                if (window.applyAdminBackgrounds) window.applyAdminBackgrounds();
+            }
+            const msg = scope === 'identity' ? 'Identity branding saved successfully.' :
+                        scope === 'site' ? 'Site branding saved successfully.' :
+                        'Branding saved successfully.';
+            window.notificationService.showSuccess(msg);
         } catch(e) {}
     };
 

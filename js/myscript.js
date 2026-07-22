@@ -3277,7 +3277,7 @@ $bookingForm.on('blur', '#bookName', function() {
                         $('#bkDraftStatus').closest('div').before(
                             '<div id="bkDraftBanner" style="' +
                             'background:rgba(96,165,250,0.06);border:1px solid rgba(96,165,250,0.15);' +
-                            'color:#60a5fa;font-size:12px;padding:7px 12px;margin:0 0 4px;border-radius:6px;' +
+                            'color:#60a5fa;font-size:12px;padding:9px 14px;margin:16px 0 12px;border-radius:6px;' +
                             'display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
                             '<span><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>' +
                             'Draft restored' + _timeLabel + '.</span>' +

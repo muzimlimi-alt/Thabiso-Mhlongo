@@ -442,6 +442,19 @@ class NotificationService {
 
             try {
                 const response = await fetchWithRetry(args[0], args[1]);
+                // "Last Updated By" success-hook: every in-scope save route now returns a
+                // `last_updated: {name, role, at}` field. Peek the JSON without disturbing the
+                // caller's own .json() read (same response.clone() trick the error branch below
+                // already uses) and, if present, surface it via the shared admin.html meta-footer
+                // component — covers apiCall(), raw fetch(), and popiaFetch() uniformly since all
+                // three funnel through this one wrapped window.fetch.
+                if (response.ok && isApi && typeof window.applyLastUpdatedMeta === 'function') {
+                    response.clone().json().then(data => {
+                        if (data && data.last_updated && data.last_updated.name) {
+                            window.applyLastUpdatedMeta(data.last_updated);
+                        }
+                    }).catch(() => {});
+                }
                 if (!response.ok && !bypass) {
                     if (isApi) {
                         // Never show full-screen error overlays for background API requests.

@@ -3091,6 +3091,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   justify-content:space-between;
   align-items:center;
   margin-top:24px;
+  margin-bottom:16px;
   padding-top:20px;
   border-top:1px solid var(--border-low);
 }

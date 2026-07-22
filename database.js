@@ -143,6 +143,13 @@ function initializeDatabase() {
         db.run("ALTER TABLE inquiries ADD COLUMN priority TEXT DEFAULT 'normal'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.priority already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN converted_booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.converted_booking_id already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN responded_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.responded_at already exists or error: " + err.message); });
+        // "Last Updated By" feature: inquiries previously had zero generic tracking (only submitted_at).
+        // updated_by_role is a snapshot of the admin's role at the time of the edit, set alongside
+        // updated_by in the same UPDATE statement, read by the extended audit_inquiries_update trigger
+        // below into audit_log.actor_role.
+        db.run("ALTER TABLE inquiries ADD COLUMN updated_by INTEGER REFERENCES admins(id)", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.updated_by already exists or error: " + err.message); });
+        db.run("ALTER TABLE inquiries ADD COLUMN updated_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.updated_at already exists or error: " + err.message); });
+        db.run("ALTER TABLE inquiries ADD COLUMN updated_by_role TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.updated_by_role already exists or error: " + err.message); });
 
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_submitted_at ON inquiries(submitted_at)`);
@@ -437,6 +444,13 @@ function initializeDatabase() {
                 const colNames = columns.map(c => c.name);
                 if (!colNames.includes('uploader_name')) db.run("ALTER TABLE gallery_images ADD COLUMN uploader_name TEXT", () => {});
                 if (!colNames.includes('location')) db.run("ALTER TABLE gallery_images ADD COLUMN location TEXT", () => {});
+                // "Last Updated By" feature: gallery_images has no existing audit trigger (its CRUD routes
+                // wrote zero audit_log rows before this), so role is passed straight into the explicit
+                // logAudit() insert at write time — no scratch role column needed here, unlike the
+                // trigger-covered tables above.
+                if (!colNames.includes('created_by')) db.run("ALTER TABLE gallery_images ADD COLUMN created_by INTEGER REFERENCES admins(id)", () => {});
+                if (!colNames.includes('updated_by')) db.run("ALTER TABLE gallery_images ADD COLUMN updated_by INTEGER REFERENCES admins(id)", () => {});
+                if (!colNames.includes('updated_at')) db.run("ALTER TABLE gallery_images ADD COLUMN updated_at DATETIME", () => {});
             });
         });
          // 8. Manager Details Table
@@ -515,6 +529,10 @@ function initializeDatabase() {
                 if (!colNames.includes('ip_address')) db.run("ALTER TABLE events ADD COLUMN ip_address TEXT", () => {});
                 if (!colNames.includes('user_agent')) db.run("ALTER TABLE events ADD COLUMN user_agent TEXT", () => {});
                 if (!colNames.includes('google_calendar_event_id')) db.run("ALTER TABLE events ADD COLUMN google_calendar_event_id TEXT", () => {});
+                // "Last Updated By" feature: modified_by already exists and works — modified_by_role is the
+                // new role-at-time-of-edit snapshot, set alongside modified_by by the edit route and read by
+                // the extended audit_events_update trigger below into audit_log.actor_role.
+                if (!colNames.includes('modified_by_role')) db.run("ALTER TABLE events ADD COLUMN modified_by_role TEXT", () => {});
             });
         });
         
@@ -1113,6 +1131,13 @@ function initializeDatabase() {
             FOREIGN KEY (client_id) REFERENCES clients(id),
             FOREIGN KEY (converted_to_booking_id) REFERENCES bookings(id)
         )`);
+        // "Last Updated By" feature: date_holds (Calendar Block-Out) had no actor tracking at all.
+        // updated_by_role is a role-at-time-of-edit snapshot, set alongside updated_by in the same
+        // UPDATE statement, read by the extended audit_date_holds_update trigger into audit_log.actor_role.
+        db.run("ALTER TABLE date_holds ADD COLUMN created_by INTEGER REFERENCES admins(id)", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: date_holds.created_by already exists or error: " + err.message); });
+        db.run("ALTER TABLE date_holds ADD COLUMN updated_by INTEGER REFERENCES admins(id)", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: date_holds.updated_by already exists or error: " + err.message); });
+        db.run("ALTER TABLE date_holds ADD COLUMN updated_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: date_holds.updated_at already exists or error: " + err.message); });
+        db.run("ALTER TABLE date_holds ADD COLUMN updated_by_role TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: date_holds.updated_by_role already exists or error: " + err.message); });
 
         db.run(`CREATE TABLE IF NOT EXISTS payment_schedules (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1720,6 +1745,10 @@ function initializeDatabase() {
         // Audit log missing columns
         db.run("ALTER TABLE audit_log ADD COLUMN changed_by TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: audit_log.changed_by already exists or error: " + err.message); });
         db.run("ALTER TABLE audit_log ADD COLUMN changes_json TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: audit_log.changes_json already exists or error: " + err.message); });
+        // "Last Updated By" feature: role-at-time-of-action snapshot. Populated going forward only —
+        // rows written before this migration show NULL ("—" in the UI), which is honest since we have
+        // no way to know a historical actor's role retroactively.
+        db.run("ALTER TABLE audit_log ADD COLUMN actor_role TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: audit_log.actor_role already exists or error: " + err.message); });
 
         // Indexes for performance
         db.run(`CREATE INDEX IF NOT EXISTS idx_audit_table_record ON audit_log(table_name, record_id)`);
@@ -1794,12 +1823,38 @@ function initializeDatabase() {
                 'public', CURRENT_TIMESTAMP);
         END`);
 
+        // "Last Updated By" feature: DROP+recreate (CREATE TRIGGER IF NOT EXISTS is a silent no-op on an
+        // already-existing trigger, so the DROP is required for this edit to actually take effect on any
+        // database that's already booted once). Now captures changed_by/actor_role/change_timestamp,
+        // which the original version never did at all.
+        // "Last Updated By" feature: widened from {status, total_fee, event_date} only — this trigger
+        // fires on EVERY bookings UPDATE regardless of which route/columns actually changed (venue
+        // link, date drag, disposition, payment fields, etc.), so a narrow capture meant almost every
+        // real row in the live DB showed identical old/new values for its 3 tracked fields even though
+        // something genuinely changed — the Change History card then had nothing to diff and rendered
+        // empty. Wide enough to cover the fields the admin routes actually touch, while still excluding
+        // large free-text/blob columns (message, admin_notes, quote_details, attachment_files, raw
+        // payment payloads) that would make the diff card unreadable.
+        db.run("DROP TRIGGER IF EXISTS audit_bookings_update");
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_bookings_update AFTER UPDATE ON bookings
         BEGIN
-            INSERT INTO audit_log (table_name, record_id, action, old_values, new_values)
+            INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, actor_role, change_timestamp)
             VALUES ('bookings', NEW.id, 'UPDATE',
-                json_object('status', OLD.status, 'total_fee', OLD.total_amount, 'event_date', OLD.date),
-                json_object('status', NEW.status, 'total_fee', NEW.total_amount, 'event_date', NEW.date));
+                json_object('status', OLD.status, 'total_fee', OLD.total_amount, 'event_date', OLD.date,
+                    'event_start_time', OLD.event_start_time, 'performance_end_time', OLD.performance_end_time,
+                    'payment_status', OLD.payment_status, 'amount_paid', OLD.amount_paid, 'amount_outstanding', OLD.amount_outstanding,
+                    'venue_id', OLD.venue_id, 'city', OLD.city, 'event_location', OLD.event_location,
+                    'is_public', OLD.is_public, 'disposition', OLD.disposition,
+                    'cancellation_reason', OLD.cancellation_reason, 'quote_expiry_date', OLD.quote_expiry_date,
+                    'buffer_minutes', OLD.buffer_minutes),
+                json_object('status', NEW.status, 'total_fee', NEW.total_amount, 'event_date', NEW.date,
+                    'event_start_time', NEW.event_start_time, 'performance_end_time', NEW.performance_end_time,
+                    'payment_status', NEW.payment_status, 'amount_paid', NEW.amount_paid, 'amount_outstanding', NEW.amount_outstanding,
+                    'venue_id', NEW.venue_id, 'city', NEW.city, 'event_location', NEW.event_location,
+                    'is_public', NEW.is_public, 'disposition', NEW.disposition,
+                    'cancellation_reason', NEW.cancellation_reason, 'quote_expiry_date', NEW.quote_expiry_date,
+                    'buffer_minutes', NEW.buffer_minutes),
+                CAST(NEW.modified_by AS TEXT), NEW.modified_by_role, CURRENT_TIMESTAMP);
         END`);
 
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_invoices_update AFTER UPDATE ON invoices
@@ -1832,13 +1887,24 @@ function initializeDatabase() {
                 CAST(NEW.created_by AS TEXT), CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_events_insert trigger:", err.message); });
 
+        // "Last Updated By" feature: DROP+recreate so the edit actually takes effect (CREATE TRIGGER IF
+        // NOT EXISTS is a no-op otherwise). Adds actor_role alongside the changed_by this trigger already
+        // captured, and widens the captured fields beyond title/datetime/status — the full-form Events
+        // edit route updates venue/capacity/cancellation fields too, and a narrow capture meant editing
+        // just those left the Change History card's diff empty even though the save genuinely changed
+        // something.
+        db.run("DROP TRIGGER IF EXISTS audit_events_update");
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_events_update AFTER UPDATE ON events
         BEGIN
-            INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
+            INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, actor_role, change_timestamp)
             VALUES ('events', NEW.event_id, 'UPDATE',
-                json_object('event_title', OLD.event_title, 'event_datetime', OLD.event_datetime, 'event_status', OLD.event_status),
-                json_object('event_title', NEW.event_title, 'event_datetime', NEW.event_datetime, 'event_status', NEW.event_status),
-                CAST(NEW.modified_by AS TEXT), CURRENT_TIMESTAMP);
+                json_object('event_title', OLD.event_title, 'event_datetime', OLD.event_datetime, 'event_status', OLD.event_status,
+                    'venue_name', OLD.venue_name, 'venue_id', OLD.venue_id, 'event_capacity', OLD.event_capacity,
+                    'cancellation_reason', OLD.cancellation_reason, 'booking_id', OLD.booking_id),
+                json_object('event_title', NEW.event_title, 'event_datetime', NEW.event_datetime, 'event_status', NEW.event_status,
+                    'venue_name', NEW.venue_name, 'venue_id', NEW.venue_id, 'event_capacity', NEW.event_capacity,
+                    'cancellation_reason', NEW.cancellation_reason, 'booking_id', NEW.booking_id),
+                CAST(NEW.modified_by AS TEXT), NEW.modified_by_role, CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_events_update trigger:", err.message); });
 
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_events_delete AFTER DELETE ON events
@@ -1851,21 +1917,27 @@ function initializeDatabase() {
 
         // date_holds had no audit trail at all (unlike events above) — every calendar block
         // create/move/release was invisible to audit_log.
+        // "Last Updated By" feature: DROP+recreate so the edit takes effect; adds changed_by, which this
+        // trigger never captured before (now that date_holds has a created_by column to read).
+        db.run("DROP TRIGGER IF EXISTS audit_date_holds_insert");
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_date_holds_insert AFTER INSERT ON date_holds
         BEGIN
-            INSERT INTO audit_log (table_name, record_id, action, new_values, change_timestamp)
+            INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
             VALUES ('date_holds', NEW.id, 'INSERT',
                 json_object('hold_date', NEW.hold_date, 'status', NEW.status, 'block_type', NEW.block_type, 'notes', NEW.notes),
-                CURRENT_TIMESTAMP);
+                CAST(NEW.created_by AS TEXT), CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_date_holds_insert trigger:", err.message); });
 
+        // "Last Updated By" feature: DROP+recreate so the edit takes effect; adds changed_by/actor_role,
+        // which this trigger never captured before.
+        db.run("DROP TRIGGER IF EXISTS audit_date_holds_update");
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_date_holds_update AFTER UPDATE ON date_holds
         BEGIN
-            INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, change_timestamp)
+            INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, actor_role, change_timestamp)
             VALUES ('date_holds', NEW.id, 'UPDATE',
                 json_object('hold_date', OLD.hold_date, 'status', OLD.status),
                 json_object('hold_date', NEW.hold_date, 'status', NEW.status),
-                CURRENT_TIMESTAMP);
+                CAST(NEW.updated_by AS TEXT), NEW.updated_by_role, CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_date_holds_update trigger:", err.message); });
 
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_date_holds_delete AFTER DELETE ON date_holds
@@ -1884,14 +1956,18 @@ function initializeDatabase() {
                 'public', CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_inquiries_insert trigger:", err.message); });
 
+        // "Last Updated By" feature: extends this trigger (already DROP+recreated for an earlier fix)
+        // with changed_by/actor_role, which it never captured before, and adds category — the
+        // dedicated /category route updates that column but it wasn't captured, so a category-only
+        // edit left the Change History card's diff empty.
         db.run("DROP TRIGGER IF EXISTS audit_inquiries_update");
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_inquiries_update AFTER UPDATE ON inquiries
         BEGIN
-            INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, change_timestamp)
+            INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, actor_role, change_timestamp)
             VALUES ('inquiries', NEW.inquiry_id, 'UPDATE',
-                json_object('status', OLD.status, 'assigned_to', OLD.assigned_to, 'priority', OLD.priority),
-                json_object('status', NEW.status, 'assigned_to', NEW.assigned_to, 'priority', NEW.priority),
-                CURRENT_TIMESTAMP);
+                json_object('status', OLD.status, 'assigned_to', OLD.assigned_to, 'priority', OLD.priority, 'category', OLD.category),
+                json_object('status', NEW.status, 'assigned_to', NEW.assigned_to, 'priority', NEW.priority, 'category', NEW.category),
+                CAST(NEW.updated_by AS TEXT), NEW.updated_by_role, CURRENT_TIMESTAMP);
         END`, (err) => { if (err) console.error("Error creating audit_inquiries_update trigger:", err.message); });
 
         db.run(`CREATE TRIGGER IF NOT EXISTS audit_inquiries_delete AFTER DELETE ON inquiries
@@ -2312,6 +2388,12 @@ function initializeDatabase() {
         // Ensure performance_end_time column exists on bookings (failsafe for older DBs)
         db.run("ALTER TABLE bookings ADD COLUMN performance_end_time TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.performance_end_time already exists or error: ' + err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN modified_on DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.modified_on already exists.'); });
+        // "Last Updated By" feature: bookings had modified_on but no actor column at all. modified_by_role
+        // is a snapshot of the admin's role AT THE TIME of the edit (not a live join to admins.role, which
+        // could drift if the admin's role changes later) — set by the route in the SAME UPDATE statement as
+        // modified_by, then read by the extended audit_bookings_update trigger below into audit_log.actor_role.
+        db.run("ALTER TABLE bookings ADD COLUMN modified_by INTEGER REFERENCES admins(id)", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.modified_by already exists.'); });
+        db.run("ALTER TABLE bookings ADD COLUMN modified_by_role TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.modified_by_role already exists.'); });
         db.run("ALTER TABLE bookings ADD COLUMN buffer_minutes INTEGER DEFAULT NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.buffer_minutes migration:', err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN consent_source TEXT DEFAULT 'public_form'", (err) => { if (err && !err.message.includes('duplicate column name')) {} });
         db.run("ALTER TABLE consent_audit ADD COLUMN consent_source TEXT DEFAULT 'public_form'", (err) => { if (err && !err.message.includes('duplicate column name')) {} });

@@ -3952,6 +3952,45 @@ function withDbTransaction(fn) {
     return result;
 }
 
+// "Last Updated By" feature — shared audit/actor helpers.
+// ============================================================
+
+// Single lookup, resolving an admins.id into a display name + role. Used to build every in-scope
+// route's `last_updated` response field, and to populate audit_log for the tables with no existing
+// trigger (Gallery, Users) where role can be passed straight into the insert.
+async function resolveActor(adminId) {
+    if (!adminId) return { name: 'System', role: null };
+    const row = await dbGet(`SELECT full_name, username, role FROM admins WHERE id = ?`, [adminId]);
+    if (!row) return { name: 'System', role: null };
+    return { name: row.full_name || row.username || 'System', role: row.role || null };
+}
+
+// Shared audit_log writer for tables with NO existing DB trigger (Gallery, Users) — these have
+// direct access to req.session here in Node, so role/ip are written straight into the row rather
+// than needing the scratch-column-through-a-trigger trick the 4 trigger-covered tables use (see
+// the extended audit_bookings_update/audit_events_update/audit_inquiries_update/
+// audit_date_holds_update triggers in database.js). Do NOT call this for bookings/events/inquiries/
+// date_holds — those already auto-write via their trigger on every UPDATE, and a second explicit
+// insert here would duplicate the row.
+async function logAudit({ tableName, recordId, action, req, oldValues, newValues, reason }) {
+    const adminId = req?.session?.adminId || null;
+    const role = req?.session?.role || null;
+    const ip = req?.ip || null;
+    await dbRun(
+        `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, actor_role, ip_address, changes_json, change_timestamp, reason)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
+        [
+            tableName, recordId, action,
+            oldValues ? JSON.stringify(oldValues) : null,
+            newValues ? JSON.stringify(newValues) : null,
+            adminId ? String(adminId) : 'system',
+            role, ip,
+            (oldValues || newValues) ? JSON.stringify({ old: oldValues || null, new: newValues || null }) : null,
+            reason || null
+        ]
+    );
+}
+
 // Resolves the id sets an erasure for `email` will touch — shared by anonymizeClientData (which
 // runs the actual UPDATEs against these ids) and the admin preview endpoint (which only counts
 // against them), so the two can never drift apart.
@@ -9106,10 +9145,11 @@ app.put('/api/admin/newsletter/subscribers/:id', requireAdmin, requireRole(['adm
     setClauses.push('modified_on = CURRENT_TIMESTAMP', 'modified_by = ?');
     params.push(adminId, subscriberId);
 
-    db.run(`UPDATE newsletter_subscribers SET ${setClauses.join(', ')} WHERE subscriber_id = ?`, params, function(err) {
+    db.run(`UPDATE newsletter_subscribers SET ${setClauses.join(', ')} WHERE subscriber_id = ?`, params, async function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (this.changes === 0) return res.status(404).json({ success: false, message: 'Subscriber not found' });
-        res.json({ success: true, message: 'Subscriber updated successfully.' });
+        const actor = await resolveActor(adminId);
+        res.json({ success: true, message: 'Subscriber updated successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
     });
 });
 
@@ -10322,19 +10362,22 @@ app.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (req,
                     return res.status(500).json({ success: false, message: 'Could not create the user. Please try again.' });
                 }
                 const newId = this.lastID;
+                logAudit({ tableName: 'admins', recordId: newId, action: 'create', req, oldValues: null, newValues: { email: normalizedEmail, full_name: cleanName, phone: cleanPhone, role: targetRole } }).catch(e => console.error('logAudit failed:', e));
                 // Queue the invitation email so the user can set their password.
-                createAndSendInvite({ id: newId, email: normalizedEmail, full_name: cleanName, role: targetRole }, 72, function (mail) {
+                createAndSendInvite({ id: newId, email: normalizedEmail, full_name: cleanName, role: targetRole }, 72, async function (mail) {
                     const emailSent = !!(mail && mail.success);
                     let message = 'User created and invitation sent.';
                     if (!emailSent) {
                         const reason = (mail && mail.error) ? mail.error : 'Unknown SMTP error';
                         message = 'User created, but the invitation email could not be sent: ' + reason + '. Use "Resend invite".';
                     }
+                    const actor = await resolveActor(req.session.adminId);
                     res.json({
                         success: true,
                         id: newId,
                         email_sent: emailSent,
-                        message: message
+                        message: message,
+                        last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() }
                     });
                 });
             }
@@ -10460,7 +10503,7 @@ app.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']), (r
             db.run(
                 `UPDATE admins SET username = ?, email = ?, full_name = ?, phone = ?, role = ?, is_active = ?, modified_by = ?, modified_on = CURRENT_TIMESTAMP${setPwd} WHERE id = ?`,
                 params,
-                function (err) {
+                async function (err) {
                     if (err) {
                         if (err.message.includes('UNIQUE')) {
                             return res.status(400).json({ success: false, message: 'An account with that email already exists.' });
@@ -10468,7 +10511,9 @@ app.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']), (r
                         console.error('update user failed:', err);
                         return res.status(500).json({ success: false, message: 'Could not update the user. Please try again.' });
                     }
-                    res.json({ success: true, message: 'User updated successfully.' });
+                    logAudit({ tableName: 'admins', recordId: userId, action: 'update', req, oldValues: existing, newValues: fields }).catch(e => console.error('logAudit failed:', e));
+                    const actor = await resolveActor(req.session.adminId);
+                    res.json({ success: true, message: 'User updated successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
                 }
             );
         }
@@ -10489,6 +10534,7 @@ app.delete('/api/admin/users/:id', requireAdmin, requireRole(['administrator']),
         const proceed = () => {
             db.run("DELETE FROM admins WHERE id = ?", targetUserId, function (err) {
                 if (err) { console.error('delete user failed:', err); return res.status(500).json({ success: false, message: 'Could not delete the user. Please try again.' }); }
+                logAudit({ tableName: 'admins', recordId: targetUserId, action: 'delete', req, oldValues: existing, newValues: null }).catch(e => console.error('logAudit failed:', e));
                 res.json({ success: true, message: 'User deleted.' });
             });
         };
@@ -10512,6 +10558,9 @@ app.get('/api/admin/audit_log', requireAdmin, (req, res) => {
     const page = req.query.page ? parseInt(req.query.page) : null;
     const offset = page ? (page - 1) * limit : (parseInt(req.query.offset) || 0);
     const table = req.query.table || null;
+    // A bare record_id without a table is meaningless — ids aren't unique across tables, only
+    // (table_name, record_id) pairs are (idx_audit_table_record is keyed on both).
+    const recordId = (req.query.record_id && table) ? parseInt(req.query.record_id) : null;
     const dateFrom = req.query.date_from || null;
     const dateTo = req.query.date_to || null;
     const search = req.query.search || '';
@@ -10521,23 +10570,32 @@ app.get('/api/admin/audit_log', requireAdmin, (req, res) => {
 
     let conditions = [];
     let params = [];
-    if (table) { conditions.push("table_name = ?"); params.push(table); }
-    if (dateFrom) { conditions.push("date(change_timestamp) >= ?"); params.push(dateFrom); }
-    if (dateTo) { conditions.push("date(change_timestamp) <= ?"); params.push(dateTo); }
-    if (search) { conditions.push("(table_name LIKE ? OR action LIKE ? OR changed_by LIKE ?)"); params.push(`%${search}%`, `%${search}%`, `%${search}%`); }
+    if (table) { conditions.push("audit_log.table_name = ?"); params.push(table); }
+    if (recordId) { conditions.push("audit_log.record_id = ?"); params.push(recordId); }
+    if (dateFrom) { conditions.push("date(audit_log.change_timestamp) >= ?"); params.push(dateFrom); }
+    if (dateTo) { conditions.push("date(audit_log.change_timestamp) <= ?"); params.push(dateTo); }
+    if (search) {
+        conditions.push("(audit_log.table_name LIKE ? OR audit_log.action LIKE ? OR audit_log.changed_by LIKE ? OR actor.full_name LIKE ? OR actor.username LIKE ?)");
+        params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
     const whereString = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
 
     const allowedSortCols = ['change_timestamp', 'table_name', 'action'];
     const safeSort = allowedSortCols.includes(sort) ? sort : 'change_timestamp';
     const safeOrder = String(order).toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
-    const dataQuery = "SELECT * FROM audit_log" + whereString + " ORDER BY " + safeSort + " " + safeOrder + " LIMIT ? OFFSET ?";
+    // LEFT JOIN admins purely to resolve a readable actor name for the numeric-id changed_by
+    // convention (all newly-touched "Last Updated By" routes, plus events' pre-existing rows) —
+    // guarded to only match when changed_by is actually numeric, so literal values like 'system'/
+    // 'public'/an email address never accidentally match an admin id.
+    const fromJoin = " FROM audit_log LEFT JOIN admins actor ON audit_log.changed_by GLOB '[0-9]*' AND CAST(audit_log.changed_by AS INTEGER) = actor.id";
+    const dataQuery = "SELECT audit_log.*, actor.full_name AS actor_full_name, actor.username AS actor_username" + fromJoin + whereString + " ORDER BY " + safeSort + " " + safeOrder + " LIMIT ? OFFSET ?";
     const dataParams = params.concat([limit, offset]);
 
     db.all(dataQuery, dataParams, (err, rows) => {
         if (err) { console.error('audit_log query failed:', err); return res.status(500).json({ success: false, message: 'Could not load the audit trail. Please try again.' }); }
         if (!includeFinancial) {
-            db.get("SELECT COUNT(*) AS total FROM audit_log" + whereString, params, (cErr, cRow) => {
+            db.get("SELECT COUNT(*) AS total" + fromJoin + whereString, params, (cErr, cRow) => {
                 const total = cErr ? (rows || []).length : (parseInt(cRow && cRow.total) || 0);
                 return res.json({ success: true, logs: rows || [], total: total, page: page || 1, totalPages: Math.ceil(total / limit) || 1 });
             });
@@ -12178,15 +12236,17 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
     // pending_at is now tracked; all other timestamps already mapped
     const tsFields = { PENDING: 'pending_at', QUOTED: 'quoted_at', ACCEPTED: 'accepted_at', CONFIRMED: 'confirmed_at', COMPLETED: 'completed_at', CANCELLED: 'cancelled_at' };
     const tsField = tsFields[requestedStatus];
+    // modified_by/modified_by_role are set here in the same UPDATE so the audit_bookings_update
+    // trigger can read them via NEW.modified_by(_role) into audit_log.actor_role — this replaces the
+    // parallel explicit audit_log insert that used to sit below, which double-wrote a row for every
+    // status change (once here, once from the trigger that already fires on any bookings UPDATE).
     const sql = tsField
-        ? `UPDATE bookings SET status = ?, ${tsField} = CURRENT_TIMESTAMP WHERE id = ?`
-        : `UPDATE bookings SET status = ? WHERE id = ?`;
-    db.run(sql, [requestedStatus, bookingId], async function(upErr) {
+        ? `UPDATE bookings SET status = ?, ${tsField} = CURRENT_TIMESTAMP, modified_by = ?, modified_by_role = ?, modified_on = CURRENT_TIMESTAMP WHERE id = ?`
+        : `UPDATE bookings SET status = ?, modified_by = ?, modified_by_role = ?, modified_on = CURRENT_TIMESTAMP WHERE id = ?`;
+    const sqlParams = [requestedStatus, options.adminId || null, options.role || null, bookingId];
+    db.run(sql, sqlParams, async function(upErr) {
         if (upErr) return res.status(500).json({ success: false, error: upErr.message });
-        db.run(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
-                VALUES ('bookings', ?, 'UPDATE', ?, ?, ?, CURRENT_TIMESTAMP)`,
-            [bookingId, JSON.stringify({ status: currentStatus }), JSON.stringify({ status: requestedStatus, reason: options.reason || null }), options.adminId || 'admin'],
-            (aErr) => { if (aErr) console.error('[Audit] Status change log failed:', aErr.message); });
+        const actor = await resolveActor(options.adminId);
         db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], async (e, b) => {
             if (!e && b) {
                 if (b.event_id && !['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(requestedStatus)) {
@@ -12319,7 +12379,7 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                 }
             }
         });
-        res.json({ success: true, newStatus: requestedStatus });
+        res.json({ success: true, newStatus: requestedStatus, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
     });
 }
 
@@ -12328,7 +12388,7 @@ app.put('/api/admin/bookings/:id', requireAdmin, (req, res) => {
     if (!status) return res.status(400).json({ success: false, message: 'status field required.' });
     db.get("SELECT status FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        applyStatusChange(req.params.id, status.toUpperCase(), (row.status || '').toUpperCase(), res, { reason, adminId: req.session.adminId });
+        applyStatusChange(req.params.id, status.toUpperCase(), (row.status || '').toUpperCase(), res, { reason, adminId: req.session.adminId, role: req.session.role });
     });
 });
 
@@ -12577,12 +12637,13 @@ app.post('/api/admin/calendar/hold', requireAdmin, (req, res) => {
         const expires = new Date(date); expires.setDate(expires.getDate() + 1);
         const expiresStr = expires.toISOString().slice(0, 19).replace('T', ' ');
         db.run(
-            `INSERT INTO date_holds (hold_date, notes, status, hold_expires_at, start_time, end_time, block_type)
-             VALUES (?, ?, 'active', ?, ?, ?, ?)`,
-            [date, notes, expiresStr, start_time || null, end_time || null, block_type || null],
-            function(insertErr) {
+            `INSERT INTO date_holds (hold_date, notes, status, hold_expires_at, start_time, end_time, block_type, created_by)
+             VALUES (?, ?, 'active', ?, ?, ?, ?, ?)`,
+            [date, notes, expiresStr, start_time || null, end_time || null, block_type || null, req.session.adminId],
+            async function(insertErr) {
                 if (insertErr) return res.status(500).json({ success: false, error: insertErr.message });
-                res.json({ success: true, hold: { id: this.lastID } });
+                const actor = await resolveActor(req.session.adminId);
+                res.json({ success: true, hold: { id: this.lastID }, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
             }
         );
     });
@@ -12618,11 +12679,12 @@ app.patch('/api/admin/calendar/hold/:id/date', requireAdmin, (req, res) => {
                 return res.status(409).json({ success: false, message: conflictReason });
             }
 
-            db.run("UPDATE date_holds SET hold_date = ?, hold_expires_at = datetime(?, '+1 day') WHERE id = ?",
-                [date, date, holdId],
-                (updErr) => {
+            db.run("UPDATE date_holds SET hold_date = ?, hold_expires_at = datetime(?, '+1 day'), updated_by = ?, updated_by_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                [date, date, req.session.adminId, req.session.role || null, holdId],
+                async (updErr) => {
                     if (updErr) return res.status(500).json({ success: false, error: updErr.message });
-                    res.json({ success: true, newDate: date });
+                    const actor = await resolveActor(req.session.adminId);
+                    res.json({ success: true, newDate: date, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
                 });
         });
     });
@@ -13441,7 +13503,7 @@ app.put('/api/admin/bookings/:id/status', requireAdmin, (req, res) => {
     if (!requestedStatus) return res.status(400).json({ success: false, message: 'status field required.' });
     db.get("SELECT status FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found' });
-        applyStatusChange(req.params.id, requestedStatus, (row.status || '').toUpperCase(), res, { reason, adminId: req.session.adminId });
+        applyStatusChange(req.params.id, requestedStatus, (row.status || '').toUpperCase(), res, { reason, adminId: req.session.adminId, role: req.session.role });
     });
 });
 
@@ -15901,7 +15963,8 @@ app.post('/api/admin/events', requireAdmin, (req, res) => {
                     try { gcalSynced = !!(await syncEventToCalendar(newEventId)); }
                     catch(e) { console.error('GCal sync error:', e); }
                 }
-                res.json({ success: true, id: newEventId, message: 'Event added successfully', gcal_synced: gcalSynced });
+                const actor = await resolveActor(req.session.adminId);
+                res.json({ success: true, id: newEventId, message: 'Event added successfully', gcal_synced: gcalSynced, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
             });
     });
 });
@@ -15943,10 +16006,11 @@ app.put('/api/admin/events/:id', requireAdmin, (req, res) => {
             if (conflictCheck.hasConflict) return res.status(409).json({ success: false, message: 'Calendar conflict: The selected date is already booked or held.' });
         }
 
-        db.run("UPDATE events SET event_title = ?, event_description = ?, event_datetime = ?, event_end_time = ?, event_type = ?, venue_name = ?, venue_id = ?, venue_map_link = ?, ticket_sales_link = ?, poster_image_path = ?, event_status = ?, event_capacity = ?, cancellation_reason = ?, booking_id = ?, modified_by = ?, modified_on = CURRENT_TIMESTAMP, ip_address = ?, user_agent = ? WHERE event_id = ?",
-            [event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, venue_id || null, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity || null, cancellation_reason || null, booking_id || null, req.session.adminId, ip_address, user_agent, eventId],
+        db.run("UPDATE events SET event_title = ?, event_description = ?, event_datetime = ?, event_end_time = ?, event_type = ?, venue_name = ?, venue_id = ?, venue_map_link = ?, ticket_sales_link = ?, poster_image_path = ?, event_status = ?, event_capacity = ?, cancellation_reason = ?, booking_id = ?, modified_by = ?, modified_by_role = ?, modified_on = CURRENT_TIMESTAMP, ip_address = ?, user_agent = ? WHERE event_id = ?",
+            [event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, venue_id || null, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity || null, cancellation_reason || null, booking_id || null, req.session.adminId, req.session.role || null, ip_address, user_agent, eventId],
             async function(err) {
                 if (err) return res.status(500).json({ success: false, error: err.message });
+                const actor = await resolveActor(req.session.adminId);
                 const resolvedBookingId = booking_id || (oldRow && oldRow.old_booking_id);
                 if (resolvedBookingId) {
                     db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [eventId, resolvedBookingId]);
@@ -15976,7 +16040,7 @@ app.put('/api/admin/events/:id', requireAdmin, (req, res) => {
                     try { gcalSynced = !!(await syncEventToCalendar(eventId)); }
                     catch(e) { console.error('GCal sync error:', e); }
                 }
-                res.json({ success: true, message: 'Event updated', gcal_synced: gcalSynced });
+                res.json({ success: true, message: 'Event updated', gcal_synced: gcalSynced, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
             });
     });
 });
@@ -16434,32 +16498,43 @@ app.post('/api/admin/gallery', requireAdmin, upload.single('file'), (req, res) =
     const imagePath = req.file ? `images/gallery/${req.file.filename}` : (fallback_url || null);
     if (!imagePath) return res.status(400).json({ success: false, message: 'Image file required' });
 
-    db.run("INSERT INTO gallery_images (title, image_path, uploader_name, location) VALUES (?, ?, ?, ?)", 
-        [title, imagePath, uploader_name || null, location || null], function(err) {
+    db.run("INSERT INTO gallery_images (title, image_path, uploader_name, location, created_by) VALUES (?, ?, ?, ?, ?)",
+        [title, imagePath, uploader_name || null, location || null, req.session.adminId], async function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true, id: this.lastID, imagePath });
+        const newId = this.lastID;
+        logAudit({ tableName: 'gallery_images', recordId: newId, action: 'create', req, oldValues: null, newValues: { title, image_path: imagePath, uploader_name, location } }).catch(e => console.error('logAudit failed:', e));
+        const actor = await resolveActor(req.session.adminId);
+        res.json({ success: true, id: newId, imagePath, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
     });
 });
 app.put('/api/admin/gallery/:id', requireAdmin, (req, res) => {
     const { title, fallback_url, uploader_name, location } = req.body;
-    const done = function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-    };
-    if (fallback_url) {
-        // A new media URL was supplied — update image_path too.
-        db.run("UPDATE gallery_images SET title = ?, image_path = ?, uploader_name = ?, location = ? WHERE id = ?",
-            [title, fallback_url, uploader_name || null, location || null, req.params.id], done);
-    } else {
-        // Title-only edit — leave the existing image untouched.
-        db.run("UPDATE gallery_images SET title = ?, uploader_name = ?, location = ? WHERE id = ?",
-            [title, uploader_name || null, location || null, req.params.id], done);
-    }
+    const galleryId = req.params.id;
+    db.get("SELECT * FROM gallery_images WHERE id = ?", [galleryId], (selErr, existing) => {
+        const done = async function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logAudit({ tableName: 'gallery_images', recordId: galleryId, action: 'update', req, oldValues: existing || null, newValues: { title, uploader_name, location, image_path: fallback_url || (existing && existing.image_path) } }).catch(e => console.error('logAudit failed:', e));
+            const actor = await resolveActor(req.session.adminId);
+            res.json({ success: true, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
+        };
+        if (fallback_url) {
+            // A new media URL was supplied — update image_path too.
+            db.run("UPDATE gallery_images SET title = ?, image_path = ?, uploader_name = ?, location = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                [title, fallback_url, uploader_name || null, location || null, req.session.adminId, galleryId], done);
+        } else {
+            // Title-only edit — leave the existing image untouched.
+            db.run("UPDATE gallery_images SET title = ?, uploader_name = ?, location = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+                [title, uploader_name || null, location || null, req.session.adminId, galleryId], done);
+        }
+    });
 });
 app.delete('/api/admin/gallery/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.run("DELETE FROM gallery_images WHERE id = ?", req.params.id, function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
+    db.get("SELECT * FROM gallery_images WHERE id = ?", [req.params.id], (selErr, existing) => {
+        db.run("DELETE FROM gallery_images WHERE id = ?", req.params.id, function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logAudit({ tableName: 'gallery_images', recordId: req.params.id, action: 'delete', req, oldValues: existing || null, newValues: null }).catch(e => console.error('logAudit failed:', e));
+            res.json({ success: true });
+        });
     });
 });
 
@@ -16665,9 +16740,10 @@ app.get('/api/admin/inquiries/assignable-admins', requireAdmin, (req, res) => {
 app.put('/api/admin/inquiries/:id/assign', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { assigned_to } = req.body;
     if (assigned_to === null || assigned_to === undefined || assigned_to === '') {
-        return db.run("UPDATE inquiries SET assigned_to = NULL, assigned_at = NULL WHERE inquiry_id = ?", [req.params.id], function(err) {
+        return db.run("UPDATE inquiries SET assigned_to = NULL, assigned_at = NULL, updated_by = ?, updated_by_role = ?, updated_at = CURRENT_TIMESTAMP WHERE inquiry_id = ?", [req.session.adminId, req.session.role || null, req.params.id], async function(err) {
             if (err) return res.status(500).json({ success: false, message: err.message });
-            res.json({ success: true });
+            const actor = await resolveActor(req.session.adminId);
+            res.json({ success: true, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
         });
     }
     const targetId = parseInt(assigned_to);
@@ -16675,9 +16751,10 @@ app.put('/api/admin/inquiries/:id/assign', requireAdmin, requireRole(['administr
     db.get("SELECT id FROM admins WHERE id = ? AND is_active = 1", [targetId], (err, row) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (!row) return res.status(400).json({ success: false, message: 'Assignee must be an active admin.' });
-        db.run("UPDATE inquiries SET assigned_to = ?, assigned_at = CURRENT_TIMESTAMP WHERE inquiry_id = ?", [targetId, req.params.id], function(err2) {
+        db.run("UPDATE inquiries SET assigned_to = ?, assigned_at = CURRENT_TIMESTAMP, updated_by = ?, updated_by_role = ?, updated_at = CURRENT_TIMESTAMP WHERE inquiry_id = ?", [targetId, req.session.adminId, req.session.role || null, req.params.id], async function(err2) {
             if (err2) return res.status(500).json({ success: false, message: err2.message });
-            res.json({ success: true });
+            const actor = await resolveActor(req.session.adminId);
+            res.json({ success: true, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
         });
     });
 });
@@ -16688,9 +16765,10 @@ app.put('/api/admin/inquiries/:id/priority', requireAdmin, requireRole(['adminis
     if (!validPriorities.includes(priority)) {
         return res.status(400).json({ success: false, message: 'Invalid priority.' });
     }
-    db.run("UPDATE inquiries SET priority = ? WHERE inquiry_id = ?", [priority, req.params.id], function(err) {
+    db.run("UPDATE inquiries SET priority = ?, updated_by = ?, updated_by_role = ?, updated_at = CURRENT_TIMESTAMP WHERE inquiry_id = ?", [priority, req.session.adminId, req.session.role || null, req.params.id], async function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
-        res.json({ success: true });
+        const actor = await resolveActor(req.session.adminId);
+        res.json({ success: true, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
     });
 });
 
@@ -16704,9 +16782,10 @@ app.get('/api/admin/inquiries/categories', requireAdmin, (req, res) => {
 
 app.put('/api/admin/inquiries/:id/category', requireAdmin, (req, res) => {
     const category = (req.body.category || '').trim().slice(0, 100);
-    db.run("UPDATE inquiries SET category = ? WHERE inquiry_id = ?", [category || null, req.params.id], function(err) {
+    db.run("UPDATE inquiries SET category = ?, updated_by = ?, updated_by_role = ?, updated_at = CURRENT_TIMESTAMP WHERE inquiry_id = ?", [category || null, req.session.adminId, req.session.role || null, req.params.id], async function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
-        res.json({ success: true });
+        const actor = await resolveActor(req.session.adminId);
+        res.json({ success: true, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
     });
 });
 
@@ -17482,19 +17561,21 @@ app.put('/api/admin/manager', requireAdmin, (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         
         if (row) {
-            db.run(`UPDATE manager_details 
-                    SET name = ?, cell_number = ?, whatsapp_number = ?, email = ?, whatsapp_link = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ? 
-                    WHERE manager_id = ?`, 
-                [name, cell_number, whatsapp_number, email, cleanLink, adminId, row.manager_id], function(err) {
+            db.run(`UPDATE manager_details
+                    SET name = ?, cell_number = ?, whatsapp_number = ?, email = ?, whatsapp_link = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ?
+                    WHERE manager_id = ?`,
+                [name, cell_number, whatsapp_number, email, cleanLink, adminId, row.manager_id], async function(err) {
                 if (err) return res.status(500).json({ error: err.message });
-                res.json({ success: true, message: 'Manager details updated successfully.' });
+                const actor = await resolveActor(adminId);
+                res.json({ success: true, message: 'Manager details updated successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
             });
         } else {
-            db.run(`INSERT INTO manager_details (name, cell_number, whatsapp_number, email, whatsapp_link, created_by) 
-                    VALUES (?, ?, ?, ?, ?, ?)`, 
-                [name, cell_number, whatsapp_number, email, cleanLink, adminId], function(err) {
+            db.run(`INSERT INTO manager_details (name, cell_number, whatsapp_number, email, whatsapp_link, created_by)
+                    VALUES (?, ?, ?, ?, ?, ?)`,
+                [name, cell_number, whatsapp_number, email, cleanLink, adminId], async function(err) {
                 if (err) return res.status(500).json({ error: err.message });
-                res.json({ success: true, message: 'Manager details created successfully.' });
+                const actor = await resolveActor(adminId);
+                res.json({ success: true, message: 'Manager details created successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
             });
         }
     });
@@ -17531,22 +17612,24 @@ app.post('/api/admin/contact_info', requireAdmin, (req, res) => {
         }
         
         if (row) {
-            db.run(`UPDATE contact_info 
-                    SET email = ?, quote = ?, signature = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ? 
-                    WHERE quote_id = ?`, 
-                [email, quote, signature, adminId, row.quote_id], function(err) {
+            db.run(`UPDATE contact_info
+                    SET email = ?, quote = ?, signature = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ?
+                    WHERE quote_id = ?`,
+                [email, quote, signature, adminId, row.quote_id], async function(err) {
                 if (err) {
                      console.error("[DEBUG] UPDATE Error:", err);
                      return res.status(500).json({ error: err.message });
                 }
-                res.json({ success: true, message: 'Contact info updated successfully.' });
+                const actor = await resolveActor(adminId);
+                res.json({ success: true, message: 'Contact info updated successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
             });
         } else {
-            db.run(`INSERT INTO contact_info (email, quote, signature, created_by) 
-                    VALUES (?, ?, ?, ?)`, 
-                [email, quote, signature, adminId], function(err) {
+            db.run(`INSERT INTO contact_info (email, quote, signature, created_by)
+                    VALUES (?, ?, ?, ?)`,
+                [email, quote, signature, adminId], async function(err) {
                 if (err) return res.status(500).json({ error: err.message });
-                res.json({ success: true, message: 'Contact info created successfully.' });
+                const actor = await resolveActor(adminId);
+                res.json({ success: true, message: 'Contact info created successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
             });
         }
     });
