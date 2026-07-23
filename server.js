@@ -16228,33 +16228,42 @@ app.post('/api/admin/highlights', requireAdmin, upload.single('file'), (req, res
     db.run("INSERT INTO career_highlights (year, title, badge, location, description, image_path, display_order, icon) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         [year, title, badge, location, description, imagePath, display_order || 0, icon || null], function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true, id: this.lastID });
+        const newId = this.lastID;
+        logAudit({ tableName: 'career_highlights', recordId: newId, action: 'create', req, oldValues: null, newValues: { year, title, badge, location, description, image_path: imagePath, display_order: display_order || 0, icon } }).catch(e => console.error('logAudit failed:', e));
+        res.json({ success: true, id: newId });
     });
 });
 app.put('/api/admin/highlights/:id', requireAdmin, (req, res) => {
     const { year, title, badge, location, description, display_order, fallback_url, clear_image, icon } = req.body;
-    const done = function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-    };
-    if (clear_image === true || clear_image === 'true') {
-        // Clear the image path entirely
-        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = NULL, display_order = ?, icon = ? WHERE id = ?",
-            [year, title, badge, location, description, display_order, icon || null, req.params.id], done);
-    } else if (fallback_url) {
-        // A new media URL was supplied on edit — update image_path too.
-        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = ?, display_order = ?, icon = ? WHERE id = ?",
-            [year, title, badge, location, description, fallback_url, display_order, icon || null, req.params.id], done);
-    } else {
-        // No new media — leave the existing image_path untouched.
-        db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, display_order = ?, icon = ? WHERE id = ?",
-            [year, title, badge, location, description, display_order, icon || null, req.params.id], done);
-    }
+    db.get("SELECT * FROM career_highlights WHERE id = ?", [req.params.id], (selErr, existing) => {
+        const done = function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            const newImagePath = (clear_image === true || clear_image === 'true') ? null : (fallback_url || (existing && existing.image_path));
+            logAudit({ tableName: 'career_highlights', recordId: req.params.id, action: 'update', req, oldValues: existing || null, newValues: { year, title, badge, location, description, image_path: newImagePath, display_order, icon } }).catch(e => console.error('logAudit failed:', e));
+            res.json({ success: true });
+        };
+        if (clear_image === true || clear_image === 'true') {
+            // Clear the image path entirely
+            db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = NULL, display_order = ?, icon = ? WHERE id = ?",
+                [year, title, badge, location, description, display_order, icon || null, req.params.id], done);
+        } else if (fallback_url) {
+            // A new media URL was supplied on edit — update image_path too.
+            db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = ?, display_order = ?, icon = ? WHERE id = ?",
+                [year, title, badge, location, description, fallback_url, display_order, icon || null, req.params.id], done);
+        } else {
+            // No new media — leave the existing image_path untouched.
+            db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, display_order = ?, icon = ? WHERE id = ?",
+                [year, title, badge, location, description, display_order, icon || null, req.params.id], done);
+        }
+    });
 });
 app.delete('/api/admin/highlights/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.run("DELETE FROM career_highlights WHERE id = ?", req.params.id, function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
+    db.get("SELECT * FROM career_highlights WHERE id = ?", [req.params.id], (selErr, existing) => {
+        db.run("DELETE FROM career_highlights WHERE id = ?", req.params.id, function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logAudit({ tableName: 'career_highlights', recordId: req.params.id, action: 'delete', req, oldValues: existing || null, newValues: null }).catch(e => console.error('logAudit failed:', e));
+            res.json({ success: true });
+        });
     });
 });
 
@@ -16280,29 +16289,38 @@ app.post('/api/admin/footprint', requireAdmin, upload.single('file'), (req, res)
     db.run("INSERT INTO footprint_countries (country_name, flag_image_path, display_order) VALUES (?, ?, ?)",
         [country_name, imagePath, display_order || 0], function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true, id: this.lastID });
+        const newId = this.lastID;
+        logAudit({ tableName: 'footprint_countries', recordId: newId, action: 'create', req, oldValues: null, newValues: { country_name, flag_image_path: imagePath, display_order: display_order || 0 } }).catch(e => console.error('logAudit failed:', e));
+        res.json({ success: true, id: newId });
     });
 });
 app.put('/api/admin/footprint/:id', requireAdmin, (req, res) => {
     const { country_name, display_order, fallback_url } = req.body;
-    const done = function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
-    };
-    if (fallback_url) {
-        // A new flag image was supplied on edit.
-        db.run("UPDATE footprint_countries SET country_name = ?, flag_image_path = ?, display_order = ? WHERE id = ?",
-            [country_name, fallback_url, display_order, req.params.id], done);
-    } else {
-        // No new image — flag_image_path is required, so it's never cleared, only replaced.
-        db.run("UPDATE footprint_countries SET country_name = ?, display_order = ? WHERE id = ?",
-            [country_name, display_order, req.params.id], done);
-    }
+    db.get("SELECT * FROM footprint_countries WHERE id = ?", [req.params.id], (selErr, existing) => {
+        const done = function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            const newFlagPath = fallback_url || (existing && existing.flag_image_path);
+            logAudit({ tableName: 'footprint_countries', recordId: req.params.id, action: 'update', req, oldValues: existing || null, newValues: { country_name, flag_image_path: newFlagPath, display_order } }).catch(e => console.error('logAudit failed:', e));
+            res.json({ success: true });
+        };
+        if (fallback_url) {
+            // A new flag image was supplied on edit.
+            db.run("UPDATE footprint_countries SET country_name = ?, flag_image_path = ?, display_order = ? WHERE id = ?",
+                [country_name, fallback_url, display_order, req.params.id], done);
+        } else {
+            // No new image — flag_image_path is required, so it's never cleared, only replaced.
+            db.run("UPDATE footprint_countries SET country_name = ?, display_order = ? WHERE id = ?",
+                [country_name, display_order, req.params.id], done);
+        }
+    });
 });
 app.delete('/api/admin/footprint/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.run("DELETE FROM footprint_countries WHERE id = ?", req.params.id, function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
+    db.get("SELECT * FROM footprint_countries WHERE id = ?", [req.params.id], (selErr, existing) => {
+        db.run("DELETE FROM footprint_countries WHERE id = ?", req.params.id, function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logAudit({ tableName: 'footprint_countries', recordId: req.params.id, action: 'delete', req, oldValues: existing || null, newValues: null }).catch(e => console.error('logAudit failed:', e));
+            res.json({ success: true });
+        });
     });
 });
 
@@ -16346,7 +16364,9 @@ app.post('/api/admin/testimonials', requireAdmin, upload.single('file'), (req, r
     db.run("INSERT INTO testimonials (name, designation, quote, image_path, display_order, status, submitted_by) VALUES (?, ?, ?, ?, ?, 'approved', 'admin')",
         [name, designation || null, quote, imagePath, display_order || 0], function(err) {
         if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true, id: this.lastID });
+        const newId = this.lastID;
+        logAudit({ tableName: 'testimonials', recordId: newId, action: 'create', req, oldValues: null, newValues: { name, designation, quote, image_path: imagePath, display_order: display_order || 0, status: 'approved' } }).catch(e => console.error('logAudit failed:', e));
+        res.json({ success: true, id: newId });
     });
 });
 // Edit — also how Approve/Reject work (a status-only PUT from the admin moderation queue).
@@ -16368,14 +16388,18 @@ app.put('/api/admin/testimonials/:id', requireAdmin, (req, res) => {
         db.run("UPDATE testimonials SET name = ?, designation = ?, quote = ?, image_path = ?, display_order = ?, status = ? WHERE id = ?",
             [newName, newDesignation, newQuote, newImagePath, newDisplayOrder, newStatus, req.params.id], function(err) {
             if (err) return res.status(500).json({ error: err.message });
+            logAudit({ tableName: 'testimonials', recordId: req.params.id, action: 'update', req, oldValues: existing, newValues: { name: newName, designation: newDesignation, quote: newQuote, image_path: newImagePath, display_order: newDisplayOrder, status: newStatus } }).catch(e => console.error('logAudit failed:', e));
             res.json({ success: true });
         });
     });
 });
 app.delete('/api/admin/testimonials/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.run("DELETE FROM testimonials WHERE id = ?", req.params.id, function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
+    db.get("SELECT * FROM testimonials WHERE id = ?", [req.params.id], (selErr, existing) => {
+        db.run("DELETE FROM testimonials WHERE id = ?", req.params.id, function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logAudit({ tableName: 'testimonials', recordId: req.params.id, action: 'delete', req, oldValues: existing || null, newValues: null }).catch(e => console.error('logAudit failed:', e));
+            res.json({ success: true });
+        });
     });
 });
 
@@ -16401,14 +16425,19 @@ app.post('/api/admin/home-slider', requireAdmin, (req, res) => {
     db.run("INSERT INTO home_slider (url, alt, file_name, file_size, uploader_name, display_order) VALUES (?, ?, ?, ?, ?, (SELECT IFNULL(MAX(display_order), 0) + 1 FROM home_slider))",
         [url, alt || null, file_name || null, file_size || null, uploader_name], function(err) {
             if (err) return res.status(500).json({ success: false, error: err.message });
-            res.json({ success: true, id: this.lastID });
+            const newId = this.lastID;
+            logAudit({ tableName: 'home_slider', recordId: newId, action: 'create', req, oldValues: null, newValues: { url, alt, file_name, file_size } }).catch(e => console.error('logAudit failed:', e));
+            res.json({ success: true, id: newId });
         });
 });
 
 app.delete('/api/admin/home-slider/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.run("DELETE FROM home_slider WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true });
+    db.get("SELECT * FROM home_slider WHERE id = ?", [req.params.id], (selErr, existing) => {
+        db.run("DELETE FROM home_slider WHERE id = ?", [req.params.id], function(err) {
+            if (err) return res.status(500).json({ error: err.message });
+            logAudit({ tableName: 'home_slider', recordId: req.params.id, action: 'delete', req, oldValues: existing || null, newValues: null }).catch(e => console.error('logAudit failed:', e));
+            res.json({ success: true });
+        });
     });
 });
 
@@ -16421,6 +16450,10 @@ app.put('/api/admin/home-slider/reorder', requireAdmin, (req, res) => {
         });
         stmt.finalize((err) => {
             if (err) return res.status(500).json({ error: err.message });
+            // One summary row rather than one per slide — this is a bulk reorder, not a single
+            // record's change, so it's not tied to any one slide's Change History card, only
+            // the global Audit Trail (record_id 0 has no matching individual record).
+            logAudit({ tableName: 'home_slider', recordId: 0, action: 'reorder', req, oldValues: null, newValues: { order } }).catch(e => console.error('logAudit failed:', e));
             res.json({ success: true });
         });
     });
@@ -16429,19 +16462,22 @@ app.put('/api/admin/home-slider/reorder', requireAdmin, (req, res) => {
 // NB: registered AFTER /home-slider/reorder so "reorder" is not captured as :id.
 app.put('/api/admin/home-slider/:id', requireAdmin, (req, res) => {
     const { alt, url, file_name } = req.body;
-    const done = function(err) {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        res.json({ success: true });
-    };
-    if (url) {
-        // A new image URL was supplied — update url/file_name + alt.
-        db.run("UPDATE home_slider SET alt = ?, url = ?, file_name = ? WHERE id = ?",
-            [alt || null, url, file_name || null, req.params.id], done);
-    } else {
-        // Alt-text-only edit — leave the image untouched.
-        db.run("UPDATE home_slider SET alt = ? WHERE id = ?",
-            [alt || null, req.params.id], done);
-    }
+    db.get("SELECT * FROM home_slider WHERE id = ?", [req.params.id], (selErr, existing) => {
+        const done = function(err) {
+            if (err) return res.status(500).json({ success: false, error: err.message });
+            logAudit({ tableName: 'home_slider', recordId: req.params.id, action: 'update', req, oldValues: existing || null, newValues: { alt, url: url || (existing && existing.url), file_name: file_name || (existing && existing.file_name) } }).catch(e => console.error('logAudit failed:', e));
+            res.json({ success: true });
+        };
+        if (url) {
+            // A new image URL was supplied — update url/file_name + alt.
+            db.run("UPDATE home_slider SET alt = ?, url = ?, file_name = ? WHERE id = ?",
+                [alt || null, url, file_name || null, req.params.id], done);
+        } else {
+            // Alt-text-only edit — leave the image untouched.
+            db.run("UPDATE home_slider SET alt = ? WHERE id = ?",
+                [alt || null, req.params.id], done);
+        }
+    });
 });
 
 app.post('/api/admin/publish-home-slider', requireAdmin, (req, res) => {
@@ -16488,9 +16524,23 @@ app.post('/api/admin/publish-home-slider', requireAdmin, (req, res) => {
 
 // --- Gallery Images ---
 app.get('/api/public/gallery', (req, res) => { // Public route for index.html
-    db.all("SELECT * FROM gallery_images ORDER BY created_at DESC", [], (err, rows) => {
+    db.all("SELECT * FROM gallery_images ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
+    });
+});
+app.put('/api/admin/gallery/reorder', requireAdmin, (req, res) => {
+    const { order } = req.body; // Array of IDs in new order
+    db.serialize(() => {
+        const stmt = db.prepare("UPDATE gallery_images SET display_order = ? WHERE id = ?");
+        order.forEach((id, index) => {
+            stmt.run(index, id);
+        });
+        stmt.finalize((err) => {
+            if (err) return res.status(500).json({ error: err.message });
+            logAudit({ tableName: 'gallery_images', recordId: 0, action: 'reorder', req, oldValues: null, newValues: { order } }).catch(e => console.error('logAudit failed:', e));
+            res.json({ success: true });
+        });
     });
 });
 app.post('/api/admin/gallery', requireAdmin, upload.single('file'), (req, res) => {
@@ -16498,7 +16548,7 @@ app.post('/api/admin/gallery', requireAdmin, upload.single('file'), (req, res) =
     const imagePath = req.file ? `images/gallery/${req.file.filename}` : (fallback_url || null);
     if (!imagePath) return res.status(400).json({ success: false, message: 'Image file required' });
 
-    db.run("INSERT INTO gallery_images (title, image_path, uploader_name, location, created_by) VALUES (?, ?, ?, ?, ?)",
+    db.run("INSERT INTO gallery_images (title, image_path, uploader_name, location, created_by, display_order) VALUES (?, ?, ?, ?, ?, (SELECT IFNULL(MAX(display_order), 0) + 1 FROM gallery_images))",
         [title, imagePath, uploader_name || null, location || null, req.session.adminId], async function(err) {
         if (err) return res.status(500).json({ error: err.message });
         const newId = this.lastID;
@@ -17744,14 +17794,16 @@ app.post('/api/admin/about-me', requireAdmin, (req, res) => {
     const p3 = sanitizeAboutHtml(paragraph3);
     const imgPath = image_path || '';
 
-    db.get("SELECT id FROM about_me WHERE id = 1", (err, row) => {
+    db.get("SELECT * FROM about_me WHERE id = 1", (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
+        const newValues = { image_path: imgPath, paragraph1: p1, paragraph2: p2, paragraph3: p3 };
         if (row) {
             db.run(
                 `UPDATE about_me SET image_path=?, paragraph1=?, paragraph2=?, paragraph3=?, updated_at=CURRENT_TIMESTAMP, updated_by=? WHERE id=1`,
                 [imgPath, p1, p2, p3, username],
                 (e) => {
                     if (e) return res.status(500).json({ error: e.message });
+                    logAudit({ tableName: 'about_me', recordId: 1, action: 'update', req, oldValues: row, newValues }).catch(err2 => console.error('logAudit failed:', err2));
                     res.json({ success: true, message: 'About Me content updated.' });
                 }
             );
@@ -17761,6 +17813,7 @@ app.post('/api/admin/about-me', requireAdmin, (req, res) => {
                 [imgPath, p1, p2, p3, username, username],
                 (e) => {
                     if (e) return res.status(500).json({ error: e.message });
+                    logAudit({ tableName: 'about_me', recordId: 1, action: 'create', req, oldValues: null, newValues }).catch(err2 => console.error('logAudit failed:', err2));
                     res.json({ success: true, message: 'About Me content saved.' });
                 }
             );

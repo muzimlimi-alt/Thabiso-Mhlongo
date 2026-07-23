@@ -451,6 +451,8 @@ function initializeDatabase() {
                 if (!colNames.includes('created_by')) db.run("ALTER TABLE gallery_images ADD COLUMN created_by INTEGER REFERENCES admins(id)", () => {});
                 if (!colNames.includes('updated_by')) db.run("ALTER TABLE gallery_images ADD COLUMN updated_by INTEGER REFERENCES admins(id)", () => {});
                 if (!colNames.includes('updated_at')) db.run("ALTER TABLE gallery_images ADD COLUMN updated_at DATETIME", () => {});
+                // Drag-to-reorder in the admin Gallery grid (mirrors home_slider.display_order).
+                if (!colNames.includes('display_order')) db.run("ALTER TABLE gallery_images ADD COLUMN display_order INTEGER DEFAULT 0", () => {});
             });
         });
          // 8. Manager Details Table

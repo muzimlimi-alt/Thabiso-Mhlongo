@@ -1155,23 +1155,11 @@
             0%, 100% { opacity: 1; }
             50%       { opacity: 0.65; }
         }
-        .atl-event-title {
-            font-family: 'Cormorant Garamond', Georgia, serif;
-            font-size: clamp(22px, 3.5vw, 30px);
-            font-weight: 500;
-            line-height: 1.1;
-            /* redesign.css has an unscoped h1-h6{color:var(--text-primary)!important} with no light-theme
-               override (see reference_redesign_css_heading_bleed) - it silently made every event card
-               title pure white regardless of admin theme, i.e. invisible white-on-white in light mode.
-               Matches the same !important workaround already used for .svc-drawer__header h3/.dv-empty h3. */
-            color: var(--atl-ink) !important;
-            margin: 4px 0;
-        }
-
         /* .um-section-label (h3/h4/h5, used across Calendar/Financial/Events/etc. section panels) had
-           no base color rule of its own, so it fell through to the same redesign.css h1-h6!important
-           bleed as .atl-event-title above - e.g. every heading in the Events "About" tab ("About Events
-           Management", "How it works", "Common tasks") was pure white-on-white in light theme.
+           no base color rule of its own, so it fell through to the redesign.css h1-h6!important
+           bleed (see reference_redesign_css_heading_bleed) - e.g. every heading in the Events "About"
+           tab ("About Events Management", "How it works", "Common tasks") was pure white-on-white
+           in light theme.
            :not([style*="color"]) excludes the couple of instances that set an intentional inline
            color (e.g. the clay-red POPIA erasure heading) - this only fixes the un-styled default case. */
         .um-section-label:not([style*="color"]) { color: var(--atl-ink) !important; }
@@ -1276,12 +1264,6 @@
             .atl-toolbar { gap: 8px; }
         }
 
-        /* Card header — tighter vertical rhythm on XS */
-        @media (max-width: 479px) {
-            .atl-booking-card-header { gap: 10px; }
-            .atl-event-title { font-size: 20px !important; }
-        }
-
         /* Modal — bottom sheet on XS */
         @media (max-width: 479px) {
             .atl-modal-overlay { padding: 0; align-items: flex-end; }
@@ -1303,12 +1285,6 @@
         }
 
 
-        /* Event-card meta — date and venue each on their own line (separator hidden),
-           icons top-aligned, nothing truncated. */
-        .evt-card-meta { display: flex; flex-direction: column; gap: 3px; white-space: normal; }
-        .evt-card-meta__sep { display: none; }
-        .evt-card-meta__item { display: inline-flex; align-items: flex-start; gap: 6px; min-width: 0; }
-
         /* Calendar sidebar gap when columns stack below lg breakpoint */
         @media (max-width: 1199px) {
             #calendarAdmin .col-lg-4 { margin-top: 20px; }
@@ -1325,9 +1301,7 @@
             .evt-bulk-bar > div { flex-wrap:wrap; }
         }
         @media (max-width:479px) {
-            .atl-booking-card-header { gap:10px !important; }
             #evtPosterPreview { max-height:140px !important; }
-            .evt-expand-btn { padding:4px 8px !important; }
         }
         /* Accessible checkbox hit zone — 44×44px clickable area around 18px checkbox */
         .evt-select-cb-wrap { position:absolute; top:6px; left:6px; width:44px; height:44px; display:none; align-items:center; justify-content:center; cursor:pointer; z-index:10; }
@@ -1357,9 +1331,6 @@
             display: none !important;
         }
 
-        /* Expand chevron rotation */
-        .evt-expand-btn[aria-expanded="true"] i.fa-chevron-down { transform: rotate(180deg); }
-
         /* Unified event card badges (replaces all hardcoded inline badge styles) */
         .evt-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-family:'Outfit',sans-serif; font-size:10px; font-weight:700; line-height:1.4; white-space:nowrap; }
         .evt-badge--amber { background:var(--atl-amber-dim); color:var(--atl-amber); border:1px solid var(--atl-amber-border); }
@@ -1369,6 +1340,7 @@
         .evt-badge--red { background:var(--atl-clay-dim,rgba(239,68,68,0.1)); color:var(--atl-clay,#ef4444); border:1px solid var(--atl-clay-dim,rgba(239,68,68,0.2)); }
         .evt-badge--warn { background:rgba(251,191,36,0.12); color:#fbbf24; border:1px solid rgba(251,191,36,0.25); }
         .evt-badge--danger { background:var(--atl-clay-dim,rgba(239,68,68,0.1)); color:var(--atl-clay,#ef4444); border:1px solid var(--atl-clay-dim,rgba(239,68,68,0.2)); }
+        .evt-badge--sage { background:color-mix(in srgb, var(--atl-sage) 12%, transparent); color:var(--atl-sage); border:1px solid color-mix(in srgb, var(--atl-sage) 30%, transparent); }
         .evt-list-header { margin-bottom:20px; }
         .evt-list-heading {
             font-family: 'Cormorant Garamond', Georgia, serif;
@@ -1385,7 +1357,7 @@
         #eventsDesc { min-height: 116px !important; }
         .evt-card-grid { display:flex; flex-direction:column; gap:16px; }
         @media (max-width:639px) {
-            .evt-form-mount .um-form-grid { grid-template-columns:1fr !important; }
+            #eventsFormHomeMount .um-form-grid { grid-template-columns:1fr !important; }
             .atl-form-mount .um-form-grid { grid-template-columns:1fr !important; }
         }
 
@@ -3446,10 +3418,11 @@
             position: relative;
         }
         .inq-folder:hover { background: var(--atl-amber-dim); color: var(--atl-ink); }
-        .inq-folder.active { background: var(--atl-amber-dim); color: var(--atl-amber); font-weight: 600; border-left: 2px solid var(--atl-amber); }
+        .inq-folder.active { background: color-mix(in srgb, var(--atl-orange) 12%, transparent); color: var(--atl-orange); font-weight: 600; border-left: 2px solid var(--atl-orange); }
         .inq-folder i { width: 14px; text-align: center; font-size: 12px; flex-shrink: 0; }
         .inq-folder-count { margin-left: auto; background: var(--atl-amber); color: var(--atl-on-amber); border-radius: var(--atl-r-pill); font-size: 10px; font-weight: 700; padding: 1px 6px; min-width: 16px; text-align: center; line-height: 1.4; }
         .inq-folder:not(.active) .inq-folder-count { background: var(--atl-surface3); color: var(--atl-muted); }
+        .inq-folder.active .inq-folder-count { background: var(--atl-orange); color: var(--atl-on-amber); }
 
         /* Centre: message list */
         .inq-list-panel { border-right: 1px solid var(--atl-line); display: flex; flex-direction: column; background: var(--atl-sidebar-bg); overflow: hidden; }
@@ -3476,26 +3449,32 @@
         .inq-sort-select { background: var(--atl-input-bg); border: 1px solid var(--atl-line); color: var(--atl-muted); border-radius: var(--atl-r-sm); padding: 5px 8px; font-size: 12px; cursor: pointer; transition: border-color var(--atl-t-base); }
         .inq-sort-select:focus { outline: none; border-color: var(--atl-amber); color: var(--atl-ink); }
 
-        .inq-list-body { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--atl-line-strong) transparent; }
+        .inq-list-body { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--atl-line-strong) transparent; display: flex; flex-direction: column; gap: 7px; padding: 10px; }
         .inq-list-body::-webkit-scrollbar { width: 3px; }
         .inq-list-body::-webkit-scrollbar-track { background: transparent; }
         .inq-list-body::-webkit-scrollbar-thumb { background: var(--atl-line-strong); border-radius: 3px; }
 
-        /* Message rows */
-        .inq-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--atl-line); cursor: pointer; transition: background var(--atl-t-fast); position: relative; user-select: none; }
-        .inq-row:hover { background: var(--atl-amber-dim); }
-        .inq-row:focus-visible { outline: none; background: var(--atl-amber-dim); }
-        .inq-row--active { background: var(--atl-amber-dim) !important; border-left: 2px solid var(--atl-amber); padding-left: 12px; }
+        /* Message rows — soft "card row" treatment (mirrors .atl-edit-card elsewhere) instead of a
+           flat divided list, so a short inbox doesn't read as an unstyled blank list. */
+        .inq-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); background: var(--atl-card); cursor: pointer; transition: background var(--atl-t-fast), border-color var(--atl-t-fast), box-shadow var(--atl-t-fast); position: relative; user-select: none; }
+        .inq-row:hover { background: var(--atl-amber-dim); border-color: var(--atl-amber-border); box-shadow: var(--atl-shadow-card); }
+        .inq-row:focus-visible { outline: none; background: var(--atl-amber-dim); border-color: var(--atl-amber-border); }
+        .inq-row--active { background: var(--atl-amber-dim) !important; border-color: var(--atl-amber) !important; box-shadow: var(--atl-shadow-card); }
         .inq-row--unread .inq-row-name { font-weight: 700; color: var(--atl-ink); }
         .inq-row--unread .inq-row-subject { color: var(--atl-ink-dim); font-weight: 600; }
 
-        .inq-row-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--atl-amber); color: var(--atl-on-amber); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0; }
+        .inq-row-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--atl-amber); color: var(--atl-on-amber); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex-shrink: 0; }
         .inq-row-main { flex: 1; min-width: 0; }
-        .inq-row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
-        .inq-row-name { font-family: 'Outfit', sans-serif; font-size: 13px; color: var(--atl-muted); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 155px; }
+        .inq-row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        .inq-row-name { font-family: 'Outfit', sans-serif; font-size: 14px; color: var(--atl-muted); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 155px; }
         .inq-row-date { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--atl-muted-dim); flex-shrink: 0; }
-        .inq-row-subject { font-family: 'Outfit', sans-serif; font-size: 12px; color: var(--atl-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 2px; }
-        .inq-row-preview { font-size: 11px; color: var(--atl-placeholder); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .inq-row-subject { font-family: 'Outfit', sans-serif; font-size: 12.5px; color: var(--atl-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+        .inq-row-preview { font-size: 12px; color: var(--atl-placeholder); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* End-of-list marker — replaces the dead empty void below the last card with a deliberate,
+           lightweight sign-off instead of looking like the list cut off mid-render. */
+        .inq-list-end { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 22px 20px 26px; color: var(--atl-muted-dim); font-size: 12px; }
+        .inq-list-end i { color: var(--atl-sage); font-size: 13px; }
 
         .inq-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
         .inq-status-dot--unread { background: var(--atl-amber); }
@@ -3722,7 +3701,7 @@
                 border-radius: var(--atl-r-pill);
                 display: flex; align-items: center; gap: 6px;
             }
-            .inq-folder.active { background: var(--atl-amber-dim); border-color: var(--atl-amber-border); color: var(--atl-amber); font-weight: 600; }
+            .inq-folder.active { background: color-mix(in srgb, var(--atl-orange) 12%, transparent); border-color: var(--atl-orange); color: var(--atl-orange); font-weight: 600; }
             .inq-folder-count { margin-left: 4px; font-size: 9px; padding: 2px 6px; }
             .inq-list-panel { border-right: none; }
             .inq-send-btn, .inq-cancel-btn { font-size: 11px; padding: 8px 12px; }
@@ -3732,7 +3711,7 @@
             .inq-read-header { padding: 14px 16px; gap: 10px; }
             .inq-read-subject { font-size: 15px; }
             .inq-read-body { padding: 14px; }
-            .inq-row { padding: 10px 12px; }
+            .inq-row { padding: 12px 14px; }
             .inq-row-name { max-width: 110px; }
         }
 
@@ -3921,27 +3900,21 @@
             .um-settings-save { flex-direction: column; align-items: stretch; }
             .um-settings-save .atl-btn { width: 100%; justify-content: center; }
         }
-        /* Sticky save dock — keeps a section's Save action reachable without scrolling to the top.
-           Sticks to the bottom of the .tm-admin-main scroll container; settles into flow at the very end. */
+        /* Save dock — settles into normal document flow at the bottom of section content without floating over page cards */
         .atl-save-dock {
-            position: sticky; bottom: 12px; z-index: 5;
+            position: static;
             display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex-wrap: wrap;
-            margin: 22px 0 4px; padding: 12px 16px;
-            background: color-mix(in srgb, var(--atl-surface2) 94%, transparent);
-            -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+            margin: 24px 0 4px; padding: 14px 18px;
+            background: var(--atl-surface2);
             border: 1px solid var(--atl-line); border-radius: var(--atl-r-md);
-            box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+            box-shadow: none;
         }
         .atl-save-dock__hint { font-size: 12.5px; color: var(--atl-muted); margin-right: auto; }
         @media (max-width: 600px) {
-            /* On phones the sticky dock overlaps the cards it floats over (e.g. Branding).
-               Settle it into normal flow at the section's end so it never overlays content. */
             .atl-save-dock {
                 justify-content: stretch;
                 position: static;
                 box-shadow: none;
-                -webkit-backdrop-filter: none;
-                backdrop-filter: none;
             }
             .atl-save-dock__hint { display: none; }
             .atl-save-dock .atl-btn { width: 100%; justify-content: center; }
@@ -9086,9 +9059,6 @@
                             <button id="homeAddNewBtn" class="atl-btn atl-btn--primary">
                                 <i class="fa-solid fa-plus"></i> Add Slide
                             </button>
-                            <button class="atl-btn atl-btn--ghost" id="publishHomeBtn">
-                                <i class="fas fa-rocket"></i> Publish to Homepage
-                            </button>
                         </div>
                     </div>
                     <div class="atl-section-rule"></div>
@@ -9099,7 +9069,7 @@
                     </div>
 
                     <div id="homeConfigPanel" class="um-panel active">
-                        <p class="um-section-desc" style="margin:0 0 14px;">Drag the <i class="fa-solid fa-grip-vertical"></i> handle to reorder slides (saved instantly). Click a slide to edit its details.</p>
+                        <p class="um-section-desc" style="margin:0 0 14px;">Drag the <i class="fa-solid fa-grip-vertical"></i> handle to reorder slides (saved instantly). Click the <i class="fa-solid fa-pen"></i> button to edit a slide's details.</p>
                         <div id="adminHomeList" class="evt-card-grid">
                             <!-- JS injected items -->
                         </div>
@@ -9123,7 +9093,7 @@
                             <div class="um-divider"></div>
 
                             <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
-                                The <strong style="color:var(--atl-ink);">Home Slider</strong> is the carousel of images that greets every visitor at the top of your homepage. Add slides by upload or URL, drag them into the order you want, then <strong style="color:var(--atl-ink);">Publish to Homepage</strong> to push the new set live.
+                                The <strong style="color:var(--atl-ink);">Home Slider</strong> is the carousel of images that greets every visitor at the top of your homepage. Add slides by upload or URL, drag them into the order you want &mdash; changes update the public homepage live automatically.
                             </p>
 
                             <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
@@ -9148,11 +9118,11 @@
                                 </div>
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
-                                        <span class="um-feature-title"><i class="fa-solid fa-rocket" style="color:var(--atl-amber);"></i> Publish to Homepage</span>
+                                        <span class="um-feature-title"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Live Updates</span>
                                     </div>
                                     <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> Writes the image tags directly into <code>index.html</code> on disk</li>
-                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Editing or reordering alone won't update the live site &mdash; you must publish</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Changes reflect on the public homepage immediately</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> No manual publish step required</li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -9170,17 +9140,16 @@
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
                                 <li><strong style="color:var(--atl-ink);">Add slides</strong> &mdash; upload images or paste a URL, set the alt text, and save.</li>
                                 <li><strong style="color:var(--atl-ink);">Reorder</strong> &mdash; drag the cards into the sequence you want.</li>
-                                <li><strong style="color:var(--atl-ink);">Go live</strong> &mdash; click <strong style="color:var(--atl-ink);">Publish to Homepage</strong> after any change.</li>
                             </ol>
 
                             <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span>Changes only reach visitors after <strong style="color:var(--atl-ink);">Publish to Homepage</strong> &mdash; adding or reordering slides updates the database, but not <code>index.html</code>, until you publish.</span>
+                                <span>Changes take effect on the homepage immediately &mdash; adding, editing, reordering or deleting slides updates the database and public site live.</span>
                             </p>
 
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
                                 <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
-                                <span><strong style="color:var(--atl-ink);">Publish</strong> writes directly to <code>index.html</code> on the server, and <strong style="color:var(--atl-ink);">Clear All</strong> is permanent &mdash; both, along with deletes, require an administrator.</span>
+                                <span><strong style="color:var(--atl-ink);">Clear All</strong> is permanent &mdash; and, along with deletes, requires an administrator.</span>
                             </p>
 
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
@@ -9201,11 +9170,6 @@
                             <h2 class="atl-section-heading"><i class="fa-solid fa-user"></i> About Me</h2>
                             <p class="atl-section-sub">Update your profile picture and biography text.</p>
                         </div>
-                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
-                            <button id="aboutEditBtn" class="atl-btn atl-btn--primary">
-                                <i class="fa-solid fa-user-pen"></i> Edit Profile Content
-                            </button>
-                        </div>
                     </div>
                     <div class="atl-section-rule"></div>
 
@@ -9224,7 +9188,7 @@
                             <div class="um-icon-header__icon"><i class="fa-solid fa-eye"></i></div>
                             <div style="flex:1;">
                                 <h4 class="um-section-label">Live Preview</h4>
-                                <p class="um-section-desc">How your About section currently looks on the site. Use <strong style="color:var(--atl-ink);">Edit Profile Content</strong> to change the photo or biography.</p>
+                                <p class="um-section-desc">How your About section currently looks on the site. Use <strong style="color:var(--atl-ink);">Edit</strong> to change the photo or biography.</p>
                             </div>
                             <button type="button" class="atl-btn atl-btn--ghost" onclick="if(window.openAtlDrawer)openAtlDrawer('aboutDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-user-pen"></i> Edit</button>
                         </div>
@@ -9255,7 +9219,7 @@
                                     <h4 class="um-section-label">What I Do</h4>
                                     <p class="um-section-desc">The "What I Do" services grid on your homepage. Edit the eyebrow, heading and each card's title, description &amp; background image.</p>
                                 </div>
-                                <button type="button" class="atl-btn atl-btn--primary" onclick="if(window.openAtlDrawer)openAtlDrawer('servicesDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-pen"></i> Edit</button>
+                                <button type="button" class="atl-btn atl-btn--ghost" onclick="if(window.openAtlDrawer)openAtlDrawer('servicesDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-user-pen"></i> Edit</button>
                             </div>
                             <hr class="um-divider" style="margin-top:0;">
                             <div class="live-preview-box" style="padding:22px 20px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper);">
@@ -9275,7 +9239,7 @@
                                     <h4 class="um-section-label">Features Strip</h4>
                                     <p class="um-section-desc">The "at a glance" stats row on your homepage (e.g. 10+ Years, 200+ Shows). Edit each stat's number/label and caption &mdash; the icons stay as-is.</p>
                                 </div>
-                                <button type="button" class="atl-btn atl-btn--primary" onclick="if(window.openAtlDrawer)openAtlDrawer('featuresDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-pen"></i> Edit</button>
+                                <button type="button" class="atl-btn atl-btn--ghost" onclick="if(window.openAtlDrawer)openAtlDrawer('featuresDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-user-pen"></i> Edit</button>
                             </div>
                             <hr class="um-divider" style="margin-top:0;">
                             <div class="live-preview-box" style="padding:22px 20px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper);">
@@ -9293,7 +9257,7 @@
                                     <h4 class="um-section-label">Hero</h4>
                                     <p class="um-section-desc">The tagline and introductory paragraph shown in the homepage hero section.</p>
                                 </div>
-                                <button type="button" class="atl-btn atl-btn--primary" onclick="if(window.openAtlDrawer)openAtlDrawer('heroDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-pen"></i> Edit</button>
+                                <button type="button" class="atl-btn atl-btn--ghost" onclick="if(window.openAtlDrawer)openAtlDrawer('heroDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-user-pen"></i> Edit</button>
                             </div>
                             <hr class="um-divider" style="margin-top:0;">
                             <div class="live-preview-box" style="padding:30px 24px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper); text-align:center;">
@@ -9312,7 +9276,7 @@
                                     <h4 class="um-section-label">Announcement Bar</h4>
                                     <p class="um-section-desc">The thin message bar at the very top of your homepage. Edit its text or switch it off entirely.</p>
                                 </div>
-                                <button type="button" class="atl-btn atl-btn--primary" onclick="if(window.openAtlDrawer)openAtlDrawer('announceDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-pen"></i> Edit</button>
+                                <button type="button" class="atl-btn atl-btn--ghost" onclick="if(window.openAtlDrawer)openAtlDrawer('announceDrawer')" style="align-self:flex-start; white-space:nowrap;"><i class="fa-solid fa-user-pen"></i> Edit</button>
                             </div>
                             <hr class="um-divider" style="margin-top:0;">
                             <div class="live-preview-box" style="padding:16px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper);">
@@ -9698,6 +9662,7 @@
                     </div>
 
                     <div id="galleryConfigPanel" class="um-panel active">
+                        <p class="um-section-desc" style="margin:0 0 14px;">Drag the <i class="fa-solid fa-grip-vertical"></i> handle to reorder images (saved instantly). Click the <i class="fa-solid fa-pen"></i> button to edit an image's details.</p>
                         <div id="adminGalleryList" class="evt-card-grid">
                             <!-- Gallery items injected here by JS -->
                         </div>
@@ -9732,7 +9697,7 @@
                                     </div>
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i> Upload multiple images at once (auto-compressed) or paste a URL</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Attach an optional title, uploader and GPS location</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Attach an optional title</li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -9757,7 +9722,8 @@
                             <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
                                 <li><strong style="color:var(--atl-ink);">Add photos</strong> &mdash; click <strong style="color:var(--atl-ink);">Add Gallery Media</strong>, select files or paste a URL, and save.</li>
-                                <li><strong style="color:var(--atl-ink);">Rename an image</strong> &mdash; click its card and edit the title inline.</li>
+                                <li><strong style="color:var(--atl-ink);">Edit an image</strong> &mdash; click the pencil button on its card and edit the title or replace the image.</li>
+                                <li><strong style="color:var(--atl-ink);">Reorder</strong> &mdash; drag a card by its grip handle; the new order saves instantly.</li>
                                 <li><strong style="color:var(--atl-ink);">Clean up</strong> &mdash; delete individual items, or use <strong style="color:var(--atl-ink);">Clear All</strong> to empty the gallery.</li>
                             </ol>
 
@@ -11939,6 +11905,11 @@
                                             <option value="cancellations">Cancellations</option>
                                             <option value="quotations">Quotations</option>
                                             <option value="contracts">Contracts</option>
+                                            <option value="career_highlights">Career</option>
+                                            <option value="home_slider">Home Slider</option>
+                                            <option value="testimonials">Testimonials</option>
+                                            <option value="footprint_countries">Footprint</option>
+                                            <option value="about_me">About Me</option>
                                         </select>
                                         <input type="date" id="auditDateFrom" class="atl-input" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color: var(--atl-line);font-size:12px;" placeholder="From">
                                         <input type="date" id="auditDateTo" class="atl-input" style="width:auto;background: var(--atl-card);color: var(--atl-ink);border-color: var(--atl-line);font-size:12px;" placeholder="To">
@@ -13546,8 +13517,6 @@
 
         function renderHomeList(data) {
             const $list = $('#adminHomeList');
-            // Re-dock guard: move the editor form home before wiping the list.
-            if (typeof mountHomeEditor === 'function') mountHomeEditor(homeEditorHome());
             $list.empty();
 
             if (!data || data.length === 0) {
@@ -13579,18 +13548,15 @@
                         <p class="atl-edit-card__subtitle">${altText}</p>
                         <div class="atl-edit-card__desc">${meta || 'Slider image'}</div>
                       </div>
-                      <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; align-self:flex-start;">
-                        <button type="button" class="atl-btn atl-btn--ghost atl-expand-btn home-expand-btn" data-id="${item.id}" title="Edit slide" aria-label="Edit slide" aria-expanded="false" aria-controls="homeDetail-${item.id}" style="padding:6px 10px; min-width:0;">
-                          <i class="fa-solid fa-chevron-down"></i>
+                      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+                        <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openHomeEditDrawer(${item.id})" title="Edit slide" aria-label="Edit slide">
+                          <i class="fa-solid fa-pen"></i>
                         </button>
                         <button type="button" class="um-btn um-btn--danger um-btn--sm remove-home-btn" data-id="${item.id}" title="Remove slide" aria-label="Remove slide">
                           <i class="fas fa-trash-alt"></i>
                         </button>
                       </div>
                     </div>
-                  </div>
-                  <div id="homeDetail-${item.id}" class="atl-detail-region" role="region" aria-label="Edit slide">
-                    <div class="atl-detail-inner"><div class="home-form-mount atl-form-mount"></div></div>
                   </div>
                 </article>`;
                 $list.append(html);
@@ -13651,23 +13617,17 @@
             });
         }
 
-        // ── HOME SLIDER EDITOR CONTROLLER (mirrors the #eventsAdmin docking pattern) ──
+        // ── HOME SLIDER EDITOR CONTROLLER — #homeForm lives permanently in the homeDrawer ──
         var homeEditId = null;
-        function homeEditorHome() { return document.getElementById('homeFormHomeMount'); }
-        function mountHomeEditor(t) { if (!t) return; $('#homeForm').detach().appendTo(t); }
-        function collapseAllHomeCards(opts) {
-            var redock = (opts && opts.redock !== undefined) ? opts.redock : true;
-            $('#adminHomeList .atl-edit-card .atl-detail-region.open').removeClass('open');
-            $('#adminHomeList .atl-edit-card').removeClass('is-expanded');
-            $('#adminHomeList .home-expand-btn').attr('aria-expanded', 'false');
-            if (redock) mountHomeEditor(homeEditorHome());
-        }
         function resetHomeForm() {
             $('#homeForm')[0].reset();
             $('#homeFile').val('');
             $('#homePreview').hide(); $('#homePreviewImg').attr('src', '');
             var t = document.getElementById('homeUploadText'); if (t) t.textContent = 'Drag & drop or click to upload';
             homeEditId = null;
+            $('#home-tab-history').hide();
+            window.atlActivateDrawerTab('homeDrawer', 'home-tab-edit');
+            $('#homeDrawerTitle').html('<i class="fa-solid fa-film"></i> Add Slide');
             $('#homeSubmitBtn').html('<i class="fas fa-plus-circle"></i> Add to Slider').prop('disabled', false);
         }
         function applyHomeToEditor(item) {
@@ -13678,53 +13638,29 @@
             var t = document.getElementById('homeUploadText'); if (t) t.textContent = 'Upload a new image to replace';
             if (item.url) { $('#homePreviewImg').attr('src', item.url); $('#homePreview').show(); }
             else { $('#homePreview').hide(); $('#homePreviewImg').attr('src', ''); }
+            $('#homeDrawerTitle').html('<i class="fa-solid fa-film"></i> Edit Slide');
             $('#homeSubmitBtn').html('<i class="fas fa-floppy-disk"></i> Update Slide').prop('disabled', false);
+            $('#home-tab-history').show();
+            if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('homeChangeHistoryList', 'home_slider', item.id);
         }
-        function populateHomeEditorFromCard(id) {
-            var p = $('#adminHomeList .atl-edit-card[data-id="' + id + '"]').attr('data-payload');
-            if (p) applyHomeToEditor(JSON.parse(decodeURIComponent(p)));
-        }
-        window.toggleHomeCard = function (id, forceOpen) {
-            var $card = $('#adminHomeList .atl-edit-card[data-id="' + id + '"]');
-            if (!$card.length) return;
-            var $region = $card.find('> .atl-detail-region');
-            var isOpen = $region.hasClass('open');
-            var next = (forceOpen !== undefined) ? forceOpen : !isOpen;
-            if (next === isOpen) return;
-            if (next) {
-                collapseAllHomeCards({ redock: false });
-                closeAtlDrawer('homeDrawer');
-                $region.addClass('open'); $card.addClass('is-expanded');
-                $card.find('.home-expand-btn').attr('aria-expanded', 'true');
-                mountHomeEditor($region.find('.home-form-mount')[0]);
-                populateHomeEditorFromCard(id);
-            } else {
-                $region.removeClass('open'); $card.removeClass('is-expanded');
-                $card.find('.home-expand-btn').attr('aria-expanded', 'false');
-                mountHomeEditor(homeEditorHome());
-                resetHomeForm();
-            }
-        };
-        window.homeCancelEdit = function () {
-            resetHomeForm();
-            collapseAllHomeCards({ redock: true });
-            closeAtlDrawer('homeDrawer');
-        };
-        $('#homeAddNewBtn').on('click', function () {
-            collapseAllHomeCards({ redock: true });
+        window.openHomeCreateDrawer = function () {
             resetHomeForm();
             openAtlDrawer('homeDrawer');
             $('#homeAlt').focus();
-        });
+        };
+        window.openHomeEditDrawer = function (id) {
+            var p = $('#adminHomeList .atl-edit-card[data-id="' + id + '"]').attr('data-payload');
+            if (!p) return;
+            resetHomeForm();
+            applyHomeToEditor(JSON.parse(decodeURIComponent(p)));
+            openAtlDrawer('homeDrawer');
+        };
+        window.homeCancelEdit = function () {
+            resetHomeForm();
+            closeAtlDrawer('homeDrawer');
+        };
+        $('#homeAddNewBtn').on('click', function () { window.openHomeCreateDrawer(); });
         $(document).on('click', '#homeDrawerClose, #homeDrawerBackdrop', function () { homeCancelEdit(); });
-        $(document).off('click.homecard').on('click.homecard', '#adminHomeList .atl-edit-card__header', function (e) {
-            if ($(e.target).closest('button, a, .atl-drag-handle').length) return;
-            window.toggleHomeCard($(this).closest('.atl-edit-card').data('id'));
-        });
-        $(document).off('click.homebtn').on('click.homebtn', '#adminHomeList .home-expand-btn', function (e) {
-            e.stopPropagation();
-            window.toggleHomeCard($(this).data('id'));
-        });
 
         // Delete a slide
         $(document).on('click', '.remove-home-btn', async function (e) {
@@ -13818,26 +13754,6 @@
             }
         });
 
-        $('#publishHomeBtn').on('click', async function() {
-            const $btn = $(this);
-            const originalHtml = $btn.html();
-            $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Publishing...');
-            
-            try {
-                const res = await fetch('/api/admin/publish-home-slider', { method: 'POST' });
-                const data = await res.json();
-                if (data.success) {
-                    window.notificationService.showSuccess("Homepage updated successfully!");
-                } else {
-                    window.notificationService.showError("Error: " + data.error);
-                }
-            } catch (e) {
-                console.error("Publish error:", e);
-                window.notificationService.showError("Failed to publish changes.");
-            } finally {
-                $btn.prop('disabled', false).html(originalHtml);
-            }
-        });
 
         // Initialize (Moved to tab-switch event for reliability)
         // fetchHomeSlider();
@@ -13891,10 +13807,11 @@
         // transform (translateX(0) === no offset → no visual change) and focus the editor; the
         // transform is restored on close so the slide-out still animates. Done via the
         // atl:drawerOpened/Closed events so EVERY close path (button, backdrop, Esc, save) is covered.
-        $(document).on('click', '#aboutEditBtn', function() { if (window.openAtlDrawer) openAtlDrawer('aboutDrawer'); });
         $(document).on('click', '#aboutDrawerClose, #aboutDrawerBackdrop', function() { if (window.closeAtlDrawer) closeAtlDrawer('aboutDrawer'); });
         document.addEventListener('atl:drawerOpened', function(e) {
             if (!e.detail || e.detail.id !== 'aboutDrawer') return;
+            if (window.atlActivateDrawerTab) window.atlActivateDrawerTab('aboutDrawer', 'about-tab-edit');
+            if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('aboutChangeHistoryList', 'about_me', 1);
             setTimeout(function() {
                 var d = document.getElementById('aboutDrawer');
                 if (d && d.classList.contains('atl-drawer--open')) d.style.transform = 'none';
@@ -14389,7 +14306,6 @@
         }
 
         async function renderEventsList(highlightId) {
-            if (typeof mountEventEditor === 'function') mountEventEditor(eventEditorHome()); // re-dock guard: prevent .empty() from destroying the form
             closeAtlDrawer('evtDrawer');
             var data = await getEventsData();
             var $upcomingList = $('#adminUpcomingEventsList');
@@ -14466,23 +14382,26 @@
                     : '';
 
                 var html = `
-                <article class="atl-event-card atl-booking-card" data-id="${item.event_id}" data-payload="${encodedItem}" style="animation-delay:${cardIdx * 40}ms">
+                <article class="atl-edit-card atl-event-card" data-id="${item.event_id}" data-payload="${encodedItem}" style="animation-delay:${cardIdx * 40}ms">
                   <label class="evt-select-cb-wrap"><input type="checkbox" class="evt-select-cb" data-id="${item.event_id}" aria-label="Select ${displayTitle}"></label>
                   <div class="atl-card-inner">
-                    <div class="atl-booking-card-header" style="display:flex; gap:16px; cursor:pointer; align-items:flex-start; flex-wrap:wrap;">
-                      <img src="${safeThumb}" onerror="this.src='https://placehold.co/72x100/1a1a1a/D4AF37?text=No+Image';"
-                           style="width:72px; height:100px; object-fit:cover; border-radius:8px; flex-shrink:0;">
+                    <div class="atl-edit-card__header">
+                      <div class="atl-edit-card__thumb">
+                        <img src="${safeThumb}" alt="${displayTitle}" onerror="this.onerror=null;this.src='https://placehold.co/72x100/1a1a1a/D4AF37?text=No+Image';">
+                      </div>
                       <div style="flex:1; min-width:0;">
                         <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
                           <span class="atl-booking-id">#${item.event_id}</span>
                           ${badgeTimeline}${badgeDraft}${badgeLinked}${badgeGcal}${badgeVideo}${badgeCategory}
                         </div>
-                        <h3 class="atl-event-title" style="margin:0 0 4px; font-family:'Cormorant Garamond',Georgia,serif; font-size:clamp(18px,2.5vw,24px); font-weight:500; line-height:1.15; color:var(--atl-ink);">${displayTitle}</h3>
-                        <p class="evt-card-meta" style="color:var(--atl-muted); font-size:13px; margin:0;"><span class="evt-card-meta__item"><i class="fa-regular fa-calendar-check"></i> ${displayDateStr}</span><span class="evt-card-meta__sep">&nbsp;&middot;&nbsp;</span><span class="evt-card-meta__item"><i class="fa-solid fa-location-dot"></i> ${displayVenue}</span></p>
+                        <h3 class="atl-edit-card__title">${displayTitle}</h3>
+                        <p class="atl-edit-card__subtitle"><i class="fa-regular fa-calendar-check"></i> ${displayDateStr}<span style="color:var(--atl-muted);">&nbsp;&middot;&nbsp;</span><i class="fa-solid fa-location-dot"></i> ${displayVenue}</p>
                       </div>
-                      <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; align-self:flex-start; flex-wrap:wrap;">
-                        <!-- Edit is triggered by clicking/expanding the card header (see click.evtcard) — no separate Edit button. -->
-                        <button type="button" class="atl-btn atl-btn--ghost evt-duplicate-btn" data-id="${item.event_id}" title="Duplicate event as draft" aria-label="Duplicate event: ${displayTitle} as draft" style="padding:6px 10px; min-width:0; font-size:12px;">
+                      <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+                        <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openEvtEditDrawer(${item.event_id})" title="Edit event" aria-label="Edit event: ${displayTitle}">
+                          <i class="fa-solid fa-pen"></i>
+                        </button>
+                        <button type="button" class="atl-btn atl-btn--ghost um-btn--sm evt-duplicate-btn" data-id="${item.event_id}" title="Duplicate event as draft" aria-label="Duplicate event: ${displayTitle} as draft">
                           <i class="fa-regular fa-copy"></i>
                         </button>
                         <button type="button" class="um-btn um-btn--danger um-btn--sm remove-events-action" data-id="${item.event_id}" title="Delete event" aria-label="Delete event: ${displayTitle}">
@@ -14490,9 +14409,6 @@
                         </button>
                       </div>
                     </div>
-                  </div>
-                  <div id="eventDetail-${item.event_id}" class="atl-detail-region" role="region" aria-label="Edit ${displayTitle}">
-                    <div class="atl-detail-inner"><div class="evt-form-mount" style="padding:0 20px 20px;"></div></div>
                   </div>
                 </article>`;
 
@@ -14571,8 +14487,8 @@
         // ── Events Search (client-side) ──────────────────────────────────────
         function eventsApplySearch(q) {
             $('.atl-event-card').each(function() {
-                var title = ($(this).find('.atl-event-title').text() || '').toLowerCase();
-                var meta  = ($(this).find('.atl-booking-card-header p').text() || '').toLowerCase();
+                var title = ($(this).find('.atl-edit-card__title').text() || '').toLowerCase();
+                var meta  = ($(this).find('.atl-edit-card__subtitle').text() || '').toLowerCase();
                 $(this).toggle(!q || title.includes(q) || meta.includes(q));
             });
         }
@@ -14755,21 +14671,9 @@
         });
 
         // ── EVENT EDITOR CONTROLLER ─────────────────────────────────────────────
-
-        function eventEditorHome() { return document.getElementById('eventsFormHomeMount'); }
-
-        function mountEventEditor(targetEl) {
-            if (!targetEl) return;
-            $('#eventsForm').detach().appendTo(targetEl);
-        }
-
-        function collapseAllEventCards(opts) {
-            var redock = (opts && opts.redock !== undefined) ? opts.redock : true;
-            $('.atl-event-card .atl-detail-region.open').removeClass('open');
-            $('.atl-event-card').removeClass('is-expanded');
-            $('.atl-event-card .atl-expand-btn').attr('aria-expanded', 'false');
-            if (redock) mountEventEditor(eventEditorHome());
-        }
+        // #eventsForm lives permanently inside the evtDrawer (see #eventsFormHomeMount) - it is the
+        // single editing surface for both creating and updating events, mirroring the Banner Library's
+        // drawer-only pattern (openBnrCreateDrawer/openBnrEditDrawer above). No inline accordion.
 
         function applyEventToEditor(item) {
             $('#eventsId').val(item.event_id);
@@ -14842,6 +14746,7 @@
                 $('#eventsGcalLinkBadge').hide();
             }
             $('#eventsGcalSync').prop('checked', true);
+            $('#evtDrawerTitle').html('<i class="fa-solid fa-pen-to-square"></i> Edit Event');
             $('#eventsSubmitBtn').html('<i class="fa-solid fa-pen-to-square"></i> Update Event');
             if (item.event_status !== 'cancelled') {
                 $('#evtCancelEventBtn').show().off('click.evtcancel').on('click.evtcancel', function() {
@@ -14851,110 +14756,72 @@
                 $('#evtCancelEventBtn').hide();
             }
 
-            $('#evtChangeHistoryGroup').show();
+            $('#evt-tab-history').show();
             if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('evtChangeHistoryList', 'events', item.event_id);
         }
 
-        function populateEventEditorFromCard(eventId) {
-            var payload = $('.atl-event-card[data-id="' + eventId + '"]').attr('data-payload');
-            if (payload) applyEventToEditor(JSON.parse(decodeURIComponent(payload)));
-        }
-
-        window.toggleEventCard = function(eventId, forceOpen) {
-            var $card   = $('.atl-event-card[data-id="' + eventId + '"]');
-            if (!$card.length) return;
-            var $region = $card.find('> .atl-detail-region');
-            var isOpen  = $region.hasClass('open');
-            var next    = (forceOpen !== undefined) ? forceOpen : !isOpen;
-            if (next === isOpen) return;
-
-            if (next) {
-                collapseAllEventCards({ redock: false });
-                closeAtlDrawer('evtDrawer');
-                $region.addClass('open');
-                $card.addClass('is-expanded');
-                $card.find('.atl-expand-btn, .evt-expand-btn').attr('aria-expanded', 'true');
-                mountEventEditor($region.find('.evt-form-mount')[0]);
-                if (typeof initEventsPickers === 'function') initEventsPickers();
-                if (typeof window.initEventsMap === 'function') window.initEventsMap();
-                populateEventEditorFromCard(eventId);
-            } else {
-                $region.removeClass('open');
-                $card.removeClass('is-expanded');
-                $card.find('.atl-expand-btn, .evt-expand-btn').attr('aria-expanded', 'false');
-                mountEventEditor(eventEditorHome());
-
-                // Reset form values, clear id, and reset button text to prevent edits leaking
-                $('#eventsForm')[0].reset();
-                $('#eventsId').val('');
-                $('#eventsGcalLinkBadge').hide();
-                $('#eventsLinkedBookingBadge').hide();
-                $('#eventsConflictResolutionGroup').show();
-                if ($('#eventsEndTime')[0]._flatpickr) $('#eventsEndTime')[0]._flatpickr.clear();
-                if ($('#eventsDate')[0]._flatpickr) $('#eventsDate')[0]._flatpickr.clear();
-                $('#evtPosterPreview').hide(); $('#evtPosterPreviewImg').attr('src', '');
-                $('#eventsSubmitBtn').html('<i class="fa-solid fa-calendar-check"></i> Add Event');
-                $('#evtChangeHistoryGroup').hide();
-            }
+        // Generic Edit/Change History tab switcher, shared by every drawer that uses this two-tab
+        // .dv-tabs/.dv-panel toggle (Events, Banner-style Gallery/Career/Home Slider/Testimonials/
+        // Footprint) — one implementation instead of a per-section copy. Not the full Deal View
+        // dv-tab system (no lazy panel loading, no arrow-key roving tabindex) since these are always
+        // exactly two static panels.
+        window.atlActivateDrawerTab = function(drawerId, tabId) {
+            $('#' + drawerId + ' .dv-tab').attr({ 'aria-selected': 'false', 'tabindex': '-1' });
+            var $tab = $('#' + tabId).attr({ 'aria-selected': 'true', 'tabindex': '0' });
+            $('#' + drawerId + ' .dv-panel').attr('hidden', true);
+            $('#' + $tab.attr('aria-controls')).removeAttr('hidden');
         };
-
-        // Chevron button click — delegates to toggleEventCard
-        $(document).off('click.evtexpand').on('click.evtexpand', '.evt-expand-btn', function(e) {
-            e.stopPropagation();
-            window.toggleEventCard($(this).data('id'));
+        $(document).off('click.atldrawertab').on('click.atldrawertab', '.atl-drawer .dv-tab', function() {
+            var drawerId = $(this).closest('.atl-drawer').attr('id');
+            window.atlActivateDrawerTab(drawerId, this.id);
         });
 
-        function cancelEventEdit() {
+        // Blank slate shared by "New Event" and the pre-populate step of "Edit Event" — mirrors
+        // resetBnrForm() in the Banner Library above.
+        function resetEventForm() {
             $('#eventsForm')[0].reset();
             $('#eventsId').val('');
+            $('#eventsFallbackUrl').val('');
+            // form.reset() only touches native form controls, not this preview <img>/<div>.
+            $('#evtPosterPreview').hide(); $('#evtPosterPreviewImg').attr('src', '');
             $('#eventsGcalLinkBadge').hide();
             $('#eventsLinkedBookingBadge').hide();
             $('#eventsConflictResolutionGroup').show();
             if ($('#eventsEndTime')[0]._flatpickr) $('#eventsEndTime')[0]._flatpickr.clear();
             if ($('#eventsDate')[0]._flatpickr) $('#eventsDate')[0]._flatpickr.clear();
-            $('#evtPosterPreview').hide(); $('#evtPosterPreviewImg').attr('src', '');
-            $('#eventsSubmitBtn').html('<i class="fa-solid fa-calendar-check"></i> Add Event');
+            $('#eventsSubmitBtn').prop('disabled', false).html('<i class="fa-solid fa-calendar-check"></i> Add Event');
             $('#evtCancelEventBtn').hide();
-            $('#evtChangeHistoryGroup').hide();
-            collapseAllEventCards({ redock: true });
+            $('#evt-tab-history').hide();
+            window.atlActivateDrawerTab('evtDrawer', 'evt-tab-edit');
+            $('#evtDrawerTitle').html('<i class="fa-solid fa-calendar-plus"></i> New Event');
+        }
+
+        // Add New Event button — Create mode
+        window.openEvtCreateDrawer = function() {
+            resetEventForm();
+            openAtlDrawer('evtDrawer');
+            $('#eventsTitle').focus();
+        };
+        $('#eventsAddNewBtn').on('click', function() { window.openEvtCreateDrawer(); });
+
+        // Card "Edit" button — Edit mode. openAtlDrawer() dispatches atl:drawerOpened synchronously,
+        // which initializes the Flatpickr date pickers before applyEventToEditor() sets their values.
+        window.openEvtEditDrawer = function(eventId) {
+            var payload = $('.atl-event-card[data-id="' + eventId + '"]').attr('data-payload');
+            if (!payload) return;
+            resetEventForm();
+            openAtlDrawer('evtDrawer');
+            applyEventToEditor(JSON.parse(decodeURIComponent(payload)));
+        };
+
+        function cancelEventEdit() {
+            resetEventForm();
             closeAtlDrawer('evtDrawer');
         }
 
-        // Add New Event button
-        $('#eventsAddNewBtn').on('click', function() {
-            collapseAllEventCards({ redock: true });
-            $('#eventsForm')[0].reset();
-            $('#eventsId').val('');
-            $('#eventsFallbackUrl').val('');
-            // form.reset() only touches native form controls, not this preview <img>/<div> - without
-            // this, opening "Add New Event" right after viewing any event with a poster left that
-            // event's poster visibly showing on the blank "new event" form (a misleading, unsubmitted
-            // artifact - cancelEventEdit() already clears it, this parallel reset path never did).
-            $('#evtPosterPreview').hide(); $('#evtPosterPreviewImg').attr('src', '');
-            $('#eventsGcalLinkBadge').hide();
-            $('#eventsLinkedBookingBadge').hide();
-            $('#eventsConflictResolutionGroup').show();
-            $('#eventsSubmitBtn').html('<i class="fa-solid fa-calendar-check"></i> Add Event');
-            $('#evtCancelEventBtn').hide();
-            $('#evtChangeHistoryGroup').hide();
-            openAtlDrawer('evtDrawer');
-            $('#eventsTitle').focus();
-        });
-        
         // Close event drawer handler
         $(document).on('click', '#evtDrawerClose, #evtDrawerBackdrop', function() {
             cancelEventEdit();
-        });
-
-        // Card header click — expand/collapse
-        $(document).off('click.evtcard').on('click.evtcard', '.atl-event-card .atl-booking-card-header', function(e) {
-            if ($(e.target).closest('.atl-expand-btn, .evt-expand-btn, .remove-events-action').length) return;
-            window.toggleEventCard($(this).closest('.atl-event-card').data('id'));
-        });
-
-        // Expand button click
-        $(document).off('click.evtbtn').on('click.evtbtn', '.atl-event-card .atl-expand-btn', function() {
-            window.toggleEventCard($(this).data('id'));
         });
 
         // Legacy deep-link entry point (calendar popup, etc.)
@@ -14962,7 +14829,7 @@
             e.preventDefault();
             var id = $(this).data('id');
             if (id) {
-                window.toggleEventCard(id, true);
+                window.openEvtEditDrawer(id);
                 var $c = $('.atl-event-card[data-id="' + id + '"]');
                 if ($c.length) $('html,body').animate({ scrollTop: $c.offset().top - 70 }, 400);
             }
@@ -15022,6 +14889,9 @@
                 }
             }
 
+            var isEdit = !!eventId;
+            var origBtnHtml = $btn.html();
+
             var submitAPIEvent = async function(finalMediaUrl) {
                 var payload = {
                     event_title: titleInput,
@@ -15039,55 +14909,47 @@
                     block_type: blockType,
                     sync_to_gcal: $('#eventsGcalSync').is(':checked')
                 };
-                
+
                 try {
-                    let res;
-                    if (eventId) {
-                         // Update existing
-                         res = await apiCall('/api/admin/events/' + eventId, 'PUT', payload);
-                    } else {
-                         // Create new
-                         res = await apiCall('/api/admin/events', 'POST', payload);
-                    }
-                    
+                    let res = isEdit
+                        ? await apiCall('/api/admin/events/' + eventId, 'PUT', payload)
+                        : await apiCall('/api/admin/events', 'POST', payload);
+
                     if(res && res.success) {
-                        $('#eventsForm')[0].reset();
-                        $('#eventsId').val('');
-                        $('#eventsVenueMapLink').val('');
-                        $('#eventsFile').val('');
-                        $('#eventsFallbackUrl').val('');
-                        $('#evtPosterPreview').hide(); $('#evtPosterPreviewImg').attr('src', '');
-                        
+                        // Single editing surface: same close/reset/reload/toast workflow as the
+                        // Banner Library's #bnrForm submit handler above.
+                        closeAtlDrawer('evtDrawer');
+                        resetEventForm();
                         renderEventsList();
 
                         if (payload.sync_to_gcal) {
-                            if (res.gcal_synced) window.notificationService.showSuccess('Event saved and synced to Google Calendar.');
-                            else window.notificationService.showError('Event saved, but Google Calendar sync failed.');
+                            if (res.gcal_synced) window.notificationService.showSuccess((isEdit ? 'Event updated' : 'Event created') + ' and synced to Google Calendar.');
+                            else window.notificationService.showError((isEdit ? 'Event updated' : 'Event created') + ', but Google Calendar sync failed.');
+                        } else {
+                            window.notificationService.showSuccess(isEdit ? 'Event updated.' : 'Event created.');
                         }
-
-                        $btn.html('<i class="fa-solid fa-circle-check"></i> Saved Event!').prop('disabled', false);
-                        setTimeout(function () { $btn.html('<i class="fa-solid fa-calendar-check"></i> Add Event'); }, 2000);
                     } else {
-                        window.notificationService.showError('Error saving event: ' + res.error);
-                        $btn.html('<i class="fa-solid fa-calendar-check"></i> Add Event').prop('disabled', false);
+                        window.notificationService.showError('Error saving event: ' + (res && res.error));
+                        $btn.prop('disabled', false).html(origBtnHtml);
                     }
                 } catch(err) {
-                    window.notificationService.showError('Save Failed!');
-                    $btn.prop('disabled', false);
+                    window.notificationService.showError('Save failed: ' + ((err && err.message) || 'Unknown error'));
+                    $btn.prop('disabled', false).html(origBtnHtml);
                 }
             };
+
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving...');
 
             // 1. File Input handling
             if (file) {
                 if (file.type.startsWith('video/')) {
                     $('#eventVideoWarning').show();
+                    $btn.prop('disabled', false).html(origBtnHtml);
                     return; // block videos right away
                 } else {
                     $('#eventVideoWarning').hide();
                 }
 
-                $btn.prop('disabled', true).text('Uploading...');
-                
                 uploadFileToServer(file, 'events').then(filePath => {
                     if (filePath) {
                         submitAPIEvent(filePath);
@@ -15120,7 +14982,7 @@
                     }
                 }).catch(err => {
                     window.notificationService.showError('Upload failed: ' + err.message);
-                    $btn.text('Add to Events').prop('disabled', false);
+                    $btn.prop('disabled', false).html(origBtnHtml);
                 });
             } 
             // 2. Fallback to existing poster (Used mostly during edit!)
@@ -15290,9 +15152,6 @@
 
         async function loadHighlights() {
             var $list = $('#adminCareerList');
-            // Re-dock guard: move the editor form back home BEFORE we wipe the list,
-            // otherwise .empty() would destroy the docked form.
-            if (typeof mountCareerEditor === 'function') mountCareerEditor(careerEditorHome());
             try {
                 const data = await apiCall('/api/admin/highlights');
 
@@ -15340,18 +15199,15 @@
                             <p class="atl-edit-card__subtitle">${subtitle}</p>
                             <div class="atl-edit-card__desc">${descText}</div>
                           </div>
-                          <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; align-self:flex-start;">
-                            <button type="button" class="atl-btn atl-btn--ghost atl-expand-btn career-expand-btn" data-id="${item.id}" title="Edit highlight" aria-label="Edit highlight" aria-expanded="false" aria-controls="careerDetail-${item.id}" style="padding:6px 10px; min-width:0;">
-                              <i class="fa-solid fa-chevron-down"></i>
+                          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+                            <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openCareerEditDrawer(${item.id})" title="Edit highlight" aria-label="Edit highlight">
+                              <i class="fa-solid fa-pen"></i>
                             </button>
                             <button type="button" class="um-btn um-btn--danger um-btn--sm remove-career-action" data-id="${item.id}" title="Delete highlight" aria-label="Delete highlight">
                               <i class="fa-solid fa-trash-can"></i>
                             </button>
                           </div>
                         </div>
-                      </div>
-                      <div id="careerDetail-${item.id}" class="atl-detail-region" role="region" aria-label="Edit highlight">
-                        <div class="atl-detail-inner"><div class="career-form-mount atl-form-mount"></div></div>
                       </div>
                     </article>`;
                     $list.append(html);
@@ -15369,22 +15225,7 @@
             }
         }
 
-        // ── CAREER HIGHLIGHT EDITOR CONTROLLER (mirrors the #eventsAdmin docking pattern) ──
-        function careerEditorHome() { return document.getElementById('careerFormHomeMount'); }
-
-        function mountCareerEditor(targetEl) {
-            if (!targetEl) return;
-            $('#careerForm').detach().appendTo(targetEl);
-        }
-
-        function collapseAllCareerCards(opts) {
-            var redock = (opts && opts.redock !== undefined) ? opts.redock : true;
-            $('#adminCareerList .atl-edit-card .atl-detail-region.open').removeClass('open');
-            $('#adminCareerList .atl-edit-card').removeClass('is-expanded');
-            $('#adminCareerList .career-expand-btn').attr('aria-expanded', 'false');
-            if (redock) mountCareerEditor(careerEditorHome());
-        }
-
+        // ── CAREER HIGHLIGHT EDITOR CONTROLLER — #careerForm lives permanently in the careerDrawer ──
         function resetCareerForm() {
             $('#careerForm')[0].reset();
             $('#careerFile').val('');
@@ -15397,6 +15238,9 @@
             if (text) {
                 text.textContent = 'Select or drop a highlight image';
             }
+            $('#career-tab-history').hide();
+            window.atlActivateDrawerTab('careerDrawer', 'career-tab-edit');
+            $('#careerDrawerTitle').html('<i class="fa-solid fa-star"></i> Add Highlight');
             $('#careerSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Highlight').prop('disabled', false);
         }
 
@@ -15425,68 +15269,38 @@
             } else {
                 $('#careerPosterPreview').hide(); $('#careerPosterPreviewImg').attr('src', '');
             }
+            $('#careerDrawerTitle').html('<i class="fa-solid fa-star"></i> Edit Highlight');
             $('#careerSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Highlight').prop('disabled', false);
+            $('#career-tab-history').show();
+            if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('careerChangeHistoryList', 'career_highlights', item.id);
         }
 
-        function populateCareerEditorFromCard(id) {
+        window.openCareerCreateDrawer = function () {
+            resetCareerForm();
+            openAtlDrawer('careerDrawer');
+            $('#careerTitle').focus();
+        };
+
+        window.openCareerEditDrawer = function (id) {
             var payload = $('#adminCareerList .atl-edit-card[data-id="' + id + '"]').attr('data-payload');
-            if (payload) applyCareerToEditor(JSON.parse(decodeURIComponent(payload)));
-        }
-
-        window.toggleCareerCard = function (id, forceOpen) {
-            var $card = $('#adminCareerList .atl-edit-card[data-id="' + id + '"]');
-            if (!$card.length) return;
-            var $region = $card.find('> .atl-detail-region');
-            var isOpen = $region.hasClass('open');
-            var next = (forceOpen !== undefined) ? forceOpen : !isOpen;
-            if (next === isOpen) return;
-
-            if (next) {
-                collapseAllCareerCards({ redock: false });
-                closeAtlDrawer('careerDrawer');
-                $region.addClass('open');
-                $card.addClass('is-expanded');
-                $card.find('.career-expand-btn').attr('aria-expanded', 'true');
-                mountCareerEditor($region.find('.career-form-mount')[0]);
-                populateCareerEditorFromCard(id);
-            } else {
-                $region.removeClass('open');
-                $card.removeClass('is-expanded');
-                $card.find('.career-expand-btn').attr('aria-expanded', 'false');
-                mountCareerEditor(careerEditorHome());
-                resetCareerForm();
-            }
+            if (!payload) return;
+            resetCareerForm();
+            applyCareerToEditor(JSON.parse(decodeURIComponent(payload)));
+            openAtlDrawer('careerDrawer');
         };
 
         // Cancel from the drawer (Cancel button / close / backdrop) or programmatically
         window.careerCancelEdit = function () {
             resetCareerForm();
-            collapseAllCareerCards({ redock: true });
             closeAtlDrawer('careerDrawer');
         };
 
         // Add New Highlight → open the drawer in "add" mode
-        $('#careerAddNewBtn').on('click', function () {
-            collapseAllCareerCards({ redock: true });
-            resetCareerForm();
-            openAtlDrawer('careerDrawer');
-            $('#careerTitle').focus();
-        });
+        $('#careerAddNewBtn').on('click', function () { window.openCareerCreateDrawer(); });
 
         // Drawer close / backdrop
         $(document).on('click', '#careerDrawerClose, #careerDrawerBackdrop', function () {
             careerCancelEdit();
-        });
-
-        // Card header click → expand/collapse (ignore clicks landing on buttons/links)
-        $(document).off('click.careercard').on('click.careercard', '#adminCareerList .atl-edit-card__header', function (e) {
-            if ($(e.target).closest('button, a').length) return;
-            window.toggleCareerCard($(this).closest('.atl-edit-card').data('id'));
-        });
-        // Expand chevron click
-        $(document).off('click.careerbtn').on('click.careerbtn', '#adminCareerList .career-expand-btn', function (e) {
-            e.stopPropagation();
-            window.toggleCareerCard($(this).data('id'));
         });
 
         // Delete a highlight
@@ -15835,6 +15649,8 @@
             $('#footprintFlagPreviewImg').attr('src', '');
             $('#err-footprintForm').hide();
             editingFootprintId = null;
+            $('#footprint-tab-history').hide();
+            window.atlActivateDrawerTab('footprintDrawer', 'footprint-tab-edit');
             $('#footprintDrawerTitle').html('<i class="fa-solid fa-earth-africa"></i> Add Country');
             $('#footprintSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Country').prop('disabled', false);
         }
@@ -15854,6 +15670,8 @@
             }
             $('#footprintDrawerTitle').html('<i class="fa-solid fa-earth-africa"></i> Edit Country');
             $('#footprintSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Country');
+            $('#footprint-tab-history').show();
+            if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('footprintChangeHistoryList', 'footprint_countries', item.id);
             openAtlDrawer('footprintDrawer');
         }
 
@@ -15881,9 +15699,9 @@
                                     <div style="flex:1; min-width:0;">
                                         <h3 class="atl-edit-card__title">${safeName}</h3>
                                     </div>
-                                    <div style="display:flex; gap:6px; align-items:flex-start;">
-                                        <button type="button" class="atl-btn atl-btn--ghost footprint-edit-btn" data-id="${item.id}" title="Edit"><i class="fa-solid fa-pen"></i></button>
-                                        <button type="button" class="atl-btn atl-btn--danger footprint-delete-btn" data-id="${item.id}" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+                                        <button type="button" class="atl-btn atl-btn--ghost um-btn--sm footprint-edit-btn" data-id="${item.id}" title="Edit" aria-label="Edit ${safeName}"><i class="fa-solid fa-pen"></i></button>
+                                        <button type="button" class="um-btn um-btn--danger um-btn--sm footprint-delete-btn" data-id="${item.id}" title="Delete" aria-label="Delete ${safeName}"><i class="fa-solid fa-trash"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -16005,6 +15823,8 @@
             testimonialImageCleared = false;
             var text = document.getElementById('testimonialUploadText');
             if (text) text.textContent = 'Select or drop a photo';
+            $('#testimonials-tab-history').hide();
+            window.atlActivateDrawerTab('testimonialsDrawer', 'testimonials-tab-edit');
             $('#testimonialsDrawerTitle').html('<i class="fa-solid fa-quote-left"></i> Add Testimonial');
             $('#testimonialsSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Testimonial').prop('disabled', false);
         }
@@ -16023,6 +15843,8 @@
             if (text) text.textContent = 'Upload a new photo to replace';
             $('#testimonialsDrawerTitle').html('<i class="fa-solid fa-quote-left"></i> Edit Testimonial');
             $('#testimonialsSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Testimonial');
+            $('#testimonials-tab-history').show();
+            if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('testimonialsChangeHistoryList', 'testimonials', item.id);
             openAtlDrawer('testimonialsDrawer');
         }
 
@@ -16074,9 +15896,9 @@
                             ? '<span class="atl-badge atl-badge--cancelled">Rejected</span>'
                             : '<span class="atl-badge atl-badge--pending">Pending</span>';
                     var moderationBtns = item.status === 'pending'
-                        ? `<button type="button" class="atl-btn atl-btn--ghost testimonial-approve-btn" data-id="${item.id}" title="Approve" style="color:#34d399;"><i class="fa-solid fa-check"></i></button>
-                           <button type="button" class="atl-btn atl-btn--ghost testimonial-reject-btn" data-id="${item.id}" title="Reject" style="color:var(--atl-clay);"><i class="fa-solid fa-xmark"></i></button>`
-                        : `<button type="button" class="atl-btn atl-btn--ghost testimonial-retract-btn" data-id="${item.id}" title="${item.status === 'approved' ? 'Retract from public site (back to Pending Review)' : 'Move back to Pending Review'}" style="color:var(--atl-amber);"><i class="fa-solid fa-rotate-left"></i></button>`;
+                        ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-approve-btn" data-id="${item.id}" title="Approve" style="color:#34d399;"><i class="fa-solid fa-check"></i></button>
+                           <button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-reject-btn" data-id="${item.id}" title="Reject" style="color:var(--atl-clay);"><i class="fa-solid fa-xmark"></i></button>`
+                        : `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-retract-btn" data-id="${item.id}" title="${item.status === 'approved' ? 'Retract from public site (back to Pending Review)' : 'Move back to Pending Review'}" style="color:var(--atl-amber);"><i class="fa-solid fa-rotate-left"></i></button>`;
                     var html = `
                         <article class="atl-edit-card" data-id="${item.id}">
                             <div class="atl-card-inner">
@@ -16087,10 +15909,10 @@
                                         <p class="atl-edit-card__subtitle">${safeDesignation}</p>
                                         <div class="atl-edit-card__desc">${statusBadge} <span style="margin-left:8px;">${safeQuote}</span></div>
                                     </div>
-                                    <div style="display:flex; gap:6px; align-items:flex-start; flex-wrap:wrap; justify-content:flex-end;">
+                                    <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
                                         ${moderationBtns}
-                                        <button type="button" class="atl-btn atl-btn--ghost testimonial-edit-btn" data-id="${item.id}" title="Edit"><i class="fa-solid fa-pen"></i></button>
-                                        <button type="button" class="atl-btn atl-btn--danger testimonial-delete-btn" data-id="${item.id}" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                                        <button type="button" class="atl-btn atl-btn--ghost um-btn--sm testimonial-edit-btn" data-id="${item.id}" title="Edit" aria-label="Edit ${safeName}"><i class="fa-solid fa-pen"></i></button>
+                                        <button type="button" class="um-btn um-btn--danger um-btn--sm testimonial-delete-btn" data-id="${item.id}" title="Delete" aria-label="Delete ${safeName}"><i class="fa-solid fa-trash"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -16435,8 +16257,6 @@
         // ==========================================
         async function loadGallery() {
             var $list = $('#adminGalleryList');
-            // Re-dock guard: move the editor form home before we wipe the list.
-            if (typeof mountGalleryEditor === 'function') mountGalleryEditor(galleryEditorHome());
             try {
                 const data = await apiCall('/api/public/gallery');
 
@@ -16474,6 +16294,7 @@
                     <article class="atl-edit-card" data-id="${item.id}" data-payload="${encoded}">
                       <div class="atl-card-inner">
                         <div class="atl-edit-card__header">
+                          <span class="atl-drag-handle" draggable="true" title="Drag to reorder" aria-label="Drag to reorder"><i class="fa-solid fa-grip-vertical"></i></span>
                           <div class="atl-edit-card__thumb">
                             ${thumb}
                             ${isVideo ? `<div class="atl-edit-card__video-badge"><i class="fa fa-play"></i> VIDEO</div>` : ''}
@@ -16482,9 +16303,9 @@
                             <h3 class="atl-edit-card__title">${title}</h3>
                             <p class="atl-edit-card__subtitle">${subtitle}</p>
                           </div>
-                          <div style="display:flex; align-items:center; gap:8px; flex-shrink:0; align-self:flex-start;">
-                            <button type="button" class="atl-btn atl-btn--ghost atl-expand-btn gallery-expand-btn" data-id="${item.id}" title="Edit media" aria-label="Edit media" aria-expanded="false" aria-controls="galleryDetail-${item.id}" style="padding:6px 10px; min-width:0;">
-                              <i class="fa-solid fa-chevron-down"></i>
+                          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+                            <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openGalleryEditDrawer(${item.id})" title="Edit media" aria-label="Edit media">
+                              <i class="fa-solid fa-pen"></i>
                             </button>
                             <button type="button" class="um-btn um-btn--danger um-btn--sm remove-gallery-action" data-id="${item.id}" title="Delete media" aria-label="Delete media">
                               <i class="fa-solid fa-trash-can"></i>
@@ -16492,12 +16313,11 @@
                           </div>
                         </div>
                       </div>
-                      <div id="galleryDetail-${item.id}" class="atl-detail-region" role="region" aria-label="Edit media">
-                        <div class="atl-detail-inner"><div class="gallery-form-mount atl-form-mount"></div></div>
-                      </div>
                     </article>`;
                     $list.append(html);
                 });
+
+                initDraggableGallery();
             } catch (err) {
                 console.error('Failed to load gallery:', err);
                 $list.html(`
@@ -16510,28 +16330,58 @@
             }
         }
 
-        // Uploader name remembered from last use (the field lives in the gallery drawer now)
-        var savedUploader = localStorage.getItem('tm_uploader_name');
+        // Drag/Drop reorder — listeners attached once (dataset.dragInit guard is load-bearing).
+        // Drag starts ONLY from the .atl-drag-handle grip, so card-body clicks still open the editor.
+        // Mirrors initDraggableSlider() in the Home Slider section above.
+        function initDraggableGallery() {
+            const list = document.getElementById('adminGalleryList');
+            if (!list || list.dataset.dragInit) return;
+            list.dataset.dragInit = '1';
+            let draggedItem = null;
 
-        // GPS Location Logic (delegated — #btnGps is in the drawer)
-        $(document).on('click', '#btnGps', function() {
-            var $btn = $(this);
-            var origHtml = $btn.html();
-            $btn.html('<i class="fa-solid fa-spinner fa-spin"></i> Locating...').prop('disabled', true);
-            if (!navigator.geolocation) {
-                window.notificationService.showError("Geolocation is not supported by your browser.");
-                $btn.html(origHtml).prop('disabled', false);
-                return;
-            }
-            navigator.geolocation.getCurrentPosition(function(position) {
-                $('#mediaLocation').val(position.coords.latitude.toFixed(4) + ', ' + position.coords.longitude.toFixed(4));
-                $btn.html('<i class="fa-solid fa-check"></i> Found');
-                setTimeout(function() { $btn.html(origHtml).prop('disabled', false); }, 2000);
-            }, function() {
-                window.notificationService.showError("Unable to retrieve your location. Please ensure you have granted permission.");
-                $btn.html(origHtml).prop('disabled', false);
+            list.addEventListener('dragstart', (e) => {
+                if (!e.target.closest('.atl-drag-handle')) { e.preventDefault(); return; }
+                draggedItem = e.target.closest('.atl-edit-card');
+                if (!draggedItem) return;
+                e.dataTransfer.effectAllowed = 'move';
+                setTimeout(() => { if (draggedItem) draggedItem.style.opacity = '0.4'; }, 0);
             });
-        });
+
+            list.addEventListener('dragend', async () => {
+                if (!draggedItem) return;
+                draggedItem.style.opacity = '1';
+
+                // Save new order to DB
+                const newOrder = Array.from(list.querySelectorAll('.atl-edit-card')).map(el => el.dataset.id);
+                try {
+                    const res = await fetch('/api/admin/gallery/reorder', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order: newOrder })
+                    });
+                    if (!res.ok) window.notificationService.showError('Reorder failed — please refresh and try again.');
+                } catch (e) {
+                    console.error("Reorder failed:", e);
+                    window.notificationService.showError('Reorder failed — please refresh and try again.');
+                }
+                draggedItem = null;
+            });
+
+            list.addEventListener('dragover', (e) => {
+                if (!draggedItem) return;
+                e.preventDefault();
+                const overItem = e.target.closest('.atl-edit-card');
+                if (overItem && overItem !== draggedItem) {
+                    const rect = overItem.getBoundingClientRect();
+                    const midpoint = rect.top + rect.height / 2;
+                    if (e.clientY < midpoint) {
+                        list.insertBefore(draggedItem, overItem);
+                    } else {
+                        list.insertBefore(draggedItem, overItem.nextSibling);
+                    }
+                }
+            });
+        }
 
         // Block video selection (delegated — #mediaFile is in the drawer)
         $(document).on('change', '#mediaFile', function () {
@@ -16550,25 +16400,12 @@
             }
         });
 
-        // ── GALLERY MEDIA EDITOR CONTROLLER (mirrors the #eventsAdmin docking pattern) ──
+        // ── GALLERY MEDIA EDITOR CONTROLLER — #addMediaForm lives permanently in the galleryDrawer ──
         var galleryEditId = null;
-        function galleryEditorHome() { return document.getElementById('galleryFormHomeMount'); }
-        function mountGalleryEditor(t) { if (!t) return; $('#addMediaForm').detach().appendTo(t); }
-        function collapseAllGalleryCards(opts) {
-            var redock = (opts && opts.redock !== undefined) ? opts.redock : true;
-            $('#adminGalleryList .atl-edit-card .atl-detail-region.open').removeClass('open');
-            $('#adminGalleryList .atl-edit-card').removeClass('is-expanded');
-            $('#adminGalleryList .gallery-expand-btn').attr('aria-expanded', 'false');
-            if (redock) mountGalleryEditor(galleryEditorHome());
-        }
         function resetGalleryForm() {
             $('#addMediaForm')[0].reset();
             $('#mediaFile').val('');
             $('#galleryImageFields').show();
-            $('#galleryMetaFields').show();
-            $('#uploaderName').prop('required', true);
-            if (savedUploader) $('#uploaderName').val(savedUploader);
-            $('#mediaLocation').val('');
             var text = document.getElementById('galleryUploadText');
             if (text) {
                 text.textContent = 'Drag & drop or select gallery images';
@@ -16576,72 +16413,47 @@
             $('#videoWarning').hide();
             $('#galleryPreview').hide(); $('#galleryPreviewImg').attr('src', '');
             galleryEditId = null;
+            $('#gallery-tab-history').hide();
+            window.atlActivateDrawerTab('galleryDrawer', 'gallery-tab-edit');
+            $('#galleryDrawerTitle').html('<i class="fa-solid fa-images"></i> Add Media');
             $('#submitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add to Gallery').prop('disabled', false);
         }
         function applyGalleryToEditor(item) {
             galleryEditId = item.id;
             $('#galleryImageFields').show();   // image fields stay visible so the image can be replaced
-            $('#galleryMetaFields').show();    // uploader/location are editable too
-            $('#uploaderName').prop('required', false);
             $('#mediaFile').val('');
             $('#mediaUrl').val('');
             $('#videoWarning').hide();
             $('#mediaAlt').val(item.title || '');
-            $('#uploaderName').val(item.uploader_name || '');
-            $('#mediaLocation').val(item.location || '');
             var text = document.getElementById('galleryUploadText');
             if (text) {
                 text.textContent = 'Upload a new image to replace';
             }
             if (item.image_path) { $('#galleryPreviewImg').attr('src', item.image_path); $('#galleryPreview').show(); }
             else { $('#galleryPreview').hide(); $('#galleryPreviewImg').attr('src', ''); }
+            $('#galleryDrawerTitle').html('<i class="fa-solid fa-images"></i> Edit Media');
             $('#submitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Media').prop('disabled', false);
+            $('#gallery-tab-history').show();
+            if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('galleryChangeHistoryList', 'gallery_images', item.id);
         }
-        function populateGalleryEditorFromCard(id) {
-            var p = $('#adminGalleryList .atl-edit-card[data-id="' + id + '"]').attr('data-payload');
-            if (p) applyGalleryToEditor(JSON.parse(decodeURIComponent(p)));
-        }
-        window.toggleGalleryCard = function (id, forceOpen) {
-            var $card = $('#adminGalleryList .atl-edit-card[data-id="' + id + '"]');
-            if (!$card.length) return;
-            var $region = $card.find('> .atl-detail-region');
-            var isOpen = $region.hasClass('open');
-            var next = (forceOpen !== undefined) ? forceOpen : !isOpen;
-            if (next === isOpen) return;
-            if (next) {
-                collapseAllGalleryCards({ redock: false });
-                closeAtlDrawer('galleryDrawer');
-                $region.addClass('open'); $card.addClass('is-expanded');
-                $card.find('.gallery-expand-btn').attr('aria-expanded', 'true');
-                mountGalleryEditor($region.find('.gallery-form-mount')[0]);
-                populateGalleryEditorFromCard(id);
-            } else {
-                $region.removeClass('open'); $card.removeClass('is-expanded');
-                $card.find('.gallery-expand-btn').attr('aria-expanded', 'false');
-                mountGalleryEditor(galleryEditorHome());
-                resetGalleryForm();
-            }
-        };
-        window.galleryCancelEdit = function () {
-            resetGalleryForm();
-            collapseAllGalleryCards({ redock: true });
-            closeAtlDrawer('galleryDrawer');
-        };
-        $('#galleryAddNewBtn').on('click', function () {
-            collapseAllGalleryCards({ redock: true });
+        window.openGalleryCreateDrawer = function () {
             resetGalleryForm();
             openAtlDrawer('galleryDrawer');
             $('#mediaAlt').focus();
-        });
+        };
+        window.openGalleryEditDrawer = function (id) {
+            var p = $('#adminGalleryList .atl-edit-card[data-id="' + id + '"]').attr('data-payload');
+            if (!p) return;
+            resetGalleryForm();
+            applyGalleryToEditor(JSON.parse(decodeURIComponent(p)));
+            openAtlDrawer('galleryDrawer');
+        };
+        window.galleryCancelEdit = function () {
+            resetGalleryForm();
+            closeAtlDrawer('galleryDrawer');
+        };
+        $('#galleryAddNewBtn').on('click', function () { window.openGalleryCreateDrawer(); });
         $(document).on('click', '#galleryDrawerClose, #galleryDrawerBackdrop', function () { galleryCancelEdit(); });
-        $(document).off('click.gallerycard').on('click.gallerycard', '#adminGalleryList .atl-edit-card__header', function (e) {
-            if ($(e.target).closest('button, a').length) return;
-            window.toggleGalleryCard($(this).closest('.atl-edit-card').data('id'));
-        });
-        $(document).off('click.gallerybtn').on('click.gallerybtn', '#adminGalleryList .gallery-expand-btn', function (e) {
-            e.stopPropagation();
-            window.toggleGalleryCard($(this).data('id'));
-        });
 
         // Add / Edit submit (delegated — #addMediaForm lives in the drawer)
         $(document).on('submit', '#addMediaForm', async function (e) {
@@ -16653,8 +16465,6 @@
             if (galleryEditId !== null) {
                 var editFile = $('#mediaFile')[0].files[0];
                 var editUrl  = $('#mediaUrl').val().trim();
-                var uploaderNameInput = $('#uploaderName').val().trim();
-                var locationInput = $('#mediaLocation').val().trim();
                 if (editFile && editFile.type.startsWith('video/')) {
                     window.notificationService.showError('Videos cannot be used as gallery images.');
                     return;
@@ -16662,9 +16472,7 @@
                 $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving...');
                 try {
                     var body = {
-                        title: titleInput,
-                        uploader_name: uploaderNameInput || null,
-                        location: locationInput || null
+                        title: titleInput
                     };
                     if (editFile) {
                         var uploaded = await uploadFileToServer(editFile, 'gallery');
@@ -16687,8 +16495,6 @@
 
             // ADD mode — multi-file or URL create (gallery is images only; videos are skipped)
             var urlInput = $('#mediaUrl').val().trim();
-            var uploaderNameInput = $('#uploaderName').val().trim();
-            var locationInput = $('#mediaLocation').val().trim();
             var allFiles = $('#mediaFile')[0].files;
             var imageFiles = Array.prototype.slice.call(allFiles).filter(function (f) { return !f.type.startsWith('video/'); });
             var hadVideo = imageFiles.length < allFiles.length;
@@ -16698,7 +16504,6 @@
                     : 'Please provide either an image URL or choose files to upload.');
                 return;
             }
-            if (uploaderNameInput) { localStorage.setItem('tm_uploader_name', uploaderNameInput); savedUploader = uploaderNameInput; }
             $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Processing...');
             try {
                 if (imageFiles.length > 0) {
@@ -16707,8 +16512,6 @@
                         fd.append('section', 'gallery');
                         fd.append('title', titleInput || imageFiles[i].name);
                         fd.append('file', imageFiles[i]);
-                        fd.append('uploader_name', uploaderNameInput || '');
-                        fd.append('location', locationInput || '');
                         var r = await fetch('/api/admin/gallery', { method: 'POST', credentials: 'include', body: fd });
                         if (!r.ok) throw new Error('Upload failed');
                     }
@@ -16717,8 +16520,6 @@
                     fd2.append('section', 'gallery');
                     fd2.append('title', titleInput || 'Web Image');
                     fd2.append('fallback_url', urlInput);
-                    fd2.append('uploader_name', uploaderNameInput || '');
-                    fd2.append('location', locationInput || '');
                     var r2 = await fetch('/api/admin/gallery', { method: 'POST', credentials: 'include', body: fd2 });
                     if (!r2.ok) throw new Error('Upload failed');
                 }
@@ -26209,7 +26010,14 @@
             <h5 id="evtDrawerTitle"><i class="fa-solid fa-calendar-plus"></i> Manage Event</h5>
             <button type="button" class="atl-drawer__close" id="evtDrawerClose" aria-label="Close">&times;</button>
         </div>
+        <div class="dv-subhead">
+            <div class="dv-tabs" role="tablist" aria-label="Event sections" id="evtTabs">
+                <button type="button" class="dv-tab" role="tab" id="evt-tab-edit" aria-controls="evt-panel-edit" aria-selected="true" tabindex="0">Edit</button>
+                <button type="button" class="dv-tab" role="tab" id="evt-tab-history" aria-controls="evt-panel-history" aria-selected="false" tabindex="-1" style="display:none;">Change History</button>
+            </div>
+        </div>
         <div class="atl-drawer__body">
+          <section class="dv-panel" role="tabpanel" id="evt-panel-edit" aria-labelledby="evt-tab-edit" tabindex="0">
             <div id="eventsFormHomeMount">
                 <form id="eventsForm" class="um-form" autocomplete="off">
                     <div class="form-group" style="display: none;" id="eventVideoWarning">
@@ -26371,12 +26179,6 @@
                         Synced to Google Calendar &mdash; <a id="eventsGcalLink" href="#" target="_blank" style="color:var(--atl-blue);text-decoration:underline;">View Event</a>
                     </div>
 
-                    <!-- Change History (read-only, edit mode only) -->
-                    <div id="evtChangeHistoryGroup" style="display:none; margin-bottom:16px; padding:12px; background:var(--atl-surface2); border: 1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
-                        <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
-                        <div id="evtChangeHistoryList"></div>
-                    </div>
-
                     <div class="um-form-actions" style="justify-content:flex-end; gap:10px;">
                         <button type="button" class="atl-btn um-btn--danger evt-form-action-btn" id="evtCancelEventBtn" style="display:none; margin-right:auto;">
                             <i class="fa-solid fa-ban"></i> Cancel Event
@@ -26390,6 +26192,13 @@
                     </div>
                 </form>
             </div>
+          </section>
+          <section class="dv-panel" role="tabpanel" id="evt-panel-history" aria-labelledby="evt-tab-history" tabindex="0" hidden>
+            <div id="evtChangeHistoryGroup" style="padding:12px; background:var(--atl-surface2); border: 1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
+                <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
+                <div id="evtChangeHistoryList"></div>
+            </div>
+          </section>
         </div>
     </div>
 
@@ -26507,7 +26316,14 @@
             <h5 id="aboutDrawerTitle"><i class="fa-solid fa-user-pen"></i> Edit Profile Content</h5>
             <button type="button" class="atl-drawer__close" id="aboutDrawerClose" aria-label="Close">&times;</button>
         </div>
+        <div class="dv-subhead">
+            <div class="dv-tabs" role="tablist" aria-label="Profile content sections" id="aboutTabs">
+                <button type="button" class="dv-tab" role="tab" id="about-tab-edit" aria-controls="about-panel-edit" aria-selected="true" tabindex="0">Edit</button>
+                <button type="button" class="dv-tab" role="tab" id="about-tab-history" aria-controls="about-panel-history" aria-selected="false" tabindex="-1">Change History</button>
+            </div>
+        </div>
         <div class="atl-drawer__body">
+          <section class="dv-panel" role="tabpanel" id="about-panel-edit" aria-labelledby="about-tab-edit" tabindex="0">
             <p class="um-section-desc" style="margin:0 0 16px;">Upload a photo or enter a URL, then fill in the biography paragraphs. The Live Preview updates as you type.</p>
             <form id="aboutForm" class="um-form">
                 <div class="um-field-group">
@@ -26548,6 +26364,13 @@
                     <i class="fa-solid fa-floppy-disk"></i> Update
                 </button>
             </form>
+          </section>
+          <section class="dv-panel" role="tabpanel" id="about-panel-history" aria-labelledby="about-tab-history" tabindex="0" hidden>
+            <div style="padding:12px; background:var(--atl-surface2); border:1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
+                <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
+                <div id="aboutChangeHistoryList"></div>
+            </div>
+          </section>
         </div>
     </div>
 
@@ -26555,10 +26378,17 @@
     <div id="careerDrawerBackdrop" class="atl-drawer-backdrop"></div>
     <div id="careerDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="careerDrawerTitle" aria-modal="true" aria-hidden="true">
         <div class="atl-drawer__header">
-            <h5 id="careerDrawerTitle"><i class="fa-solid fa-star"></i> Manage Highlight</h5>
+            <h5 id="careerDrawerTitle"><i class="fa-solid fa-star"></i> Add Highlight</h5>
             <button type="button" class="atl-drawer__close" id="careerDrawerClose" aria-label="Close">&times;</button>
         </div>
+        <div class="dv-subhead">
+            <div class="dv-tabs" role="tablist" aria-label="Career highlight sections" id="careerTabs">
+                <button type="button" class="dv-tab" role="tab" id="career-tab-edit" aria-controls="career-panel-edit" aria-selected="true" tabindex="0">Edit</button>
+                <button type="button" class="dv-tab" role="tab" id="career-tab-history" aria-controls="career-panel-history" aria-selected="false" tabindex="-1" style="display:none;">Change History</button>
+            </div>
+        </div>
         <div class="atl-drawer__body">
+          <section class="dv-panel" role="tabpanel" id="career-panel-edit" aria-labelledby="career-tab-edit" tabindex="0">
             <div id="careerFormHomeMount">
                 <form id="careerForm" class="um-form" autocomplete="off">
                     <div class="um-field-group">
@@ -26627,6 +26457,13 @@
                     </div>
                 </form>
             </div>
+          </section>
+          <section class="dv-panel" role="tabpanel" id="career-panel-history" aria-labelledby="career-tab-history" tabindex="0" hidden>
+            <div style="padding:12px; background:var(--atl-surface2); border:1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
+                <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
+                <div id="careerChangeHistoryList"></div>
+            </div>
+          </section>
         </div>
     </div>
 
@@ -26638,7 +26475,14 @@
             <h5 id="footprintDrawerTitle"><i class="fa-solid fa-earth-africa"></i> Manage Country</h5>
             <button type="button" class="atl-drawer__close" id="footprintDrawerClose" aria-label="Close">&times;</button>
         </div>
+        <div class="dv-subhead">
+            <div class="dv-tabs" role="tablist" aria-label="Footprint country sections" id="footprintTabs">
+                <button type="button" class="dv-tab" role="tab" id="footprint-tab-edit" aria-controls="footprint-panel-edit" aria-selected="true" tabindex="0">Edit</button>
+                <button type="button" class="dv-tab" role="tab" id="footprint-tab-history" aria-controls="footprint-panel-history" aria-selected="false" tabindex="-1" style="display:none;">Change History</button>
+            </div>
+        </div>
         <div class="atl-drawer__body">
+          <section class="dv-panel" role="tabpanel" id="footprint-panel-edit" aria-labelledby="footprint-tab-edit" tabindex="0">
             <form id="footprintForm" class="um-form" autocomplete="off">
                 <div class="um-field-group">
                     <label class="um-label" for="footprintCountrySelect">Country</label>
@@ -26661,6 +26505,13 @@
                     </button>
                 </div>
             </form>
+          </section>
+          <section class="dv-panel" role="tabpanel" id="footprint-panel-history" aria-labelledby="footprint-tab-history" tabindex="0" hidden>
+            <div style="padding:12px; background:var(--atl-surface2); border:1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
+                <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
+                <div id="footprintChangeHistoryList"></div>
+            </div>
+          </section>
         </div>
     </div>
 
@@ -26672,7 +26523,14 @@
             <h5 id="testimonialsDrawerTitle"><i class="fa-solid fa-quote-left"></i> Add Testimonial</h5>
             <button type="button" class="atl-drawer__close" id="testimonialsDrawerClose" aria-label="Close">&times;</button>
         </div>
+        <div class="dv-subhead">
+            <div class="dv-tabs" role="tablist" aria-label="Testimonial sections" id="testimonialsTabs">
+                <button type="button" class="dv-tab" role="tab" id="testimonials-tab-edit" aria-controls="testimonials-panel-edit" aria-selected="true" tabindex="0">Edit</button>
+                <button type="button" class="dv-tab" role="tab" id="testimonials-tab-history" aria-controls="testimonials-panel-history" aria-selected="false" tabindex="-1" style="display:none;">Change History</button>
+            </div>
+        </div>
         <div class="atl-drawer__body">
+          <section class="dv-panel" role="tabpanel" id="testimonials-panel-edit" aria-labelledby="testimonials-tab-edit" tabindex="0">
             <form id="testimonialsForm" class="um-form" autocomplete="off">
                 <div class="um-field-group">
                     <label class="um-label" for="testimonialName">Name</label>
@@ -26715,6 +26573,13 @@
                     </button>
                 </div>
             </form>
+          </section>
+          <section class="dv-panel" role="tabpanel" id="testimonials-panel-history" aria-labelledby="testimonials-tab-history" tabindex="0" hidden>
+            <div style="padding:12px; background:var(--atl-surface2); border:1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
+                <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
+                <div id="testimonialsChangeHistoryList"></div>
+            </div>
+          </section>
         </div>
     </div>
 
@@ -26779,10 +26644,17 @@
     <div id="galleryDrawerBackdrop" class="atl-drawer-backdrop"></div>
     <div id="galleryDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="galleryDrawerTitle" aria-modal="true" aria-hidden="true">
         <div class="atl-drawer__header">
-            <h5 id="galleryDrawerTitle"><i class="fa-solid fa-images"></i> Manage Media</h5>
+            <h5 id="galleryDrawerTitle"><i class="fa-solid fa-images"></i> Add Media</h5>
             <button type="button" class="atl-drawer__close" id="galleryDrawerClose" aria-label="Close">&times;</button>
         </div>
+        <div class="dv-subhead">
+            <div class="dv-tabs" role="tablist" aria-label="Gallery media sections" id="galleryTabs">
+                <button type="button" class="dv-tab" role="tab" id="gallery-tab-edit" aria-controls="gallery-panel-edit" aria-selected="true" tabindex="0">Edit</button>
+                <button type="button" class="dv-tab" role="tab" id="gallery-tab-history" aria-controls="gallery-panel-history" aria-selected="false" tabindex="-1" style="display:none;">Change History</button>
+            </div>
+        </div>
         <div class="atl-drawer__body">
+          <section class="dv-panel" role="tabpanel" id="gallery-panel-edit" aria-labelledby="gallery-tab-edit" tabindex="0">
             <div id="galleryFormHomeMount">
                 <form id="addMediaForm" class="um-form" autocomplete="off">
                     <div class="um-field-group">
@@ -26820,25 +26692,6 @@
                             </div>
                         </div>
                     </div><!-- /#galleryImageFields -->
-                    <div id="galleryMetaFields">
-                        <div class="um-field-group">
-                            <label class="um-label" for="uploaderName">Uploader Name</label>
-                            <div class="um-input-wrap">
-                                <i class="fa-solid fa-user um-input-icon"></i>
-                                <input type="text" class="um-input" id="uploaderName" placeholder="e.g. Thabiso or Admin" required>
-                            </div>
-                        </div>
-                        <div class="um-field-group">
-                            <label class="um-label" for="mediaLocation">Location (Optional)</label>
-                            <div class="um-input-wrap" style="position:relative;">
-                                <i class="fa-solid fa-map-marker-alt um-input-icon"></i>
-                                <input type="text" class="um-input" id="mediaLocation" placeholder="e.g. Constitutional Hill, Johannesburg" style="padding-right:80px;">
-                                <button class="um-btn um-btn--ghost um-btn--sm" type="button" id="btnGps" title="Get GPS Location" style="position:absolute; right:6px; padding:5px 10px; font-size:11px;">
-                                    <i class="fa-solid fa-location-crosshairs"></i> GPS
-                                </button>
-                            </div>
-                        </div>
-                    </div>
                     <div class="um-form-actions" style="justify-content:flex-end; gap:10px;">
                         <button type="button" class="atl-btn atl-btn--ghost" onclick="galleryCancelEdit();">Cancel</button>
                         <button type="submit" class="atl-btn atl-btn--primary" id="submitBtn">
@@ -26847,6 +26700,13 @@
                     </div>
                 </form>
             </div>
+          </section>
+          <section class="dv-panel" role="tabpanel" id="gallery-panel-history" aria-labelledby="gallery-tab-history" tabindex="0" hidden>
+            <div style="padding:12px; background:var(--atl-surface2); border:1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
+                <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
+                <div id="galleryChangeHistoryList"></div>
+            </div>
+          </section>
         </div>
     </div>
 
@@ -26952,10 +26812,17 @@
     <div id="homeDrawerBackdrop" class="atl-drawer-backdrop"></div>
     <div id="homeDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="homeDrawerTitle" aria-modal="true" aria-hidden="true">
         <div class="atl-drawer__header">
-            <h5 id="homeDrawerTitle"><i class="fa-solid fa-film"></i> Manage Slide</h5>
+            <h5 id="homeDrawerTitle"><i class="fa-solid fa-film"></i> Add Slide</h5>
             <button type="button" class="atl-drawer__close" id="homeDrawerClose" aria-label="Close">&times;</button>
         </div>
+        <div class="dv-subhead">
+            <div class="dv-tabs" role="tablist" aria-label="Home slide sections" id="homeTabs">
+                <button type="button" class="dv-tab" role="tab" id="home-tab-edit" aria-controls="home-panel-edit" aria-selected="true" tabindex="0">Edit</button>
+                <button type="button" class="dv-tab" role="tab" id="home-tab-history" aria-controls="home-panel-history" aria-selected="false" tabindex="-1" style="display:none;">Change History</button>
+            </div>
+        </div>
         <div class="atl-drawer__body">
+          <section class="dv-panel" role="tabpanel" id="home-panel-edit" aria-labelledby="home-tab-edit" tabindex="0">
             <div id="homeFormHomeMount">
                 <form id="homeForm" class="um-form" autocomplete="off">
                     <div class="um-field-group">
@@ -26998,6 +26865,13 @@
                     </div>
                 </form>
             </div>
+          </section>
+          <section class="dv-panel" role="tabpanel" id="home-panel-history" aria-labelledby="home-tab-history" tabindex="0" hidden>
+            <div style="padding:12px; background:var(--atl-surface2); border:1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
+                <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
+                <div id="homeChangeHistoryList"></div>
+            </div>
+          </section>
         </div>
     </div>
 
@@ -29083,7 +28957,7 @@
                 (props.venue ? '<div>Venue: <span style="color:var(--atl-muted);">' + props.venue + '</span></div>' : '') +
                 '</div>' +
                 '<div style="margin-top:14px;">' +
-                '<button onclick="switchTab(\'eventsAdmin\'); setTimeout(() => { if(typeof window.toggleEventCard===\'function\'){ window.toggleEventCard(' + props.dbId + ', true); var $c=$(\'.atl-event-card[data-id=&quot;' + props.dbId + '&quot;]\'); if($c.length) $(\'html,body\').animate({scrollTop:$c.offset().top-70},400); } document.getElementById(\'calEventPopup\').remove(); }, 300);" style="width:100%;background:var(--atl-amber);color:var(--atl-on-amber);border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:700;cursor:pointer;"><i class="fa-solid fa-pen-to-square"></i> Edit Event</button>' +
+                '<button onclick="switchTab(\'eventsAdmin\'); setTimeout(() => { if(typeof window.openEvtEditDrawer===\'function\'){ window.openEvtEditDrawer(' + props.dbId + '); var $c=$(\'.atl-event-card[data-id=&quot;' + props.dbId + '&quot;]\'); if($c.length) $(\'html,body\').animate({scrollTop:$c.offset().top-70},400); } document.getElementById(\'calEventPopup\').remove(); }, 300);" style="width:100%;background:var(--atl-amber);color:var(--atl-on-amber);border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:700;cursor:pointer;"><i class="fa-solid fa-pen-to-square"></i> Edit Event</button>' +
                 '</div>';
         } else {
             popup.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;">' +
@@ -30013,80 +29887,119 @@
         openAtlDrawer('blockOutDrawer');
     }
 
-    const boAllDayChk = document.getElementById('boAllDay');
-    if (boAllDayChk) {
-        boAllDayChk.addEventListener('change', function() {
-            document.getElementById('boTimeFields').style.display = this.checked ? 'none' : 'block';
-        });
-    }
+    // Delegated (via $(document)) rather than a direct getElementById+addEventListener bind:
+    // #boAllDay/#btnBoAddCategory/#btnBoSaveCategory/#btnBlockOutSave live inside the blockOutDrawer
+    // markup, which sits much further down the page than this script block. A direct bind here runs
+    // before that HTML has been parsed, so getElementById returns null and the listener never
+    // attaches — the button looks normal but silently does nothing when clicked. Delegation resolves
+    // the target at click time instead, so DOM order no longer matters.
+    $(document).on('change', '#boAllDay', function() {
+        document.getElementById('boTimeFields').style.display = this.checked ? 'none' : 'block';
+    });
 
-    const btnBoAddCat = document.getElementById('btnBoAddCategory');
-    if (btnBoAddCat) {
-        btnBoAddCat.addEventListener('click', function() {
-            const form = document.getElementById('boNewCategoryForm');
-            form.style.display = form.style.display === 'none' ? 'block' : 'none';
-        });
-    }
+    $(document).on('click', '#btnBoAddCategory', function() {
+        const form = document.getElementById('boNewCategoryForm');
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    });
 
-    const btnBoSaveCat = document.getElementById('btnBoSaveCategory');
-    if (btnBoSaveCat) {
-        btnBoSaveCat.addEventListener('click', function() {
-            const name = (document.getElementById('boNewCategoryName').value || '').trim();
-            const color = document.getElementById('boNewCategoryColor').value || '#9C27B0';
-            if (!name) { window.notificationService && window.notificationService.showError('Enter a category name.'); return; }
-            const slug = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-            const customs = boLoadCustomCategories();
-            if (customs.find(c => c.value === slug)) { window.notificationService && window.notificationService.showError('Category already exists.'); return; }
-            customs.push({ value: slug, label: '🎨 ' + name, color });
-            boSaveCustomCategories(customs);
-            boPopulateCategorySelect();
-            document.getElementById('boNewCategoryForm').style.display = 'none';
-            document.getElementById('boNewCategoryName').value = '';
-            window.notificationService && window.notificationService.showSuccess('Category "' + name + '" added.');
-        });
-    }
+    $(document).on('click', '#btnBoSaveCategory', function() {
+        const name = (document.getElementById('boNewCategoryName').value || '').trim();
+        const color = document.getElementById('boNewCategoryColor').value || '#9C27B0';
+        if (!name) { window.notificationService && window.notificationService.showError('Enter a category name.'); return; }
+        const slug = name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+        const customs = boLoadCustomCategories();
+        if (customs.find(c => c.value === slug)) { window.notificationService && window.notificationService.showError('Category already exists.'); return; }
+        customs.push({ value: slug, label: '🎨 ' + name, color });
+        boSaveCustomCategories(customs);
+        boPopulateCategorySelect();
+        document.getElementById('boNewCategoryForm').style.display = 'none';
+        document.getElementById('boNewCategoryName').value = '';
+        window.notificationService && window.notificationService.showSuccess('Category "' + name + '" added.');
+    });
 
-    const btnBlockOutSave = document.getElementById('btnBlockOutSave');
-    if (btnBlockOutSave) {
-        btnBlockOutSave.addEventListener('click', async function() {
-            const date = document.getElementById('boDate').value;
-            if (!date) { window.notificationService && window.notificationService.showError('Please select a date.'); return; }
-            const catSel = document.getElementById('boCategory');
-            const blockType = catSel.value;
-            const catLabel = catSel.options[catSel.selectedIndex].text.replace(/^.\s/, '');
-            const allDay = document.getElementById('boAllDay').checked;
-            let startTime = null, endTime = null;
-            if (!allDay) {
-                const time = document.getElementById('boTime').value;
-                const hrs  = parseInt(document.getElementById('boDuration').value, 10);
-                if (!time) { window.notificationService && window.notificationService.showError('Please enter a start time.'); return; }
-                startTime = time; // HH:MM  — the API stores/compares as HH:MM strings
-                const [h, m] = time.split(':').map(Number);
-                const endTotalMins = h * 60 + m + hrs * 60;
-                endTime = String(Math.floor(endTotalMins / 60) % 24).padStart(2, '0') + ':' + String(endTotalMins % 60).padStart(2, '0');
-            }
-            btnBlockOutSave.disabled = true;
-            btnBlockOutSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+    $(document).on('click', '#btnBlockOutSave', async function() {
+        const btnBlockOutSave = this;
+        btnBlockOutSave.disabled = true;
+        btnBlockOutSave.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
             try {
-                const resp = await fetch('/api/admin/calendar/hold', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ date, date_to: document.getElementById('boEndDate')?.value || null, reason: catLabel, block_type: blockType, start_time: startTime, end_time: endTime })
-                });
-                const data = await resp.json();
-                if (!data.success) throw new Error(data.message || 'Failed');
-                closeAtlDrawer('blockOutDrawer');
-                if (adminCalendar) adminCalendar.refetchEvents();
-                renderWorkingSchedule();
-                window.notificationService && window.notificationService.showSuccess('Block saved.');
+                const date = (document.getElementById('boDate')?.value || '').trim();
+                if (!date) {
+                    window.notificationService && window.notificationService.showError('Please select a start date.');
+                    return;
+                }
+                const catSel = document.getElementById('boCategory');
+                const blockType = catSel ? catSel.value : 'unavailable';
+                const catOption = (catSel && catSel.selectedIndex >= 0) ? catSel.options[catSel.selectedIndex] : null;
+                const catLabel = catOption ? catOption.text.replace(/^[^\w\s]+\s*/, '').trim() : blockType;
+                
+                const allDayChk = document.getElementById('boAllDay');
+                const allDay = allDayChk ? allDayChk.checked : true;
+                let startTime = null, endTime = null;
+                if (!allDay) {
+                    const time = document.getElementById('boTime')?.value;
+                    const hrs  = parseInt(document.getElementById('boDuration')?.value, 10) || 1;
+                    if (!time) {
+                        window.notificationService && window.notificationService.showError('Please enter a start time.');
+                        return;
+                    }
+                    startTime = time;
+                    const [h, m] = time.split(':').map(Number);
+                    const endTotalMins = (h || 0) * 60 + (m || 0) + hrs * 60;
+                    endTime = String(Math.floor(endTotalMins / 60) % 24).padStart(2, '0') + ':' + String(endTotalMins % 60).padStart(2, '0');
+                }
+
+                const endDateVal = (document.getElementById('boEndDate')?.value || '').trim();
+                const datesToHold = [date];
+                if (endDateVal && endDateVal > date) {
+                    let cur = new Date(date);
+                    const last = new Date(endDateVal);
+                    while (cur < last) {
+                        cur.setDate(cur.getDate() + 1);
+                        datesToHold.push(cur.toISOString().split('T')[0]);
+                    }
+                }
+
+                let createdCount = 0;
+                let lastError = null;
+
+                for (const d of datesToHold) {
+                    const resp = await fetch('/api/admin/calendar/hold', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            date: d,
+                            reason: catLabel,
+                            block_type: blockType,
+                            start_time: startTime,
+                            end_time: endTime
+                        })
+                    });
+                    const data = await resp.json();
+                    if (data.success) {
+                        createdCount++;
+                    } else {
+                        lastError = data.message || data.error || 'Failed';
+                    }
+                }
+
+                if (createdCount > 0) {
+                    closeAtlDrawer('blockOutDrawer');
+                    if (typeof adminCalendar !== 'undefined' && adminCalendar) adminCalendar.refetchEvents();
+                    if (typeof renderWorkingSchedule === 'function') renderWorkingSchedule();
+                    window.notificationService && window.notificationService.showSuccess(
+                        createdCount > 1 ? `${createdCount} days blocked out successfully.` : 'Date block saved successfully.'
+                    );
+                } else {
+                    throw new Error(lastError || 'Could not save block.');
+                }
             } catch (e) {
-                window.notificationService && window.notificationService.showError('Could not save block: ' + e.message);
+                console.error('Block out error:', e);
+                window.notificationService && window.notificationService.showError('Could not save block: ' + (e.message || e));
             } finally {
                 btnBlockOutSave.disabled = false;
                 btnBlockOutSave.innerHTML = '<i class="fa-solid fa-ban"></i> Block Out';
             }
-        });
-    }
+    });
 
     /* ---- Notifications ---- */
     function buildNotifications() {
@@ -32928,7 +32841,9 @@
         transactions: 'Financials', cancellations: 'Cancellations', quotations: 'Quotations',
         contracts: 'Contracts', payment_schedules: 'Payment Schedules', expenses: 'Expenses',
         services: 'Services', clients: 'Clients',
-        popia_erasure_requests: 'POPIA Erasure', popia_verification_codes: 'POPIA Verification'
+        popia_erasure_requests: 'POPIA Erasure', popia_verification_codes: 'POPIA Verification',
+        career_highlights: 'Career', home_slider: 'Home Slider', testimonials: 'Testimonials',
+        footprint_countries: 'Footprint', about_me: 'About Me'
     };
     function auditSectionLabel(tableName) {
         if (AUDIT_TABLE_LABELS[tableName]) return AUDIT_TABLE_LABELS[tableName];
@@ -32942,7 +32857,13 @@
     function formatAuditFieldValue(v) {
         if (v === null || v === undefined || v === '') return '—';
         if (typeof v === 'object') { try { return JSON.stringify(v); } catch (e) { return String(v); } }
-        return String(v);
+        var s = String(v);
+        // Rich-text fields (e.g. About Me's Quill paragraphs) store raw HTML - show the plain text
+        // in the diff instead of a wall of visible tags and inline styles.
+        if (/<[a-z][\s\S]*>/i.test(s)) {
+            s = s.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        return s;
     }
 
     // Renders the actual field-level diff for one audit_log row — what changed, not just that a
