@@ -3388,24 +3388,20 @@ $bookingForm.on('blur', '#bookName', function() {
 
     // Apply the server-persisted admin login background (set on window.tmLoginBg by the
     // public-branding fetch in admin.html). Shown on the sign-in screen; cleared on the dashboard.
+    // The visible background is the <img> inside .login-bg (admin.html), not a CSS background on
+    // <body> — that img sits on top of and fully obscures body, so a body background-image is
+    // never actually visible. Swap the img's src directly instead.
+    var DEFAULT_LOGIN_BG = 'images/background/thabiso_login_background_1920x1080.png';
     window.applyAdminBackgrounds = function() {
         if (!document.body.classList.contains('admin-body') && !document.body.classList.contains('login-page-bg')) return;
 
         var dashSec = document.getElementById('dashboardSection');
         var isDashboard = dashSec && (dashSec.style.display !== 'none');
         var loginBg = window.tmLoginBg || null;
+        var loginBgImg = document.querySelector('.login-bg img');
+        if (!loginBgImg) return;
 
-        if (!isDashboard && loginBg) {
-            document.body.style.setProperty('background-image', 'url("' + loginBg + '")', 'important');
-            document.body.style.setProperty('background-size', 'cover', 'important');
-            document.body.style.setProperty('background-position', 'center', 'important');
-            document.body.style.setProperty('background-attachment', 'fixed', 'important');
-            document.body.style.setProperty('background-repeat', 'no-repeat', 'important');
-            document.body.style.setProperty('min-height', '100vh', 'important');
-        } else {
-            // Dashboard, or no custom login background set — fall back to the CSS default.
-            document.body.style.backgroundImage = '';
-        }
+        loginBgImg.src = (!isDashboard && loginBg) ? loginBg : DEFAULT_LOGIN_BG;
     };
 
     // Apply backgrounds initially when loading the page (re-run after branding fetch resolves).
