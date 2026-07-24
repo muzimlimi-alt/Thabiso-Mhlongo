@@ -3411,18 +3411,20 @@
             display: flex; align-items: center; gap: 8px;
             padding: 8px 12px; border-radius: var(--atl-r-md);
             text-decoration: none !important;
-            color: var(--atl-muted);
+            /* !important: a global `a { color: var(--atl-amber) !important; }` reset (line ~4160)
+               otherwise forces every folder link gold regardless of selected state, making "active"
+               indistinguishable from "not active" - see reference_blockout... style blanket-rule bugs. */
+            color: var(--atl-muted) !important;
             font-family: 'Outfit', sans-serif;
             font-size: 13px; font-weight: 500;
             transition: all var(--atl-t-base);
             position: relative;
         }
-        .inq-folder:hover { background: var(--atl-amber-dim); color: var(--atl-ink); }
-        .inq-folder.active { background: color-mix(in srgb, var(--atl-orange) 12%, transparent); color: var(--atl-orange); font-weight: 600; border-left: 2px solid var(--atl-orange); }
+        .inq-folder:hover { background: var(--atl-amber-dim); color: var(--atl-ink) !important; }
+        .inq-folder.active { background: var(--atl-amber-dim); color: var(--atl-amber) !important; font-weight: 600; border-left: 2px solid var(--atl-amber); }
         .inq-folder i { width: 14px; text-align: center; font-size: 12px; flex-shrink: 0; }
         .inq-folder-count { margin-left: auto; background: var(--atl-amber); color: var(--atl-on-amber); border-radius: var(--atl-r-pill); font-size: 10px; font-weight: 700; padding: 1px 6px; min-width: 16px; text-align: center; line-height: 1.4; }
         .inq-folder:not(.active) .inq-folder-count { background: var(--atl-surface3); color: var(--atl-muted); }
-        .inq-folder.active .inq-folder-count { background: var(--atl-orange); color: var(--atl-on-amber); }
 
         /* Centre: message list */
         .inq-list-panel { border-right: 1px solid var(--atl-line); display: flex; flex-direction: column; background: var(--atl-sidebar-bg); overflow: hidden; }
@@ -3701,7 +3703,7 @@
                 border-radius: var(--atl-r-pill);
                 display: flex; align-items: center; gap: 6px;
             }
-            .inq-folder.active { background: color-mix(in srgb, var(--atl-orange) 12%, transparent); border-color: var(--atl-orange); color: var(--atl-orange); font-weight: 600; }
+            .inq-folder.active { background: var(--atl-amber-dim); border-color: var(--atl-amber-border); color: var(--atl-amber) !important; font-weight: 600; }
             .inq-folder-count { margin-left: 4px; font-size: 9px; padding: 2px 6px; }
             .inq-list-panel { border-right: none; }
             .inq-send-btn, .inq-cancel-btn { font-size: 11px; padding: 8px 12px; }
@@ -18338,8 +18340,11 @@
                 return loadInquiries();
             }
             renderInqCounts(data.counts);
-            renderInqList();
+            // Pagination state must be current before renderInqList() runs — it reads #inqNextBtn's
+            // disabled state to decide whether this is the last page (and so whether to show the
+            // "You're all caught up" end-of-list marker).
             inqUpdatePagination(data.total || 0, data.pages || 1);
+            renderInqList();
             updateInqBulkBar();
         }
 
@@ -18471,6 +18476,15 @@
     <span class="inq-status-dot inq-status-dot--${row.status}" aria-label="${inqStatusLabel(row.status)}"></span>
 </div>`);
             });
+
+            // Only on the last page — avoids implying "that's everything" while more pages remain.
+            if ($('#inqNextBtn').is(':disabled')) {
+                $body.append(`
+<div class="inq-list-end">
+    <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+    <span>You're all caught up</span>
+</div>`);
+            }
         }
 
         // ---- Open / Read a Message ----

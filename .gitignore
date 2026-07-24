@@ -2,6 +2,10 @@ backups/
 node_modules/
 .env
 
+# Installed Claude Code skill packages (vendored, reference data - not project source)
+.claude/skills/
+.agents/skills/
+
 # Runtime databases / session stores (regenerated at runtime, not source)
 database.sqlite
 database.sqlite-shm
