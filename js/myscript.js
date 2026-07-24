@@ -3404,8 +3404,12 @@ $bookingForm.on('blur', '#bookName', function() {
         loginBgImg.src = (!isDashboard && loginBg) ? loginBg : DEFAULT_LOGIN_BG;
     };
 
-    // Apply backgrounds initially when loading the page (re-run after branding fetch resolves).
-    setTimeout(window.applyAdminBackgrounds, 100);
+    // Initial application is left to admin.html's own branding fetch (which calls
+    // applyAdminBackgrounds() once real data arrives) and the auth-check's later calls — not here.
+    // A blind setTimeout used to run this at a fixed 100ms, but on a page this size that fires long
+    // before the branding fetch (further down the document) even starts, so it always ran with
+    // window.tmLoginBg still undefined and reset the image back to the default — visible as a flash
+    // back to the default background sandwiched between the real login image and its correct value.
 
     // ==========================================
     // ADMIN DASHBOARD SIDEBAR LOGIC

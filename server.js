@@ -150,12 +150,15 @@ const mutateRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateL
     message: { success: false, message: 'Too many attempts. Please wait 15 minutes and try again.' }
 }) : (req, res, next) => next();
 
-// Limiter for all authenticated admin routes (120 req/min per IP) — bypassed in test mode, matching
+// Limiter for all authenticated admin routes (per IP) — bypassed in test mode, matching
 // bookingRateLimiter/mutateRateLimiter above: the integration suite runs many admin requests from
 // one IP across dozens of test files in the same 1-minute window, well beyond real admin usage.
+// 120 turned out too tight for real usage: a single dashboard load fires ~32 concurrent admin-gated
+// requests (loadDashboardKPIs + the dozen per-section loaders in the login-success handler), plus a
+// heartbeat every 60s — so 2-3 reloads/section switches within one minute already exceeded 120.
 const adminRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    max: 120,
+    max: 400,
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: 'Too many requests. Please slow down.' }
@@ -474,9 +477,21 @@ if (process.env.NODE_ENV === 'production' && !process.env.SESSION_SECRET) {
 }
 const _sessionSecret = process.env.SESSION_SECRET || 'dev-only-secret-change-before-deploy';
 
+// The dashboard fires dozens of concurrent authenticated requests on load. express-session calls
+// store.touch() (an UPDATE) on every one of them even with resave:false, and connect-sqlite3's
+// underlying sqlite3.Database has no busy timeout by default — in SQLite's default rollback-journal
+// mode, concurrent writers/readers collide and throw SQLITE_BUSY immediately, which express-session
+// treats as "no session", producing a burst of spurious 401 "Unauthorized" responses right after
+// login. concurrentDb enables WAL (readers no longer block on writers) and the busy timeout below
+// makes any remaining writer-vs-writer contention wait/retry instead of failing outright.
+const _sessionStore = new SQLiteStore({ db: 'sessions.sqlite', dir: './', concurrentDb: true });
+if (_sessionStore.db && typeof _sessionStore.db.configure === 'function') {
+    _sessionStore.db.configure('busyTimeout', 5000);
+}
+
 app.set('trust proxy', 1); // Trust first proxy (ngrok)
 app.use(session({
-    store: new SQLiteStore({ db: 'sessions.sqlite', dir: './' }),
+    store: _sessionStore,
     secret: _sessionSecret,
     resave: false,
     saveUninitialized: false,
