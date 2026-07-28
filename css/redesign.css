@@ -1144,6 +1144,10 @@ header .navbar {
   .ms-option.is-active{ height:340px; }
   .ms-option__badge{ top:16px; left:16px; width:34px; height:34px; font-size:14px; }
   .ms-option__content{ padding:18px; }
+  /* Collapsed panels are full-width horizontal bars on mobile (not narrow vertical strips like
+     desktop), so the year should read horizontally instead of rotated on its side. */
+  .ms-option__collapsed-year{ transform:translate(-50%,-50%); }
+  .ms-option.is-active .ms-option__collapsed-year{ transform:translate(-50%,-60%); }
 }
 #main{
   min-height: 100vh;

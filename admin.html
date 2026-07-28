@@ -34613,8 +34613,13 @@
             settings.site_logo = $('#brandLogoUrl').val().trim();
             settings.favicon = $('#brandFaviconUrl').val().trim();
             settings.primary_color = $('#brandColorHex').val().trim() || $('#brandPrimaryColor').val();
-            settings.theme_font = $('#brandThemeFont').val();
+            const _themeFont = $('#brandThemeFont').val();
             Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
+            // Always send theme_font, even empty — resetBrandFont() sets it to '' to mean "use the
+            // default font", but the strip-if-falsy loop above was deleting it from the payload
+            // whenever empty, so the reset never reached the server and the old custom font in the
+            // settings table was never cleared, silently reverting the reset on the next page load.
+            settings.theme_font = _themeFont;
         }
 
         if (isSite) {
