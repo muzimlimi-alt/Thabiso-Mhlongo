@@ -2305,6 +2305,11 @@ function initializeDatabase() {
         // idempotent pattern as booking_verification_code above.
         db.run(`INSERT OR IGNORE INTO email_template_banners (template_key, category) VALUES ('popia_verification_code', 'User Accounts & Security')`);
 
+        // Pre-event reminder (3 days before, all CONFIRMED bookings) — closes the "Event Reminders"
+        // banner category, which existed as a selectable category with no template ever mapped to it.
+        db.run("ALTER TABLE bookings ADD COLUMN event_reminder_sent_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
+        db.run(`INSERT OR IGNORE INTO email_template_banners (template_key, category) VALUES ('event_reminder', 'Event Reminders')`);
+
         // ============================================================
         // Booking Recovery — abandoned booking drafts (abandoned-cart style)
         // Captures partial booking-wizard progress so admins can recover lost

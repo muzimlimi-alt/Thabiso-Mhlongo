@@ -82,7 +82,15 @@ const TEMPLATE_MAP = {
 
     // Added 2026-07-16 alongside the booking-tracker OTP second factor — real row inserted directly
     // in database.js (same idempotent pattern as subscriber_birthday above), not via this script.
-    booking_verification_code: 'User Accounts & Security'
+    booking_verification_code: 'User Accounts & Security',
+
+    // Added alongside the POPIA data-erasure OTP flow — real row inserted directly in database.js,
+    // same pattern as booking_verification_code above.
+    popia_verification_code: 'User Accounts & Security',
+
+    // Added to close the "Event Reminders" category, which existed with no template ever mapped to
+    // it — real row inserted directly in database.js, same pattern as the two above.
+    event_reminder: 'Event Reminders'
 };
 
 (async () => {

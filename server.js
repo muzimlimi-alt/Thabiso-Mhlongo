@@ -3201,6 +3201,44 @@ async function sendInvoicePreDueEmail(booking, invoice, daysUntilDue) {
     return result.success;
 }
 
+// Pre-event logistics reminder — a friendly countdown, not a payment nudge (that's the separate
+// balance-due reminder). Mirrors sendInvoicePreDueEmail's structure.
+async function sendEventReminderEmail(booking, daysBefore) {
+    booking = escapeEmailFields(booking);
+    const { id, name, email, event_name, event_type, date, event_location } = booking;
+
+    const { socialLinks } = await getEmailFooterContext();
+    const banner = await bannerRegistry.resolveBanner('event_reminder');
+    const html = emailComponents.renderPremiumEmail({
+        preheaderText: `Your event is in ${daysBefore} day${daysBefore !== 1 ? 's' : ''} — ${event_name || event_type}.`,
+        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+        headline: banner?.headline || 'Your Event Is Coming Up',
+        greeting: `Hi ${name},`,
+        bodyHtml:
+            `Just a friendly reminder that <strong style="color:#FAFAFA;">${event_name || event_type}</strong> is coming up in <strong style="color:#D4AF37;">${daysBefore} day${daysBefore !== 1 ? 's' : ''}</strong>! We're looking forward to it.` +
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">If anything about your booking has changed, just reply to this email. (Booking reference #${id})</p>`,
+        cards: [{
+            title: 'Event Details',
+            rows: [
+                { label: 'Event', value: event_name || event_type },
+                { label: 'Date', value: date },
+                { label: 'Venue', value: event_location || 'TBD' }
+            ]
+        }],
+        socialLinks
+    });
+
+    const result = await sendEmail({
+        to: email,
+        subject: `Your Event Is in ${daysBefore} Day${daysBefore !== 1 ? 's' : ''} — ${event_name || event_type} (Booking #${id})`,
+        htmlContent: html,
+        preWrapped: true,
+        titleOverride: 'Your Event Is Coming Up',
+        trigger_event: 'Booking: Event Reminder'
+    });
+    return result.success;
+}
+
 // Emails the generated contract PDF to the client with a link to the tracking page, where they can
 // review and sign it online. Mirrors sendInvoicePreDueEmail's structure.
 async function sendContractEmail(booking, contractPdfPath) {
@@ -17111,25 +17149,12 @@ function loadPendingDirectEmails() {
     );
 }
 
-// Banners listing
-app.get('/api/admin/branding/banners', requireAdmin, (req, res) => {
-    const bannerDir = path.join(__dirname, 'images', 'banner');
-    if (!fs.existsSync(bannerDir)) {
-        return res.json({ success: true, banners: [] });
-    }
-    fs.readdir(bannerDir, (err, files) => {
-        if (err) return res.status(500).json({ error: err.message });
-        const banners = files
-            .filter(file => /\.(png|jpe?g|gif|svg|webp)$/i.test(file))
-            .map(file => `/images/banner/${file}`);
-        res.json({ success: true, banners });
-    });
-});
-
 // ══════════════════════════════════════════════════════════════════════════
 // EMAIL BANNER REGISTRY (Prompt 5) — CRUD + template assignment.
-// Independent of the legacy /images/banner scan above and of direct_emails'
-// own selected_banner_url. See js/bannerRegistry.js for the send-time resolver.
+// Independent of direct_emails' own selected_banner_url. See js/bannerRegistry.js
+// for the send-time resolver. (The old GET /api/admin/branding/banners route,
+// which scanned a legacy images/banner/ folder, was removed here — it had no
+// callers left anywhere in admin.html since the Banner Library rebuild.)
 // ══════════════════════════════════════════════════════════════════════════
 
 const BANNER_DIR = path.join(__dirname, 'images', 'banners');
@@ -18946,6 +18971,49 @@ setTimeout(() => {
         runInvoicePreDueReminderJob().catch(err => console.error('[Invoice Pre-Due Reminder Job] Scheduled run failed:', err.message));
     }, 24 * 60 * 60 * 1000);
 }, 40000);
+
+// Pre-event reminder — a logistics/countdown nudge for every CONFIRMED booking 3 days before its
+// event, regardless of payment status (that's the separate balance-due reminder's job). Mirrors
+// runInvoicePreDueReminderJob's exact-date-match + dedup-column pattern.
+async function runEventReminderJob() {
+    const daysBefore = 3;
+    const targetDate = new Date();
+    targetDate.setDate(targetDate.getDate() + daysBefore);
+    const targetStr = targetDate.toISOString().split('T')[0];
+
+    const bookings = await new Promise(resolve =>
+        db.all(
+            `SELECT id, name, email, event_name, event_type, date, event_location
+             FROM bookings
+             WHERE status = 'CONFIRMED'
+               AND date = ?
+               AND event_reminder_sent_at IS NULL`,
+            [targetStr],
+            (err, rows) => resolve(err ? [] : (rows || []))
+        )
+    );
+
+    let sent = 0, errors = 0;
+    for (const b of bookings) {
+        try {
+            await sendEventReminderEmail(b, daysBefore);
+            db.run("UPDATE bookings SET event_reminder_sent_at = CURRENT_TIMESTAMP WHERE id = ?", [b.id]);
+            sent++;
+            console.log(`[Event Reminder] Sent to booking #${b.id} (${b.email})`);
+        } catch (e) {
+            console.error(`[Event Reminder] Failed for booking #${b.id}:`, e.message);
+            errors++;
+        }
+    }
+    console.log(`[Event Reminder Job] Done — sent: ${sent}, errors: ${errors}`);
+}
+
+setTimeout(() => {
+    runEventReminderJob().catch(err => console.error('[Event Reminder Job] Startup run failed:', err.message));
+    setInterval(() => {
+        runEventReminderJob().catch(err => console.error('[Event Reminder Job] Scheduled run failed:', err.message));
+    }, 24 * 60 * 60 * 1000);
+}, 44000);
 
 // S4-3: Overdue invoice sweep — sends the overdue notice for invoices past their due_date
 async function runOverdueInvoiceSweepJob() {

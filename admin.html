@@ -11496,7 +11496,7 @@
                             </div>
                             <div class="um-divider"></div>
                             <p class="um-section-desc" style="width:100%; margin-bottom:14px;">
-                                Every client-facing email belongs to one of <strong style="color:var(--atl-ink);">11 fixed categories</strong> (Booking Requests, Quotes &amp; Proposals, Contracts &amp; Signatures, Payments &amp; Invoices, Booking Confirmations, Event Reminders, Thank You &amp; Reviews, Booking Recovery, Contact &amp; Support, Newsletters &amp; Marketing, User Accounts &amp; Security). A <strong style="color:var(--atl-ink);">banner</strong> is one image assigned to a category and, from there, to any number of specific email templates via the <strong style="color:var(--atl-ink);">Assign</strong> action on its card.
+                                Every client-facing email belongs to one of <strong style="color:var(--atl-ink);">12 fixed categories</strong> (Booking Requests, Quotes &amp; Proposals, Contracts &amp; Signatures, Payments &amp; Invoices, Booking Confirmations, Event Reminders, Thank You &amp; Reviews, Booking Recovery, Contact &amp; Support, Newsletters &amp; Marketing, User Accounts &amp; Security, Birthday). A <strong style="color:var(--atl-ink);">banner</strong> is one image assigned to a category and, from there, to any number of specific email templates via the <strong style="color:var(--atl-ink);">Assign</strong> action on its card.
                             </p>
                             <p class="um-section-desc" style="width:100%; margin-bottom:14px;">
                                 Banners are resolved <strong style="color:var(--atl-ink);">at the moment an email sends</strong> &mdash; there is no publish step. Editing a banner's image, headline or subtitle updates every template using it immediately. If a template has no banner assigned, or its banner is <strong style="color:var(--atl-ink);">archived</strong>, the email falls back to a plain text headline block instead &mdash; nothing breaks, it just looks less photographic.
@@ -11551,9 +11551,14 @@
                                        placeholder="Or enter image URL…" style="padding-left:34px;"
                                        oninput="updateBrandPreview('brandLoginBgUrl','brandLoginBgPreview')">
                             </div>
-                            <p class="um-section-desc" style="margin-top:12px; font-size:12px; display:flex; align-items:flex-start; gap:6px;">
+                            <div style="margin-top:10px; text-align:right;">
+                                <button type="button" id="brandLoginBgResetBtn" onclick="resetLoginBackground()" class="um-btn um-btn--ghost um-btn--sm" title="Clear the login background back to the default" style="color:var(--atl-muted); font-size:12px;">
+                                    <i class="fa-solid fa-rotate-left" style="margin-right:5px;"></i>Restore default
+                                </button>
+                            </div>
+                            <p class="um-section-desc" style="margin-top:4px; font-size:12px; display:flex; align-items:flex-start; gap:6px;">
                                 <i class="fa-solid fa-circle-info" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span>Click <strong style="color:var(--atl-ink);">Save Site Settings</strong> to apply. To remove it, clear the URL field and save &mdash; the sign-in screen returns to its default background.</span>
+                                <span>Click <strong style="color:var(--atl-ink);">Save Site Settings</strong> to apply. <strong style="color:var(--atl-ink);">Restore default</strong> clears it back to the sign-in screen's built-in background.</span>
                             </p>
                         </div>
 
@@ -11580,7 +11585,7 @@
                             <div class="um-divider"></div>
 
                             <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
-                                Branding is grouped into a few sets of settings. Upload an image (or paste a URL) and a <strong style="color:var(--atl-ink);">preview</strong> appears straight away &mdash; then click <strong style="color:var(--atl-ink);">Save Branding</strong> to apply. Saved values live on the server, so they're identical on every device and take effect immediately.
+                                Branding is grouped into a few sets of settings. Upload an image (or paste a URL) and a <strong style="color:var(--atl-ink);">preview</strong> appears straight away &mdash; then click that tab's <strong style="color:var(--atl-ink);">Save</strong> button (<strong style="color:var(--atl-ink);">Save Identity</strong> or <strong style="color:var(--atl-ink);">Save Site Settings</strong>) to apply. Saved values live on the server, so they're identical on every device and take effect immediately.
                             </p>
 
                             <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
@@ -11610,13 +11615,13 @@
                                 <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-globe" style="color:var(--atl-amber);"></i> Site</p>
                                 <ul class="um-role-list">
                                     <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Admin Login Background</strong> &mdash; the full-screen image behind the admin sign-in screen. It is saved on the server, so everyone who opens the login page sees it; it is automatically hidden once you're inside the dashboard.</li>
-                                    <li class="can"><i class="fa-solid fa-check"></i> To remove it, clear the URL field and click Save Branding &mdash; the sign-in screen returns to its default background.</li>
+                                    <li class="can"><i class="fa-solid fa-check"></i> Click <strong style="color:var(--atl-ink);">Restore default</strong> (or clear the URL field) and <strong style="color:var(--atl-ink);">Save Site Settings</strong> &mdash; the sign-in screen returns to its default background.</li>
                                 </ul>
                             </div>
 
                             <h4 class="um-section-label" style="margin: 20px 0 12px;">Common tasks</h4>
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
-                                <li><strong style="color:var(--atl-ink);">Swap the logo</strong> &mdash; under <strong style="color:var(--atl-ink);">Identity</strong>, upload the header logo (or paste a URL), check the preview, and <strong style="color:var(--atl-ink);">Save Branding</strong>.</li>
+                                <li><strong style="color:var(--atl-ink);">Swap the logo</strong> &mdash; under <strong style="color:var(--atl-ink);">Identity</strong>, upload the header logo (or paste a URL), check the preview, and <strong style="color:var(--atl-ink);">Save Identity</strong>.</li>
                                 <li><strong style="color:var(--atl-ink);">Set the accent colour</strong> &mdash; under Identity, pick the primary accent colour used for buttons and highlights, then save.</li>
                                 <li><strong style="color:var(--atl-ink);">Brand your emails</strong> &mdash; under <strong style="color:var(--atl-ink);">Banners</strong>, create a banner and assign it to one or more email templates.</li>
                                 <li><strong style="color:var(--atl-ink);">Change the login screen</strong> &mdash; under <strong style="color:var(--atl-ink);">Site</strong>, set the Admin Login Background (clear the field to reset it), then save.</li>
@@ -11624,13 +11629,13 @@
 
                             <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span>A preview appears the moment you upload, but nothing reaches visitors until you click <strong style="color:var(--atl-ink);">Save Branding</strong> &mdash; don't navigate away expecting an un-saved preview to stick.</span>
+                                <span>A preview appears the moment you upload, but nothing reaches visitors until you click that tab's <strong style="color:var(--atl-ink);">Save</strong> button &mdash; don't navigate away expecting an un-saved preview to stick.</span>
                             </p>
 
                             <div class="um-security-tips" style="margin-top:14px;">
                                 <i class="fa-solid fa-circle-info"></i>
                                 <ul>
-                                    <li>Uploads show a live preview here in the panel; the change goes live only after <strong>Save Branding</strong>.</li>
+                                    <li>Uploads show a live preview here in the panel; the change goes live only after that tab's <strong>Save</strong> button.</li>
                                     <li>Branding applies to the public website and the admin dashboard; only the Login Background is admin-only.</li>
                                     <li>Only <strong>Administrators</strong> can change branding.</li>
                                 </ul>
@@ -16588,10 +16593,15 @@
         // openAtlDrawer convention already used in this file — plain declarations aren't reliably
         // reachable across this file's several separate <script> blocks.
         // ============================================================
+        // Must mirror server.js's BANNER_CATEGORIES exactly — 'Birthday' was missing here, which
+        // meant the Create Banner form's category dropdown couldn't tag a banner as Birthday, the
+        // list filter couldn't find them, and the Assign drawer (which groups templates by looping
+        // this array) silently hid subscriber_birthday even though its row genuinely exists in
+        // email_template_banners — the birthday email could never be assigned a banner via the UI.
         var BNR_CATEGORIES = [
             'Booking Requests', 'Quotes & Proposals', 'Contracts & Signatures', 'Payments & Invoices',
             'Booking Confirmations', 'Event Reminders', 'Thank You & Reviews', 'Booking Recovery',
-            'Contact & Support', 'Newsletters & Marketing', 'User Accounts & Security'
+            'Contact & Support', 'Newsletters & Marketing', 'User Accounts & Security', 'Birthday'
         ];
         var bnrPage = 1;
         var bnrCardsCache = [];
@@ -16729,7 +16739,7 @@
                       '<div class="atl-card-inner">' +
                         '<div class="atl-edit-card__header">' +
                           '<div class="atl-edit-card__thumb">' +
-                            '<img src="' + b.image_url + '" alt="' + escHtml(b.alt_text || '') + '" onerror="this.onerror=null;this.src=\'https://placehold.co/72x100/1a1a1a/D4AF37?text=No+Image\';">' +
+                            '<img src="' + escHtml(b.image_url) + '" alt="' + escHtml(b.alt_text || '') + '" onerror="this.onerror=null;this.src=\'https://placehold.co/72x100/1a1a1a/D4AF37?text=No+Image\';">' +
                           '</div>' +
                           '<div style="flex:1; min-width:0;">' +
                             '<h3 class="atl-edit-card__title">' + escHtml(b.name) + '</h3>' +
@@ -34563,14 +34573,21 @@
         $('#brandColorHex').val(DEFAULT_COLOR);
         $('#errBrandColor').hide().text('');
         updateBrandColorPreview();
-        if (window.notificationService) window.notificationService.showInfo('Accent colour reset to default (#D4AF37). Save Branding to apply.');
+        if (window.notificationService) window.notificationService.showInfo('Accent colour reset to default (#D4AF37). Save Identity to apply.');
     };
 
     // Reset theme font to the factory default (Open Sans — the empty-value option).
     window.resetBrandFont = function() {
         $('#brandThemeFont').val('');
         updateBrandFontPreview();
-        if (window.notificationService) window.notificationService.showInfo('Theme font reset to default (Open Sans). Save Branding to apply.');
+        if (window.notificationService) window.notificationService.showInfo('Theme font reset to default (Open Sans). Save Identity to apply.');
+    };
+
+    // Clear the login background back to the sign-in screen's built-in default image.
+    window.resetLoginBackground = function() {
+        $('#brandLoginBgUrl').val('');
+        updateBrandPreview('brandLoginBgUrl', 'brandLoginBgPreview');
+        if (window.notificationService) window.notificationService.showInfo('Login background cleared. Save Site Settings to apply.');
     };
 
     window.loadBrandingSettings = async function() {
@@ -34610,15 +34627,19 @@
                 window.notificationService.showError('Please fix the highlighted fields.');
                 return;
             }
-            settings.site_logo = $('#brandLogoUrl').val().trim();
-            settings.favicon = $('#brandFaviconUrl').val().trim();
-            settings.primary_color = $('#brandColorHex').val().trim() || $('#brandPrimaryColor').val();
+            const _siteLogo = $('#brandLogoUrl').val().trim();
+            const _favicon = $('#brandFaviconUrl').val().trim();
             const _themeFont = $('#brandThemeFont').val();
+            settings.primary_color = $('#brandColorHex').val().trim() || $('#brandPrimaryColor').val();
             Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
-            // Always send theme_font, even empty — resetBrandFont() sets it to '' to mean "use the
-            // default font", but the strip-if-falsy loop above was deleting it from the payload
-            // whenever empty, so the reset never reached the server and the old custom font in the
-            // settings table was never cleared, silently reverting the reset on the next page load.
+            // Always send site_logo, favicon and theme_font, even empty — clearing any of these
+            // fields and saving is meant to remove the custom value, but the strip-if-falsy loop
+            // above was deleting them from the payload whenever empty, so the request silently
+            // omitted them, the old value stayed in the settings table forever, and it reloaded
+            // right back into the field on the next visit. primary_color never hit this because its
+            // own reset button sets an actual default hex value, never an empty string.
+            settings.site_logo = _siteLogo;
+            settings.favicon = _favicon;
             settings.theme_font = _themeFont;
         }
 
