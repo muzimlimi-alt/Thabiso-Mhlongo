@@ -1923,12 +1923,9 @@ schedule.scheduleJob('5 0 * * *', runDailyOverdueFlaggingSweep);
 const { requireAdmin } = require('./middleware/auth');
 const { requireRole, requireRoleForInquiryEmail } = require('./middleware/rbac');
 
-// Admin role constants + last-administrator guard helper (shared by /api/admin/users CRUD)
-const VALID_ADMIN_ROLES = ['administrator', 'manager', 'assistant'];
-
-function countOtherActiveAdministrators(excludeUserId, callback) {
-    getActiveAdministratorCountExcluding(excludeUserId, callback);
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/admin-users.js, alongside createAndSendInvite
+// below, which shares this same concern.
+const { VALID_ADMIN_ROLES, countOtherActiveAdministrators, createAndSendInvite } = require('./lib/admin-users');
 
 // ════════════════════════════════════════════════════════════════════════════
 // ANALYTICS — first-party visitor tracking + dashboard endpoints
@@ -2443,56 +2440,6 @@ app.get('/api/admin/session', (req, res) => {
 });
 
 
-
-// Generate a set-password token and queue a branded invitation email for a new/pending admin user.
-// Reuses the password_reset_tokens table + sendEmail pipeline. callback receives the sendEmail result.
-function createAndSendInvite(user, expiresHours, callback) {
-    callback = callback || function () {};
-    const rawToken = crypto.randomBytes(32).toString('hex');
-    bcrypt.hash(rawToken, 10, (err, hash) => {
-        if (err) { console.error('Invite token hash error:', err); return callback({ success: false, error: err.message }); }
-        const expiresAt = new Date(Date.now() + (expiresHours || 72) * 3600000).toISOString();
-        insertPasswordResetToken(
-            user.id, hash, expiresAt,
-            function (insertErr) {
-                if (insertErr) { console.error('Invite token store error:', insertErr); return callback({ success: false, error: insertErr.message }); }
-
-                const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
-                const inviteLink = `${baseUrl}/reset-password.html?token=${rawToken}&email=${encodeURIComponent(user.email)}&welcome=1`;
-                const roleLabel = (user.role || 'manager').charAt(0).toUpperCase() + (user.role || 'manager').slice(1);
-                const greetName = (user.full_name && String(user.full_name).trim()) ? user.full_name : 'there';
-
-                // SECURITY-CRITICAL (HIGH): inviteLink, expiry hours and user.email kept verbatim.
-                // The old class="btn-luxe"/class="text-muted" only resolve via the legacy wrapper's
-                // <style> block, absent on the live raw path — the button/muted text render unstyled
-                // today. Uses the bulletproof ctaButton component directly (works in Outlook too).
-                const emailBody = emailComponents.renderSystemEmail({
-                    preheaderText: `You've been added as a ${roleLabel} to the Thabiso Mhlongo dashboard.`,
-                    category: 'User Accounts & Security',
-                    severity: 'action',
-                    leadFact: `Hello <strong style="color:#FAFAFA;">${greetName}</strong> — you've been added as a <strong style="color:#FAFAFA;">${roleLabel}</strong> to the Thabiso Mhlongo management dashboard.`,
-                    bodyHtml:
-                        `<p style="margin:0 0 18px; color:#E6E6E6;">To activate your account, set your password using the secure link below. This link will safely expire in ${expiresHours || 72} hours.</p>` +
-                        emailComponents.ctaButton({ label: 'Set Your Password', url: inviteLink }) +
-                        `<p style="margin:18px 0 0; color:#E6E6E6;">Your sign-in email is <strong style="color:#FAFAFA;">${user.email}</strong>.</p>` +
-                        `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">If you weren't expecting this invitation, you can safely ignore this automated message.</p>`
-                });
-
-                sendEmail({
-                    to: user.email,
-                    subject: "You're invited to the Thabiso Mhlongo Management Dashboard",
-                    htmlContent: emailBody,
-                    preWrapped: true,
-                    titleOverride: 'Management Dashboard',
-                    trigger_event: 'Admin: User Invitation'
-                }).then(result => {
-                    if (!result.success) console.error('Email Service Error sending invite email:', result.error);
-                    callback(result);
-                }).catch(e => { console.error('Panic in sendEmail (Invite):', e); callback({ success: false, error: String(e) }); });
-            }
-        );
-    });
-}
 
 // Admin Forgot Password
 app.post('/api/admin/forgot-password', (req, res) => {
@@ -3890,17 +3837,9 @@ app.get('/api/public/services', (req, res) => {
 });
 
 // ==========================================
-// Promise wrappers over the shared sqlite connection. dbRun resolves with the sqlite3
-// statement context, so `.lastID` / `.changes` stay available.
-const dbRun = (sql, params = []) => new Promise((resolve, reject) => {
-    db.run(sql, params, function (err) { err ? reject(err) : resolve(this); });
-});
-const dbGet = (sql, params = []) => new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => err ? reject(err) : resolve(row));
-});
-const dbAll = (sql, params = []) => new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows));
-});
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/db-helpers.js — used pervasively (~190 call
+// sites) by business logic not owned by any single Phase 4 domain repository.
+const { dbRun, dbGet, dbAll } = require('./lib/db-helpers');
 
 // Serializes transactional sections that run on the shared sqlite connection.
 //
@@ -3926,41 +3865,10 @@ function withDbTransaction(fn) {
 // "Last Updated By" feature — shared audit/actor helpers.
 // ============================================================
 
-// Single lookup, resolving an admins.id into a display name + role. Used to build every in-scope
-// route's `last_updated` response field, and to populate audit_log for the tables with no existing
-// trigger (Gallery, Users) where role can be passed straight into the insert.
-async function resolveActor(adminId) {
-    if (!adminId) return { name: 'System', role: null };
-    const row = await getAdminNameRoleById(adminId);
-    if (!row) return { name: 'System', role: null };
-    return { name: row.full_name || row.username || 'System', role: row.role || null };
-}
-
-// Shared audit_log writer for tables with NO existing DB trigger (Gallery, Users) — these have
-// direct access to req.session here in Node, so role/ip are written straight into the row rather
-// than needing the scratch-column-through-a-trigger trick the 4 trigger-covered tables use (see
-// the extended audit_bookings_update/audit_events_update/audit_inquiries_update/
-// audit_date_holds_update triggers in database.js). Do NOT call this for bookings/events/inquiries/
-// date_holds — those already auto-write via their trigger on every UPDATE, and a second explicit
-// insert here would duplicate the row.
-async function logAudit({ tableName, recordId, action, req, oldValues, newValues, reason }) {
-    const adminId = req?.session?.adminId || null;
-    const role = req?.session?.role || null;
-    const ip = req?.ip || null;
-    await dbRun(
-        `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, actor_role, ip_address, changes_json, change_timestamp, reason)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
-        [
-            tableName, recordId, action,
-            oldValues ? JSON.stringify(oldValues) : null,
-            newValues ? JSON.stringify(newValues) : null,
-            adminId ? String(adminId) : 'system',
-            role, ip,
-            (oldValues || newValues) ? JSON.stringify({ old: oldValues || null, new: newValues || null }) : null,
-            reason || null
-        ]
-    );
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): resolveActor moved to lib/actor.js, logAudit to
+// lib/audit-log.js.
+const { resolveActor } = require('./lib/actor');
+const { logAudit } = require('./lib/audit-log');
 
 // Resolves the id sets an erasure for `email` will touch — shared by anonymizeClientData (which
 // runs the actual UPDATEs against these ids) and the admin preview endpoint (which only counts

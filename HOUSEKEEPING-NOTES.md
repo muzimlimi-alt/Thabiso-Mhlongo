@@ -1464,3 +1464,17 @@ its own change with its own testing.
   test-suite timing margin, not specific to any one domain, route, or (now) even to Phase 4's kind
   of change — it surfaces just as readily in a structural Phase 5 step as it did in a SQL-relocation
   Phase 4 session.
+- **Update (Phase 5, shared-helper extraction into lib/):** CP12 recurred once more (of 5 runs).
+  One run also produced a cluster of 5 failures never seen before or since — 4 PayFast-ITN
+  assertions (`payment-callback.test.js`) plus **CP6** (`review_email_sent_at` stamping) — and
+  another run separately produced a new name, **CP21** (`google_calendar_event_id` cleared on
+  cancel). Neither cluster reproduced on the very next run, which is itself the tell: a real
+  regression from moving `dbRun`/`dbGet`/`dbAll`/`resolveActor`/`logAudit`/`createAndSendInvite`
+  into `lib/` would fail the *same* way on *every* run (a missing import throws a `ReferenceError`
+  unconditionally), not intermittently. Statically re-verified the one piece that looked
+  superficially connected — `PAYFAST_VALID_IPS`/`payfastItnRateLimiter`, touched in the previous
+  step — both resolve correctly at their only two call sites, no dangling reference. Treating all of
+  this as the same environmental/timing-margin category as every instance above, likely surfacing
+  more often simply because this session has now run `npm test` upwards of 30 times in one
+  continuous stretch — more accumulated test data and process uptime than any single Phase 4
+  domain's testing saw, not a new root cause.
