@@ -18,6 +18,187 @@ const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
 const db = require('./database');
 const pdfService = require('./js/pdfService');
+// Phase 4 (HOUSEKEEPING-NOTES.md): settings-domain data access moved to a repository. Destructured
+// here so every existing call site throughout this file keeps working unchanged.
+const {
+    getAllSettings, getNotificationEmail, getSettingsByKeys, getBirthdaySettings: repoGetBirthdaySettings,
+    getMinBookingGapSetting, getTypeBuffersSetting, saveMinBookingGapMinutes, saveTypeBuffers,
+    upsertSettingWithConflictClause, upsertSetting, getSettingVal,
+} = require('./database/repositories/settings.repository');
+// Phase 4: newsletter-domain data access moved to a repository — same destructure-in pattern.
+const {
+    insertPendingSubscriber, getSubscriberDuplicateCheck, touchSubscriberCooldown, reactivateSubscriber,
+    getSubscriberForConfirm, confirmSubscriber, getSubscriberForUnsubscribe, unsubscribeSubscriber,
+    countSubscribers, listSubscribers, getSubscriberStats, insertSubscriberManual, updateSubscriberProfile,
+    getSubscriberForStatusToggle, updateSubscriberStatus, deleteSubscriber, bulkUpdateSubscriberStatus,
+    bulkConfirmPendingSubscribers, getPendingSubscribersForBulkActivate, bulkDeleteSubscribers,
+    updateSubscriberFromCsvRow, insertSubscriberFromCsvRow,
+    insertDraft, updateDraft, listDrafts, getDraft, deleteDraft,
+    getPendingScheduledNewsletters, claimScheduledNewsletterForSending, getActiveSubscribersForSegment,
+    markScheduledNewsletterFailed, markScheduledNewsletterSkipped, markScheduledNewsletterSent, insertCampaignLog,
+    insertScheduledNewsletter, getScheduledNewsletterById, listScheduledNewsletters,
+    getScheduledNewsletterAttachmentsIfPending, cancelScheduledNewsletter, updateScheduledNewsletter,
+    getAudienceCount,
+    getSubscriberBirthdayFields, getSubscribersWithBirthdayToday,
+    deleteCampaign, countUnifiedCampaigns, listUnifiedCampaigns, bulkDeleteCampaigns,
+    getScheduledAttachmentsForIds, bulkDeleteScheduled,
+    deleteOldUnsubscribedSubscribers, deleteSubscriberForErasure,
+} = require('./database/repositories/newsletter.repository');
+// Phase 4: inquiries-domain data access moved to a repository — same destructure-in pattern.
+const {
+    anonymizeOldInquiries, getInquiryIdsForEmail, anonymizeInquiriesForErasure, redactInquiryNotesForErasure,
+    countInquiryNotesForIds, getInquiriesForEmail, insertInquiry, linkInquiryToBooking, markInquiryReplied,
+    countInquiries, countInquiriesByStatus, countMyInquiries,
+    updateInquiryStatus, unassignInquiry, assignInquiry, updateInquiryPriority, listInquiryCategories, updateInquiryCategory,
+    listInquiryNotes, insertInquiryNote, getInquiryNoteById, deleteInquiryNote,
+    bulkUpdateInquiryStatus, bulkDeleteInquiries, deleteInquiry,
+} = require('./database/repositories/inquiries.repository');
+// Phase 4: bookings-domain data access moved to a repository (staged extraction — see
+// HOUSEKEEPING-NOTES.md for the sub-pass plan; this import grows as later stages land).
+const {
+    getBookingById, getBookingByIdAsync,
+    getBookingsTrend, stampReviewEmailSent, unlinkBookingClient, getBookingTotalAmount,
+    getOutstandingTotal, getBookingStatusCounts,
+    getStaleNewBookings, promoteBookingToPending, getConfirmedPaidPastEvents, markBookingAutoCompleted,
+    getStalePendingBookings, expirePendingBooking, getOverdueQuotedBookings, expireQuotedBooking,
+    clearBookingGoogleEventId, getQuotesExpiringTomorrow, markQuoteExpiryWarned,
+    getPendingEnquiriesNearingExpiry, markPendingExpiryWarned, markBookingOverdueReminded,
+    getBookingsForQuoteFollowUp, markQuoteFollowUpSent, findActiveBookingByEmailAndDate,
+    getBookingsForDepositBalanceReminder, markDepositBalanceReminded,
+    getConfirmedBookingsOnDate, markEventReminderSent, getCompletedBookingsAwaitingReview,
+    getActiveDuplicateBookingForEmailDate, getActiveDuplicateBookingForEmailDateAsync, insertAdminBooking,
+    getBookingStatusNameEmail, reopenBooking, insertBookAgainBooking, markBookingCompletedManual,
+    updateBookingBuffer, getBookingDisposition, updateBookingDisposition, markBookingPendingAfterRespond,
+    insertLegacyBookingFromContactForm, getAllBookingsForMigration, getAllBookingsFull,
+    updateBookingClientVenue, deleteBookingById,
+    setBookingClientId, updateBookingLedgerAfterInvoice,
+    updateBookingAfterQuote, deleteBookingLineItems, deleteBookingServices,
+    insertBookingLineItem, insertBookingService, getBookingStatus, getBookingForContractRemind,
+    getBookingIdStatusAsync,
+    getBookingsOnDateForCalendarConflict, setBookingGoogleEventId, getBookingsWithGoogleEventIdAsync,
+    getBookingsOnDateForAvailability, getBookingsOnDateForHoldConflict, getBookingsOnDateForEventConflict,
+    updateBookingVenueUnlink, updateBookingVenueLinkLegacy, updateBookingVenueGoogle, getBookingEventId,
+    updateBookingVenueFreeText, updateBookingDateAndTimeFields, getBookingByIdSafeAsync,
+    setBookingPublicWithNewEvent, setBookingPublicTicketLink, clearBookingPublicWithEvent, clearBookingPublicTicketLink,
+    setBookingEventId, insertPlaceholderBookingForEvent, updateBookingDateFromEventEdit,
+    clearBookingEventIdWhereEventId, setBookingDateAndStartTimeFromEvent,
+    getBookingIdsForEmail, anonymizeBookingsForErasure, deleteBookingAccessCodesForErasure,
+    deleteBookingAccessTokensForErasure, redactBookingNotesForErasure, countBookingNotesForIds,
+    getBookingAccessTokenByHash, touchBookingAccessToken, getBookingEmailForTracking,
+    consumeUnconsumedAccessCodes, insertBookingAccessCode, getActiveAccessCodeForVerification,
+    consumeAccessCodeById, incrementAccessCodeAttempts, insertBookingAccessToken,
+    insertBookingNoteFromTracker, countBookingLineItemsForService,
+    getBookingNotesForBooking, insertBookingNote, getBookingNoteById, deleteBookingNote,
+    applyPayfastPaymentToBooking, markBookingPaymentFailedIfUnpaid,
+    applyManualPaymentToBooking, getBookingForAutoEventOnPayment, getBookingAmountPaid,
+    getBookingsByIds, cancelBookingForErasureAsync, clearBookingPublicAndEventIdAsync, clearBookingGoogleEventIdAsync,
+    cancelBookingAsync, setBookingPaymentStatus, updateBookingLedgerFromReconcile,
+    applyManualTransactionPaymentToBooking, updateBookingLedgerAfterManualRefund, updateBookingLedgerAfterAdjustment,
+    getBookingOutstandingForCompleteGuard, updateBookingStatusCore, clearBookingPublicAndEventId,
+    setBookingCancellationAttribution,
+} = require('./database/repositories/bookings.repository');
+// Phase 4: invoices+quotations-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
+const {
+    getInvoiceForPaidCheck, getActiveQuoteForInvoiceGen, getQuoteLineItems, getInvoiceNumberCollisionCount,
+    voidSupersededInvoiceForRegen, insertInvoice, insertInvoiceLineItem, markInvoiceSent,
+    markInvoicePaidForAutoComplete, markInvoicePaidOnStatusComplete,
+    flagOverdueInvoices,
+    getInvoiceForPaidReceipt,
+    getInvoiceTaxAmountForBooking, getQuoteTaxAmountForBooking,
+    getQuoteFilesForBookingIds, getQuoteFilesForClientIds, clearQuoteFilePathsForErasure, clearQuoteFilePathsForClientErasure,
+    markInvoicePaidIfOpen, markInvoicePaidIfOpenAsync,
+    getOpenInvoiceIdForReceiptCheck,
+    voidInvoicesForCancelledBooking, voidInvoicesForCancelledBookingAsync,
+    getInvoiceForTracking, getQuoteVersionInfoForTracking,
+    markQuotationAccepted, markQuotationAcceptedAsync, revertQuotationToSent,
+    getActiveQuoteForContractFeeData,
+    getServiceDraftQuoteUsage, countQuoteLineItemsForService,
+    markInvoiceSentAndPublished, getInvoiceById, voidInvoiceWithReason, markInvoicePaidById,
+    getLatestQuoteFileForResend, markQuotationResent,
+    getQuoteNumberCollisionCount, voidInvoiceForRequote, archivePreviousQuotations, getNextQuoteVersion,
+    insertQuotation, insertQuoteLineItem, getQuoteHistoryForBooking, getActiveQuoteStatusForInvoiceGuard,
+    getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload, getLatestQuoteFileForPublicDownload,
+    getQuoteForBookingFinancials, getInvoiceForBookingFinancials,
+    getOpenInvoiceIdForAdjustmentRegen,
+    countQuotationsForIds, countQuotationsForClientIds,
+    markInvoicePreDueReminded, markInvoiceOverdueReminded,
+    getInvoiceAgingSummary, getOverdueInvoicesSummary, getDueSoonInvoicesSummary,
+} = require('./database/repositories/invoices-quotations.repository');
+// Phase 4: finance-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
+const {
+    getLivePaymentScheduleCount, getPaidPaymentScheduleSum, insertPaymentScheduleMilestone,
+    getPaymentSchedulesForDocument, flagOverduePaymentSchedules,
+    getActiveScheduleRowsForAlignment, markScheduleRowsPaid, markScheduleRowsPending,
+    getActivePaymentSchedules, deletePaymentSchedulesForBooking,
+    prepareInsertPaymentSchedule, prepareUpdatePaymentScheduleAmount,
+    cancelPendingPaymentSchedules, cancelPendingPaymentSchedulesAsync,
+    supersedePaymentSchedulesForRequote, getPaymentSchedulesForPayfastInit, getPaymentSchedulesForTracking,
+
+    getPayfastTransactionByReference, insertPayfastTransaction,
+    insertPaymentLogEntry, insertLoggedPaymentTransaction, getPaymentLogsForBooking,
+    getRecentPayfastTransactionForBooking, getCancellationsWithRefundedTotals,
+    getTransactionsForBooking, getAlreadyRefundedAmount, insertRefundTransaction,
+    getTransactionsPaidSumForReconcile, insertManualTransaction,
+    getTransactionRevenueTrend, getTransactionRevenueByPeriod, getPeriodRevenue, getTotalTransactionCount,
+    getCompletedTransactionsForReconciliation, setTransactionDuplicateFlag, countTransactionsForIds,
+    redactTransactionForErasure,
+
+    redactCancellationForErasure, insertCancellationForErasure, insertCancellationForAdminCancel,
+    insertCancellationForStatusChange, insertCancellationForPublicCancel,
+    getCancellationSummaryForTracking, getCancellationDetailForBooking,
+    getCancellationForRefund, updateCancellationRefund, countCancellationsForIds,
+
+    redactPaymentLogsForErasure, countPaymentLogsForIds,
+
+    getExpensesForBookingEmail, insertExpense, getActiveExpenseById, softDeleteExpense, updateExpense,
+    getExpensesForBooking, getExpensesByPeriod, getExpenseTrend, getPeriodExpenses,
+
+    prepareBankStatementLineInsert, getBankStatementImportBatches, matchBankStatementLine,
+    deleteBankStatementLine, deleteBankStatementBatch,
+} = require('./database/repositories/finance.repository');
+// Phase 4: calendar-domain (date_holds, events) data access moved to a repository (HOUSEKEEPING-NOTES.md).
+const {
+    getDateHoldTimesForDay, getDateHoldsForAvailabilityCheck, getActiveHoldDatesForMonth,
+    getActiveDateHoldsForEventConflict, getDateHoldsForDateConflict,
+    getCalendarSyncHoldIds, deleteDateHoldByGoogleEventId, getCalendarSyncHoldDetails,
+    updateDateHoldFromGoogleSync, insertDateHoldFromGoogleSync,
+    getActiveDateHoldsForToday, getActiveDateHoldsForCalendarGrid, getActiveDateHoldsForIcsFeed,
+    insertDateHold, deleteDateHoldById, getDateHoldTimesById, updateDateHoldDate,
+    insertDateHoldForNewEvent, clearDateHoldEventId, updateDateHoldDateForBooking,
+    releaseDateHoldsForBooking, releaseDateHoldsForBookingAsync,
+
+    getEventGoogleCalendarIdsForSync, getEventById, setEventGoogleCalendarId,
+    clearEventGoogleCalendarId, clearEventGoogleCalendarIdAsync, getEventGoogleCalendarId,
+    advanceAutoCompletedEventS6, getPastStandaloneEventsForAutoComplete, advanceStandaloneEventCompleted,
+    advanceEventToCompleted, insertAutoCreatedEvent,
+    getUpcomingStandaloneEventOnDate, getOtherEventsOnDate,
+    getEventByBookingId, demoteEventForCancelledBooking, demoteEventForCancelledBookingAsync,
+    demoteEventForCancelledBookingByBookingIdAsync,
+    unlinkEventVenue, updateEventVenueLegacyLink, updateEventVenueGoogleLink, updateEventVenueFreeText,
+    updateEventDatetime, getEventForDragReschedule,
+    insertPublicEvent, checkEventExistsById, updatePublicEvent, deleteEventById,
+    insertEventFull, linkEventToPlaceholderBooking, getEventForConflictEdit, updateEventFull,
+    insertEventForDuplicate,
+    getEventsForSitemap,
+} = require('./database/repositories/calendar.repository');
+// Phase 4: auth+users-domain (admins, admin_login_logs, password_reset_tokens) data access moved
+// to a repository (HOUSEKEEPING-NOTES.md).
+const {
+    getAdminActiveStatus, getAdminByEmailFull, updateAdminLastLogin, getActiveAdministratorCountExcluding,
+    updateAdminPassword,
+    getAdminSessionProfileById, getAdminSessionProfileByUsername,
+    getAdminIdAndUsernameByEmail, getAdminIdByEmail, getAdminNameRoleById, getAdminEmailById,
+    getAdminsListWithCreatorModifier, insertAdminUser, getAdminForInvite, getAdminForEditById,
+    getAdminPasswordHashById, updateAdminUserFields, getAdminRoleActiveById, deleteAdminUser,
+    getAssignableAdmins, checkAdminActiveById, getAdminDisplayNameById,
+    countAllAdmins, insertBootstrapAdmin,
+
+    insertAdminLoginLog, finalizeAdminLoginLogOnLogout, updateAdminLoginLogHeartbeat,
+    getAdminLoginLogsWithNames,
+
+    insertPasswordResetToken, getUnexpiredPasswordResetTokens,
+    deletePasswordResetTokenById, deletePasswordResetTokensForAdmin,
+} = require('./database/repositories/auth-users.repository');
 require('dotenv').config();
 
 // Ensure scratch directory exists
@@ -25,6 +206,39 @@ const scratchDir = path.join(__dirname, 'scratch');
 if (!fs.existsSync(scratchDir)) {
     fs.mkdirSync(scratchDir, { recursive: true });
 }
+
+// Runtime storage locations — Phase 3 of the housekeeping effort (see HOUSEKEEPING-NOTES.md).
+// Generated PDFs and uploaded images used to live inside the repo (docs/, images/), which meant
+// they could accidentally re-enter git. DOCS_PATH/UPLOADS_PATH/BACKUPS_PATH default to a sibling
+// directory OUTSIDE the repo; override any of them in .env for a different deployment layout.
+// Same pattern database.js already uses for DB_PATH.
+//
+// Files written before this config existed remain at their old in-repo location — nothing here
+// migrates them. docs/ reads go through resolveDocsPath() below, which tries the new external
+// location first and falls back to the legacy in-repo one if not found there. images/uploads have
+// no equivalent internal fs-read resolver: every read of that tree happens over HTTP (a browser or
+// email client fetching a URL), so the /images and /uploads static mounts below — new location
+// first, falling through to the blanket static server for the legacy in-repo copy — are the only
+// read-side piece needed; there's no server-side fs.readFile of an uploaded image anywhere.
+const RUNTIME_DATA_DEFAULT_ROOT = path.resolve(__dirname, '..', 'thabiso-mhlongo-runtime-data');
+const DOCS_PATH = process.env.DOCS_PATH ? path.resolve(process.env.DOCS_PATH) : path.join(RUNTIME_DATA_DEFAULT_ROOT, 'docs');
+const UPLOADS_PATH = process.env.UPLOADS_PATH ? path.resolve(process.env.UPLOADS_PATH) : path.join(RUNTIME_DATA_DEFAULT_ROOT, 'uploads');
+const BACKUPS_PATH = process.env.BACKUPS_PATH ? path.resolve(process.env.BACKUPS_PATH) : path.join(RUNTIME_DATA_DEFAULT_ROOT, 'backups');
+const LEGACY_DOCS_DIR = path.join(__dirname, 'docs');
+
+function ensureDir(dir) { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); return dir; }
+
+// Destination for a brand-new file under docs/<...segments> — always the new external location.
+function docsWriteDir(...segments) { return ensureDir(path.join(DOCS_PATH, ...segments)); }
+// Resolves an existing docs/<...segments> path for reading: new location first, then the
+// pre-Phase-3 in-repo docs/ folder, since files already there were never moved.
+function resolveDocsPath(...segments) {
+    const fresh = path.join(DOCS_PATH, ...segments);
+    return fs.existsSync(fresh) ? fresh : path.join(LEGACY_DOCS_DIR, ...segments);
+}
+// Destination for a brand-new file under the images/uploads tree — always the new external
+// location (see the images/uploads read-side note above for why there's no matching resolver).
+function uploadsWriteDir(...segments) { return ensureDir(path.join(UPLOADS_PATH, ...segments)); }
 
 
 // --- Legacy Duration Parser ---
@@ -56,7 +270,7 @@ let MIN_BOOKING_GAP_MINS = 30; // global buffer minutes between consecutive book
 let TYPE_BUFFERS = {};          // per-event-type buffer overrides; falls back to MIN_BOOKING_GAP_MINS
 
 // Load settings from database into process.env
-db.all("SELECT setting_key, setting_value FROM settings", [], (err, rows) => {
+getAllSettings((err, rows) => {
     if (err) console.error("Failed to load settings from DB:", err);
     else if (rows) {
         const envMap = {
@@ -448,6 +662,17 @@ app.use((req, res, next) => {
     next();
 });
 
+// Serves newly-uploaded images from the external UPLOADS_PATH (Phase 3, HOUSEKEEPING-NOTES.md).
+// Mounted before the blanket repo-root static server below so a request for e.g.
+// /images/gallery/x.jpg is tried against the new external location first; express.static calls
+// next() on a miss, which falls through to the blanket mount and serves it from the legacy
+// in-repo images/ folder if that's where the file actually is. Nothing here changes which URL an
+// image is served at — only where the bytes are read from.
+app.use('/images', express.static(UPLOADS_PATH));
+// Receipts were previously served from the in-repo uploads/ folder the same way (no dedicated
+// auth-gated download route) — same external-first, legacy-fallback pattern as /images above.
+app.use('/uploads', express.static(UPLOADS_PATH));
+
 // Enforce UTF-8 charset on all text-based static files + Cache Optimization
 app.use(express.static(path.join(__dirname, '/'), {
     setHeaders(res, filePath) {
@@ -503,41 +728,45 @@ app.use(session({
     }
 }));
 
+// Avoids stacking a new Date.now() prefix onto a filename that already has one — matters when a
+// file already stored under its prefixed name gets fed back through the same upload flow (e.g.
+// re-submitting an already-uploaded image without changing it). Phase 3 item 4, HOUSEKEEPING-NOTES.md.
+function safeUploadFilename(originalname) {
+    const cleaned = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+    return /^\d{13}-/.test(cleaned) ? cleaned : `${Date.now()}-${cleaned}`;
+}
+
 // Set up storage engine
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
-        // Look at the 'section' field in the form data to determine the subfolder
-        let folder = 'images/';
+        // Look at the 'section' field in the form data to determine the subfolder. `subfolder` is
+        // the segment under UPLOADS_PATH (== the old images/<subfolder>/); empty means the bare
+        // images/ root.
+        let subfolder = '';
         const section = req.body.section; // e.g., 'home', 'gallery', 'events', 'about'
 
         if (section === 'gallery') {
-            folder = 'images/gallery/';
+            subfolder = 'gallery';
         } else if (section === 'events') {
-            folder = 'images/events/';
+            subfolder = 'events';
         } else if (section === 'home') {
-            folder = 'images/carousel/';
+            subfolder = 'carousel';
         } else if (section === 'about') {
-            folder = 'images/about/';
+            subfolder = 'about';
         } else if (section === 'backgrounds') {
-             folder = 'images/backgrounds/';
+             subfolder = 'backgrounds';
         } else if (section === 'branding') {
-             folder = 'images/branding/';
+             subfolder = 'branding';
         } else if (section === 'footprint') {
-             folder = 'images/footprint/';
+             subfolder = 'footprint';
         } else if (section === 'testimonials') {
-             folder = 'images/testimonials/';
+             subfolder = 'testimonials';
         }
 
-        // Ensure directory exists
-        const dir = path.join(__dirname, folder);
-        if (!fs.existsSync(dir)){
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        cb(null, dir);
+        cb(null, uploadsWriteDir(subfolder));
     },
     filename: function (req, file, cb) {
-        const safe = Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-        cb(null, safe);
+        cb(null, safeUploadFilename(file.originalname));
     }
 });
 
@@ -562,12 +791,10 @@ const upload = multer({
 // uploads into images/ instead of images/testimonials/ while the DB kept the intended path.
 const publicImageUploadStorage = multer.diskStorage({
     destination: function (req, file, cb) {
-        const dir = path.join(__dirname, 'images/testimonials/');
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
+        cb(null, uploadsWriteDir('testimonials'));
     },
     filename: function (req, file, cb) {
-        cb(null, Date.now() + '-' + file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_'));
+        cb(null, safeUploadFilename(file.originalname));
     }
 });
 const publicImageUpload = multer({
@@ -584,9 +811,7 @@ const publicImageUpload = multer({
 // Receipt file storage for expenses
 const receiptStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const dir = path.join(__dirname, 'uploads', 'receipts');
-        fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
+        cb(null, uploadsWriteDir('receipts'));
     },
     filename: (req, file, cb) => {
         const ext = path.extname(file.originalname).toLowerCase();
@@ -605,9 +830,7 @@ const uploadReceipt = multer({
 // Newsletter attachment storage — persists until scheduled job fires or is cancelled
 const newsletterAttachStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const dir = path.join(__dirname, 'docs', 'newsletter_attachments');
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
+        cb(null, docsWriteDir('newsletter_attachments'));
     },
     filename: (req, file, cb) => { cb(null, `${Date.now()}-${file.originalname}`); }
 });
@@ -620,9 +843,7 @@ const subscriberCsvUpload = multer({ storage: multer.memoryStorage(), limits: { 
 // Direct email attachment storage
 const emailAttachStorage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const dir = path.join(__dirname, 'docs', 'email_attachments');
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        cb(null, dir);
+        cb(null, docsWriteDir('email_attachments'));
     },
     filename: (req, file, cb) => { cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`); }
 });
@@ -636,9 +857,7 @@ const emailAttachUpload = multer({
 const bookingAttachUpload = multer({
     storage: multer.diskStorage({
         destination: function (req, file, cb) {
-            const dir = path.join(__dirname, 'docs', 'booking_attachments');
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            cb(null, dir);
+            cb(null, docsWriteDir('booking_attachments'));
         },
         filename: function (req, file, cb) {
             const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
@@ -785,11 +1004,8 @@ async function hasCalendarConflict(startTime, endTime, excludeBookingId, skipGoo
 
         // 1. Check local date_holds — time-aware, respects hold_expires_at
         const holdConflict = await new Promise((resolve) => {
-            db.all(
-                `SELECT start_time, end_time FROM date_holds
-                 WHERE hold_date = ? AND status = 'active'
-                 AND (hold_expires_at IS NULL OR hold_expires_at > datetime('now'))`,
-                [targetDate],
+            getDateHoldTimesForDay(
+                targetDate,
                 (err, holds) => {
                     // Fail-open on a DB error, but no longer SILENTLY — a failed holds read means the
                     // hold half of conflict detection didn't run, so a double-booking could slip through.
@@ -812,10 +1028,8 @@ async function hasCalendarConflict(startTime, endTime, excludeBookingId, skipGoo
             const params = excludeBookingId
                 ? [targetDate, excludeBookingId]
                 : [targetDate];
-            db.all(
-                `SELECT event_start_time, performance_end_time, performance_duration, event_type, buffer_minutes
-                 FROM bookings
-                 WHERE date = ? AND status NOT IN ('CANCELLED','EXPIRED')${excludeClause}`,
+            getBookingsOnDateForCalendarConflict(
+                excludeClause,
                 params,
                 (err, bookings) => {
                     // Same fail-open, now logged: a failed bookings read means the booking-overlap half
@@ -930,7 +1144,7 @@ async function syncBookingToCalendar(bookingOrId) {
                         requestBody: eventData
                     });
                     const eventId = response.data.id;
-                    db.run("UPDATE bookings SET google_event_id = ? WHERE id = ?", [eventId, booking.id]);
+                    setBookingGoogleEventId(eventId, booking.id);
                     console.log(`✓ Created GCal Event for Booking #${booking.id}: ${eventId}`);
                     resolve(eventId);
                 }
@@ -981,30 +1195,28 @@ async function syncCalendarHolds() {
         
         // 2. Fetch all calendar sync holds from the database
         const calendarSyncHolds = await new Promise((resolve) => {
-            db.all("SELECT google_event_id FROM date_holds WHERE block_type = 'calendar_sync' AND google_event_id IS NOT NULL", [], (err, rows) => resolve(rows || []));
+            getCalendarSyncHoldIds((err, rows) => resolve(rows || []));
         });
-        
+
         // 3. Delete any local holds that are no longer present on Google Calendar
         for (const hold of calendarSyncHolds) {
             if (!gcalEventIds.has(hold.google_event_id)) {
                 await new Promise((res) => {
-                    db.run("DELETE FROM date_holds WHERE google_event_id = ?", [hold.google_event_id], () => res());
+                    deleteDateHoldByGoogleEventId(hold.google_event_id, () => res());
                 });
                 console.log(`✓ Deleted orphaned calendar hold for GCal event ${hold.google_event_id}`);
             }
         }
 
         if (events.length === 0) return;
-        
+
         // Fetch existing IDs to avoid duplicates
         const existingHolds = await new Promise((resolve) => {
-            db.all("SELECT google_event_id, hold_date, start_time, end_time FROM date_holds WHERE google_event_id IS NOT NULL AND block_type = 'calendar_sync'", [], (err, rows) => resolve(rows || []));
+            getCalendarSyncHoldDetails((err, rows) => resolve(rows || []));
         });
-        const existingBookings = await new Promise((resolve) => {
-            db.all("SELECT google_event_id FROM bookings WHERE google_event_id IS NOT NULL", [], (err, rows) => resolve(rows || []));
-        });
+        const existingBookings = await getBookingsWithGoogleEventIdAsync();
         const existingEvs = await new Promise((resolve) => {
-            db.all("SELECT google_calendar_event_id FROM events WHERE google_calendar_event_id IS NOT NULL", [], (err, rows) => resolve(rows || []));
+            getEventGoogleCalendarIdsForSync((err, rows) => resolve(rows || []));
         });
         
         const localSyncedIds = new Set([
@@ -1032,9 +1244,8 @@ async function syncCalendarHolds() {
                 // If it exists, check if details changed and update if they have
                 const dbHold = existingHoldsMap.get(event.id);
                 if (dbHold.hold_date !== date || dbHold.start_time !== startTime || dbHold.end_time !== endTime) {
-                    db.run(
-                        "UPDATE date_holds SET hold_date = ?, start_time = ?, end_time = ?, notes = ? WHERE google_event_id = ?",
-                        [date, startTime, endTime, event.summary || 'Google Calendar Event', event.id],
+                    updateDateHoldFromGoogleSync(
+                        date, startTime, endTime, event.summary || 'Google Calendar Event', event.id,
                         (err) => {
                             if (err) console.error(`Failed to update calendar hold for event ${event.id}:`, err.message);
                             else console.log(`✓ Updated local calendar hold for event ${event.id}: ${date} ${startTime || ''}-${endTime || ''}`);
@@ -1043,10 +1254,8 @@ async function syncCalendarHolds() {
                 }
             } else {
                 // It's a new foreign event!
-                db.run(
-                    `INSERT INTO date_holds (hold_date, notes, status, hold_expires_at, start_time, end_time, block_type, google_event_id)
-                     VALUES (?, ?, 'active', '9999-12-31 23:59:59', ?, ?, 'calendar_sync', ?)`,
-                    [date, event.summary || 'Google Calendar Event', startTime, endTime, event.id],
+                insertDateHoldFromGoogleSync(
+                    date, event.summary || 'Google Calendar Event', startTime, endTime, event.id,
                     (err) => {
                         if (err) console.error(`Failed to insert calendar hold for event ${event.id}:`, err.message);
                         else console.log(`✓ Synced GCal event ${event.id} as hold on ${date}`);
@@ -1157,7 +1366,7 @@ async function processNotificationQueue() {
 
 async function syncEventToCalendar(eventId) {
     return new Promise((resolve) => {
-        db.get("SELECT * FROM events WHERE event_id = ?", [eventId], async (err, ev) => {
+        getEventById(eventId, async (err, ev) => {
             if (err || !ev) return resolve(null);
 
             const startDt = ev.event_datetime
@@ -1193,7 +1402,7 @@ async function syncEventToCalendar(eventId) {
                         requestBody: eventData
                     });
                     const gcalId = response.data.id;
-                    db.run("UPDATE events SET google_calendar_event_id = ? WHERE event_id = ?", [gcalId, eventId]);
+                    setEventGoogleCalendarId(gcalId, eventId);
                     console.log(`✓ Created GCal Event for Event #${eventId}: ${gcalId}`);
                     resolve(gcalId);
                 }
@@ -1201,15 +1410,6 @@ async function syncEventToCalendar(eventId) {
                 console.error(`Error syncing event #${eventId} to GCal:`, error);
                 resolve(null);
             }
-        });
-    });
-}
-
-function getNotificationEmail() {
-    return new Promise((resolve) => {
-        db.get("SELECT setting_value FROM settings WHERE setting_key = 'notification_email'", [], (err, row) => {
-            if (!err && row && row.setting_value) return resolve(row.setting_value);
-            resolve(process.env.NOTIFICATION_EMAIL || process.env.EMAIL_USER || 'muzi.mlimi@gmail.com');
         });
     });
 }
@@ -1287,13 +1487,9 @@ function computeDocumentTotals(items, { discount = 0, applyVat = false, vatRate 
  */
 async function autoBuildDepositBalanceSchedule(bookingId, totalAmount, eventDate) {
     if (!(totalAmount > 0)) return;
-    const liveRow = await dbGet(
-        "SELECT COUNT(*) AS cnt FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled','paid')",
-        [bookingId]);
+    const liveRow = await getLivePaymentScheduleCount(bookingId);
     if ((liveRow ? liveRow.cnt : 0) > 0) return; // admin-configured milestones exist — don't touch
-    const paidRow = await dbGet(
-        "SELECT COALESCE(SUM(expected_amount),0) AS paidSum FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) = 'paid'",
-        [bookingId]);
+    const paidRow = await getPaidPaymentScheduleSum(bookingId);
     const paidSum = paidRow ? (parseFloat(paidRow.paidSum) || 0) : 0;
     const remaining = Math.round((totalAmount - paidSum) * 100) / 100;
     if (remaining <= 0.009) {
@@ -1310,10 +1506,8 @@ async function autoBuildDepositBalanceSchedule(bookingId, totalAmount, eventDate
     // "50% Deposit" for different amounts.
     const depositLabel = paidSum > 0 ? 'Outstanding Balance – Deposit (50%)' : '50% Deposit';
     const balanceLabel = paidSum > 0 ? 'Outstanding Balance – Final (50%)'   : '50% Balance';
-    await dbRun("INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
-        [bookingId, depositLabel, depositDue, depositAmount]);
-    await dbRun("INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
-        [bookingId, balanceLabel, balanceDue, balanceAmount]);
+    await insertPaymentScheduleMilestone(bookingId, depositLabel, depositDue, depositAmount);
+    await insertPaymentScheduleMilestone(bookingId, balanceLabel, balanceDue, balanceAmount);
 }
 
 /**
@@ -1339,7 +1533,7 @@ async function generateInvoice(bookingId, opts = {}) {
                 try {
                     clientId = await findOrCreateClient(booking.name, booking.email, booking.cell, booking.company, booking.vat_number);
                     await new Promise((resVal, rejVal) => {
-                        db.run("UPDATE bookings SET client_id = ? WHERE id = ?", [clientId, bookingId], upErr => upErr ? rejVal(upErr) : resVal());
+                        setBookingClientId(clientId, bookingId, upErr => upErr ? rejVal(upErr) : resVal());
                     });
                     booking.client_id = clientId;
                 } catch(e) {
@@ -1351,20 +1545,14 @@ async function generateInvoice(bookingId, opts = {}) {
             // Superseding the previous invoice now happens inside the write transaction below —
             // running it here voided the booking's existing invoice before the replacement was even
             // built, so any later failure (PDF, insert) left the booking with no live invoice at all.
-            db.get("SELECT id, file_path FROM invoices WHERE booking_id = ? AND status = 'PAID' LIMIT 1", [bookingId], async (e, inv) => {
+            getInvoiceForPaidCheck(bookingId, async (e, inv) => {
                 if (inv) return resolve({ success: true, message: 'Invoice already paid — no regeneration needed.', invoice_id: inv.id, pdfUrl: `/docs/invoices/${inv.file_path}` });
 
                 try {
                     const vatRate = await getVatRate();
 
                     // P3-10: Prefer quote_line_items from active quotations row over legacy quote_details JSON
-                    const activeQuote = await new Promise(resolve => {
-                        db.get(
-                            `SELECT * FROM quotations WHERE booking_id = ? AND archived = 0 AND status NOT IN ('void','archived')
-                             ORDER BY version DESC LIMIT 1`,
-                            [bookingId], (qErr, qRow) => resolve(qErr ? null : qRow)
-                        );
-                    });
+                    const activeQuote = await getActiveQuoteForInvoiceGen(bookingId);
 
                     let items = [];
                     let quoteData = {};
@@ -1375,10 +1563,7 @@ async function generateInvoice(bookingId, opts = {}) {
                     try { quoteData = JSON.parse(booking.quote_details || '{}'); } catch(ex) {}
 
                     if (activeQuote) {
-                        const qLines = await new Promise(resolve => {
-                            db.all("SELECT * FROM quote_line_items WHERE quotation_id = ? ORDER BY id ASC",
-                                [activeQuote.id], (liErr, rows) => resolve(liErr ? [] : (rows || [])));
-                        });
+                        const qLines = await getQuoteLineItems(activeQuote.id);
                         if (qLines.length > 0) {
                             items = qLines.map(li => ({
                                 description: li.description,
@@ -1420,13 +1605,7 @@ async function generateInvoice(bookingId, opts = {}) {
                     //   first issue:  INV-2026-0044
                     //   regenerated:  INV-2026-0044-R2, -R3, …
                     const baseNumber = `INV-${moment().format('YYYY')}-${bookingId.toString().padStart(4, '0')}`;
-                    const priorIssued = await new Promise((resolve, reject) =>
-                        db.get(
-                            `SELECT COUNT(*) AS c FROM invoices
-                             WHERE booking_id = ? AND (invoice_number = ? OR invoice_number LIKE ?)`,
-                            [bookingId, baseNumber, `${baseNumber}-R%`],
-                            (e, r) => e ? reject(e) : resolve(r ? r.c : 0)
-                        ));
+                    const priorIssued = await getInvoiceNumberCollisionCount(bookingId, baseNumber, `${baseNumber}-R%`);
                     const invNumber = priorIssued === 0 ? baseNumber : `${baseNumber}-R${priorIssued + 1}`;
 
                     // Enrich booking with VAT flag and discount from quote
@@ -1436,17 +1615,10 @@ async function generateInvoice(bookingId, opts = {}) {
 
                     // Generate PDF
                     const pdfFileName = `${invNumber}-${moment().format('YYYYMMDDHHmmss')}.pdf`;
-                    const invoicesDir = path.join(__dirname, 'docs', 'invoices');
-                    if (!fs.existsSync(invoicesDir)) fs.mkdirSync(invoicesDir, { recursive: true });
+                    const invoicesDir = docsWriteDir('invoices');
                     const pdfPath = path.join(invoicesDir, pdfFileName);
 
-                    const paymentSchedules = await new Promise(resolve => {
-                        db.all(
-                            "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
-                            [bookingId],
-                            (e, rows) => resolve(e ? [] : (rows || []))
-                        );
-                    });
+                    const paymentSchedules = await getPaymentSchedulesForDocument(bookingId);
                     // Cite the related contract if one already exists at invoice-generation time (it
                     // often doesn't — accept-parity generates the invoice before the contract — so this
                     // is opportunistic, same as the contract PDF's optional "Per accepted quote" line).
@@ -1465,26 +1637,21 @@ async function generateInvoice(bookingId, opts = {}) {
                     const invoiceId = await withDbTransaction(async () => {
                         await dbRun("BEGIN IMMEDIATE");
                         try {
-                            await dbRun("UPDATE invoices SET status='VOID', void_reason='superseded', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [bookingId]);
+                            await voidSupersededInvoiceForRegen(bookingId);
 
                             // Draft-then-send: created as DRAFT for admin review unless autoSend
                             // (client accept-quote) asks to publish + email immediately as SENT.
-                            const ins = await dbRun(`INSERT INTO invoices (booking_id, client_id, invoice_number, invoice_date, due_date, subtotal, tax_amount, total_amount, status, file_path)
-                                    VALUES (?, ?, ?, CURRENT_DATE, date('now', '+7 days'), ?, ?, ?, ?, ?)`,
-                                [bookingId, booking.client_id, invNumber, subtotal, tax, total, autoSend ? 'SENT' : 'DRAFT', pdfFileName]);
+                            const ins = await insertInvoice(bookingId, booking.client_id, invNumber, subtotal, tax, total, autoSend ? 'SENT' : 'DRAFT', pdfFileName);
                             const newInvoiceId = ins.lastID;
 
                             // Sequential and error-checked. These previously ran as a parallel forEach
                             // whose error argument was ignored, so a failed line item still committed an
                             // invoice whose total no line item supported.
                             for (const item of items) {
-                                await dbRun(`INSERT INTO invoice_line_items (invoice_id, description, quantity, unit_price)
-                                             VALUES (?, ?, ?, ?)`,
-                                    [newInvoiceId, item.description, item.quantity, item.unit_price]);
+                                await insertInvoiceLineItem(newInvoiceId, item.description, item.quantity, item.unit_price);
                             }
 
-                            await dbRun("UPDATE bookings SET total_amount = ?, amount_outstanding = ?, payment_status = CASE WHEN payment_status IS NULL THEN 'UNPAID' ELSE payment_status END WHERE id = ?",
-                                [total, total - (booking.amount_paid || 0), bookingId]);
+                            await updateBookingLedgerAfterInvoice(total, total - (booking.amount_paid || 0), bookingId);
 
                             await dbRun("COMMIT");
                             return newInvoiceId;
@@ -1499,7 +1666,7 @@ async function generateInvoice(bookingId, opts = {}) {
                     if (autoSend) {
                         try {
                             await sendInvoiceEmail(booking, pdfPath);
-                            db.run("UPDATE invoices SET sent_at = CURRENT_TIMESTAMP WHERE id = ?", [invoiceId], () => {});
+                            markInvoiceSent(invoiceId, () => {});
                         } catch (emErr) { console.error("Invoice Email Error:", emErr); }
                     }
 
@@ -1595,12 +1762,10 @@ function startBackgroundClerk() {
         const overdueLimitLocal = moment().tz('Africa/Johannesburg').subtract(7, 'days').format('YYYY-MM-DD HH:mm:ss');
 
         // S0: Promote stale NEW bookings to PENDING after 24 hours with no admin action
-        db.all(`SELECT id, name, email, event_name, event_type, date FROM bookings
-                WHERE status = 'NEW'
-                AND datetime(created_at, '+24 hours') < ?`, [nowLocal], (err, rows) => {
+        getStaleNewBookings(nowLocal, (err, rows) => {
             if (rows && rows.length > 0) {
                 rows.forEach(row => {
-                    db.run(`UPDATE bookings SET status='PENDING', pending_at=CURRENT_TIMESTAMP WHERE id=?`, [row.id]);
+                    promoteBookingToPending(row.id);
                     sendBookingUnderReviewEmail(row).catch(e => console.error(`[S0] Under-review email failed for #${row.id}:`, e.message));
                 });
                 console.log(`✓ [S0] Promoted ${rows.length} NEW booking(s) to PENDING after 24h.`);
@@ -1608,27 +1773,21 @@ function startBackgroundClerk() {
         });
 
         // S6: Auto-complete CONFIRMED fully-paid bookings whose event date has passed
-        db.all(`SELECT id, event_id, name, email, event_name, event_type, date, event_location,
-                       total_amount, amount_paid, quote_amount
-                FROM bookings
-                WHERE status = 'CONFIRMED'
-                AND payment_status = 'PAID'
-                AND date < ?`, [todayLocal], (err, rows) => {
+        getConfirmedPaidPastEvents(todayLocal, (err, rows) => {
             if (rows && rows.length > 0) {
                 rows.forEach(row => {
-                    db.run(`UPDATE bookings SET status='COMPLETED', completed_at=CURRENT_TIMESTAMP WHERE id=?`, [row.id]);
+                    markBookingAutoCompleted(row.id);
                     if (row.event_id) {
-                        db.run("UPDATE events SET event_status = 'completed', modified_on = CURRENT_TIMESTAMP WHERE event_id = ? AND event_status NOT IN ('cancelled','completed')",
-                            [row.event_id], (e) => { if (e) console.error('[AutoComplete] Event advance failed:', e.message); });
+                        advanceAutoCompletedEventS6(row.event_id, (e) => { if (e) console.error('[AutoComplete] Event advance failed:', e.message); });
                     }
                     // Parity with manual completion (applyStatusChange): also mark the linked invoice PAID
                     // and send the admin completion summary — not just the client completion email.
-                    db.run("UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [row.id],
+                    markInvoicePaidForAutoComplete(row.id,
                         (e) => { if (e) console.error('[S6] Invoice mark-paid failed:', e.message); });
                     sendBookingCompletedEmail(row).catch(e =>
                         console.error(`[S6] Completion email failed for #${row.id}:`, e.message)
                     );
-                    db.get("SELECT * FROM bookings WHERE id = ?", [row.id], (e, full) => {
+                    getBookingById(row.id, (e, full) => {
                         if (!e && full) sendAdminCompletionSummaryEmail(full).catch(err => console.error(`[S6] Admin completion summary failed for #${row.id}:`, err.message));
                     });
                 });
@@ -1640,25 +1799,20 @@ function startBackgroundClerk() {
         // Booking-linked events already advance via S6 above - a standalone event (created directly
         // in the Events module) had no equivalent, so it could sit at "Upcoming" indefinitely after
         // the show had already happened, until an admin noticed and fixed it manually.
-        db.all(`SELECT event_id FROM events
-                WHERE booking_id IS NULL
-                AND event_status IN ('upcoming', 'live')
-                AND event_datetime < ?`, [nowLocal], (err, rows) => {
+        getPastStandaloneEventsForAutoComplete(nowLocal, (err, rows) => {
             if (rows && rows.length > 0) {
                 rows.forEach(row => {
-                    db.run(`UPDATE events SET event_status = 'completed', modified_on = CURRENT_TIMESTAMP WHERE event_id = ?`, [row.event_id]);
+                    advanceStandaloneEventCompleted(row.event_id);
                 });
                 console.log(`✓ [S7] Auto-completed ${rows.length} past standalone event(s).`);
             }
         });
 
         // 1. Expire unquoted PENDING bookings after 48 hours of inactivity
-        db.all(`SELECT id, name, email, event_name, event_type, date FROM bookings
-                WHERE status = 'PENDING'
-                AND datetime(created_at, '+48 hours') < ?`, [nowLocal], (err, rows) => {
+        getStalePendingBookings(nowLocal, (err, rows) => {
             if (rows && rows.length > 0) {
                 rows.forEach(row => {
-                    db.run(`UPDATE bookings SET status = 'EXPIRED', message = COALESCE(message,'') || '\n[System: Expired due to 48h inactivity]' WHERE id = ?`, [row.id]);
+                    expirePendingBooking(row.id);
                     sendPendingExpiredEmail(row).catch(e => console.error(`Expiry email failed for booking #${row.id}:`, e.message));
                 });
                 console.log(`✓ Expired ${rows.length} inactive pending requests (clients notified).`);
@@ -1666,18 +1820,16 @@ function startBackgroundClerk() {
         });
 
         // 2. Expire QUOTED bookings after quote_expiry_date
-        db.all(`SELECT id, google_event_id, name, email, event_name, event_type, date FROM bookings
-                WHERE status = 'QUOTED'
-                AND quote_expiry_date < ?`, [todayLocal], (err, rows) => {
+        getOverdueQuotedBookings(todayLocal, (err, rows) => {
             if (rows && rows.length > 0) {
                 rows.forEach(row => {
-                    db.run("UPDATE bookings SET status = 'EXPIRED' WHERE id = ?", [row.id]);
+                    expireQuotedBooking(row.id);
                     // Null the local ID once we've asked Google to delete it — otherwise every future
                     // syncBookingToCalendar() for this booking takes the "already synced" update branch
                     // against an event that no longer exists on Google, fails, and never re-creates it.
                     if (row.google_event_id) {
                         deleteGoogleEvent(row.google_event_id);
-                        db.run("UPDATE bookings SET google_event_id = NULL WHERE id = ?", [row.id]);
+                        clearBookingGoogleEventId(row.id);
                     }
                     sendQuoteExpiredEmail(row).catch(e => console.error(`Quote expiry email failed for booking #${row.id}:`, e.message));
                 });
@@ -1686,13 +1838,10 @@ function startBackgroundClerk() {
         });
 
         // 3. Warn clients 24h before quote expires
-        db.all(`SELECT id, name, email, event_name, event_type, date, quote_expiry_date
-                FROM bookings WHERE status = 'QUOTED'
-                AND date(quote_expiry_date) = ?
-                AND quote_expiry_warned IS NULL`, [tomorrowLocal], (err, rows) => {
+        getQuotesExpiringTomorrow(tomorrowLocal, (err, rows) => {
             if (rows && rows.length > 0) {
                 rows.forEach(row => {
-                    db.run("UPDATE bookings SET quote_expiry_warned = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
+                    markQuoteExpiryWarned(row.id);
                     sendQuoteExpiryWarningEmail(row).catch(e => console.error('Quote warning email failed:', e.message));
                 });
             }
@@ -1701,15 +1850,11 @@ function startBackgroundClerk() {
         // 3b. Warn the ADMIN about PENDING enquiries about to auto-expire — the final window
         // before step 1 auto-EXPIRES them at 48h from creation. Prevents leads being silently
         // lost. One digest per enquiry (pending_expiry_warned flag stops hourly re-spam).
-        db.all(`SELECT id, name, email, event_name, event_type, date FROM bookings
-                WHERE status = 'PENDING'
-                AND datetime(created_at, '+24 hours') < ?
-                AND datetime(created_at, '+48 hours') > ?
-                AND pending_expiry_warned IS NULL`, [nowLocal, nowLocal], async (err, rows) => {
+        getPendingEnquiriesNearingExpiry(nowLocal, async (err, rows) => {
             if (rows && rows.length > 0) {
                 const notifEmail = await getNotificationEmail();
                 rows.forEach(row => {
-                    db.run("UPDATE bookings SET pending_expiry_warned = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
+                    markPendingExpiryWarned(row.id);
                 });
                 const digestBody = emailComponents.renderSystemEmail({
                     preheaderText: `${rows.length} enquiry(ies) expiring within ~24 hours.`,
@@ -1739,7 +1884,7 @@ function startBackgroundClerk() {
             if (rows && rows.length > 0) {
                 const notifEmail = await getNotificationEmail();
                 rows.forEach(row => {
-                    db.run("UPDATE bookings SET overdue_reminded_at = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
+                    markBookingOverdueReminded(row.id);
                 });
                 const totalOverdue = rows.reduce((sum, r) => sum + parseFloat(r.amount_outstanding || 0), 0);
                 const digestBody = emailComponents.renderSystemEmail({
@@ -1814,15 +1959,13 @@ function startDataRetentionCaretaker() {
     console.log('Starting [Compliance Caretaker] - Managing record retention...');
     setInterval(() => {
         // 1. Delete inactive newsletter subscribers (unsubscribed for > 1 year)
-        db.run("DELETE FROM newsletter_subscribers WHERE status = 'unsubscribed' AND modified_on < date('now', '-1 year')", function(err) {
+        deleteOldUnsubscribedSubscribers(function(err) {
             if (this.changes > 0) console.log(`✓ POPIA: Removed ${this.changes} long-unsubscribed newsletter records.`);
         });
 
         // 2. Anonymize old inquiries (2 years)
         // We keep the record for stats but wipe PII
-        db.run(`UPDATE inquiries
-                SET sender_name = '[ANONYMIZED]', sender_email = 'deleted@po-pia.com', sender_phone = '0000000000', message_body = '[REDACTED]'
-                WHERE submitted_at < date('now', '-2 years') AND sender_email != 'deleted@po-pia.com'`, function(err) {
+        anonymizeOldInquiries(function(err) {
             if (err) { console.error('✗ POPIA: Failed to anonymize stale inquiries:', err.message); return; }
             if (this.changes > 0) console.log(`✓ POPIA: Anonymized ${this.changes} stale inquiries.`);
         });
@@ -1854,13 +1997,8 @@ function runDailyOverdueFlaggingSweep() {
     const todayLocal = moment().tz('Africa/Johannesburg').format('YYYY-MM-DD');
     db.serialize(() => {
         // 1. Flag invoices as OVERDUE
-        db.run(
-            `UPDATE invoices
-             SET status = 'OVERDUE', updated_at = CURRENT_TIMESTAMP
-             WHERE status = 'SENT'
-               AND due_date IS NOT NULL
-               AND due_date < ?`,
-            [todayLocal],
+        flagOverdueInvoices(
+            todayLocal,
             function(err) {
                 if (err) {
                     console.error('[cron] Invoice overdue flagging error:', err.message);
@@ -1871,13 +2009,8 @@ function runDailyOverdueFlaggingSweep() {
         );
 
         // 2. Flag payment schedules as overdue
-        db.run(
-            `UPDATE payment_schedules
-             SET status = 'overdue', updated_at = CURRENT_TIMESTAMP
-             WHERE status = 'pending'
-               AND due_date IS NOT NULL
-               AND due_date < ?`,
-            [todayLocal],
+        flagOverduePaymentSchedules(
+            todayLocal,
             function(err) {
                 if (err) {
                     console.error('[cron] Payment schedule overdue flagging error:', err.message);
@@ -1908,7 +2041,7 @@ const requireAdmin = [
             }
             // Re-check suspension on every request so a suspension takes effect immediately,
             // not just on the next login. One extra indexed lookup per admin request (accepted cost).
-            db.get("SELECT is_active FROM admins WHERE id = ?", [req.session.adminId], (err, row) => {
+            getAdminActiveStatus(req.session.adminId, (err, row) => {
                 if (err) return res.status(500).json({ success: false, message: 'Database error.' });
                 if (!row || row.is_active === 0) {
                     return req.session.destroy(() => {
@@ -1959,10 +2092,7 @@ const requireRoleForInquiryEmail = (req, res, next) => {
 const VALID_ADMIN_ROLES = ['administrator', 'manager', 'assistant'];
 
 function countOtherActiveAdministrators(excludeUserId, callback) {
-    db.get(
-        "SELECT COUNT(*) AS count FROM admins WHERE role = 'administrator' AND is_active = 1 AND id != ?",
-        [excludeUserId], callback
-    );
+    getActiveAdministratorCountExcluding(excludeUserId, callback);
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -2250,16 +2380,7 @@ app.get('/api/admin/analytics/top-pages', requireAdmin, (req, res) => {
 // Uses existing bookings table — no tracker data required
 app.get('/api/admin/analytics/bookings-trend', requireAdmin, (req, res) => {
     const { start, end } = getAnalyticsDates(req.query);
-    db.all(`
-        SELECT
-            date(created_at)  AS label,
-            COUNT(*)          AS bookings,
-            SUM(CASE WHEN status IN ('CONFIRMED','COMPLETED','QUOTED','ACCEPTED') THEN 1 ELSE 0 END) AS confirmed
-        FROM bookings
-        WHERE date(created_at) BETWEEN ? AND ?
-        GROUP BY label
-        ORDER BY label ASC`,
-        [start, end],
+    getBookingsTrend(start, end,
         (err, rows) => {
             if (err) return res.status(500).json({ success: false });
             res.json({ success: true, rows: rows || [] });
@@ -2291,16 +2412,8 @@ app.get('/api/admin/analytics/todays-schedule', requireAdmin, (req, res) => {
         );
 
         // 2. Active date holds / manual calendar blocks
-        db.all(`
-            SELECT COALESCE(NULLIF(notes, ''), block_type, 'Hold') AS title,
-                   start_time,
-                   NULL          AS location,
-                   block_type    AS type,
-                   'hold'        AS source,
-                   NULL          AS client_name
-            FROM date_holds
-            WHERE hold_date = ? AND status = 'active'`,
-            [today],
+        getActiveDateHoldsForToday(
+            today,
             (err, rows) => { if (!err && rows) results.push(...rows); }
         );
 
@@ -2382,7 +2495,7 @@ app.post('/api/admin/login', adminLoginRateLimiter, (req, res) => {
     }
     const normalizedEmail = String(email).trim().toLowerCase();
 
-    db.get("SELECT * FROM admins WHERE email = ?", [normalizedEmail], (err, row) => {
+    getAdminByEmailFull(normalizedEmail, (err, row) => {
         if (err) return res.status(500).json({ success: false, message: 'Database error' });
         if (!row) return res.status(401).json({ success: false, message: 'Invalid credentials' });
 
@@ -2399,14 +2512,13 @@ app.post('/api/admin/login', adminLoginRateLimiter, (req, res) => {
                 // Remember me: 30-day persistent cookie; otherwise session-only (expires on browser close)
                 req.session.cookie.maxAge = remember_me ? 1000 * 60 * 60 * 24 * 30 : null;
                 
-                db.run("UPDATE admins SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", [row.id], () => {});
-                
+                updateAdminLastLogin(row.id, () => {});
+
                 const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
                 const ua = req.headers['user-agent'] || '';
-                
-                db.run(
-                    `INSERT INTO admin_login_logs (admin_id, ip_address, user_agent) VALUES (?, ?, ?)`,
-                    [row.id, ip, ua],
+
+                insertAdminLoginLog(
+                    row.id, ip, ua,
                     function(insertErr) {
                         if (!insertErr) {
                             req.session.loginLogId = this.lastID;
@@ -2432,7 +2544,7 @@ app.post('/api/admin/force-change-password', requireAdmin, (req, res) => {
     }
     bcrypt.hash(newPassword, 10, (err, hash) => {
         if (err) return res.status(500).json({ success: false, message: 'Server error hashing password.' });
-        db.run("UPDATE admins SET password_hash = ?, must_change_password = 0 WHERE id = ?", [hash, req.session.adminId], (updateErr) => {
+        updateAdminPassword(hash, req.session.adminId, (updateErr) => {
             if (updateErr) return res.status(500).json({ success: false, message: 'Failed to update password.' });
             req.session.must_change_password = false;
             return res.json({ success: true, message: 'Password successfully updated. Access restored.' });
@@ -2454,13 +2566,8 @@ app.post('/api/admin/logout', (req, res) => {
     };
 
     if (loginLogId) {
-        db.run(
-            `UPDATE admin_login_logs 
-             SET logout_at = CURRENT_TIMESTAMP, 
-                 last_activity_at = CURRENT_TIMESTAMP,
-                 duration_seconds = CAST((strftime('%s', 'now') - strftime('%s', login_at)) AS INTEGER)
-             WHERE id = ?`,
-            [loginLogId],
+        finalizeAdminLoginLogOnLogout(
+            loginLogId,
             (err) => {
                 if (err) console.error('Error finalising login log on logout:', err.message);
                 finalizeLogout();
@@ -2475,14 +2582,14 @@ app.post('/api/admin/logout', (req, res) => {
 app.get('/api/admin/session', (req, res) => {
     if (req.session && req.session.adminId) {
         // Try ID first
-        db.get("SELECT id, username, email, full_name, phone, role, is_active, last_login_at, created_at FROM admins WHERE id = ?", [req.session.adminId], (err, row) => {
+        getAdminSessionProfileById(req.session.adminId, (err, row) => {
             if (!err && row) {
                 req.session.role = row.role || 'manager'; // sync in session
                 return res.json({ success: true, id: row.id, username: row.username, email: row.email || '', full_name: row.full_name || '', phone: row.phone || '', role: row.role || 'manager', is_active: row.is_active, last_login_at: row.last_login_at, created_at: row.created_at });
             }
             // Fallback to username if ID failed but username exists in session
             if (req.session.username) {
-                db.get("SELECT id, username, email, full_name, phone, role, is_active, last_login_at, created_at FROM admins WHERE username = ?", [req.session.username], (err2, row2) => {
+                getAdminSessionProfileByUsername(req.session.username, (err2, row2) => {
                     if (!err2 && row2) {
                         // Refresh session ID while we're at it
                         req.session.adminId = row2.id;
@@ -2510,9 +2617,8 @@ function createAndSendInvite(user, expiresHours, callback) {
     bcrypt.hash(rawToken, 10, (err, hash) => {
         if (err) { console.error('Invite token hash error:', err); return callback({ success: false, error: err.message }); }
         const expiresAt = new Date(Date.now() + (expiresHours || 72) * 3600000).toISOString();
-        db.run(
-            "INSERT INTO password_reset_tokens (admin_id, token_hash, expires_at) VALUES (?, ?, ?)",
-            [user.id, hash, expiresAt],
+        insertPasswordResetToken(
+            user.id, hash, expiresAt,
             function (insertErr) {
                 if (insertErr) { console.error('Invite token store error:', insertErr); return callback({ success: false, error: insertErr.message }); }
 
@@ -2559,7 +2665,7 @@ app.post('/api/admin/forgot-password', (req, res) => {
     if (!email) return res.status(400).json({ success: false, message: "Email is required." });
 
     // 1. Check if the email exists in the admins table
-    db.get("SELECT id, username FROM admins WHERE email = ?", [email], (err, admin) => {
+    getAdminIdAndUsernameByEmail(email, (err, admin) => {
         if (err) {
             console.error("Database error looking up admin email:", err);
             // Generic message for security
@@ -2583,10 +2689,9 @@ app.post('/api/admin/forgot-password', (req, res) => {
 
             // 4. Store the hash in password_reset_tokens table (expires in 1 hour)
             const expiresAt = new Date(Date.now() + 3600000).toISOString(); // 1 hour from now
-            
-            db.run(
-                "INSERT INTO password_reset_tokens (admin_id, token_hash, expires_at) VALUES (?, ?, ?)",
-                [admin.id, hash, expiresAt],
+
+            insertPasswordResetToken(
+                admin.id, hash, expiresAt,
                 function(insertErr) {
                     if (insertErr) {
                         console.error("Error storing reset token:", insertErr);
@@ -2642,15 +2747,14 @@ app.post('/api/admin/reset-password', (req, res) => {
     }
 
     // 1. Lookup the admin to get their ID
-    db.get("SELECT id FROM admins WHERE email = ?", [email], (err, admin) => {
+    getAdminIdByEmail(email, (err, admin) => {
         if (err || !admin) {
             return res.status(400).json({ success: false, message: "Invalid request sequence." });
         }
 
         // 2. Lookup unexpired tokens for this admin
-        db.all(
-            "SELECT id, token_hash FROM password_reset_tokens WHERE admin_id = ? AND expires_at > CURRENT_TIMESTAMP",
-            [admin.id],
+        getUnexpiredPasswordResetTokens(
+            admin.id,
             (err, tokens) => {
                 if (err) return res.status(500).json({ success: false, message: "Database error." });
                 if (!tokens || tokens.length === 0) {
@@ -2686,9 +2790,8 @@ app.post('/api/admin/reset-password', (req, res) => {
                                     return res.status(500).json({ success: false, message: "Error securely hashing new password." });
                                 }
 
-                                db.run(
-                                    "UPDATE admins SET password_hash = ?, must_change_password = 0 WHERE id = ?",
-                                    [newHash, admin.id],
+                                updateAdminPassword(
+                                    newHash, admin.id,
                                     function(updateErr) {
                                         if (updateErr) {
                                             responseSent = true;
@@ -2696,7 +2799,7 @@ app.post('/api/admin/reset-password', (req, res) => {
                                         }
 
                                         // 5. Consume/Delete the used token
-                                        db.run("DELETE FROM password_reset_tokens WHERE id = ?", [validTokenRow.id], () => {
+                                        deletePasswordResetTokenById(validTokenRow.id, () => {
                                             responseSent = true;
                                             return res.json({ success: true, message: "Password has been reset successfully." });
                                         });
@@ -3095,13 +3198,7 @@ async function sendInvoiceEmail(booking, invoicePdfPath) {
         });
     }
 
-    const schedules = await new Promise(resolve => {
-        db.all(
-            "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
-            [id],
-            (err, rows) => resolve(err ? [] : (rows || []))
-        );
-    });
+    const schedules = await getPaymentSchedulesForDocument(id);
 
     const scheduleTableRows = schedules.length > 0
         ? schedules.map(s => `
@@ -3331,13 +3428,7 @@ async function sendQuoteAcceptedEmail(booking, options = {}) {
     const { id, name, email, event_name, event_type, date } = booking;
 
     // Fetch payment schedule to include in the confirmation email
-    const schedules = await new Promise((resolve) => {
-        db.all(
-            "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
-            [id],
-            (err, rows) => resolve(err ? [] : (rows || []))
-        );
-    });
+    const schedules = await getPaymentSchedulesForDocument(id);
 
     const scheduleTableRows = schedules.length > 0
         ? schedules.map(s => `
@@ -3578,12 +3669,9 @@ async function sendBookingConfirmedEmail(booking) {
 // P3-7: Resend the paid invoice PDF as a payment receipt when booking becomes fully PAID.
 async function sendPaidReceiptEmail(booking) {
     booking = escapeEmailFields(booking);
-    const inv = await new Promise(resolve => {
-        db.get("SELECT file_path, invoice_number FROM invoices WHERE booking_id = ? AND status = 'PAID' ORDER BY id DESC LIMIT 1",
-            [booking.id], (e, row) => resolve(e ? null : row));
-    });
+    const inv = await getInvoiceForPaidReceipt(booking.id);
     if (!inv || !inv.file_path) return;
-    const pdfPath = path.join(__dirname, 'docs', 'invoices', inv.file_path);
+    const pdfPath = resolveDocsPath('invoices', inv.file_path);
     if (!fs.existsSync(pdfPath)) return;
     await sendInvoiceEmail(booking, pdfPath);
 }
@@ -3603,12 +3691,10 @@ async function sendBookingCompletedEmail(booking) {
 
     // Fetch VAT from the latest non-voided invoice, then fall back to the latest quotation
     const vatRow = await new Promise(resolve => {
-        db.get(`SELECT tax_amount FROM invoices WHERE booking_id = ? AND UPPER(status) != 'VOID' ORDER BY id DESC LIMIT 1`,
-            [id], (e, row) => {
-                if (!e && row) return resolve(row);
-                db.get(`SELECT tax_amount FROM quotations WHERE booking_id = ? AND status != 'void' ORDER BY id DESC LIMIT 1`,
-                    [id], (e2, row2) => resolve(e2 ? null : row2));
-            });
+        getInvoiceTaxAmountForBooking(id, (e, row) => {
+            if (!e && row) return resolve(row);
+            getQuoteTaxAmountForBooking(id, (e2, row2) => resolve(e2 ? null : row2));
+        });
     });
     const vatAmount = vatRow ? parseFloat(vatRow.tax_amount) || 0 : 0;
     const displayTotal = parseFloat(total_amount) || parseFloat((quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
@@ -3797,10 +3883,7 @@ async function sendAdminCompletionSummaryEmail(booking) {
     });
 
     // Fetch expenses (table is named 'expenses')
-    const expenseRows = await new Promise(resolve => {
-        db.all("SELECT description, amount FROM expenses WHERE booking_id = ? ORDER BY created_at ASC",
-            [id], (e, rows) => resolve(e ? [] : (rows || [])));
-    });
+    const expenseRows = await getExpensesForBookingEmail(id);
     const totalExpenses = expenseRows.reduce((sum, ex) => sum + (parseFloat(ex.amount) || 0), 0);
     const netRevenue = paid - totalExpenses;
 
@@ -4013,7 +4096,7 @@ function withDbTransaction(fn) {
 // trigger (Gallery, Users) where role can be passed straight into the insert.
 async function resolveActor(adminId) {
     if (!adminId) return { name: 'System', role: null };
-    const row = await dbGet(`SELECT full_name, username, role FROM admins WHERE id = ?`, [adminId]);
+    const row = await getAdminNameRoleById(adminId);
     if (!row) return { name: 'System', role: null };
     return { name: row.full_name || row.username || 'System', role: row.role || null };
 }
@@ -4049,8 +4132,8 @@ async function logAudit({ tableName, recordId, action, req, oldValues, newValues
 // against them), so the two can never drift apart.
 async function resolvePopiaTargets(email) {
     const clientIds = (await dbAll(`SELECT id FROM clients WHERE LOWER(email) = LOWER(?)`, [email])).map(r => r.id);
-    const bookingIds = (await dbAll(`SELECT id FROM bookings WHERE LOWER(email) = LOWER(?)`, [email])).map(r => r.id);
-    const inquiryIds = (await dbAll(`SELECT inquiry_id FROM inquiries WHERE LOWER(sender_email) = LOWER(?)`, [email])).map(r => r.inquiry_id);
+    const bookingIds = (await getBookingIdsForEmail(email)).map(r => r.id);
+    const inquiryIds = (await getInquiryIdsForEmail(email)).map(r => r.inquiry_id);
     return {
         clientIds, bookingIds, inquiryIds,
         bookingPh: bookingIds.map(() => '?').join(','),
@@ -4074,11 +4157,11 @@ async function anonymizeClientData(email) {
     if (bookingIds.length) {
         const contractFiles = await dbAll(`SELECT pdf_url FROM contracts WHERE booking_id IN (${bookingPh}) AND pdf_url IS NOT NULL`, bookingIds);
         filesToDelete.contracts.push(...contractFiles.map(r => r.pdf_url));
-        const quoteFiles = await dbAll(`SELECT file_path FROM quotations WHERE booking_id IN (${bookingPh}) AND file_path IS NOT NULL`, bookingIds);
+        const quoteFiles = await getQuoteFilesForBookingIds(bookingPh, bookingIds);
         filesToDelete.quotations.push(...quoteFiles.map(r => r.file_path));
     }
     if (clientIds.length) {
-        const quoteFilesByClient = await dbAll(`SELECT file_path FROM quotations WHERE client_id IN (${clientPh}) AND booking_id IS NULL AND file_path IS NOT NULL`, clientIds);
+        const quoteFilesByClient = await getQuoteFilesForClientIds(clientPh, clientIds);
         filesToDelete.quotations.push(...quoteFilesByClient.map(r => r.file_path));
     }
 
@@ -4094,21 +4177,15 @@ async function anonymizeClientData(email) {
 
     // 2. Bookings — per-row-unique placeholder email (the legacy route used one flat literal,
     // which made two different erased clients indistinguishable on the same booking list).
-    r = await dbRun(`UPDATE bookings SET
-            name = 'POPIA ANONYMIZED', company = NULL, email = 'deleted-' || id || '@po-pia.com',
-            cell = '0000000000', message = 'Content removed per deletion request.'
-            WHERE LOWER(email) = LOWER(?)`, [email]);
+    r = await anonymizeBookingsForErasure(email);
     affected.bookings = r.changes;
 
     // 3. Inquiries
-    r = await dbRun(`UPDATE inquiries SET
-            sender_name = 'POPIA ANONYMIZED', sender_email = 'deleted-' || inquiry_id || '@po-pia.com',
-            sender_phone = '0000000000', message_body = 'Content removed per deletion request.'
-            WHERE LOWER(sender_email) = LOWER(?)`, [email]);
+    r = await anonymizeInquiriesForErasure(email);
     affected.inquiries = r.changes;
 
     // 4. Newsletter subscription — no historical value once erased.
-    r = await dbRun(`DELETE FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)`, [email]);
+    r = await deleteSubscriberForErasure(email);
     affected.newsletter_subscribers = r.changes;
 
     // 5. Communication log
@@ -4125,9 +4202,9 @@ async function anonymizeClientData(email) {
     affected.abandoned_bookings = r.changes;
 
     // Short-lived tracker OTP/session secrets — nothing to preserve, hard delete.
-    r = await dbRun(`DELETE FROM booking_access_codes WHERE LOWER(email) = LOWER(?)`, [email]);
+    r = await deleteBookingAccessCodesForErasure(email);
     affected.booking_access_codes = r.changes;
-    r = await dbRun(`DELETE FROM booking_access_tokens WHERE LOWER(email) = LOWER(?)`, [email]);
+    r = await deleteBookingAccessTokensForErasure(email);
     affected.booking_access_tokens = r.changes;
 
     r = await dbRun(`DELETE FROM popia_verification_codes WHERE LOWER(email) = LOWER(?)`, [email]);
@@ -4188,35 +4265,35 @@ async function anonymizeClientData(email) {
                 WHERE booking_id IN (${bookingPh})`, bookingIds);
         affected.contracts = r.changes;
 
-        r = await dbRun(`UPDATE booking_notes SET note = '[Redacted per POPIA erasure request]' WHERE booking_id IN (${bookingPh})`, bookingIds);
+        r = await redactBookingNotesForErasure(bookingPh, bookingIds);
         affected.booking_notes = r.changes;
 
-        r = await dbRun(`UPDATE quotations SET file_path = NULL WHERE booking_id IN (${bookingPh})`, bookingIds);
+        r = await clearQuoteFilePathsForErasure(bookingPh, bookingIds);
         affected.quotations = r.changes;
 
         // Transactions: only ip_address/notes/reconcile_note are cleared — amount, dates, and
         // reference are left untouched (SARS financial-record retention).
-        r = await dbRun(`UPDATE transactions SET ip_address = NULL, notes = NULL, reconcile_note = NULL WHERE booking_id IN (${bookingPh})`, bookingIds);
+        r = await redactTransactionForErasure(bookingPh, bookingIds);
         affected.transactions = r.changes;
 
-        r = await dbRun(`UPDATE cancellations SET reason = '[Redacted per POPIA erasure request]', notes = NULL WHERE booking_id IN (${bookingPh})`, bookingIds);
+        r = await redactCancellationForErasure(bookingPh, bookingIds);
         affected.cancellations = r.changes;
 
         r = await dbRun(`UPDATE service_reviews SET client_name = 'Anonymized Client' WHERE booking_id IN (${bookingPh})`, bookingIds);
         affected.service_reviews = r.changes;
 
-        r = await dbRun(`UPDATE payment_logs SET raw_payload = NULL WHERE booking_id IN (${bookingPh})`, bookingIds);
+        r = await redactPaymentLogsForErasure(bookingPh, bookingIds);
         affected.payment_logs = r.changes;
     }
     // Quotations can exist for a client with no booking yet (pre-booking quote) — caught separately.
     if (clientIds.length) {
-        r = await dbRun(`UPDATE quotations SET file_path = NULL WHERE client_id IN (${clientPh}) AND booking_id IS NULL`, clientIds);
+        r = await clearQuoteFilePathsForClientErasure(clientPh, clientIds);
         affected.quotations += r.changes;
     }
 
     affected.inquiry_notes = 0;
     if (inquiryIds.length) {
-        r = await dbRun(`UPDATE inquiry_notes SET note = '[Redacted per POPIA erasure request]' WHERE inquiry_id IN (${inquiryPh})`, inquiryIds);
+        r = await redactInquiryNotesForErasure(inquiryPh, inquiryIds);
         affected.inquiry_notes = r.changes;
     }
 
@@ -4694,10 +4771,8 @@ app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, 
 
                 // 10. INSERT BOOKING SERVICES (Relational)
                 for (const srv of selectedServices) {
-                    await dbRun("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
-                        [bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price]);
-                    await dbRun("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
-                        [bookingId, srv.service_id, srv.name, srv.quantity_minutes, srv.unit_price]);
+                    await insertBookingService(bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price);
+                    await insertBookingLineItem(bookingId, srv.service_id, srv.name, srv.quantity_minutes, srv.unit_price);
                 }
 
                 // All child rows persisted — commit the whole booking atomically.
@@ -5158,15 +5233,14 @@ function requireBookingAccessToken(req, res, next) {
     if (!bookingId || !token) {
         return res.status(401).json({ success: false, message: 'Please verify your booking to continue.', code: 'TOKEN_REQUIRED' });
     }
-    db.get(
-        "SELECT id, email FROM booking_access_tokens WHERE token_hash = ? AND booking_id = ? AND expires_at > CURRENT_TIMESTAMP",
-        [hashAccessToken(token), bookingId],
+    getBookingAccessTokenByHash(
+        hashAccessToken(token), bookingId,
         (err, row) => {
             if (err || !row) {
                 return res.status(401).json({ success: false, message: 'Your verification session has expired. Please verify your booking again.', code: 'TOKEN_REQUIRED' });
             }
             req.trackingEmail = row.email;
-            db.run("UPDATE booking_access_tokens SET last_used_at = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
+            touchBookingAccessToken(row.id);
             next();
         }
     );
@@ -5181,18 +5255,17 @@ app.post('/api/public/bookings/:id/track/request-code', ipRateLimiter, otpReques
     const generic = { success: true, message: 'If those details match a booking, a verification code has been sent to the email on file.' };
     if (!email || !bookingId) return res.status(400).json({ success: false, message: 'Booking ID and email are required.' });
 
-    db.get("SELECT id, email, event_name, event_type FROM bookings WHERE id = ?", [bookingId], async (err, row) => {
+    getBookingEmailForTracking(bookingId, async (err, row) => {
         if (err || !row || row.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
             return res.json(generic);
         }
         try {
             // Kill any earlier unconsumed code for this booking so only the most recent one sent is live.
-            await dbRun("UPDATE booking_access_codes SET consumed = 1 WHERE booking_id = ? AND consumed = 0", [bookingId]);
+            await consumeUnconsumedAccessCodes(bookingId);
             const code = generateOtpCode();
             const codeHash = await bcrypt.hash(code, 10);
             const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60000).toISOString();
-            await dbRun("INSERT INTO booking_access_codes (booking_id, email, code_hash, expires_at) VALUES (?, ?, ?, ?)",
-                [bookingId, row.email, codeHash, expiresAt]);
+            await insertBookingAccessCode(bookingId, row.email, codeHash, expiresAt);
 
             const banner = await bannerRegistry.resolveBanner('booking_verification_code');
             const { socialLinks } = await getEmailFooterContext();
@@ -5228,32 +5301,26 @@ app.post('/api/public/bookings/:id/track/verify-code', ipRateLimiter, mutateRate
     if (!email || !code) return res.status(400).json({ success: false, message: 'Email and code are required.' });
 
     try {
-        const codeRow = await dbGet(
-            `SELECT id, code_hash, attempts FROM booking_access_codes
-             WHERE booking_id = ? AND lower(email) = lower(?) AND consumed = 0 AND expires_at > CURRENT_TIMESTAMP
-             ORDER BY created_at DESC LIMIT 1`,
-            [bookingId, email]
-        );
+        const codeRow = await getActiveAccessCodeForVerification(bookingId, email);
         if (!codeRow) {
             return res.status(400).json({ success: false, message: 'That code is invalid or has expired. Please request a new one.' });
         }
         if (codeRow.attempts >= OTP_MAX_ATTEMPTS) {
-            await dbRun("UPDATE booking_access_codes SET consumed = 1 WHERE id = ?", [codeRow.id]);
+            await consumeAccessCodeById(codeRow.id);
             return res.status(400).json({ success: false, message: 'Too many incorrect attempts. Please request a new code.' });
         }
 
         const match = await bcrypt.compare(code, codeRow.code_hash);
         if (!match) {
-            await dbRun("UPDATE booking_access_codes SET attempts = attempts + 1 WHERE id = ?", [codeRow.id]);
+            await incrementAccessCodeAttempts(codeRow.id);
             const remaining = OTP_MAX_ATTEMPTS - (codeRow.attempts + 1);
             return res.status(400).json({ success: false, message: remaining > 0 ? `Incorrect code. ${remaining} attempt(s) remaining.` : 'Too many incorrect attempts. Please request a new code.' });
         }
 
-        await dbRun("UPDATE booking_access_codes SET consumed = 1 WHERE id = ?", [codeRow.id]);
+        await consumeAccessCodeById(codeRow.id);
         const rawToken = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_MINUTES * 60000).toISOString();
-        await dbRun("INSERT INTO booking_access_tokens (booking_id, email, token_hash, expires_at) VALUES (?, ?, ?, ?)",
-            [bookingId, email, hashAccessToken(rawToken), expiresAt]);
+        await insertBookingAccessToken(bookingId, email, hashAccessToken(rawToken), expiresAt);
 
         res.json({ success: true, access_token: rawToken, expires_in: ACCESS_TOKEN_TTL_MINUTES * 60 });
     } catch (e) {
@@ -5431,9 +5498,8 @@ app.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, requi
                 return res.status(400).json({ success: false, message: 'Invalid quote amount. Please contact management.' });
             }
 
-            db.all(
-                "SELECT description, expected_amount FROM payment_schedules WHERE booking_id = ? AND status != 'paid' AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
-                [row.id],
+            getPaymentSchedulesForPayfastInit(
+                row.id,
                 (schedErr, schedules) => {
                 try {
                     let amt = baseAmt;
@@ -5586,12 +5652,7 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
         console.log(`[PayFast ITN] ✓ Merchant ID valid for booking #${bookingId}`);
 
         // ── C. Database Lookup ──
-        const booking = await new Promise((resolve, reject) => {
-            db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (err, row) => {
-                if (err) reject(err);
-                else resolve(row);
-            });
-        });
+        const booking = await getBookingByIdAsync(bookingId);
 
         if (!booking) {
             console.error(`[PayFast ITN] Booking #${bookingId} NOT FOUND.`);
@@ -5658,10 +5719,7 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
             return; // res already sent with 200 at top; return stops processing
         }
         const itnRef = pfData.pf_payment_id || `synthetic-${bookingId}-${pfData.amount_gross}-${pfData.payment_status}`;
-        const alreadyProcessed = await new Promise(resolve => {
-            db.get("SELECT id FROM transactions WHERE reference = ? AND booking_id = ? AND source = 'payfast'",
-                [itnRef, bookingId], (e, row) => resolve(!!row));
-        });
+        const alreadyProcessed = await getPayfastTransactionByReference(itnRef, bookingId);
         if (alreadyProcessed) {
             console.warn(`[PayFast ITN] Duplicate ITN ignored for ref=${itnRef} booking #${bookingId}`);
             logPaymentEvent(bookingId, 'IGNORED_DUPLICATE', pfData, true);
@@ -5725,38 +5783,21 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
                     return { retry: true };
                 }
                 try {
-                    await dbRun(
-                        `INSERT INTO transactions (booking_id, amount, transaction_type, payment_method, reference,
-                             transaction_date, status, source, pf_payment_id, pf_status, pf_signature, is_verified)
-                         VALUES (?, ?, 'payment', ?, ?, CURRENT_TIMESTAMP, 'completed', 'payfast', ?, ?, ?, 1)`,
-                        [bookingId, itnAmount, mappedMethod, itnRef, pfData.pf_payment_id || null, pfData.payment_status, receivedSignature]);
+                    await insertPayfastTransaction(bookingId, itnAmount, mappedMethod, itnRef, pfData.pf_payment_id || null, pfData.payment_status, receivedSignature);
 
-                    const credit = await dbRun(
-                        `UPDATE bookings SET
-                            amount_paid = COALESCE(amount_paid,0) + ?,
-                            total_amount = ?,
-                            amount_outstanding = MAX(0, ? - (COALESCE(amount_paid,0) + ?)),
-                            payment_status = CASE
-                                WHEN (COALESCE(amount_paid,0) + ?) >= ? THEN 'PAID'
-                                WHEN ? = 'DEPOSIT' THEN 'DEPOSIT_PAID'
-                                ELSE 'PARTIALLY_PAID' END,
-                            status = CASE WHEN status IN ('ACCEPTED','CONFIRMED') THEN 'CONFIRMED' ELSE status END,
-                            payment_reference = ?, payment_signature = ?, payment_raw_data = ?, payment_method = ?,
-                            confirmed_at = CURRENT_TIMESTAMP, last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP
-                        WHERE id = ? AND (COALESCE(amount_paid,0) + ?) <= ? + 1.0`,
-                        [
-                            itnAmount, currentTotal, currentTotal, itnAmount, itnAmount, currentTotal, paymentType,
-                            pfData.pf_payment_id || null, receivedSignature, JSON.stringify(pfData), pfData.payment_method || 'payfast',
-                            bookingId, itnAmount, currentTotal
-                        ]);
+                    const credit = await applyPayfastPaymentToBooking(
+                        itnAmount, currentTotal, paymentType,
+                        pfData.pf_payment_id || null, receivedSignature, JSON.stringify(pfData), pfData.payment_method || 'payfast',
+                        bookingId
+                    );
                     if (credit.changes === 0) {
                         await dbRun("ROLLBACK").catch(() => {}); // overpayment guard blocked it — undo the tx insert too
                         return { overpayment: true };
                     }
 
-                    const fresh = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
+                    const fresh = await getBookingByIdAsync(bookingId);
                     if (fresh && fresh.payment_status === 'PAID') {
-                        await dbRun(`UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')`, [bookingId]);
+                        await markInvoicePaidIfOpenAsync(bookingId);
                     }
 
                     await dbRun("COMMIT");
@@ -5850,14 +5891,12 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
             // rows already use it) and is what admins(id) FK allows for an event no admin authored.
             if (updatedRow.status === 'CONFIRMED' && !updatedRow.event_id) {
                 const evDatetime = updatedRow.date + (updatedRow.event_start_time ? ' ' + updatedRow.event_start_time : ' 00:00:00');
-                db.run(
-                    `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
-                     VALUES (?, ?, ?, ?, ?, 'upcoming', NULL)`,
-                    [updatedRow.event_name || updatedRow.event_type || 'Booking Event', evDatetime,
-                     updatedRow.event_location || null, updatedRow.venue_id || null, bookingId],
+                insertAutoCreatedEvent(
+                    updatedRow.event_name || updatedRow.event_type || 'Booking Event', evDatetime,
+                    updatedRow.event_location || null, updatedRow.venue_id || null, bookingId,
                     function(evErr) {
                         if (evErr) { console.error('[Auto-Event] PayFast: Insert failed for booking #' + bookingId + ':', evErr.message); return; }
-                        db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [this.lastID, bookingId]);
+                        setBookingEventId(this.lastID, bookingId);
                     }
                 );
             }
@@ -5873,9 +5912,9 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
             if (pfData.payment_status === 'CANCELLED') {
                 console.log(`[PayFast ITN] Booking #${bookingId} payment cancelled by customer. Status unchanged (retryable).`);
             } else {
-                db.run("UPDATE bookings SET payment_status = 'FAILED' WHERE id = ? AND payment_status = 'UNPAID'", [bookingId]);
+                markBookingPaymentFailedIfUnpaid(bookingId);
             }
-            db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (e, failedRow) => {
+            getBookingById(bookingId, (e, failedRow) => {
                 if (!e && failedRow) {
                     if (pfData.payment_status !== 'CANCELLED') {
                         sendPaymentFailedEmail(failedRow).catch(e => console.error('Payment-failed email error:', e.message));
@@ -5917,9 +5956,8 @@ function logPaymentEvent(bookingId, eventType, pfData, sigValid = true, referenc
     const amount = parseFloat(pfData.amount_gross) || 0;
 
     // 1. Log to generic payment_logs for ITN history
-    db.run(
-        `INSERT INTO payment_logs (booking_id, event_type, raw_payload, signature_valid, amount) VALUES (?, ?, ?, ?, ?)`,
-        [bookingId, eventType, JSON.stringify(pfData), sigValid, amount],
+    insertPaymentLogEntry(
+        bookingId, eventType, JSON.stringify(pfData), sigValid, amount,
         (err) => {
             if (err) console.error(`[Audit Log] Failed to insert log for booking #${bookingId}:`, err.message);
         }
@@ -5944,9 +5982,8 @@ function logPaymentEvent(bookingId, eventType, pfData, sigValid = true, referenc
         const mappedMethod = pfMethodMap[rawMethod] || 'payfast'; // default to gateway name, not 'other'
         const txSource = eventType === 'VERIFIED_OK' ? 'payfast' : 'manual';
         const txReference = referenceOverride || pfData.pf_payment_id || pfData.m_payment_id || 'manual';
-        db.run(`INSERT INTO transactions (booking_id, amount, transaction_type, payment_method, reference, transaction_date, status, source)
-                VALUES (?, ?, 'payment', ?, ?, CURRENT_TIMESTAMP, 'completed', ?)`,
-            [bookingId, amount, mappedMethod, txReference, txSource],
+        insertLoggedPaymentTransaction(
+            bookingId, amount, mappedMethod, txReference, txSource,
             (err) => { if (err) console.error(`[Transactions] Insert failed for booking #${bookingId}:`, err.message); });
     }
 }
@@ -5965,11 +6002,8 @@ function logPaymentEvent(bookingId, eventType, pfData, sigValid = true, referenc
 // BEGIN here would sweep those into this transaction. The two set-based UPDATEs below are each atomic
 // on their own, and a partial failure is re-derived by the next align or cron run.
 function alignMilestonePayments(bookingId, amountPaid, callback) {
-    db.all(
-        `SELECT id, expected_amount, status FROM payment_schedules
-         WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')
-         ORDER BY due_date ASC, id ASC`,
-        [bookingId],
+    getActiveScheduleRowsForAlignment(
+        bookingId,
         (err, schedules) => {
             if (err || !schedules || schedules.length === 0) {
                 if (callback) callback(err);
@@ -6001,15 +6035,11 @@ function alignMilestonePayments(bookingId, amountPaid, callback) {
             // ids come from the SELECT above, never from user input.
             const runPaid = (next) => {
                 if (toPaid.length === 0) return next(null);
-                db.run(`UPDATE payment_schedules SET status = 'paid', updated_at = CURRENT_TIMESTAMP
-                        WHERE id IN (${toPaid.map(() => '?').join(',')})
-                          AND LOWER(COALESCE(status,'pending')) <> 'paid'`, toPaid, next);
+                markScheduleRowsPaid(toPaid.map(() => '?').join(','), toPaid, next);
             };
             const runPending = (next) => {
                 if (toPending.length === 0) return next(null);
-                db.run(`UPDATE payment_schedules SET status = 'pending', updated_at = CURRENT_TIMESTAMP
-                        WHERE id IN (${toPending.map(() => '?').join(',')})
-                          AND LOWER(COALESCE(status,'pending')) = 'paid'`, toPending, next);
+                markScheduleRowsPending(toPending.map(() => '?').join(','), toPending, next);
             };
             runPaid((e1) => runPending((e2) => { if (callback) callback(e1 || e2); }));
         }
@@ -6017,7 +6047,7 @@ function alignMilestonePayments(bookingId, amountPaid, callback) {
 }
 
 function updateBookingMilestones(bookingId, callback) {
-    db.get(`SELECT amount_paid FROM bookings WHERE id = ?`, [bookingId], (err, row) => {
+    getBookingAmountPaid(bookingId, (err, row) => {
         if (err || !row) {
             if (callback) callback(err);
             return;
@@ -6035,7 +6065,7 @@ app.get('/api/bookings/:id/payment-logs', (req, res) => {
     if (!req.session || !req.session.admin) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
-    db.all("SELECT * FROM payment_logs WHERE booking_id = ? ORDER BY timestamp DESC", [req.params.id], (err, rows) => {
+    getPaymentLogsForBooking(req.params.id, (err, rows) => {
         if (err) return res.status(500).json({ success: false, message: 'Database error fetching logs' });
         res.json({ success: true, logs: rows });
     });
@@ -6051,7 +6081,7 @@ app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole(['ad
     if (payment_status != null && payment_status !== '' && !valid.includes(payment_status)) {
         return res.status(400).json({ success: false, message: 'Invalid payment_status.' });
     }
-    db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
+    getBookingById(req.params.id, (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if (['CANCELLED', 'EXPIRED'].includes(row.status)) {
             return res.status(400).json({ success: false, message: `Cannot record payment on a ${row.status} booking.` });
@@ -6060,12 +6090,8 @@ app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole(['ad
         // P2-5: Warn if a PayFast transaction was recorded for this booking within the last 2 hours —
         // recording a manual payment on top may create a duplicate credit.
         if (!force) {
-            db.get(
-                `SELECT id, amount, created_at FROM transactions
-                 WHERE booking_id = ? AND source = 'payfast' AND status = 'completed'
-                   AND created_at >= datetime('now', '-2 hours')
-                 ORDER BY created_at DESC LIMIT 1`,
-                [req.params.id],
+            getRecentPayfastTransactionForBooking(
+                req.params.id,
                 (txErr, recentTx) => {
                     if (!txErr && recentTx) {
                         return res.status(409).json({
@@ -6132,15 +6158,8 @@ function processManualPayment(req, res, row) {
 
         const newStatus = deriveBookingStatusAfterPayment(row.status, payment_status);
 
-        db.run(
-            `UPDATE bookings SET
-                payment_status = ?, amount_paid = ?, amount_outstanding = ?,
-                total_amount = CASE WHEN COALESCE(total_amount, 0) = 0 THEN ? ELSE total_amount END,
-                status = ?,
-                last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP,
-                confirmed_at = CASE WHEN ? = 'PAID' AND confirmed_at IS NULL THEN CURRENT_TIMESTAMP ELSE confirmed_at END
-             WHERE id = ?`,
-            [payment_status, paid, outstanding, total, newStatus, payment_status, req.params.id],
+        applyManualPaymentToBooking(
+            payment_status, paid, outstanding, total, newStatus, req.params.id,
             function(err) {
                 if (err) return res.status(500).json({ success: false, error: err.message });
                 
@@ -6167,16 +6186,14 @@ function processManualPayment(req, res, row) {
 
                 // Auto-create events row when manual payment results in CONFIRMED (mirrors PayFast ITN behaviour)
                 if (newStatus === 'CONFIRMED') {
-                    db.get("SELECT event_id, date, event_start_time, event_name, event_type, event_location, venue_id FROM bookings WHERE id = ?", [req.params.id], (evSelErr, bRow) => {
+                    getBookingForAutoEventOnPayment(req.params.id, (evSelErr, bRow) => {
                         if (evSelErr || !bRow || bRow.event_id) return;
                         const evDatetime = bRow.date + (bRow.event_start_time ? ' ' + bRow.event_start_time : ' 00:00:00');
-                        db.run(
-                            `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
-                             VALUES (?, ?, ?, ?, ?, 'upcoming', NULL)`,
-                            [bRow.event_name || bRow.event_type || 'Booking Event', evDatetime, bRow.event_location || null, bRow.venue_id || null, req.params.id],
+                        insertAutoCreatedEvent(
+                            bRow.event_name || bRow.event_type || 'Booking Event', evDatetime, bRow.event_location || null, bRow.venue_id || null, req.params.id,
                             function(evErr) {
                                 if (evErr) { console.error('[Auto-Event] ManualPayment: Insert failed for booking #' + req.params.id + ':', evErr.message); return; }
-                                db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [this.lastID, req.params.id]);
+                                setBookingEventId(this.lastID, req.params.id);
                             }
                         );
                     });
@@ -6195,8 +6212,8 @@ function processManualPayment(req, res, row) {
                     }
                     if (payment_status === 'PAID') {
                         const markPaidAndNotify = () => {
-                            db.run("UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [req.params.id]);
-                            db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (e, updated) => {
+                            markInvoicePaidIfOpen(req.params.id);
+                            getBookingById(req.params.id, (e, updated) => {
                                 if (!e && updated) {
                                     sendBookingConfirmedEmail(updated).catch(e => console.error('Confirmed email after manual payment failed:', e.message));
                                     setTimeout(() => sendPaidReceiptEmail(updated).catch(e => console.error('Paid receipt email (manual) failed:', e.message)), 600);
@@ -6205,9 +6222,8 @@ function processManualPayment(req, res, row) {
                         };
                         // Ensure an invoice exists before sending the receipt — manual bookings that
                         // skipped quote acceptance have no invoice yet, so generate one on the spot.
-                        db.get(
-                            "SELECT id FROM invoices WHERE booking_id = ? AND UPPER(status) NOT IN ('VOID') ORDER BY id DESC LIMIT 1",
-                            [req.params.id],
+                        getOpenInvoiceIdForReceiptCheck(
+                            req.params.id,
                             (invCheckErr, existingInv) => {
                                 if (!existingInv) {
                                     generateInvoice(req.params.id)
@@ -6546,8 +6562,8 @@ async function completePopiaAnonymization(id, adminId, adminName) {
 // admin-triggered action — not a hot path — so blocking briefly here is the right tradeoff).
 function deletePopiaFiles(filesToDelete) {
     const jobs = [
-        ...(filesToDelete?.contracts || []).map(f => path.join(__dirname, 'docs', 'contracts', f)),
-        ...(filesToDelete?.quotations || []).map(f => path.join(__dirname, 'docs', 'quotes', f))
+        ...(filesToDelete?.contracts || []).map(f => resolveDocsPath('contracts', f)),
+        ...(filesToDelete?.quotations || []).map(f => resolveDocsPath('quotes', f))
     ];
     jobs.forEach(p => {
         try { fs.unlinkSync(p); } catch (err) { if (err.code !== 'ENOENT') console.error('[POPIA] Failed to delete file:', p, err.message); }
@@ -6571,7 +6587,7 @@ function isBookingInPopiaErasureScope(booking) {
 async function getBookingErasureImpact(bookingIds) {
     if (!bookingIds.length) return [];
     const ph = bookingIds.map(() => '?').join(',');
-    const bookings = await dbAll(`SELECT * FROM bookings WHERE id IN (${ph})`, bookingIds);
+    const bookings = await getBookingsByIds(ph, bookingIds);
     const policyRow = await dbGet(`SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'`);
     const policyStr = policyRow ? policyRow.policy_value : '';
     const impact = [];
@@ -6604,7 +6620,7 @@ async function cancelActiveBookingsForErasure(bookingIds) {
     const cancelReason = 'Booking cancelled as a consequence of a POPIA data erasure request.';
 
     for (const item of impact) {
-        const booking = await dbGet(`SELECT * FROM bookings WHERE id = ?`, [item.booking_id]);
+        const booking = await getBookingByIdAsync(item.booking_id);
         if (!booking || !isBookingInPopiaErasureScope(booking)) continue;
 
         notificationSnapshots.push({
@@ -6613,39 +6629,26 @@ async function cancelActiveBookingsForErasure(bookingIds) {
             refundDue: item.estimated_refund_due, rule: item.policy_rule, daysUntilEvent: item.days_until_event
         });
 
-        await dbRun(
-            `UPDATE bookings SET status = 'CANCELLED', cancellation_reason = ?, cancelled_by = 'client', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?`,
-            [cancelReason, booking.id]
-        );
-        await dbRun(
-            `INSERT INTO cancellations (booking_id, cancelled_by, reason, total_paid_to_date, refund_due, retention_amount, refund_status)
-             VALUES (?, 'client', ?, ?, ?, ?, 'pending')
-             ON CONFLICT(booking_id) DO UPDATE SET
-                cancelled_by = 'client', reason = excluded.reason, total_paid_to_date = excluded.total_paid_to_date,
-                refund_due = excluded.refund_due, retention_amount = excluded.retention_amount, refund_status = 'pending', cancelled_at = CURRENT_TIMESTAMP`,
-            [booking.id, cancelReason, item.amount_paid, item.estimated_refund_due, item.estimated_retention]
-        );
-        await dbRun(`UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?`, [booking.id]);
-        await dbRun(`UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')`, [booking.id]);
-        await dbRun(`UPDATE payment_schedules SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status='pending'`, [booking.id]);
+        await cancelBookingForErasureAsync(cancelReason, booking.id);
+        await insertCancellationForErasure(booking.id, cancelReason, item.amount_paid, item.estimated_refund_due, item.estimated_retention);
+        await releaseDateHoldsForBookingAsync(booking.id);
+        await voidInvoicesForCancelledBookingAsync(booking.id);
+        await cancelPendingPaymentSchedulesAsync(booking.id);
 
-        const linkedEvent = await dbGet(`SELECT event_id, google_calendar_event_id FROM events WHERE booking_id = ?`, [booking.id]);
+        const linkedEvent = await getEventByBookingId(booking.id);
         if (linkedEvent) {
-            await dbRun(
-                `UPDATE events SET booking_id = NULL, event_status = 'draft', cancelled_at = CURRENT_TIMESTAMP, cancellation_reason = ? WHERE event_id = ?`,
-                [cancelReason, linkedEvent.event_id]
-            );
+            await demoteEventForCancelledBookingAsync(cancelReason, linkedEvent.event_id);
             if (linkedEvent.google_calendar_event_id) {
                 calendarIdsToDelete.push(linkedEvent.google_calendar_event_id);
-                await dbRun(`UPDATE events SET google_calendar_event_id = NULL WHERE event_id = ?`, [linkedEvent.event_id]);
+                await clearEventGoogleCalendarIdAsync(linkedEvent.event_id);
             }
         }
         if (booking.event_id) {
-            await dbRun(`UPDATE bookings SET is_public = 0, event_id = NULL WHERE id = ?`, [booking.id]);
+            await clearBookingPublicAndEventIdAsync(booking.id);
         }
         if (booking.google_event_id) {
             calendarIdsToDelete.push(booking.google_event_id);
-            await dbRun(`UPDATE bookings SET google_event_id = NULL WHERE id = ?`, [booking.id]);
+            await clearBookingGoogleEventIdAsync(booking.id);
         }
 
         await dbRun(
@@ -6669,12 +6672,7 @@ async function cancelActiveBookingsForErasure(bookingIds) {
 async function getUnresolvedRefundBookingIds(bookingIds) {
     if (!bookingIds.length) return [];
     const ph = bookingIds.map(() => '?').join(',');
-    const rows = await dbAll(
-        `SELECT c.booking_id, c.refund_due,
-                COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.booking_id = c.booking_id AND t.transaction_type = 'refund' AND t.status = 'completed'), 0) AS refunded
-         FROM cancellations c WHERE c.booking_id IN (${ph}) AND c.refund_due > 0`,
-        bookingIds
-    );
+    const rows = await getCancellationsWithRefundedTotals(ph, bookingIds);
     return rows.filter(r => r.refunded < r.refund_due).map(r => r.booking_id);
 }
 
@@ -6807,7 +6805,7 @@ app.post('/api/public/compliance/export-data', ipRateLimiter, (req, res) => {
     db.all("SELECT * FROM bookings WHERE LOWER(email) = LOWER(?)", [email], (err, bookings) => {
         if (err) console.error('[POPIA] export-data bookings query failed:', err.message);
         dataExport.bookings = bookings || [];
-        db.all("SELECT * FROM inquiries WHERE LOWER(sender_email) = LOWER(?)", [email], (err, inquiries) => {
+        getInquiriesForEmail(email, (err, inquiries) => {
             if (err) console.error('[POPIA] export-data inquiries query failed:', err.message);
             dataExport.inquiries = inquiries || [];
             
@@ -6857,23 +6855,19 @@ app.post('/api/public/bookings/lookup', lookupRateLimiter, (req, res) => {
 });
 
 app.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, requireBookingAccessToken, (req, res) => {
-    db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
+    getBookingById(req.params.id, (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
         // Include latest invoice if exists
-        db.get("SELECT file_path, invoice_number, status FROM invoices WHERE booking_id = ? AND status != 'VOID' ORDER BY created_at DESC LIMIT 1", [row.id], (e, inv) => {
-            db.all("SELECT description, due_date, expected_amount, status, updated_at FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC", [row.id], (e2, schedule) => {
+        getInvoiceForTracking(row.id, (e, inv) => {
+            getPaymentSchedulesForTracking(row.id, (e2, schedule) => {
                 db.all(`SELECT s.name AS service_name, s.pricing_model, bs.quantity_minutes, bs.unit_price,
                                (bs.unit_price * bs.quantity_minutes) AS line_total
                         FROM booking_services bs
                         JOIN services s ON bs.service_id = s.id
                         WHERE bs.booking_id = ?`, [row.id], (e3, services) => {
-                    db.get(
-                        `SELECT version, (SELECT COUNT(*) FROM quotations WHERE booking_id = ?) AS total_versions
-                         FROM quotations WHERE booking_id = ? AND archived = 0 ORDER BY version DESC LIMIT 1`,
-                        [row.id, row.id], (qvErr, qv) => {
-                            db.get("SELECT refund_due, refund_amount, refund_status, refunded_at, reason FROM cancellations WHERE booking_id = ?",
-                                [row.id], (cErr, cancRow) => {
+                    getQuoteVersionInfoForTracking(row.id, (qvErr, qv) => {
+                            getCancellationSummaryForTracking(row.id, (cErr, cancRow) => {
                                     db.get("SELECT pdf_url, status, sent_to_client_at, signed_by_client_at, signed_by_comedian_at, is_frozen FROM contracts WHERE booking_id = ?", [row.id], (contractErr, contractRow) => {
                                         // SEC: build the public payload from an explicit allowlist rather than
                                         // spreading the full `bookings` row and denylisting a few gateway fields.
@@ -6993,7 +6987,7 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
                     return { status: 409, body: { success: false, message: 'This quote has already been accepted.' } };
                 }
 
-                await dbRun("UPDATE quotations SET status = 'accepted' WHERE booking_id = ? AND archived = 0", [bookingId]);
+                await markQuotationAcceptedAsync(bookingId);
 
                 // P3-3: Audit log for quote acceptance
                 await dbRun(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp, ip_address)
@@ -7118,13 +7112,7 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
         try {
             // Log the client's request as a booking note first (critical operation)
             const noteText = `[${typeLabel} Request]\n"${message.trim()}"`;
-            await new Promise((resolveNote, rejectNote) => {
-                db.run(
-                    "INSERT INTO booking_notes (booking_id, note, author) VALUES (?, ?, 'Client')",
-                    [row.id, encodeUserHtml(noteText)],
-                    (noteErr) => noteErr ? rejectNote(noteErr) : resolveNote()
-                );
-            });
+            await insertBookingNoteFromTracker(row.id, encodeUserHtml(noteText));
 
             // Send email notifications asynchronously in the background (no await)
             sendEmail({
@@ -7169,7 +7157,7 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
 const MIN_ADVANCE_HOURS = 48;
 
 function checkDateAvailability(dateStr, callback, excludeBookingId) {
-    db.all("SELECT start_time, end_time, block_type FROM date_holds WHERE hold_date = ? AND status = 'active' AND (hold_expires_at IS NULL OR hold_expires_at > datetime('now'))", [dateStr], (err, holds) => {
+    getDateHoldsForAvailabilityCheck(dateStr, (err, holds) => {
         if (err) return callback(err);
         
         let allDay = false;
@@ -7198,7 +7186,7 @@ function checkDateAvailability(dateStr, callback, excludeBookingId) {
         }
         
         // Also check standalone events
-        db.all("SELECT event_datetime FROM events WHERE date(event_datetime) = ? AND booking_id IS NULL", [dateStr], (err, events) => {
+        getUpcomingStandaloneEventOnDate(dateStr, (err, events) => {
             if (err) return callback(err);
             
             if (events) {
@@ -7231,9 +7219,8 @@ function checkDateAvailability(dateStr, callback, excludeBookingId) {
             // being moved conflicting with its own (pre-move) row.
             const excludeClause = excludeBookingId ? ' AND id != ?' : '';
             const bookingParams = excludeBookingId ? [dateStr, excludeBookingId] : [dateStr];
-            db.all(
-                `SELECT event_start_time, performance_end_time, performance_duration
-                 FROM bookings WHERE date = ? AND status NOT IN ('CANCELLED', 'EXPIRED')${excludeClause}`,
+            getBookingsOnDateForAvailability(
+                excludeClause,
                 bookingParams,
                 (err, bookings) => {
                     if (err) return callback(err);
@@ -7328,7 +7315,7 @@ app.get('/api/public/availability', ipRateLimiter, trackRateLimiter, (req, res) 
 app.get('/api/public/booking-config', ipRateLimiter, (req, res) => {
     const dayOfWeek = req.query.dow !== undefined ? parseInt(req.query.dow) : new Date().getDay();
     db.get("SELECT start_time, end_time, is_working_day FROM working_hours WHERE day_of_week = ?", [dayOfWeek], (err, wh) => {
-        db.get("SELECT setting_value FROM settings WHERE setting_key = 'min_booking_gap_minutes'", [], (err2, gapRow) => {
+        getMinBookingGapSetting((err2, gapRow) => {
             res.json({
                 working_hours_start:     (!err && wh) ? wh.start_time : '09:00',
                 working_hours_end:       (!err && wh) ? wh.end_time   : '22:00',
@@ -7343,8 +7330,8 @@ app.get('/api/public/booking-config', ipRateLimiter, (req, res) => {
 app.get('/api/admin/working-hours', requireAdmin, (req, res) => {
     db.all("SELECT day_of_week, start_time, end_time, is_working_day FROM working_hours ORDER BY day_of_week", [], (err, rows) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
-        db.get("SELECT setting_value FROM settings WHERE setting_key = 'min_booking_gap_minutes'", [], (err2, gapRow) => {
-            db.get("SELECT setting_value FROM settings WHERE setting_key = 'type_buffers'", [], (err3, tbRow) => {
+        getMinBookingGapSetting((err2, gapRow) => {
+            getTypeBuffersSetting((err3, tbRow) => {
                 let type_buffers = {};
                 if (!err3 && tbRow) { try { type_buffers = JSON.parse(tbRow.setting_value) || {}; } catch(e) {} }
                 res.json({
@@ -7390,11 +7377,8 @@ app.put('/api/admin/working-hours', requireAdmin, (req, res) => {
                 [d.day_of_week, d.start_time, d.end_time, d.is_working_day ? 1 : 0]
             );
         });
-        db.run(`INSERT INTO settings (setting_key, setting_value) VALUES ('min_booking_gap_minutes', ?)
-                ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value`, [String(gap)]);
-        db.run(`INSERT INTO settings (setting_key, setting_value) VALUES ('type_buffers', ?)
-                ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value`,
-            [JSON.stringify(safeTypeBuffers)], (err) => {
+        saveMinBookingGapMinutes(String(gap));
+        saveTypeBuffers(JSON.stringify(safeTypeBuffers), (err) => {
                 if (err) return res.status(500).json({ success: false, error: err.message });
                 MIN_BOOKING_GAP_MINS = gap;
                 TYPE_BUFFERS = safeTypeBuffers;
@@ -7413,9 +7397,8 @@ app.get('/api/public/availability/month', ipRateLimiter, (req, res) => {
     const monthStr = String(month).padStart(2, '0');
     const prefix = `${year}-${monthStr}`;
 
-    db.all(
-        "SELECT hold_date FROM date_holds WHERE hold_date LIKE ? AND status = 'active' AND start_time IS NULL",
-        [prefix + '%'],
+    getActiveHoldDatesForMonth(
+        prefix + '%',
         (err, holds) => {
             const heldDates = (holds || []).map(r => r.hold_date);
             db.all(
@@ -7492,14 +7475,13 @@ app.get('/api/admin/bookings/:id/cancellation-preview', requireAdmin, (req, res)
 // P2.0 — Reopen an EXPIRED booking — resets to PENDING so admin can issue a new quote
 app.post('/api/admin/bookings/:id/reopen', requireAdmin, (req, res) => {
     const bookingId = parseInt(req.params.id, 10);
-    db.get("SELECT id, status, name, email FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
+    getBookingStatusNameEmail(bookingId, (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if ((booking.status || '').toUpperCase() !== 'EXPIRED') {
             return res.status(400).json({ success: false, message: `Only EXPIRED bookings can be reopened. Current status: ${booking.status}.` });
         }
-        db.run(
-            `UPDATE bookings SET status = 'PENDING', quote_amount = NULL, quote_details = NULL, quote_expiry_date = NULL, quoted_at = NULL WHERE id = ?`,
-            [bookingId],
+        reopenBooking(
+            bookingId,
             function(upErr) {
                 if (upErr) return res.status(500).json({ success: false, message: upErr.message });
                 db.run(
@@ -7519,7 +7501,7 @@ app.post('/api/admin/bookings/:id/reopen', requireAdmin, (req, res) => {
 // P2.0b — Book Again — creates a new PENDING booking pre-filled from a CANCELLED booking
 app.post('/api/admin/bookings/:id/book-again', requireAdmin, async (req, res) => {
     const originalId = parseInt(req.params.id, 10);
-    db.get("SELECT * FROM bookings WHERE id = ?", [originalId], async (err, orig) => {
+    getBookingById(originalId, async (err, orig) => {
         if (err || !orig) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if ((orig.status || '').toUpperCase() !== 'CANCELLED') {
             return res.status(400).json({ success: false, message: `Only CANCELLED bookings can be rebooked. Current status: ${orig.status}.` });
@@ -7561,22 +7543,7 @@ app.post('/api/admin/bookings/:id/book-again', requireAdmin, async (req, res) =>
         }
 
         // Copy client + event fields; reset all financial and lifecycle fields
-        db.run(
-            `INSERT INTO bookings (
-                name, company, email, cell,
-                event_name, date, event_start_time, performance_slot, performance_duration,
-                event_location, venue_address, city, country, venue_type,
-                event_type, audience_size, audience_demographic, budget_range,
-                travel_accommodation, message,
-                status, payment_status, rebooked_from_id, created_at
-             ) VALUES (
-                ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
-                ?, ?, ?, ?,
-                ?, ?,
-                'NEW', 'UNPAID', ?, CURRENT_TIMESTAMP
-             )`,
+        insertBookAgainBooking(
             [
                 orig.name, orig.company || null, orig.email, orig.cell,
                 orig.event_name || null, orig.date, orig.event_start_time || null, orig.performance_slot || null, orig.performance_duration || null,
@@ -7617,7 +7584,7 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
     const validCancelledBy = ['client', 'comedian', 'mutual', 'force_majeure'];
     const cancelledBy = validCancelledBy.includes(cancelled_by) ? cancelled_by : 'comedian';
 
-    db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
+    getBookingById(bookingId, (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         const currentStatus = (booking.status || '').toUpperCase();
         if (['COMPLETED', 'CANCELLED'].includes(currentStatus)) {
@@ -7653,17 +7620,9 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
                     // aborted the whole statement — this route returned 500 on every call. The real
                     // payment state must survive cancellation anyway: the refund owed is computed
                     // from what the client actually paid.
-                    await dbRun("UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [bookingId]);
+                    await cancelBookingAsync(bookingId);
 
-                    await dbRun(`INSERT INTO cancellations (booking_id, cancelled_by, reason, total_paid_to_date, refund_due, retention_amount, notes, admin_id, refund_status)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-                        ON CONFLICT(booking_id) DO UPDATE SET
-                            cancelled_by = excluded.cancelled_by, reason = excluded.reason,
-                            total_paid_to_date = excluded.total_paid_to_date, refund_due = excluded.refund_due,
-                            retention_amount = excluded.retention_amount, notes = excluded.notes,
-                            admin_id = excluded.admin_id, refund_status = excluded.refund_status,
-                            cancelled_at = CURRENT_TIMESTAMP`,
-                        [bookingId, cancelledBy, reason || null, totalPaid, refundDue, retentionAmount, notes || null, req.session.adminId]);
+                    await insertCancellationForAdminCancel(bookingId, cancelledBy, reason || null, totalPaid, refundDue, retentionAmount, notes || null, req.session.adminId);
 
                     await dbRun(
                         `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
@@ -7674,11 +7633,11 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
                          req.session.adminId || 'admin']);
 
                     // Release date holds
-                    await dbRun("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [bookingId]);
+                    await releaseDateHoldsForBookingAsync(bookingId);
                     // Cascade: void open invoices so admin stops chasing payment
-                    await dbRun("UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [bookingId]);
+                    await voidInvoicesForCancelledBookingAsync(bookingId);
                     // Cascade: cancel pending payment schedule items
-                    await dbRun("UPDATE payment_schedules SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status='pending'", [bookingId]);
+                    await cancelPendingPaymentSchedulesAsync(bookingId);
                     // Cascade: demote the linked event to draft/cancelled AND clear both cross-reference
                     // FKs (bookings.event_id <-> events.booking_id) — this used to only clear the event's
                     // side (booking_id=NULL) while applyStatusChange's CANCELLED branch only cleared the
@@ -7688,21 +7647,18 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
                     // booking was cancelled. Matches by booking_id (the event's own pointer) rather than
                     // only booking.event_id, so a pre-existing orphaned cross-reference left by that
                     // inconsistency still gets cleaned up here rather than silently skipped.
-                    const linkedEvent = await dbGet("SELECT event_id, google_calendar_event_id FROM events WHERE booking_id = ?", [bookingId]);
+                    const linkedEvent = await getEventByBookingId(bookingId);
                     if (linkedEvent) linkedEventGoogleId = linkedEvent.google_calendar_event_id || null;
-                    await dbRun(
-                        "UPDATE events SET booking_id = NULL, event_status = 'draft', cancelled_at = CURRENT_TIMESTAMP, cancellation_reason = ? WHERE booking_id = ?",
-                        ['Linked booking #' + bookingId + ' was cancelled', bookingId]
-                    );
+                    await demoteEventForCancelledBookingByBookingIdAsync('Linked booking #' + bookingId + ' was cancelled', bookingId);
                     if (booking.event_id) {
-                        await dbRun("UPDATE bookings SET is_public = 0, event_id = NULL WHERE id = ?", [bookingId]);
+                        await clearBookingPublicAndEventIdAsync(bookingId);
                     }
                     // The event may have its own separate Google Calendar entry (synced via
                     // syncEventToCalendar, independent of the booking's own google_event_id, handled as
                     // a post-commit side effect below alongside it) — without clearing it here too, it
                     // stays live/public on Google even though it's now locally demoted to draft.
                     if (linkedEventGoogleId) {
-                        await dbRun("UPDATE events SET google_calendar_event_id = NULL WHERE event_id = ?", [linkedEvent.event_id]);
+                        await clearEventGoogleCalendarIdAsync(linkedEvent.event_id);
                     }
 
                     await dbRun("COMMIT");
@@ -7725,7 +7681,7 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
                 // Null it regardless of the delete's outcome above — deleteGoogleEvent() never rejects
                 // (it swallows its own errors), and leaving a stale ID here permanently breaks any later
                 // sync attempt for this booking (update-against-a-deleted-event fails silently forever).
-                db.run("UPDATE bookings SET google_event_id = NULL WHERE id = ?", [bookingId]);
+                clearBookingGoogleEventId(bookingId);
             }
             // The linked event's own separate Google Calendar entry (if any) — already nulled in the DB
             // inside the transaction above; the actual Google delete call happens here, after commit,
@@ -7747,7 +7703,7 @@ app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
  */
 app.post('/api/admin/bookings/:id/complete', requireAdmin, (req, res) => {
     const bookingId = req.params.id;
-    db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
+    getBookingById(bookingId, (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if (booking.status !== 'CONFIRMED') {
             return res.status(400).json({ success: false, message: `Only CONFIRMED bookings can be marked complete (current: ${booking.status}).` });
@@ -7761,7 +7717,7 @@ app.post('/api/admin/bookings/:id/complete', requireAdmin, (req, res) => {
                 amount_outstanding: outstanding
             });
         }
-        db.run("UPDATE bookings SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP WHERE id = ?", [bookingId], async function(upErr) {
+        markBookingCompletedManual(bookingId, async function(upErr) {
             if (upErr) return res.status(500).json({ success: false, error: upErr.message });
             db.run(
                 `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
@@ -7777,8 +7733,7 @@ app.post('/api/admin/bookings/:id/complete', requireAdmin, (req, res) => {
             sendBookingCompletedEmail(booking).catch(e => console.error('Completed email failed:', e.message));
             // Advance linked event to 'completed' status
             if (booking.event_id) {
-                db.run("UPDATE events SET event_status = 'completed', modified_on = CURRENT_TIMESTAMP WHERE event_id = ? AND event_status NOT IN ('cancelled', 'completed')",
-                    [booking.event_id],
+                advanceEventToCompleted(booking.event_id,
                     (evErr) => { if (evErr) console.error('[Complete] Event status advance failed:', evErr.message); }
                 );
             }
@@ -7804,18 +7759,14 @@ app.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administra
     }
 
     try {
-        const row = await dbGet("SELECT * FROM cancellations WHERE booking_id = ?", [bookingId]);
+        const row = await getCancellationForRefund(bookingId);
         if (!row) return res.status(404).json({ success: false, message: 'No cancellation record found for this booking.' });
 
         // Validate against what has ACTUALLY been refunded so far (the transactions ledger — the
         // same source of truth the amount_paid recalculation below reads from), not just the single
         // amount submitted in this call. Comparing `amt` alone against total_paid_to_date let two
         // separate calls each pass the check individually and refund more than the client ever paid.
-        const refRow = await dbGet(
-            `SELECT COALESCE(SUM(amount), 0) AS already_refunded FROM transactions
-             WHERE booking_id = ? AND transaction_type = 'refund' AND is_duplicate = 0 AND (status = 'completed' OR status IS NULL)`,
-            [bookingId]
-        );
+        const refRow = await getAlreadyRefundedAmount(bookingId);
         const alreadyRefunded = parseFloat(refRow && refRow.already_refunded) || 0;
         const remaining = row.total_paid_to_date - alreadyRefunded;
 
@@ -7839,18 +7790,12 @@ app.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administra
             ? (row.refund_notes ? `${row.refund_notes}\n${notes}` : notes)
             : row.refund_notes || null;
 
-        await dbRun(
-            `UPDATE cancellations SET refund_status = 'processed', refund_amount = ?, refund_reference = ?, refund_notes = ?, refunded_at = CURRENT_TIMESTAMP WHERE booking_id = ?`,
-            [cumulativeRefund, cumulativeReference, cumulativeNotes, bookingId]
-        );
+        await updateCancellationRefund(cumulativeRefund, cumulativeReference, cumulativeNotes, bookingId);
 
         // P2-11: Record refund transaction first, then recalculate amount_paid from
         // SUM(transactions) to avoid ledger drift from arithmetic operations.
-        await dbRun(
-            `INSERT INTO transactions (booking_id, amount, transaction_date, payment_method, reference, transaction_type, status, notes, source)
-             VALUES (?, ?, DATE('now'), 'bank_transfer', ?, 'refund', 'completed', ?, 'admin_refund')`,
-            [bookingId, amt, refund_reference || null, notes || `Refund for cancellation of Booking #${bookingId}`]
-        ).catch(tErr => console.error('[Refund] Transaction log failed:', tErr.message));
+        await insertRefundTransaction(bookingId, amt, refund_reference || null, notes || `Refund for cancellation of Booking #${bookingId}`)
+            .catch(tErr => console.error('[Refund] Transaction log failed:', tErr.message));
 
         await dbRun(`UPDATE bookings SET
                 amount_paid = MAX(0, (
@@ -7874,7 +7819,7 @@ app.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administra
         // refunded booking stayed marked PAID. Same derivation the /transactions/manual
         // refund branch uses. (trg_auto_payment_status only ever forces PAID when
         // outstanding hits 0, so it cannot demote a refunded booking on its own.)
-        const bRow = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
+        const bRow = await getBookingByIdAsync(bookingId);
         if (!bRow) {
             return res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.` });
         }
@@ -7885,7 +7830,7 @@ app.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administra
         else if (newPaid <= 0)                   payment_status = 'UNPAID';
         else if (total > 0 && newPaid >= total * 0.5) payment_status = 'DEPOSIT_PAID';
         else                                     payment_status = 'PARTIALLY_PAID';
-        db.run("UPDATE bookings SET payment_status = ? WHERE id = ?", [payment_status, bookingId],
+        setBookingPaymentStatus(payment_status, bookingId,
             (psErr) => { if (psErr) console.error('[Refund] payment_status re-derivation failed:', psErr.message); });
         // amount_paid dropped — re-run the milestone waterfall so covered rows
         // that are no longer covered fall back to pending.
@@ -7904,9 +7849,7 @@ app.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administra
 const contractUpload = multer({
     storage: multer.diskStorage({
         destination: function(req, file, cb) {
-            const dir = path.join(__dirname, 'docs', 'contracts');
-            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-            cb(null, dir);
+            cb(null, docsWriteDir('contracts'));
         },
         filename: function(req, file, cb) {
             cb(null, `contract-${req.params.id}-${Date.now()}${path.extname(file.originalname)}`);
@@ -7938,16 +7881,13 @@ const DEFAULT_CONTRACT_CLAUSES = {
 // pre-fill route (display only), so both always agree on the same numbers.
 async function resolveContractFeeData(bookingId, booking) {
     const vatRate = await getVatRate();
-    const activeQuote = await new Promise(r => db.get(
-        `SELECT * FROM quotations WHERE booking_id = ? AND archived = 0 AND status NOT IN ('void','archived') ORDER BY version DESC LIMIT 1`,
-        [bookingId], (e, row) => r(e ? null : row)));
+    const activeQuote = await getActiveQuoteForContractFeeData(bookingId);
 
     let items = [];
     let quoteData = {};
     try { quoteData = JSON.parse(booking.quote_details || '{}'); } catch (ex) {}
     if (activeQuote) {
-        const qLines = await new Promise(r => db.all("SELECT * FROM quote_line_items WHERE quotation_id = ? ORDER BY id ASC",
-            [activeQuote.id], (e, rows) => r(e ? [] : (rows || []))));
+        const qLines = await getQuoteLineItems(activeQuote.id);
         if (qLines.length) items = qLines.map(li => ({ description: li.description, quantity: parseFloat(li.quantity) || 1, unit_price: parseFloat(li.unit_price) || 0, service_id: li.service_id }));
     }
     if (items.length === 0 && Array.isArray(quoteData.items)) items = quoteData.items;
@@ -7964,9 +7904,7 @@ async function resolveContractFeeData(bookingId, booking) {
         items = [{ description: 'Performance Booking Service', quantity: 1, unit_price: subtotal }];
     }
 
-    const schedules = await new Promise(r => db.all(
-        "SELECT description, due_date, expected_amount FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
-        [bookingId], (e, rows) => r(e ? [] : (rows || []))));
+    const schedules = await getPaymentSchedulesForDocument(bookingId);
 
     return { items, total, applyVat, schedules, quoteNumber: activeQuote ? activeQuote.quote_number : null };
 }
@@ -8083,8 +8021,7 @@ async function generateContract(bookingId, clauseOverrides = null) {
 
     const contractNo = `AGR-${moment().format('YYYY')}-${String(bookingId).padStart(4, '0')}`;
     const pdfFileName = `${contractNo}-${moment().format('YYYYMMDDHHmmss')}.pdf`;
-    const contractsDir = path.join(__dirname, 'docs', 'contracts');
-    if (!fs.existsSync(contractsDir)) fs.mkdirSync(contractsDir, { recursive: true });
+    const contractsDir = docsWriteDir('contracts');
     const pdfPath = path.join(contractsDir, pdfFileName);
 
     await pdfService.generateContract(booking, feeData.items, pdfPath, {
@@ -8251,7 +8188,7 @@ app.post('/api/admin/bookings/:id/contract', requireAdmin, (req, res, next) => {
     const templateVersion = (req.body.template_version || '1.0').substring(0, 20);
     const uploadedBy = req.session.username || 'system';
 
-    db.get("SELECT status FROM bookings WHERE id = ?", [bookingId], (bErr, bk) => {
+    getBookingStatus(bookingId, (bErr, bk) => {
         if (bErr || !bk) return res.status(404).json({ success: false, message: 'Booking not found.' });
         // Acceptance-before-contract: don't attach a contract to a booking that hasn't accepted its quote.
         if (!CONTRACT_ELIGIBLE_STATUSES.includes((bk.status || '').toUpperCase())) {
@@ -8332,7 +8269,7 @@ app.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => {
                 try { clientHash = (JSON.parse(existing.client_signature_data) || {}).signed_file_sha256 || null; } catch (pe) {}
             }
             if (clientHash && existing.pdf_url) {
-                const cpath = path.join(__dirname, 'docs', 'contracts', existing.pdf_url);
+                const cpath = resolveDocsPath('contracts', existing.pdf_url);
                 if (fs.existsSync(cpath)) {
                     const nowHash = crypto.createHash('sha256').update(fs.readFileSync(cpath)).digest('hex');
                     integrityVerified = (nowHash === clientHash);
@@ -8375,7 +8312,7 @@ app.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => {
 app.get('/api/admin/bookings/:id/contract/download', requireAdmin, (req, res) => {
     db.get("SELECT pdf_url FROM contracts WHERE booking_id = ?", [req.params.id], (err, row) => {
         if (err || !row || !row.pdf_url) return res.status(404).json({ success: false, message: 'No contract on file for this booking.' });
-        const filePath = path.join(__dirname, 'docs', 'contracts', row.pdf_url);
+        const filePath = resolveDocsPath('contracts', row.pdf_url);
         if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: 'Contract file not found on server. It may have been deleted.' });
         res.download(filePath, row.pdf_url, (dlErr) => {
             if (dlErr) console.error('[Contract Download Error]', dlErr.message);
@@ -8401,7 +8338,7 @@ app.post('/api/admin/bookings/:id/contract/send', requireAdmin, mutateRateLimite
             if (contract.status === 'signed' || contract.is_frozen === 1) {
                 return res.status(400).json({ success: false, message: 'This contract is already signed and finalised.' });
             }
-            const pdfPath = path.join(__dirname, 'docs', 'contracts', contract.pdf_url);
+            const pdfPath = resolveDocsPath('contracts', contract.pdf_url);
             if (!fs.existsSync(pdfPath)) return res.status(404).json({ success: false, message: 'Contract file not found on server. Regenerate it first.' });
 
             try {
@@ -8432,7 +8369,7 @@ app.post('/api/admin/bookings/:id/contract/send', requireAdmin, mutateRateLimite
 // Gap 8: POST — send contract signature reminder email to client
 app.post('/api/admin/bookings/:id/contract/remind', requireAdmin, mutateRateLimiter, (req, res) => {
     const bookingId = req.params.id;
-    db.get(`SELECT id, name, email, event_name, date FROM bookings WHERE id = ?`, [bookingId], (err, b) => {
+    getBookingForContractRemind(bookingId, (err, b) => {
         if (err || !b) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
         // Idempotency: this route wrote nothing and had no throttle, so the reminder could be sent
@@ -8611,7 +8548,7 @@ app.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateLimi
             let signedFileHash = null;
             try {
                 if (contract.pdf_url) {
-                    const cpath = path.join(__dirname, 'docs', 'contracts', contract.pdf_url);
+                    const cpath = resolveDocsPath('contracts', contract.pdf_url);
                     if (fs.existsSync(cpath)) signedFileHash = crypto.createHash('sha256').update(fs.readFileSync(cpath)).digest('hex');
                 }
             } catch (hErr) { console.error('[Contract Sign] Could not hash PDF for booking #' + bookingId + ':', hErr.message); }
@@ -8726,8 +8663,7 @@ app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
         
         if (isBooking) {
             // We lack specific date/event_type from the current frontend form, so we use placeholders or derivations
-            db.run(`INSERT INTO bookings (name, email, cell, date, event_type, message, status, popia_consent, consent_timestamp) VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 1, CURRENT_TIMESTAMP)`, 
-                [name, email, cell, 'TBD', category, `${subject}\n\n${message}`], function(err) {
+            insertLegacyBookingFromContactForm(name, email, cell, category, `${subject}\n\n${message}`, function(err) {
                     if (err) console.error("DB Insert Error (Bookings):", err);
                 });
         } else {
@@ -8735,8 +8671,7 @@ app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
             const user_agent = req.get('User-Agent') || '';
             const routing_path = req.get('Referrer') || req.originalUrl || '';
             
-            db.run(`INSERT INTO inquiries (sender_name, sender_email, receiver_email, sender_phone, category, subject, message_body, status, routing_path, ip_address, user_agent, popia_consent, consent_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?, 'unread', ?, ?, ?, 1, CURRENT_TIMESTAMP)`, 
-                [encodeUserHtml(name), email, receiver, cell || '', category || 'Contact Form', encodeUserHtml(subject) || 'No Subject', encodeUserHtml(message), routing_path, ip_address, user_agent], function(err) {
+            insertInquiry(encodeUserHtml(name), email, receiver, cell || '', category || 'Contact Form', encodeUserHtml(subject) || 'No Subject', encodeUserHtml(message), routing_path, ip_address, user_agent, function(err) {
                     if (err) console.error("DB Insert Error (Inquiries):", err);
                 });
         }
@@ -8910,8 +8845,7 @@ app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
 
     // Double opt-in: new signups start pending, not active — they only count toward campaigns
     // (status='active' everywhere) and get the real welcome email once they confirm.
-    db.run(`INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, ip_address, user_agent, source, popia_consent, consent_timestamp, policy_version, first_name, birthday_day, birthday_month) VALUES (?, 'pending_confirmation', 0, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?, ?, ?)`,
-    [email, unsubscribe_token, ip_address, user_agent, source, CURRENT_POLICY_VERSION, first_name, birthdayDayVal, birthdayMonthVal], function(err) {
+    insertPendingSubscriber(email, unsubscribe_token, ip_address, user_agent, source, CURRENT_POLICY_VERSION, first_name, birthdayDayVal, birthdayMonthVal, function(err) {
         if (err) {
             if (!err.message.includes('UNIQUE')) {
                 console.error("Newsletter Subscription DB Error:", err.message);
@@ -8921,7 +8855,7 @@ app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
             // All non-'active' branches return the SAME response body: differentiating "brand new"
             // vs. "resend" vs. "reactivating" in the response would let an attacker learn an
             // email's subscription history without ever proving they control that inbox.
-            db.get("SELECT subscriber_id, status, unsubscribe_token, modified_on FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)", [email], (selErr, row) => {
+            getSubscriberDuplicateCheck(email, (selErr, row) => {
                 if (selErr || !row) return res.status(500).json({ success: false, message: 'Server error.' });
 
                 if (row.status === 'active') {
@@ -8931,8 +8865,7 @@ app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
                 if (row.status === 'pending_confirmation') {
                     // Cooldown-gated resend (5 min, keyed off modified_on — no new column) so
                     // repeatedly resubmitting the same email can't be used to bomb an inbox.
-                    db.run("UPDATE newsletter_subscribers SET modified_on = CURRENT_TIMESTAMP WHERE subscriber_id = ? AND (modified_on IS NULL OR datetime(modified_on) <= datetime('now', '-5 minutes'))",
-                        [row.subscriber_id], function(cooldownErr) {
+                    touchSubscriberCooldown(row.subscriber_id, function(cooldownErr) {
                         if (!cooldownErr && this.changes > 0) {
                             sendNewsletterConfirmationEmail(email, first_name, row.unsubscribe_token).catch(e => console.error('Error resending confirmation email to ' + email + ':', e));
                         }
@@ -8944,11 +8877,7 @@ app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
                 // status === 'unsubscribed' (the bug fix): a genuine resubscribe. Reuse the
                 // existing unsubscribe_token (any unsubscribe link from a past campaign keeps working)
                 // and re-capture consent/profile fields fresh from this submission.
-                db.run(`UPDATE newsletter_subscribers SET status = 'pending_confirmation', active = 0, confirmed_at = NULL,
-                        popia_consent = 1, consent_timestamp = CURRENT_TIMESTAMP, policy_version = ?, first_name = ?,
-                        birthday_day = ?, birthday_month = ?, ip_address = ?, user_agent = ?, source = ?, modified_on = CURRENT_TIMESTAMP
-                        WHERE subscriber_id = ?`,
-                    [CURRENT_POLICY_VERSION, first_name, birthdayDayVal, birthdayMonthVal, ip_address, user_agent, source, row.subscriber_id], (reErr) => {
+                reactivateSubscriber(CURRENT_POLICY_VERSION, first_name, birthdayDayVal, birthdayMonthVal, ip_address, user_agent, source, row.subscriber_id, (reErr) => {
                     if (reErr) return res.status(500).json({ success: false, message: 'Server error.' });
                     sendNewsletterConfirmationEmail(email, first_name, row.unsubscribe_token).catch(e => console.error('Error sending confirmation email to ' + email + ':', e));
                     res.json({ success: true, message: NEWSLETTER_PENDING_MESSAGE });
@@ -8972,7 +8901,7 @@ app.post('/api/public/newsletter/confirm', ipRateLimiter, (req, res) => {
         return res.status(400).json({ success: false, message: 'Missing required parameters.' });
     }
 
-    db.get("SELECT subscriber_id, status, first_name, unsubscribe_token FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?) AND unsubscribe_token = ?", [email, token], (err, row) => {
+    getSubscriberForConfirm(email, token, (err, row) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         if (!row) return res.status(404).json({ success: false, message: 'Invalid confirmation link or subscriber not found.' });
 
@@ -8986,7 +8915,7 @@ app.post('/api/public/newsletter/confirm', ipRateLimiter, (req, res) => {
             return res.status(409).json({ success: false, message: 'This subscription is no longer active. Please sign up again to resubscribe.' });
         }
 
-        db.run("UPDATE newsletter_subscribers SET status = 'active', active = 1, confirmed_at = CURRENT_TIMESTAMP, modified_on = CURRENT_TIMESTAMP WHERE subscriber_id = ?", [row.subscriber_id], (uErr) => {
+        confirmSubscriber(row.subscriber_id, (uErr) => {
             if (uErr) return res.status(500).json({ success: false, error: uErr.message });
             sendNewsletterWelcomeEmail(email, row.first_name, row.unsubscribe_token).catch(e => console.error('Error sending welcome email to ' + email + ':', e));
             res.json({ success: true, message: 'Subscription confirmed! Welcome aboard.' });
@@ -9001,11 +8930,11 @@ app.post('/api/public/newsletter/unsubscribe', ipRateLimiter, (req, res) => {
         return res.status(400).json({ success: false, message: 'Missing required parameters.' });
     }
 
-    db.get("SELECT subscriber_id FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?) AND unsubscribe_token = ?", [email, token], (err, row) => {
+    getSubscriberForUnsubscribe(email, token, (err, row) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         if (!row) return res.status(404).json({ success: false, message: 'Invalid unsubscription link or subscriber not found.' });
 
-        db.run("UPDATE newsletter_subscribers SET status = 'unsubscribed', active = 0, modified_on = CURRENT_TIMESTAMP WHERE subscriber_id = ?", [row.subscriber_id], (uErr) => {
+        unsubscribeSubscriber(row.subscriber_id, (uErr) => {
             if (uErr) return res.status(500).json({ success: false, error: uErr.message });
             res.json({ success: true, message: 'Successfully unsubscribed.' });
         });
@@ -9098,10 +9027,9 @@ app.get('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
     }
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    db.get(`SELECT COUNT(*) AS total FROM newsletter_subscribers ${whereClause}`, qp, (err, countRow) => {
+    countSubscribers(whereClause, qp, (err, countRow) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
-        db.all(`SELECT * FROM newsletter_subscribers ${whereClause} ORDER BY ${orderClause} LIMIT ? OFFSET ?`,
-            [...qp, limit, offset], (err2, rows) => {
+        listSubscribers(whereClause, orderClause, [...qp, limit, offset], (err2, rows) => {
             if (err2) return res.status(500).json({ success: false, message: err2.message });
             const total = countRow.total;
             res.json({ success: true, subscribers: rows, total, page, pages: Math.ceil(total / limit) });
@@ -9113,12 +9041,7 @@ app.get('/api/admin/newsletter/subscribers', requireAdmin, (req, res) => {
 // rather than folded into the paginated list response, which would recompute them on every page
 // turn/search for no reason.
 app.get('/api/admin/newsletter/subscribers/stats', requireAdmin, (req, res) => {
-    db.get(
-        `SELECT
-            COUNT(*) AS total,
-            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active,
-            SUM(CASE WHEN subscribed_at >= datetime('now', '-7 days') THEN 1 ELSE 0 END) AS new_7d
-         FROM newsletter_subscribers`,
+    getSubscriberStats(
         (err, row) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
             res.json({
@@ -9143,8 +9066,7 @@ app.post('/api/admin/newsletter/subscribers', requireAdmin, requireRole(['admini
     const unsubscribe_token = crypto.randomBytes(16).toString('hex');
 
     // Need to insert both 'status' and 'active' to maintain backwards compatibility
-    db.run(`INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, ip_address, user_agent, source, created_by, first_name) VALUES (?, 'active', 1, ?, ?, ?, ?, ?, ?)`,
-    [email, unsubscribe_token, ip_address, user_agent, source, adminId, first_name || null], function(err) {
+    insertSubscriberManual(email, unsubscribe_token, ip_address, user_agent, source, adminId, first_name || null, function(err) {
         if (err) {
             console.error("DEBUG ERROR ADDING SUBSCRIBER MANUAL:", err);
             if (err.message.includes('UNIQUE')) {
@@ -9198,7 +9120,7 @@ app.put('/api/admin/newsletter/subscribers/:id', requireAdmin, requireRole(['adm
     setClauses.push('modified_on = CURRENT_TIMESTAMP', 'modified_by = ?');
     params.push(adminId, subscriberId);
 
-    db.run(`UPDATE newsletter_subscribers SET ${setClauses.join(', ')} WHERE subscriber_id = ?`, params, async function(err) {
+    updateSubscriberProfile(setClauses, params, async function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (this.changes === 0) return res.status(404).json({ success: false, message: 'Subscriber not found' });
         const actor = await resolveActor(adminId);
@@ -9219,7 +9141,7 @@ app.put('/api/admin/newsletter/subscribers/:id/status', requireAdmin, requireRol
         return res.status(400).json({ success: false, message: 'Invalid status' });
     }
 
-    db.get("SELECT status, email, first_name, unsubscribe_token FROM newsletter_subscribers WHERE subscriber_id = ?", [subscriberId], (selErr, row) => {
+    getSubscriberForStatusToggle(subscriberId, (selErr, row) => {
         if (selErr) return res.status(500).json({ success: false, error: selErr.message });
         if (!row) return res.status(404).json({ success: false, message: 'Subscriber not found' });
 
@@ -9228,10 +9150,7 @@ app.put('/api/admin/newsletter/subscribers/:id/status', requireAdmin, requireRol
         const wasPending = row.status === 'pending_confirmation' && status === 'active';
         const confirmedAtClause = wasPending ? ", confirmed_at = CURRENT_TIMESTAMP" : "";
 
-        db.run(`UPDATE newsletter_subscribers
-                SET status = ?, active = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ?${confirmedAtClause}
-                WHERE subscriber_id = ?`,
-            [status, status === 'active' ? 1 : 0, adminId, subscriberId], function(err) {
+        updateSubscriberStatus(confirmedAtClause, status, status === 'active' ? 1 : 0, adminId, subscriberId, function(err) {
             if (err) return res.status(500).json({ success: false, error: err.message });
             if (this.changes === 0) return res.status(404).json({ success: false, message: 'Subscriber not found' });
             if (wasPending) sendNewsletterWelcomeEmail(row.email, row.first_name, row.unsubscribe_token).catch(e => console.error('Error sending welcome email to ' + row.email + ':', e));
@@ -9244,7 +9163,7 @@ app.put('/api/admin/newsletter/subscribers/:id/status', requireAdmin, requireRol
 app.delete('/api/admin/newsletter/subscribers/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     const subscriberId = req.params.id;
 
-    db.run(`DELETE FROM newsletter_subscribers WHERE subscriber_id = ?`, [subscriberId], function(err) {
+    deleteSubscriber(subscriberId, function(err) {
         if (err) return res.status(500).json({ success: false, error: err.message });
         if (this.changes === 0) return res.status(404).json({ success: false, message: 'Subscriber not found' });
         res.json({ success: true, message: 'Subscriber deleted permanently' });
@@ -9266,15 +9185,11 @@ app.put('/api/admin/newsletter/subscribers/bulk-status', requireAdmin, requireRo
     const placeholders = ids.map(() => '?').join(',');
 
     const runBulkUpdate = (pendingRows) => {
-        const sql = `UPDATE newsletter_subscribers
-                     SET status = ?, active = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ?
-                     WHERE subscriber_id IN (${placeholders})`;
-        db.run(sql, [status, status === 'active' ? 1 : 0, adminId, ...ids], function(err) {
+        bulkUpdateSubscriberStatus(placeholders, status, status === 'active' ? 1 : 0, adminId, ids, function(err) {
             if (err) return res.status(500).json({ success: false, error: err.message });
             if (pendingRows.length) {
                 const pendingPlaceholders = pendingRows.map(() => '?').join(',');
-                db.run(`UPDATE newsletter_subscribers SET confirmed_at = CURRENT_TIMESTAMP WHERE subscriber_id IN (${pendingPlaceholders})`,
-                    pendingRows.map(r => r.subscriber_id), () => {});
+                bulkConfirmPendingSubscribers(pendingPlaceholders, pendingRows.map(r => r.subscriber_id), () => {});
                 pendingRows.forEach(r => sendNewsletterWelcomeEmail(r.email, r.first_name, r.unsubscribe_token).catch(e => console.error('Error sending welcome email to ' + r.email + ':', e)));
             }
             res.json({ success: true, message: `${this.changes} subscribers marked as ${status}` });
@@ -9284,8 +9199,7 @@ app.put('/api/admin/newsletter/subscribers/bulk-status', requireAdmin, requireRo
     if (status === 'active') {
         // Same reasoning as the single-toggle endpoint: any row that was still pending
         // confirmation gets the real welcome email + confirmed_at, batched.
-        db.all(`SELECT subscriber_id, email, first_name, unsubscribe_token FROM newsletter_subscribers WHERE subscriber_id IN (${placeholders}) AND status = 'pending_confirmation'`,
-            ids, (selErr, pendingRows) => {
+        getPendingSubscribersForBulkActivate(placeholders, ids, (selErr, pendingRows) => {
             if (selErr) return res.status(500).json({ success: false, error: selErr.message });
             runBulkUpdate(pendingRows || []);
         });
@@ -9303,9 +9217,8 @@ app.post('/api/admin/newsletter/subscribers/bulk-delete', requireAdmin, requireR
     }
 
     const placeholders = ids.map(() => '?').join(',');
-    const sql = `DELETE FROM newsletter_subscribers WHERE subscriber_id IN (${placeholders})`;
-    
-    db.run(sql, ids, function(err) {
+
+    bulkDeleteSubscribers(placeholders, ids, function(err) {
         if (err) return res.status(500).json({ success: false, error: err.message });
         res.json({ success: true, message: `${this.changes} subscribers deleted permanently` });
     });
@@ -9393,25 +9306,11 @@ app.post('/api/admin/newsletter/subscribers/import', requireAdmin, requireRole([
                     // A malformed row is counted and skipped, as before — one bad line must not
                     // roll back an otherwise good import.
                     try {
-                        const upd = await dbRun(
-                            `UPDATE newsletter_subscribers
-                             SET status = ?,
-                                 first_name = COALESCE(NULLIF(?, ''), first_name),
-                                 birthday_day = COALESCE(?, birthday_day),
-                                 birthday_month = COALESCE(?, birthday_month),
-                                 tags = COALESCE(?, tags),
-                                 modified_on = CURRENT_TIMESTAMP, modified_by = ?
-                             WHERE LOWER(email) = LOWER(?)`,
-                            [status, firstName, birthdayDay, birthdayMonth, tagsJson, adminId, email]
-                        );
+                        const upd = await updateSubscriberFromCsvRow(status, firstName, birthdayDay, birthdayMonth, tagsJson, adminId, email);
                         if (upd.changes > 0) {
                             updateCount++;
                         } else {
-                            await dbRun(
-                                `INSERT INTO newsletter_subscribers (email, status, active, unsubscribe_token, source, created_by, first_name, birthday_day, birthday_month, tags)
-                                 VALUES (?, ?, ?, ?, 'csv_import', ?, ?, ?, ?, ?)`,
-                                [email, status, active, unsubscribe_token, adminId, firstName || null, birthdayDay, birthdayMonth, tagsJson]
-                            );
+                            await insertSubscriberFromCsvRow(email, status, active, unsubscribe_token, adminId, firstName || null, birthdayDay, birthdayMonth, tagsJson);
                             successCount++;
                         }
                     } catch (rowErr) {
@@ -9445,7 +9344,7 @@ app.post('/api/admin/newsletter/subscribers/import', requireAdmin, requireRole([
 // Save Draft
 app.post('/api/admin/newsletter/drafts', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), (req, res) => {
     const { subject, content } = req.body;
-    db.run("INSERT INTO newsletter_drafts (subject, content) VALUES (?, ?)", [subject, content], function(err) {
+    insertDraft(subject, content, function(err) {
         if (err) {
             return res.status(500).json({ success: false, message: err.message });
         }
@@ -9457,7 +9356,7 @@ app.post('/api/admin/newsletter/drafts', requireAdmin, requireRole(['administrat
 app.put('/api/admin/newsletter/drafts/:id', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), (req, res) => {
     const { subject, content } = req.body;
     const { id } = req.params;
-    db.run("UPDATE newsletter_drafts SET subject = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [subject, content, id], function(err) {
+    updateDraft(subject, content, id, function(err) {
         if (err) {
             return res.status(500).json({ success: false, message: err.message });
         }
@@ -9467,7 +9366,7 @@ app.put('/api/admin/newsletter/drafts/:id', requireAdmin, requireRole(['administ
 
 // Get All Drafts
 app.get('/api/admin/newsletter/drafts', requireAdmin, (req, res) => {
-    db.all("SELECT id, subject, content, created_at, updated_at FROM newsletter_drafts ORDER BY updated_at DESC", [], (err, rows) => {
+    listDrafts((err, rows) => {
         if (err) {
             return res.status(500).json({ success: false, message: err.message });
         }
@@ -9478,7 +9377,7 @@ app.get('/api/admin/newsletter/drafts', requireAdmin, (req, res) => {
 // Get Single Draft
 app.get('/api/admin/newsletter/drafts/:id', requireAdmin, (req, res) => {
     const { id } = req.params;
-    db.get("SELECT id, subject, content, created_at, updated_at FROM newsletter_drafts WHERE id = ?", [id], (err, row) => {
+    getDraft(id, (err, row) => {
         if (err) {
             return res.status(500).json({ success: false, message: err.message });
         }
@@ -9489,7 +9388,7 @@ app.get('/api/admin/newsletter/drafts/:id', requireAdmin, (req, res) => {
 // Delete Draft
 app.delete('/api/admin/newsletter/drafts/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { id } = req.params;
-    db.run("DELETE FROM newsletter_drafts WHERE id = ?", [id], function(err) {
+    deleteDraft(id, function(err) {
         if (err) {
             return res.status(500).json({ success: false, message: err.message });
         }
@@ -9508,7 +9407,7 @@ function loadPendingScheduledJobs() {
     // and handed it to scheduleNewsletterSend(), which then silently dropped it via its own
     // fireDate <= new Date() guard. This table is low-volume (one comedian's newsletter, not a
     // mass-mailer), so fetching everything and partitioning in JS is simpler and correct.
-    db.all("SELECT * FROM scheduled_newsletters WHERE status = 'pending'", (err, rows) => {
+    getPendingScheduledNewsletters((err, rows) => {
         if (err) return console.error('Failed to load scheduled jobs:', err);
         let recovered = 0;
         rows.forEach(row => {
@@ -9544,24 +9443,21 @@ function scheduleNewsletterSend(schedItem, { fireImmediately = false } = {}) {
         // `db.get` status re-check, which left a real (if narrow, single-process) window for the
         // same row to be processed twice — see the ripple note on campaigns/unified's display_status
         // CASE, which needed a matching update for this new transient 'sending' value.
-        db.run("UPDATE scheduled_newsletters SET status = 'sending' WHERE id = ? AND status = 'pending'", [schedItem.id], async function(claimErr) {
+        claimScheduledNewsletterForSending(schedItem.id, async function(claimErr) {
             if (claimErr || this.changes !== 1) {
                 delete scheduledJobs[schedItem.id];
                 return;
             }
 
             const { condition: segCondition, params: segParams } = buildSegmentCondition(schedItem.segment, schedItem.segment_value);
-            db.all(
-                `SELECT email, unsubscribe_token, first_name, subscribed_at, birthday_day, birthday_month
-                 FROM newsletter_subscribers WHERE status = 'active' ${segCondition}`,
-                segParams, async (err2, subscribers) => {
+            getActiveSubscribersForSegment(segCondition, segParams, async (err2, subscribers) => {
                 if (err2) {
-                    db.run("UPDATE scheduled_newsletters SET status = 'failed' WHERE id = ?", [schedItem.id]);
+                    markScheduledNewsletterFailed(schedItem.id);
                     delete scheduledJobs[schedItem.id];
                     return;
                 }
                 if (!subscribers || subscribers.length === 0) {
-                    db.run("UPDATE scheduled_newsletters SET status = 'skipped' WHERE id = ?", [schedItem.id]);
+                    markScheduledNewsletterSkipped(schedItem.id);
                     delete scheduledJobs[schedItem.id];
                     return;
                 }
@@ -9616,10 +9512,8 @@ function scheduleNewsletterSend(schedItem, { fireImmediately = false } = {}) {
                     // real SMTP pacing is handled independently by processNotificationQueue().
                 }
 
-                db.run("UPDATE scheduled_newsletters SET status = 'sent', success_count = ?, fail_count = ? WHERE id = ?",
-                    [successCount, failCount, schedItem.id]);
-                db.run("INSERT INTO newsletter_campaigns (subject, content, recipient_count, success_count, fail_count) VALUES (?, ?, ?, ?, ?)",
-                    [schedItem.subject, schedItem.content, subscribers.length, successCount, failCount]);
+                markScheduledNewsletterSent(successCount, failCount, schedItem.id);
+                insertCampaignLog(schedItem.subject, schedItem.content, subscribers.length, successCount, failCount);
                 jobAttachments.forEach(a => fs.unlink(a.path, () => {}));
                 delete scheduledJobs[schedItem.id];
                 console.log(`✅ Scheduled newsletter [${schedItem.id}] dispatched: sent ${successCount}/${subscribers.length}, failures: ${failCount}`);
@@ -9676,13 +9570,12 @@ app.post('/api/admin/newsletter/schedule', requireAdmin, requireRole(['administr
         return res.status(400).json({ success: false, message: 'scheduled_at must be a valid future date and time.' });
     }
     const attachmentPaths = JSON.stringify((req.files || []).map(f => ({ filename: f.originalname, path: f.path })));
-    db.run("INSERT INTO scheduled_newsletters (subject, content, scheduled_at, attachment_paths, segment, segment_value) VALUES (?, ?, ?, ?, ?, ?)",
-        [subject, content, scheduled_at, attachmentPaths, segment || null, segment_value || null], function(err) {
+    insertScheduledNewsletter(subject, content, scheduled_at, attachmentPaths, segment || null, segment_value || null, function(err) {
         if (err) {
             return res.status(500).json({ success: false, message: err.message });
         }
         const newId = this.lastID;
-        db.get("SELECT * FROM scheduled_newsletters WHERE id = ?", [newId], (err, row) => {
+        getScheduledNewsletterById(newId, (err, row) => {
             if (!err && row) {
                 scheduleNewsletterSend(row);
             }
@@ -9693,7 +9586,7 @@ app.post('/api/admin/newsletter/schedule', requireAdmin, requireRole(['administr
 
 // Get All Scheduled Newsletters
 app.get('/api/admin/newsletter/schedule', requireAdmin, (req, res) => {
-    db.all("SELECT id, subject, content, scheduled_at, status, created_at FROM scheduled_newsletters ORDER BY scheduled_at DESC", [], (err, rows) => {
+    listScheduledNewsletters((err, rows) => {
         if (err) {
             return res.status(500).json({ success: false, message: err.message });
         }
@@ -9705,8 +9598,8 @@ app.get('/api/admin/newsletter/schedule', requireAdmin, (req, res) => {
 app.delete('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { id } = req.params;
     // Fetch attachment paths before cancelling so we can clean up files
-    db.get("SELECT attachment_paths FROM scheduled_newsletters WHERE id = ? AND status = 'pending'", [id], (fetchErr, row) => {
-        db.run("UPDATE scheduled_newsletters SET status = 'cancelled' WHERE id = ? AND status = 'pending'", [id], function(err) {
+    getScheduledNewsletterAttachmentsIfPending(id, (fetchErr, row) => {
+        cancelScheduledNewsletter(id, function(err) {
             if (err) return res.status(500).json({ success: false, message: err.message });
             if (this.changes === 0) {
                 return res.status(400).json({ success: false, message: 'Newsletter is not pending and cannot be cancelled.' });
@@ -9740,7 +9633,7 @@ app.put('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['admini
     }
 
     // Fetch existing row to handle attachment file management
-    db.get("SELECT attachment_paths FROM scheduled_newsletters WHERE id = ? AND status = 'pending'", [id], (fetchErr, existing) => {
+    getScheduledNewsletterAttachmentsIfPending(id, (fetchErr, existing) => {
         let attachmentPaths;
         if (newFiles.length > 0) {
             // New files uploaded — delete old ones and replace
@@ -9753,8 +9646,7 @@ app.put('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['admini
             attachmentPaths = (existing && existing.attachment_paths) || '[]';
         }
 
-        db.run("UPDATE scheduled_newsletters SET subject = ?, content = ?, scheduled_at = ?, attachment_paths = ?, segment = ?, segment_value = ? WHERE id = ? AND status = 'pending'",
-            [subject, content, scheduled_at, attachmentPaths, segment || null, segment_value || null, id], function(err) {
+        updateScheduledNewsletter(subject, content, scheduled_at, attachmentPaths, segment || null, segment_value || null, id, function(err) {
             if (err) {
                 newFiles.forEach(f => fs.unlink(f.path, () => {}));
                 return res.status(500).json({ success: false, message: err.message });
@@ -9767,7 +9659,7 @@ app.put('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['admini
                 scheduledJobs[id].cancel();
                 delete scheduledJobs[id];
             }
-            db.get("SELECT * FROM scheduled_newsletters WHERE id = ?", [id], (err, row) => {
+            getScheduledNewsletterById(id, (err, row) => {
                 if (!err && row && row.status === 'pending') {
                     scheduleNewsletterSend(row);
                 }
@@ -9793,10 +9685,7 @@ app.post('/api/admin/campaigns', requireAdmin, requireRole(['administrator', 'ma
     const { condition: segCondition, params: segParams } = buildSegmentCondition(segment, segment_value);
 
     // First fetch the segmented subscriber list
-    db.all(
-        `SELECT email, unsubscribe_token, first_name, subscribed_at, birthday_day, birthday_month
-         FROM newsletter_subscribers WHERE status = 'active' ${segCondition}`,
-        segParams, async (err, rows) => {
+    getActiveSubscribersForSegment(segCondition, segParams, async (err, rows) => {
         if (err) {
             uploadedFiles.forEach(f => fs.unlink(f.path, () => {}));
             return res.status(500).json({ success: false, message: 'Database error fetching subscribers' });
@@ -9858,8 +9747,7 @@ app.post('/api/admin/campaigns', requireAdmin, requireRole(['administrator', 'ma
         }
 
         // Log campaign to database then clean up temp attachment files
-        db.run("INSERT INTO newsletter_campaigns (subject, content, recipient_count, success_count, fail_count) VALUES (?, ?, ?, ?, ?)",
-            [subject, message, rows.length, successCount, errors.length], function(err) {
+        insertCampaignLog(subject, message, rows.length, successCount, errors.length, function(err) {
             if (err) console.error("CRITICAL: Error logging campaign to DB:", err);
             uploadedFiles.forEach(f => fs.unlink(f.path, () => {}));
 
@@ -9881,7 +9769,7 @@ app.post('/api/admin/campaigns', requireAdmin, requireRole(['administrator', 'ma
 // with both real send paths above).
 app.get('/api/admin/newsletter/campaigns/audience-count', requireAdmin, (req, res) => {
     const { condition, params } = buildSegmentCondition(req.query.segment, req.query.segment_value);
-    db.get(`SELECT COUNT(*) AS count FROM newsletter_subscribers WHERE status = 'active' ${condition}`, params, (err, row) => {
+    getAudienceCount(condition, params, (err, row) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, count: row.count || 0 });
     });
@@ -9895,9 +9783,7 @@ app.post('/api/admin/campaigns/send-test', requireAdmin, requireRole(['administr
         const { subject, message } = req.body;
         if (!subject || !message) return res.status(400).json({ success: false, message: 'Subject and message are required.' });
 
-        const admin = await new Promise((resolve, reject) => {
-            db.get("SELECT email FROM admins WHERE id = ?", [req.session.adminId], (err, row) => err ? reject(err) : resolve(row));
-        });
+        const admin = await getAdminEmailById(req.session.adminId);
         if (!admin || !admin.email) return res.status(400).json({ success: false, message: 'Could not find your admin email address.' });
 
         const sampleSubscriber = { first_name: 'Alex', email: admin.email, subscribed_at: new Date().toISOString() };
@@ -9950,8 +9836,7 @@ const BIRTHDAY_SETTING_DEFAULTS = {
 const BIRTHDAY_SETTING_KEYS = Object.keys(BIRTHDAY_SETTING_DEFAULTS);
 
 app.get('/api/admin/newsletter/birthday-settings', requireAdmin, (req, res) => {
-    const ph = BIRTHDAY_SETTING_KEYS.map(() => '?').join(',');
-    db.all(`SELECT setting_key, setting_value FROM settings WHERE setting_key IN (${ph})`, BIRTHDAY_SETTING_KEYS, (err, rows) => {
+    getSettingsByKeys(BIRTHDAY_SETTING_KEYS, (err, rows) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         const map = {};
         (rows || []).forEach(r => { map[r.setting_key] = r.setting_value; });
@@ -9982,9 +9867,7 @@ app.put('/api/admin/newsletter/birthday-settings', requireAdmin, requireRole(['a
     if (!keys.length) return res.json({ success: true });
     let pending = keys.length, failed = false;
     keys.forEach(key => {
-        db.run(`INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
-                ON CONFLICT(setting_key) DO UPDATE SET setting_value = excluded.setting_value, updated_at = CURRENT_TIMESTAMP`,
-            [key, updates[key]], (err) => {
+        upsertSettingWithConflictClause(key, updates[key], (err) => {
                 if (err && !failed) { failed = true; console.error('save birthday-settings failed:', err); return res.status(500).json({ success: false, message: 'Could not save birthday settings. Please try again.' }); }
                 if (--pending === 0 && !failed) {
                     if ('birthday_send_time' in updates || 'birthday_automation_enabled' in updates) registerBirthdayJob();
@@ -10050,7 +9933,7 @@ app.post('/api/admin/newsletter/birthday-settings/send-test', requireAdmin, requ
         // when they're an actual subscriber, only falling back to today's date (so the field still
         // resolves to *something*) when the test recipient isn't a real subscriber at all.
         const testSubRow = await new Promise((resolve) => {
-            db.get("SELECT first_name, unsubscribe_token, subscribed_at, birthday_day, birthday_month FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)", [testRecipient], (err, row) => resolve(row));
+            getSubscriberBirthdayFields(testRecipient, (err, row) => resolve(row));
         });
         const sampleSubscriber = {
             first_name: (testSubRow && testSubRow.first_name) || 'Alex',
@@ -10080,17 +9963,7 @@ app.post('/api/admin/newsletter/birthday-settings/send-test', requireAdmin, requ
 });
 
 function getBirthdaySettings() {
-    return new Promise((resolve, reject) => {
-        const ph = BIRTHDAY_SETTING_KEYS.map(() => '?').join(',');
-        db.all(`SELECT setting_key, setting_value FROM settings WHERE setting_key IN (${ph})`, BIRTHDAY_SETTING_KEYS, (err, rows) => {
-            if (err) return reject(err);
-            const map = {};
-            (rows || []).forEach(r => { map[r.setting_key] = r.setting_value; });
-            const result = {};
-            BIRTHDAY_SETTING_KEYS.forEach(k => { result[k] = map[k] != null ? map[k] : BIRTHDAY_SETTING_DEFAULTS[k]; });
-            resolve(result);
-        });
-    });
+    return repoGetBirthdaySettings(BIRTHDAY_SETTING_KEYS, BIRTHDAY_SETTING_DEFAULTS);
 }
 
 // Shared render path for preview/send-test/the real sweep — mirrors the newsletter campaign
@@ -10129,8 +10002,7 @@ async function runBirthdayAutomationSweep() {
     console.log(`[Birthday Automation] Sweeping for birthdays on ${month}/${day}...`);
 
     const subscribers = await new Promise((resolve, reject) => {
-        db.all("SELECT * FROM newsletter_subscribers WHERE status = 'active' AND birthday_day = ? AND birthday_month = ?",
-            [day, month], (err, rows) => err ? reject(err) : resolve(rows || []));
+        getSubscribersWithBirthdayToday(day, month, (err, rows) => err ? reject(err) : resolve(rows || []));
     });
     if (!subscribers.length) { console.log('[Birthday Automation] No birthdays today.'); return; }
 
@@ -10264,7 +10136,7 @@ function findOrCreateVenueFromPlace(venueName, address, city, country, placeId) 
 
 app.post('/api/admin/migrate', requireAdmin, async (req, res) => {
     try {
-        db.all("SELECT id, name, company, email, cell, event_location, venue_address, date FROM bookings", [], (err, rows) => {
+        getAllBookingsForMigration((err, rows) => {
             if (err) return res.status(500).json({ error: err.message });
             if (!rows || rows.length === 0) return res.json({ success: true, message: 'No records to migrate.' });
 
@@ -10284,7 +10156,7 @@ app.post('/api/admin/migrate', requireAdmin, async (req, res) => {
                             .then(venueId => {
                                 venuesMigrated++;
                                 // Update bookings table with new foreign keys
-                                db.run("UPDATE bookings SET client_id = ?, venue_id = ? WHERE id = ?", [clientId, venueId, row.id], () => {
+                                updateBookingClientVenue(clientId, venueId, row.id, () => {
                                     processRow(index + 1);
                                 });
                             });
@@ -10302,29 +10174,7 @@ app.post('/api/admin/migrate', requireAdmin, async (req, res) => {
 
 // --- Users (Admins) ---
 app.get('/api/admin/users', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.all(`SELECT 
-                a.id, 
-                a.username, 
-                a.email, 
-                a.full_name, 
-                a.phone, 
-                a.role, 
-                a.is_active,
-                a.must_change_password,
-                a.last_login_at,
-                a.created_at,
-                a.created_by,
-                a.created_on,
-                a.modified_by,
-                a.modified_on,
-                creator.email AS creator_email,
-                creator.full_name AS creator_name,
-                modifier.email AS modifier_email,
-                modifier.full_name AS modifier_name
-            FROM admins a
-            LEFT JOIN admins creator ON a.created_by = creator.id
-            LEFT JOIN admins modifier ON a.modified_by = modifier.id
-            ORDER BY a.created_at DESC`, [], (err, rows) => {
+    getAdminsListWithCreatorModifier((err, rows) => {
         if (err) { console.error('list users failed:', err); return res.status(500).json({ success: false, message: 'Could not load users. Please try again.' }); }
         res.json(rows);
     });
@@ -10336,12 +10186,8 @@ app.post('/api/admin/session/heartbeat', requireAdmin, (req, res) => {
     if (!loginLogId) {
         return res.json({ success: true, message: 'No active login log ID' });
     }
-    db.run(
-        `UPDATE admin_login_logs 
-         SET last_activity_at = CURRENT_TIMESTAMP,
-             duration_seconds = CAST((strftime('%s', 'now') - strftime('%s', login_at)) AS INTEGER)
-         WHERE id = ?`,
-        [loginLogId],
+    updateAdminLoginLogHeartbeat(
+        loginLogId,
         (err) => {
             if (err) {
                 console.error('[heartbeat] Failed to update login log:', err.message);
@@ -10354,23 +10200,7 @@ app.post('/api/admin/session/heartbeat', requireAdmin, (req, res) => {
 
 // GET Admin Login Activity Logs
 app.get('/api/admin/user-login-logs', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.all(`
-        SELECT 
-            l.id,
-            l.admin_id,
-            l.login_at,
-            l.logout_at,
-            l.last_activity_at,
-            l.duration_seconds,
-            l.ip_address,
-            l.user_agent,
-            a.username,
-            a.email,
-            a.full_name
-        FROM admin_login_logs l
-        JOIN admins a ON l.admin_id = a.id
-        ORDER BY l.login_at DESC
-    `, [], (err, rows) => {
+    getAdminLoginLogsWithNames((err, rows) => {
         if (err) {
             console.error('Failed to fetch login logs:', err);
             return res.status(500).json({ success: false, message: 'Could not fetch login activity logs.' });
@@ -10403,9 +10233,8 @@ app.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (req,
     bcrypt.hash(placeholderPassword, 10, (err, hash) => {
         if (err) return res.status(500).json({ success: false, message: 'Error preparing the account.' });
 
-        db.run(
-            "INSERT INTO admins (username, email, password_hash, role, full_name, phone, is_active, must_change_password, created_by, created_on) VALUES (?, ?, ?, ?, ?, ?, 1, 1, ?, CURRENT_TIMESTAMP)",
-            [normalizedEmail, normalizedEmail, hash, targetRole, cleanName, cleanPhone, req.session.adminId],
+        insertAdminUser(
+            normalizedEmail, normalizedEmail, hash, targetRole, cleanName, cleanPhone, req.session.adminId,
             function (err) {
                 if (err) {
                     if (err.message.includes('UNIQUE')) {
@@ -10441,10 +10270,10 @@ app.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (req,
 // Resend the set-password invitation to an existing (typically pending) user.
 app.post('/api/admin/users/:id/resend-invite', requireAdmin, requireRole(['administrator']), (req, res) => {
     const userId = parseInt(req.params.id, 10);
-    db.get("SELECT id, email, full_name, role FROM admins WHERE id = ?", [userId], (err, user) => {
+    getAdminForInvite(userId, (err, user) => {
         if (err || !user) return res.status(404).json({ success: false, message: 'User not found.' });
         // Invalidate any outstanding tokens, then issue a fresh one.
-        db.run("DELETE FROM password_reset_tokens WHERE admin_id = ?", [userId], () => {
+        deletePasswordResetTokensForAdmin(userId, () => {
             createAndSendInvite(user, 72, function (mail) {
                 const emailSent = !!(mail && mail.success);
                 let message = 'Invitation re-sent to ' + user.email + '.';
@@ -10472,7 +10301,7 @@ app.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']), (r
         return res.status(400).json({ success: false, message: 'Enter a valid email address.' });
     }
 
-    db.get("SELECT role, is_active, full_name, phone FROM admins WHERE id = ?", [userId], (selErr, existing) => {
+    getAdminForEditById(userId, (selErr, existing) => {
         if (selErr || !existing) return res.status(404).json({ success: false, message: 'User not found.' });
         const hasKey = (k) => Object.prototype.hasOwnProperty.call(req.body, k);
 
@@ -10525,7 +10354,7 @@ app.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']), (r
                     if (!currentPassword) {
                         return res.status(400).json({ success: false, message: 'Current password is required to set a new password.' });
                     }
-                    return db.get("SELECT password_hash FROM admins WHERE id = ?", [userId], (err, row) => {
+                    return getAdminPasswordHashById(userId, (err, row) => {
                         if (err || !row) return res.status(404).json({ success: false, message: 'User not found.' });
                         bcrypt.compare(currentPassword, row.password_hash, (err, isMatch) => {
                             if (err) return res.status(500).json({ success: false, message: 'Error verifying password.' });
@@ -10553,8 +10382,8 @@ app.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']), (r
             if (passwordHash) params.push(passwordHash);
             params.push(userId);
 
-            db.run(
-                `UPDATE admins SET username = ?, email = ?, full_name = ?, phone = ?, role = ?, is_active = ?, modified_by = ?, modified_on = CURRENT_TIMESTAMP${setPwd} WHERE id = ?`,
+            updateAdminUserFields(
+                setPwd,
                 params,
                 async function (err) {
                     if (err) {
@@ -10580,12 +10409,12 @@ app.delete('/api/admin/users/:id', requireAdmin, requireRole(['administrator']),
          return res.status(403).json({ success: false, message: 'You cannot delete your own account while logged in.' });
     }
 
-    db.get("SELECT role, is_active FROM admins WHERE id = ?", [targetUserId], (selErr, existing) => {
+    getAdminRoleActiveById(targetUserId, (selErr, existing) => {
         if (selErr || !existing) return res.status(404).json({ success: false, message: 'User not found.' });
         const isActiveAdmin = existing.role === 'administrator' && existing.is_active !== 0;
 
         const proceed = () => {
-            db.run("DELETE FROM admins WHERE id = ?", targetUserId, function (err) {
+            deleteAdminUser(targetUserId, function (err) {
                 if (err) { console.error('delete user failed:', err); return res.status(500).json({ success: false, message: 'Could not delete the user. Please try again.' }); }
                 logAudit({ tableName: 'admins', recordId: targetUserId, action: 'delete', req, oldValues: existing, newValues: null }).catch(e => console.error('logAudit failed:', e));
                 res.json({ success: true, message: 'User deleted.' });
@@ -10908,13 +10737,7 @@ app.put('/api/admin/services/:id', requireAdmin, (req, res) => {
 });
 app.get('/api/admin/services/:id/usage', requireAdmin, (req, res) => {
     const serviceId = req.params.id;
-    const sql = `
-        SELECT COUNT(DISTINCT q.id) AS draft_count 
-        FROM quotations q
-        JOIN quote_line_items qli ON q.id = qli.quotation_id
-        WHERE qli.service_id = ? AND q.status = 'draft' AND COALESCE(q.archived, 0) = 0
-    `;
-    db.get(sql, [serviceId], (err, row) => {
+    getServiceDraftQuoteUsage(serviceId, (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ draft_quote_count: row ? row.draft_count : 0 });
     });
@@ -10944,8 +10767,8 @@ app.delete('/api/admin/services/:id', requireAdmin, (req, res) => {
         });
         return;
     }
-    db.get("SELECT COUNT(*) as cnt FROM booking_line_items WHERE service_id=?", [req.params.id], (e1, r1) => {
-        db.get("SELECT COUNT(*) as cnt FROM quote_line_items WHERE service_id=?", [req.params.id], (e2, r2) => {
+    countBookingLineItemsForService(req.params.id, (e1, r1) => {
+        countQuoteLineItemsForService(req.params.id, (e2, r2) => {
             if ((r1 && r1.cnt > 0) || (r2 && r2.cnt > 0)) {
                 return res.status(409).json({ error: 'Service is referenced by existing line items and cannot be hard-deleted.' });
             }
@@ -11217,7 +11040,7 @@ app.get('/api/public/legal/cookie-policy', (req, res) => {
 
 // --- Settings ---
 app.get('/api/admin/settings', requireAdmin, (req, res) => {
-    db.all("SELECT setting_key, setting_value FROM settings", [], (err, rows) => {
+    getAllSettings((err, rows) => {
         if (err) { console.error('load settings failed:', err); return res.status(500).json({ success: false, message: 'Could not load settings. Please try again.' }); }
         const obj = {};
         (rows || []).forEach(r => { obj[r.setting_key] = r.setting_value; });
@@ -11245,8 +11068,7 @@ app.put('/api/admin/settings', requireAdmin, (req, res) => {
         if (val !== null && val !== undefined && val !== '') {
             if (envMap[key]) process.env[envMap[key]] = val;
         }
-        db.run("INSERT OR REPLACE INTO settings (setting_key, setting_value, updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
-            [key, val], (err) => {
+        upsertSetting(key, val, (err) => {
                 if (err && !failed) { failed = true; console.error('save settings failed:', err); return res.status(500).json({ success: false, message: 'Could not save settings. Please try again.' }); }
                 if (--pending === 0 && !failed) res.json({ success: true });
             });
@@ -11266,10 +11088,7 @@ app.put('/api/admin/branding', requireAdmin, requireRole(['administrator']), (re
     keys.forEach(key => {
         const val = String(settings[key]);
         if (envMap[key]) process.env[envMap[key]] = val;
-        db.run(
-            "INSERT OR REPLACE INTO settings (setting_key, setting_value, updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
-            [key, val],
-            (err) => {
+        upsertSetting(key, val, (err) => {
                 if (err && !failed) { failed = true; console.error('save branding failed:', err); return res.status(500).json({ success: false, message: 'Could not save branding. Please try again.' }); }
                 if (--pending === 0 && !failed) res.json({ success: true });
             }
@@ -11279,8 +11098,7 @@ app.put('/api/admin/branding', requireAdmin, requireRole(['administrator']), (re
 
 app.get('/api/public/branding', (req, res) => {
     const keys = ['site_logo', 'favicon', 'primary_color', 'theme_font', 'email_banner', 'login_background'];
-    const ph = keys.map(() => '?').join(',');
-    db.all(`SELECT setting_key, setting_value FROM settings WHERE setting_key IN (${ph})`, keys,
+    getSettingsByKeys(keys,
         (err, rows) => {
             if (err) return res.status(500).json({ error: err.message });
             const branding = {};
@@ -11317,7 +11135,7 @@ app.post('/api/admin/invoices/:id/send', requireAdmin, requireRole(['administrat
     db.get(`SELECT i.*, b.id as booking_id_num, b.email, b.name, b.event_name, b.event_type, b.date
             FROM invoices i JOIN bookings b ON i.booking_id = b.id WHERE i.id = ?`, [req.params.id], async (err, inv) => {
         if (err || !inv) return res.status(404).json({ error: 'Invoice not found.' });
-        const invoiceFilePath = inv.file_path ? path.join(__dirname, 'docs', 'invoices', inv.file_path) : null;
+        const invoiceFilePath = inv.file_path ? resolveDocsPath('invoices', inv.file_path) : null;
         if (!invoiceFilePath || !fs.existsSync(invoiceFilePath)) {
             return res.status(400).json({ error: 'Invoice PDF not found. Please regenerate the invoice first.' });
         }
@@ -11330,7 +11148,7 @@ app.post('/api/admin/invoices/:id/send', requireAdmin, requireRole(['administrat
             // Draft-then-send: first send publishes the draft (DRAFT→SENT). A later resend leaves an
             // already-advanced status (SENT/OVERDUE/PAID) untouched — only sent_at refreshes.
             const wasDraft = (inv.status || '').toUpperCase() === 'DRAFT';
-            db.run("UPDATE invoices SET sent_at = CURRENT_TIMESTAMP, status = CASE WHEN status = 'DRAFT' THEN 'SENT' ELSE status END WHERE id = ?", [req.params.id], () => {});
+            markInvoiceSentAndPublished(req.params.id, () => {});
             res.json({ success: true, message: `Invoice ${inv.invoice_number} ${wasDraft ? 'sent' : 'resent'} to ${inv.email}.` });
         } catch (e) {
             res.status(500).json({ error: e.message });
@@ -11350,12 +11168,12 @@ app.post('/api/admin/invoices/bulk-send-unsent', requireAdmin, requireRole(['adm
             if (!rows.length) return res.json({ success: true, sent: 0, message: 'No unsent invoices.' });
             let sent = 0, failed = 0, errors = [];
             for (const inv of rows) {
-                const invoiceFilePath = inv.file_path ? path.join(__dirname, 'docs', 'invoices', inv.file_path) : null;
+                const invoiceFilePath = inv.file_path ? resolveDocsPath('invoices', inv.file_path) : null;
                 if (!invoiceFilePath || !fs.existsSync(invoiceFilePath)) { failed++; errors.push(inv.invoice_number + ': PDF missing'); continue; }
                 try {
                     const bookingObj = { id: inv.booking_id, name: inv.name, email: inv.email, event_name: inv.event_name, event_type: inv.event_type, date: inv.date };
                     await sendInvoiceEmail(bookingObj, invoiceFilePath);
-                    db.run("UPDATE invoices SET sent_at = CURRENT_TIMESTAMP WHERE id = ?", [inv.id], () => {});
+                    markInvoiceSent(inv.id, () => {});
                     sent++;
                 } catch(e) { failed++; errors.push(inv.invoice_number + ': ' + e.message); }
             }
@@ -11370,11 +11188,10 @@ app.post('/api/admin/invoices/:id/void', requireAdmin, requireRole(['administrat
         return res.status(400).json({ error: 'Void reason is required.' });
     }
     const adminUser = req.session.username || 'system';
-    db.get('SELECT * FROM invoices WHERE id = ?', [req.params.id], (err, inv) => {
+    getInvoiceById(req.params.id, (err, inv) => {
         if (err || !inv) return res.status(404).json({ error: 'Invoice not found.' });
-        db.run(
-            "UPDATE invoices SET status='VOID', void_reason=?, voided_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            [reason.trim(), req.params.id],
+        voidInvoiceWithReason(
+            reason.trim(), req.params.id,
             function(e2) {
                 if (e2) return res.status(500).json({ error: e2.message });
                 if (this.changes === 0) return res.status(404).json({ error: 'Invoice not found.' });
@@ -11401,7 +11218,7 @@ app.post('/api/admin/invoices/:id/void', requireAdmin, requireRole(['administrat
 // POST /api/admin/invoices/:id/mark-paid — quick-mark an invoice as PAID
 app.post('/api/admin/invoices/:id/mark-paid', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const adminUser = req.session.username || 'system';
-    db.get('SELECT * FROM invoices WHERE id = ?', [req.params.id], (err, inv) => {
+    getInvoiceById(req.params.id, (err, inv) => {
         if (err || !inv) return res.status(404).json({ success: false, error: 'Invoice not found.' });
         if (inv.status === 'VOID') {
             return res.status(400).json({ success: false, error: 'Cannot mark a voided invoice as paid.' });
@@ -11409,9 +11226,8 @@ app.post('/api/admin/invoices/:id/mark-paid', requireAdmin, requireRole(['admini
         if (inv.status === 'PAID') {
             return res.json({ success: true, message: 'Invoice is already marked as paid.' });
         }
-        db.run(
-            "UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE id=?",
-            [req.params.id],
+        markInvoicePaidById(
+            req.params.id,
             function(e2) {
                 if (e2) return res.status(500).json({ success: false, error: e2.message });
                 // Audit log
@@ -11442,12 +11258,12 @@ app.post('/api/admin/bookings/:id/resend-quote', requireAdmin, async (req, res) 
         [req.params.id], async (err, b) => {
             if (err || !b) return res.status(404).json({ success: false });
             b.name = b.client_name || b.name; b.email = b.client_email || b.email;
-            db.get("SELECT file_path FROM quotations WHERE booking_id = ? AND archived=0 ORDER BY version DESC LIMIT 1",
-                [req.params.id], async (e, q) => {
+            getLatestQuoteFileForResend(
+                req.params.id, async (e, q) => {
                     if (!q) return res.status(404).json({ success: false, message: 'No quote found for this booking. Generate a quote first.' });
-                    const pdfPath = path.join(__dirname, 'docs', 'quotes', q.file_path);
+                    const pdfPath = resolveDocsPath('quotes', q.file_path);
                     await sendQuoteEmail(b, b.quote_amount, pdfPath, q.file_path);
-                    db.run("UPDATE quotations SET sent_at = CURRENT_TIMESTAMP WHERE booking_id = ? AND archived = 0", [req.params.id], () => {});
+                    markQuotationResent(req.params.id, () => {});
                     res.json({ success: true, message: 'Quote email resent.' });
                 });
         });
@@ -11477,7 +11293,7 @@ app.post('/api/admin/bookings/:id/review-request', requireAdmin, (req, res) => {
             // The cron (runPostEventFollowupJob) only sends when review_email_sent_at IS NULL — this
             // manual trigger never stamped it, so an admin clicking "Request Review" the same day an
             // event completes would get a second, duplicate auto-send from the cron the next day.
-            db.run("UPDATE bookings SET review_email_sent_at = CURRENT_TIMESTAMP WHERE id = ?", [b.id]);
+            stampReviewEmailSent(b.id);
             res.json({ success: true });
         });
 });
@@ -11485,7 +11301,7 @@ app.post('/api/admin/bookings/:id/review-request', requireAdmin, (req, res) => {
 // Unlink a booking from its client record so COALESCE falls back to the booking's own name/email.
 // Use when client_id was incorrectly assigned (e.g. email collision in findOrCreateClient).
 app.post('/api/admin/bookings/:id/unlink-client', requireAdmin, (req, res) => {
-    db.run("UPDATE bookings SET client_id = NULL WHERE id = ?", [req.params.id], function(err) {
+    unlinkBookingClient(req.params.id, function(err) {
         if (err) return res.status(500).json({ success: false, error: err.message });
         if (this.changes === 0) return res.status(404).json({ success: false, message: 'Booking not found.' });
         res.json({ success: true, message: `client_id cleared for booking #${req.params.id}` });
@@ -11532,9 +11348,8 @@ app.get('/api/admin/clients/duplicates', requireAdmin, (req, res) => {
 
 // S5-4: Threaded booking notes — replaces the single admin_notes text blob.
 app.get('/api/admin/bookings/:id/notes', requireAdmin, (req, res) => {
-    db.all(
-        "SELECT id, note, author, created_at FROM booking_notes WHERE booking_id = ? ORDER BY created_at ASC",
-        [req.params.id],
+    getBookingNotesForBooking(
+        req.params.id,
         (err, rows) => {
             if (err) return res.status(500).json({ success: false, error: err.message });
             res.json({ success: true, notes: rows || [] });
@@ -11545,12 +11360,11 @@ app.get('/api/admin/bookings/:id/notes', requireAdmin, (req, res) => {
 app.post('/api/admin/bookings/:id/notes', requireAdmin, (req, res) => {
     const { note, author } = req.body;
     if (!note || !note.trim()) return res.status(400).json({ success: false, message: 'Note text is required.' });
-    db.run(
-        "INSERT INTO booking_notes (booking_id, note, author) VALUES (?, ?, ?)",
-        [req.params.id, note.trim(), (author || 'Admin').trim()],
+    insertBookingNote(
+        req.params.id, note.trim(), (author || 'Admin').trim(),
         function(err) {
             if (err) return res.status(500).json({ success: false, error: err.message });
-            db.get("SELECT id, note, author, created_at FROM booking_notes WHERE id = ?", [this.lastID], (e, row) => {
+            getBookingNoteById(this.lastID, (e, row) => {
                 res.json({ success: true, note: row });
             });
         }
@@ -11558,9 +11372,8 @@ app.post('/api/admin/bookings/:id/notes', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/admin/bookings/:id/notes/:noteId', requireAdmin, (req, res) => {
-    db.run(
-        "DELETE FROM booking_notes WHERE id = ? AND booking_id = ?",
-        [req.params.noteId, req.params.id],
+    deleteBookingNote(
+        req.params.noteId, req.params.id,
         function(err) {
             if (err) return res.status(500).json({ success: false, error: err.message });
             if (this.changes === 0) return res.status(404).json({ success: false, message: 'Note not found.' });
@@ -11653,31 +11466,21 @@ app.put('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
 
     if (!venue_id) {
         // Unlinking
-        db.run(
-            `UPDATE bookings SET 
-                venue_id = NULL, venue_place_id = NULL, venue_address = NULL, 
-                city = NULL, country = NULL, modified_on = CURRENT_TIMESTAMP 
-             WHERE id = ?`,
-            [bookingId],
+        updateBookingVenueUnlink(
+            bookingId,
             function(err) {
                 if (err) return res.status(500).json({ error: err.message });
                 if (this.changes === 0) return res.status(404).json({ error: 'Booking not found.' });
 
                 // Update associated event to remove venue link
-                db.get("SELECT event_id FROM bookings WHERE id = ?", [bookingId], (eErr, bookingRow) => {
+                getBookingEventId(bookingId, (eErr, bookingRow) => {
                     if (!eErr && bookingRow && bookingRow.event_id) {
-                        db.run(
-                            `UPDATE events SET 
-                                venue_id = NULL, venue_map_link = NULL, 
-                                modified_on = CURRENT_TIMESTAMP 
-                             WHERE event_id = ?`,
-                            [bookingRow.event_id]
-                        );
+                        unlinkEventVenue(bookingRow.event_id);
                     }
                 });
 
                 // Sync to calendar
-                db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (e, updated) => {
+                getBookingById(bookingId, (e, updated) => {
                     if (!e && updated) {
                         syncBookingToCalendar(updated).catch(ce => console.error('[Venue Unlink] Calendar sync failed:', ce.message));
                     }
@@ -11690,34 +11493,23 @@ app.put('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
         // Linking by venue_id (legacy)
         db.get("SELECT * FROM venues WHERE id = ?", [venue_id], (vErr, venue) => {
             if (vErr || !venue) return res.status(400).json({ success: false, message: 'Venue not found.' });
-            
-            db.run(
-                `UPDATE bookings SET 
-                    venue_id = ?, venue_place_id = ?, event_location = ?, 
-                    venue_address = ?, city = ?, country = ?, 
-                    modified_on = CURRENT_TIMESTAMP 
-                 WHERE id = ?`,
-                [venue.id, venue.place_id, venue.name, venue.address, venue.city, venue.country, bookingId],
+
+            updateBookingVenueLinkLegacy(
+                venue.id, venue.place_id, venue.name, venue.address, venue.city, venue.country, bookingId,
                 function(err) {
                     if (err) return res.status(500).json({ error: err.message });
                     if (this.changes === 0) return res.status(404).json({ error: 'Booking not found.' });
 
                     // Update associated event
-                    db.get("SELECT event_id FROM bookings WHERE id = ?", [bookingId], (eErr, bookingRow) => {
+                    getBookingEventId(bookingId, (eErr, bookingRow) => {
                         if (!eErr && bookingRow && bookingRow.event_id) {
                             const mapLink = `https://maps.google.com/?q=${encodeURIComponent(venue.name + ' ' + (venue.address || ''))}`;
-                            db.run(
-                                `UPDATE events SET 
-                                    venue_name = ?, venue_id = ?, venue_map_link = ?, 
-                                    modified_on = CURRENT_TIMESTAMP 
-                                 WHERE event_id = ?`,
-                                [venue.name, venue.id, mapLink, bookingRow.event_id]
-                            );
+                            updateEventVenueLegacyLink(venue.name, venue.id, mapLink, bookingRow.event_id);
                         }
                     });
 
                     // Sync to calendar
-                    db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (e, updated) => {
+                    getBookingById(bookingId, (e, updated) => {
                         if (!e && updated) {
                             syncBookingToCalendar(updated).catch(ce => console.error('[Venue Link] Calendar sync failed:', ce.message));
                         }
@@ -11769,31 +11561,20 @@ app.put('/api/admin/bookings/:id/venue-google', requireAdmin, async (req, res) =
             });
         });
 
-        db.run(
-            `UPDATE bookings SET 
-                venue_id = ?, venue_place_id = ?, event_location = ?, 
-                venue_address = ?, city = ?, country = ?, 
-                modified_on = CURRENT_TIMESTAMP 
-             WHERE id = ?`,
-            [venueId, place_id, name, address || null, city || null, country || null, bookingId],
+        updateBookingVenueGoogle(
+            venueId, place_id, name, address || null, city || null, country || null, bookingId,
             function(err) {
                 if (err) return res.status(500).json({ success: false, message: err.message });
                 if (this.changes === 0) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
-                db.get("SELECT event_id FROM bookings WHERE id = ?", [bookingId], (eErr, bookingRow) => {
+                getBookingEventId(bookingId, (eErr, bookingRow) => {
                     if (!eErr && bookingRow && bookingRow.event_id) {
                         const mapLink = `https://maps.google.com/?q=${encodeURIComponent(name + ' ' + (address || ''))}`;
-                        db.run(
-                            `UPDATE events SET 
-                                venue_name = ?, venue_id = ?, venue_map_link = ?, 
-                                modified_on = CURRENT_TIMESTAMP 
-                             WHERE event_id = ?`,
-                            [name, venueId, mapLink, bookingRow.event_id]
-                        );
+                        updateEventVenueGoogleLink(name, venueId, mapLink, bookingRow.event_id);
                     }
                 });
 
-                db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (e, updated) => {
+                getBookingById(bookingId, (e, updated) => {
                     if (!e && updated) {
                         syncBookingToCalendar(updated).catch(ce => console.error('[Venue Link] Calendar sync failed:', ce.message));
                     }
@@ -11817,23 +11598,23 @@ app.get('/api/admin/bookings/:id/details', requireAdmin, (req, res) => {
             LEFT JOIN services s ON bs.service_id = s.id 
             WHERE bs.booking_id = ?`, [id], (e1, servicesItems) => {
         
-        db.get("SELECT * FROM cancellations WHERE booking_id = ?", [id], (e3, cancellation) => {
+        getCancellationDetailForBooking(id, (e3, cancellation) => {
             const sendResponse = (items, txs) => {
-                res.json({ 
-                    line_items: items || [], 
+                res.json({
+                    line_items: items || [],
                     transactions: txs || [],
                     cancellation: cancellation || null
                 });
             };
 
             if (servicesItems && servicesItems.length > 0) {
-                db.all("SELECT * FROM transactions WHERE booking_id = ? ORDER BY created_at DESC", [id], (e2, transactions) => {
+                getTransactionsForBooking(id, (e2, transactions) => {
                     sendResponse(servicesItems, transactions);
                 });
             } else {
                 // Legacy fallback
                 db.all("SELECT bli.*, s.name as service_name FROM booking_line_items bli LEFT JOIN services s ON bli.service_id = s.id WHERE bli.booking_id = ?", [id], (e1, lineItems) => {
-                    db.all("SELECT * FROM transactions WHERE booking_id = ? ORDER BY created_at DESC", [id], (e2, transactions) => {
+                    getTransactionsForBooking(id, (e2, transactions) => {
                         sendResponse(lineItems, transactions);
                     });
                 });
@@ -11865,13 +11646,7 @@ app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'man
 
     // Duplicate check: same email + same date with an already-active booking
     const existingBooking = await new Promise(resolve =>
-        db.get(
-            `SELECT id FROM bookings
-             WHERE lower(email) = lower(?) AND date = ? AND status NOT IN ('CANCELLED','EXPIRED')
-             LIMIT 1`,
-            [email, event_date],
-            (_, row) => resolve(row)
-        )
+        getActiveDuplicateBookingForEmailDate(email, event_date, (_, row) => resolve(row))
     );
     if (existingBooking && !override_duplicate) {
         return res.status(409).json({
@@ -12009,12 +11784,7 @@ app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'man
                 }
 
                 if (!override_duplicate) {
-                    const lockedDuplicate = await dbGet(
-                        `SELECT id FROM bookings
-                         WHERE lower(email) = lower(?) AND date = ? AND status NOT IN ('CANCELLED','EXPIRED')
-                         LIMIT 1`,
-                        [email, event_date]
-                    );
+                    const lockedDuplicate = await getActiveDuplicateBookingForEmailDateAsync(email, event_date);
                     if (lockedDuplicate) {
                         await dbRun("ROLLBACK").catch(() => {});
                         return {
@@ -12037,30 +11807,21 @@ app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'man
 
                 const sourceInquiryId = source_inquiry_id ? parseInt(source_inquiry_id) : null;
 
-                const ins = await dbRun(
-                    `INSERT INTO bookings
-                        (name, company, email, cell, event_name, date, event_start_time, performance_start_time,
-                         performance_end_time, performance_duration,
-                         event_type, event_location, city, venue_place_id, budget_range, message, status,
-                         popia_consent, consent_timestamp, client_id, venue_id,
-                         quote_amount, total_amount, amount_outstanding, payment_status, quote_expiry_date, policy_version, source, consent_source, source_inquiry_id)
-                     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?,?,?,?,?, 'admin_recorded', ?)`,
-                    [
-                        name, company || null, email, cell, event_name, event_date,
-                        event_start_time || null, event_start_time || null,
-                        perfEndTime, String(durationMins),
-                        event_type, event_location,
-                        city || null, venue_place_id || null,
-                        budget_range || null, message, bookingStatus,
-                        consentVal, clientId, venueId,
-                        initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, defaultQuoteExpiry, CURRENT_POLICY_VERSION, 'admin',
-                        sourceInquiryId && !isNaN(sourceInquiryId) ? sourceInquiryId : null
-                    ]
-                );
+                const ins = await insertAdminBooking([
+                    name, company || null, email, cell, event_name, event_date,
+                    event_start_time || null, event_start_time || null,
+                    perfEndTime, String(durationMins),
+                    event_type, event_location,
+                    city || null, venue_place_id || null,
+                    budget_range || null, message, bookingStatus,
+                    consentVal, clientId, venueId,
+                    initialQuoteAmountStr, initialTotalAmount, initialTotalAmount, paymentStatus, defaultQuoteExpiry, CURRENT_POLICY_VERSION, 'admin',
+                    sourceInquiryId && !isNaN(sourceInquiryId) ? sourceInquiryId : null
+                ]);
                 const bookingId = ins.lastID;
 
                 if (sourceInquiryId && !isNaN(sourceInquiryId)) {
-                    await dbRun("UPDATE inquiries SET converted_booking_id = ? WHERE inquiry_id = ?", [bookingId, sourceInquiryId]);
+                    await linkInquiryToBooking(bookingId, sourceInquiryId);
                 }
 
                 // The consent record, the services and the audit row are part of the booking, not an
@@ -12073,10 +11834,8 @@ app.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', 'man
                 );
 
                 for (const srv of selectedServices) {
-                    await dbRun("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
-                        [bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price]);
-                    await dbRun("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
-                        [bookingId, srv.service_id, srv.name, srv.quantity_minutes, srv.unit_price]);
+                    await insertBookingService(bookingId, srv.service_id, srv.quantity_minutes, srv.unit_price, srv.total_price);
+                    await insertBookingLineItem(bookingId, srv.service_id, srv.name, srv.quantity_minutes, srv.unit_price);
                 }
 
                 await dbRun(
@@ -12278,7 +12037,7 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
     }
     // Guard: block COMPLETED when any payment is still outstanding
     if (requestedStatus === 'COMPLETED') {
-        const chk = await new Promise(r => db.get("SELECT amount_outstanding FROM bookings WHERE id = ?", [bookingId], (e, row) => r({ e, row })));
+        const chk = await getBookingOutstandingForCompleteGuard(bookingId);
         if (!chk.e) {
             const outstanding = parseFloat(chk.row?.amount_outstanding) || 0;
             if (outstanding > 0.01) {
@@ -12293,32 +12052,27 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
     // trigger can read them via NEW.modified_by(_role) into audit_log.actor_role — this replaces the
     // parallel explicit audit_log insert that used to sit below, which double-wrote a row for every
     // status change (once here, once from the trigger that already fires on any bookings UPDATE).
-    const sql = tsField
-        ? `UPDATE bookings SET status = ?, ${tsField} = CURRENT_TIMESTAMP, modified_by = ?, modified_by_role = ?, modified_on = CURRENT_TIMESTAMP WHERE id = ?`
-        : `UPDATE bookings SET status = ?, modified_by = ?, modified_by_role = ?, modified_on = CURRENT_TIMESTAMP WHERE id = ?`;
-    const sqlParams = [requestedStatus, options.adminId || null, options.role || null, bookingId];
-    db.run(sql, sqlParams, async function(upErr) {
+    updateBookingStatusCore(requestedStatus, tsField, options.adminId, options.role, bookingId, async function(upErr) {
         if (upErr) return res.status(500).json({ success: false, error: upErr.message });
         const actor = await resolveActor(options.adminId);
-        db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], async (e, b) => {
+        getBookingById(bookingId, async (e, b) => {
             if (!e && b) {
                 if (b.event_id && !['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(requestedStatus)) {
-                    db.run("UPDATE bookings SET is_public = 0, event_id = NULL WHERE id = ?", [bookingId]);
+                    clearBookingPublicAndEventId(bookingId);
                     // On cancellation, switch the linked public event to draft rather than deleting it.
                     // Also clears events.booking_id — matches POST /:id/cancel's identical cascade
                     // (see that route) so both cancellation entry points leave the same state instead of
                     // each clearing only one side of the bookings.event_id <-> events.booking_id pair.
                     if (requestedStatus === 'CANCELLED') {
-                        db.get("SELECT google_calendar_event_id FROM events WHERE event_id = ?", [b.event_id], (evErr, evRow) => {
-                            db.run("UPDATE events SET booking_id = NULL, event_status = 'draft', cancelled_at = CURRENT_TIMESTAMP, cancellation_reason = ? WHERE event_id = ?",
-                                ['Linked booking #' + bookingId + ' was cancelled', b.event_id]);
+                        getEventGoogleCalendarId(b.event_id, (evErr, evRow) => {
+                            demoteEventForCancelledBooking('Linked booking #' + bookingId + ' was cancelled', b.event_id);
                             // The event may have its own separate Google Calendar entry (synced via
                             // syncEventToCalendar, independent of the booking's own google_event_id
                             // handled above) — without this it stays live/public on Google even though
                             // it's now locally demoted to draft.
                             if (!evErr && evRow && evRow.google_calendar_event_id) {
                                 deleteGoogleEvent(evRow.google_calendar_event_id);
-                                db.run("UPDATE events SET google_calendar_event_id = NULL WHERE event_id = ?", [b.event_id]);
+                                clearEventGoogleCalendarId(b.event_id);
                             }
                         });
                     }
@@ -12330,7 +12084,7 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                     // Null it now that we've asked Google to delete it, or any later sync attempt for
                     // this booking silently fails forever (update-against-a-deleted-event, never
                     // falls back to re-creating it — see the identical fix in POST /:id/cancel).
-                    if (b.google_event_id) db.run("UPDATE bookings SET google_event_id = NULL WHERE id = ?", [bookingId]);
+                    if (b.google_event_id) clearBookingGoogleEventId(bookingId);
                     // E1: store cancellation reason/attribution AND run the SAME financial + hold
                     // cascade as POST /api/admin/bookings/:id/cancel, so cancelling via the status
                     // API leaves an identical state (previously this path skipped payment_status,
@@ -12338,13 +12092,13 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                     // Same trigger constraint as the dedicated cancel route: 'CANCELLED' is not a legal
                     // payment_status, and this statement had no error callback — so the ABORT silently
                     // discarded cancellation_reason and cancelled_by along with it.
-                    db.run("UPDATE bookings SET cancellation_reason = ?, cancelled_by = 'admin' WHERE id = ?", [reason, bookingId],
+                    setBookingCancellationAttribution(reason, bookingId,
                         (e) => { if (e) console.error('[Status Cancel] Failed to record cancellation attribution:', e.message); });
-                    db.run("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [bookingId],
+                    releaseDateHoldsForBooking(bookingId,
                         (e) => { if (e) console.error('[Status Cancel] Hold release failed:', e.message); });
-                    db.run("UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [bookingId],
+                    voidInvoicesForCancelledBooking(bookingId,
                         (e) => { if (e) console.error('[Status Cancel] Invoice void failed:', e.message); });
-                    db.run("UPDATE payment_schedules SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status='pending'", [bookingId],
+                    cancelPendingPaymentSchedules(bookingId,
                         (e) => { if (e) console.error('[Status Cancel] Payment schedule cancel failed:', e.message); });
                     // Apply the same refund policy calculator used by client self-cancellation
                     db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", [], (pErr, policy) => {
@@ -12353,12 +12107,7 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                         // — 'admin' violated it, so this INSERT failed silently (no cancellation record via the
                         // status API). Use 'comedian' (business-initiated), matching the dedicated /cancel endpoint's
                         // default for admin-initiated cancellations. Attribution to admin stays on bookings.cancelled_by.
-                        db.run(`INSERT INTO cancellations (booking_id, cancelled_by, reason, total_paid_to_date, refund_due, retention_amount, refund_status)
-                                VALUES (?, 'comedian', ?, ?, ?, ?, 'pending')
-                                ON CONFLICT(booking_id) DO UPDATE SET
-                                cancelled_by='comedian', reason=excluded.reason, total_paid_to_date=excluded.total_paid_to_date,
-                                refund_due=excluded.refund_due, retention_amount=excluded.retention_amount, refund_status='pending'`,
-                            [bookingId, reason, calc.totalPaid, calc.refund, calc.retention],
+                        insertCancellationForStatusChange(bookingId, reason, calc.totalPaid, calc.refund, calc.retention,
                             (cErr) => { if (cErr) console.error('[Status Cancel] Cancellation record insert failed:', cErr.message); });
                         // SC-3: Include policy rule + timing in cancellation email
                         sendCancellationEmail(b, { reason, refund_due: calc.refund, rule: calc.rule, days_until_event: calc.daysUntilEvent }).catch(e => console.error('Cancel email failed:', e.message));
@@ -12369,7 +12118,7 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                 if (requestedStatus === 'PENDING') sendBookingUnderReviewEmail(b).catch(e => console.error('Under-review email failed:', e.message));
                 if (requestedStatus === 'ACCEPTED') {
                     // Update active quotation's status to 'accepted'
-                    db.run("UPDATE quotations SET status = 'accepted' WHERE booking_id = ? AND archived = 0", [bookingId], (err) => {
+                    markQuotationAccepted(bookingId, (err) => {
                         if (err) console.error('[Status Change] Failed to update quotation status to accepted:', err.message);
                     });
                     sendQuoteAcceptedEmail(b).catch(e => console.error('Invoiced email failed:', e.message));
@@ -12397,7 +12146,7 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                 }
                 if (requestedStatus === 'QUOTED') {
                     // Revert active quotation's status to 'sent'
-                    db.run("UPDATE quotations SET status = 'sent' WHERE booking_id = ? AND archived = 0", [bookingId], (err) => {
+                    revertQuotationToSent(bookingId, (err) => {
                         if (err) console.error('[Status Change] Failed to revert quotation status to sent:', err.message);
                     });
                 }
@@ -12406,13 +12155,11 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                     // Auto-create an events row if none exists yet for this booking
                     if (!b.event_id) {
                         const eventDatetime = b.date + (b.event_start_time ? ' ' + b.event_start_time : ' 00:00:00');
-                        db.run(
-                            `INSERT INTO events (event_title, event_datetime, venue_name, venue_id, booking_id, event_status, created_by)
-                             VALUES (?, ?, ?, ?, ?, 'upcoming', NULL)`,
-                            [b.event_name || b.event_type || 'Booking Event', eventDatetime, b.event_location || null, b.venue_id || null, b.id],
+                        insertAutoCreatedEvent(
+                            b.event_name || b.event_type || 'Booking Event', eventDatetime, b.event_location || null, b.venue_id || null, b.id,
                             function(evInsErr) {
                                 if (evInsErr) { console.error('[Auto-Event] Insert failed for booking #' + b.id + ':', evInsErr.message); return; }
-                                db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [this.lastID, b.id],
+                                setBookingEventId(this.lastID, b.id,
                                     (evUpErr) => { if (evUpErr) console.error('[Auto-Event] Booking event_id link failed:', evUpErr.message); });
                             }
                         );
@@ -12422,12 +12169,12 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
                     sendBookingCompletedEmail(b).catch(e => console.error('Completed email failed:', e.message));
                     sendAdminCompletionSummaryEmail(b).catch(e => console.error('Admin completion summary failed:', e.message));
                     // S6-4: Auto-mark invoice as paid when booking is completed with full payment
-                    db.run("UPDATE invoices SET status = 'PAID', updated_at = CURRENT_TIMESTAMP WHERE booking_id = ? AND status NOT IN ('VOID','PAID')", [b.id]);
+                    markInvoicePaidOnStatusComplete(b.id);
                     // Parity with the dedicated POST /:id/complete route and the hourly auto-complete
                     // sweep — both advance the linked event; this generic status path used to leave it
                     // stuck at 'upcoming' when completed via PUT /:id or /:id/status instead.
                     if (b.event_id) {
-                        db.run("UPDATE events SET event_status = 'completed', modified_on = CURRENT_TIMESTAMP WHERE event_id = ? AND event_status NOT IN ('cancelled', 'completed')", [b.event_id]);
+                        advanceEventToCompleted(b.event_id);
                     }
                 }
             }
@@ -12439,7 +12186,7 @@ async function applyStatusChange(bookingId, requestedStatus, currentStatus, res,
 app.put('/api/admin/bookings/:id', requireAdmin, (req, res) => {
     const { status, reason } = req.body;
     if (!status) return res.status(400).json({ success: false, message: 'status field required.' });
-    db.get("SELECT status FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
+    getBookingStatus(req.params.id, (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
         applyStatusChange(req.params.id, status.toUpperCase(), (row.status || '').toUpperCase(), res, { reason, adminId: req.session.adminId, role: req.session.role });
     });
@@ -12452,7 +12199,7 @@ app.patch('/api/admin/bookings/:id/buffer', requireAdmin, (req, res) => {
     if (mins !== null && (isNaN(mins) || mins < 0 || mins > 480)) {
         return res.status(400).json({ success: false, message: 'Buffer must be 0–480 minutes or null.' });
     }
-    db.run("UPDATE bookings SET buffer_minutes = ? WHERE id = ?", [mins, id], function(err) {
+    updateBookingBuffer(mins, id, function(err) {
         if (err) return res.status(500).json({ success: false, error: err.message });
         if (this.changes === 0) return res.status(404).json({ success: false, message: 'Booking not found.' });
         res.json({ success: true, buffer_minutes: mins });
@@ -12528,7 +12275,7 @@ app.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
             });
 
             // 2. Get Manual Holds
-            db.all(`SELECT id, hold_date, notes, start_time, end_time, block_type FROM date_holds WHERE status = 'active'`, [], (err, holds) => {
+            getActiveDateHoldsForCalendarGrid((err, holds) => {
                 if (err) holds = [];
                 const holdColorMap = { unavailable: '#EF5350', personal: '#42A5F5', travel: '#66BB6A', maintenance: '#FFA726' };
                 holds.forEach(h => {
@@ -12622,10 +12369,10 @@ function findHoldDateConflict(date, startTime, endTime, excludeHoldId, callback)
 
     const holdExclude = excludeHoldId ? ' AND id != ?' : '';
     const holdParams = excludeHoldId ? [date, excludeHoldId] : [date];
-    db.all(`SELECT id, start_time, end_time FROM date_holds WHERE hold_date = ? AND status = 'active'${holdExclude}`, holdParams, (err, holds) => {
+    getDateHoldsForDateConflict(holdExclude, holdParams, (err, holds) => {
         if (err) return callback(err);
 
-        db.all("SELECT id, event_start_time, performance_end_time, performance_duration, event_type, buffer_minutes FROM bookings WHERE date = ? AND status NOT IN ('CANCELLED', 'EXPIRED')", [date], (err2, bookings) => {
+        getBookingsOnDateForHoldConflict(date, (err2, bookings) => {
             if (err2) return callback(err2);
 
             let conflictReason = null;
@@ -12689,10 +12436,8 @@ app.post('/api/admin/calendar/hold', requireAdmin, (req, res) => {
 
         const expires = new Date(date); expires.setDate(expires.getDate() + 1);
         const expiresStr = expires.toISOString().slice(0, 19).replace('T', ' ');
-        db.run(
-            `INSERT INTO date_holds (hold_date, notes, status, hold_expires_at, start_time, end_time, block_type, created_by)
-             VALUES (?, ?, 'active', ?, ?, ?, ?, ?)`,
-            [date, notes, expiresStr, start_time || null, end_time || null, block_type || null, req.session.adminId],
+        insertDateHold(
+            date, notes, expiresStr, start_time || null, end_time || null, block_type || null, req.session.adminId,
             async function(insertErr) {
                 if (insertErr) return res.status(500).json({ success: false, error: insertErr.message });
                 const actor = await resolveActor(req.session.adminId);
@@ -12706,7 +12451,7 @@ app.post('/api/admin/calendar/hold', requireAdmin, (req, res) => {
  * DELETE /api/admin/calendar/hold/:id
  */
 app.delete('/api/admin/calendar/hold/:id', requireAdmin, (req, res) => {
-    db.run("DELETE FROM date_holds WHERE id = ?", [req.params.id], (err) => {
+    deleteDateHoldById(req.params.id, (err) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         res.json({ success: true });
     });
@@ -12722,7 +12467,7 @@ app.patch('/api/admin/calendar/hold/:id/date', requireAdmin, (req, res) => {
     // Moving a hold was never conflict-checked against the destination date — unlike creating a
     // new hold, which always was. A drag-drop could silently land a hold on a day that already
     // has another block or booking.
-    db.get("SELECT start_time, end_time FROM date_holds WHERE id = ?", [holdId], (getErr, hold) => {
+    getDateHoldTimesById(holdId, (getErr, hold) => {
         if (getErr) return res.status(500).json({ success: false, error: getErr.message });
         if (!hold) return res.status(404).json({ success: false, message: 'Hold not found.' });
 
@@ -12732,8 +12477,7 @@ app.patch('/api/admin/calendar/hold/:id/date', requireAdmin, (req, res) => {
                 return res.status(409).json({ success: false, message: conflictReason });
             }
 
-            db.run("UPDATE date_holds SET hold_date = ?, hold_expires_at = datetime(?, '+1 day'), updated_by = ?, updated_by_role = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                [date, date, req.session.adminId, req.session.role || null, holdId],
+            updateDateHoldDate(date, req.session.adminId, req.session.role || null, holdId,
                 async (updErr) => {
                     if (updErr) return res.status(500).json({ success: false, error: updErr.message });
                     const actor = await resolveActor(req.session.adminId);
@@ -12757,8 +12501,7 @@ app.patch('/api/admin/bookings/:id/date', requireAdmin, async (req, res) => {
         return res.status(400).json({ success: false, message: 'time must be HH:MM.' });
     }
     try {
-        const row = await new Promise((resolve, reject) =>
-            db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, r) => err ? reject(err) : resolve(r)));
+        const row = await getBookingByIdAsync(req.params.id);
         if (!row) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
         const oldDate = row.date;
@@ -12828,24 +12571,22 @@ app.patch('/api/admin/bookings/:id/date', requireAdmin, async (req, res) => {
         }
         params.push(req.params.id);
 
-        await new Promise((resolve, reject) =>
-            db.run(`UPDATE bookings SET ${setClauses.join(', ')} WHERE id = ?`, params, err => err ? reject(err) : resolve()));
+        await updateBookingDateAndTimeFields(setClauses.join(', '), params);
 
         db.run(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values) VALUES ('bookings', ?, 'UPDATE', ?, ?)`,
             [req.params.id, JSON.stringify({ date: oldDate, time: oldTime }), JSON.stringify({ date, time })]);
-        db.run("UPDATE date_holds SET hold_date = ? WHERE converted_to_booking_id = ?", [date, req.params.id]);
+        updateDateHoldDateForBooking(date, req.params.id);
 
         // Sync linked event datetime when booking date changes
         if (row.event_id) {
             const effectiveStartTime = (time !== undefined ? time : row.event_start_time) || '00:00';
             const newEventDatetime = date + 'T' + effectiveStartTime;
-            db.run("UPDATE events SET event_datetime = ?, modified_on = CURRENT_TIMESTAMP WHERE event_id = ?",
-                [newEventDatetime, row.event_id],
+            updateEventDatetime(newEventDatetime, row.event_id,
                 (evErr) => { if (evErr) console.error('[Date Change] Event datetime sync failed:', evErr.message); }
             );
         }
 
-        db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], async (e, updated) => {
+        getBookingById(req.params.id, async (e, updated) => {
             if (!e && updated) syncBookingToCalendar(updated).catch(e => console.error('[Date Change] Calendar sync failed:', e.message));
         });
 
@@ -12868,13 +12609,11 @@ app.patch('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
     if (!event_location || !event_location.trim()) {
         return res.status(400).json({ success: false, message: 'event_location is required.' });
     }
-    db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
+    getBookingById(req.params.id, (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
         const oldLocation = row.event_location;
-        db.run(
-            `UPDATE bookings SET event_location = ?, venue_address = ?, city = ?, country = ?,
-             venue_type = ?, modified_on = CURRENT_TIMESTAMP WHERE id = ?`,
-            [event_location.trim(), venue_address || null, city || null, country || null, venue_type || null, req.params.id],
+        updateBookingVenueFreeText(
+            event_location.trim(), venue_address || null, city || null, country || null, venue_type || null, req.params.id,
             function(upErr) {
                 if (upErr) return res.status(500).json({ success: false, error: upErr.message });
                 db.run(
@@ -12886,12 +12625,9 @@ app.patch('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
                 // both already do this) that left events.venue_name/venue_map_link stale after a change.
                 if (row.event_id) {
                     const mapLink = `https://maps.google.com/?q=${encodeURIComponent(event_location.trim() + ' ' + (venue_address || ''))}`;
-                    db.run(
-                        `UPDATE events SET venue_name = ?, venue_map_link = ?, modified_on = CURRENT_TIMESTAMP WHERE event_id = ?`,
-                        [event_location.trim(), mapLink, row.event_id]
-                    );
+                    updateEventVenueFreeText(event_location.trim(), mapLink, row.event_id);
                 }
-                db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (e, updated) => {
+                getBookingById(req.params.id, (e, updated) => {
                     if (!e && updated) {
                         syncBookingToCalendar(updated).catch(ce => console.error('[Venue Change] Calendar sync failed:', ce.message));
                     }
@@ -12939,7 +12675,7 @@ async function sendAdvancingPackEmail(booking, venue, pdfPath) {
 app.get('/api/admin/bookings/:id/advancing', requireAdmin, async (req, res) => {
     try {
         const bookingId = req.params.id;
-        const booking = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
+        const booking = await getBookingByIdAsync(bookingId);
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
         if (!['CONFIRMED', 'COMPLETED'].includes((booking.status || '').toUpperCase())) {
@@ -12989,7 +12725,7 @@ app.get('/api/admin/bookings/:id/advancing', requireAdmin, async (req, res) => {
 app.put('/api/admin/bookings/:id/advancing', requireAdmin, async (req, res) => {
     try {
         const bookingId = req.params.id;
-        const booking = await dbGet("SELECT id, status FROM bookings WHERE id = ?", [bookingId]);
+        const booking = await getBookingIdStatusAsync(bookingId);
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if (!['CONFIRMED', 'COMPLETED'].includes((booking.status || '').toUpperCase())) {
             return res.status(409).json({ success: false, message: 'Confirm the booking first.' });
@@ -13221,7 +12957,7 @@ async function resolveAdvancingContacts(booking, venue, packId) {
 app.post('/api/admin/bookings/:id/advancing/pdf', requireAdmin, async (req, res) => {
     try {
         const bookingId = req.params.id;
-        const booking = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
+        const booking = await getBookingByIdAsync(bookingId);
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
         const pack = await dbGet("SELECT * FROM advancing_packs WHERE booking_id = ?", [bookingId]);
@@ -13232,8 +12968,7 @@ app.post('/api/admin/bookings/:id/advancing/pdf', requireAdmin, async (req, res)
             db.all("SELECT * FROM run_of_show_items WHERE pack_id = ? ORDER BY sort_order ASC, id ASC", [pack.id], (e, r) => e ? reject(e) : resolve(r)));
         const contacts = await resolveAdvancingContacts(booking, venue, pack.id);
 
-        const advancingDir = path.join(__dirname, 'docs', 'advancing');
-        if (!fs.existsSync(advancingDir)) fs.mkdirSync(advancingDir, { recursive: true });
+        const advancingDir = docsWriteDir('advancing');
         const fileName = `ADV-${bookingId}-${moment().format('YYMMDDHHmmss')}.pdf`;
         const pdfPath = path.join(advancingDir, fileName);
 
@@ -13251,7 +12986,7 @@ app.get('/api/admin/bookings/:id/advancing/download', requireAdmin, async (req, 
     try {
         const pack = await dbGet("SELECT pdf_url FROM advancing_packs WHERE booking_id = ?", [req.params.id]);
         if (!pack || !pack.pdf_url) return res.status(404).json({ success: false, message: 'No advancing pack PDF on file yet.' });
-        const filePath = path.join(__dirname, 'docs', 'advancing', pack.pdf_url);
+        const filePath = resolveDocsPath('advancing', pack.pdf_url);
         if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: 'PDF file not found on server.' });
         res.download(filePath, pack.pdf_url, (dlErr) => {
             if (dlErr) console.error('[Advancing Download Error]', dlErr.message);
@@ -13267,7 +13002,7 @@ app.get('/api/admin/bookings/:id/advancing/download', requireAdmin, async (req, 
 app.post('/api/admin/bookings/:id/advancing/send', requireAdmin, requireRole(['administrator', 'manager']), mutateRateLimiter, async (req, res) => {
     try {
         const bookingId = req.params.id;
-        const booking = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
+        const booking = await getBookingByIdAsync(bookingId);
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
         const pack = await dbGet("SELECT * FROM advancing_packs WHERE booking_id = ?", [bookingId]);
@@ -13282,8 +13017,7 @@ app.post('/api/admin/bookings/:id/advancing/send', requireAdmin, requireRole(['a
             db.all("SELECT * FROM run_of_show_items WHERE pack_id = ? ORDER BY sort_order ASC, id ASC", [pack.id], (e, r) => e ? reject(e) : resolve(r)));
         const contacts = await resolveAdvancingContacts(booking, venue, pack.id);
 
-        const advancingDir = path.join(__dirname, 'docs', 'advancing');
-        if (!fs.existsSync(advancingDir)) fs.mkdirSync(advancingDir, { recursive: true });
+        const advancingDir = docsWriteDir('advancing');
         const fileName = `ADV-${bookingId}-${moment().format('YYMMDDHHmmss')}.pdf`;
         const pdfPath = path.join(advancingDir, fileName);
         await pdfService.generateAdvancingPack(booking, pack, rosItems, contacts, pdfPath);
@@ -13374,7 +13108,7 @@ app.get('/api/calendar/feed.ics', async (req, res) => {
             }
         });
 
-        db.all(`SELECT hold_date, notes, start_time, end_time FROM date_holds WHERE status = 'active'`, [], (err, holds) => {
+        getActiveDateHoldsForIcsFeed((err, holds) => {
             if (!err) {
                 holds.forEach(h => {
                     try {
@@ -13447,25 +13181,16 @@ app.put('/api/admin/bookings/:id/public', requireAdmin, (req, res) => {
                     : null;
 
                 const performInsert = () => {
-                    db.run(
-                        `INSERT INTO events (
-                            event_title, event_description, event_datetime, 
-                            venue_name, venue_id, venue_map_link, ticket_sales_link, 
-                            booking_id, event_status, created_by, 
-                            ip_address, user_agent
-                         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?)`,
-                        [
-                            eventTitle, eventDesc, eventDatetime, 
-                            venueName, booking.venue_id || null, mapLink, cleanLink, 
-                            bookingId, req.session.adminId, ip_address, user_agent
-                        ],
+                    insertPublicEvent(
+                        eventTitle, eventDesc, eventDatetime,
+                        venueName, booking.venue_id || null, mapLink, cleanLink,
+                        bookingId, req.session.adminId, ip_address, user_agent,
                         function(insertErr) {
                             if (insertErr) return res.status(500).json({ success: false, message: insertErr.message });
                             const newEventId = this.lastID;
 
-                            db.run(
-                                "UPDATE bookings SET is_public = 1, ticket_link = ?, event_id = ? WHERE id = ?",
-                                [cleanLink, newEventId, bookingId],
+                            setBookingPublicWithNewEvent(
+                                cleanLink, newEventId, bookingId,
                                 function(updateErr) {
                                     if (updateErr) return res.status(500).json({ success: false, message: updateErr.message });
                                     sendResponse();
@@ -13476,28 +13201,19 @@ app.put('/api/admin/bookings/:id/public', requireAdmin, (req, res) => {
                 };
 
                 if (booking.event_id) {
-                    db.get("SELECT event_id FROM events WHERE event_id = ?", [booking.event_id], (checkErr, eventRow) => {
+                    checkEventExistsById(booking.event_id, (checkErr, eventRow) => {
                         if (checkErr) return res.status(500).json({ success: false, message: checkErr.message });
                         if (eventRow) {
-                            db.run(
-                                `UPDATE events SET 
-                                    event_title = ?, event_description = ?, event_datetime = ?, 
-                                    venue_name = ?, venue_id = ?, venue_map_link = ?, ticket_sales_link = ?, 
-                                    modified_by = ?, modified_on = CURRENT_TIMESTAMP, 
-                                    ip_address = ?, user_agent = ? 
-                                 WHERE event_id = ?`,
-                                [
-                                    eventTitle, eventDesc, eventDatetime, 
-                                    venueName, booking.venue_id || null, mapLink, cleanLink, 
-                                    req.session.adminId, ip_address, user_agent, 
-                                    booking.event_id
-                                ],
+                            updatePublicEvent(
+                                eventTitle, eventDesc, eventDatetime,
+                                venueName, booking.venue_id || null, mapLink, cleanLink,
+                                req.session.adminId, ip_address, user_agent,
+                                booking.event_id,
                                 function(updateEventErr) {
                                     if (updateEventErr) return res.status(500).json({ success: false, message: updateEventErr.message });
                                     
-                                    db.run(
-                                        "UPDATE bookings SET is_public = 1, ticket_link = ? WHERE id = ?",
-                                        [cleanLink, bookingId],
+                                    setBookingPublicTicketLink(
+                                        cleanLink, bookingId,
                                         function(updateErr) {
                                             if (updateErr) return res.status(500).json({ success: false, message: updateErr.message });
                                             sendResponse();
@@ -13515,22 +13231,20 @@ app.put('/api/admin/bookings/:id/public', requireAdmin, (req, res) => {
             } else {
                 // Toggling OFF
                 if (booking.event_id) {
-                    db.run(
-                        "UPDATE bookings SET is_public = 0, ticket_link = NULL, event_id = NULL WHERE id = ?",
-                        [bookingId],
+                    clearBookingPublicWithEvent(
+                        bookingId,
                         function(updateErr) {
                             if (updateErr) return res.status(500).json({ success: false, message: updateErr.message });
                             
-                            db.run("DELETE FROM events WHERE event_id = ?", [booking.event_id], function(deleteErr) {
+                            deleteEventById(booking.event_id, function(deleteErr) {
                                 if (deleteErr) return res.status(500).json({ success: false, message: deleteErr.message });
                                 sendResponse();
                             });
                         }
                     );
                 } else {
-                    db.run(
-                        "UPDATE bookings SET is_public = 0, ticket_link = NULL WHERE id = ?",
-                        [bookingId],
+                    clearBookingPublicTicketLink(
+                        bookingId,
                         function(updateErr) {
                             if (updateErr) return res.status(500).json({ success: false, message: updateErr.message });
                             sendResponse();
@@ -13554,7 +13268,7 @@ app.put('/api/admin/bookings/:id/status', requireAdmin, (req, res) => {
     const requestedStatus = (req.body.status || '').toUpperCase();
     const reason = req.body.reason;
     if (!requestedStatus) return res.status(400).json({ success: false, message: 'status field required.' });
-    db.get("SELECT status FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
+    getBookingStatus(req.params.id, (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found' });
         applyStatusChange(req.params.id, requestedStatus, (row.status || '').toUpperCase(), res, { reason, adminId: req.session.adminId, role: req.session.role });
     });
@@ -13572,11 +13286,11 @@ app.put('/api/admin/bookings/:id/disposition', requireAdmin, (req, res) => {
     if (!BOOKING_DISPOSITIONS.includes(disposition)) {
         return res.status(400).json({ success: false, message: `disposition must be one of: ${BOOKING_DISPOSITIONS.join(', ')}` });
     }
-    db.get("SELECT disposition FROM bookings WHERE id = ?", [bookingId], (err, row) => {
+    getBookingDisposition(bookingId, (err, row) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (!row) return res.status(404).json({ success: false, message: 'Booking not found' });
         const previous = row.disposition || 'active';
-        db.run("UPDATE bookings SET disposition = ? WHERE id = ?", [disposition, bookingId], function(upErr) {
+        updateBookingDisposition(disposition, bookingId, function(upErr) {
             if (upErr) return res.status(500).json({ success: false, message: upErr.message });
             db.run(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
                     VALUES ('bookings', ?, 'DISPOSITION', ?, ?, ?, CURRENT_TIMESTAMP)`,
@@ -13612,7 +13326,7 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
             if (!clientId) {
                 clientId = await findOrCreateClient(booking.name, booking.email, booking.cell, booking.company, booking.vat_number);
                 await new Promise((resolve, reject) => {
-                    db.run("UPDATE bookings SET client_id = ? WHERE id = ?", [clientId, bookingId], err => err ? reject(err) : resolve());
+                    setBookingClientId(clientId, bookingId, err => err ? reject(err) : resolve());
                 });
                 booking.client_id = clientId;
             }
@@ -13749,8 +13463,7 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
             let nextStatus = ['NEW', 'PENDING', 'REVIEWED', 'ACCEPTED', 'CONFIRMED'].includes(currentStatus) ? 'QUOTED' : currentStatus;
 
             // Ensure directory exists
-            const quotesDir = path.join(__dirname, 'docs', 'quotes');
-            if (!fs.existsSync(quotesDir)) fs.mkdirSync(quotesDir, { recursive: true });
+            const quotesDir = docsWriteDir('quotes');
 
             // Allocate the quote number the same way generateInvoice() allocates an invoice number.
             // `quotations.quote_number` is UNIQUE and the timestamp only resolves to the second, so two
@@ -13760,13 +13473,7 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
             //   first:  QT-44-260710143012
             //   again:  QT-44-260710143012-R2, -R3, …
             const baseQuoteNumber = `QT-${bookingId}-${moment().format('YYMMDDHHmmss')}`;
-            const priorQuotes = await new Promise((resolve, reject) =>
-                db.get(
-                    `SELECT COUNT(*) AS c FROM quotations
-                     WHERE quote_number = ? OR quote_number LIKE ?`,
-                    [baseQuoteNumber, `${baseQuoteNumber}-R%`],
-                    (e, r) => e ? reject(e) : resolve(r ? r.c : 0)
-                ));
+            const priorQuotes = await getQuoteNumberCollisionCount(baseQuoteNumber, `${baseQuoteNumber}-R%`);
             const quoteNumber = priorQuotes === 0 ? baseQuoteNumber : `${baseQuoteNumber}-R${priorQuotes + 1}`;
 
             // Generate PDF
@@ -13800,8 +13507,8 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
                         // live invoice, atomically with the new quote. If the quote fails, none of
                         // this happens and the booking keeps the plan the client already accepted.
                         if (reQuotingCommitted) {
-                            await dbRun("UPDATE payment_schedules SET status = 'superseded' WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) != 'paid'", [bookingId]);
-                            await dbRun("UPDATE invoices SET status = 'VOID', void_reason = 'superseded_by_requote', voided_at = CURRENT_TIMESTAMP WHERE booking_id = ? AND UPPER(status) NOT IN ('VOID','PAID')", [bookingId]);
+                            await supersedePaymentSchedulesForRequote(bookingId);
+                            await voidInvoiceForRequote(bookingId);
                             // A contract embodies the amount the client accepted; a re-quote changes that
                             // amount, so any existing contract — draft, sent, or even signed/frozen — is
                             // superseded and reset to draft. This clears the client's signature and the
@@ -13827,10 +13534,7 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
                         }
 
                         // Archive all previous active quotations for this booking
-                        await dbRun(
-                            "UPDATE quotations SET archived = 1, status = CASE WHEN status = 'sent' THEN 'archived' ELSE status END WHERE booking_id = ? AND archived = 0",
-                            [bookingId]
-                        );
+                        await archivePreviousQuotations(bookingId);
 
                         // 1. Update Booking.
                         // quote_amount is kept on bookings for backward-compat (legacy email templates + admin UI
@@ -13838,38 +13542,29 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
                         // row exists. We also update quote_details JSON for fallback/caching on details/invoice generation.
                         const currentPaid = parseFloat(booking.amount_paid) || 0;
                         const newOutstanding = Math.max(0, finalTotal - currentPaid);
-                        await dbRun(
-                            "UPDATE bookings SET quote_amount = ?, quote_details = ?, quote_expiry_date = ?, status = ?, quoted_at = CURRENT_TIMESTAMP, total_amount = ?, amount_outstanding = ? WHERE id = ?",
-                            [quote_amount, quote_details, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId]
-                        );
+                        await updateBookingAfterQuote(quote_amount, quote_details, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId);
 
                         // 2. Next version
-                        const vRow = await dbGet("SELECT COALESCE(MAX(version), 0) + 1 AS next_version FROM quotations WHERE booking_id = ?", [bookingId]);
+                        const vRow = await getNextQuoteVersion(bookingId);
                         const nextVersion = vRow ? vRow.next_version : 1;
 
                         // 3. Insert new versioned Quotation
-                        const qIns = await dbRun(
-                            "INSERT INTO quotations (booking_id, quote_number, client_id, quote_date, expiry_date, total_amount, status, file_path, version, archived, sent_at) VALUES (?, ?, ?, CURRENT_DATE, ?, ?, 'sent', ?, ?, 0, CURRENT_TIMESTAMP)",
-                            [bookingId, quoteNumber, booking.client_id, quote_expiry_date, finalTotal, pdfFileName, nextVersion]
-                        );
+                        const qIns = await insertQuotation(bookingId, quoteNumber, booking.client_id, quote_expiry_date, finalTotal, pdfFileName, nextVersion);
                         const quotationId = qIns.lastID;
 
                         // 4. Refresh line items (current snapshot)
-                        await dbRun("DELETE FROM booking_line_items WHERE booking_id = ?", [bookingId]);
-                        await dbRun("DELETE FROM booking_services WHERE booking_id = ?", [bookingId]);
+                        await deleteBookingLineItems(bookingId);
+                        await deleteBookingServices(bookingId);
 
                         for (const it of items) {
                             const q = parseFloat(it.quantity_minutes) || parseFloat(it.quantity) || 0;
                             const p = parseFloat(it.unit_price) || 0;
                             const desc = it.description || it.service_name || 'Service';
-                            await dbRun("INSERT INTO booking_line_items (booking_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
-                                [bookingId, it.service_id || null, desc, q || 1, p]);
+                            await insertBookingLineItem(bookingId, it.service_id || null, desc, q || 1, p);
                             if (it.service_id) {
-                                await dbRun("INSERT INTO booking_services (booking_id, service_id, quantity_minutes, unit_price, total_price) VALUES (?, ?, ?, ?, ?)",
-                                    [bookingId, it.service_id, q, p, q * p]);
+                                await insertBookingService(bookingId, it.service_id, q, p, q * p);
                             }
-                            await dbRun("INSERT INTO quote_line_items (quotation_id, service_id, description, quantity, unit_price) VALUES (?, ?, ?, ?, ?)",
-                                [quotationId, it.service_id || null, desc, q, p]);
+                            await insertQuoteLineItem(quotationId, it.service_id || null, desc, q, p);
                         }
 
                         // P3-3: Audit log for quote generation — inside the transaction, so a rollback
@@ -13926,10 +13621,8 @@ app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administra
 });
 
 app.get('/api/admin/bookings/:id/quote-history', requireAdmin, (req, res) => {
-    db.all(
-        `SELECT id, quote_number, version, total_amount, status, created_at, file_path, archived
-         FROM quotations WHERE booking_id = ? ORDER BY version DESC`,
-        [req.params.id], (err, rows) => {
+    getQuoteHistoryForBooking(
+        req.params.id, (err, rows) => {
             if (err) return res.status(500).json({ error: err.message });
             res.json((rows || []).map(r => ({
                 ...r,
@@ -13947,13 +13640,7 @@ app.get('/api/admin/bookings/:id/quote-history', requireAdmin, (req, res) => {
 app.post('/api/admin/bookings/:id/invoice/generate', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
     const bookingId = req.params.id;
     // Guard: if a quotation exists for this booking it must be in 'accepted' state
-    const activeQuote = await new Promise((resolve, reject) => {
-        db.get(
-            `SELECT id, status FROM quotations WHERE booking_id = ? AND archived = 0 ORDER BY version DESC LIMIT 1`,
-            [bookingId],
-            (err, row) => { if (err) reject(err); else resolve(row); }
-        );
-    }).catch(() => null);
+    const activeQuote = await getActiveQuoteStatusForInvoiceGuard(bookingId).catch(() => null);
 
     if (activeQuote && activeQuote.status !== 'accepted') {
         return res.status(400).json({
@@ -14009,18 +13696,14 @@ app.get('/api/admin/bookings/:id/reconcile', requireAdmin, (req, res) => {
 // 2.5 Ledger reconciliation sync — force aligns bookings totals to transactions
 app.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const bookingId = req.params.id;
-    db.get(
-        `SELECT
-            COALESCE(SUM(CASE WHEN (t.source != 'payfast' OR t.is_verified = 1) AND COALESCE(t.is_duplicate, 0) = 0 AND t.status = 'completed' THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS tx_paid
-         FROM transactions t
-         WHERE t.booking_id = ?`,
-        [bookingId],
+    getTransactionsPaidSumForReconcile(
+        bookingId,
         (err, row) => {
             if (err) return res.status(500).json({ success: false, message: 'Database error counting transactions: ' + err.message });
             
             const txPaid = parseFloat(row.tx_paid) || 0;
             
-            db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (bookErr, booking) => {
+            getBookingById(bookingId, (bookErr, booking) => {
                 if (bookErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
                 
                 const total = parseFloat(booking.total_amount) || 0;
@@ -14046,12 +13729,8 @@ app.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['a
 
                 const adminUser = req.session.username || 'system';
                 
-                db.run(
-                    `UPDATE bookings SET
-                        amount_paid = ?, amount_outstanding = ?, payment_status = ?, status = ?,
-                        confirmed_at = CASE WHEN ? = 'PAID' AND confirmed_at IS NULL THEN CURRENT_TIMESTAMP ELSE confirmed_at END
-                     WHERE id = ?`,
-                    [txPaid, outstanding, payment_status, newStatus, payment_status, bookingId],
+                updateBookingLedgerFromReconcile(
+                    txPaid, outstanding, payment_status, newStatus, bookingId,
                     (upErr) => {
                         if (upErr) return res.status(500).json({ success: false, message: 'Failed to update booking: ' + upErr.message });
                         
@@ -14075,7 +13754,7 @@ app.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['a
                             });
                             
                             if (payment_status === 'PAID') {
-                                db.run("UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [bookingId]);
+                                markInvoicePaidIfOpen(bookingId);
                             }
                         })();
                         
@@ -14101,7 +13780,7 @@ app.get('/api/public/bookings/:id/invoice/download', ipRateLimiter, trackRateLim
 
         if (err || !row) return res.status(404).send('Invoice not found');
 
-        const filePath = path.join(__dirname, 'docs', 'invoices', row.file_path);
+        const filePath = resolveDocsPath('invoices', row.file_path);
         if (fs.existsSync(filePath)) {
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename=Invoice_${row.invoice_number}.pdf`);
@@ -14121,7 +13800,7 @@ app.get('/api/public/bookings/:id/contract/download', ipRateLimiter, trackRateLi
 
         if (err || !row || !row.pdf_url) return res.status(404).send('Contract not found');
 
-        const filePath = path.join(__dirname, 'docs', 'contracts', row.pdf_url);
+        const filePath = resolveDocsPath('contracts', row.pdf_url);
         if (fs.existsSync(filePath)) {
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename=Contract_${row.pdf_url}`);
@@ -14135,15 +13814,11 @@ app.get('/api/public/bookings/:id/contract/download', ipRateLimiter, trackRateLi
 // 2b. Download Invoice (Admin Authorized)
 app.get('/api/admin/bookings/:id/invoice/download', requireAdmin, (req, res) => {
     // Same as the public route: serve the live invoice, never a superseded VOID revision.
-    db.get(`SELECT i.file_path, i.invoice_number
-            FROM invoices i
-            WHERE i.booking_id = ? AND UPPER(i.status) <> 'VOID'
-            ORDER BY i.created_at DESC, i.id DESC
-            LIMIT 1`, [req.params.id], (err, row) => {
+    getInvoiceFileForAdminDownload(req.params.id, (err, row) => {
 
         if (err || !row) return res.status(404).send('Invoice not found');
 
-        const filePath = path.join(__dirname, 'docs', 'invoices', row.file_path);
+        const filePath = resolveDocsPath('invoices', row.file_path);
         if (fs.existsSync(filePath)) {
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename=Invoice_${row.invoice_number}.pdf`);
@@ -14156,13 +13831,11 @@ app.get('/api/admin/bookings/:id/invoice/download', requireAdmin, (req, res) => 
 
 // 2c. Download Quote (Admin Authorized)
 app.get('/api/admin/bookings/:id/quote/download', requireAdmin, (req, res) => {
-    db.get(`SELECT q.file_path, q.quote_number 
-            FROM quotations q 
-            WHERE q.booking_id = ?`, [req.params.id], (err, row) => {
-        
+    getQuoteFileForAdminDownload(req.params.id, (err, row) => {
+
         if (err || !row) return res.status(404).send('Quotation not found');
 
-        const filePath = path.join(__dirname, 'docs', 'quotes', row.file_path);
+        const filePath = resolveDocsPath('quotes', row.file_path);
         if (fs.existsSync(filePath)) {
             res.setHeader('Content-Type', 'application/pdf');
             res.setHeader('Content-Disposition', `attachment; filename=Quote_${row.quote_number}.pdf`);
@@ -14179,10 +13852,10 @@ app.post('/api/public/bookings/:id/quote/download', ipRateLimiter, trackRateLimi
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if (!['QUOTED','ACCEPTED','CONFIRMED','COMPLETED'].includes(booking.status))
             return res.status(403).json({ success: false, message: 'No quote available for your booking.' });
-        db.get("SELECT file_path, quote_number FROM quotations WHERE booking_id = ? AND archived = 0 ORDER BY version DESC LIMIT 1",
-            [req.params.id], (e, q) => {
+        getLatestQuoteFileForPublicDownload(
+            req.params.id, (e, q) => {
                 if (e || !q) return res.status(404).json({ success: false, message: 'Quote PDF not found.' });
-                const filePath = path.join(__dirname, 'docs', 'quotes', q.file_path);
+                const filePath = resolveDocsPath('quotes', q.file_path);
                 if (!fs.existsSync(filePath))
                     return res.status(404).json({ success: false, message: 'Quote file not found on server.' });
                 res.setHeader('Content-Type', 'application/pdf');
@@ -14213,19 +13886,16 @@ app.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter, re
                 }
                 try {
                     await dbRun("UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [req.params.id]);
-                    await dbRun(`INSERT INTO cancellations (booking_id, cancelled_by, reason, reason_code, total_paid_to_date, refund_due, retention_amount, refund_status)
-                            VALUES (?, 'client', ?, ?, ?, ?, ?, 'pending')
-                            ON CONFLICT(booking_id) DO UPDATE SET cancelled_by='client', reason=excluded.reason, reason_code=excluded.reason_code, refund_status='pending'`,
-                        [req.params.id, reason || 'Client request', reason_code || null, calc.totalPaid, calc.refund, calc.retention]);
+                    await insertCancellationForPublicCancel(req.params.id, reason || 'Client request', reason_code || null, calc.totalPaid, calc.refund, calc.retention);
                     // Released with the cancellation, not after it: this ran post-COMMIT and could
                     // leave the date held against a booking that no longer holds it.
-                    await dbRun("UPDATE date_holds SET status = 'released' WHERE converted_to_booking_id = ?", [req.params.id]);
+                    await releaseDateHoldsForBookingAsync(req.params.id);
                     // Bug fix: this cascade was missing here even though both admin cancel paths
                     // (the dedicated /cancel route and the generic status-change handler) apply it —
                     // without it, a client self-cancelling an ACCEPTED booking left its invoice SENT
                     // and its payment-schedule rows pending, corrupting AR/outstanding-balance reporting.
-                    await dbRun("UPDATE invoices SET status='VOID', void_reason='booking_cancelled', voided_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status NOT IN ('VOID','PAID')", [req.params.id]);
-                    await dbRun("UPDATE payment_schedules SET status='cancelled', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND status='pending'", [req.params.id]);
+                    await voidInvoicesForCancelledBookingAsync(req.params.id);
+                    await cancelPendingPaymentSchedulesAsync(req.params.id);
 
                     await dbRun("COMMIT");
                     return { ok: true };
@@ -14401,7 +14071,7 @@ app.post('/api/public/bookings/:id/attachments',
 
 // Admin: serve a booking attachment file
 app.get('/api/admin/booking-attachments/:filename', requireAdmin, (req, res) => {
-    const filePath = path.join(__dirname, 'docs', 'booking_attachments', req.params.filename);
+    const filePath = resolveDocsPath('booking_attachments', req.params.filename);
     if (!fs.existsSync(filePath)) return res.status(404).send('File not found.');
     res.sendFile(filePath);
 });
@@ -14449,7 +14119,7 @@ app.get('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res) =>
     db.get("SELECT total_amount, (SELECT COALESCE(SUM(expected_amount), 0) FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')) AS scheduled_total FROM bookings WHERE id = ?", [bookingId, bookingId], (bErr, booking) => {
         if (bErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         
-        db.all("SELECT * FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC, id ASC", [bookingId], (err, rows) => {
+        getActivePaymentSchedules(bookingId, (err, rows) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
             res.json({
                 success: true,
@@ -14482,7 +14152,7 @@ app.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRole(
         }
     }
     
-    db.get('SELECT total_amount FROM bookings WHERE id = ?', [bookingId], (bErr, booking) => {
+    getBookingTotalAmount(bookingId, (bErr, booking) => {
         if (bErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
         // Validate that schedule amounts sum to total_amount (skip if total_amount not yet set)
@@ -14498,14 +14168,14 @@ app.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRole(
         }
 
         db.serialize(() => {
-            db.run('DELETE FROM payment_schedules WHERE booking_id = ?', [bookingId], (delErr) => {
+            deletePaymentSchedulesForBooking(bookingId, (delErr) => {
                 if (delErr) return res.status(500).json({ success: false, message: delErr.message });
-                
+
                 if (schedules.length === 0) {
                     return res.json({ success: true, message: 'Payment schedules cleared.' });
                 }
-                
-                const stmt = db.prepare(`INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount, status) VALUES (?, ?, ?, ?, 'pending')`);
+
+                const stmt = prepareInsertPaymentSchedule();
                 let insertError = null;
                 
                 schedules.forEach(item => {
@@ -14533,12 +14203,12 @@ app.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRole(
 // PENDING milestones (paid milestones are preserved). Money only changes on this explicit action.
 app.post('/api/admin/bookings/:id/payment-schedules/rebalance', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const bookingId = req.params.id;
-    db.get('SELECT total_amount FROM bookings WHERE id = ?', [bookingId], (bErr, booking) => {
+    getBookingTotalAmount(bookingId, (bErr, booking) => {
         if (bErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         const total = parseFloat(booking.total_amount) || 0;
         if (total <= 0) return res.status(400).json({ success: false, message: 'Set a booking total before rebalancing the schedule.' });
 
-        db.all("SELECT * FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC, id ASC", [bookingId], (err, schedules) => {
+        getActivePaymentSchedules(bookingId, (err, schedules) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
             if (!schedules || schedules.length === 0) return res.status(400).json({ success: false, message: 'No payment schedule to rebalance — set up milestones first.' });
 
@@ -14568,7 +14238,7 @@ app.post('/api/admin/bookings/:id/payment-schedules/rebalance', requireAdmin, re
             const newAmounts = pending.map((s, i) => ({ id: s.id, amount: rounded[i] }));
 
             db.serialize(() => {
-                const stmt = db.prepare("UPDATE payment_schedules SET expected_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                const stmt = prepareUpdatePaymentScheduleAmount();
                 let upErr = null;
                 newAmounts.forEach(u => stmt.run([u.amount, u.id], e => { if (e) upErr = e; }));
                 stmt.finalize((finErr) => {
@@ -14578,7 +14248,7 @@ app.post('/api/admin/bookings/:id/payment-schedules/rebalance', requireAdmin, re
                         [bookingId, req.session.adminId || req.session.username || 'admin', JSON.stringify({ total, paidSum, remaining, milestones: newAmounts })], () => {});
 
                     updateBookingMilestones(bookingId, () => {
-                        db.all("SELECT * FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC, id ASC", [bookingId], (e2, rows) => {
+                        getActivePaymentSchedules(bookingId, (e2, rows) => {
                             const scheduled_total = (rows || []).reduce((s, x) => s + (parseFloat(x.expected_amount) || 0), 0);
                             res.json({ success: true, message: 'Schedule rebalanced to the booking total.', schedules: rows || [], scheduled_total, total_amount: total });
                         });
@@ -14617,15 +14287,6 @@ app.get('/api/admin/payment-schedules/mismatches', requireAdmin, requireRole(['a
 // 3.7 Financial Analytics API (Admin)
 // GET /api/admin/financials/analytics
 app.get('/api/admin/financials/analytics', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    const trendQuery = `
-        SELECT strftime('%Y-%m', transaction_date) AS month, SUM(amount) AS total_revenue
-        FROM transactions
-        WHERE status = 'completed' AND COALESCE(is_duplicate, 0) = 0
-          AND transaction_date >= DATE('now', '-12 months')
-        GROUP BY month
-        ORDER BY month ASC
-    `;
-    
     const clientQuery = `
         SELECT c.id AS client_id, COALESCE(c.full_name, b.name) AS client_name, c.company_name,
                SUM(t.amount) AS total_spent, COUNT(DISTINCT b.id) AS booking_count
@@ -14636,26 +14297,6 @@ app.get('/api/admin/financials/analytics', requireAdmin, requireRole(['administr
         GROUP BY client_id, client_name
         ORDER BY total_spent DESC
         LIMIT 5
-    `;
-    
-    const agingQuery = `
-        SELECT 
-            COUNT(CASE WHEN (julianday('now') - julianday(due_date)) <= 0 THEN 1 END) AS current_count,
-            COALESCE(SUM(CASE WHEN (julianday('now') - julianday(due_date)) <= 0 THEN total_amount ELSE 0 END), 0) AS current_value,
-            
-            COUNT(CASE WHEN (julianday('now') - julianday(due_date)) > 0 AND (julianday('now') - julianday(due_date)) <= 30 THEN 1 END) AS age_30_count,
-            COALESCE(SUM(CASE WHEN (julianday('now') - julianday(due_date)) > 0 AND (julianday('now') - julianday(due_date)) <= 30 THEN total_amount ELSE 0 END), 0) AS age_30_value,
-            
-            COUNT(CASE WHEN (julianday('now') - julianday(due_date)) > 30 AND (julianday('now') - julianday(due_date)) <= 60 THEN 1 END) AS age_60_count,
-            COALESCE(SUM(CASE WHEN (julianday('now') - julianday(due_date)) > 30 AND (julianday('now') - julianday(due_date)) <= 60 THEN total_amount ELSE 0 END), 0) AS age_60_value,
-            
-            COUNT(CASE WHEN (julianday('now') - julianday(due_date)) > 60 AND (julianday('now') - julianday(due_date)) <= 90 THEN 1 END) AS age_90_count,
-            COALESCE(SUM(CASE WHEN (julianday('now') - julianday(due_date)) > 60 AND (julianday('now') - julianday(due_date)) <= 90 THEN total_amount ELSE 0 END), 0) AS age_90_value,
-            
-            COUNT(CASE WHEN (julianday('now') - julianday(due_date)) > 90 THEN 1 END) AS age_over_90_count,
-            COALESCE(SUM(CASE WHEN (julianday('now') - julianday(due_date)) > 90 THEN total_amount ELSE 0 END), 0) AS age_over_90_value
-        FROM invoices
-        WHERE status IN ('SENT', 'OVERDUE')
     `;
     
     const overdueListQuery = `
@@ -14684,21 +14325,14 @@ app.get('/api/admin/financials/analytics', requireAdmin, requireRole(['administr
 
     // Monthly expenses over the same 12-month window used by the revenue trend,
     // so the two can be combined into a cash-flow (money in vs money out) view.
-    const expenseTrendQuery = `
-        SELECT strftime('%Y-%m', expense_date) AS month, SUM(amount) AS total_expenses
-        FROM expenses
-        WHERE expense_date >= DATE('now', '-12 months')
-        GROUP BY month
-        ORDER BY month ASC
-    `;
 
-    db.all(trendQuery, [], (err, trend) => {
+    getTransactionRevenueTrend((err, trend) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
 
         db.all(clientQuery, [], (e2, clients) => {
             if (e2) return res.status(500).json({ success: false, message: e2.message });
 
-            db.get(agingQuery, [], (e3, aging) => {
+            getInvoiceAgingSummary((e3, aging) => {
                 if (e3) return res.status(500).json({ success: false, message: e3.message });
 
                 db.all(overdueListQuery, [], (e4, overdueInvoices) => {
@@ -14707,7 +14341,7 @@ app.get('/api/admin/financials/analytics', requireAdmin, requireRole(['administr
                     db.all(categoryQuery, [], (e5, categories) => {
                         if (e5) return res.status(500).json({ success: false, message: e5.message });
 
-                        db.all(expenseTrendQuery, [], (e6, expenseTrend) => {
+                        getExpenseTrend((e6, expenseTrend) => {
                             if (e6) return res.status(500).json({ success: false, message: e6.message });
 
                             // Merge revenue trend + expense trend into a unified
@@ -14755,22 +14389,12 @@ app.get('/api/admin/finance/pl', requireAdmin, requireRole(['administrator', 'ma
     if (date_from) { revWhere += ' AND t.transaction_date >= ?'; revenueParams.push(date_from); expWhere += ' AND e.expense_date >= ?'; expenseParams.push(date_from); }
     if (date_to)   { revWhere += ' AND t.transaction_date <= ?'; revenueParams.push(date_to);   expWhere += ' AND e.expense_date <= ?'; expenseParams.push(date_to);   }
 
-    db.all(
-        `SELECT strftime('${groupFormat}', transaction_date) AS period,
-                COALESCE(SUM(amount), 0) AS revenue
-         FROM transactions t
-         ${revWhere}
-         GROUP BY period ORDER BY period ASC`,
-        revenueParams,
+    getTransactionRevenueByPeriod(
+        groupFormat, revWhere, revenueParams,
         (rErr, revenueRows) => {
             if (rErr) return res.status(500).json({ success: false, error: rErr.message });
-            db.all(
-                `SELECT strftime('${groupFormat}', expense_date) AS period,
-                        COALESCE(SUM(amount), 0) AS expenses
-                 FROM expenses e
-                 ${expWhere}
-                 GROUP BY period ORDER BY period ASC`,
-                expenseParams,
+            getExpensesByPeriod(
+                groupFormat, expWhere, expenseParams,
                 (eErr, expenseRows) => {
                     if (eErr) return res.status(500).json({ success: false, error: eErr.message });
 
@@ -14843,12 +14467,7 @@ app.post('/api/admin/expenses', requireAdmin, requireRole(['administrator', 'man
     }
     const addedBy = req.session.username || 'system';
 
-    db.run(
-        `INSERT INTO expenses (booking_id, category, amount, description, expense_date, receipt_url,
-            start_odometer, end_odometer, rate_per_km,
-            per_diem_days, per_diem_rate,
-            vat_paid, vat_rate, vendor, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+    insertExpense(
         [booking_id || null, category, parseFloat(amount).toFixed(2), description.trim(), expense_date, receipt_url || null,
          start_odometer ? parseInt(start_odometer) : null, end_odometer ? parseInt(end_odometer) : null,
          rate_per_km ? parseFloat(rate_per_km) : null,
@@ -14881,9 +14500,9 @@ app.post('/api/admin/expenses', requireAdmin, requireRole(['administrator', 'man
 // DELETE /api/admin/expenses/:id — delete (soft-delete) an expense
 app.delete('/api/admin/expenses/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
     const addedBy = req.session.username || 'system';
-    db.get('SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL', [req.params.id], (err, row) => {
+    getActiveExpenseById(req.params.id, (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Expense not found.' });
-        db.run('UPDATE expenses SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?', [req.params.id], function(e2) {
+        softDeleteExpense(req.params.id, function(e2) {
             if (e2) return res.status(500).json({ success: false, message: e2.message });
             db.run(
                 `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json)
@@ -14906,7 +14525,7 @@ app.delete('/api/admin/expenses/:id', requireAdmin, requireRole(['administrator'
 app.put('/api/admin/expenses/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const expenseId = req.params.id;
     const addedBy = req.session.username || 'system';
-    db.get('SELECT * FROM expenses WHERE id = ? AND deleted_at IS NULL', [expenseId], (err, existing) => {
+    getActiveExpenseById(expenseId, (err, existing) => {
         if (err || !existing) return res.status(404).json({ success: false, message: 'Expense not found.' });
         const { booking_id, category, amount, description, expense_date, receipt_url,
                 start_odometer, end_odometer, rate_per_km,
@@ -14915,13 +14534,7 @@ app.put('/api/admin/expenses/:id', requireAdmin, requireRole(['administrator', '
             return res.status(400).json({ success: false, message: 'Invalid category.' });
         if (amount && (isNaN(parseFloat(amount)) || parseFloat(amount) <= 0))
             return res.status(400).json({ success: false, message: 'Amount must be greater than zero.' });
-        db.run(
-            `UPDATE expenses SET
-                booking_id=?, category=?, amount=?, description=?, expense_date=?, receipt_url=?,
-                start_odometer=?, end_odometer=?, rate_per_km=?,
-                per_diem_days=?, per_diem_rate=?, vat_paid=?, vat_rate=?, vendor=?,
-                updated_at=CURRENT_TIMESTAMP
-             WHERE id=?`,
+        updateExpense(
             [
                 booking_id !== undefined ? (booking_id || null) : existing.booking_id,
                 category || existing.category,
@@ -15031,10 +14644,8 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
         ? null
         : (PM_MAP[String(payment_method).toLowerCase().trim()] || 'other');
 
-    db.run(
-        `INSERT INTO transactions (booking_id, amount, transaction_type, payment_method, reference, notes, transaction_date, source, status, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', 'completed', CURRENT_TIMESTAMP)`,
-        [booking_id || null, amt, transaction_type, normalizedMethod, reference || null, finalNotes, txDate],
+    insertManualTransaction(
+        booking_id || null, amt, transaction_type, normalizedMethod, reference || null, finalNotes, txDate,
         function(err) {
             if (err) return res.status(500).json({ success: false, message: err.message });
             const txId = this.lastID;
@@ -15052,7 +14663,7 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
             if (booking_id) {
                 if (transaction_type === 'payment') {
                     // Fetch booking row to compute new outstanding balance and run notifications/sync
-                    db.get("SELECT * FROM bookings WHERE id = ?", [booking_id], (bookErr, row) => {
+                    getBookingById(booking_id, (bookErr, row) => {
                         if (bookErr || !row) {
                             console.error(`[Manual Transaction] Booking #${booking_id} not found:`, bookErr?.message);
                             return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
@@ -15079,15 +14690,8 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                         // A deposit confirms, same as every other payment path.
                         const newStatus = deriveBookingStatusAfterPayment(row.status, payment_status);
 
-                        db.run(
-                            `UPDATE bookings SET
-                                payment_status = ?, amount_paid = ?, amount_outstanding = ?,
-                                total_amount = CASE WHEN COALESCE(total_amount, 0) = 0 THEN ? ELSE total_amount END,
-                                status = ?,
-                                last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP,
-                                confirmed_at = CASE WHEN ? = 'PAID' AND confirmed_at IS NULL THEN CURRENT_TIMESTAMP ELSE confirmed_at END
-                             WHERE id = ?`,
-                            [payment_status, paid, outstanding, total, newStatus, payment_status, booking_id],
+                        applyManualTransactionPaymentToBooking(
+                            payment_status, paid, outstanding, total, newStatus, booking_id,
                             (upErr) => {
                                 if (upErr) {
                                     console.error('[Manual Transaction] Booking update failed:', upErr.message);
@@ -15121,8 +14725,8 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                                     }
 
                                     if (payment_status === 'PAID') {
-                                        db.run("UPDATE invoices SET status='PAID', updated_at=CURRENT_TIMESTAMP WHERE booking_id=? AND UPPER(status) NOT IN ('VOID','PAID')", [booking_id]);
-                                        db.get("SELECT * FROM bookings WHERE id = ?", [booking_id], (e, updated) => {
+                                        markInvoicePaidIfOpen(booking_id);
+                                        getBookingById(booking_id, (e, updated) => {
                                             if (!e && updated) {
                                                 sendBookingConfirmedEmail(updated).catch(e => console.error('Confirmed email failed:', e.message));
                                                 setTimeout(() => sendPaidReceiptEmail(updated).catch(e => console.error('Paid receipt email failed:', e.message)), 600);
@@ -15136,7 +14740,7 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                         );
                     });
                 } else if (transaction_type === 'refund') {
-                    db.get("SELECT * FROM bookings WHERE id = ?", [booking_id], (bookErr, row) => {
+                    getBookingById(booking_id, (bookErr, row) => {
                         if (bookErr || !row) {
                             return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
                         }
@@ -15152,8 +14756,8 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                         else if (newPaid <= 0)                   payment_status = 'UNPAID';
                         else if (newPaid >= total * 0.5)         payment_status = 'DEPOSIT_PAID';
                         else                                     payment_status = 'PARTIALLY_PAID';
-                        db.run(`UPDATE bookings SET amount_paid = ?, amount_outstanding = ?, payment_status = ? WHERE id = ?`,
-                            [newPaid, outstanding, payment_status, booking_id], (upErr) => {
+                        updateBookingLedgerAfterManualRefund(
+                            newPaid, outstanding, payment_status, booking_id, (upErr) => {
                                 if (upErr) {
                                     console.error('[Manual Transaction] Refund booking update failed:', upErr.message);
                                     return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking update failed.' });
@@ -15169,7 +14773,7 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                             });
                     });
                 } else if (transaction_type === 'adjustment') {
-                    db.get("SELECT * FROM bookings WHERE id = ?", [booking_id], (bookErr, row) => {
+                    getBookingById(booking_id, (bookErr, row) => {
                         if (bookErr || !row) {
                             console.error(`[Manual Transaction] Booking #${booking_id} not found:`, bookErr?.message);
                             return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
@@ -15198,13 +14802,8 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                         // A deposit confirms, same as every other payment path.
                         const newStatus = deriveBookingStatusAfterPayment(row.status, payment_status);
 
-                        db.run(
-                            `UPDATE bookings SET
-                                payment_status = ?, total_amount = ?, amount_outstanding = ?,
-                                status = ?,
-                                confirmed_at = CASE WHEN ? = 'PAID' AND confirmed_at IS NULL THEN CURRENT_TIMESTAMP ELSE confirmed_at END
-                             WHERE id = ?`,
-                            [payment_status, newTotal, outstanding, newStatus, payment_status, booking_id],
+                        updateBookingLedgerAfterAdjustment(
+                            payment_status, newTotal, outstanding, newStatus, booking_id,
                             (upErr) => {
                                 if (upErr) {
                                     console.error('[Manual Transaction] Booking update failed:', upErr.message);
@@ -15224,7 +14823,7 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
                                     });
 
                                     // Void and regenerate invoice if one exists that is not paid/void
-                                    db.get("SELECT id FROM invoices WHERE booking_id = ? AND UPPER(status) NOT IN ('VOID','PAID') LIMIT 1", [booking_id], async (invErr, invRow) => {
+                                    getOpenInvoiceIdForAdjustmentRegen(booking_id, async (invErr, invRow) => {
                                         if (!invErr && invRow) {
                                             try {
                                                 await generateInvoice(booking_id);
@@ -15252,7 +14851,7 @@ app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administr
 // GET /api/admin/bookings/:id/expenses — expenses for a specific booking + P&L
 app.get('/api/admin/bookings/:id/expenses', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const bookingId = req.params.id;
-    db.all('SELECT * FROM expenses WHERE booking_id = ? AND deleted_at IS NULL ORDER BY expense_date DESC', [bookingId], (err, expenses) => {
+    getExpensesForBooking(bookingId, (err, expenses) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         const totalExpenses = (expenses || []).reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
         // Fetch the booking's quote total for P&L
@@ -15288,14 +14887,6 @@ app.get('/api/admin/financials/stats', requireAdmin, requireRole(['administrator
     const periodTo    = date_to   || defaultTo;
 
     // 1. Period-scoped revenue (completed transactions in range)
-    const revenueQuery = `
-        SELECT COALESCE(SUM(t.amount), 0) AS period_revenue
-        FROM transactions t
-        WHERE t.status = 'completed'
-          AND COALESCE(t.is_duplicate, 0) = 0
-          AND DATE(t.transaction_date) >= ?
-          AND DATE(t.transaction_date) <= ?
-    `;
 
     // 2. All-time outstanding.
     //    Allowlist, not a denylist. Booking intake writes amount_outstanding = the service
@@ -15303,41 +14894,23 @@ app.get('/api/admin/financials/stats', requireAdmin, requireRole(['administrator
     //    "NOT IN ('CANCELLED','EXPIRED')" counted every unsubmitted enquiry as a receivable —
     //    an hourly MC enquiry silently added R2 950. A quote that has been sent but not accepted
     //    (QUOTED) is not a receivable either. Only an accepted commitment is money owed.
-    const outstandingQuery = `
-        SELECT COALESCE(SUM(amount_outstanding), 0) AS total_outstanding
-        FROM bookings
-        WHERE status IN ('ACCEPTED', 'CONFIRMED', 'COMPLETED')
-    `;
-
     // 3. Booking status counts
     // Soft-declined leads (disposition 'not_a_fit'/'archived') are excluded from the active
     // pipeline funnel — they were never a live deal, so counting them would inflate/distort
     // conversion math the same way a raw status overload would have (see BOOKING_DISPOSITIONS).
-    const countsQuery = `
-        SELECT
-            COUNT(CASE WHEN status = 'PENDING'   THEN 1 END) AS pending_count,
-            COUNT(CASE WHEN status = 'QUOTED'    THEN 1 END) AS quoted_count,
-            COUNT(CASE WHEN status = 'CONFIRMED' THEN 1 END) AS confirmed_count
-        FROM bookings
-        WHERE status NOT IN ('CANCELLED', 'EXPIRED')
-          AND (disposition = 'active' OR disposition IS NULL)
-    `;
 
-    db.get(revenueQuery, [periodFrom, periodTo], (err, revRow) => {
+    getPeriodRevenue(periodFrom, periodTo, (err, revRow) => {
         if (err) return res.status(500).json({ error: err.message });
         const periodRevenue = parseFloat(revRow ? revRow.period_revenue : 0);
 
-        db.get(outstandingQuery, [], (e2, outRow) => {
+        getOutstandingTotal((e2, outRow) => {
             if (e2) return res.status(500).json({ error: e2.message });
             const totalOutstanding = parseFloat(outRow ? outRow.total_outstanding : 0);
 
-            db.get(countsQuery, [], (e3, counts) => {
+            getBookingStatusCounts((e3, counts) => {
                 // Period-scoped expenses
-                db.get(
-                    `SELECT COALESCE(SUM(amount), 0) AS period_expenses
-                     FROM expenses
-                     WHERE expense_date >= ? AND expense_date <= ? AND deleted_at IS NULL`,
-                    [periodFrom, periodTo],
+                getPeriodExpenses(
+                    periodFrom, periodTo,
                     (e4, expRow) => {
                         const periodExpenses = parseFloat(expRow ? expRow.period_expenses : 0);
 
@@ -15352,24 +14925,10 @@ app.get('/api/admin/financials/stats', requireAdmin, requireRole(['administrator
                             [],
                             (e5, qRow) => {
                                 // Overdue invoices (SENT status with a due_date in the past)
-                                db.get(
-                                    `SELECT COUNT(*) AS overdue_count,
-                                            COALESCE(SUM(total_amount), 0) AS overdue_value
-                                     FROM invoices
-                                     WHERE status = 'SENT'
-                                       AND due_date IS NOT NULL
-                                       AND due_date < DATE('now')`,
-                                    [],
+                                getOverdueInvoicesSummary(
                                     (e6, overdueRow) => {
                                         // Invoices due within next 7 days (SENT, not yet past due)
-                                        db.get(
-                                            `SELECT COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS val
-                                             FROM invoices
-                                             WHERE status = 'SENT'
-                                               AND due_date IS NOT NULL
-                                               AND due_date >= DATE('now')
-                                               AND due_date <= DATE('now', '+7 days')`,
-                                            [],
+                                        getDueSoonInvoicesSummary(
                                             (e7, dueSoonRow) => {
                                                 // Invoices generated but never sent for CONFIRMED bookings
                                                 db.get(
@@ -15389,7 +14948,7 @@ app.get('/api/admin/financials/stats', requireAdmin, requireRole(['administrator
                                                              ORDER BY t.created_at DESC LIMIT 200`,
                                                             [],
                                                             (e9, transactions) => {
-                                                                db.get('SELECT COUNT(*) AS total FROM transactions', [], (e10, countRow) => {
+                                                                getTotalTransactionCount((e10, countRow) => {
                                                                     res.json({
                                                                         success: true,
                                                                         period: { from: periodFrom, to: periodTo },
@@ -15500,10 +15059,8 @@ app.get('/api/admin/reconciliation', requireAdmin, requireRole(['administrator',
 
 // GET /api/admin/reconciliation/:bookingId/transactions — full tx list for one booking (expandable row)
 app.get('/api/admin/reconciliation/:bookingId/transactions', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    db.all(
-        `SELECT id, amount, source, payment_method, reference, transaction_date, status, is_duplicate, reconcile_note
-         FROM transactions WHERE booking_id = ? AND status = 'completed' ORDER BY transaction_date DESC`,
-        [req.params.bookingId], (err, rows) => {
+    getCompletedTransactionsForReconciliation(
+        req.params.bookingId, (err, rows) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
             res.json({ success: true, transactions: rows || [] });
         }
@@ -15517,9 +15074,8 @@ app.patch('/api/admin/transactions/:id/reconcile', requireAdmin, requireRole(['a
     const note = (reconcile_note || '').trim().substring(0, 255);
     const adminUser = req.session.username || 'system';
 
-    db.run(
-        `UPDATE transactions SET is_duplicate = ?, reconcile_note = ? WHERE id = ?`,
-        [flag, note || null, req.params.id],
+    setTransactionDuplicateFlag(
+        flag, note || null, req.params.id,
         function(err) {
             if (err || this.changes === 0) {
                 return res.status(err ? 500 : 404).json({ success: false, message: err ? err.message : 'Transaction not found.' });
@@ -15550,10 +15106,7 @@ app.post('/api/admin/bank-statement/import', requireAdmin, requireRole(['adminis
     const rawLines = text.split('\n').map(l => l.trim()).filter(l => l);
     // Skip header row if first cell looks like 'date' or 'Date'
     const lines = rawLines.filter(l => !/^["']?date["']?[,;]/i.test(l));
-    const insertStmt = db.prepare(
-        `INSERT INTO bank_statement_lines (import_batch, import_date, statement_date, description, amount, reference)
-         VALUES (?, ?, ?, ?, ?, ?)`
-    );
+    const insertStmt = prepareBankStatementLineInsert();
     let imported = 0;
     const insertMany = db.transaction(() => {
         for (const line of lines) {
@@ -15583,11 +15136,7 @@ app.get('/api/admin/bank-statement/lines', requireAdmin, requireRole(['administr
     sql += ' ORDER BY bsl.statement_date DESC';
     db.all(sql, params, (err, rows) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
-        db.all(
-            `SELECT import_batch, import_date, COUNT(*) AS line_count,
-                    SUM(CASE WHEN matched_booking_id IS NULL AND matched_transaction_id IS NULL THEN 1 ELSE 0 END) AS unmatched_count
-             FROM bank_statement_lines GROUP BY import_batch ORDER BY import_date DESC`,
-            [],
+        getBankStatementImportBatches(
             (e2, batches) => {
                 res.json({ success: true, lines: rows || [], batches: batches || [] });
             }
@@ -15598,9 +15147,8 @@ app.get('/api/admin/bank-statement/lines', requireAdmin, requireRole(['administr
 // PATCH /api/admin/bank-statement/lines/:id/match — link a line to a booking
 app.patch('/api/admin/bank-statement/lines/:id/match', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { booking_id, transaction_id, match_note } = req.body;
-    db.run(
-        `UPDATE bank_statement_lines SET matched_booking_id=?, matched_transaction_id=?, match_note=? WHERE id=?`,
-        [booking_id || null, transaction_id || null, (match_note || '').trim() || null, req.params.id],
+    matchBankStatementLine(
+        booking_id || null, transaction_id || null, (match_note || '').trim() || null, req.params.id,
         function(err) {
             if (err || this.changes === 0) return res.status(err ? 500 : 404).json({ success: false, message: err?.message || 'Line not found.' });
             res.json({ success: true });
@@ -15610,7 +15158,7 @@ app.patch('/api/admin/bank-statement/lines/:id/match', requireAdmin, requireRole
 
 // DELETE /api/admin/bank-statement/lines/:id — remove a single imported line
 app.delete('/api/admin/bank-statement/lines/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    db.run('DELETE FROM bank_statement_lines WHERE id = ?', [req.params.id], function(err) {
+    deleteBankStatementLine(req.params.id, function(err) {
         if (err || this.changes === 0) return res.status(err ? 500 : 404).json({ success: false });
         res.json({ success: true });
     });
@@ -15618,7 +15166,7 @@ app.delete('/api/admin/bank-statement/lines/:id', requireAdmin, requireRole(['ad
 
 // DELETE /api/admin/bank-statement/batch/:batchId — delete an entire import batch
 app.delete('/api/admin/bank-statement/batch/:batchId', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    db.run('DELETE FROM bank_statement_lines WHERE import_batch = ?', [req.params.batchId], function(err) {
+    deleteBankStatementBatch(req.params.batchId, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, deleted: this.changes });
     });
@@ -15675,7 +15223,7 @@ app.get('/api/admin/bookings/:id/financials', requireAdmin, requireRole(['admini
     const bookingId = req.params.id;
     const result = { quote: null, invoice: null };
 
-    db.get("SELECT * FROM quotations WHERE booking_id = ? ORDER BY created_at DESC LIMIT 1", [bookingId], (err, quote) => {
+    getQuoteForBookingFinancials(bookingId, (err, quote) => {
         if (quote) {
             result.quote = {
                 id: quote.id,
@@ -15684,8 +15232,8 @@ app.get('/api/admin/bookings/:id/financials', requireAdmin, requireRole(['admini
                 created_at: quote.created_at
             };
         }
-        
-        db.get("SELECT * FROM invoices WHERE booking_id = ? ORDER BY invoice_date DESC LIMIT 1", [bookingId], (err, invoice) => {
+
+        getInvoiceForBookingFinancials(bookingId, (err, invoice) => {
             if (invoice) {
                 result.invoice = {
                     id: invoice.id,
@@ -15753,7 +15301,7 @@ const BOOKING_DELETE_UNLINK = [
 app.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrator']), async (req, res) => {
     const id = req.params.id;
     try {
-        const booking = await dbGet("SELECT * FROM bookings WHERE id = ?", [id]);
+        const booking = await getBookingByIdAsync(id);
         if (!booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         if (parseFloat(booking.amount_paid) > 0) {
             return res.status(400).json({ success: false, message: 'Cannot delete a booking with recorded payments. Cancel it instead to preserve the financial audit trail.' });
@@ -15777,7 +15325,7 @@ app.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrator'
                     [id, JSON.stringify(booking), req.ip || null]
                 );
 
-                const del = await dbRun("DELETE FROM bookings WHERE id = ?", [id]);
+                const del = await deleteBookingById(id);
                 if (del.changes === 0) {
                     await dbRun("ROLLBACK").catch(() => {});
                     return { status: 404, body: { success: false, message: 'Booking not found.' } };
@@ -15891,11 +15439,7 @@ function checkEventConflicts(event_datetime, booking_id, excludeEventId, callbac
     const eventEndTime = eventTime ? addMinutesToTime(eventTime, 60) : null; // assume 1-hour event duration
     const excludeId = excludeEventId || -1;
 
-    db.all(
-        `SELECT id, event_start_time, performance_end_time, performance_duration
-         FROM bookings 
-         WHERE date = ? AND status != 'CANCELLED' AND (event_id IS NULL OR event_id != ?)`,
-        [eventDateStr, excludeId], (err, bRows) => {
+    getBookingsOnDateForEventConflict(eventDateStr, excludeId, (err, bRows) => {
             if (err) return callback(err);
             let conflict = false;
             if (bRows && bRows.length > 0) {
@@ -15912,10 +15456,8 @@ function checkEventConflicts(event_datetime, booking_id, excludeEventId, callbac
             }
             if (conflict) return callback(null, true);
 
-            db.all(
-                `SELECT id, start_time, end_time FROM date_holds
-                 WHERE hold_date = ? AND status = 'active' AND (event_id IS NULL OR event_id != ?)`,
-                [eventDateStr, excludeId], (err2, hRows) => {
+            getActiveDateHoldsForEventConflict(
+                eventDateStr, excludeId, (err2, hRows) => {
                     if (err2) return callback(err2);
                     if (hRows && hRows.length > 0) {
                         if (!eventTime) {
@@ -15934,11 +15476,8 @@ function checkEventConflicts(event_datetime, booking_id, excludeEventId, callbac
                     // bookings and holds — so two public events could silently double-book the same
                     // slot. Booking-linked events are excluded since the bookings query above already
                     // covers them (their date/time always mirrors their booking).
-                    db.all(
-                        `SELECT event_id, event_datetime, event_end_time FROM events
-                         WHERE date(event_datetime) = ? AND event_id != ? AND booking_id IS NULL
-                           AND event_status NOT IN ('cancelled', 'draft')`,
-                        [eventDateStr, excludeId], (err3, eRows) => {
+                    getOtherEventsOnDate(
+                        eventDateStr, excludeId, (err3, eRows) => {
                             if (err3) return callback(err3);
                             if (eRows && eRows.length > 0) {
                                 if (!eventTime) {
@@ -15983,23 +15522,23 @@ app.post('/api/admin/events', requireAdmin, (req, res) => {
         if (err) return res.status(500).json({ success: false, error: 'Conflict check failed: ' + err.message });
         if (hasConflict) return res.status(409).json({ success: false, message: 'Calendar conflict: The selected date is already booked or held.' });
 
-        db.run("INSERT INTO events (event_title, event_description, event_datetime, event_end_time, event_type, venue_name, venue_id, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity, booking_id, created_by, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            [event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, venue_id || null, venue_map_link, ticket_sales_link, poster_image_path, event_status || 'upcoming', event_capacity || null, booking_id || null, req.session.adminId, ip_address, user_agent],
+        insertEventFull(
+            event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, venue_id || null, venue_map_link, ticket_sales_link, poster_image_path, event_status || 'upcoming', event_capacity || null, booking_id || null, req.session.adminId, ip_address, user_agent,
             async function(err) {
                 if (err) return res.status(500).json({ success: false, error: err.message });
                 const newEventId = this.lastID;
 
                 if (booking_id) {
-                    db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [newEventId, booking_id]);
+                    setBookingEventId(newEventId, booking_id);
                 }
 
                 if (block_type === 'hold') {
-                    db.run("INSERT INTO date_holds (hold_date, hold_expires_at, status, notes, event_id) VALUES (?, datetime('now', '+30 days'), 'active', ?, ?)", [eventDateStr, `Hold for ${event_title}`, newEventId]);
+                    insertDateHoldForNewEvent(eventDateStr, `Hold for ${event_title}`, newEventId);
                 } else if (block_type === 'booking') {
                     // cell/event_location/event_type/message are all NOT NULL with no default - the
                     // original INSERT omitted them, so this branch had silently thrown a NOT NULL
                     // constraint error and created no booking at all, every single time, since day one.
-                    db.run("INSERT INTO bookings (name, email, cell, date, event_name, event_location, event_type, message, status, event_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    insertPlaceholderBookingForEvent(
                         ['Placeholder', 'placeholder@example.com', '0000000000', eventDateStr, event_title, venue_name || 'TBD', event_type || 'Other', `Calendar placeholder for event: ${event_title}`, 'PENDING', newEventId],
                         function(bkErr) {
                         if (bkErr) { console.error('[Events] Placeholder booking insert failed:', bkErr.message); return; }
@@ -16007,7 +15546,7 @@ app.post('/api/admin/events', requireAdmin, (req, res) => {
                         // never written back - every later lookup that finds a booking FROM its event
                         // (cancel/complete/venue-sync cascades all do "WHERE booking_id = ?") silently
                         // found nothing for a placeholder created this way.
-                        db.run("UPDATE events SET booking_id = ? WHERE event_id = ?", [this.lastID, newEventId]);
+                        linkEventToPlaceholderBooking(this.lastID, newEventId);
                     });
                 }
 
@@ -16035,13 +15574,13 @@ app.put('/api/admin/events/:id', requireAdmin, (req, res) => {
     // (on the assumption the booking's own creation path already checked), so a booking-linked event
     // edited through this full-edit form had NO conflict re-check at all if its date changed here.
     // Mirrors the same guard PATCH /api/admin/events/:id/date already applies for the drag-reschedule case.
-    db.get("SELECT event_datetime, booking_id AS old_booking_id, google_calendar_event_id FROM events WHERE event_id = ?", [eventId], async (selErr, oldRow) => {
+    getEventForConflictEdit(eventId, async (selErr, oldRow) => {
         if (selErr || !oldRow) return res.status(404).json({ success: false, error: 'Event not found' });
         const resolvedBookingIdForCheck = booking_id || oldRow.old_booking_id;
         const dateChanged = event_datetime && event_datetime !== oldRow.event_datetime;
 
         if (resolvedBookingIdForCheck && dateChanged) {
-            const booking = await new Promise(r => db.get("SELECT * FROM bookings WHERE id = ?", [resolvedBookingIdForCheck], (e, x) => r(e ? null : x)));
+            const booking = await getBookingByIdSafeAsync(resolvedBookingIdForCheck);
             if (booking && !['CANCELLED', 'EXPIRED', 'COMPLETED'].includes((booking.status || '').toUpperCase())) {
                 const datePart = event_datetime.substring(0, 10);
                 const timePart = event_datetime.length >= 16 ? event_datetime.substring(11, 16) : (booking.event_start_time || '00:00');
@@ -16059,20 +15598,19 @@ app.put('/api/admin/events/:id', requireAdmin, (req, res) => {
             if (conflictCheck.hasConflict) return res.status(409).json({ success: false, message: 'Calendar conflict: The selected date is already booked or held.' });
         }
 
-        db.run("UPDATE events SET event_title = ?, event_description = ?, event_datetime = ?, event_end_time = ?, event_type = ?, venue_name = ?, venue_id = ?, venue_map_link = ?, ticket_sales_link = ?, poster_image_path = ?, event_status = ?, event_capacity = ?, cancellation_reason = ?, booking_id = ?, modified_by = ?, modified_by_role = ?, modified_on = CURRENT_TIMESTAMP, ip_address = ?, user_agent = ? WHERE event_id = ?",
-            [event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, venue_id || null, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity || null, cancellation_reason || null, booking_id || null, req.session.adminId, req.session.role || null, ip_address, user_agent, eventId],
+        updateEventFull(
+            event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, venue_id || null, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity || null, cancellation_reason || null, booking_id || null, req.session.adminId, req.session.role || null, ip_address, user_agent, eventId,
             async function(err) {
                 if (err) return res.status(500).json({ success: false, error: err.message });
                 const actor = await resolveActor(req.session.adminId);
                 const resolvedBookingId = booking_id || (oldRow && oldRow.old_booking_id);
                 if (resolvedBookingId) {
-                    db.run("UPDATE bookings SET event_id = ? WHERE id = ?", [eventId, resolvedBookingId]);
+                    setBookingEventId(eventId, resolvedBookingId);
                     // Sync booking date if event_datetime changed
                     if (event_datetime && oldRow && event_datetime !== oldRow.event_datetime) {
                         const datePart = event_datetime.substring(0, 10);
                         const timePart = event_datetime.length >= 16 ? event_datetime.substring(11, 16) : null;
-                        db.run("UPDATE bookings SET date = ?" + (timePart ? ", event_start_time = ?" : "") + " WHERE id = ?",
-                            timePart ? [datePart, timePart, resolvedBookingId] : [datePart, resolvedBookingId]);
+                        updateBookingDateFromEventEdit(datePart, timePart, resolvedBookingId);
                     }
                 }
                 let gcalSynced = false;
@@ -16087,7 +15625,7 @@ app.put('/api/admin/events/:id', requireAdmin, (req, res) => {
                         // unconditionally rather than gating it behind the network call's success, so
                         // our own state can't be left stale forever by a transient Google API failure.
                         deleteGoogleEvent(oldRow.google_calendar_event_id).catch(e => console.error('GCal delete error:', e));
-                        db.run("UPDATE events SET google_calendar_event_id = NULL WHERE event_id = ?", [eventId]);
+                        clearEventGoogleCalendarId(eventId);
                     }
                 } else if (req.body.sync_to_gcal !== false) {
                     try { gcalSynced = !!(await syncEventToCalendar(eventId)); }
@@ -16098,14 +15636,14 @@ app.put('/api/admin/events/:id', requireAdmin, (req, res) => {
     });
 });
 app.delete('/api/admin/events/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.get("SELECT google_calendar_event_id FROM events WHERE event_id = ?", [req.params.id], (selErr, evRow) => {
+    getEventGoogleCalendarId(req.params.id, (selErr, evRow) => {
         // Null out any booking that references this event before deleting to prevent dangling FK
-        db.run("UPDATE bookings SET event_id = NULL WHERE event_id = ?", [req.params.id], () => {
+        clearBookingEventIdWhereEventId(req.params.id, () => {
             // date_holds.event_id was left unhandled here - with foreign_keys=ON (see database.js),
             // deleting an event that still had a hold referencing it (from block_type:'hold' at
             // creation) threw a bare FOREIGN KEY constraint error instead of deleting.
-            db.run("UPDATE date_holds SET event_id = NULL WHERE event_id = ?", [req.params.id], () => {
-                db.run("DELETE FROM events WHERE event_id = ?", [req.params.id], function(err) {
+            clearDateHoldEventId(req.params.id, () => {
+                deleteEventById(req.params.id, function(err) {
                     if (err) return res.status(500).json({ success: false, error: err.message });
                     res.json({ success: true, message: 'Event deleted' });
                     if (evRow && evRow.google_calendar_event_id) {
@@ -16123,7 +15661,7 @@ app.patch('/api/admin/events/:id/date', requireAdmin, async (req, res) => {
     if (!date) return res.status(400).json({ success: false, message: 'date is required' });
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ success: false, message: 'date must be YYYY-MM-DD' });
     const eventId = req.params.id;
-    const row = await new Promise(r => db.get("SELECT event_datetime, booking_id FROM events WHERE event_id = ?", [eventId], (e, x) => r(e ? null : x)));
+    const row = await new Promise(r => getEventForDragReschedule(eventId, (e, x) => r(e ? null : x)));
     if (!row) return res.status(404).json({ success: false, message: 'Event not found' });
     const existingTime = time || (row.event_datetime || '').split('T')[1] || '00:00';
     const newDatetime = date + 'T' + existingTime;
@@ -16132,7 +15670,7 @@ app.patch('/api/admin/events/:id/date', requireAdmin, async (req, res) => {
     // guard the booking date-change endpoint (PATCH /bookings/:id/date) applies — so dragging an
     // event on the calendar can't silently create a double-booking. Terminal bookings are skipped.
     if (row.booking_id) {
-        const booking = await new Promise(r => db.get("SELECT * FROM bookings WHERE id = ?", [row.booking_id], (e, x) => r(e ? null : x)));
+        const booking = await getBookingByIdSafeAsync(row.booking_id);
         if (booking && !['CANCELLED', 'EXPIRED', 'COMPLETED'].includes((booking.status || '').toUpperCase())) {
             const startISO = moment(`${date} ${existingTime.substring(0, 5)}`).toISOString();
             const durMins = (booking.performance_end_time && booking.event_start_time)
@@ -16145,18 +15683,17 @@ app.patch('/api/admin/events/:id/date', requireAdmin, async (req, res) => {
     }
 
     {
-        db.run(
-            "UPDATE events SET event_datetime = ?, modified_on = CURRENT_TIMESTAMP WHERE event_id = ?",
-            [newDatetime, eventId],
+        updateEventDatetime(
+            newDatetime, eventId,
             function(updateErr) {
                 if (updateErr) return res.status(500).json({ success: false, error: updateErr.message });
                 const oldDate = (row.event_datetime || '').split('T')[0];
                 if (row.booking_id) {
-                    db.run("UPDATE bookings SET date = ?, event_start_time = ? WHERE id = ?",
-                        [date, existingTime.substring(0, 5), row.booking_id],
+                    setBookingDateAndStartTimeFromEvent(
+                        date, existingTime.substring(0, 5), row.booking_id,
                         () => {
                             // Notify booking client of date change
-                            db.get("SELECT * FROM bookings WHERE id = ?", [row.booking_id], (bErr, booking) => {
+                            getBookingById(row.booking_id, (bErr, booking) => {
                                 if (!bErr && booking) {
                                     if (booking.email && oldDate !== date) {
                                         sendDateChangedEmail(booking, oldDate, date)
@@ -16186,18 +15723,14 @@ app.patch('/api/admin/events/:id/date', requireAdmin, async (req, res) => {
 
 // Duplicate an event (copy all fields, reset status to draft, append " (Copy)" to title)
 app.post('/api/admin/events/:id/duplicate', requireAdmin, (req, res) => {
-    db.get("SELECT * FROM events WHERE event_id = ?", [req.params.id], (err, row) => {
+    getEventById(req.params.id, (err, row) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         if (!row) return res.status(404).json({ success: false, message: 'Event not found' });
         const newTitle = (row.event_title || 'Event') + ' (Copy)';
-        db.run(
-            `INSERT INTO events (event_title, event_description, event_datetime, event_end_time, event_type, venue_name,
-                venue_id, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity,
-                created_by, ip_address, user_agent)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?)`,
-            [newTitle, row.event_description, row.event_datetime, row.event_end_time, row.event_type,
-             row.venue_name, row.venue_id, row.venue_map_link, row.ticket_sales_link, row.poster_image_path,
-             row.event_capacity, req.session.adminId, req.ip || 'unknown', req.get('User-Agent') || 'unknown'],
+        insertEventForDuplicate(
+            newTitle, row.event_description, row.event_datetime, row.event_end_time, row.event_type,
+            row.venue_name, row.venue_id, row.venue_map_link, row.ticket_sales_link, row.poster_image_path,
+            row.event_capacity, req.session.adminId, req.ip || 'unknown', req.get('User-Agent') || 'unknown',
             function(insErr) {
                 if (insErr) return res.status(500).json({ success: false, error: insErr.message });
                 res.json({ success: true, id: this.lastID, message: 'Event duplicated as draft' });
@@ -16244,7 +15777,7 @@ app.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
                 [bookingId, subject, textSnippet]
             );
             // Auto-update booking status upon send
-            db.run("UPDATE bookings SET status = 'PENDING' WHERE id = ?", [bookingId], function(err) {
+            markBookingPendingAfterRespond(bookingId, function(err) {
                 if (err) console.error("Error auto-updating status to PENDING:", err);
                 res.json({ success: true, message: 'Response dispatched successfully and status updated.' });
             });
@@ -16647,7 +16180,7 @@ app.delete('/api/admin/gallery/:id', requireAdmin, requireRole(['administrator']
 // (D11) Removed legacy GET /api/admin/campaigns — superseded by GET /api/admin/campaigns/unified
 // (the only campaigns-list route the frontend calls). The POST /api/admin/campaigns send route is unaffected.
 app.delete('/api/admin/campaigns/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.run("DELETE FROM newsletter_campaigns WHERE id = ?", [req.params.id], function(err) {
+    deleteCampaign(req.params.id, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (this.changes === 0) return res.status(404).json({ success: false, message: 'Campaign not found.' });
         res.json({ success: true });
@@ -16687,12 +16220,9 @@ app.get('/api/admin/campaigns/unified', requireAdmin, (req, res) => {
             COALESCE(scheduled_at, created_at) AS date
         FROM scheduled_newsletters`;
 
-    const countSql = `SELECT COUNT(*) AS total FROM (${inner}) ${whereClause}`;
-    const dataSql  = `SELECT * FROM (${inner}) ${whereClause} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
-
-    db.get(countSql, qp, (err, countRow) => {
+    countUnifiedCampaigns(inner, whereClause, qp, (err, countRow) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
-        db.all(dataSql, [...qp, limit, offset], (err2, rows) => {
+        listUnifiedCampaigns(inner, whereClause, orderClause, [...qp, limit, offset], (err2, rows) => {
             if (err2) return res.status(500).json({ success: false, message: err2.message });
             const total = countRow.total;
             res.json({ success: true, campaigns: rows, total, page, pages: Math.ceil(total / limit) });
@@ -16719,12 +16249,12 @@ app.post('/api/admin/campaigns/bulk-delete', requireAdmin, requireRole(['adminis
     if (campaignIds.length) {
         pending++;
         const ph = campaignIds.map(() => '?').join(',');
-        db.run(`DELETE FROM newsletter_campaigns WHERE id IN (${ph})`, campaignIds, err => { if (err) return fail(err); done(); });
+        bulkDeleteCampaigns(ph, campaignIds, err => { if (err) return fail(err); done(); });
     }
     if (scheduleIds.length) {
         pending++;
         const ph = scheduleIds.map(() => '?').join(',');
-        db.all(`SELECT attachment_paths FROM scheduled_newsletters WHERE id IN (${ph})`, scheduleIds, (err, rows) => {
+        getScheduledAttachmentsForIds(ph, scheduleIds, (err, rows) => {
             if (!err && rows) {
                 rows.forEach(r => {
                     if (r.attachment_paths) {
@@ -16732,7 +16262,7 @@ app.post('/api/admin/campaigns/bulk-delete', requireAdmin, requireRole(['adminis
                     }
                 });
             }
-            db.run(`DELETE FROM scheduled_newsletters WHERE id IN (${ph})`, scheduleIds, err2 => { if (err2) return fail(err2); done(); });
+            bulkDeleteScheduled(ph, scheduleIds, err2 => { if (err2) return fail(err2); done(); });
         });
     }
     if (pending === 0) res.json({ success: true });
@@ -16773,8 +16303,6 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
     }
     const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const countSql = `SELECT COUNT(*) AS total FROM inquiries ${whereClause}`;
-
     // Folder badge counts are global totals (independent of current filter/search).
     db.get("SELECT policy_value FROM policies WHERE policy_key = 'inquiry_response_sla_hours'", [], (errS, slaRow) => {
         const slaHours = (!errS && slaRow && parseInt(slaRow.policy_value) > 0) ? parseInt(slaRow.policy_value) : 24;
@@ -16785,7 +16313,7 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
                           FROM inquiries LEFT JOIN admins ON admins.id = inquiries.assigned_to
                           ${whereClause} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
 
-        db.all("SELECT status, COUNT(*) AS c FROM inquiries GROUP BY status", [], (errC, countRows) => {
+        countInquiriesByStatus((errC, countRows) => {
         if (errC) return res.status(500).json({ success: false, message: errC.message });
         const counts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0, drafts: 0, scheduled: 0, mine: 0 };
         (countRows || []).forEach(r => {
@@ -16802,10 +16330,10 @@ app.get('/api/admin/inquiries', requireAdmin, (req, res) => {
                 });
             }
 
-            db.get("SELECT COUNT(*) AS c FROM inquiries WHERE assigned_to = ?", [req.session.adminId], (errM, mineRow) => {
+            countMyInquiries(req.session.adminId, (errM, mineRow) => {
                 if (!errM && mineRow) counts.mine = mineRow.c;
 
-            db.get(countSql, qp, (err, countRow) => {
+            countInquiries(whereClause, qp, (err, countRow) => {
                 if (err) return res.status(500).json({ success: false, message: err.message });
                 db.all(dataSql, [slaHours, ...qp, limit, offset], (err2, rows) => {
                     if (err2) return res.status(500).json({ success: false, message: err2.message });
@@ -16825,7 +16353,7 @@ app.put('/api/admin/inquiries/:id/status', requireAdmin, requireRole(['administr
     if (!validStatuses.includes(status)) {
         return res.status(400).json({ success: false, message: 'Invalid status.' });
     }
-    db.run("UPDATE inquiries SET status = ? WHERE inquiry_id = ?", [status, req.params.id], function(err) {
+    updateInquiryStatus(status, req.params.id, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true });
     });
@@ -16834,7 +16362,7 @@ app.put('/api/admin/inquiries/:id/status', requireAdmin, requireRole(['administr
 // Active admins eligible to be assigned an inquiry (deliberately narrower than /api/admin/users,
 // which is administrator-only and returns full PII) — any authenticated admin can view the list.
 app.get('/api/admin/inquiries/assignable-admins', requireAdmin, (req, res) => {
-    db.all("SELECT id, full_name, username, role FROM admins WHERE is_active = 1 ORDER BY full_name, username", [], (err, rows) => {
+    getAssignableAdmins((err, rows) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, admins: rows });
     });
@@ -16843,7 +16371,7 @@ app.get('/api/admin/inquiries/assignable-admins', requireAdmin, (req, res) => {
 app.put('/api/admin/inquiries/:id/assign', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const { assigned_to } = req.body;
     if (assigned_to === null || assigned_to === undefined || assigned_to === '') {
-        return db.run("UPDATE inquiries SET assigned_to = NULL, assigned_at = NULL, updated_by = ?, updated_by_role = ?, updated_at = CURRENT_TIMESTAMP WHERE inquiry_id = ?", [req.session.adminId, req.session.role || null, req.params.id], async function(err) {
+        return unassignInquiry(req.session.adminId, req.session.role || null, req.params.id, async function(err) {
             if (err) return res.status(500).json({ success: false, message: err.message });
             const actor = await resolveActor(req.session.adminId);
             res.json({ success: true, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
@@ -16851,10 +16379,10 @@ app.put('/api/admin/inquiries/:id/assign', requireAdmin, requireRole(['administr
     }
     const targetId = parseInt(assigned_to);
     if (isNaN(targetId)) return res.status(400).json({ success: false, message: 'Invalid assignee.' });
-    db.get("SELECT id FROM admins WHERE id = ? AND is_active = 1", [targetId], (err, row) => {
+    checkAdminActiveById(targetId, (err, row) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (!row) return res.status(400).json({ success: false, message: 'Assignee must be an active admin.' });
-        db.run("UPDATE inquiries SET assigned_to = ?, assigned_at = CURRENT_TIMESTAMP, updated_by = ?, updated_by_role = ?, updated_at = CURRENT_TIMESTAMP WHERE inquiry_id = ?", [targetId, req.session.adminId, req.session.role || null, req.params.id], async function(err2) {
+        assignInquiry(targetId, req.session.adminId, req.session.role || null, req.params.id, async function(err2) {
             if (err2) return res.status(500).json({ success: false, message: err2.message });
             const actor = await resolveActor(req.session.adminId);
             res.json({ success: true, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
@@ -16868,7 +16396,7 @@ app.put('/api/admin/inquiries/:id/priority', requireAdmin, requireRole(['adminis
     if (!validPriorities.includes(priority)) {
         return res.status(400).json({ success: false, message: 'Invalid priority.' });
     }
-    db.run("UPDATE inquiries SET priority = ?, updated_by = ?, updated_by_role = ?, updated_at = CURRENT_TIMESTAMP WHERE inquiry_id = ?", [priority, req.session.adminId, req.session.role || null, req.params.id], async function(err) {
+    updateInquiryPriority(priority, req.session.adminId, req.session.role || null, req.params.id, async function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         const actor = await resolveActor(req.session.adminId);
         res.json({ success: true, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
@@ -16877,7 +16405,7 @@ app.put('/api/admin/inquiries/:id/priority', requireAdmin, requireRole(['adminis
 
 // Distinct previously-used categories, for the tag/category autocomplete datalist.
 app.get('/api/admin/inquiries/categories', requireAdmin, (req, res) => {
-    db.all("SELECT DISTINCT category FROM inquiries WHERE category IS NOT NULL AND category != '' ORDER BY category", [], (err, rows) => {
+    listInquiryCategories((err, rows) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, categories: (rows || []).map(r => r.category) });
     });
@@ -16885,7 +16413,7 @@ app.get('/api/admin/inquiries/categories', requireAdmin, (req, res) => {
 
 app.put('/api/admin/inquiries/:id/category', requireAdmin, (req, res) => {
     const category = (req.body.category || '').trim().slice(0, 100);
-    db.run("UPDATE inquiries SET category = ?, updated_by = ?, updated_by_role = ?, updated_at = CURRENT_TIMESTAMP WHERE inquiry_id = ?", [category || null, req.session.adminId, req.session.role || null, req.params.id], async function(err) {
+    updateInquiryCategory(category || null, req.session.adminId, req.session.role || null, req.params.id, async function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         const actor = await resolveActor(req.session.adminId);
         res.json({ success: true, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
@@ -16893,9 +16421,8 @@ app.put('/api/admin/inquiries/:id/category', requireAdmin, (req, res) => {
 });
 
 app.get('/api/admin/inquiries/:id/notes', requireAdmin, (req, res) => {
-    db.all(
-        "SELECT id, note, author, created_at FROM inquiry_notes WHERE inquiry_id = ? ORDER BY created_at ASC",
-        [req.params.id],
+    listInquiryNotes(
+        req.params.id,
         (err, rows) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
             res.json({ success: true, notes: rows || [] });
@@ -16907,14 +16434,13 @@ app.post('/api/admin/inquiries/:id/notes', requireAdmin, (req, res) => {
     const { note } = req.body;
     if (!note || !note.trim()) return res.status(400).json({ success: false, message: 'Note text is required.' });
     // Author/created_by derive from the session rather than trusting client input.
-    db.get("SELECT COALESCE(full_name, username) AS name FROM admins WHERE id = ?", [req.session.adminId], (err0, adminRow) => {
+    getAdminDisplayNameById(req.session.adminId, (err0, adminRow) => {
         const author = (adminRow && adminRow.name) || req.session.username || 'Admin';
-        db.run(
-            "INSERT INTO inquiry_notes (inquiry_id, note, author, created_by) VALUES (?, ?, ?, ?)",
-            [req.params.id, note.trim(), author, req.session.adminId],
+        insertInquiryNote(
+            req.params.id, note.trim(), author, req.session.adminId,
             function(err) {
                 if (err) return res.status(500).json({ success: false, message: err.message });
-                db.get("SELECT id, note, author, created_at FROM inquiry_notes WHERE id = ?", [this.lastID], (e, row) => {
+                getInquiryNoteById(this.lastID, (e, row) => {
                     res.json({ success: true, note: row });
                 });
             }
@@ -16923,9 +16449,8 @@ app.post('/api/admin/inquiries/:id/notes', requireAdmin, (req, res) => {
 });
 
 app.delete('/api/admin/inquiries/:id/notes/:noteId', requireAdmin, (req, res) => {
-    db.run(
-        "DELETE FROM inquiry_notes WHERE id = ? AND inquiry_id = ?",
-        [req.params.noteId, req.params.id],
+    deleteInquiryNote(
+        req.params.noteId, req.params.id,
         function(err) {
             if (err) return res.status(500).json({ success: false, message: err.message });
             if (this.changes === 0) return res.status(404).json({ success: false, message: 'Note not found.' });
@@ -16948,7 +16473,7 @@ app.put('/api/admin/inquiries/bulk-status', requireAdmin, requireRole(['administ
         return res.status(400).json({ success: false, message: 'No valid message IDs.' });
     }
     const ph = cleanIds.map(() => '?').join(',');
-    db.run(`UPDATE inquiries SET status = ? WHERE inquiry_id IN (${ph})`, [status, ...cleanIds], function(err) {
+    bulkUpdateInquiryStatus(ph, status, cleanIds, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         const label = status.charAt(0).toUpperCase() + status.slice(1);
         res.json({ success: true, message: `${this.changes} message(s) marked as ${label}` });
@@ -16965,14 +16490,14 @@ app.post('/api/admin/inquiries/bulk-delete', requireAdmin, requireRole(['adminis
         return res.status(400).json({ success: false, message: 'No valid message IDs.' });
     }
     const ph = cleanIds.map(() => '?').join(',');
-    db.run(`DELETE FROM inquiries WHERE inquiry_id IN (${ph})`, cleanIds, function(err) {
+    bulkDeleteInquiries(ph, cleanIds, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true, message: `${this.changes} message(s) deleted` });
     });
 });
 
 app.delete('/api/admin/inquiries/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.run("DELETE FROM inquiries WHERE inquiry_id = ?", req.params.id, function(err) {
+    deleteInquiry(req.params.id, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         res.json({ success: true });
     });
@@ -17111,7 +16636,7 @@ async function sendDirectEmail(id) {
                     db.run("UPDATE direct_emails SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id], (updErr) => {
                         if (emailItem.inquiry_id) {
                             // responded_at only set once — first response, not every subsequent reply
-                            db.run("UPDATE inquiries SET status = 'replied', responded_at = COALESCE(responded_at, CURRENT_TIMESTAMP) WHERE inquiry_id = ?", [emailItem.inquiry_id]);
+                            markInquiryReplied(emailItem.inquiry_id);
                         }
                         resolve();
                     });
@@ -17157,7 +16682,6 @@ function loadPendingDirectEmails() {
 // callers left anywhere in admin.html since the Banner Library rebuild.)
 // ══════════════════════════════════════════════════════════════════════════
 
-const BANNER_DIR = path.join(__dirname, 'images', 'banners');
 const bannerUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 500 * 1024 } // hard ceiling; the real ≤100KB check below gives a clear message
@@ -17189,12 +16713,11 @@ function validateBannerImageBuffer(file) {
     return { ok: true };
 }
 
-// Writes a validated buffer to images/banners/ and returns its web-servable /images/... path.
+// Writes a validated buffer to the banners upload dir and returns its web-servable /images/... path.
 function saveBannerImage(file) {
-    if (!fs.existsSync(BANNER_DIR)) fs.mkdirSync(BANNER_DIR, { recursive: true });
     const ext = path.extname(file.originalname).toLowerCase();
     const filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
-    fs.writeFileSync(path.join(BANNER_DIR, filename), file.buffer);
+    fs.writeFileSync(path.join(uploadsWriteDir('banners'), filename), file.buffer);
     return `/images/banners/${filename}`;
 }
 
@@ -17879,8 +17402,7 @@ const SITE_CONTENT_KEYS = ['announcement_text', 'announcement_enabled', 'announc
 const SECTION_KEYS = ['hero', 'features', 'services', 'about', 'career', 'footprint', 'gallery', 'events', 'social', 'newsletter', 'testimonials', 'contact', 'footer'];
 
 app.get('/api/public/site-content', (req, res) => {
-    const ph = SITE_CONTENT_KEYS.map(() => '?').join(',');
-    db.all(`SELECT setting_key, setting_value FROM settings WHERE setting_key IN (${ph})`, SITE_CONTENT_KEYS, (err, rows) => {
+    getSettingsByKeys(SITE_CONTENT_KEYS, (err, rows) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         const map = {};
         (rows || []).forEach(r => { map[r.setting_key] = r.setting_value; });
@@ -17942,8 +17464,7 @@ app.put('/api/admin/site-content', requireAdmin, (req, res) => {
     if (!keys.length) return res.json({ success: true });
     let pending = keys.length, failed = false;
     keys.forEach(key => {
-        db.run("INSERT OR REPLACE INTO settings (setting_key, setting_value, updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
-            [key, updates[key]], (err) => {
+        upsertSetting(key, updates[key], (err) => {
                 if (err && !failed) { failed = true; console.error('save site-content failed:', err); return res.status(500).json({ success: false, message: 'Could not save homepage content. Please try again.' }); }
                 if (--pending === 0 && !failed) res.json({ success: true, message: 'Homepage content updated.' });
             });
@@ -17995,14 +17516,8 @@ app.delete('/api/admin/social_embeds/:id', requireAdmin, requireRole(['administr
 });
 
 // =============================================
-// Helper to retrieve setting value dynamically from the database
-const getSettingVal = (key) => {
-    return new Promise(resolve => {
-        db.get("SELECT setting_value FROM settings WHERE setting_key = ?", [key], (err, row) => {
-            resolve(row ? row.setting_value : null);
-        });
-    });
-};
+// getSettingVal(key) — helper to retrieve a setting value dynamically — now lives in
+// database/repositories/settings.repository.js (Phase 4, HOUSEKEEPING-NOTES.md).
 
 app.get('/api/admin/dashboard/social_kpis', requireAdmin, (req, res) => {
     db.all("SELECT * FROM social_kpi_stats ORDER BY id ASC", [], async (err, rows) => {
@@ -18296,22 +17811,22 @@ app.get('/api/admin/popia/requests/:id', requireAdmin, async (req, res) => {
         if (bookingIds.length) {
             const [contracts, notes, quotes, txns, cancels, reviews, payLogs] = await Promise.all([
                 dbGet(`SELECT COUNT(*) AS c FROM contracts WHERE booking_id IN (${bookingPh})`, bookingIds),
-                dbGet(`SELECT COUNT(*) AS c FROM booking_notes WHERE booking_id IN (${bookingPh})`, bookingIds),
-                dbGet(`SELECT COUNT(*) AS c FROM quotations WHERE booking_id IN (${bookingPh})`, bookingIds),
-                dbGet(`SELECT COUNT(*) AS c FROM transactions WHERE booking_id IN (${bookingPh})`, bookingIds),
-                dbGet(`SELECT COUNT(*) AS c FROM cancellations WHERE booking_id IN (${bookingPh})`, bookingIds),
+                countBookingNotesForIds(bookingPh, bookingIds),
+                countQuotationsForIds(bookingPh, bookingIds),
+                countTransactionsForIds(bookingPh, bookingIds),
+                countCancellationsForIds(bookingPh, bookingIds),
                 dbGet(`SELECT COUNT(*) AS c FROM service_reviews WHERE booking_id IN (${bookingPh})`, bookingIds),
-                dbGet(`SELECT COUNT(*) AS c FROM payment_logs WHERE booking_id IN (${bookingPh})`, bookingIds)
+                countPaymentLogsForIds(bookingPh, bookingIds)
             ]);
             preview.contracts = contracts.c; preview.booking_notes = notes.c; preview.quotations = quotes.c;
             preview.transactions = txns.c; preview.cancellations = cancels.c; preview.service_reviews = reviews.c; preview.payment_logs = payLogs.c;
         }
         if (clientIds.length) {
-            const extraQuotes = await dbGet(`SELECT COUNT(*) AS c FROM quotations WHERE client_id IN (${clientPh}) AND booking_id IS NULL`, clientIds);
+            const extraQuotes = await countQuotationsForClientIds(clientPh, clientIds);
             preview.quotations += extraQuotes.c;
         }
         if (inquiryIds.length) {
-            const notes = await dbGet(`SELECT COUNT(*) AS c FROM inquiry_notes WHERE inquiry_id IN (${inquiryPh})`, inquiryIds);
+            const notes = await countInquiryNotesForIds(inquiryPh, inquiryIds);
             preview.inquiry_notes = notes.c;
         }
 
@@ -18441,7 +17956,7 @@ app.post('/api/admin/popia/requests', requireAdmin, requireRole(['administrator'
  * entries, then updates the booking record with foreign key references.
  */
 app.post('/api/admin/system/migrate-legacy-data', requireAdmin, requireRole(['administrator']), async (req, res) => {
-    db.all("SELECT * FROM bookings", [], async (err, bookings) => {
+    getAllBookingsFull(async (err, bookings) => {
         if (err) return res.status(500).json({ success: false, error: err.message });
         
         let stats = { processed: 0, clientsCreated: 0, venuesCreated: 0, updated: 0 };
@@ -18485,7 +18000,7 @@ app.post('/api/admin/system/migrate-legacy-data', requireAdmin, requireRole(['ad
             
             // 3. Update Booking with Foreign Keys
             await new Promise((resolve) => {
-                db.run("UPDATE bookings SET client_id = ?, venue_id = ? WHERE id = ?", [clientId, venueId, booking.id], () => resolve());
+                updateBookingClientVenue(clientId, venueId, booking.id, () => resolve());
             });
             stats.updated++;
         }
@@ -18499,7 +18014,7 @@ app.get('/sitemap.xml', sitemapRateLimiter, (req, res) => {
     const baseUrl = 'https://www.thabisomhlongo.com';
     const staticPages = ['', '#about', '#gallery', '#events', '#contact'];
     
-    db.all("SELECT id, created_at FROM events ORDER BY date DESC", [], (err, events) => {
+    getEventsForSitemap((err, events) => {
         let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
         xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
         
@@ -18544,13 +18059,13 @@ app.use((err, req, res, next) => {
 
 // Start Data Retention Check
 setTimeout(() => {
-    db.get("SELECT COUNT(*) AS count FROM admins", (err, row) => {
+    countAllAdmins((err, row) => {
         if (row && row.count === 0) {
             const generatedPassword = crypto.randomBytes(8).toString('hex'); // 16 chars
             const defaultEmail = 'admin@thabisomhlongo.com';
             bcrypt.hash(generatedPassword, 10, (err, hash) => {
                 if (!err) {
-                    db.run("INSERT INTO admins (username, email, password_hash, must_change_password) VALUES (?, ?, ?, 1)", ['admin', defaultEmail, hash], (err) => {
+                    insertBootstrapAdmin('admin', defaultEmail, hash, (err) => {
                         if (!err) {
                             const dataDir = path.join(__dirname, 'data');
                             if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir);
@@ -18674,13 +18189,7 @@ async function runQuoteFollowUpJob() {
     const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
 
     const bookings = await new Promise(resolve =>
-        db.all(`SELECT id, name, email, event_type, date, quote_amount, quote_expiry_date
-                FROM bookings
-                WHERE status = 'QUOTED'
-                  AND DATE(quoted_at) <= ?
-                  AND quote_follow_up_sent_at IS NULL
-                  AND (quote_expiry_date IS NULL OR quote_expiry_date > DATE('now'))`,
-            [cutoffStr], (err, rows) => resolve(err ? [] : (rows || [])))
+        getBookingsForQuoteFollowUp(cutoffStr, (err, rows) => resolve(err ? [] : (rows || [])))
     );
 
     let sent = 0, errors = 0;
@@ -18714,7 +18223,7 @@ async function runQuoteFollowUpJob() {
                 trigger_event: 'Booking: Quote Follow-Up Reminder'
             });
             if (result.success) {
-                db.run("UPDATE bookings SET quote_follow_up_sent_at = CURRENT_TIMESTAMP WHERE id = ?", [b.id]);
+                markQuoteFollowUpSent(b.id);
                 sent++;
             } else {
                 errors++;
@@ -18814,9 +18323,7 @@ async function runAbandonedBookingReminderJob() {
     for (const d of candidates) {
         // Defensive: if a real booking now exists for this email+date, mark recovered instead of emailing.
         if (d.event_date) {
-            const existing = await new Promise(resolve => db.get(
-                `SELECT id FROM bookings WHERE lower(email)=lower(?) AND date=? AND status NOT IN ('CANCELLED','EXPIRED') LIMIT 1`,
-                [d.email, d.event_date], (e, row) => resolve(row)));
+            const existing = await new Promise(resolve => findActiveBookingByEmailAndDate(d.email, d.event_date, (e, row) => resolve(row)));
             if (existing) {
                 await new Promise(r => db.run(`UPDATE abandoned_bookings SET status='RECOVERED', converted_booking_id=? WHERE id=?`, [existing.id, d.id], () => r()));
                 continue;
@@ -18855,18 +18362,7 @@ async function runDepositBalanceReminderJob() {
     const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
 
     const bookings = await new Promise(resolve =>
-        db.all(
-            `SELECT id, name, email, event_name, event_type, date AS event_date,
-                    amount_outstanding, total_amount, deposit_balance_reminded_at
-             FROM bookings
-             WHERE payment_status = 'DEPOSIT_PAID'
-               AND status = 'CONFIRMED'
-               AND date IS NOT NULL AND date <= ?
-               AND (deposit_balance_reminded_at IS NULL
-                    OR deposit_balance_reminded_at < DATE('now', '-7 days'))`,
-            [targetDate],
-            (err, rows) => resolve(err ? [] : (rows || []))
-        )
+        getBookingsForDepositBalanceReminder(targetDate, (err, rows) => resolve(err ? [] : (rows || [])))
     );
 
     let sent = 0, errors = 0;
@@ -18908,7 +18404,7 @@ async function runDepositBalanceReminderJob() {
                 titleOverride: 'Balance Due — Event Approaching',
                 trigger_event: 'Booking: Deposit Balance Approaching Event Reminder'
             });
-            db.run("UPDATE bookings SET deposit_balance_reminded_at = CURRENT_TIMESTAMP WHERE id = ?", [b.id]);
+            markDepositBalanceReminded(b.id);
             sent++;
             console.log(`[Deposit Balance Reminder] Sent to booking #${b.id} (${b.email})`);
         } catch (e) {
@@ -18954,7 +18450,7 @@ async function runInvoicePreDueReminderJob() {
         const booking = { id: inv.booking_id, name: inv.name, email: inv.email, event_name: inv.event_name, event_type: inv.event_type, date: inv.date };
         try {
             await sendInvoicePreDueEmail(booking, inv, daysBefore);
-            db.run("UPDATE invoices SET pre_due_reminded_at = CURRENT_TIMESTAMP WHERE id = ?", [inv.id]);
+            markInvoicePreDueReminded(inv.id);
             sent++;
             console.log(`[Invoice Pre-Due Reminder] Sent to booking #${inv.booking_id} (invoice #${inv.id})`);
         } catch (e) {
@@ -18982,22 +18478,14 @@ async function runEventReminderJob() {
     const targetStr = targetDate.toISOString().split('T')[0];
 
     const bookings = await new Promise(resolve =>
-        db.all(
-            `SELECT id, name, email, event_name, event_type, date, event_location
-             FROM bookings
-             WHERE status = 'CONFIRMED'
-               AND date = ?
-               AND event_reminder_sent_at IS NULL`,
-            [targetStr],
-            (err, rows) => resolve(err ? [] : (rows || []))
-        )
+        getConfirmedBookingsOnDate(targetStr, (err, rows) => resolve(err ? [] : (rows || [])))
     );
 
     let sent = 0, errors = 0;
     for (const b of bookings) {
         try {
             await sendEventReminderEmail(b, daysBefore);
-            db.run("UPDATE bookings SET event_reminder_sent_at = CURRENT_TIMESTAMP WHERE id = ?", [b.id]);
+            markEventReminderSent(b.id);
             sent++;
             console.log(`[Event Reminder] Sent to booking #${b.id} (${b.email})`);
         } catch (e) {
@@ -19047,7 +18535,7 @@ async function runOverdueInvoiceSweepJob() {
         const booking = { id: inv.booking_id, name: inv.name, email: inv.email, event_name: inv.event_name, event_type: inv.event_type, date: inv.date };
         try {
             await sendOverdueInvoiceEmail(booking, inv);
-            db.run("UPDATE invoices SET overdue_reminded_at = CURRENT_TIMESTAMP WHERE id = ?", [inv.id]);
+            markInvoiceOverdueReminded(inv.id);
             sent++;
             console.log(`[Overdue Invoice Sweep] Sent to booking #${inv.booking_id} (invoice #${inv.id})`);
         } catch (e) {
@@ -19073,12 +18561,7 @@ async function runPostEventFollowupJob() {
     // query threw "no such column" on every run, silently swallowed by the resolve(err ? [] : ...)
     // below, so this job — the only automatic trigger for review-request emails — never fired.
     const bookings = await new Promise(resolve => {
-        db.all(`SELECT b.*, b.name AS name, b.email AS email
-                FROM bookings b
-                WHERE b.status = 'COMPLETED'
-                  AND b.review_email_sent_at IS NULL
-                  AND date(b.date) <= date('now', '-1 day')`,
-            [], (err, rows) => { if (err) console.error('[Post-Event Followup] query failed:', err.message); resolve(err ? [] : (rows || [])); });
+        getCompletedBookingsAwaitingReview((err, rows) => { if (err) console.error('[Post-Event Followup] query failed:', err.message); resolve(err ? [] : (rows || [])); });
     });
 
     let sent = 0, errors = 0;
@@ -19086,7 +18569,7 @@ async function runPostEventFollowupJob() {
         try {
             // Send the review request (function already exists)
             await sendReviewRequestEmail(b);
-            db.run("UPDATE bookings SET review_email_sent_at = CURRENT_TIMESTAMP WHERE id = ?", [b.id]);
+            stampReviewEmailSent(b.id);
             sent++;
             console.log(`[Post-Event Followup] Review request sent for booking #${b.id} (${b.email})`);
         } catch (e) {
