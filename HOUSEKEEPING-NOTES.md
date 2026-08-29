@@ -203,6 +203,47 @@ plus one already-documented CP5 recurrence on one run) — specifically confirme
 create/update audit_log rows and all 6 upload-handler filename tests passed on every run. `node -c`
 on all changed/new files; confirmed zero remaining `app.js` registrations for all 27 moved paths.
 
+### Route batch 7: `routes/admin/newsletter-subscribers.js` — DONE
+
+9 routes: `GET /api/admin/newsletter/subscribers[/stats]`, `POST .../subscribers`,
+`PUT .../subscribers/:id[/status]`, `DELETE .../subscribers/:id`, `PUT .../subscribers/bulk-status`,
+`POST .../subscribers/bulk-delete`, `POST .../subscribers/import`. First newsletter batch — the
+domain repository already existed from Phase 4, so every data-access call was a trivial import;
+all the new work this batch was shared *business-logic* helpers, not data access.
+
+Four more `lib/` modules, each with a wide, cross-cutting blast radius:
+- **`lib/db-transaction.js`** — `withDbTransaction`, the serialization queue **~21 call sites**
+  throughout `app.js` rely on to make guarded BEGIN/COMMIT/ROLLBACK sections atomic with respect to
+  each other (concurrent booking submissions were the original motivating case). Flagged explicitly
+  in its own file header: this **must** stay a singleton — every caller has to import this exact
+  module, never redefine the queue, or the whole serialization guarantee silently stops working.
+  CommonJS's module cache guarantees that as long as everyone requires the same path.
+- **`lib/email-context.js`** — `getEmailFooterContext` (~44 call sites) and `emailBaseUrl`
+  (~19 call sites), used by nearly every email-composing function in the app, not just newsletter.
+- **`lib/validation.js`** — `sanitizeEmailInput`, `isValidBirthday` (+ its `BIRTHDAY_DAYS_IN_MONTH`
+  table). Small, pure, standalone.
+- **`lib/newsletter-emails.js`** — `sendNewsletterWelcomeEmail` (its sibling
+  `sendNewsletterConfirmationEmail` stays in `app.js` for now, moving here when the batch that
+  needs it comes up).
+
+`subscriberCsvUpload` (the CSV-import multer instance) had zero remaining call sites in `app.js`
+once this batch's routes moved out, so it was defined directly in the route file rather than added
+to `lib/` — nothing else needs to share it.
+
+**A third `SQLITE_BUSY` crash, same test file, same exact point, but this time in a verified-clean
+environment** (zero `node.exe` processes running beforehand, confirmed via `Get-CimInstance`) —
+`banner.test.js`, immediately after "get: banner + empty used_by before assignment", identical to
+the two prior occurrences logged elsewhere in this file. Since stale processes are now ruled out as
+the cause for at least this occurrence, this looks like a genuine (if infrequent) SQLite
+lock-contention race intrinsic to the test suite's own design at that point, not purely a
+leftover-process artifact — recovered the same way (immediate re-run, clean), documented as a
+data point for whoever eventually investigates `banner.test.js` directly.
+
+Verification: `node -c` on all changed/new files; confirmed zero remaining `app.js` registrations
+for all 9 paths; `npm run smoke` 329/329; `npm test` x4 (1 environmental crash as above, 3 clean
+baseline-only runs) — specifically confirmed the newsletter confirmation/welcome-email tests and
+all subscriber RBAC checks passed.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -1497,6 +1538,19 @@ for one WAL-mode database file. Logged here rather than in a domain's own verifi
 since it's a test-harness/OS-level timing question, not a data-access-extraction question — same
 category as Deferred fix #3's sleep-margin flakes, but a crash instead of a wrong assertion, so
 worth its own entry if it recurs enough to investigate.
+
+**Update (Phase 5, route batches 5-8):** recurred twice more, both times at the *exact same point*
+in `banner.test.js` ("get: banner + empty used_by before assignment" → crash on the next
+statement) rather than at a random spot — consistent enough to suggest a real race intrinsic to
+that test's own sequencing, not pure chance. The second of the two recurrences happened in a
+**verified-clean environment** (confirmed zero `node.exe` processes running beforehand via
+`Get-CimInstance`), ruling out leftover-process contention as the cause for at least that instance
+— see also the separate stale-`node server.js`-process incident logged in the `content.js`/
+`home-social.js` batch write-up above, which caused a *different* symptom (indefinite hangs, not
+crashes) and had a clearly identified external cause (an abandoned `npm start` from earlier in the
+session). Both recoveries were an immediate clean re-run. Still not investigated further (out of
+scope for a route-extraction session); flagging the consistent crash *location* specifically in
+case it helps whoever eventually looks at `banner.test.js` directly.
 
 What `test/calendar-booking-sync.test.js` proves instead: that a sync
 attempt was actually invoked for the right booking id on each of confirm/
