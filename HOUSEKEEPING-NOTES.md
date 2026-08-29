@@ -88,6 +88,22 @@ log (not just smoke's non-5xx check) that the two `audit-history.test.js` checks
 `logAudit` from inside the moved routes ("user create/update writes exactly one audit_log row")
 passed, and all `/api/admin/users`-related RBAC checks passed, on every run.
 
+### Route batch 2: `routes/admin/auth.js` — DONE
+
+7 routes: `POST /api/admin/login`, `POST /api/admin/force-change-password`,
+`POST /api/admin/logout`, `GET /api/admin/session`, `POST /api/admin/forgot-password`,
+`POST /api/admin/reset-password`, `POST /api/admin/session/heartbeat`. The login/session/password
+half of `auth+users`, split from batch 1's user-management CRUD — no shared helper overlap
+(no `resolveActor`/`logAudit`/`createAndSendInvite` needed here), just repository functions +
+`bcrypt`/`crypto`/`emailComponents`/`sendEmail` + `requireAdmin`/`adminLoginRateLimiter`.
+
+This batch includes `POST /api/admin/login` itself — the single most foundational route in the
+app (nearly every other test's setup depends on it working). Ran the full suite **3 times**
+specifically because of that: 648-649/651 every run, only the permanent baseline plus one
+already-documented flake (CP5) on one run. If login/session handling had broken in the move, the
+signal would be hundreds of cascading failures, not 2-3 — this is about as strong a confirmation
+as the test suite can give.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
