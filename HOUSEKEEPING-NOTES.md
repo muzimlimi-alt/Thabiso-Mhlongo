@@ -13,6 +13,81 @@ In progress. Splits `server.js` along the admin/public boundary per the plan: `r
 only. Route counts confirmed via live grep: **270** `/api/admin/*`, **49** `/api/public/*` —
 exactly matching the plan's estimate.
 
+### Extraction tooling
+
+Routes are moved with a small AST-based script (`acorn`, installed only in the scratchpad
+directory — not a project dependency), not by hand: hand-finding where a 200-line nested-callback
+route handler ends is error-prone at this scale. The script parses `app.js`, finds every top-level
+`app.<method>('/api/admin/...'` / `'/api/public/...'` call plus its exact source range (attaching
+an immediately-preceding comment, if any), and for a chosen batch: cuts those exact ranges out of
+`app.js`, swaps `app.` → `router.` at each one, and inserts the result into the target
+`routes/admin/*.js` / `routes/public/*.js` file before its `module.exports` line (creating the
+file with a router boilerplate header if it doesn't exist yet). Dry-run verified against a real
+two-route sample before ever pointing it at the live file — diffed clean, syntax-checked clean.
+
+**Discovered mid-implementation and fixed:** the first extraction attempt crashed after cutting
+routes out of `app.js` but before the target directory existed to receive them — the script wrote
+`app.js` *before* confirming the output file could be written. Caught immediately (`git diff`
+showed the missing routes with nowhere written), recovered with `git checkout -- app.js` (nothing
+was ever committed in the broken state), and fixed the script to write the output file first,
+`app.js` only after that succeeds — a batch attempt now either fully completes or leaves `app.js`
+completely untouched.
+
+### Helper relocation (discovered necessary, not in the original plan text)
+
+Dry-run testing the mechanical extraction surfaced a problem the plan doesn't address: routes call
+helper functions/constants defined inline in `app.js` (`resolveActor`, `logAudit`,
+`createAndSendInvite`, `VALID_ADMIN_ROLES`, `dbRun`/`dbGet`/`dbAll`, and more not yet
+inventoried) that a standalone route file can't reach — `app.js` requires the route files, so a
+route file requiring `app.js` back for them would be circular and silently resolve to `undefined`.
+Confirmed with the user: relocate each helper into `lib/` **as its batch needs it**, not as a big
+speculative upfront pass. Repository functions need no such treatment — already standalone modules,
+any route file imports them directly.
+
+Two structural fixes were needed before route files could import middleware at all:
+- **`middleware/rate-limiters.js`** (new): all 11 rate limiters (`booking`, `export`, `sitemap`,
+  `track`, `otpRequest`, `mutate`, `admin`, `adminLogin`, `lookup`, `analyticsTrack`, `ip`) plus
+  `payfastItnRateLimiter`/`PAYFAST_VALID_IPS`, byte-identical, centralised so any route file has one
+  place to import whichever limiter its route used — previously all defined inline in `app.js`.
+- **`middleware/auth.js` reworked**: `requireAdmin` was a factory (`createRequireAdmin(adminRateLimiter)`)
+  `app.js` had to call — no route file could reach the same array without a circular require. Now a
+  plain export: the fully-built `[adminRateLimiter, checkFn]` array, built from
+  `rate-limiters.js` + the auth-users repository, both leaf modules.
+
+`lib/` additions so far, all byte-identical bodies moved out of `app.js`:
+- `lib/db-helpers.js` — `dbRun`/`dbGet`/`dbAll` (~190 call sites throughout `app.js`).
+- `lib/actor.js` — `resolveActor`.
+- `lib/audit-log.js` — `logAudit` (writes `audit_log`, the permanently-excluded generic infra table
+  from Phase 4 — not owned by any domain repository, so this is its natural home).
+- `lib/admin-users.js` — `VALID_ADMIN_ROLES`, `countOtherActiveAdministrators`,
+  `createAndSendInvite`, specific to the `/api/admin/users` route cluster.
+
+`app.js` destructure-imports all of these back, so its own not-yet-moved routes keep working
+unchanged — same pattern Phase 4 established for repository functions.
+
+### Route batch 1: `routes/admin/users.js` — DONE
+
+6 routes: `GET/POST /api/admin/users`, `GET /api/admin/user-login-logs`,
+`POST /api/admin/users/:id/resend-invite`, `PUT/DELETE /api/admin/users/:id`. First real batch —
+chosen deliberately small and well-understood (this is the exact route cluster the `auth+users`
+Phase 4 domain already covered) to prove the whole pipeline — mechanical extraction, per-route-file
+imports (middleware + repository functions + the four `lib/` helpers above + `bcrypt`/`crypto`),
+mounting, verification — end to end before scaling up.
+
+Mounted in `app.js` via `app.use(require('./routes/admin/users'))`, placed right after the session
+middleware (after body-parsing/sanitisation are in place, before any not-yet-extracted route) — a
+new "Phase 5 route mounts" section that will grow one line per batch.
+
+Verification: `node -c` on `app.js` and the new route file; re-grepped
+`app\.(get|post|put|delete)\('/api/admin/users` against post-edit `app.js` — zero hits, confirming
+a clean, complete removal. `npm run smoke` 329/329 (all 6 routes still reachable through the new
+router). `npm test` x3 — baseline plus a mix of already-documented flakes each run (CP5, CP12 x2,
+CP21, the calendar-booking-sync reschedule test, the one-off "full refund" flake), never anything
+touching `admins`/`admin_login_logs`/`password_reset_tokens`. Specifically confirmed via the test
+log (not just smoke's non-5xx check) that the two `audit-history.test.js` checks exercising
+`logAudit` from inside the moved routes ("user create/update writes exactly one audit_log row")
+passed, and all `/api/admin/users`-related RBAC checks passed, on every run.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
