@@ -289,6 +289,26 @@ terminal `sent` status) and the birthday-sort tests passed on every successful r
 **`newsletter` domain's route surface is now fully split out of `app.js`** (batches 7 + 8, 24
 routes total, matching the Phase 4 domain's original route count exactly).
 
+### Route batch 10: `routes/admin/inquiries.js` — DONE (closes out `inquiries`)
+
+13 routes: `GET /api/admin/inquiries`, status/assign/priority/category updates, notes CRUD,
+bulk-status/bulk-delete, delete. No new `lib/` helpers needed — every dependency was either
+already-extracted repository functions (`inquiries.repository.js`) or the three `admins`-only
+functions found living in this exact route cluster back during the `auth+users` Phase 4 domain
+(`getAssignableAdmins`, `checkAdminActiveById`, `getAdminDisplayNameById`) — all already in
+`auth-users.repository.js`. The lowest-friction batch since the foundational `lib/` surface was
+built out; a good sign that surface is now covering new batches rather than still growing to meet
+them.
+
+The main list route's `admins`/`direct_emails`-joining dynamic SQL (cross-domain, per the
+`inquiries` Phase 4 write-up) stayed inline using `db` directly, exactly as documented back then.
+
+**`inquiries` domain's route surface is now fully split out of `app.js`.**
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 13 paths; `npm run
+smoke` 329/329; `npm test` x3 (only already-documented flakes — CP5, the calendar-booking-sync
+reschedule test — zero inquiry-specific failures on any run).
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
