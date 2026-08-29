@@ -133,6 +133,33 @@ smoke-test luck — `audit_log table+record_id filter succeeds`, `audit_log join
 name for numeric changed_by rows`, and all `working-hours`/`audit_log`/`financial_audit_log` RBAC
 checks passed on every run.
 
+### Route batch 4: `routes/admin/site-content.js` — DONE
+
+10 routes: `POST /api/admin/migrate`, `PUT /api/admin/branding`, `GET /api/admin/venues`,
+`GET /api/admin/reviews`, `PUT/DELETE /api/admin/manager`, `POST /api/admin/contact_info`,
+`GET/POST /api/admin/about-me`, `PUT /api/admin/site-content`. A grab-bag of small,
+otherwise-unrelated admin CRUD routes (`clients`/`venues`/`manager_details`/`contact_info`/
+`about_me`/`service_reviews` — none owned by a Phase 4 repository) batched together for
+efficiency rather than left as individual 1-2-route batches.
+
+Two more widely-shared helpers surfaced and relocated, each used well beyond this batch:
+- **`lib/html-sanitize.js`** — `encodeUserHtml` (~27 call sites across `app.js`), `unescapeHtml`,
+  `sanitizeAboutHtml` (+ its 3 regex constants), and `SECTION_KEYS` (shared with the still-in-
+  `app.js` `GET /api/public/site-content`). All pure functions, no `db`/session access.
+- **`lib/client-venue.js`** — `findOrCreateClient` (9 call sites) and `findOrCreateVenueFromPlace`
+  (4 call sites), both depending on `db` directly (`clients`/`venues` were never claimed by a
+  domain repository) and on `encodeUserHtml` above.
+
+`findOrCreateClient`/`findOrCreateVenueFromPlace` are called from the core public booking-creation
+path elsewhere in `app.js` (not moved yet) — the widest blast radius any single helper relocation
+has had so far. Ran the full suite **3 times** specifically because of that: all three runs came
+back at the permanent baseline only (649/651, zero additional flakes) — the cleanest result any
+Phase 5 step has had. Specifically confirmed `rejected submission writes no orphan client` (a
+`findOrCreateClient` behavior check) passed on every run.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 10 paths;
+`npm run smoke` 329/329; `npm test` x3 (see above).
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

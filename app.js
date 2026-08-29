@@ -627,6 +627,7 @@ app.use(session({
 app.use(require('./routes/admin/users'));
 app.use(require('./routes/admin/auth'));
 app.use(require('./routes/admin/settings'));
+app.use(require('./routes/admin/site-content'));
 
 // Avoids stacking a new Date.now() prefix onto a filename that already has one — matters when a
 // file already stored under its prefixed name gets fed back through the same upload flow (e.g.
@@ -2367,16 +2368,9 @@ function escapeEmailFields(obj) {
     return copy;
 }
 
-// ADMIN-XSS: neutralize stored HTML at the input boundary. The admin panel renders many
-// booking/client fields via innerHTML/.html() without escaping, so a malicious public
-// submission (e.g. message = "<img src=x onerror=...>") would execute JS in the admin's
-// authenticated session. Encoding < > " here means no tag/attribute can ever form from stored
-// data, in the admin DOM, emails, or PDFs. '&' is deliberately left raw so output-layer
-// escaping (EMAIL-1) handles it without double-encoding common values like "Tom & Jerry".
-function encodeUserHtml(s) {
-    if (s == null) return s;
-    return String(s).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/html-sanitize.js, alongside unescapeHtml/
+// sanitizeAboutHtml/SECTION_KEYS (same file, all pure content-sanitization helpers).
+const { encodeUserHtml, unescapeHtml, sanitizeAboutHtml, SECTION_KEYS } = require('./lib/html-sanitize');
 
 // ── Prompt 3 email rebuild: shared footer context ──
 // Rebuilt PREMIUM emails render their own full shell (js/emailComponents.js) and are queued
@@ -9458,111 +9452,10 @@ registerBirthdayJob();
 // Admin CRUD Routes (Protected)
 // ==========================================
 
-// --- Database Migration Helpers (Phase 2) ---
-function findOrCreateClient(name, email, phone, company, vat_number) {
-    // ADMIN-XSS: encode HTML in the stored client name/company (rendered unescaped in the admin
-    // client views). No-op for normal names; email/phone are validated and left raw.
-    name = encodeUserHtml(name);
-    company = encodeUserHtml(company);
-    return new Promise((resolve, reject) => {
-        // INSERT OR IGNORE exploits the UNIQUE constraint on clients.email, eliminating the
-        // SELECT-then-INSERT race that produced duplicate client rows under concurrent submissions.
-        db.run(
-            "INSERT OR IGNORE INTO clients (full_name, email, phone, company_name, vat_number) VALUES (?, ?, ?, ?, ?)",
-            [name || 'Unknown', email, phone || '0000000000', company || null, vat_number || null],
-            function(insertErr) {
-                if (insertErr) return reject(insertErr);
-                const wasInserted = this.changes > 0;
-                db.get("SELECT id, full_name FROM clients WHERE LOWER(email) = LOWER(?)", [email], (err, row) => {
-                    if (err || !row) return reject(err || new Error('Client record missing after upsert'));
-                    if (!wasInserted && name && row.full_name &&
-                        row.full_name.toLowerCase() !== name.toLowerCase()) {
-                        console.warn(`[findOrCreateClient] Email collision: existing="${row.full_name}" new="${name}" email="${email}". Updating client name to "${name}" to resolve collision.`);
-                        db.run("UPDATE clients SET full_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [name, row.id]);
-                        row.full_name = name;
-                    }
-                    if (company || vat_number) {
-                        db.run("UPDATE clients SET company_name = COALESCE(?, company_name), vat_number = COALESCE(?, vat_number), updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                            [company, vat_number, row.id]);
-                    }
-                    resolve(row.id);
-                });
-            }
-        );
-    });
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): findOrCreateClient/findOrCreateVenueFromPlace moved to
+// lib/client-venue.js.
+const { findOrCreateClient, findOrCreateVenueFromPlace } = require('./lib/client-venue');
 
-function findOrCreateVenueFromPlace(venueName, address, city, country, placeId) {
-    // ADMIN-XSS: encode HTML in stored venue text (rendered unescaped in admin venue/booking views).
-    // placeId was the one field here missed by the original pass — it's client-supplied (the public
-    // booking form's Google Places autocomplete) and stored/rendered exactly like its siblings.
-    venueName = encodeUserHtml(venueName);
-    address = encodeUserHtml(address);
-    city = encodeUserHtml(city);
-    country = encodeUserHtml(country);
-    placeId = encodeUserHtml(placeId);
-    return new Promise((resolve, reject) => {
-        if (!venueName && !address) return resolve(null);
-        const searchName = venueName || address;
-        // Prefer matching by place_id when available for accuracy
-        const query = placeId
-            ? "SELECT id FROM venues WHERE place_id = ?"
-            : "SELECT id FROM venues WHERE name = ? OR address = ?";
-        const params = placeId ? [placeId] : [searchName, address];
-        db.get(query, params, (err, row) => {
-            if (err) return reject(err);
-            if (row) {
-                // Update any missing fields on the existing record
-                db.run("UPDATE venues SET city = COALESCE(city, ?), country = COALESCE(country, ?), place_id = COALESCE(place_id, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    [city || null, country || null, placeId || null, row.id]);
-                return resolve(row.id);
-            }
-            db.run("INSERT INTO venues (name, address, city, country, place_id) VALUES (?, ?, ?, ?, ?)",
-                [searchName || 'Unknown Venue', address || null, city || null, country || null, placeId || null], function(err) {
-                    if (err) return reject(err);
-                    resolve(this.lastID);
-            });
-        });
-    });
-}
-
-app.post('/api/admin/migrate', requireAdmin, async (req, res) => {
-    try {
-        getAllBookingsForMigration((err, rows) => {
-            if (err) return res.status(500).json({ error: err.message });
-            if (!rows || rows.length === 0) return res.json({ success: true, message: 'No records to migrate.' });
-
-            let clientsMigrated = 0;
-            let venuesMigrated = 0;
-
-            const processRow = (index) => {
-                if (index >= rows.length) {
-                    return res.json({ success: true, clientsMigrated, venuesMigrated, message: 'Migration complete.' });
-                }
-                const row = rows[index];
-                
-                findOrCreateClient(row.name, row.email, row.cell, row.company)
-                    .then(clientId => {
-                        clientsMigrated++;
-                        findOrCreateVenueFromPlace(row.event_location, row.venue_address)
-                            .then(venueId => {
-                                venuesMigrated++;
-                                // Update bookings table with new foreign keys
-                                updateBookingClientVenue(clientId, venueId, row.id, () => {
-                                    processRow(index + 1);
-                                });
-                            });
-                    }).catch(e => {
-                        console.error('Migration error on row', row.id, e);
-                        processRow(index + 1);
-                    });
-            };
-            processRow(0); // Start processing sequentially
-        });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-});
 
 
 
@@ -10058,26 +9951,6 @@ app.get('/api/public/legal/cookie-policy', (req, res) => {
 });
 
 
-// ─── Branding ───────────────────────────────────────────────────────────────
-app.put('/api/admin/branding', requireAdmin, requireRole(['administrator']), (req, res) => {
-    const { settings } = req.body;
-    if (!settings || typeof settings !== 'object')
-        return res.status(400).json({ error: 'settings object required.' });
-    const envMap = { email_banner: 'EMAIL_BANNER' };
-    const keys = Object.keys(settings);
-    let pending = keys.length;
-    if (pending === 0) return res.json({ success: true });
-    let failed = false;
-    keys.forEach(key => {
-        const val = String(settings[key]);
-        if (envMap[key]) process.env[envMap[key]] = val;
-        upsertSetting(key, val, (err) => {
-                if (err && !failed) { failed = true; console.error('save branding failed:', err); return res.status(500).json({ success: false, message: 'Could not save branding. Please try again.' }); }
-                if (--pending === 0 && !failed) res.json({ success: true });
-            }
-        );
-    });
-});
 
 app.get('/api/public/branding', (req, res) => {
     const keys = ['site_logo', 'favicon', 'primary_color', 'theme_font', 'email_banner', 'login_background'];
@@ -10431,16 +10304,6 @@ app.get('/api/admin/bookings/full', requireAdmin, (req, res) => {
     });
 });
 
-// --- Venues list for admin dropdowns ---
-app.get('/api/admin/venues', requireAdmin, (req, res) => {
-    db.all(`SELECT v.id, v.name, v.city, v.state, v.address, v.capacity,
-                   v.contact_name, v.contact_phone, v.green_room_notes,
-                   (SELECT COUNT(*) FROM bookings b WHERE b.venue_id = v.id) AS booking_count
-            FROM venues v ORDER BY v.name`, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
 
 // --- Link a booking to a venue ---
 app.put('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
@@ -13059,17 +12922,6 @@ app.get('/api/admin/booking-attachments/:filename', requireAdmin, (req, res) => 
     res.sendFile(filePath);
 });
 
-// Admin: list reviews
-app.get('/api/admin/reviews', requireAdmin, (req, res) => {
-    db.all(
-        `SELECT r.*, b.event_name, b.event_type, b.date AS event_date
-         FROM service_reviews r
-         JOIN bookings b ON r.booking_id = b.id
-         ORDER BY r.submitted_at DESC`,
-        [],
-        (err, rows) => err ? res.status(500).json({ error: err.message }) : res.json(rows)
-    );
-});
 
 // Admin: approve or delete a review
 app.patch('/api/admin/reviews/:id', requireAdmin, (req, res) => {
@@ -16138,51 +15990,7 @@ app.get('/api/public/manager', (req, res) => {
     });
 });
 
-app.put('/api/admin/manager', requireAdmin, (req, res) => {
-    const { name, cell_number, whatsapp_number, email, whatsapp_link } = req.body;
-    const adminId = req.session.adminId;
 
-    // Server-side validation (D3) — never trust the client. Phone *format* stays client-side (intl-tel-input).
-    if (!name || !String(name).trim() || !email || !String(email).trim() ||
-        !cell_number || !String(cell_number).trim() || !whatsapp_number || !String(whatsapp_number).trim()) {
-        return res.status(400).json({ success: false, message: 'Name, email, cell number, and WhatsApp number are all required.' });
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
-        return res.status(400).json({ success: false, message: 'Enter a valid manager email address.' });
-    }
-
-    const cleanLink = whatsapp_link ? String(whatsapp_link).trim() : null;
-
-    db.get("SELECT manager_id FROM manager_details ORDER BY manager_id ASC LIMIT 1", [], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        
-        if (row) {
-            db.run(`UPDATE manager_details
-                    SET name = ?, cell_number = ?, whatsapp_number = ?, email = ?, whatsapp_link = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ?
-                    WHERE manager_id = ?`,
-                [name, cell_number, whatsapp_number, email, cleanLink, adminId, row.manager_id], async function(err) {
-                if (err) return res.status(500).json({ error: err.message });
-                const actor = await resolveActor(adminId);
-                res.json({ success: true, message: 'Manager details updated successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
-            });
-        } else {
-            db.run(`INSERT INTO manager_details (name, cell_number, whatsapp_number, email, whatsapp_link, created_by)
-                    VALUES (?, ?, ?, ?, ?, ?)`,
-                [name, cell_number, whatsapp_number, email, cleanLink, adminId], async function(err) {
-                if (err) return res.status(500).json({ error: err.message });
-                const actor = await resolveActor(adminId);
-                res.json({ success: true, message: 'Manager details created successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
-            });
-        }
-    });
-});
-
-app.delete('/api/admin/manager', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.run("DELETE FROM manager_details", [], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true, message: 'Manager details cleared successfully.' });
-    });
-});
 
 // --- Contact Info ---
 app.get('/api/public/contact_info', (req, res) => {
@@ -16192,44 +16000,6 @@ app.get('/api/public/contact_info', (req, res) => {
     });
 });
 
-app.post('/api/admin/contact_info', requireAdmin, (req, res) => {
-    // Note: The frontend sends { data: { email, quote, sig } }
-    const { email, quote, sig: signature } = req.body.data || {};
-    const adminId = req.session.adminId;
-
-    if (!email || !quote || !signature) {
-        return res.status(400).json({ success: false, message: 'Missing required contact info fields.' });
-    }
-
-    db.get("SELECT quote_id FROM contact_info ORDER BY quote_id ASC LIMIT 1", [], (err, row) => {
-        if (err) {
-            console.error("[DEBUG] DB GET Error:", err);
-            return res.status(500).json({ error: err.message });
-        }
-        
-        if (row) {
-            db.run(`UPDATE contact_info
-                    SET email = ?, quote = ?, signature = ?, modified_on = CURRENT_TIMESTAMP, modified_by = ?
-                    WHERE quote_id = ?`,
-                [email, quote, signature, adminId, row.quote_id], async function(err) {
-                if (err) {
-                     console.error("[DEBUG] UPDATE Error:", err);
-                     return res.status(500).json({ error: err.message });
-                }
-                const actor = await resolveActor(adminId);
-                res.json({ success: true, message: 'Contact info updated successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
-            });
-        } else {
-            db.run(`INSERT INTO contact_info (email, quote, signature, created_by)
-                    VALUES (?, ?, ?, ?)`,
-                [email, quote, signature, adminId], async function(err) {
-                if (err) return res.status(500).json({ error: err.message });
-                const actor = await resolveActor(adminId);
-                res.json({ success: true, message: 'Contact info created successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
-            });
-        }
-    });
-});
 
 
 // --- Social Links ---
@@ -16286,28 +16056,6 @@ app.delete('/api/admin/social_links/:id', requireAdmin, requireRole(['administra
 // About Me API
 // =============================================
 
-const ALLOWED_ABOUT_TAGS = /<(script|style|iframe|object|embed|form|input|button)\b[^>]*>[\s\S]*?<\/\1>|<(script|style|iframe|object|embed|form|input|button)\b[^>]*\/?>/gi;
-const STRIP_ON_ATTRS = /\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi;
-const STRIP_JS_HREF = /href\s*=\s*(?:"javascript:[^"]*"|'javascript:[^']*')/gi;
-
-function unescapeHtml(str) {
-    if (!str || typeof str !== 'string') return '';
-    return str
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/&#x27;/g, "'");
-}
-
-function sanitizeAboutHtml(html) {
-    if (!html || typeof html !== 'string') return '';
-    return html
-        .replace(ALLOWED_ABOUT_TAGS, '')
-        .replace(STRIP_ON_ATTRS, '')
-        .replace(STRIP_JS_HREF, 'href="#"');
-}
-
 app.get('/api/public/about-me', (req, res) => {
     db.get("SELECT image_path, paragraph1, paragraph2, paragraph3 FROM about_me WHERE id = 1", (err, row) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -16320,52 +16068,7 @@ app.get('/api/public/about-me', (req, res) => {
     });
 });
 
-app.get('/api/admin/about-me', requireAdmin, (req, res) => {
-    db.get("SELECT * FROM about_me WHERE id = 1", (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (row) {
-            row.paragraph1 = unescapeHtml(row.paragraph1);
-            row.paragraph2 = unescapeHtml(row.paragraph2);
-            row.paragraph3 = unescapeHtml(row.paragraph3);
-        }
-        res.json(row || null);
-    });
-});
 
-app.post('/api/admin/about-me', requireAdmin, (req, res) => {
-    const { image_path, paragraph1, paragraph2, paragraph3 } = req.body;
-    const username = req.session.username || String(req.session.adminId || 'admin');
-    const p1 = sanitizeAboutHtml(paragraph1);
-    const p2 = sanitizeAboutHtml(paragraph2);
-    const p3 = sanitizeAboutHtml(paragraph3);
-    const imgPath = image_path || '';
-
-    db.get("SELECT * FROM about_me WHERE id = 1", (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        const newValues = { image_path: imgPath, paragraph1: p1, paragraph2: p2, paragraph3: p3 };
-        if (row) {
-            db.run(
-                `UPDATE about_me SET image_path=?, paragraph1=?, paragraph2=?, paragraph3=?, updated_at=CURRENT_TIMESTAMP, updated_by=? WHERE id=1`,
-                [imgPath, p1, p2, p3, username],
-                (e) => {
-                    if (e) return res.status(500).json({ error: e.message });
-                    logAudit({ tableName: 'about_me', recordId: 1, action: 'update', req, oldValues: row, newValues }).catch(err2 => console.error('logAudit failed:', err2));
-                    res.json({ success: true, message: 'About Me content updated.' });
-                }
-            );
-        } else {
-            db.run(
-                `INSERT INTO about_me (id, image_path, paragraph1, paragraph2, paragraph3, created_by, updated_by) VALUES (1,?,?,?,?,?,?)`,
-                [imgPath, p1, p2, p3, username, username],
-                (e) => {
-                    if (e) return res.status(500).json({ error: e.message });
-                    logAudit({ tableName: 'about_me', recordId: 1, action: 'create', req, oldValues: null, newValues }).catch(err2 => console.error('logAudit failed:', err2));
-                    res.json({ success: true, message: 'About Me content saved.' });
-                }
-            );
-        }
-    });
-});
 
 app.get('/api/public/social_embeds', (req, res) => {
     db.all("SELECT * FROM social_embeds WHERE is_active = 1 ORDER BY display_order ASC", [], (err, rows) => {
@@ -16379,10 +16082,7 @@ app.get('/api/public/social_embeds', (req, res) => {
 // admin-authored HTML (e.g. <em>) and are sanitised; eyebrow + card fields are plain text
 // (rendered client-side via .text()). Values fall back to the static index.html when unset.
 const SITE_CONTENT_KEYS = ['announcement_text', 'announcement_enabled', 'announcement_rotate', 'hero_tagline', 'hero_subtitle', 'services_eyebrow', 'services_heading', 'services_items', 'features_items', 'section_visibility'];
-// Public homepage sections whose visibility admins can toggle (stored as a JSON map in the
-// `section_visibility` setting). A key absent/true = visible; only an explicit false hides it.
-// `announcement` is intentionally NOT here — its visibility shares the `announcement_enabled` key.
-const SECTION_KEYS = ['hero', 'features', 'services', 'about', 'career', 'footprint', 'gallery', 'events', 'social', 'newsletter', 'testimonials', 'contact', 'footer'];
+// SECTION_KEYS moved to lib/html-sanitize.js (imported near the top of this file already).
 
 app.get('/api/public/site-content', (req, res) => {
     getSettingsByKeys(SITE_CONTENT_KEYS, (err, rows) => {
@@ -16412,47 +16112,6 @@ app.get('/api/public/site-content', (req, res) => {
     });
 });
 
-app.put('/api/admin/site-content', requireAdmin, (req, res) => {
-    const b = req.body || {};
-    const updates = {};
-    if (typeof b.announcement_text === 'string') updates.announcement_text = sanitizeAboutHtml(b.announcement_text).slice(0, 300);
-    if (typeof b.announcement_enabled !== 'undefined') updates.announcement_enabled = b.announcement_enabled ? '1' : '0';
-    if (typeof b.announcement_rotate !== 'undefined') updates.announcement_rotate = b.announcement_rotate ? '1' : '0';
-    if (b.section_visibility && typeof b.section_visibility === 'object') {
-        // Whitelist keys + coerce to booleans so only known sections are ever stored.
-        const clean = {};
-        SECTION_KEYS.forEach(k => { if (k in b.section_visibility) clean[k] = !!b.section_visibility[k]; });
-        updates.section_visibility = JSON.stringify(clean);
-    }
-    if (typeof b.hero_subtitle === 'string') updates.hero_subtitle = sanitizeAboutHtml(b.hero_subtitle).slice(0, 1500);
-    if (typeof b.services_eyebrow === 'string') updates.services_eyebrow = b.services_eyebrow.replace(/<[^>]*>/g, '').slice(0, 120);
-    if (typeof b.services_heading === 'string') updates.services_heading = sanitizeAboutHtml(b.services_heading).slice(0, 300);
-    if (Array.isArray(b.services_items)) {
-        const clean = b.services_items.slice(0, 12).map(it => ({
-            title: String((it && it.title) || '').replace(/<[^>]*>/g, '').slice(0, 120),
-            description: String((it && it.description) || '').replace(/<[^>]*>/g, '').slice(0, 300),
-            image: String((it && it.image) || '').slice(0, 500)
-        }));
-        updates.services_items = JSON.stringify(clean);
-    }
-    if (typeof b.hero_tagline === 'string') updates.hero_tagline = b.hero_tagline.replace(/<[^>]*>/g, '').slice(0, 160);
-    if (Array.isArray(b.features_items)) {
-        const cf = b.features_items.slice(0, 12).map(it => ({
-            title: String((it && it.title) || '').replace(/<[^>]*>/g, '').slice(0, 60),
-            description: String((it && it.description) || '').replace(/<[^>]*>/g, '').slice(0, 120)
-        }));
-        updates.features_items = JSON.stringify(cf);
-    }
-    const keys = Object.keys(updates);
-    if (!keys.length) return res.json({ success: true });
-    let pending = keys.length, failed = false;
-    keys.forEach(key => {
-        upsertSetting(key, updates[key], (err) => {
-                if (err && !failed) { failed = true; console.error('save site-content failed:', err); return res.status(500).json({ success: false, message: 'Could not save homepage content. Please try again.' }); }
-                if (--pending === 0 && !failed) res.json({ success: true, message: 'Homepage content updated.' });
-            });
-    });
-});
 
 app.get('/api/admin/social_embeds', requireAdmin, (req, res) => {
     db.all("SELECT * FROM social_embeds ORDER BY display_order ASC", [], (err, rows) => {
