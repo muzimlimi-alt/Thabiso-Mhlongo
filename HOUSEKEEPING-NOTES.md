@@ -244,6 +244,51 @@ for all 9 paths; `npm run smoke` 329/329; `npm test` x4 (1 environmental crash a
 baseline-only runs) — specifically confirmed the newsletter confirmation/welcome-email tests and
 all subscriber RBAC checks passed.
 
+### Route batch 8: `routes/admin/newsletter-campaigns.js` — DONE (closes out `newsletter`)
+
+15 routes: newsletter drafts CRUD, `POST /api/admin/newsletter/preview`, scheduled-newsletter
+CRUD (`schedule[/:id]`), `GET .../campaigns/audience-count`, and the full birthday-automation
+settings/preview/send-test cluster. The largest and most interconnected helper-relocation of
+Phase 5 so far — this pulled in essentially the entire newsletter-scheduling and
+birthday-automation subsystems, both flagged as protected surfaces by the original plan (email
+automation).
+
+Two new `lib/` modules, each holding a **required singleton**:
+- **`lib/newsletter-scheduling.js`** — `scheduledJobs` (the node-schedule Job map, keyed by
+  `scheduled_newsletters.id` for newsletter jobs and by string-prefixed `jobKey`s for the separate
+  direct-email scheduling feature that shares the same map — confirmed via `grep` before assuming
+  a single owner), `buildSegmentCondition`, and `scheduleNewsletterSend` (the atomic-claim send
+  job — same "must stay one instance" reasoning as `dbTxnQueue`/`withDbTransaction`).
+- **`lib/newsletter-birthday.js`** — `birthdayJob` (the one persistent daily cron Job — a second
+  copy would leave an uncancellable duplicate firing every day), `BIRTHDAY_SETTING_DEFAULTS/KEYS`,
+  `mergeBirthdayOverrides`, `getBirthdaySettings`, `renderBirthdayEmail`,
+  `runBirthdayAutomationSweep`, `registerBirthdayJob`.
+
+`registerBirthdayJob()` is called at module-load time (not from inside any route or the listen
+callback) to register the initial daily cron job on startup — that call site **stays in `app.js`**,
+at the same position, now invoking the imported function; only the function body moved. `npm run
+smoke` booting cleanly was itself a real check that this eager call still executes without
+throwing from its new home.
+
+`newsletterUpload` (attachment-upload multer instance, `newsletterAttachStorage` depending on
+`docsWriteDir`) turned out to have two remaining call sites in the not-yet-moved `/api/admin/
+campaigns` routes — added to `lib/uploads.js` alongside the admin image `upload` instance rather
+than assumed unused. `EMAIL_FORMAT_RE` similarly had one remaining call site elsewhere in `app.js`
+— added to `lib/validation.js` alongside `sanitizeEmailInput`.
+
+A **fourth** `SQLITE_BUSY` crash hit during this batch's verification, same exact spot in
+`banner.test.js` as the three prior occurrences — see the consolidated note under "Known testing
+limitations" below, now updated to reflect four occurrences.
+
+Verification: `node -c` on all changed/new files; confirmed zero remaining `app.js` registrations
+for all 15 paths; `npm run smoke` 329/329; `npm test` x5 given the scope (1 crash as above, 1
+already-documented CP3 recurrence, 3 clean baseline-only runs) — specifically confirmed the
+schedule-creation and atomic-claim tests (a real node-schedule job actually firing and reaching a
+terminal `sent` status) and the birthday-sort tests passed on every successful run.
+
+**`newsletter` domain's route surface is now fully split out of `app.js`** (batches 7 + 8, 24
+routes total, matching the Phase 4 domain's original route count exactly).
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -1539,18 +1584,21 @@ since it's a test-harness/OS-level timing question, not a data-access-extraction
 category as Deferred fix #3's sleep-margin flakes, but a crash instead of a wrong assertion, so
 worth its own entry if it recurs enough to investigate.
 
-**Update (Phase 5, route batches 5-8):** recurred twice more, both times at the *exact same point*
-in `banner.test.js` ("get: banner + empty used_by before assignment" → crash on the next
-statement) rather than at a random spot — consistent enough to suggest a real race intrinsic to
-that test's own sequencing, not pure chance. The second of the two recurrences happened in a
-**verified-clean environment** (confirmed zero `node.exe` processes running beforehand via
-`Get-CimInstance`), ruling out leftover-process contention as the cause for at least that instance
-— see also the separate stale-`node server.js`-process incident logged in the `content.js`/
-`home-social.js` batch write-up above, which caused a *different* symptom (indefinite hangs, not
-crashes) and had a clearly identified external cause (an abandoned `npm start` from earlier in the
-session). Both recoveries were an immediate clean re-run. Still not investigated further (out of
-scope for a route-extraction session); flagging the consistent crash *location* specifically in
-case it helps whoever eventually looks at `banner.test.js` directly.
+**Update (Phase 5, route batches 5-9):** recurred three more times (four total now), every single
+time at the *exact same point* in `banner.test.js` ("get: banner + empty used_by before
+assignment" → crash on the next statement) rather than at a random spot — consistent enough to
+call it a real race intrinsic to that test's own sequencing, not pure chance. One of the
+recurrences happened in a **verified-clean environment** (confirmed zero `node.exe` processes
+running beforehand via `Get-CimInstance`), ruling out leftover-process contention as the cause for
+at least that instance — see also the separate stale-`node server.js`-process incident logged in
+the `content.js`/`home-social.js` batch write-up above, which caused a *different* symptom
+(indefinite hangs, not crashes) and had a clearly identified external cause (an abandoned
+`npm start` from earlier in the session). Every recovery was an immediate clean re-run — roughly
+1-in-3 to 1-in-4 of this session's Phase 5 test runs. Still not investigated further (out of scope
+for a route-extraction session, and none of the batches that triggered it — content/CMS routes,
+newsletter subscribers, newsletter scheduling/birthday — touch anything banner-related); flagging
+the consistent crash *location* specifically in case it helps whoever eventually looks at
+`banner.test.js` directly.
 
 What `test/calendar-booking-sync.test.js` proves instead: that a sync
 attempt was actually invoked for the right booking id on each of confirm/

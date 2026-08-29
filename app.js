@@ -231,9 +231,11 @@ function parseDurationMins(durationRaw) {
     return mins > 0 ? mins : 60;
 }
 
+// Still needed directly in this file for runDailyOverdueFlaggingSweep's and the analytics-rollup
+// cron's own schedule.scheduleJob(...) registrations below (unrelated to newsletter/birthday
+// scheduling) — scheduledJobs and birthdayJob themselves moved to lib/newsletter-scheduling.js and
+// lib/newsletter-birthday.js respectively.
 const schedule = require('node-schedule');
-const scheduledJobs = {}; // key: scheduled_newsletters.id → job object
-let birthdayJob = null; // the one persistent, runtime-reconfigurable daily birthday-automation job
 
 // Analytics: geo + UA parsing for the first-party page-view tracker
 const geoip    = require('geoip-lite');
@@ -308,45 +310,12 @@ const {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/validation.js.
-const { sanitizeEmailInput, isValidBirthday } = require('./lib/validation');
+const { sanitizeEmailInput, EMAIL_FORMAT_RE, isValidBirthday } = require('./lib/validation');
 
-const EMAIL_FORMAT_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-// Newsletter audience segmentation — an optional extra SQL condition layered on top of the
-// existing `status = 'active'` filter both send paths already apply. Returns a raw SQL fragment
-// (starting with "AND") plus its bound params; '' (no extra filter) for 'all'/unknown segments.
-// An invalid/missing value for a value-requiring segment matches nothing rather than erroring,
-// so a bad request never accidentally broadcasts to everyone.
-function buildSegmentCondition(segment, segmentValue) {
-    switch (segment) {
-        case 'new_30d':
-            return { condition: "AND subscribed_at >= datetime('now', '-30 days')", params: [] };
-        case 'birthday_month': {
-            const month = parseInt(segmentValue, 10);
-            if (!Number.isInteger(month) || month < 1 || month > 12) return { condition: 'AND 0', params: [] };
-            return { condition: 'AND birthday_month = ?', params: [month] };
-        }
-        case 'has_tag': {
-            const tag = String(segmentValue || '').trim();
-            if (!tag) return { condition: 'AND 0', params: [] };
-            return { condition: 'AND tags LIKE ?', params: [`%"${tag}"%`] };
-        }
-        case 'source': {
-            const src = String(segmentValue || '').trim();
-            if (!src) return { condition: 'AND 0', params: [] };
-            return { condition: 'AND source = ?', params: [src] };
-        }
-        case 'booking_clients':
-            return { condition: 'AND email IN (SELECT DISTINCT email FROM bookings)', params: [] };
-        case 'dormant': {
-            const days = parseInt(segmentValue, 10);
-            const d = (Number.isInteger(days) && days > 0) ? days : 180;
-            return { condition: "AND subscribed_at <= datetime('now', ?) AND email NOT IN (SELECT DISTINCT email FROM bookings)", params: [`-${d} days`] };
-        }
-        default:
-            return { condition: '', params: [] };
-    }
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/newsletter-scheduling.js, alongside
+// scheduledJobs/scheduleNewsletterSend below (same file — all part of the same scheduling
+// subsystem, and buildSegmentCondition is called from inside scheduleNewsletterSend).
+const { scheduledJobs, buildSegmentCondition, scheduleNewsletterSend } = require('./lib/newsletter-scheduling');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -591,10 +560,11 @@ app.use(require('./routes/admin/site-content'));
 app.use(require('./routes/admin/content'));
 app.use(require('./routes/admin/home-social'));
 app.use(require('./routes/admin/newsletter-subscribers'));
+app.use(require('./routes/admin/newsletter-campaigns'));
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/uploads.js — needed by the ~20 admin upload
 // routes being split into routes/, not just this file.
-const { safeUploadFilename, upload } = require('./lib/uploads');
+const { safeUploadFilename, upload, newsletterUpload } = require('./lib/uploads');
 
 // Restricted variant of `upload` for the one PUBLIC, unauthenticated upload route (testimonial
 // photo submission) — deliberately excludes .svg. SEC-1 (see the /upload route below) already
@@ -642,14 +612,8 @@ const uploadReceipt = multer({
     }
 });
 
-// Newsletter attachment storage — persists until scheduled job fires or is cancelled
-const newsletterAttachStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, docsWriteDir('newsletter_attachments'));
-    },
-    filename: (req, file, cb) => { cb(null, `${Date.now()}-${file.originalname}`); }
-});
-const newsletterUpload = multer({ storage: newsletterAttachStorage, limits: { fileSize: 10 * 1024 * 1024 } });
+// newsletterAttachStorage/newsletterUpload moved to lib/uploads.js — added to the same import
+// destructured near the top of this file (alongside safeUploadFilename/upload).
 
 // Subscriber CSV import — memory storage, no extension filter (the shared `upload` instance above
 // only allows image extensions and silently rejected every .csv before this existed).
@@ -8262,62 +8226,10 @@ app.get('/api/admin/email-logs', requireAdmin, (req, res) => {
 
 
 
-// --- Newsletter Drafts ---
 
-// Save Draft
-app.post('/api/admin/newsletter/drafts', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), (req, res) => {
-    const { subject, content } = req.body;
-    insertDraft(subject, content, function(err) {
-        if (err) {
-            return res.status(500).json({ success: false, message: err.message });
-        }
-        res.json({ success: true, id: this.lastID });
-    });
-});
 
-// Update Draft
-app.put('/api/admin/newsletter/drafts/:id', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), (req, res) => {
-    const { subject, content } = req.body;
-    const { id } = req.params;
-    updateDraft(subject, content, id, function(err) {
-        if (err) {
-            return res.status(500).json({ success: false, message: err.message });
-        }
-        res.json({ success: true });
-    });
-});
 
-// Get All Drafts
-app.get('/api/admin/newsletter/drafts', requireAdmin, (req, res) => {
-    listDrafts((err, rows) => {
-        if (err) {
-            return res.status(500).json({ success: false, message: err.message });
-        }
-        res.json(rows);
-    });
-});
 
-// Get Single Draft
-app.get('/api/admin/newsletter/drafts/:id', requireAdmin, (req, res) => {
-    const { id } = req.params;
-    getDraft(id, (err, row) => {
-        if (err) {
-            return res.status(500).json({ success: false, message: err.message });
-        }
-        res.json(row);
-    });
-});
-
-// Delete Draft
-app.delete('/api/admin/newsletter/drafts/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    const { id } = req.params;
-    deleteDraft(id, function(err) {
-        if (err) {
-            return res.status(500).json({ success: false, message: err.message });
-        }
-        res.json({ success: true });
-    });
-});
 
 // --- Newsletter Scheduling ---
 
@@ -8348,249 +8260,12 @@ function loadPendingScheduledJobs() {
     });
 }
 
-function scheduleNewsletterSend(schedItem, { fireImmediately = false } = {}) {
-    // Handle both ISO8601 ("2025-05-12T14:00:00.000Z") and SQLite datetime ("2025-05-12 14:00:00")
-    const rawDt = schedItem.scheduled_at;
-    let fireDate = new Date(rawDt.includes('T') ? rawDt : rawDt.replace(' ', 'T') + 'Z');
-    if (fireImmediately) {
-        // node-schedule's handling of a Date already in the past is unreliable/undocumented — give
-        // it a concrete few-seconds-out target instead, so a recovered overdue row is guaranteed to
-        // fire while still reusing this function's exact send logic (including the atomic claim below).
-        fireDate = new Date(Date.now() + 2000);
-    } else if (isNaN(fireDate.getTime()) || fireDate <= new Date()) {
-        return;
-    }
+// scheduleNewsletterSend moved to lib/newsletter-scheduling.js (imported near the top of this file).
 
-    const job = schedule.scheduleJob(fireDate, function() {
-        // Atomic claim: only one caller can ever win this row. Replaces the old soft
-        // `db.get` status re-check, which left a real (if narrow, single-process) window for the
-        // same row to be processed twice — see the ripple note on campaigns/unified's display_status
-        // CASE, which needed a matching update for this new transient 'sending' value.
-        claimScheduledNewsletterForSending(schedItem.id, async function(claimErr) {
-            if (claimErr || this.changes !== 1) {
-                delete scheduledJobs[schedItem.id];
-                return;
-            }
 
-            const { condition: segCondition, params: segParams } = buildSegmentCondition(schedItem.segment, schedItem.segment_value);
-            getActiveSubscribersForSegment(segCondition, segParams, async (err2, subscribers) => {
-                if (err2) {
-                    markScheduledNewsletterFailed(schedItem.id);
-                    delete scheduledJobs[schedItem.id];
-                    return;
-                }
-                if (!subscribers || subscribers.length === 0) {
-                    markScheduledNewsletterSkipped(schedItem.id);
-                    delete scheduledJobs[schedItem.id];
-                    return;
-                }
 
-                let jobAttachments = [];
-                if (schedItem.attachment_paths) {
-                    try {
-                        jobAttachments = JSON.parse(schedItem.attachment_paths)
-                            .filter(a => fs.existsSync(a.path))
-                            .map(a => ({ filename: a.filename, path: a.path }));
-                    } catch(e) {}
-                }
 
-                // Campaign content is the admin's own authored HTML — run through the merge-field
-                // engine per recipient, then wrapped with the brand shell + a per-recipient
-                // unsubscribe link (preWrapped bypasses sendEmailDirectly's own subscriber lookup,
-                // so it's built here instead).
-                const { socialLinks: schedSocialLinks } = await getEmailFooterContext();
-                const campaignBanner = await bannerRegistry.resolveBanner('newsletter_campaign');
-                let successCount = 0;
-                let failCount = 0;
-                for (const sub of subscribers) {
-                    try {
-                        const unsubscribeUrl = sub.unsubscribe_token
-                            ? `${emailBaseUrl()}/unsubscribe.html?token=${sub.unsubscribe_token}&email=${encodeURIComponent(sub.email)}`
-                            : null;
-                        const personalizedSubject = applyMergeFields(schedItem.subject, sub, unsubscribeUrl);
-                        const personalizedBody = applyMergeFields(schedItem.content, sub, unsubscribeUrl);
-                        const html = emailComponents.renderPremiumEmail({
-                            preheaderText: personalizedSubject,
-                            bannerSrc: campaignBanner?.src, bannerAlt: campaignBanner?.alt, subtitle: campaignBanner?.subtitle,
-                            headline: personalizedSubject,
-                            bodyHtml: personalizedBody,
-                            unsubscribeUrl,
-                            socialLinks: schedSocialLinks
-                        });
-                        const result = await sendEmail({
-                            to: sub.email,
-                            subject: personalizedSubject,
-                            htmlContent: html,
-                            preWrapped: true,
-                            titleOverride: personalizedSubject,
-                            attachments: jobAttachments,
-                            trigger_event: 'Newsletter: Scheduled Campaign'
-                        });
-                        if (result.success) { successCount++; } else { failCount++; }
-                    } catch (e) {
-                        failCount++;
-                        console.error(`Scheduled newsletter [${schedItem.id}]: failed sending to ${sub.email}:`, e.message);
-                    }
-                    // No artificial delay — see the equivalent comment in POST /api/admin/campaigns;
-                    // real SMTP pacing is handled independently by processNotificationQueue().
-                }
 
-                markScheduledNewsletterSent(successCount, failCount, schedItem.id);
-                insertCampaignLog(schedItem.subject, schedItem.content, subscribers.length, successCount, failCount);
-                jobAttachments.forEach(a => fs.unlink(a.path, () => {}));
-                delete scheduledJobs[schedItem.id];
-                console.log(`✅ Scheduled newsletter [${schedItem.id}] dispatched: sent ${successCount}/${subscribers.length}, failures: ${failCount}`);
-            });
-        });
-    });
-    scheduledJobs[schedItem.id] = job;
-}
-
-// Newsletter Preview — renders through the exact same path a real send uses
-// (emailComponents.renderPremiumEmail + the resolved newsletter_campaign banner), so what an
-// admin previews is what subscribers actually get. Previously used the older emailTemplates
-// wrapper, which had drifted from the real send rendering.
-app.post('/api/admin/newsletter/preview', requireAdmin, newsletterUpload.none(), async (req, res) => {
-    try {
-        const { subject, content } = req.body;
-        if (!content) return res.status(400).json({ success: false, message: 'Content is required.' });
-
-        const sampleSubscriber = {
-            first_name: 'Alex', email: 'alex@example.com',
-            subscribed_at: new Date().toISOString(),
-            birthday_day: new Date().getDate(), birthday_month: new Date().getMonth() + 1
-        };
-        const previewSubject = applyMergeFields(subject || 'Newsletter Preview', sampleSubscriber, '#');
-        const previewBody = applyMergeFields(content, sampleSubscriber, '#');
-
-        const { socialLinks } = await getEmailFooterContext();
-        // Preview always renders the banner against the requesting host, not emailBaseUrl()'s
-        // production fallback — a banner uploaded on dev/staging otherwise 404s in the preview.
-        const previewBaseUrl = `${req.protocol}://${req.get('host')}`;
-        const banner = await bannerRegistry.resolveBanner('newsletter_campaign', { baseUrlOverride: previewBaseUrl });
-        const html = emailComponents.renderPremiumEmail({
-            preheaderText: previewSubject,
-            bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-            headline: previewSubject,
-            bodyHtml: previewBody,
-            unsubscribeUrl: '#',
-            socialLinks
-        });
-        res.json({ success: true, html });
-    } catch(e) {
-        console.error('[Preview] Error generating preview:', e.message);
-        res.status(500).json({ success: false, message: 'Could not generate preview: ' + e.message });
-    }
-});
-
-// Create Scheduled Newsletter
-app.post('/api/admin/newsletter/schedule', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.array('attachments', 10), (req, res) => {
-    const { subject, content, scheduled_at, segment, segment_value } = req.body;
-    if (!content) return res.status(400).json({ success: false, message: 'Content is required.' });
-    if (!scheduled_at) return res.status(400).json({ success: false, message: 'scheduled_at is required.' });
-    const fireDate = new Date(scheduled_at);
-    if (isNaN(fireDate.getTime()) || fireDate <= new Date()) {
-        return res.status(400).json({ success: false, message: 'scheduled_at must be a valid future date and time.' });
-    }
-    const attachmentPaths = JSON.stringify((req.files || []).map(f => ({ filename: f.originalname, path: f.path })));
-    insertScheduledNewsletter(subject, content, scheduled_at, attachmentPaths, segment || null, segment_value || null, function(err) {
-        if (err) {
-            return res.status(500).json({ success: false, message: err.message });
-        }
-        const newId = this.lastID;
-        getScheduledNewsletterById(newId, (err, row) => {
-            if (!err && row) {
-                scheduleNewsletterSend(row);
-            }
-        });
-        res.json({ success: true, id: newId });
-    });
-});
-
-// Get All Scheduled Newsletters
-app.get('/api/admin/newsletter/schedule', requireAdmin, (req, res) => {
-    listScheduledNewsletters((err, rows) => {
-        if (err) {
-            return res.status(500).json({ success: false, message: err.message });
-        }
-        res.json(rows);
-    });
-});
-
-// Cancel Scheduled Newsletter
-app.delete('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    const { id } = req.params;
-    // Fetch attachment paths before cancelling so we can clean up files
-    getScheduledNewsletterAttachmentsIfPending(id, (fetchErr, row) => {
-        cancelScheduledNewsletter(id, function(err) {
-            if (err) return res.status(500).json({ success: false, message: err.message });
-            if (this.changes === 0) {
-                return res.status(400).json({ success: false, message: 'Newsletter is not pending and cannot be cancelled.' });
-            }
-            if (scheduledJobs[id]) {
-                scheduledJobs[id].cancel();
-                delete scheduledJobs[id];
-            }
-            if (!fetchErr && row && row.attachment_paths) {
-                try { JSON.parse(row.attachment_paths).forEach(a => fs.unlink(a.path, () => {})); } catch(e) {}
-            }
-            res.json({ success: true });
-        });
-    });
-});
-
-// Update Scheduled Newsletter
-app.put('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.array('attachments', 10), (req, res) => {
-    const { subject, content, scheduled_at, segment, segment_value } = req.body;
-    const { id } = req.params;
-    const newFiles = req.files || [];
-
-    // Same validation as POST — an edit that silently sets an invalid/past date would otherwise
-    // create a row that can never fire (the same "orphaned pending row" bug, reachable via the
-    // ordinary edit UI rather than just a server restart).
-    if (!scheduled_at) return res.status(400).json({ success: false, message: 'scheduled_at is required.' });
-    const editFireDate = new Date(scheduled_at);
-    if (isNaN(editFireDate.getTime()) || editFireDate <= new Date()) {
-        newFiles.forEach(f => fs.unlink(f.path, () => {}));
-        return res.status(400).json({ success: false, message: 'scheduled_at must be a valid future date and time.' });
-    }
-
-    // Fetch existing row to handle attachment file management
-    getScheduledNewsletterAttachmentsIfPending(id, (fetchErr, existing) => {
-        let attachmentPaths;
-        if (newFiles.length > 0) {
-            // New files uploaded — delete old ones and replace
-            if (!fetchErr && existing && existing.attachment_paths) {
-                try { JSON.parse(existing.attachment_paths).forEach(a => fs.unlink(a.path, () => {})); } catch(e) {}
-            }
-            attachmentPaths = JSON.stringify(newFiles.map(f => ({ filename: f.originalname, path: f.path })));
-        } else {
-            // No new files — keep existing attachment_paths unchanged
-            attachmentPaths = (existing && existing.attachment_paths) || '[]';
-        }
-
-        updateScheduledNewsletter(subject, content, scheduled_at, attachmentPaths, segment || null, segment_value || null, id, function(err) {
-            if (err) {
-                newFiles.forEach(f => fs.unlink(f.path, () => {}));
-                return res.status(500).json({ success: false, message: err.message });
-            }
-            if (this.changes === 0) {
-                newFiles.forEach(f => fs.unlink(f.path, () => {}));
-                return res.status(400).json({ success: false, message: 'Schedule not found or no longer pending.' });
-            }
-            if (scheduledJobs[id]) {
-                scheduledJobs[id].cancel();
-                delete scheduledJobs[id];
-            }
-            getScheduledNewsletterById(id, (err, row) => {
-                if (!err && row && row.status === 'pending') {
-                    scheduleNewsletterSend(row);
-                }
-            });
-            res.json({ success: true });
-        });
-    });
-});
 
 // ==========================================
 // Admin Newsletter Dispatch Route
@@ -8687,16 +8362,6 @@ app.post('/api/admin/campaigns', requireAdmin, requireRole(['administrator', 'ma
     });
 });
 
-// Audience count preview — lets the admin see how many subscribers a segment resolves to before
-// actually sending, without duplicating the segment-matching SQL (shares buildSegmentCondition
-// with both real send paths above).
-app.get('/api/admin/newsletter/campaigns/audience-count', requireAdmin, (req, res) => {
-    const { condition, params } = buildSegmentCondition(req.query.segment, req.query.segment_value);
-    getAudienceCount(condition, params, (err, row) => {
-        if (err) return res.status(500).json({ success: false, message: err.message });
-        res.json({ success: true, count: row.count || 0 });
-    });
-});
 
 // Send Test (to self) — fires one real, personalized email of the current (possibly unsaved)
 // Compose content to the logged-in admin's own address, same reasoning/pattern as the Birthday
@@ -8741,243 +8406,13 @@ app.post('/api/admin/campaigns/send-test', requireAdmin, requireRole(['administr
 // ==========================================
 // Newsletter — Birthday Automation (Phase 3)
 // ==========================================
-// Config + template copy live in the generic `settings` table (same store/pattern as
-// PUT /api/admin/site-content), not a new table — see BIRTHDAY_SETTING_DEFAULTS below.
-const BIRTHDAY_SETTING_DEFAULTS = {
-    birthday_automation_enabled: '0',
-    birthday_send_time: '09:00',
-    birthday_test_mode: '0',
-    birthday_test_recipient: '',
-    birthday_email_subject: 'Happy Birthday, {{first_name}}!',
-    birthday_email_heading: 'Happy Birthday, {{first_name}}!',
-    birthday_email_body:
-        '<p style="text-align:center;">Wishing you a wonderful day, {{first_name}}! Thank you for being part of the inner circle this past year.</p>',
-    birthday_email_cta_label: '',
-    birthday_email_cta_url: '',
-    birthday_email_footer_note: ''
-};
-const BIRTHDAY_SETTING_KEYS = Object.keys(BIRTHDAY_SETTING_DEFAULTS);
-
-app.get('/api/admin/newsletter/birthday-settings', requireAdmin, (req, res) => {
-    getSettingsByKeys(BIRTHDAY_SETTING_KEYS, (err, rows) => {
-        if (err) return res.status(500).json({ success: false, message: err.message });
-        const map = {};
-        (rows || []).forEach(r => { map[r.setting_key] = r.setting_value; });
-        const result = {};
-        BIRTHDAY_SETTING_KEYS.forEach(k => { result[k] = map[k] != null ? map[k] : BIRTHDAY_SETTING_DEFAULTS[k]; });
-        res.json({ success: true, settings: result });
-    });
-});
-
-app.put('/api/admin/newsletter/birthday-settings', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    const b = req.body || {};
-    const updates = {};
-    if (typeof b.birthday_automation_enabled !== 'undefined') updates.birthday_automation_enabled = b.birthday_automation_enabled ? '1' : '0';
-    if (typeof b.birthday_send_time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(b.birthday_send_time)) updates.birthday_send_time = b.birthday_send_time;
-    if (typeof b.birthday_test_mode !== 'undefined') updates.birthday_test_mode = b.birthday_test_mode ? '1' : '0';
-    if (typeof b.birthday_test_recipient === 'string') {
-        const val = sanitizeEmailInput(b.birthday_test_recipient);
-        if (!val || EMAIL_FORMAT_RE.test(val)) updates.birthday_test_recipient = val;
-    }
-    if (typeof b.birthday_email_subject === 'string') updates.birthday_email_subject = b.birthday_email_subject.replace(/<[^>]*>/g, '').slice(0, 200);
-    if (typeof b.birthday_email_heading === 'string') updates.birthday_email_heading = b.birthday_email_heading.replace(/<[^>]*>/g, '').slice(0, 200);
-    if (typeof b.birthday_email_body === 'string') updates.birthday_email_body = sanitizeAboutHtml(b.birthday_email_body).slice(0, 5000);
-    if (typeof b.birthday_email_cta_label === 'string') updates.birthday_email_cta_label = b.birthday_email_cta_label.replace(/<[^>]*>/g, '').slice(0, 60);
-    if (typeof b.birthday_email_cta_url === 'string') updates.birthday_email_cta_url = b.birthday_email_cta_url.replace(/<[^>]*>/g, '').slice(0, 500);
-    if (typeof b.birthday_email_footer_note === 'string') updates.birthday_email_footer_note = sanitizeAboutHtml(b.birthday_email_footer_note).slice(0, 500);
-
-    const keys = Object.keys(updates);
-    if (!keys.length) return res.json({ success: true });
-    let pending = keys.length, failed = false;
-    keys.forEach(key => {
-        upsertSettingWithConflictClause(key, updates[key], (err) => {
-                if (err && !failed) { failed = true; console.error('save birthday-settings failed:', err); return res.status(500).json({ success: false, message: 'Could not save birthday settings. Please try again.' }); }
-                if (--pending === 0 && !failed) {
-                    if ('birthday_send_time' in updates || 'birthday_automation_enabled' in updates) registerBirthdayJob();
-                    res.json({ success: true, message: 'Birthday automation settings updated.' });
-                }
-            });
-    });
-});
-
-// Merges the currently-edited (unsaved) form fields over the saved settings, so Preview/Send Test
-// reflect what the admin is about to save, not just what was last saved — same reasoning as the
-// newsletter Compose tab's own preview, which previews the unsaved Quill draft.
-function mergeBirthdayOverrides(saved, body) {
-    const merged = { ...saved };
-    ['birthday_email_subject', 'birthday_email_heading', 'birthday_email_cta_label', 'birthday_email_cta_url'].forEach(k => {
-        if (typeof body[k] === 'string') merged[k] = body[k].replace(/<[^>]*>/g, '').slice(0, k === 'birthday_email_cta_url' ? 500 : 200);
-    });
-    if (typeof body.birthday_email_body === 'string') merged.birthday_email_body = sanitizeAboutHtml(body.birthday_email_body).slice(0, 5000);
-    if (typeof body.birthday_email_footer_note === 'string') merged.birthday_email_footer_note = sanitizeAboutHtml(body.birthday_email_footer_note).slice(0, 500);
-    return merged;
-}
-
-// Preview — same construction as /api/admin/newsletter/preview, against a sample subscriber whose
-// birthday is today (so {{birthday}} resolves to something real). Uses multipart form-data (like
-// the newsletter Compose preview) rather than JSON, so the body-content field isn't HTML-escaped
-// by the global deepEscapeBody middleware.
-app.post('/api/admin/newsletter/birthday-settings/preview', requireAdmin, newsletterUpload.none(), async (req, res) => {
-    try {
-        const saved = await getBirthdaySettings();
-        const settings = mergeBirthdayOverrides(saved, req.body || {});
-        const today = moment().tz('Africa/Johannesburg');
-        const sampleSubscriber = { first_name: 'Alex', email: 'alex@example.com', birthday_day: today.date(), birthday_month: today.month() + 1 };
-        const html = await renderBirthdayEmail(settings, sampleSubscriber, '#', `${req.protocol}://${req.get('host')}`);
-        res.json({ success: true, html });
-    } catch (e) {
-        console.error('[Birthday Preview] Error:', e.message);
-        res.status(500).json({ success: false, message: 'Could not generate preview: ' + e.message });
-    }
-});
-
-// Send Test — fires one real email to birthday_test_recipient using the current (possibly unsaved)
-// template fields, so an admin can confirm it actually renders/arrives correctly before saving and
-// enabling the real automation.
-app.post('/api/admin/newsletter/birthday-settings/send-test', requireAdmin, requireRole(['administrator', 'manager']), newsletterUpload.none(), async (req, res) => {
-    try {
-        const saved = await getBirthdaySettings();
-        const settings = mergeBirthdayOverrides(saved, req.body || {});
-        const testRecipient = (typeof req.body.birthday_test_recipient === 'string' && req.body.birthday_test_recipient) || saved.birthday_test_recipient;
-        if (!testRecipient) {
-            return res.status(400).json({ success: false, message: 'Set a test recipient email first.' });
-        }
-        const today = moment().tz('Africa/Johannesburg');
-        // Bug fix: this always built a tokenless /unsubscribe.html link, which the unsubscribe page
-        // correctly (from its own perspective) rejects as invalid — every test send's unsubscribe
-        // link was broken by construction. Mirrors runBirthdayAutomationSweep()'s real-token lookup:
-        // if the test recipient happens to be an actual subscriber, give them a working link and
-        // their real {{first_name}} (previously always hardcoded to "Alex", masking whether the
-        // real per-subscriber lookup actually works); if not (a throwaway inbox that isn't
-        // subscribed to anything), fall back to the placeholder name and the bare unsubscribe page.
-        // Also covers {{subscription_date}}: sampleSubscriber never set subscribed_at at all, so
-        // that merge field silently rendered as an empty string in every test send. And
-        // {{birthday}}: owner decision (2026-07-16) — show the recipient's real stored birthday
-        // when they're an actual subscriber, only falling back to today's date (so the field still
-        // resolves to *something*) when the test recipient isn't a real subscriber at all.
-        const testSubRow = await new Promise((resolve) => {
-            getSubscriberBirthdayFields(testRecipient, (err, row) => resolve(row));
-        });
-        const sampleSubscriber = {
-            first_name: (testSubRow && testSubRow.first_name) || 'Alex',
-            email: testRecipient,
-            birthday_day: (testSubRow && testSubRow.birthday_day) || today.date(),
-            birthday_month: (testSubRow && testSubRow.birthday_month) || (today.month() + 1),
-            subscribed_at: testSubRow && testSubRow.subscribed_at
-        };
-        const unsubscribeUrl = (testSubRow && testSubRow.unsubscribe_token)
-            ? `${emailBaseUrl()}/unsubscribe.html?token=${testSubRow.unsubscribe_token}&email=${encodeURIComponent(testRecipient)}`
-            : `${emailBaseUrl()}/unsubscribe.html`;
-        const html = await renderBirthdayEmail(settings, sampleSubscriber, unsubscribeUrl);
-        const subject = applyMergeFields(settings.birthday_email_subject, sampleSubscriber, unsubscribeUrl);
-        await sendEmail({
-            to: testRecipient,
-            subject: '[TEST] ' + subject,
-            htmlContent: html,
-            preWrapped: true,
-            titleOverride: subject,
-            trigger_event: 'Newsletter: Birthday Test'
-        });
-        res.json({ success: true, message: 'Test email queued to ' + testRecipient + '.' });
-    } catch (e) {
-        console.error('[Birthday Send Test] Error:', e.message);
-        res.status(500).json({ success: false, message: 'Could not send test email: ' + e.message });
-    }
-});
-
-function getBirthdaySettings() {
-    return repoGetBirthdaySettings(BIRTHDAY_SETTING_KEYS, BIRTHDAY_SETTING_DEFAULTS);
-}
-
-// Shared render path for preview/send-test/the real sweep — mirrors the newsletter campaign
-// send paths exactly (merge fields -> renderPremiumEmail -> resolved banner).
-async function renderBirthdayEmail(settings, subscriber, unsubscribeUrl, baseUrlOverride) {
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('subscriber_birthday', baseUrlOverride ? { baseUrlOverride } : undefined);
-    const subject = applyMergeFields(settings.birthday_email_subject, subscriber, unsubscribeUrl);
-    const heading = applyMergeFields(settings.birthday_email_heading, subscriber, unsubscribeUrl);
-    const body = applyMergeFields(settings.birthday_email_body, subscriber, unsubscribeUrl);
-    const footerNote = settings.birthday_email_footer_note
-        ? `<p style="text-align:center; margin-top:18px; color:#707070; font-size:12px;">${applyMergeFields(settings.birthday_email_footer_note, subscriber, unsubscribeUrl)}</p>`
-        : '';
-    return emailComponents.renderPremiumEmail({
-        preheaderText: subject,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || heading,
-        bodyHtml: body + footerNote,
-        cta: settings.birthday_email_cta_label && settings.birthday_email_cta_url
-            ? { label: settings.birthday_email_cta_label, url: settings.birthday_email_cta_url } : null,
-        unsubscribeUrl,
-        socialLinks
-    });
-}
-
-// The daily sweep — matches today's day/month against subscribers, sends (or redirects to the
-// test recipient in test mode), and dedupes on a per-subscriber-per-year basis via the existing
-// email_logs table (no new log table). Exported so it can be invoked directly for testing without
-// waiting for the real cron time.
-async function runBirthdayAutomationSweep() {
-    const settings = await getBirthdaySettings();
-    if (settings.birthday_automation_enabled !== '1') return;
-
-    const today = moment().tz('Africa/Johannesburg');
-    const day = today.date(), month = today.month() + 1;
-    console.log(`[Birthday Automation] Sweeping for birthdays on ${month}/${day}...`);
-
-    const subscribers = await new Promise((resolve, reject) => {
-        getSubscribersWithBirthdayToday(day, month, (err, rows) => err ? reject(err) : resolve(rows || []));
-    });
-    if (!subscribers.length) { console.log('[Birthday Automation] No birthdays today.'); return; }
-
-    let sent = 0, skipped = 0;
-    for (const sub of subscribers) {
-        try {
-            const alreadySent = await new Promise((resolve, reject) => {
-                db.get(
-                    `SELECT 1 FROM email_logs WHERE recipient_email = ? AND trigger_event = 'Newsletter: Birthday'
-                     AND strftime('%Y', sent_at) = strftime('%Y', 'now') LIMIT 1`,
-                    [sub.email], (err, row) => err ? reject(err) : resolve(!!row)
-                );
-            });
-            if (alreadySent) { skipped++; continue; }
-
-            const recipientEmail = settings.birthday_test_mode === '1' ? settings.birthday_test_recipient : sub.email;
-            if (!recipientEmail) { skipped++; continue; }
-
-            const unsubscribeUrl = sub.unsubscribe_token
-                ? `${emailBaseUrl()}/unsubscribe.html?token=${sub.unsubscribe_token}&email=${encodeURIComponent(sub.email)}`
-                : `${emailBaseUrl()}/unsubscribe.html`;
-            const html = await renderBirthdayEmail(settings, sub, unsubscribeUrl);
-            const subject = applyMergeFields(settings.birthday_email_subject, sub, unsubscribeUrl);
-            await sendEmail({
-                to: recipientEmail,
-                subject,
-                htmlContent: html,
-                preWrapped: true,
-                titleOverride: subject,
-                trigger_event: settings.birthday_test_mode === '1' ? 'Newsletter: Birthday Test' : 'Newsletter: Birthday'
-            });
-            sent++;
-        } catch (e) {
-            console.error(`[Birthday Automation] Failed for ${sub.email}:`, e.message);
-        }
-        await new Promise(r => setTimeout(r, 200));
-    }
-    console.log(`[Birthday Automation] Done. Sent: ${sent}, skipped (already sent this year / no recipient): ${skipped}.`);
-}
-
-// Registers (or re-registers) the one persistent daily job from the current birthday_send_time
-// setting. Deliberately not run-once-at-boot (unlike the overdue sweep) — a redeploy mid-day must
-// not trigger an unexpected birthday blast.
-function registerBirthdayJob() {
-    if (birthdayJob) { birthdayJob.cancel(); birthdayJob = null; }
-    getBirthdaySettings().then(settings => {
-        const [hour, minute] = settings.birthday_send_time.split(':').map(Number);
-        birthdayJob = schedule.scheduleJob(`${minute} ${hour} * * *`, () => {
-            runBirthdayAutomationSweep().catch(e => console.error('[Birthday Automation] Sweep error:', e.message));
-        });
-    }).catch(e => console.error('[Birthday Automation] Could not register job:', e.message));
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/newsletter-birthday.js. registerBirthdayJob() is
+// still called here, at the same module-load-time position, to register the initial cron job on
+// startup — only the function bodies moved, not this call site. Nothing else in this file still
+// references BIRTHDAY_SETTING_DEFAULTS/KEYS, mergeBirthdayOverrides, getBirthdaySettings,
+// renderBirthdayEmail, or runBirthdayAutomationSweep — every other call site moved to
+// routes/admin/newsletter-campaigns.js.
+const { registerBirthdayJob } = require('./lib/newsletter-birthday');
 registerBirthdayJob();
 
 // ==========================================
