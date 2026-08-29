@@ -6,6 +6,70 @@ optional reading before starting a new phase.
 
 ---
 
+## Phase 5 — Route & middleware split
+
+In progress. Splits `server.js` along the admin/public boundary per the plan: `routes/admin/`,
+`routes/public/`, an `app.js` that mounts everything, `server.js` reduced to process-entry-point
+only. Route counts confirmed via live grep: **270** `/api/admin/*`, **49** `/api/public/*` —
+exactly matching the plan's estimate.
+
+### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
+
+See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
+`middleware/error-handler.js`; `requireAdmin` reassembled from an imported check function + the
+`adminRateLimiter` that stays in `app.js`; the two error handlers now take `rootDir` as a parameter
+since `__dirname` would otherwise resolve to `middleware/` instead of the project root).
+
+**10 routes fall outside the plan's `/api/admin`/`/api/public` boundary** and aren't counted in the
+270+49: `/robots.txt`, `POST /upload`, `POST /api/payment/webhook/payfast`,
+`GET /api/bookings/:id/payment-logs`, `GET /payment/success`, `GET /payment/cancel`,
+`POST /send-email`, `GET /api/calendar/feed.ics`, `GET /sitemap.xml`, `POST /api/debug`. Decision
+(confirmed with the user): sort by behavior — auth-gated ones into `routes/admin/`, unauthenticated
+ones into `routes/public/`.
+
+**`/robots.txt` is the one exception, staying in `app.js`.** A physical `robots.txt` file exists in
+the repo root (`ls` confirmed it), currently shadowed because the programmatic
+`app.get('/robots.txt', ...)` handler is registered *before* the blanket
+`express.static(path.join(__dirname, '/'))` mount. If this route moved into a router mounted after
+static serving — the natural thing to do with "put routes in their own files" — the stale physical
+file would start being served instead, silently changing behavior. No physical `sitemap.xml` exists,
+so that route has no equivalent risk and can move normally.
+
+**`/api/debug` reported per the plan's explicit instruction, not touched.** `POST /api/debug` is
+`requireAdmin`-gated and does exactly one thing: `console.log('[DEBUG API] Background configuration
+trace:', req.body)`, then returns `{success:true}`. It doesn't read or return stored data — its only
+effect is writing an authenticated admin's request body into the server console. Low severity given
+the auth gate, but flagged for the user's own call on whether to keep it.
+
+**A pre-existing bug found in passing, not fixed:** `GET /api/bookings/:id/payment-logs` checks
+`req.session.admin`, which is never set anywhere in the codebase (every login sets
+`req.session.adminId`/`.username`/`.role`, never `.admin`). This route has been returning 401 to
+every caller, admin or not, since it was written. Relocating it byte-identical when its batch comes
+up; not fixing the check.
+
+**Smaller oddity, also left alone:** `POST /upload` inlines its own `req.session.adminId` check
+instead of using `requireAdmin`, because — per its own comment — it's defined earlier in the file
+than the `requireAdmin` `const`. That positional reason disappears once `requireAdmin` is an import
+available from the top of the file, but per "move only" the duplicate inline check stays exactly as
+it is rather than being consolidated onto the shared middleware.
+
+**No existing graceful-shutdown code** (no SIGTERM/SIGINT handlers anywhere) — "shutdown" in the
+plan's "config, listen, shutdown" describes a slot in the new structure, not something that needed
+relocating. `app.listen()`'s callback does real startup work (loads pending scheduled
+newsletter/direct-email jobs, runs a quote-amount consistency check against the DB) and moved to
+`server.js` in full; `loadPendingScheduledJobs`/`loadPendingDirectEmails` are exported from `app.js`
+alongside `app` itself so `server.js` can call them.
+
+Verification: `node -c` on all 5 changed/new files; `npm test` run **5 times** given this is the
+foundational step everything else depends on — baseline-only 3 of 5 runs, one recurrence each of
+CP5 (already-documented) and a new one, **CP12** (`inquiries.test.js` — "responded_at set on first
+reply" / "NOT overwritten by a second reply"), see the Deferred fix #3 update below. The RBAC suite
+specifically — 141 tests — passed identically on every run, meeting the plan's "not by a single
+character" bar for auth/RBAC. `npm run smoke` 329/329. `git status` confirmed only `app.js`,
+`server.js`, and `middleware/*.js` changed.
+
+---
+
 ## Phase 4 — Data-access extraction
 
 **Phase 4 is now complete — all 8 planned domains extracted.** Order followed the plan's suggested
@@ -1388,3 +1452,15 @@ its own change with its own testing.
   confirmation, now that every Phase 4 domain has reported in on this same flake: it is purely a
   test-suite timing-margin issue, observed at a similar rate regardless of which domain's session is
   running, never once correlated with what that session actually changed.
+- **Update (Phase 5, skeleton split):** a seventh instance, and the first NEW test name to join this
+  list since CP17 — `inquiries.test.js`'s **CP12** ("responded_at set on first reply, status flips
+  to replied" / "NOT overwritten by a second reply"), which awaits the HTTP response from
+  `POST /api/admin/direct-emails/:id/send` and then immediately reads `inquiries.status`/
+  `.responded_at` back from the DB — same shape as every other instance: an HTTP response awaited
+  while the row it depends on is still a fire-and-forget async write in flight. Failed once in 5
+  runs, on a route (direct-email sending) this step never touched — it's not a route/middleware
+  concern at all, and nothing in the app.js/server.js split or the three extracted middleware files
+  goes anywhere near `inquiries`/`direct_emails`. Same conclusion as every prior instance: general
+  test-suite timing margin, not specific to any one domain, route, or (now) even to Phase 4's kind
+  of change — it surfaces just as readily in a structural Phase 5 step as it did in a SQL-relocation
+  Phase 4 session.
