@@ -207,38 +207,12 @@ if (!fs.existsSync(scratchDir)) {
     fs.mkdirSync(scratchDir, { recursive: true });
 }
 
-// Runtime storage locations — Phase 3 of the housekeeping effort (see HOUSEKEEPING-NOTES.md).
-// Generated PDFs and uploaded images used to live inside the repo (docs/, images/), which meant
-// they could accidentally re-enter git. DOCS_PATH/UPLOADS_PATH/BACKUPS_PATH default to a sibling
-// directory OUTSIDE the repo; override any of them in .env for a different deployment layout.
-// Same pattern database.js already uses for DB_PATH.
-//
-// Files written before this config existed remain at their old in-repo location — nothing here
-// migrates them. docs/ reads go through resolveDocsPath() below, which tries the new external
-// location first and falls back to the legacy in-repo one if not found there. images/uploads have
-// no equivalent internal fs-read resolver: every read of that tree happens over HTTP (a browser or
-// email client fetching a URL), so the /images and /uploads static mounts below — new location
-// first, falling through to the blanket static server for the legacy in-repo copy — are the only
-// read-side piece needed; there's no server-side fs.readFile of an uploaded image anywhere.
-const RUNTIME_DATA_DEFAULT_ROOT = path.resolve(__dirname, '..', 'thabiso-mhlongo-runtime-data');
-const DOCS_PATH = process.env.DOCS_PATH ? path.resolve(process.env.DOCS_PATH) : path.join(RUNTIME_DATA_DEFAULT_ROOT, 'docs');
-const UPLOADS_PATH = process.env.UPLOADS_PATH ? path.resolve(process.env.UPLOADS_PATH) : path.join(RUNTIME_DATA_DEFAULT_ROOT, 'uploads');
-const BACKUPS_PATH = process.env.BACKUPS_PATH ? path.resolve(process.env.BACKUPS_PATH) : path.join(RUNTIME_DATA_DEFAULT_ROOT, 'backups');
-const LEGACY_DOCS_DIR = path.join(__dirname, 'docs');
-
-function ensureDir(dir) { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); return dir; }
-
-// Destination for a brand-new file under docs/<...segments> — always the new external location.
-function docsWriteDir(...segments) { return ensureDir(path.join(DOCS_PATH, ...segments)); }
-// Resolves an existing docs/<...segments> path for reading: new location first, then the
-// pre-Phase-3 in-repo docs/ folder, since files already there were never moved.
-function resolveDocsPath(...segments) {
-    const fresh = path.join(DOCS_PATH, ...segments);
-    return fs.existsSync(fresh) ? fresh : path.join(LEGACY_DOCS_DIR, ...segments);
-}
-// Destination for a brand-new file under the images/uploads tree — always the new external
-// location (see the images/uploads read-side note above for why there's no matching resolver).
-function uploadsWriteDir(...segments) { return ensureDir(path.join(UPLOADS_PATH, ...segments)); }
+// Phase 5 (HOUSEKEEPING-NOTES.md): runtime storage locations (Phase 3 originally) moved to
+// lib/runtime-paths.js — needed by route files being split out of this one, not just app.js.
+const {
+    DOCS_PATH, UPLOADS_PATH, BACKUPS_PATH, LEGACY_DOCS_DIR,
+    ensureDir, docsWriteDir, resolveDocsPath, uploadsWriteDir,
+} = require('./lib/runtime-paths');
 
 
 // --- Legacy Duration Parser ---
@@ -628,59 +602,12 @@ app.use(require('./routes/admin/users'));
 app.use(require('./routes/admin/auth'));
 app.use(require('./routes/admin/settings'));
 app.use(require('./routes/admin/site-content'));
+app.use(require('./routes/admin/content'));
+app.use(require('./routes/admin/home-social'));
 
-// Avoids stacking a new Date.now() prefix onto a filename that already has one — matters when a
-// file already stored under its prefixed name gets fed back through the same upload flow (e.g.
-// re-submitting an already-uploaded image without changing it). Phase 3 item 4, HOUSEKEEPING-NOTES.md.
-function safeUploadFilename(originalname) {
-    const cleaned = originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
-    return /^\d{13}-/.test(cleaned) ? cleaned : `${Date.now()}-${cleaned}`;
-}
-
-// Set up storage engine
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        // Look at the 'section' field in the form data to determine the subfolder. `subfolder` is
-        // the segment under UPLOADS_PATH (== the old images/<subfolder>/); empty means the bare
-        // images/ root.
-        let subfolder = '';
-        const section = req.body.section; // e.g., 'home', 'gallery', 'events', 'about'
-
-        if (section === 'gallery') {
-            subfolder = 'gallery';
-        } else if (section === 'events') {
-            subfolder = 'events';
-        } else if (section === 'home') {
-            subfolder = 'carousel';
-        } else if (section === 'about') {
-            subfolder = 'about';
-        } else if (section === 'backgrounds') {
-             subfolder = 'backgrounds';
-        } else if (section === 'branding') {
-             subfolder = 'branding';
-        } else if (section === 'footprint') {
-             subfolder = 'footprint';
-        } else if (section === 'testimonials') {
-             subfolder = 'testimonials';
-        }
-
-        cb(null, uploadsWriteDir(subfolder));
-    },
-    filename: function (req, file, cb) {
-        cb(null, safeUploadFilename(file.originalname));
-    }
-});
-
-const upload = multer({
-    storage: storage,
-    fileFilter: function(req, file, cb) {
-        const allowed = /jpeg|jpg|png|gif|webp|svg/;
-        const ext = path.extname(file.originalname).toLowerCase().replace('.', '');
-        if (allowed.test(ext)) return cb(null, true);
-        cb(new Error('Only image files are allowed.'));
-    },
-    limits: { fileSize: 15 * 1024 * 1024 }
-});
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/uploads.js — needed by the ~20 admin upload
+// routes being split into routes/, not just this file.
+const { safeUploadFilename, upload } = require('./lib/uploads');
 
 // Restricted variant of `upload` for the one PUBLIC, unauthenticated upload route (testimonial
 // photo submission) — deliberately excludes .svg. SEC-1 (see the /upload route below) already
@@ -14633,115 +14560,12 @@ app.get('/api/public/highlights', (req, res) => { // Public route for index.html
         res.json(rows);
     });
 });
-// Admin route — same data/ordering as the public route, but session-gated for the dashboard
-app.get('/api/admin/highlights', requireAdmin, (req, res) => {
-    db.all("SELECT * FROM career_highlights ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
-// Using Multer array middleware we defined earlier, or single file handler
-app.post('/api/admin/highlights', requireAdmin, upload.single('file'), (req, res) => {
-    const { year, title, badge, location, description, display_order, fallback_url, icon } = req.body;
-    // Prioritize uploaded file over the fallback URL
-    const imagePath = req.file ? `images/${req.file.filename}` : (fallback_url || null);
-
-    db.run("INSERT INTO career_highlights (year, title, badge, location, description, image_path, display_order, icon) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [year, title, badge, location, description, imagePath, display_order || 0, icon || null], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        const newId = this.lastID;
-        logAudit({ tableName: 'career_highlights', recordId: newId, action: 'create', req, oldValues: null, newValues: { year, title, badge, location, description, image_path: imagePath, display_order: display_order || 0, icon } }).catch(e => console.error('logAudit failed:', e));
-        res.json({ success: true, id: newId });
-    });
-});
-app.put('/api/admin/highlights/:id', requireAdmin, (req, res) => {
-    const { year, title, badge, location, description, display_order, fallback_url, clear_image, icon } = req.body;
-    db.get("SELECT * FROM career_highlights WHERE id = ?", [req.params.id], (selErr, existing) => {
-        const done = function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            const newImagePath = (clear_image === true || clear_image === 'true') ? null : (fallback_url || (existing && existing.image_path));
-            logAudit({ tableName: 'career_highlights', recordId: req.params.id, action: 'update', req, oldValues: existing || null, newValues: { year, title, badge, location, description, image_path: newImagePath, display_order, icon } }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        };
-        if (clear_image === true || clear_image === 'true') {
-            // Clear the image path entirely
-            db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = NULL, display_order = ?, icon = ? WHERE id = ?",
-                [year, title, badge, location, description, display_order, icon || null, req.params.id], done);
-        } else if (fallback_url) {
-            // A new media URL was supplied on edit — update image_path too.
-            db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, image_path = ?, display_order = ?, icon = ? WHERE id = ?",
-                [year, title, badge, location, description, fallback_url, display_order, icon || null, req.params.id], done);
-        } else {
-            // No new media — leave the existing image_path untouched.
-            db.run("UPDATE career_highlights SET year = ?, title = ?, badge = ?, location = ?, description = ?, display_order = ?, icon = ? WHERE id = ?",
-                [year, title, badge, location, description, display_order, icon || null, req.params.id], done);
-        }
-    });
-});
-app.delete('/api/admin/highlights/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.get("SELECT * FROM career_highlights WHERE id = ?", [req.params.id], (selErr, existing) => {
-        db.run("DELETE FROM career_highlights WHERE id = ?", req.params.id, function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            logAudit({ tableName: 'career_highlights', recordId: req.params.id, action: 'delete', req, oldValues: existing || null, newValues: null }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        });
-    });
-});
 
 // --- Footprint (countries performed in) — mirrors Career Highlights' route shape exactly ---
 app.get('/api/public/footprint', (req, res) => { // Public route for index.html
     db.all("SELECT * FROM footprint_countries ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
-    });
-});
-app.get('/api/admin/footprint', requireAdmin, (req, res) => {
-    db.all("SELECT * FROM footprint_countries ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
-app.post('/api/admin/footprint', requireAdmin, upload.single('file'), (req, res) => {
-    const { country_name, display_order, fallback_url } = req.body;
-    const imagePath = req.file ? `images/footprint/${req.file.filename}` : (fallback_url || null);
-    if (!country_name || !imagePath) {
-        return res.status(400).json({ success: false, message: 'Country name and a flag image are required.' });
-    }
-    db.run("INSERT INTO footprint_countries (country_name, flag_image_path, display_order) VALUES (?, ?, ?)",
-        [country_name, imagePath, display_order || 0], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        const newId = this.lastID;
-        logAudit({ tableName: 'footprint_countries', recordId: newId, action: 'create', req, oldValues: null, newValues: { country_name, flag_image_path: imagePath, display_order: display_order || 0 } }).catch(e => console.error('logAudit failed:', e));
-        res.json({ success: true, id: newId });
-    });
-});
-app.put('/api/admin/footprint/:id', requireAdmin, (req, res) => {
-    const { country_name, display_order, fallback_url } = req.body;
-    db.get("SELECT * FROM footprint_countries WHERE id = ?", [req.params.id], (selErr, existing) => {
-        const done = function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            const newFlagPath = fallback_url || (existing && existing.flag_image_path);
-            logAudit({ tableName: 'footprint_countries', recordId: req.params.id, action: 'update', req, oldValues: existing || null, newValues: { country_name, flag_image_path: newFlagPath, display_order } }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        };
-        if (fallback_url) {
-            // A new flag image was supplied on edit.
-            db.run("UPDATE footprint_countries SET country_name = ?, flag_image_path = ?, display_order = ? WHERE id = ?",
-                [country_name, fallback_url, display_order, req.params.id], done);
-        } else {
-            // No new image — flag_image_path is required, so it's never cleared, only replaced.
-            db.run("UPDATE footprint_countries SET country_name = ?, display_order = ? WHERE id = ?",
-                [country_name, display_order, req.params.id], done);
-        }
-    });
-});
-app.delete('/api/admin/footprint/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.get("SELECT * FROM footprint_countries WHERE id = ?", [req.params.id], (selErr, existing) => {
-        db.run("DELETE FROM footprint_countries WHERE id = ?", req.params.id, function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            logAudit({ tableName: 'footprint_countries', recordId: req.params.id, action: 'delete', req, oldValues: existing || null, newValues: null }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        });
     });
 });
 
@@ -14765,64 +14589,6 @@ app.post('/api/public/testimonials', ipRateLimiter, publicImageUpload.single('fi
         res.json({ success: true, message: 'Thank you! Your testimonial has been submitted for review.' });
     });
 });
-// Admin: every status, so the moderation queue can show pending/approved/rejected.
-app.get('/api/admin/testimonials', requireAdmin, (req, res) => {
-    const status = req.query.status;
-    const where = status ? "WHERE status = ?" : "";
-    const params = status ? [status] : [];
-    db.all(`SELECT * FROM testimonials ${where} ORDER BY display_order ASC, created_at DESC`, params, (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
-// Admin-authored testimonial — the site owner's own content skips the review queue.
-app.post('/api/admin/testimonials', requireAdmin, upload.single('file'), (req, res) => {
-    const { name, designation, quote, display_order, fallback_url } = req.body;
-    if (!name || !quote) {
-        return res.status(400).json({ success: false, message: 'Name and testimonial text are required.' });
-    }
-    const imagePath = req.file ? `images/testimonials/${req.file.filename}` : (fallback_url || null);
-    db.run("INSERT INTO testimonials (name, designation, quote, image_path, display_order, status, submitted_by) VALUES (?, ?, ?, ?, ?, 'approved', 'admin')",
-        [name, designation || null, quote, imagePath, display_order || 0], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        const newId = this.lastID;
-        logAudit({ tableName: 'testimonials', recordId: newId, action: 'create', req, oldValues: null, newValues: { name, designation, quote, image_path: imagePath, display_order: display_order || 0, status: 'approved' } }).catch(e => console.error('logAudit failed:', e));
-        res.json({ success: true, id: newId });
-    });
-});
-// Edit — also how Approve/Reject work (a status-only PUT from the admin moderation queue).
-app.put('/api/admin/testimonials/:id', requireAdmin, (req, res) => {
-    const { name, designation, quote, display_order, fallback_url, clear_image, status } = req.body;
-    db.get("SELECT * FROM testimonials WHERE id = ?", [req.params.id], (selErr, existing) => {
-        if (selErr) return res.status(500).json({ error: selErr.message });
-        if (!existing) return res.status(404).json({ success: false, message: 'Testimonial not found' });
-
-        const newName = name !== undefined ? name : existing.name;
-        const newDesignation = designation !== undefined ? designation : existing.designation;
-        const newQuote = quote !== undefined ? quote : existing.quote;
-        const newDisplayOrder = display_order !== undefined ? display_order : existing.display_order;
-        const newStatus = status !== undefined ? status : existing.status;
-        let newImagePath = existing.image_path;
-        if (clear_image === true || clear_image === 'true') newImagePath = null;
-        else if (fallback_url) newImagePath = fallback_url;
-
-        db.run("UPDATE testimonials SET name = ?, designation = ?, quote = ?, image_path = ?, display_order = ?, status = ? WHERE id = ?",
-            [newName, newDesignation, newQuote, newImagePath, newDisplayOrder, newStatus, req.params.id], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            logAudit({ tableName: 'testimonials', recordId: req.params.id, action: 'update', req, oldValues: existing, newValues: { name: newName, designation: newDesignation, quote: newQuote, image_path: newImagePath, display_order: newDisplayOrder, status: newStatus } }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        });
-    });
-});
-app.delete('/api/admin/testimonials/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.get("SELECT * FROM testimonials WHERE id = ?", [req.params.id], (selErr, existing) => {
-        db.run("DELETE FROM testimonials WHERE id = ?", req.params.id, function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            logAudit({ tableName: 'testimonials', recordId: req.params.id, action: 'delete', req, oldValues: existing || null, newValues: null }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        });
-    });
-});
 
 // --- Home Slider Routes ---
 app.get('/api/public/home-slider', (req, res) => {
@@ -14832,74 +14598,10 @@ app.get('/api/public/home-slider', (req, res) => {
     });
 });
 
-app.get('/api/admin/home-slider', requireAdmin, (req, res) => {
-    db.all("SELECT * FROM home_slider ORDER BY display_order ASC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
 
-app.post('/api/admin/home-slider', requireAdmin, (req, res) => {
-    const { url, alt, file_name, file_size } = req.body;
-    if (!url) return res.status(400).json({ success: false, message: 'URL is required' });
-    const uploader_name = req.session.username || 'admin';
-    db.run("INSERT INTO home_slider (url, alt, file_name, file_size, uploader_name, display_order) VALUES (?, ?, ?, ?, ?, (SELECT IFNULL(MAX(display_order), 0) + 1 FROM home_slider))",
-        [url, alt || null, file_name || null, file_size || null, uploader_name], function(err) {
-            if (err) return res.status(500).json({ success: false, error: err.message });
-            const newId = this.lastID;
-            logAudit({ tableName: 'home_slider', recordId: newId, action: 'create', req, oldValues: null, newValues: { url, alt, file_name, file_size } }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true, id: newId });
-        });
-});
 
-app.delete('/api/admin/home-slider/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.get("SELECT * FROM home_slider WHERE id = ?", [req.params.id], (selErr, existing) => {
-        db.run("DELETE FROM home_slider WHERE id = ?", [req.params.id], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            logAudit({ tableName: 'home_slider', recordId: req.params.id, action: 'delete', req, oldValues: existing || null, newValues: null }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        });
-    });
-});
 
-app.put('/api/admin/home-slider/reorder', requireAdmin, (req, res) => {
-    const { order } = req.body; // Array of IDs in new order
-    db.serialize(() => {
-        const stmt = db.prepare("UPDATE home_slider SET display_order = ? WHERE id = ?");
-        order.forEach((id, index) => {
-            stmt.run(index, id);
-        });
-        stmt.finalize((err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            // One summary row rather than one per slide — this is a bulk reorder, not a single
-            // record's change, so it's not tied to any one slide's Change History card, only
-            // the global Audit Trail (record_id 0 has no matching individual record).
-            logAudit({ tableName: 'home_slider', recordId: 0, action: 'reorder', req, oldValues: null, newValues: { order } }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        });
-    });
-});
 
-// NB: registered AFTER /home-slider/reorder so "reorder" is not captured as :id.
-app.put('/api/admin/home-slider/:id', requireAdmin, (req, res) => {
-    const { alt, url, file_name } = req.body;
-    db.get("SELECT * FROM home_slider WHERE id = ?", [req.params.id], (selErr, existing) => {
-        const done = function(err) {
-            if (err) return res.status(500).json({ success: false, error: err.message });
-            logAudit({ tableName: 'home_slider', recordId: req.params.id, action: 'update', req, oldValues: existing || null, newValues: { alt, url: url || (existing && existing.url), file_name: file_name || (existing && existing.file_name) } }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        };
-        if (url) {
-            // A new image URL was supplied — update url/file_name + alt.
-            db.run("UPDATE home_slider SET alt = ?, url = ?, file_name = ? WHERE id = ?",
-                [alt || null, url, file_name || null, req.params.id], done);
-        } else {
-            // Alt-text-only edit — leave the image untouched.
-            db.run("UPDATE home_slider SET alt = ? WHERE id = ?",
-                [alt || null, req.params.id], done);
-        }
-    });
-});
 
 app.post('/api/admin/publish-home-slider', requireAdmin, (req, res) => {
     db.all("SELECT url, alt FROM home_slider ORDER BY display_order ASC", [], (err, rows) => {
@@ -14948,64 +14650,6 @@ app.get('/api/public/gallery', (req, res) => { // Public route for index.html
     db.all("SELECT * FROM gallery_images ORDER BY display_order ASC, created_at DESC", [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json(rows);
-    });
-});
-app.put('/api/admin/gallery/reorder', requireAdmin, (req, res) => {
-    const { order } = req.body; // Array of IDs in new order
-    db.serialize(() => {
-        const stmt = db.prepare("UPDATE gallery_images SET display_order = ? WHERE id = ?");
-        order.forEach((id, index) => {
-            stmt.run(index, id);
-        });
-        stmt.finalize((err) => {
-            if (err) return res.status(500).json({ error: err.message });
-            logAudit({ tableName: 'gallery_images', recordId: 0, action: 'reorder', req, oldValues: null, newValues: { order } }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        });
-    });
-});
-app.post('/api/admin/gallery', requireAdmin, upload.single('file'), (req, res) => {
-    const { title, fallback_url, uploader_name, location } = req.body;
-    const imagePath = req.file ? `images/gallery/${req.file.filename}` : (fallback_url || null);
-    if (!imagePath) return res.status(400).json({ success: false, message: 'Image file required' });
-
-    db.run("INSERT INTO gallery_images (title, image_path, uploader_name, location, created_by, display_order) VALUES (?, ?, ?, ?, ?, (SELECT IFNULL(MAX(display_order), 0) + 1 FROM gallery_images))",
-        [title, imagePath, uploader_name || null, location || null, req.session.adminId], async function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        const newId = this.lastID;
-        logAudit({ tableName: 'gallery_images', recordId: newId, action: 'create', req, oldValues: null, newValues: { title, image_path: imagePath, uploader_name, location } }).catch(e => console.error('logAudit failed:', e));
-        const actor = await resolveActor(req.session.adminId);
-        res.json({ success: true, id: newId, imagePath, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
-    });
-});
-app.put('/api/admin/gallery/:id', requireAdmin, (req, res) => {
-    const { title, fallback_url, uploader_name, location } = req.body;
-    const galleryId = req.params.id;
-    db.get("SELECT * FROM gallery_images WHERE id = ?", [galleryId], (selErr, existing) => {
-        const done = async function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            logAudit({ tableName: 'gallery_images', recordId: galleryId, action: 'update', req, oldValues: existing || null, newValues: { title, uploader_name, location, image_path: fallback_url || (existing && existing.image_path) } }).catch(e => console.error('logAudit failed:', e));
-            const actor = await resolveActor(req.session.adminId);
-            res.json({ success: true, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
-        };
-        if (fallback_url) {
-            // A new media URL was supplied — update image_path too.
-            db.run("UPDATE gallery_images SET title = ?, image_path = ?, uploader_name = ?, location = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                [title, fallback_url, uploader_name || null, location || null, req.session.adminId, galleryId], done);
-        } else {
-            // Title-only edit — leave the existing image untouched.
-            db.run("UPDATE gallery_images SET title = ?, uploader_name = ?, location = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
-                [title, uploader_name || null, location || null, req.session.adminId, galleryId], done);
-        }
-    });
-});
-app.delete('/api/admin/gallery/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.get("SELECT * FROM gallery_images WHERE id = ?", [req.params.id], (selErr, existing) => {
-        db.run("DELETE FROM gallery_images WHERE id = ?", req.params.id, function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            logAudit({ tableName: 'gallery_images', recordId: req.params.id, action: 'delete', req, oldValues: existing || null, newValues: null }).catch(e => console.error('logAudit failed:', e));
-            res.json({ success: true });
-        });
     });
 });
 
@@ -16010,46 +15654,8 @@ app.get('/api/public/social_links', (req, res) => {
     });
 });
 
-app.get('/api/admin/social_links', requireAdmin, (req, res) => {
-    db.all("SELECT * FROM social_links ORDER BY display_order ASC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
 
-app.post('/api/admin/social_links', requireAdmin, (req, res) => {
-    const { id, platform_name, platform_url, icon_class, display_order, is_active } = req.body;
-    const adminId = req.session.adminId;
-    const ip = req.ip;
-    const ua = req.headers['user-agent'] || '';
-    const path = req.originalUrl;
-    
-    if (!platform_name || !platform_url) return res.status(400).json({ success: false, message: 'Platform name and URL are required.' });
 
-    if (id) {
-        db.run(`UPDATE social_links 
-                SET platform_name = ?, platform_url = ?, icon_class = ?, display_order = ?, is_active = ?, modified_at = CURRENT_TIMESTAMP, modified_by = ?, ip_address = ?, user_agent = ?, routing_path = ?
-                WHERE id = ?`, 
-            [platform_name, platform_url, icon_class, display_order || 0, is_active !== false ? 1 : 0, adminId, ip, ua, path, id], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ success: true, message: 'Social link updated successfully.', id: id });
-        });
-    } else {
-        db.run(`INSERT INTO social_links (platform_name, platform_url, icon_class, display_order, is_active, created_by, ip_address, user_agent, routing_path) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
-            [platform_name, platform_url, icon_class, display_order || 0, is_active !== false ? 1 : 0, adminId, ip, ua, path], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ success: true, message: 'Social link added successfully.', id: this.lastID });
-        });
-    }
-});
-
-app.delete('/api/admin/social_links/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.run("DELETE FROM social_links WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true, message: 'Social link deleted successfully.' });
-    });
-});
 
 // --- Social Embeds ---
 // =============================================
@@ -16113,49 +15719,8 @@ app.get('/api/public/site-content', (req, res) => {
 });
 
 
-app.get('/api/admin/social_embeds', requireAdmin, (req, res) => {
-    db.all("SELECT * FROM social_embeds ORDER BY display_order ASC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
 
-app.post('/api/admin/social_embeds', requireAdmin, (req, res) => {
-    const { id, platform_name, embed_code, platform_api_key, metadata, display_order, is_active } = req.body;
-    const adminId = req.session.adminId;
-    const ip = req.ip;
-    const ua = req.headers['user-agent'] || '';
-    const path = req.originalUrl;
-    
-    // Store metadata as JSON string if it's an object
-    const metaString = (metadata && typeof metadata === 'object') ? JSON.stringify(metadata) : metadata;
 
-    if (!platform_name || !embed_code) return res.status(400).json({ success: false, message: 'Platform name and embed code are required.' });
-
-    if (id) {
-        db.run(`UPDATE social_embeds 
-                SET platform_name = ?, embed_code = ?, platform_api_key = ?, metadata = ?, display_order = ?, is_active = ?, modified_at = CURRENT_TIMESTAMP, modified_by = ?, ip_address = ?, user_agent = ?, routing_path = ?
-                WHERE id = ?`, 
-            [platform_name, embed_code, platform_api_key || '', metaString || '', display_order || 0, is_active !== false ? 1 : 0, adminId, ip, ua, path, id], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ success: true, message: 'Social embed updated successfully.', id: id });
-        });
-    } else {
-        db.run(`INSERT INTO social_embeds (platform_name, embed_code, platform_api_key, metadata, display_order, is_active, created_by, ip_address, user_agent, routing_path) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
-            [platform_name, embed_code, platform_api_key || '', metaString || '', display_order || 0, is_active !== false ? 1 : 0, adminId, ip, ua, path], function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ success: true, message: 'Social embed added successfully.', id: this.lastID });
-        });
-    }
-});
-
-app.delete('/api/admin/social_embeds/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
-    db.run("DELETE FROM social_embeds WHERE id = ?", [req.params.id], function(err) {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json({ success: true, message: 'Social embed deleted successfully.' });
-    });
-});
 
 // =============================================
 // getSettingVal(key) — helper to retrieve a setting value dynamically — now lives in

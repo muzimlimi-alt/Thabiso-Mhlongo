@@ -160,6 +160,49 @@ Phase 5 step has had. Specifically confirmed `rejected submission writes no orph
 Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 10 paths;
 `npm run smoke` 329/329; `npm test` x3 (see above).
 
+### Route batches 5 & 6: `routes/admin/content.js`, `routes/admin/home-social.js` — DONE
+
+**`content.js`** — 16 routes: `GET/POST/PUT/DELETE /api/admin/highlights[/:id]`,
+`.../footprint[/:id]`, `.../testimonials[/:id]`, plus `PUT /api/admin/gallery/reorder`,
+`POST/PUT/DELETE /api/admin/gallery[/:id]`. Small CMS-style CRUD clusters
+(`career_highlights`/`footprint_countries`/`testimonials`/`gallery_images`, none owned by a Phase 4
+repository), batched together.
+
+Two more widely-shared helpers surfaced, each used well beyond this batch:
+- **`lib/runtime-paths.js`** — the Phase 3 `DOCS_PATH`/`UPLOADS_PATH`/`BACKUPS_PATH`/
+  `docsWriteDir`/`resolveDocsPath`/`uploadsWriteDir` config (10-19 call sites each). Two of the
+  original constants (`RUNTIME_DATA_DEFAULT_ROOT`, `LEGACY_DOCS_DIR`) anchored themselves on
+  `__dirname` — correct in `app.js` (still the project root) but would resolve one directory too
+  deep from inside `lib/`. Anchored on `path.resolve(__dirname, '..')` instead, matching the same
+  one-level-deep assumption `database/repositories/*.js` already rely on.
+- **`lib/uploads.js`** — `safeUploadFilename` + the shared `upload` multer instance (~20 call sites
+  across admin image-upload routes), depending on `runtime-paths.js` above.
+
+**`home-social.js`** — 11 routes: `GET/POST/DELETE /api/admin/home-slider[/:id]` +
+`PUT .../reorder`, `GET/POST/DELETE /api/admin/social_links[/:id]`,
+`GET/POST/DELETE /api/admin/social_embeds[/:id]`. No new shared helpers needed (`requireAdmin`,
+`requireRole`, `db`, `logAudit` only) — a good sign the `lib/` surface built up over the last few
+batches is starting to cover new batches without further discovery. One route-ordering note
+preserved automatically: `PUT .../home-slider/reorder` is registered before
+`PUT .../home-slider/:id` in the same file (explicit in-code comment — "reorder" would otherwise be
+captured as `:id`) — both moved together into one file in their original relative order, so
+Express's first-match-wins semantics are unaffected.
+
+**Verification was interrupted by an environmental problem, not a code problem**: two stale
+`node server.js` processes from an early-session `npm start` (running since ~10:21 AM, never
+stopped) caused `npm test` to hang indefinitely partway through `booking.test.js` on two separate
+attempts (`npm run smoke`, which also boots a full server, completed in seconds both times —
+pointing at cross-process SQLite lock contention specifically, not a broken app). Stopping the
+tracked background task didn't kill its own spawned child processes either (a `TaskStop`
+limitation on Windows process trees), briefly adding a *third* stale set under new PIDs. Resolved
+once the user killed the relevant PIDs directly; documented here since it cost real time and may
+recur if a future session leaves a dev server running.
+
+Once the environment was clean: `npm run smoke` 329/329; `npm test` x3, all clean runs (baseline
+plus one already-documented CP5 recurrence on one run) — specifically confirmed gallery
+create/update audit_log rows and all 6 upload-handler filename tests passed on every run. `node -c`
+on all changed/new files; confirmed zero remaining `app.js` registrations for all 27 moved paths.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
