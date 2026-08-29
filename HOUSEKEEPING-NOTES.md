@@ -104,6 +104,35 @@ already-documented flake (CP5) on one run. If login/session handling had broken 
 signal would be hundreds of cascading failures, not 2-3 — this is about as strong a confirmation
 as the test suite can give.
 
+### Route batch 3: `routes/admin/settings.js` — DONE
+
+8 routes: `GET/PUT /api/admin/working-hours`, `GET /api/admin/audit_log`,
+`GET /api/admin/financial_audit_log`, `GET/PUT /api/admin/policies`, `GET/PUT /api/admin/settings`.
+None of these tables (`working_hours`, `audit_log`, `financial_audit_log`, `policies`) are owned by
+a Phase 4 repository (`audit_log`/`financial_audit_log` permanently excluded; `policies` flagged
+unclaimed in the `calendar` write-up; `working_hours` never claimed by anyone) — these routes do
+raw `db.all`/`db.run`/`db.serialize` calls directly, so this file imports `db` itself rather than
+a repository.
+
+**A new kind of shared-state problem, not just missing imports:** `PUT /api/admin/working-hours`
+mutated two module-scoped `let MIN_BOOKING_GAP_MINS`/`let TYPE_BUFFERS` variables that
+`hasCalendarConflict()` and two other still-in-`app.js` read sites depend on for every booking's
+conflict check. CommonJS requires copy a primitive's *value* at import time, not a live binding —
+had this route moved with a naive `require` of those two names, its write would silently update
+only its own local copy, leaving every conflict check in `app.js` reading the stale default
+forever. Fixed with **`lib/booking-config.js`**: both variables become properties of one exported
+object (`bookingConfig.minGapMins`/`.typeBuffers`) — mutating a *property* of an already-shared
+object *does* stay visible everywhere that imported it, unlike reassigning a plain variable. All 3
+read sites in `app.js` (not just the one write this batch moved) were updated to the new shape,
+confirmed via `grep` that no bare `MIN_BOOKING_GAP_MINS`/`TYPE_BUFFERS` reference survived anywhere.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for any of the 8 paths;
+`npm run smoke` 329/329; `npm test` x3 (only already-documented flakes). Specifically checked the
+audit_log route's dynamic-SQL + `admins` JOIN and the shared-state fix aren't just passing by
+smoke-test luck — `audit_log table+record_id filter succeeds`, `audit_log join resolves an actor
+name for numeric changed_by rows`, and all `working-hours`/`audit_log`/`financial_audit_log` RBAC
+checks passed on every run.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
