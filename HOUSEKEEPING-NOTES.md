@@ -383,6 +383,79 @@ smoke` 329/329; `npm test` x3 — one fully clean 651/651 run, the other two eac
 already-documented flake (CP5, CP17) with the permanent baseline concurrency test *not* failing
 either time, reinforcing that it's a genuine intermittent race rather than a deterministic result.
 
+### Route batch 14: `routes/admin/popia.js` — DONE (POPIA/GDPR erasure, protected surface)
+
+9 routes: the 8 mechanically-extracted admin POPIA request-management routes (list/export/detail
++preview/approve/reject/process/complete-anonymization/create), **plus** `POST
+/api/admin/gdpr/delete` — a legacy one-click wrapper found mid-investigation, *not* part of the
+original mechanical extraction batch (it wasn't grouped with the others by the route-listing pass),
+but folded in here rather than left behind: it calls the exact same
+create→approve→process→notify→delete-files chain as every other entry point in this file, so
+splitting it into a separate batch would only have meant importing the same lifecycle functions
+back into `app.js` for one lingering route.
+
+**This batch could not be completed as a self-contained lib file the way batches 1-13 were.** Every
+route here bottoms out in `notifyPopiaCancellations()`, which calls two functions that were still
+physically defined in `app.js`: `deleteGoogleEvent` (a thin wrapper around the module-scoped Google
+Calendar client) and `sendCancellationEmail`. Neither is POPIA-specific — both are shared with the
+not-yet-moved manual admin cancellation routes — so per the standing "relocate each helper as
+needed" decision, three more `lib/` files were created as prerequisites, each verified independently
+before being pulled into the new POPIA lib file:
+
+- **`lib/cancellation-refund.js`** — `calculateCancellationRefund`. Pure function (policy-tier math
+  + date arithmetic), zero dependencies. Trivial, safe relocation.
+- **`lib/email-escape.js`** — `escapeEmailHtml`/`EMAIL_ESCAPE_FIELDS`/`escapeEmailFields`. Also pure;
+  `escapeEmailFields` alone had 23 other call sites across `app.js`'s email-sending functions, none
+  of which needed touching — they all keep working via the new import.
+- **`lib/booking-cancellation-email.js`** — `sendCancellationEmail`. Depends only on already-leaf
+  modules (`js/emailComponents`, `js/bannerRegistry`, `js/emailService`, the new
+  `lib/email-escape.js`, `lib/email-context.js`).
+- **`lib/google-calendar.js`** — the module-scoped `oauth2Client`/`calendar`/`CALENDAR_ID` Google
+  Calendar client singleton, plus `deleteGoogleEvent`. **Checked carefully before moving**: this
+  construction reads `process.env.GOOGLE_CLIENT_ID`/`SECRET`/`BASE_URL`/`REFRESH_TOKEN`
+  *synchronously*, immediately after the startup DB-settings-to-env-var bootstrap query is *issued*
+  but before that query's callback can possibly have fired — meaning the DB-stored settings path
+  never actually reaches the Google credentials in either the old or new arrangement, only whatever
+  `.env` already set. This is pre-existing, unchanged behavior, not something this move altered;
+  confirmed by requiring the new module at the exact same point in `app.js`'s top-to-bottom execution
+  that the inline code used to occupy, which preserves identical timing. `google` (the `googleapis`
+  import) had no other use in `app.js` beyond this block, so its `require('googleapis')` moved too
+  instead of being left behind unused.
+
+With those four in place, **`lib/popia.js`** holds the full erasure subsystem: `resolvePopiaTargets`,
+`anonymizeClientData`, `POPIA_REASONS`, `popiaReferenceNumber`, `createPopiaRequest`,
+`approvePopiaRequest`, `rejectPopiaRequest`, `processPopiaRequest`, `completePopiaAnonymization`,
+`deletePopiaFiles`, `isBookingInPopiaErasureScope`, `getBookingErasureImpact`,
+`cancelActiveBookingsForErasure`, `getUnresolvedRefundBookingIds`, `notifyPopiaCancellations` — all
+byte-identical. Only functions with a caller outside the file are exported
+(`resolvePopiaTargets`, `getBookingErasureImpact`, `POPIA_REASONS`, `createPopiaRequest`,
+`approvePopiaRequest`, `rejectPopiaRequest`, `processPopiaRequest`, `completePopiaAnonymization`,
+`deletePopiaFiles`, `notifyPopiaCancellations`); `anonymizeClientData`, `popiaReferenceNumber` and
+`isBookingInPopiaErasureScope` stay private. `app.js` re-imports `resolvePopiaTargets`,
+`getBookingErasureImpact`, `createPopiaRequest` and `POPIA_REASONS` for the three public
+self-service routes not yet moved (`POST /api/public/popia/preview`, `/erasure-requests`, and the
+legacy `/api/public/compliance/request-forget`) — confirmed by tracing every remaining call site
+before removing the old definitions, not by assumption. `verifyPopiaOtp` (OTP verification) has no
+caller in this batch's routes and stays in `app.js` untouched, to move with the public POPIA batch
+later.
+
+`routes/admin/popia.js` additionally imports 7 count-only repository functions
+(`countBookingNotesForIds`, `countTransactionsForIds`, `countCancellationsForIds`,
+`countPaymentLogsForIds`, `countQuotationsForIds`, `countQuotationsForClientIds`,
+`countInquiryNotesForIds`) used only by its own detail/preview route, plus `db`/`exportRateLimiter`/
+`encodeUserHtml` following the established per-route-file convention.
+
+Verification: `node -c` on all 8 changed/new files; confirmed zero remaining `/api/admin/popia/*` or
+`/api/admin/gdpr/delete` registrations in `app.js`, and zero remaining references anywhere in
+`app.js` to any of the now-fully-relocated function names outside of explanatory comments; `npm run
+smoke` 329/329; `npm test` run **3 times** given this is an explicitly protected surface with real
+refund-gating financial logic — **651/651 clean on all 3 runs**, no flakes at all this time. The
+dedicated `test/popia-erasure.test.js` suite explicitly exercises the CAS double-processing guards,
+the `awaiting_refund` gate and its re-check on `complete-anonymization` (409 while any booking's
+refund is still outstanding, 200 once resolved), RBAC on every route including
+`complete-anonymization`, and the legacy `/api/admin/gdpr/delete` route reporting `awaiting_refund`
+correctly rather than a false success — all passing identically pre- and post-relocation.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

@@ -276,23 +276,12 @@ getAllSettings((err, rows) => {
         console.log("Settings loaded from database.");
     }
 });
-const { google } = require('googleapis');
 const moment = require('moment-timezone');
 moment.tz.setDefault('Africa/Johannesburg');
 
-// Google Calendar Configuration
-const oauth2Client = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET,
-    process.env.BASE_URL // Redirect URL used during setup, though refresh token is already obtained
-);
-
-oauth2Client.setCredentials({
-    refresh_token: process.env.GOOGLE_REFRESH_TOKEN
-});
-
-const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-const CALENDAR_ID = 'primary'; // Using the primary calendar of the authenticated account
+// Phase 5 (HOUSEKEEPING-NOTES.md): Google Calendar client (oauth2Client/calendar/CALENDAR_ID)
+// moved to lib/google-calendar.js, verbatim, at this exact point in the file's execution order.
+const { calendar, CALENDAR_ID } = require('./lib/google-calendar');
 
 const helmet = require('helmet');
 
@@ -565,6 +554,7 @@ app.use(require('./routes/admin/inquiries'));
 app.use(require('./routes/admin/direct-emails'));
 app.use(require('./routes/admin/analytics'));
 app.use(require('./routes/admin/legal'));
+app.use(require('./routes/admin/popia'));
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/uploads.js — needed by the ~20 admin upload
 // routes being split into routes/, not just this file.
@@ -936,19 +926,9 @@ async function syncBookingToCalendar(bookingOrId) {
     });
 }
 
-/**
- * Removes a Google Calendar event
- * @param {string} eventId 
- */
-async function deleteGoogleEvent(eventId) {
-    if (!eventId) return;
-    try {
-        await calendar.events.delete({ calendarId: CALENDAR_ID, eventId: eventId });
-        console.log(`✓ Deleted GCal Event: ${eventId}`);
-    } catch (error) {
-        console.error(`Error deleting GCal event ${eventId}:`, error);
-    }
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): deleteGoogleEvent moved to lib/google-calendar.js, alongside
+// the calendar client it wraps.
+const { deleteGoogleEvent } = require('./lib/google-calendar');
 
 async function syncCalendarHolds() {
     if (typeof calendar === 'undefined' || !CALENDAR_ID) return;
@@ -1992,26 +1972,9 @@ schedule.scheduleJob('6 0 * * *', function () {
 // ==========================================
 
 // EMAIL-1: HTML-escape user-controlled free-text before it is interpolated into email HTML,
-// so a malicious booking (e.g. message = "<img src=x onerror=...>") can't inject markup into
-// the admin's notification inbox or a client's mailbox. Escapes & < > " (not ' — avoids mangling
-// apostrophes in the rare plain-text subject case). Only the whitelisted free-text fields are
-// escaped; recipient emails, dates, amounts, ids and URLs are left untouched.
-function escapeEmailHtml(s) {
-    return String(s == null ? '' : s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-const EMAIL_ESCAPE_FIELDS = ['name', 'client_name', 'company', 'company_name', 'client_company',
-    'message', 'event_name', 'event_location', 'venue_address', 'venue_name', 'city', 'country',
-    'event_type', 'venue_type', 'audience_demographic', 'budget_range', 'performance_slot',
-    'performance_duration', 'cancellation_reason'];
-function escapeEmailFields(obj) {
-    if (!obj || typeof obj !== 'object') return obj;
-    const copy = { ...obj };
-    for (const f of EMAIL_ESCAPE_FIELDS) {
-        if (typeof copy[f] === 'string') copy[f] = escapeEmailHtml(copy[f]);
-    }
-    return copy;
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): escapeEmailHtml/EMAIL_ESCAPE_FIELDS/escapeEmailFields moved to
+// lib/email-escape.js.
+const { escapeEmailFields } = require('./lib/email-escape');
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/html-sanitize.js, alongside unescapeHtml/
 // sanitizeAboutHtml/SECTION_KEYS (same file, all pure content-sanitization helpers).
@@ -2637,47 +2600,8 @@ async function sendQuoteAcceptedEmail(booking, options = {}) {
     return result.success;
 }
 
-async function sendCancellationEmail(booking, cancellationData) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date } = booking;
-    const { reason, refund_due, rule, days_until_event, is_force_majeure } = cancellationData;
-
-    // SC-3: Policy strip — always tells the client which rule was applied and the timing context.
-    // Refund figure kept verbatim: R ${parseFloat(refund_due).toFixed(2)}.
-    const { socialLinks } = await getEmailFooterContext();
-    const policyStrip = rule ? emailComponents.alertStrip({
-        severity: is_force_majeure ? 'action' : 'info',
-        text: `<strong style="color:${is_force_majeure ? '#D4AF37' : '#B0B0B0'};">${is_force_majeure ? 'Force Majeure — Full Refund Granted' : 'Cancellation Policy Applied'}</strong><br>${rule}` +
-              (days_until_event !== null && days_until_event !== undefined
-                  ? `<br><span style="font-size:12px;color:#B0B0B0;">Days until event at time of cancellation: <strong>${days_until_event}</strong></span>` : '')
-    }) : '';
-    const refundHtml = parseFloat(refund_due) > 0
-        ? `<p style="margin:14px 0 0;"><strong style="color:#D4AF37;">Refund Due: R ${parseFloat(refund_due).toFixed(2)}</strong><br><span style="color:#B0B0B0;">Your refund will be processed within 5&ndash;7 business days.</span></p>`
-        : `<p style="margin:14px 0 0; color:#B0B0B0;">No refund is applicable for this cancellation per our cancellation policy.</p>`;
-    const banner = await bannerRegistry.resolveBanner('booking_cancelled');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Booking #${id} has been cancelled.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Booking Cancelled',
-        greeting: `Hi ${name},`,
-        bodyHtml:
-            `We regret to inform you that your booking for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> has been cancelled.` +
-            (reason ? `<br><br><strong style="color:#FAFAFA;">Reason:</strong> ${reason}` : '') +
-            (policyStrip ? emailComponents.spacer(14) + policyStrip : '') +
-            refundHtml +
-            `<p style="margin:12px 0 0; color:#B0B0B0;">If you have any questions, please contact us directly. <span style="font-size:13px;">(Booking reference #${id})</span></p>`,
-        socialLinks
-    });
-    const result = await sendEmail({
-        to: email,
-        subject: `Booking Cancelled – Reference #${id}`,
-        htmlContent: html,
-        preWrapped: true,
-        titleOverride: 'Booking Cancellation',
-        trigger_event: 'Booking: Cancellation'
-    });
-    return result.success;
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): sendCancellationEmail moved to lib/booking-cancellation-email.js.
+const { sendCancellationEmail } = require('./lib/booking-cancellation-email');
 
 async function sendPaymentReceivedEmail(booking, newAmountPaid, newOutstanding, newPaymentStatus) {
     booking = escapeEmailFields(booking);
@@ -3228,178 +3152,17 @@ const { withDbTransaction } = require('./lib/db-transaction');
 const { resolveActor } = require('./lib/actor');
 const { logAudit } = require('./lib/audit-log');
 
-// Resolves the id sets an erasure for `email` will touch — shared by anonymizeClientData (which
-// runs the actual UPDATEs against these ids) and the admin preview endpoint (which only counts
-// against them), so the two can never drift apart.
-async function resolvePopiaTargets(email) {
-    const clientIds = (await dbAll(`SELECT id FROM clients WHERE LOWER(email) = LOWER(?)`, [email])).map(r => r.id);
-    const bookingIds = (await getBookingIdsForEmail(email)).map(r => r.id);
-    const inquiryIds = (await getInquiryIdsForEmail(email)).map(r => r.inquiry_id);
-    return {
-        clientIds, bookingIds, inquiryIds,
-        bookingPh: bookingIds.map(() => '?').join(','),
-        clientPh: clientIds.map(() => '?').join(','),
-        inquiryPh: inquiryIds.map(() => '?').join(',')
-    };
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): the entire POPIA/GDPR erasure subsystem — resolvePopiaTargets,
+// anonymizeClientData, and the request-lifecycle block further below (POPIA_REASONS through
+// notifyPopiaCancellations) — moved to lib/popia.js (batch 14). Re-imported here because the
+// not-yet-moved public self-service routes (POST /api/public/popia/preview, /erasure-requests,
+// and the legacy /api/public/compliance/request-forget) still call resolvePopiaTargets,
+// getBookingErasureImpact, createPopiaRequest and POPIA_REASONS directly.
+const { resolvePopiaTargets, getBookingErasureImpact, createPopiaRequest, POPIA_REASONS } = require('./lib/popia');
 
-// POPIA/GDPR erasure: anonymizes every table carrying this client's personal data, preserving
-// financial/business records (amounts, dates, reference numbers, invoices) untouched. Issues no
-// BEGIN/COMMIT/ROLLBACK of its own — callers must already be inside an open transaction (see the
-// CAS-guarded /api/admin/popia/requests/:id/process route and the legacy /api/admin/gdpr/delete
-// wrapper). Dependent id/file-path sets are resolved BEFORE any UPDATE runs, since the updates
-// below overwrite the very email columns those lookups join on.
-async function anonymizeClientData(email) {
-    const affected = {};
-    const filesToDelete = { contracts: [], quotations: [] };
-
-    const { clientIds, bookingIds, inquiryIds, bookingPh, clientPh, inquiryPh } = await resolvePopiaTargets(email);
-
-    if (bookingIds.length) {
-        const contractFiles = await dbAll(`SELECT pdf_url FROM contracts WHERE booking_id IN (${bookingPh}) AND pdf_url IS NOT NULL`, bookingIds);
-        filesToDelete.contracts.push(...contractFiles.map(r => r.pdf_url));
-        const quoteFiles = await getQuoteFilesForBookingIds(bookingPh, bookingIds);
-        filesToDelete.quotations.push(...quoteFiles.map(r => r.file_path));
-    }
-    if (clientIds.length) {
-        const quoteFilesByClient = await getQuoteFilesForClientIds(clientPh, clientIds);
-        filesToDelete.quotations.push(...quoteFilesByClient.map(r => r.file_path));
-    }
-
-    let r;
-
-    // 1. Clients — carried over from the legacy /api/admin/gdpr/delete route.
-    r = await dbRun(`UPDATE clients SET
-            full_name = 'POPIA ANONYMIZED', company_name = NULL, phone = '0000000000',
-            billing_address = NULL, tax_id = NULL, vat_number = NULL,
-            email = 'deleted-' || id || '@po-pia.com', updated_at = CURRENT_TIMESTAMP
-            WHERE LOWER(email) = LOWER(?)`, [email]);
-    affected.clients = r.changes;
-
-    // 2. Bookings — per-row-unique placeholder email (the legacy route used one flat literal,
-    // which made two different erased clients indistinguishable on the same booking list).
-    r = await anonymizeBookingsForErasure(email);
-    affected.bookings = r.changes;
-
-    // 3. Inquiries
-    r = await anonymizeInquiriesForErasure(email);
-    affected.inquiries = r.changes;
-
-    // 4. Newsletter subscription — no historical value once erased.
-    r = await deleteSubscriberForErasure(email);
-    affected.newsletter_subscribers = r.changes;
-
-    // 5. Communication log
-    r = await dbRun(`UPDATE communication_log SET
-            subject = '[DELETED]', content_snippet = '[DELETED]', user_email = 'deleted@po-pia.com'
-            WHERE LOWER(user_email) = LOWER(?)`, [email]);
-    affected.communication_log = r.changes;
-
-    // Abandoned booking drafts
-    r = await dbRun(`UPDATE abandoned_bookings SET
-            name = 'POPIA ANONYMIZED', company = NULL, email = 'deleted-' || id || '@po-pia.com',
-            cell = NULL, message = NULL, ip_address = NULL, user_agent = NULL
-            WHERE LOWER(email) = LOWER(?)`, [email]);
-    affected.abandoned_bookings = r.changes;
-
-    // Short-lived tracker OTP/session secrets — nothing to preserve, hard delete.
-    r = await deleteBookingAccessCodesForErasure(email);
-    affected.booking_access_codes = r.changes;
-    r = await deleteBookingAccessTokensForErasure(email);
-    affected.booking_access_tokens = r.changes;
-
-    r = await dbRun(`DELETE FROM popia_verification_codes WHERE LOWER(email) = LOWER(?)`, [email]);
-    affected.popia_verification_codes = r.changes;
-
-    r = await dbRun(`UPDATE email_logs SET recipient_email = 'deleted@po-pia.com', subject = '[DELETED]'
-            WHERE LOWER(recipient_email) = LOWER(?)`, [email]);
-    affected.email_logs = r.changes;
-
-    r = await dbRun(`UPDATE reminders_log SET recipient_email = 'deleted@po-pia.com' WHERE LOWER(recipient_email) = LOWER(?)`, [email]);
-    affected.reminders_log = r.changes;
-
-    r = await dbRun(`UPDATE notifications SET
-            recipient_email = 'deleted@po-pia.com', recipient_name = 'POPIA ANONYMIZED',
-            subject = '[DELETED]', body = '[DELETED]'
-            WHERE LOWER(recipient_email) = LOWER(?)`, [email]);
-    affected.notifications = r.changes;
-
-    r = await dbRun(`UPDATE advancing_contacts SET name = 'POPIA ANONYMIZED', phone = NULL, email = NULL
-            WHERE LOWER(email) = LOWER(?)`, [email]);
-    affected.advancing_contacts = r.changes;
-
-    // Venues: contact fields only, direct match — a venue's listed contact isn't necessarily the
-    // requesting client, so this never matches on booking/client id, only an exact email hit.
-    r = await dbRun(`UPDATE venues SET contact_name = NULL, contact_phone = NULL, contact_email = NULL
-            WHERE LOWER(contact_email) = LOWER(?)`, [email]);
-    affected.venues = r.changes;
-
-    // Direct emails: redact the target address wherever it appears in an address list; leave any
-    // other recipients on the same thread untouched. subject/body free text is a documented,
-    // disclosed gap — rewriting composed email content risks corruption for uncertain benefit.
-    const likeEmail = `%${email}%`;
-    r = await dbRun(`UPDATE direct_emails SET
-            to_emails = REPLACE(to_emails, ?, 'deleted@po-pia.com'),
-            cc_emails = REPLACE(cc_emails, ?, 'deleted@po-pia.com'),
-            bcc_emails = REPLACE(bcc_emails, ?, 'deleted@po-pia.com'),
-            reply_to = CASE WHEN LOWER(reply_to) = LOWER(?) THEN 'deleted@po-pia.com' ELSE reply_to END
-            WHERE LOWER(to_emails) LIKE LOWER(?) OR LOWER(cc_emails) LIKE LOWER(?)
-               OR LOWER(bcc_emails) LIKE LOWER(?) OR LOWER(reply_to) = LOWER(?)`,
-            [email, email, email, email, likeEmail, likeEmail, likeEmail, email]);
-    affected.direct_emails = r.changes;
-
-    affected.contracts = 0;
-    affected.booking_notes = 0;
-    affected.quotations = 0;
-    affected.transactions = 0;
-    affected.cancellations = 0;
-    affected.service_reviews = 0;
-    affected.payment_logs = 0;
-    if (bookingIds.length) {
-        // Contract: null signature/IP/signed-by/builder_clauses, redact the rendered HTML, defer
-        // physical PDF deletion until after COMMIT (a mid-transaction unlink can't be undone by a
-        // rollback). contract_number/amount/status/signing timestamps survive — business record.
-        r = await dbRun(`UPDATE contracts SET
-                signed_by = NULL, client_ip_address = NULL, client_signature_data = NULL,
-                builder_clauses = NULL, content_html = '[Content redacted per POPIA erasure request]',
-                pdf_url = NULL
-                WHERE booking_id IN (${bookingPh})`, bookingIds);
-        affected.contracts = r.changes;
-
-        r = await redactBookingNotesForErasure(bookingPh, bookingIds);
-        affected.booking_notes = r.changes;
-
-        r = await clearQuoteFilePathsForErasure(bookingPh, bookingIds);
-        affected.quotations = r.changes;
-
-        // Transactions: only ip_address/notes/reconcile_note are cleared — amount, dates, and
-        // reference are left untouched (SARS financial-record retention).
-        r = await redactTransactionForErasure(bookingPh, bookingIds);
-        affected.transactions = r.changes;
-
-        r = await redactCancellationForErasure(bookingPh, bookingIds);
-        affected.cancellations = r.changes;
-
-        r = await dbRun(`UPDATE service_reviews SET client_name = 'Anonymized Client' WHERE booking_id IN (${bookingPh})`, bookingIds);
-        affected.service_reviews = r.changes;
-
-        r = await redactPaymentLogsForErasure(bookingPh, bookingIds);
-        affected.payment_logs = r.changes;
-    }
-    // Quotations can exist for a client with no booking yet (pre-booking quote) — caught separately.
-    if (clientIds.length) {
-        r = await clearQuoteFilePathsForClientErasure(clientPh, clientIds);
-        affected.quotations += r.changes;
-    }
-
-    affected.inquiry_notes = 0;
-    if (inquiryIds.length) {
-        r = await redactInquiryNotesForErasure(inquiryPh, inquiryIds);
-        affected.inquiry_notes = r.changes;
-    }
-
-    return { affected, filesToDelete };
-}
+// anonymizeClientData(email) also moved to lib/popia.js as part of the same relocation — it has
+// no caller left in app.js (only lib/popia.js's own processPopiaRequest/completePopiaAnonymization
+// call it), so it is not re-imported here.
 
 // Free-text columns that have no DB-level length limit. Anything not listed here is either
 // validated by its own rule (email/cell/date) or is not a client-supplied string.
@@ -5376,390 +5139,14 @@ p{color:#aaa;font-size:15px;line-height:1.6;margin-bottom:8px}
 </div></body></html>`);
 });
 
-// ==========================================
-// POPIA Data Erasure — request lifecycle
-// ==========================================
-// A request is never actioned instantly from a public, unauthenticated call — it is recorded as
-// a 'pending' row and only anonymized once an administrator reviews and approves it (see the
-// /api/admin/popia/requests/:id/approve and /:id/process routes below). Every entry point below —
-// the public form, the legacy public compat route, and the legacy admin one-click route — funnels
-// through createPopiaRequest() so every erasure ends up as one fully audited request record.
-
-const POPIA_REASONS = ['no_longer_a_client', 'privacy_concerns', 'no_longer_wish_to_be_contacted', 'duplicate_or_test_submission', 'incorrect_information_on_file', 'other'];
-
-function popiaReferenceNumber(id) {
-    return `POPIA-${new Date().getFullYear()}-${String(id).padStart(5, '0')}`;
-}
-
-async function createPopiaRequest({ email, reason, reasonOtherText, additionalComments, source, ip, userAgent, actorEmail }) {
-    return withDbTransaction(async () => {
-        try {
-            await dbRun("BEGIN IMMEDIATE");
-        } catch (beginErr) {
-            console.error('[POPIA] createPopiaRequest BEGIN IMMEDIATE failed:', beginErr.message);
-            return { status: 503, body: { success: false, message: 'We could not record your request just now. Please try again in a moment.' } };
-        }
-        try {
-            const ins = await dbRun(
-                `INSERT INTO popia_erasure_requests
-                    (email, reason, reason_other_text, additional_comments, consequences_acknowledged, source, status, requested_ip, requested_user_agent)
-                 VALUES (?, ?, ?, ?, 1, ?, 'pending', ?, ?)`,
-                [email, reason, reasonOtherText || null, additionalComments || null, source, ip || null, userAgent || null]
-            );
-            const id = ins.lastID;
-            const reference = popiaReferenceNumber(id);
-            await dbRun(`UPDATE popia_erasure_requests SET reference_number = ? WHERE id = ?`, [reference, id]);
-            await dbRun(
-                `INSERT INTO audit_log (table_name, record_id, action, user_email, ip_address, changed_by, changes_json, change_timestamp)
-                 VALUES ('popia_erasure_requests', ?, 'POPIA_ERASURE_REQUESTED', ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-                [id, email, ip || null, actorEmail || source, JSON.stringify({ reference_number: reference, reason, source })]
-            );
-            await dbRun("COMMIT");
-            return { ok: true, id, reference_number: reference };
-        } catch (txErr) {
-            await dbRun("ROLLBACK").catch(() => {});
-            console.error('[POPIA] createPopiaRequest failed:', txErr.message);
-            return { status: 500, body: { success: false, message: 'Could not record your request. Please try again.' } };
-        }
-    });
-}
-
-async function approvePopiaRequest(id, adminId, adminName) {
-    return withDbTransaction(async () => {
-        try {
-            await dbRun("BEGIN IMMEDIATE");
-        } catch (e) {
-            return { status: 503, body: { success: false, message: 'Database busy. Please retry.' } };
-        }
-        try {
-            const upd = await dbRun(
-                `UPDATE popia_erasure_requests SET status = 'approved', reviewed_by = ?, reviewed_by_name = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ? AND status = 'pending'`,
-                [adminId, adminName, id]
-            );
-            if (upd.changes === 0) {
-                await dbRun("ROLLBACK").catch(() => {});
-                return { status: 409, body: { success: false, message: 'This request is not pending — it may have already been actioned.' } };
-            }
-            await dbRun(
-                `INSERT INTO audit_log (table_name, record_id, action, changed_by, change_timestamp)
-                 VALUES ('popia_erasure_requests', ?, 'POPIA_ERASURE_APPROVED', ?, CURRENT_TIMESTAMP)`,
-                [id, adminName]
-            );
-            await dbRun("COMMIT");
-            return { ok: true };
-        } catch (txErr) {
-            await dbRun("ROLLBACK").catch(() => {});
-            console.error('[POPIA] approvePopiaRequest failed:', txErr.message);
-            return { status: 500, body: { success: false, message: 'Approval failed. Transaction rolled back.' } };
-        }
-    });
-}
-
-async function rejectPopiaRequest(id, adminId, adminName, notes) {
-    return withDbTransaction(async () => {
-        try {
-            await dbRun("BEGIN IMMEDIATE");
-        } catch (e) {
-            return { status: 503, body: { success: false, message: 'Database busy. Please retry.' } };
-        }
-        try {
-            const upd = await dbRun(
-                `UPDATE popia_erasure_requests SET status = 'rejected', reviewed_by = ?, reviewed_by_name = ?, reviewed_at = CURRENT_TIMESTAMP, review_notes = ?, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ? AND status = 'pending'`,
-                [adminId, adminName, notes, id]
-            );
-            if (upd.changes === 0) {
-                await dbRun("ROLLBACK").catch(() => {});
-                return { status: 409, body: { success: false, message: 'This request is not pending — it may have already been actioned.' } };
-            }
-            await dbRun(
-                `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json, change_timestamp)
-                 VALUES ('popia_erasure_requests', ?, 'POPIA_ERASURE_REJECTED', ?, ?, CURRENT_TIMESTAMP)`,
-                [id, adminName, JSON.stringify({ review_notes: notes })]
-            );
-            await dbRun("COMMIT");
-            return { ok: true };
-        } catch (txErr) {
-            await dbRun("ROLLBACK").catch(() => {});
-            console.error('[POPIA] rejectPopiaRequest failed:', txErr.message);
-            return { status: 500, body: { success: false, message: 'Rejection failed. Transaction rolled back.' } };
-        }
-    });
-}
-
-// The CAS on status='approved' is what makes double-processing impossible even under a race —
-// same pattern as the existing quote-acceptance CAS. On failure the anonymization itself rolls
-// back, but the request is still durably marked 'failed' via a separate, un-rolled-back statement
-// so the failure stays traceable.
-async function processPopiaRequest(id, adminId, adminName) {
-    return withDbTransaction(async () => {
-        try {
-            await dbRun("BEGIN IMMEDIATE");
-        } catch (e) {
-            return { status: 503, body: { success: false, message: 'Database busy. Please retry.' } };
-        }
-        try {
-            const upd = await dbRun(
-                `UPDATE popia_erasure_requests SET status = 'processing', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'approved'`,
-                [id]
-            );
-            if (upd.changes === 0) {
-                await dbRun("ROLLBACK").catch(() => {});
-                return { status: 409, body: { success: false, message: 'This request is not approved — it may already be processing, processed, or was never approved.' } };
-            }
-            const requestRow = await dbGet(`SELECT email FROM popia_erasure_requests WHERE id = ?`, [id]);
-            const targets = await resolvePopiaTargets(requestRow.email);
-            const { cancelledBookingIds, calendarIdsToDelete, notificationSnapshots } = await cancelActiveBookingsForErasure(targets.bookingIds);
-
-            // "All financial obligations resolved" is checked against every booking this email has —
-            // not just the ones cancelled just now — so a refund left outstanding from an earlier,
-            // unrelated cancellation also gates completion.
-            const unresolvedBookingIds = await getUnresolvedRefundBookingIds(targets.bookingIds);
-            if (unresolvedBookingIds.length > 0) {
-                await dbRun(
-                    `UPDATE popia_erasure_requests SET status = 'awaiting_refund', affected_tables_json = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-                    [JSON.stringify({ pending_refund_booking_ids: unresolvedBookingIds }), id]
-                );
-                await dbRun(
-                    `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json, change_timestamp)
-                     VALUES ('popia_erasure_requests', ?, 'POPIA_ERASURE_AWAITING_REFUND', ?, ?, CURRENT_TIMESTAMP)`,
-                    [id, adminName, JSON.stringify({ email: requestRow.email, pending_refund_booking_ids: unresolvedBookingIds })]
-                );
-                await dbRun("COMMIT");
-                return { ok: true, awaitingRefund: true, pendingBookingIds: unresolvedBookingIds, cancelledBookingIds, calendarIdsToDelete, notificationSnapshots };
-            }
-
-            const { affected, filesToDelete } = await anonymizeClientData(requestRow.email);
-            await dbRun(
-                `UPDATE popia_erasure_requests SET status = 'processed', processed_by = ?, processed_by_name = ?, processed_at = CURRENT_TIMESTAMP, affected_tables_json = ?, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?`,
-                [adminId, adminName, JSON.stringify(affected), id]
-            );
-            await dbRun(
-                `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json, change_timestamp)
-                 VALUES ('popia_erasure_requests', ?, 'DATA_ANONYMIZATION', ?, ?, CURRENT_TIMESTAMP)`,
-                [id, adminName, JSON.stringify({ email: requestRow.email, affected })]
-            );
-            await dbRun("COMMIT");
-            return { ok: true, affected, filesToDelete, cancelledBookingIds, calendarIdsToDelete, notificationSnapshots };
-        } catch (txErr) {
-            await dbRun("ROLLBACK").catch(() => {});
-            console.error('[POPIA] processPopiaRequest failed:', txErr.message);
-            try {
-                await dbRun(`UPDATE popia_erasure_requests SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [txErr.message, id]);
-                await dbRun(
-                    `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json, change_timestamp)
-                     VALUES ('popia_erasure_requests', ?, 'POPIA_ERASURE_FAILED', ?, ?, CURRENT_TIMESTAMP)`,
-                    [id, adminName, JSON.stringify({ error: txErr.message })]
-                );
-            } catch (followUpErr) {
-                console.error('[POPIA] Failed to record failure state:', followUpErr.message);
-            }
-            return { status: 500, body: { success: false, message: 'Anonymization failed. Transaction rolled back; the request has been marked failed for review.' } };
-        }
-    });
-}
-
-// Called once an admin has manually recorded a sufficient refund (via the existing
-// PUT /api/admin/bookings/:id/refund route) for every booking this request's processing flagged as
-// awaiting_refund. Re-checks the exact same gate processPopiaRequest used — never trusts that the
-// refunds are actually resolved just because this endpoint was called — before anonymizing.
-async function completePopiaAnonymization(id, adminId, adminName) {
-    return withDbTransaction(async () => {
-        try {
-            await dbRun("BEGIN IMMEDIATE");
-        } catch (e) {
-            return { status: 503, body: { success: false, message: 'Database busy. Please retry.' } };
-        }
-        try {
-            const upd = await dbRun(
-                `UPDATE popia_erasure_requests SET status = 'processing', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'awaiting_refund'`,
-                [id]
-            );
-            if (upd.changes === 0) {
-                await dbRun("ROLLBACK").catch(() => {});
-                return { status: 409, body: { success: false, message: 'This request is not awaiting refund resolution — it may already be processed or was never in that state.' } };
-            }
-            const requestRow = await dbGet(`SELECT email, affected_tables_json FROM popia_erasure_requests WHERE id = ?`, [id]);
-            let pendingBookingIds = [];
-            try { pendingBookingIds = JSON.parse(requestRow.affected_tables_json || '{}').pending_refund_booking_ids || []; } catch (e) {}
-
-            const stillUnresolved = await getUnresolvedRefundBookingIds(pendingBookingIds);
-            if (stillUnresolved.length > 0) {
-                // Rolls the transient 'processing' CAS write back to 'awaiting_refund' automatically —
-                // nothing else needs to be undone since no other statement has run yet.
-                await dbRun("ROLLBACK").catch(() => {});
-                return { status: 409, body: { success: false, message: 'Some bookings still have an unresolved refund.', pendingBookingIds: stillUnresolved } };
-            }
-
-            const { affected, filesToDelete } = await anonymizeClientData(requestRow.email);
-            await dbRun(
-                `UPDATE popia_erasure_requests SET status = 'processed', processed_by = ?, processed_by_name = ?, processed_at = CURRENT_TIMESTAMP, affected_tables_json = ?, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?`,
-                [adminId, adminName, JSON.stringify(affected), id]
-            );
-            await dbRun(
-                `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json, change_timestamp)
-                 VALUES ('popia_erasure_requests', ?, 'DATA_ANONYMIZATION', ?, ?, CURRENT_TIMESTAMP)`,
-                [id, adminName, JSON.stringify({ email: requestRow.email, affected })]
-            );
-            await dbRun("COMMIT");
-            return { ok: true, affected, filesToDelete };
-        } catch (txErr) {
-            await dbRun("ROLLBACK").catch(() => {});
-            console.error('[POPIA] completePopiaAnonymization failed:', txErr.message);
-            try {
-                await dbRun(`UPDATE popia_erasure_requests SET status = 'failed', error_message = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [txErr.message, id]);
-                await dbRun(
-                    `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json, change_timestamp)
-                     VALUES ('popia_erasure_requests', ?, 'POPIA_ERASURE_FAILED', ?, ?, CURRENT_TIMESTAMP)`,
-                    [id, adminName, JSON.stringify({ error: txErr.message })]
-                );
-            } catch (followUpErr) {
-                console.error('[POPIA] Failed to record failure state:', followUpErr.message);
-            }
-            return { status: 500, body: { success: false, message: 'Anonymization failed. Transaction rolled back; the request has been marked failed for review.' } };
-        }
-    });
-}
-
-// Deletes contract/quotation PDFs left behind by a successful anonymization. Called only after
-// processPopiaRequest's COMMIT succeeds — a file removed mid-transaction can't be restored by a
-// rollback, so file deletion is deliberately kept outside the DB transaction entirely. Synchronous
-// so the route's response only goes out once the files are actually gone (this fires on a rare,
-// admin-triggered action — not a hot path — so blocking briefly here is the right tradeoff).
-function deletePopiaFiles(filesToDelete) {
-    const jobs = [
-        ...(filesToDelete?.contracts || []).map(f => resolveDocsPath('contracts', f)),
-        ...(filesToDelete?.quotations || []).map(f => resolveDocsPath('quotes', f))
-    ];
-    jobs.forEach(p => {
-        try { fs.unlinkSync(p); } catch (err) { if (err.code !== 'ENOENT') console.error('[POPIA] Failed to delete file:', p, err.message); }
-    });
-}
-
-// A booking is "active or partially paid" — in scope for erasure-driven cancellation — unless it's
-// already CANCELLED or COMPLETED (retroactively "cancelling" a delivered event would falsify
-// history), or it's EXPIRED with nothing paid (a lapsed quote with no money on the table needs no
-// cancellation/refund handling at all).
-function isBookingInPopiaErasureScope(booking) {
-    if (['CANCELLED', 'COMPLETED'].includes(booking.status)) return false;
-    if (booking.status === 'EXPIRED' && !(parseFloat(booking.amount_paid) > 0)) return false;
-    return true;
-}
-
-// Read-only: for each of the given bookingIds, reports whether it's in scope and — if so — the
-// same calculateCancellationRefund() figures the actual cancellation step will apply. Shared by the
-// public pre-submission preview, the admin request-detail preview, and cancelActiveBookingsForErasure
-// itself, so none of the three can silently drift from what really happens.
-async function getBookingErasureImpact(bookingIds) {
-    if (!bookingIds.length) return [];
-    const ph = bookingIds.map(() => '?').join(',');
-    const bookings = await getBookingsByIds(ph, bookingIds);
-    const policyRow = await dbGet(`SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'`);
-    const policyStr = policyRow ? policyRow.policy_value : '';
-    const impact = [];
-    for (const booking of bookings) {
-        if (!isBookingInPopiaErasureScope(booking)) continue;
-        const calc = calculateCancellationRefund(booking, policyStr);
-        impact.push({
-            booking_id: booking.id, event_name: booking.event_name, event_type: booking.event_type,
-            date: booking.date, status: booking.status, amount_paid: calc.totalPaid,
-            estimated_refund_due: calc.refund, estimated_retention: calc.retention,
-            policy_rule: calc.rule, days_until_event: calc.daysUntilEvent
-        });
-    }
-    return impact;
-}
-
-// Cancels every in-scope booking for this erasure request, applying the same tiered refund/
-// retention calculation and cascade (void invoices, cancel pending payment schedules, release date
-// holds, demote/unlink the linked events row) as the existing manual cancel routes (admin /cancel,
-// applyStatusChange's CANCELLED branch) — copying only their inner UPDATE/INSERT statements, never
-// their own transaction wrapper, since this must run INSIDE the caller's already-open transaction
-// (withDbTransaction is a non-reentrant promise-chain queue; nesting a second BEGIN IMMEDIATE inside
-// it would deadlock). No network I/O happens here — Google Calendar deletes and the cancellation-
-// notification email are deferred to the caller, to fire post-commit via notifyPopiaCancellations().
-async function cancelActiveBookingsForErasure(bookingIds) {
-    const impact = await getBookingErasureImpact(bookingIds);
-    const cancelledBookingIds = [];
-    const calendarIdsToDelete = [];
-    const notificationSnapshots = [];
-    const cancelReason = 'Booking cancelled as a consequence of a POPIA data erasure request.';
-
-    for (const item of impact) {
-        const booking = await getBookingByIdAsync(item.booking_id);
-        if (!booking || !isBookingInPopiaErasureScope(booking)) continue;
-
-        notificationSnapshots.push({
-            bookingId: booking.id, name: booking.name, email: booking.email,
-            eventName: booking.event_name, eventType: booking.event_type, date: booking.date,
-            refundDue: item.estimated_refund_due, rule: item.policy_rule, daysUntilEvent: item.days_until_event
-        });
-
-        await cancelBookingForErasureAsync(cancelReason, booking.id);
-        await insertCancellationForErasure(booking.id, cancelReason, item.amount_paid, item.estimated_refund_due, item.estimated_retention);
-        await releaseDateHoldsForBookingAsync(booking.id);
-        await voidInvoicesForCancelledBookingAsync(booking.id);
-        await cancelPendingPaymentSchedulesAsync(booking.id);
-
-        const linkedEvent = await getEventByBookingId(booking.id);
-        if (linkedEvent) {
-            await demoteEventForCancelledBookingAsync(cancelReason, linkedEvent.event_id);
-            if (linkedEvent.google_calendar_event_id) {
-                calendarIdsToDelete.push(linkedEvent.google_calendar_event_id);
-                await clearEventGoogleCalendarIdAsync(linkedEvent.event_id);
-            }
-        }
-        if (booking.event_id) {
-            await clearBookingPublicAndEventIdAsync(booking.id);
-        }
-        if (booking.google_event_id) {
-            calendarIdsToDelete.push(booking.google_event_id);
-            await clearBookingGoogleEventIdAsync(booking.id);
-        }
-
-        await dbRun(
-            `INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-             VALUES ('bookings', ?, 'CANCEL', ?, 'popia_erasure', CURRENT_TIMESTAMP)`,
-            [booking.id, JSON.stringify({ reason: 'popia_erasure', refund_due: item.estimated_refund_due })]
-        );
-        cancelledBookingIds.push(booking.id);
-    }
-
-    return { cancelledBookingIds, calendarIdsToDelete, notificationSnapshots };
-}
-
-// "All financial obligations resolved" is evaluated against every booking in `bookingIds` that
-// currently carries an unresolved refund — not just ones cancelled in this run, since a booking
-// could have been cancelled independently, earlier, and still owe money. Compares the actual
-// cumulative refunded amount (the same SUM(transactions...) query the existing PUT .../refund route
-// uses) against refund_due, rather than trusting cancellations.refund_status alone — that route
-// allows a partial amount to be recorded, which would otherwise let a token refund satisfy this gate
-// while most of the money is still owed.
-async function getUnresolvedRefundBookingIds(bookingIds) {
-    if (!bookingIds.length) return [];
-    const ph = bookingIds.map(() => '?').join(',');
-    const rows = await getCancellationsWithRefundedTotals(ph, bookingIds);
-    return rows.filter(r => r.refunded < r.refund_due).map(r => r.booking_id);
-}
-
-// Fires the non-transactional side effects of an erasure-driven cancellation — Google Calendar
-// deletes and a cancellation-notification email per booking — using the pre-cancellation name/email
-// snapshot captured before any UPDATE ran (so this still works correctly even when anonymization
-// committed in the very same call, after the real columns have already been scrubbed).
-function notifyPopiaCancellations(calendarIdsToDelete, notificationSnapshots) {
-    (calendarIdsToDelete || []).forEach(id => {
-        deleteGoogleEvent(id).catch(e => console.error('[POPIA] Calendar event delete failed:', e.message));
-    });
-    (notificationSnapshots || []).forEach(snap => {
-        sendCancellationEmail(
-            { id: snap.bookingId, name: snap.name, email: snap.email, event_name: snap.eventName, event_type: snap.eventType, date: snap.date },
-            { reason: 'Booking cancelled as a consequence of a POPIA data erasure request.', refund_due: snap.refundDue, rule: snap.rule, days_until_event: snap.daysUntilEvent, is_force_majeure: false }
-        ).catch(e => console.error('[POPIA] Cancellation notification email failed for booking #' + snap.bookingId + ':', e.message));
-    });
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): the request-lifecycle block that used to run from here
+// (POPIA_REASONS) through notifyPopiaCancellations() — popiaReferenceNumber, createPopiaRequest,
+// approvePopiaRequest, rejectPopiaRequest, processPopiaRequest, completePopiaAnonymization,
+// deletePopiaFiles, isBookingInPopiaErasureScope, cancelActiveBookingsForErasure,
+// getUnresolvedRefundBookingIds, notifyPopiaCancellations — moved to lib/popia.js. Of these, only
+// POPIA_REASONS and createPopiaRequest are re-imported above (alongside resolvePopiaTargets/
+// getBookingErasureImpact) — the public routes immediately below only ever create a request, never
+// approve/process/notify one; the rest have no remaining caller in app.js.
 
 // Public request form (index.html footer -> #popiaErasureModal)
 app.post('/api/public/popia/erasure-requests', ipRateLimiter, mutateRateLimiter, async (req, res) => {
@@ -6427,43 +5814,8 @@ app.get('/api/public/availability/month', ipRateLimiter, (req, res) => {
 // P3-8: Helper to calculate refund based on policy.
 // Reads thresholds from policyStr JSON ({tiers:[{days_min,retention_pct,label},...]} sorted desc).
 // Falls back to hardcoded 30/14/0-day tiers if no valid policy is provided.
-const calculateCancellationRefund = (booking, policyStr) => {
-    const totalPaid = parseFloat(booking.amount_paid || 0);
-    const totalFee = parseFloat(booking.total_amount || booking.amount_paid || 0);
-
-    if (!booking.date) return { rule: "No event date set", retention: totalPaid, refund: 0, totalPaid, daysUntilEvent: null };
-
-    const eventDate = new Date(booking.date);
-    const now = new Date();
-    const daysUntilEvent = Math.ceil((eventDate - now) / (1000 * 60 * 60 * 24));
-
-    // Parse policy tiers from DB value, or use built-in defaults
-    let tiers = null;
-    if (policyStr) {
-        try {
-            const parsed = JSON.parse(policyStr);
-            if (Array.isArray(parsed.tiers) && parsed.tiers.length > 0) tiers = parsed.tiers;
-        } catch (_) {}
-    }
-    if (!tiers) {
-        tiers = [
-            { days_min: 30, retention_pct: 0.10, label: "30+ days (10% admin fee retained)" },
-            { days_min: 14, retention_pct: 0.50, label: "14-29 days (50% fee retained)" },
-            { days_min:  0, retention_pct: 1.00, label: "< 14 days (100% fee retained, non-refundable)" }
-        ];
-    }
-    // Tiers must be sorted descending by days_min
-    const sorted = [...tiers].sort((a, b) => b.days_min - a.days_min);
-    const tier = sorted.find(t => daysUntilEvent >= t.days_min) || sorted[sorted.length - 1];
-
-    const retention = totalFee * (parseFloat(tier.retention_pct) || 0);
-    const rule = tier.label || `${tier.days_min}+ days (${(tier.retention_pct * 100).toFixed(0)}% retained)`;
-
-    const actualRetention = Math.min(retention, totalPaid);
-    const refundDue = Math.max(0, totalPaid - actualRetention);
-
-    return { rule, retention: actualRetention, refund: refundDue, totalPaid, daysUntilEvent };
-};
+// Phase 5 (HOUSEKEEPING-NOTES.md): calculateCancellationRefund moved to lib/cancellation-refund.js.
+const { calculateCancellationRefund } = require('./lib/cancellation-refund');
 
 // P2.0 — Cancellation Preview
 app.get('/api/admin/bookings/:id/cancellation-preview', requireAdmin, (req, res) => {
@@ -13988,271 +13340,18 @@ app.post('/api/admin/dashboard/social_kpis', requireAdmin, requireRole(['adminis
     });
 });
 
-// --- GDPR / POPIA Data Deletion (Anonymization) ---
-// Legacy one-click compatibility wrapper — kept so existing callers keep working, but now delegates
-// into the same create -> approve -> process chain as every other erasure entry point, so this
-// route produces a fully reviewable/auditable popia_erasure_requests row instead of a bare
-// audit_log line, and reuses anonymizeClientData's full table coverage instead of its own
-// 5-table subset. Response shape (success/message/affected) is preserved for existing callers.
-app.post('/api/admin/gdpr/delete', requireAdmin, requireRole(['administrator']), async (req, res) => {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: 'Email address is required for deletion.' });
-    const emailNorm = String(email).trim();
+// Phase 5 (HOUSEKEEPING-NOTES.md): legacy admin route POST /api/admin/gdpr/delete moved to
+// routes/admin/popia.js (batch 14) — it's a one-click wrapper around createPopiaRequest/
+// approvePopiaRequest/processPopiaRequest/notifyPopiaCancellations/deletePopiaFiles, all of which
+// live there now alongside the rest of the POPIA admin surface.
 
-    const adminId = req.session.adminId;
-    const adminName = req.session.username;
-    const ip = req.ip;
 
-    console.log(`[GDPR] Deletion request for ${emailNorm} initiated by Admin ID: ${adminId}`);
 
-    const created = await createPopiaRequest({
-        email: emailNorm, reason: 'other', reasonOtherText: 'Submitted via legacy admin one-click GDPR delete tool',
-        source: 'admin', ip, userAgent: req.get('User-Agent') || null, actorEmail: adminName
-    });
-    if (!created.ok) return res.status(created.status).json(created.body);
 
-    const approved = await approvePopiaRequest(created.id, adminId, adminName);
-    if (!approved.ok) return res.status(approved.status).json(approved.body);
 
-    const processed = await processPopiaRequest(created.id, adminId, adminName);
-    if (!processed.ok) return res.status(processed.status).json(processed.body);
 
-    notifyPopiaCancellations(processed.calendarIdsToDelete, processed.notificationSnapshots);
 
-    if (processed.awaitingRefund) {
-        return res.json({
-            success: true,
-            message: `An active/partially-paid booking was cancelled for ${emailNorm} and a refund is now owing — anonymization will complete once that refund is recorded.`,
-            reference_number: created.reference_number,
-            awaiting_refund: true,
-            pending_booking_ids: processed.pendingBookingIds
-        });
-    }
 
-    deletePopiaFiles(processed.filesToDelete);
-
-    console.log(`[GDPR] Anonymized for ${emailNorm} (request #${created.id}):`, processed.affected);
-    res.json({
-        success: true,
-        message: `All data associated with ${emailNorm} has been anonymized/deleted successfully.`,
-        reference_number: created.reference_number,
-        affected: processed.affected
-    });
-});
-
-// ==========================================
-// POPIA Data Erasure — admin request management
-// ==========================================
-
-// List/search/filter/paginate — mirrors GET /api/admin/audit_log's query-param shape.
-app.get('/api/admin/popia/requests', requireAdmin, (req, res) => {
-    const limit = parseInt(req.query.limit) || 25;
-    const page = parseInt(req.query.page) || 1;
-    const offset = (page - 1) * limit;
-    const status = req.query.status || null;
-    const source = req.query.source || null;
-    const search = req.query.search || '';
-    const dateFrom = req.query.date_from || null;
-    const dateTo = req.query.date_to || null;
-
-    let conditions = [];
-    let params = [];
-    if (status) { conditions.push("status = ?"); params.push(status); }
-    if (source) { conditions.push("source = ?"); params.push(source); }
-    if (dateFrom) { conditions.push("date(requested_at) >= ?"); params.push(dateFrom); }
-    if (dateTo) { conditions.push("date(requested_at) <= ?"); params.push(dateTo); }
-    if (search) { conditions.push("(email LIKE ? OR reference_number LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
-    const whereString = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
-
-    db.all(`SELECT * FROM popia_erasure_requests${whereString} ORDER BY requested_at DESC LIMIT ? OFFSET ?`, [...params, limit, offset], (err, rows) => {
-        if (err) { console.error('[POPIA] list query failed:', err.message); return res.status(500).json({ success: false, message: 'Could not load erasure requests.' }); }
-        db.get(`SELECT COUNT(*) AS total FROM popia_erasure_requests${whereString}`, params, (cErr, cRow) => {
-            const total = cErr ? (rows || []).length : (parseInt(cRow && cRow.total) || 0);
-            res.json({ success: true, requests: rows || [], total, page, totalPages: Math.ceil(total / limit) || 1 });
-        });
-    });
-});
-
-// CSV export — same filter params as the list endpoint.
-app.get('/api/admin/popia/requests/export', requireAdmin, requireRole(['administrator', 'manager']), exportRateLimiter, (req, res) => {
-    const status = req.query.status || null;
-    const source = req.query.source || null;
-    const search = req.query.search || '';
-    const dateFrom = req.query.date_from || null;
-    const dateTo = req.query.date_to || null;
-
-    let conditions = [];
-    let params = [];
-    if (status) { conditions.push("status = ?"); params.push(status); }
-    if (source) { conditions.push("source = ?"); params.push(source); }
-    if (dateFrom) { conditions.push("date(requested_at) >= ?"); params.push(dateFrom); }
-    if (dateTo) { conditions.push("date(requested_at) <= ?"); params.push(dateTo); }
-    if (search) { conditions.push("(email LIKE ? OR reference_number LIKE ?)"); params.push(`%${search}%`, `%${search}%`); }
-    const whereString = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
-
-    const cols = ['id', 'reference_number', 'email', 'reason', 'reason_other_text', 'additional_comments', 'source', 'status', 'requested_at', 'requested_ip', 'reviewed_by_name', 'reviewed_at', 'review_notes', 'processed_by_name', 'processed_at', 'affected_tables_json', 'error_message'];
-    db.all(`SELECT ${cols.join(', ')} FROM popia_erasure_requests${whereString} ORDER BY requested_at DESC`, params, (err, rows) => {
-        if (err) return res.status(500).send('Export failed');
-        const escapeCsv = (v) => { if (v == null) return ''; const s = String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-        const csv = [cols.join(',')].concat((rows || []).map(r => cols.map(c => escapeCsv(r[c])).join(','))).join('\n');
-        res.setHeader('Content-Type', 'text/csv');
-        res.setHeader('Content-Disposition', `attachment; filename="popia-erasure-requests-${new Date().toISOString().slice(0, 10)}.csv"`);
-        res.send(csv);
-    });
-});
-
-// Detail + a live COUNT-only preview of what processing would affect. The preview reuses
-// resolvePopiaTargets so it can never drift from what anonymizeClientData would actually touch.
-app.get('/api/admin/popia/requests/:id', requireAdmin, async (req, res) => {
-    try {
-        const row = await dbGet(`SELECT * FROM popia_erasure_requests WHERE id = ?`, [req.params.id]);
-        if (!row) return res.status(404).json({ success: false, message: 'Request not found.' });
-
-        const { clientIds, bookingIds, inquiryIds, bookingPh, clientPh, inquiryPh } = await resolvePopiaTargets(row.email);
-        const preview = {
-            clients: clientIds.length, bookings: bookingIds.length, inquiries: inquiryIds.length,
-            contracts: 0, booking_notes: 0, quotations: 0, transactions: 0, cancellations: 0, service_reviews: 0, payment_logs: 0, inquiry_notes: 0
-        };
-        if (bookingIds.length) {
-            const [contracts, notes, quotes, txns, cancels, reviews, payLogs] = await Promise.all([
-                dbGet(`SELECT COUNT(*) AS c FROM contracts WHERE booking_id IN (${bookingPh})`, bookingIds),
-                countBookingNotesForIds(bookingPh, bookingIds),
-                countQuotationsForIds(bookingPh, bookingIds),
-                countTransactionsForIds(bookingPh, bookingIds),
-                countCancellationsForIds(bookingPh, bookingIds),
-                dbGet(`SELECT COUNT(*) AS c FROM service_reviews WHERE booking_id IN (${bookingPh})`, bookingIds),
-                countPaymentLogsForIds(bookingPh, bookingIds)
-            ]);
-            preview.contracts = contracts.c; preview.booking_notes = notes.c; preview.quotations = quotes.c;
-            preview.transactions = txns.c; preview.cancellations = cancels.c; preview.service_reviews = reviews.c; preview.payment_logs = payLogs.c;
-        }
-        if (clientIds.length) {
-            const extraQuotes = await countQuotationsForClientIds(clientPh, clientIds);
-            preview.quotations += extraQuotes.c;
-        }
-        if (inquiryIds.length) {
-            const notes = await countInquiryNotesForIds(inquiryPh, inquiryIds);
-            preview.inquiry_notes = notes.c;
-        }
-
-        // Booking-impact: for a not-yet-processed request this is a hypothetical preview (same scope
-        // rule and calculateCancellationRefund() figures the real processing step will apply). Once a
-        // request reaches awaiting_refund the bookings have ALREADY been cancelled — their status is
-        // now 'CANCELLED', which getBookingErasureImpact would (correctly, for a future cancellation)
-        // treat as out of scope, silently going empty here. So this branch instead reads back the
-        // real cancellations rows that were created, plus how much has actually been refunded so far.
-        let pendingRefundBookingIds = [];
-        let bookingImpact;
-        if (row.status === 'awaiting_refund') {
-            let storedBookingIds = [];
-            try { storedBookingIds = JSON.parse(row.affected_tables_json || '{}').pending_refund_booking_ids || []; } catch (e) {}
-            bookingImpact = storedBookingIds.length ? await dbAll(
-                `SELECT b.id AS booking_id, b.event_name, b.event_type, b.date,
-                        c.total_paid_to_date AS amount_paid, c.refund_due AS estimated_refund_due, c.retention_amount AS estimated_retention,
-                        COALESCE((SELECT SUM(t.amount) FROM transactions t WHERE t.booking_id = b.id AND t.transaction_type = 'refund' AND t.status = 'completed'), 0) AS refunded_so_far
-                 FROM bookings b JOIN cancellations c ON c.booking_id = b.id
-                 WHERE b.id IN (${storedBookingIds.map(() => '?').join(',')})`,
-                storedBookingIds
-            ) : [];
-            // Re-derive which of the originally-flagged bookings are STILL unresolved right now —
-            // the stored list is a snapshot from when processing first ran, and would otherwise keep
-            // the "Complete Anonymization" button disabled even after a refund has since been recorded.
-            pendingRefundBookingIds = bookingImpact
-                .filter(b => Number(b.refunded_so_far) < Number(b.estimated_refund_due))
-                .map(b => b.booking_id);
-        } else {
-            bookingImpact = await getBookingErasureImpact(bookingIds);
-        }
-
-        res.json({ success: true, request: row, preview, booking_impact: bookingImpact, pending_refund_booking_ids: pendingRefundBookingIds });
-    } catch (e) {
-        console.error('[POPIA] detail query failed:', e.message);
-        res.status(500).json({ success: false, message: 'Could not load request detail.' });
-    }
-});
-
-app.put('/api/admin/popia/requests/:id/approve', requireAdmin, requireRole(['administrator']), async (req, res) => {
-    const outcome = await approvePopiaRequest(req.params.id, req.session.adminId, req.session.username);
-    if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
-    res.json({ success: true, message: 'Request approved.' });
-});
-
-app.put('/api/admin/popia/requests/:id/reject', requireAdmin, requireRole(['administrator']), async (req, res) => {
-    const notes = String(req.body?.review_notes || '').trim();
-    if (!notes) return res.status(400).json({ success: false, message: 'Review notes are required when rejecting a request.' });
-    const outcome = await rejectPopiaRequest(req.params.id, req.session.adminId, req.session.username, encodeUserHtml(notes));
-    if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
-    res.json({ success: true, message: 'Request rejected.' });
-});
-
-app.post('/api/admin/popia/requests/:id/process', requireAdmin, requireRole(['administrator']), async (req, res) => {
-    const outcome = await processPopiaRequest(req.params.id, req.session.adminId, req.session.username);
-    if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
-    notifyPopiaCancellations(outcome.calendarIdsToDelete, outcome.notificationSnapshots);
-    if (outcome.awaitingRefund) {
-        return res.json({
-            success: true,
-            message: 'An active/partially-paid booking was cancelled and a refund is now owing — anonymization will complete once that refund is recorded.',
-            awaiting_refund: true,
-            pending_booking_ids: outcome.pendingBookingIds
-        });
-    }
-    deletePopiaFiles(outcome.filesToDelete);
-    res.json({ success: true, message: 'Request processed — data anonymized.', affected: outcome.affected });
-});
-
-// Called once an admin has recorded a sufficient refund (via the existing PUT .../refund route) for
-// every booking that blocked completion. Re-checks the refund gate server-side rather than trusting
-// the click.
-app.post('/api/admin/popia/requests/:id/complete-anonymization', requireAdmin, requireRole(['administrator']), async (req, res) => {
-    const outcome = await completePopiaAnonymization(req.params.id, req.session.adminId, req.session.username);
-    if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
-    deletePopiaFiles(outcome.filesToDelete);
-    res.json({ success: true, message: 'Refund(s) resolved — data anonymized.', affected: outcome.affected });
-});
-
-// Admin-initiated create — this is what the request list's "Anonymize Now" quick action calls.
-// With auto_process:true it chains create -> approve -> process inline in one request.
-app.post('/api/admin/popia/requests', requireAdmin, requireRole(['administrator']), async (req, res) => {
-    const { email, reason, additional_comments, auto_process } = req.body || {};
-    const emailNorm = typeof email === 'string' ? email.trim() : '';
-    if (!emailNorm || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailNorm)) {
-        return res.status(400).json({ success: false, message: 'A valid email address is required.' });
-    }
-    const reasonNorm = POPIA_REASONS.includes(reason) ? reason : 'other';
-
-    const created = await createPopiaRequest({
-        email: emailNorm, reason: reasonNorm,
-        reasonOtherText: reasonNorm === 'other' ? 'Submitted directly by an administrator' : null,
-        additionalComments: additional_comments ? encodeUserHtml(String(additional_comments).trim().slice(0, 2000)) : null,
-        source: 'admin', ip: req.ip, userAgent: req.get('User-Agent') || null, actorEmail: req.session.username
-    });
-    if (!created.ok) return res.status(created.status).json(created.body);
-
-    if (!auto_process) {
-        return res.json({ success: true, message: 'Request created.', id: created.id, reference_number: created.reference_number });
-    }
-
-    const approved = await approvePopiaRequest(created.id, req.session.adminId, req.session.username);
-    if (!approved.ok) return res.status(approved.status).json(approved.body);
-    const processed = await processPopiaRequest(created.id, req.session.adminId, req.session.username);
-    if (!processed.ok) return res.status(processed.status).json(processed.body);
-
-    notifyPopiaCancellations(processed.calendarIdsToDelete, processed.notificationSnapshots);
-
-    if (processed.awaitingRefund) {
-        return res.json({
-            success: true,
-            message: 'Request created. An active/partially-paid booking was cancelled and a refund is now owing — anonymization will complete once that refund is recorded.',
-            id: created.id, reference_number: created.reference_number,
-            awaiting_refund: true, pending_booking_ids: processed.pendingBookingIds
-        });
-    }
-
-    deletePopiaFiles(processed.filesToDelete);
-
-    res.json({ success: true, message: 'Request created and processed — data anonymized.', id: created.id, reference_number: created.reference_number, affected: processed.affected });
-});
 
 // --- Migration & System ---
 /**
