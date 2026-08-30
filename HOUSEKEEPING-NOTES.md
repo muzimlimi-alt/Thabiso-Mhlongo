@@ -608,6 +608,21 @@ reaching the broken code, so this doesn't contradict the finding above); `npm te
 651/651 clean — unchanged from baseline, since no test exercises the import route either before or
 after the move.
 
+### Route batch 22: `routes/admin/reconciliation.js` — DONE
+
+4 routes: the reconciliation matrix, per-booking transaction list, CSV export, and — folded in from
+a different path prefix, same reasoning as POPIA's `/api/admin/gdpr/delete` in batch 14 —
+`PATCH /api/admin/transactions/:id/reconcile` (the matrix's own "flag/unflag as duplicate" action,
+physically sitting between the other three routes in `app.js`). `POST /api/admin/transactions/manual`
+stays behind — a genuinely separate, larger transactions-domain concern, not this batch's business.
+`getCompletedTransactionsForReconciliation`/`setTransactionDuplicateFlag` were already Phase 4
+repository exports; everything else is raw `db` queries. A stray leftover comment (from batch 21's
+bank-statement extraction, absorbed as a "leading comment" onto the CSV-export route by the
+extraction script) was cleaned up as found.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 4 paths; `npm run
+smoke` 329/329; `npm test` x3, all clean 664/664.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
