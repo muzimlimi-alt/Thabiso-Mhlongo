@@ -839,6 +839,30 @@ calendar-sync reschedule flake (unrelated). Direct, thorough coverage from the d
 countersign flow (including the "blocked before client signs" and "finalised: signed + frozen"
 cases), all passing on every run.
 
+### Bookings sub-batch D: reminder/resend/review-request routes (5 routes) — DONE
+
+`POST /:id/remind`, `POST /bulk-remind`, `POST /:id/resend-quote`, `POST /:id/resend-confirmation`,
+`POST /:id/review-request`. Traced dependencies and found 6 of the ~28 catalogued `send*Email`
+functions plus `generateBookingICS` and the `remindBooking` orchestrator were all already fully
+leaf-safe (every one confirmed to depend only on already-relocated `lib/`/`js/` modules —
+`getVatRate` from batch C's `lib/document-totals.js` made `sendQuoteEmail` itself clean this time)
+— so relocated all of them together into a new **`lib/booking-notifications.js`**:
+`generateBookingICS`, `sendQuoteEmail`, `sendAdminQuoteSentNotification`, `sendBookingConfirmedEmail`,
+`sendDepositBalanceDueEmail`, `sendQuoteExpiryWarningEmail`, `sendReviewRequestEmail`,
+`remindBooking`. Six of these eight have multiple remaining callers scattered across the still-
+deferred payment-processing code and cron jobs — `app.js` re-imports all six; `remindBooking` itself
+has zero remaining app.js callers (both its only call sites, `remind` and `bulk-remind`, moved with
+it) and `sendAdminQuoteSentNotification` stays with its one remaining caller (the deferred admin
+quote route).
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 5 paths and zero
+remaining definitions of any of the 8 relocated functions outside comments; `npm run smoke`
+329/329; `npm test` x5 — 3 clean 664/664, one run with two already-documented pre-existing flakes
+(CP3, CP17), one with the already-documented `banner.test.js` `SQLITE_BUSY` crash (10th occurrence),
+none touching this batch. Direct coverage from the dedicated reminder tests (`remind on QUOTED ->
+quote type`, `remind on CONFIRMED-with-balance -> balance type`, 24h throttling, `bulk-remind`
+summary/skip-counting) and `CP6: manual review-request -> 200`, all passing on every run.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

@@ -16,16 +16,20 @@ const {
     DEFAULT_CONTRACT_CLAUSES, CONTRACT_ELIGIBLE_STATUSES,
     resolveContractFeeData, assembleContractHtml, generateContract
 } = require('../../lib/contracts');
+const {
+    sendQuoteEmail, sendBookingConfirmedEmail, sendReviewRequestEmail, remindBooking
+} = require('../../lib/booking-notifications');
 const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
 const { sendEmail } = require('../../js/emailService');
 const {
     getBookingNotesForBooking, insertBookingNote, getBookingNoteById, deleteBookingNote,
-    unlinkBookingClient, getBookingStatusNameEmail, reopenBooking, getBookingStatus, getBookingForContractRemind
+    unlinkBookingClient, getBookingStatusNameEmail, reopenBooking, getBookingStatus, getBookingForContractRemind,
+    stampReviewEmailSent
 } = require('../../database/repositories/bookings.repository');
 const {
     getQuoteHistoryForBooking, getQuoteForBookingFinancials, getInvoiceForBookingFinancials,
-    getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload
+    getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload, getLatestQuoteFileForResend, markQuotationResent
 } = require('../../database/repositories/invoices-quotations.repository');
 const { getExpensesForBooking, getCancellationDetailForBooking, getTransactionsForBooking } = require('../../database/repositories/finance.repository');
 const router = express.Router();
@@ -709,6 +713,91 @@ router.post('/api/admin/bookings/:id/contract/remind', requireAdmin, mutateRateL
             }).catch(e => res.status(500).json({ success: false, message: e.message }));
         });
     });
+});
+
+// State-aware per-booking reminder. Picks the reminder appropriate to where the booking is in the
+// lifecycle and returns what it did. Shared by the single-booking route and the bulk action.
+// Throttling reuses existing state: the contract reminder is gated by contracts.sent_to_client_at,
+// the balance reminder by a reminders_log row (schedule_id NULL, days_before=0 sentinel — distinct
+// from the 7/3/1 pre-event reminders and the milestone reminders which carry a non-NULL schedule_id).
+// Phase 5 (HOUSEKEEPING-NOTES.md): remindBooking moved to lib/booking-notifications.js — no
+// remaining caller in app.js.
+
+// POST — send the state-appropriate reminder for one booking.
+router.post('/api/admin/bookings/:id/remind', requireAdmin, async (req, res) => {
+    try {
+        const result = await remindBooking(req.params.id);
+        res.json({ success: true, ...result });
+    } catch (e) {
+        console.error('[Remind] failed for booking #' + req.params.id + ':', e.message);
+        res.status(500).json({ success: false, message: e.message });
+    }
+});
+
+// POST — bulk "Send reminder": each selected booking gets the reminder appropriate to its state.
+router.post('/api/admin/bookings/bulk-remind', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids.map(n => parseInt(n, 10)).filter(n => !isNaN(n)) : [];
+    if (ids.length === 0) return res.status(400).json({ success: false, message: 'No bookings selected.' });
+    if (ids.length > 200) return res.status(400).json({ success: false, message: 'Too many bookings selected (max 200).' });
+
+    let sent = 0, skipped = 0, failed = 0;
+    const breakdown = { quote: 0, contract: 0, balance: 0 };
+    const errors = [];
+    for (const id of ids) {
+        try {
+            const r = await remindBooking(id);
+            if (r.sent) { sent++; if (breakdown[r.type] !== undefined) breakdown[r.type]++; }
+            else skipped++;
+        } catch (e) { failed++; errors.push(`#${id}: ${e.message}`); }
+    }
+    res.json({ success: true, sent, skipped, failed, breakdown, errors: errors.length ? errors : undefined });
+});
+
+// --- Booking Email Actions ---
+router.post('/api/admin/bookings/:id/resend-quote', requireAdmin, async (req, res) => {
+    db.get(`SELECT b.*, COALESCE(c.full_name, b.name) as client_name, COALESCE(c.email, b.email) as client_email
+            FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
+        [req.params.id], async (err, b) => {
+            if (err || !b) return res.status(404).json({ success: false });
+            b.name = b.client_name || b.name; b.email = b.client_email || b.email;
+            getLatestQuoteFileForResend(
+                req.params.id, async (e, q) => {
+                    if (!q) return res.status(404).json({ success: false, message: 'No quote found for this booking. Generate a quote first.' });
+                    const pdfPath = resolveDocsPath('quotes', q.file_path);
+                    await sendQuoteEmail(b, b.quote_amount, pdfPath, q.file_path);
+                    markQuotationResent(req.params.id, () => {});
+                    res.json({ success: true, message: 'Quote email resent.' });
+                });
+        });
+});
+
+router.post('/api/admin/bookings/:id/resend-confirmation', requireAdmin, async (req, res) => {
+    db.get(`SELECT b.*, COALESCE(c.full_name, b.name) as client_name, COALESCE(c.email, b.email) as client_email
+            FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
+        [req.params.id], async (err, b) => {
+            if (err || !b) return res.status(404).json({ success: false });
+            if (['CANCELLED', 'EXPIRED'].includes(b.status)) {
+                return res.status(400).json({ success: false, message: `Cannot resend confirmation for a ${b.status} booking.` });
+            }
+            b.name = b.client_name || b.name; b.email = b.client_email || b.email;
+            await sendBookingConfirmedEmail(b);
+            res.json({ success: true, message: 'Confirmation email resent.' });
+        });
+});
+
+router.post('/api/admin/bookings/:id/review-request', requireAdmin, (req, res) => {
+    db.get(`SELECT b.*, COALESCE(c.full_name, b.name) as name, COALESCE(c.email, b.email) as email
+            FROM bookings b LEFT JOIN clients c ON b.client_id = c.id WHERE b.id = ?`,
+        [req.params.id], async (err, b) => {
+            if (err || !b) return res.status(404).json({ success: false });
+            if (b.status !== 'COMPLETED') return res.status(400).json({ success: false, message: 'Booking not completed.' });
+            await sendReviewRequestEmail(b);
+            // The cron (runPostEventFollowupJob) only sends when review_email_sent_at IS NULL — this
+            // manual trigger never stamped it, so an admin clicking "Request Review" the same day an
+            // event completes would get a second, duplicate auto-send from the cron the next day.
+            stampReviewEmailSent(b.id);
+            res.json({ success: true });
+        });
 });
 
 module.exports = router;
