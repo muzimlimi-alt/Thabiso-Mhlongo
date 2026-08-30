@@ -839,6 +839,33 @@ calendar-sync reschedule flake (unrelated). Direct, thorough coverage from the d
 countersign flow (including the "blocked before client signs" and "finalised: signed + frozen"
 cases), all passing on every run.
 
+**Correction found later (during the quote-route reconnaissance for sub-batch F):** `GET
+.../contract/builder-data` and `POST .../contract/preview` both call `dbGet(...)` with **no import
+of it anywhere in this file** — a missing re-import this batch should have added (app.js itself has
+always imported `dbRun`/`dbGet`/`dbAll` from `lib/db-helpers.js`; this file never did). Every call
+would have thrown `ReferenceError: dbGet is not defined` — a guaranteed 500 on both routes, live in
+production since this batch's commit, undetected because `contract.test.js` never exercises either
+endpoint (it only tests `/contract/generate` and the sign/countersign flow). This is the same class
+of gap as the dead-import checks done after every batch, just the opposite direction — an import
+that should have been *added*, not one that should have been removed — so it wasn't caught by the
+`\bname\b`-grep-for-zero-remaining-references sweep, which only ever checks names being removed.
+Fixed by adding `const { dbRun, dbGet, dbAll } = require('../../lib/db-helpers');` — restores the
+exact original working behaviour (app.js's own long-standing import of the same module), no logic
+changed. Verified with a throwaway fixture: both routes now return 200 with the expected payload
+shape (confirmed via `test/support.js` in isolation). Treated as completing this batch's relocation
+correctly rather than as a separate authorized bug fix, on the same reasoning as every dead-import
+removal in this session — the missing import IS the relocation defect, not a pre-existing app bug.
+Worth checking for on every future batch: after adding new call sites to a module-scope helper
+(`dbGet`/`dbRun`/`dbAll`, or any `lib/` export), grep the *destination* file for the name too, not
+just the source file for what became dead. Wrote a one-off static sweep (acorn-based: collects every
+name bound anywhere in a file against every name referenced, flags the difference minus JS/Node
+globals) and ran it across every `routes/admin/*.js`, `lib/*.js`, and `middleware/*.js` file plus
+`app.js` itself — this `dbGet` instance was the only real hit; two other flags (`document-totals.js`,
+`newsletter-scheduling.js`) turned out to be a bug in the sweep script's own handling of a
+destructured-parameter-with-default (`{ x = 0 } = {}`), fixed and re-verified clean. Scratchpad tool,
+not part of the repo, but the codebase-wide result stands: no other missing-import instances of this
+class exist in already-relocated code as of this batch.
+
 ### Bookings sub-batch D: reminder/resend/review-request routes (5 routes) — DONE
 
 `POST /:id/remind`, `POST /bulk-remind`, `POST /:id/resend-quote`, `POST /:id/resend-confirmation`,
