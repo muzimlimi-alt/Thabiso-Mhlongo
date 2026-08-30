@@ -725,6 +725,62 @@ for all 8 paths and zero remaining definition of `runPaymentReminderJob` outside
 `finance/export`, `finance/pl`, `financials/analytics`, and `financials/stats` all return correct
 status codes per role.
 
+### The deferred `bookings`/`events` pass begins — scope reconnaissance
+
+Started the dedicated, heavily-scrutinized pass for `/api/admin/bookings/*` (55 routes),
+`/api/public/bookings/*` (19 routes), and `/api/admin/events/*` (6 routes, deferred earlier)
+now that `lib/time-utils.js` and `lib/google-calendar.js` exist. A full sweep of every remaining
+top-level function declaration in `app.js` found **~75 functions still un-relocated**, the large
+majority of them this domain's own business logic rather than incidental helpers — this is not a
+"batch" in the same sense as batches 1-26; it's effectively the bulk of what's left of the original
+monolith. Recorded here so a future session doesn't have to re-derive it:
+
+- **~28 `send*Email` functions** (`sendBookingReceivedEmail`, `sendQuoteEmail`,
+  `sendBookingConfirmedEmail`, `sendPaymentReceivedEmail`, `sendContractEmail`,
+  `sendQuoteAcceptedEmail`, `sendBookingCompletedEmail`, `sendRefundProcessedEmail`,
+  `sendReviewRequestEmail`, and ~19 more) — every one of these is exactly the same shape already
+  proven safe 6 times over (`sendInvoiceEmail`, `sendCancellationEmail`,
+  `sendAbandonedBookingReminderEmail`, etc.): `escapeEmailFields` + `getEmailFooterContext` +
+  `bannerRegistry` + `emailComponents` + `sendEmail`, all already leaf-safe. Low-risk, high-volume
+  relocation work once their route batches come up.
+- **The Google Calendar sync engine**: `hasCalendarConflict`, `syncBookingToCalendar`,
+  `syncEventToCalendar`, `syncCalendarHolds`, `isWithinWorkingHours` — the reason `events` was
+  deferred in the first place. Still not relocated; still the highest-risk piece of this pass
+  (real Google API calls, booking-conflict business rules with financial consequences).
+- **Booking lifecycle/financial core**: `applyStatusChange` (the generic status-transition
+  endpoint's engine), `processManualPayment`, `alignMilestonePayments`, `updateBookingMilestones`,
+  `deriveBookingStatusAfterPayment`, `checkDateAvailability`, `generateContract` +
+  `assembleContractHtml` + `resolveContractFeeData`, `generateInvoice` +
+  `autoBuildDepositBalanceSchedule` + `computeDocumentTotals` + `resolveLineTaxClasses` +
+  `getVatRate`, `remindBooking`, `logPaymentEvent`, `generatePayFastSignature`.
+- **12 background cron jobs** (`run*Job` — quote follow-up, stalled-booking alerts, abandoned-
+  booking reminders/purge, deposit-balance reminders, invoice pre-due/overdue sweeps, event
+  reminders, post-event follow-up, ledger reconciliation, PayFast pending-timeout) — all called only
+  from app.js's own startup/interval wiring, analogous to `runPaymentReminderJob` in batch 26.
+- **Misc utilities**: `classifyChannel`, `generateBookingICS`, `parseDurationMins`, `checkEventConflicts`
+  (the `events` conflict-checker deferred alongside the sync engine), `escapeHtml`/`deepEscapeBody`
+  (used by a global sanitizing `app.use` middleware — cannot move until every remaining route that
+  needs it is accounted for).
+
+**Strategy**: stage this exactly like Phase 4's `bookings` repository domain was staged (4 sub-passes
++ a satellite-table pass) — smallest/safest slices first, working up to the calendar-sync engine and
+`applyStatusChange` last, since those two are both the highest-risk and the most-depended-upon by
+everything else. All `/api/admin/bookings/*` routes accumulate into one `routes/admin/bookings.js`
+file across sub-batches (same file, multiple commits), matching that precedent.
+
+### Bookings sub-batch A: satellite reads + 2 simple actions — DONE
+
+First cut: 9 routes with zero remaining dependency on any of the ~75 functions above — every one
+already backed by an existing Phase 4 repository function. `GET/POST /:id/notes` +
+`DELETE /:id/notes/:noteId`, `GET /:id/communications`, `POST /:id/unlink-client`,
+`GET /:id/quote-history`, `GET /:id/expenses`, `GET /:id/financials`, `GET /:id/details`. Created
+`routes/admin/bookings.js`.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 9 paths; `npm run
+smoke` 329/329; `npm test` x4, all clean 664/664 — direct coverage confirmed via **CP9** (9 checks
+exercising the notes routes specifically: empty-list, validation, RBAC on create/delete, author
+derivation, ordering, delete-404, delete-success) and RBAC checks on the financials-adjacent routes.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
