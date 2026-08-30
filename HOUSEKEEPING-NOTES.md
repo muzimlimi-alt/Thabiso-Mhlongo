@@ -533,6 +533,25 @@ Verification: `node -c`; confirmed zero remaining `app.js` registrations for all
 remaining reference to any of the relocated helpers; `npm run smoke` 329/329; `npm test` x3, all
 three 651/651 clean — no flakes, no crashes, this time.
 
+### Route batch 18: `routes/admin/campaigns.js` — DONE
+
+5 routes, scattered across two distant parts of `app.js` (the legacy immediate-dispatch pair near
+the top, the unified-list/delete/bulk-delete trio much further down) but extracted together as one
+domain: `POST /api/admin/campaigns` (legacy immediate newsletter dispatch — distinct from the
+already-extracted scheduled-campaign system in `routes/admin/newsletter-campaigns.js`),
+`POST .../send-test`, `DELETE /:id`, `GET /unified`, `POST /bulk-delete`. All DB access already
+Phase 4 repository exports (`newsletter.repository.js`, one `auth-users.repository.js` function).
+`POST /bulk-delete` reads/mutates `scheduledJobs` directly (cancelling a pending scheduled send) —
+imported from the existing `lib/newsletter-scheduling.js` singleton, **not** a new instance, per the
+required-singleton rule already established for that file.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 5 paths; `npm run
+smoke` 329/329; `npm test` x5 — 3 clean 651/651 runs (including the "campaigns/unified ripple fix"
+test, direct coverage of the relocated `GET /unified` route) and 2 more `banner.test.js` `SQLITE_BUSY`
+crashes (same pre-existing family, landing at a slightly different statement each time within that
+file — consistent with a genuine race rather than a fixed reproducible bug), neither touching
+campaigns/newsletter-scheduling code.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -1861,6 +1880,13 @@ banners nor anything that shares a table with them. Clean re-run immediately aft
 **Update (Phase 5, route batch 16):** a sixth occurrence, one run out of six during
 `routes/admin/expenses.js` verification — a batch touching only the `expenses` table. Zero leftover
 `node.exe` processes before or after; clean re-runs on either side. Nothing new.
+
+**Update (Phase 5, route batch 18):** a seventh and eighth occurrence, two runs out of five during
+`routes/admin/campaigns.js` verification (a batch touching newsletter dispatch/scheduling, not
+banners) — each landing at a slightly different statement within `banner.test.js` rather than the
+usual exact spot (once one test earlier, at "reject: width 1500px"), which if anything reinforces
+that this is a genuine timing race rather than a single reproducible bug at one fixed line. Zero
+leftover `node.exe` processes either time; clean re-runs both times.
 
 ---
 
