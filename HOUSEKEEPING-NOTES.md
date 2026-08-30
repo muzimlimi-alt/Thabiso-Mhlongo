@@ -1093,6 +1093,75 @@ heavily-tested route in the codebase (exercised, directly or as setup, by 9 diff
 `banner`, `booking`, `calendar-booking-sync`, `calendar`, `contract`, `email`, `lifecycle`,
 `payment-callback`, `pdf-golden`).
 
+### The deferred `events` cluster (6 routes) — DONE — closes out the bookings/events pass
+
+`GET/POST /api/admin/events`, `PUT/DELETE /api/admin/events/:id`, `PATCH /api/admin/events/:id/date`,
+`POST /api/admin/events/:id/duplicate` — the cluster explicitly deferred at the very start of this
+pass pending the calendar-sync engine, now unblocked. Unlike every other domain in this pass, `events`
+had no existing route file — created **`routes/admin/events.js`** and mounted it in `app.js` right
+after `routes/admin/bookings.js`.
+
+Two more pieces of local (non-route) code moved with it, both single-consumer within this exact
+cluster and nothing else in `app.js`:
+
+- **`checkEventConflicts`** — the standalone-event conflict checker (bookings + holds + other
+  events on the same day), depends only on already-existing repository exports
+  (`getBookingsOnDateForEventConflict`, `getActiveDateHoldsForEventConflict`, `getOtherEventsOnDate`)
+  and already-relocated `lib/time-utils.js` helpers.
+- **`VALID_EVENT_STATUSES`/`VALID_EVENT_TYPES`** — the two validation-list constants.
+
+All other dependencies were already-existing Phase 4 repository exports newly imported into the new
+file (`insertEventFull`, `updateEventFull`, `deleteEventById`, `getEventForConflictEdit`,
+`getEventForDragReschedule`, `updateEventDatetime`, `insertEventForDuplicate`, `getEventById`,
+`linkEventToPlaceholderBooking`, `clearEventGoogleCalendarId`, `getEventGoogleCalendarId`,
+`clearDateHoldEventId`, `insertDateHoldForNewEvent` from `calendar.repository`;
+`insertPlaceholderBookingForEvent`, `getBookingByIdSafeAsync`, `updateBookingDateFromEventEdit`,
+`clearBookingEventIdWhereEventId`, `setBookingDateAndStartTimeFromEvent`, `setBookingEventId`,
+`getBookingById` from `bookings.repository`) or already-relocated `lib/` modules
+(`deleteGoogleEvent`, `resolveActor`, `hasCalendarConflict`/`syncBookingToCalendar`/
+`syncEventToCalendar`, `sendDateChangedEmail`) — zero new repository or lib work needed, the whole
+cluster was mechanical once traced.
+
+**A copy-paste mistake caught by re-verifying, not assumed correct:** while writing the new file's
+`calendar.repository` import, `linkEventToPlaceholderBooking` was initially (incorrectly) also added
+to the `bookings.repository` import — it only exists on `calendar.repository`. Caught immediately by
+running the same static undefined-reference sweep (from the `dbGet` fix earlier this session) against
+the new file before considering it done, rather than trusting the hand-written import list on sight.
+
+Dead-import sweep found 17 more names orphaned in `app.js`'s own destructures once this cluster's
+calls moved with it — the largest single dead-import cleanup this session, reflecting how much of
+`app.js`'s remaining calendar/event surface belonged to exactly this cluster:
+`getBookingsOnDateForEventConflict`, `insertPlaceholderBookingForEvent`, `linkEventToPlaceholderBooking`,
+`getBookingByIdSafeAsync`, `updateBookingDateFromEventEdit`, `clearBookingEventIdWhereEventId`,
+`setBookingDateAndStartTimeFromEvent`, `getActiveDateHoldsForEventConflict`, `getOtherEventsOnDate`,
+`insertEventFull`, `insertDateHoldForNewEvent`, `getEventForConflictEdit`, `updateEventFull`,
+`clearDateHoldEventId`, `getEventForDragReschedule`, `getEventById`, `insertEventForDuplicate`. Kept
+`setBookingEventId`, `clearEventGoogleCalendarId`, `getEventGoogleCalendarId`, `deleteEventById`, and
+`updateEventDatetime` — each confirmed via `grep -o` occurrence counting (not line counting, which
+under-counts when two matches share a line) to have a genuine second call site elsewhere in `app.js`
+(the booking-side `manual-payment`/`applyStatusChange`-adjacent auto-event-creation code, and the
+bookings `PATCH .../date` route moved in sub-batch E).
+
+Verification: `node -c` on both files; the static undefined-reference sweep on both `app.js` and the
+new file (clean); confirmed zero remaining `app.js` registrations for all 6 paths and zero remaining
+references to any of the 17 dead names; `npm run smoke` 329/329; `npm test` x3, all three clean
+664/664 — this cluster has the heaviest dedicated coverage of anything moved this session:
+`calendar.test.js`'s **CP7** (booking-linked event edit conflict check), **CP8** (both the public
+endpoint and the admin `GET /api/admin/events` default/`?include_private=1` views), **CP17**
+(`PATCH .../date` drag-reschedule sync), **CP18** (event-vs-event conflict on create), **CP19**
+(`block_type:booking` bidirectional link), **CP20** (`block_type:hold` + delete without an FK error).
+Only `POST .../duplicate` had no dedicated test — manually verified against a real fixture (6 checks,
+all passing): 200 + a new id distinct from the original, `" (Copy)"` appended to the title, every
+copyable field (datetime/venue/type/capacity/ticket link) preserved, status reset to `draft`
+regardless of the original's status, and 404 on a non-existent source event.
+
+**This closes out the deferred `bookings`/`events` pass** first scoped in the reconnaissance
+write-up above. Remaining Phase 5 scope: the 19-route `/api/public/bookings/*` surface,
+`applyStatusChange` and its dependency web (`processManualPayment`, `alignMilestonePayments`,
+`updateBookingMilestones`, `deriveBookingStatusAfterPayment`), `generateInvoice` +
+`autoBuildDepositBalanceSchedule`, `logPaymentEvent`/`generatePayFastSignature`, the remaining
+`send*Email` functions not yet relocated, and ~12 background cron jobs — none started yet.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
