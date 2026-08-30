@@ -1188,6 +1188,32 @@ direct coverage to speak of; the two runs confirm the relocation itself introduc
 whatever already exercises this code path indirectly (the tracker OTP flow, quote acceptance, etc.,
 all still living in `app.js` unchanged).
 
+### Public bookings sub-batch A: the draft/resume cluster (4 routes) — DONE
+
+`POST /api/public/bookings/draft` (autosave), `GET .../draft/:resumeToken` (fetch for resume),
+`GET/POST .../draft/:resumeToken/optout` (the render-then-mutate pair for recovery-reminder
+opt-out — a GET must never itself unsubscribe, since email-security scanners pre-fetch links).
+First actual route batch of the public pass; no prior route file existed for this domain — created
+**`routes/public/bookings.js`** and mounted it in `app.js` right after `routes/admin/events.js`.
+
+Two more single-consumer local helpers moved with it, both already fully self-contained: 
+**`estimateDraftValue`** (a `services` price lookup, pure `db.all` + arithmetic) and
+**`_abOptOutPage`** (the inline HTML confirmation-page renderer shared by both opt-out routes).
+Everything else was already available: `db`, `crypto` directly; `ipRateLimiter`
+(`middleware/rate-limiters.js`) and `encodeUserHtml` (`lib/html-sanitize.js`) both already
+relocated and just needed importing.
+
+Verification: `node -c`; the static undefined-reference sweep (clean); confirmed zero remaining
+`app.js` registrations for all 4 paths; `npm run smoke` 329/329; `npm test` x2 — 1 clean 664/664, 1
+with the already-extensively-documented **CP5** flake (`updateEventVenueLegacyLink` propagation,
+unrelated to anything in this batch). No dedicated test coverage existed for any of these 4 routes
+— manually verified all of them against real fixtures (11 checks, all passing): the POPIA-
+minimisation skip when no email is present yet, upsert-with-resume-token-preserved-across-repeat-
+calls, `furthest_step` staying monotonic, fetch-for-resume returning the exact persisted fields,
+404 on an unknown token, the opt-out page rendering real HTML (not JSON) with a POST form pointed
+at the same path, the POST actually flipping `opt_out`/`status`, and the fetch route correctly
+returning 410 once opted out.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
