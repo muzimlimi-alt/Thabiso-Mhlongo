@@ -696,6 +696,35 @@ Verification: `node -c`; confirmed zero remaining `app.js` registrations for all
 remaining definition of `SYSTEM_TRACK_TEMPLATE_KEYS` outside the route file; `npm run smoke`
 329/329; `npm test` x2, both clean 664/664.
 
+### Route batch 26: finance/financials/dashboard/reminders — DONE (4 small clusters, one batch)
+
+Four small, low-risk reporting clusters bundled into one batch since each is fully self-contained
+(no shared dependencies between them, no cross-cutting risk) and none warranted its own commit:
+
+- **`routes/admin/finance.js`** (2 routes): CSV export, P&L by period. Both already Phase 4
+  repository calls (`finance.repository.js`).
+- **`routes/admin/financials.js`** (2 routes): the financial-analytics dashboard (revenue trend, top
+  clients, invoice aging, overdue invoices, revenue-by-category, cash-flow) and the stats summary
+  (period revenue/outstanding/expenses/pending-quotes/overdue-invoices/transaction-count). Every
+  figure already came from a Phase 4 repository call spanning `finance`, `invoices-quotations`, and
+  `bookings` repositories — nothing new to relocate beyond the routes themselves.
+- **`routes/admin/dashboard.js`** (2 routes): social-media KPI tile — reads/refreshes cached
+  follower/like counts from YouTube/Facebook/Instagram/Twitter/TikTok's public APIs (rate-limited to
+  once per hour per platform via a staleness check), and an admin manual-override write.
+  `getSettingVal` was already a Phase 4 repository export.
+- **`routes/admin/reminders.js`** (2 routes) + **`lib/payment-reminders.js`**: the reminders-log
+  viewer and a manual "run now" trigger for the payment-reminder cron job.
+  `runPaymentReminderJob` has two other callers (an app.js startup run and a 24h `setInterval`,
+  both left in place as process-startup wiring) — multi-consumer, so it moved to its own lib file
+  rather than inlining into the route, matching the `sendInvoiceEmail`/`sendAbandonedBookingReminderEmail`
+  pattern.
+
+Verification: `node -c` on all changed/new files; confirmed zero remaining `app.js` registrations
+for all 8 paths and zero remaining definition of `runPaymentReminderJob` outside its new lib file;
+`npm run smoke` 329/329; `npm test` x3, all clean 664/664 — direct RBAC coverage confirmed
+`finance/export`, `finance/pl`, `financials/analytics`, and `financials/stats` all return correct
+status codes per role.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
