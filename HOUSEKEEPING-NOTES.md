@@ -587,6 +587,25 @@ positive confirmation for this batch: the invoice-send email tests all passed, i
 PAYMENT-CRITICAL "schedule amount + reference verbatim" check against the relocated
 `sendInvoiceEmail`.
 
+### Route batch 21: `routes/admin/bank-statement.js` — DONE (pre-existing bug found, not fixed)
+
+5 routes: CSV import, list lines (with batch list), match a line to a booking/transaction, delete a
+line, delete a whole batch. All five DB helpers were already Phase 4 repository exports
+(`finance.repository.js`); `csvUpload` (a single-consumer multer instance) moved directly into the
+route file.
+
+**Found a pre-existing, completely-broken route while tracing dependencies** — see Deferred fix #4
+above for the full writeup. `POST .../import` calls `db.transaction(...)`, a `better-sqlite3` method
+that doesn't exist on this app's plain `sqlite3.Database` — every import attempt throws synchronously
+and returns a 500. Relocated byte-identical, not fixed, and flagged to the user directly given the
+severity (a totally non-functional admin feature, not a subtle edge case).
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 5 paths; `npm run
+smoke` 329/329 (the smoke test's unauthenticated requests hit `requireAdmin`'s 401 before ever
+reaching the broken code, so this doesn't contradict the finding above); `npm test` x3, all three
+651/651 clean — unchanged from baseline, since no test exercises the import route either before or
+after the move.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -2102,3 +2121,32 @@ its own change with its own testing.
   above) recurred once in 6 runs during `routes/admin/expenses.js` verification — a batch that
   touches only the `expenses` table, nowhere near booking reschedule/calendar-sync code. Same
   conclusion as every instance on this list.
+
+### 4. `POST /api/admin/bank-statement/import` has never worked — `db.transaction` is not a function
+
+- **Where found:** `routes/admin/bank-statement.js` (moved verbatim from `app.js` in route batch 21),
+  reading the route's own code while tracing dependencies before extraction — not from a test
+  failure; nothing in the suite exercises this route (`test/rbac.test.js` only role-checks the
+  sibling `GET .../lines` route).
+- **What happens:** the route wraps its CSV-row-insert loop in `const insertMany =
+  db.transaction(() => { ... }); insertMany();` — a `better-sqlite3` API. `db` (from `database.js`)
+  is a plain `sqlite3.Database` instance (the callback-based `node-sqlite3` driver, per
+  `package.json`'s only dependency being `"sqlite3"`, not `"better-sqlite3"`), which has no
+  `.transaction` method at all — confirmed directly (`typeof new sqlite3.Database(':memory:').transaction
+  === 'undefined'`). The `const insertMany = db.transaction(...)` line itself throws a
+  synchronous `TypeError` before ever reaching the surrounding `try { insertMany(); } catch(e) {...}`
+  — the try/catch only wraps the *call*, not the assignment that already failed.
+- **Observed:** every POST to this route throws synchronously inside the handler. Express 4 catches
+  a synchronous throw from a non-async route handler and routes it to the app's error-handling
+  middleware, so the practical effect is a 500 response to any admin who selects a CSV file and
+  clicks import — not a partial success, a total failure of the feature.
+- **Impact if real:** the bank statement CSV import/reconciliation tool — a `finance.repository.js`-
+  backed admin feature — appears to have never functioned, on any commit that included this exact
+  code (not something this session's move broke; the identical bug already existed in `app.js`
+  before the move, unexercised by any test). Everything downstream of a successful import (the
+  `lines` list, match, and delete routes moved alongside it in the same batch) is unreachable in
+  practice since no line can ever be imported to act on.
+- **Status:** left exactly as it was — relocated byte-identical, not fixed, per "housekeeping, not
+  improvement." Flagged to the user directly in this session's own report (not just logged here)
+  given the severity — a completely non-functional admin feature is a different order of finding
+  than the smaller pre-existing gaps logged as items 1-3 above.

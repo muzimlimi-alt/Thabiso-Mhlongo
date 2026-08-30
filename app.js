@@ -561,6 +561,7 @@ app.use(require('./routes/admin/banners'));
 app.use(require('./routes/admin/campaigns'));
 app.use(require('./routes/admin/services'));
 app.use(require('./routes/admin/invoices'));
+app.use(require('./routes/admin/bank-statement'));
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/uploads.js — needed by the ~20 admin upload
 // routes being split into routes/, not just this file.
@@ -10937,84 +10938,11 @@ app.patch('/api/admin/transactions/:id/reconcile', requireAdmin, requireRole(['a
     );
 });
 
-// ─── BANK STATEMENT IMPORT & MATCHING ───────────────────────────────────────
+// Phase 5 (HOUSEKEEPING-NOTES.md): bank statement import/matching routes and csvUpload (single-
+// consumer) moved to routes/admin/bank-statement.js.
 
-const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
-// POST /api/admin/bank-statement/import — parse and store a CSV bank statement
-app.post('/api/admin/bank-statement/import', requireAdmin, requireRole(['administrator', 'manager']), csvUpload.single('statement'), (req, res) => {
-    if (!req.file) return res.status(400).json({ success: false, message: 'No file received.' });
-    const batchId = 'BS-' + Date.now();
-    const importDate = new Date().toISOString().split('T')[0];
-    const text = req.file.buffer.toString('utf8');
-    const rawLines = text.split('\n').map(l => l.trim()).filter(l => l);
-    // Skip header row if first cell looks like 'date' or 'Date'
-    const lines = rawLines.filter(l => !/^["']?date["']?[,;]/i.test(l));
-    const insertStmt = prepareBankStatementLineInsert();
-    let imported = 0;
-    const insertMany = db.transaction(() => {
-        for (const line of lines) {
-            const parts = (line.match(/(".*?"|[^,;]+)(?:[,;]|$)/g) || []).map(p => p.replace(/^[",;]+|[",;]+$/g, '').trim());
-            if (parts.length < 3) continue;
-            const [stmtDate, description, rawAmount, reference] = parts;
-            const amount = parseFloat((rawAmount || '').replace(/[^0-9.\-]/g, ''));
-            if (isNaN(amount) || !stmtDate) continue;
-            insertStmt.run(batchId, importDate, stmtDate, description || '', amount, reference || null);
-            imported++;
-        }
-    });
-    try { insertMany(); } catch(e) { return res.status(500).json({ success: false, message: e.message }); }
-    res.json({ success: true, batch_id: batchId, imported });
-});
 
-// GET /api/admin/bank-statement/lines — list imported lines with optional batch filter
-app.get('/api/admin/bank-statement/lines', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    const { batch_id, unmatched_only } = req.query;
-    let sql = `SELECT bsl.*, b.name AS matched_client
-               FROM bank_statement_lines bsl
-               LEFT JOIN bookings b ON bsl.matched_booking_id = b.id
-               WHERE 1=1`;
-    const params = [];
-    if (batch_id)       { sql += ' AND bsl.import_batch = ?'; params.push(batch_id); }
-    if (unmatched_only === '1') { sql += ' AND bsl.matched_transaction_id IS NULL AND bsl.matched_booking_id IS NULL'; }
-    sql += ' ORDER BY bsl.statement_date DESC';
-    db.all(sql, params, (err, rows) => {
-        if (err) return res.status(500).json({ success: false, message: err.message });
-        getBankStatementImportBatches(
-            (e2, batches) => {
-                res.json({ success: true, lines: rows || [], batches: batches || [] });
-            }
-        );
-    });
-});
-
-// PATCH /api/admin/bank-statement/lines/:id/match — link a line to a booking
-app.patch('/api/admin/bank-statement/lines/:id/match', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    const { booking_id, transaction_id, match_note } = req.body;
-    matchBankStatementLine(
-        booking_id || null, transaction_id || null, (match_note || '').trim() || null, req.params.id,
-        function(err) {
-            if (err || this.changes === 0) return res.status(err ? 500 : 404).json({ success: false, message: err?.message || 'Line not found.' });
-            res.json({ success: true });
-        }
-    );
-});
-
-// DELETE /api/admin/bank-statement/lines/:id — remove a single imported line
-app.delete('/api/admin/bank-statement/lines/:id', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    deleteBankStatementLine(req.params.id, function(err) {
-        if (err || this.changes === 0) return res.status(err ? 500 : 404).json({ success: false });
-        res.json({ success: true });
-    });
-});
-
-// DELETE /api/admin/bank-statement/batch/:batchId — delete an entire import batch
-app.delete('/api/admin/bank-statement/batch/:batchId', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    deleteBankStatementBatch(req.params.batchId, function(err) {
-        if (err) return res.status(500).json({ success: false, message: err.message });
-        res.json({ success: true, deleted: this.changes });
-    });
-});
 
 // GET /api/admin/reconciliation/export/csv — CSV export for accountant
 app.get('/api/admin/reconciliation/export/csv', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
