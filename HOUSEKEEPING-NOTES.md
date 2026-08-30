@@ -492,6 +492,47 @@ one recurrence of `calendar-booking-sync.test.js`'s "reschedule: a SECOND sync a
 (the same Deferred fix #3 family, already seen at this exact wording during Phase 4's `bookings`
 domain). Neither touches `expenses` or anything this batch changed.
 
+### `events` cluster investigated, deferred — not a batch
+
+Investigated `/api/admin/events` (6 routes) as the planned next batch after `expenses`. Unlike every
+batch so far, its dependencies don't terminate cleanly: `checkEventConflicts` (a local helper) and
+three of the six routes call `hasCalendarConflict`, `syncBookingToCalendar`, `syncEventToCalendar`,
+`sendDateChangedEmail`, `addMinutesToTime`, `timeRangesOverlap`, and `parseDurationToMinutes` — all
+still plain functions in `app.js`. Of these, only `syncEventToCalendar` is scoped to this cluster;
+the other six are called from **40+ other sites** across the not-yet-moved `/api/admin/bookings`
+cluster and public booking routes (confirmed by grep, not assumption) — the same giant, explicitly
+protected surface already earmarked for its own dedicated, heavily-scrutinized pass. Relocating
+`events` now would mean pulling the entire Google Calendar sync engine and booking time-arithmetic
+into `lib/` as a side effect of a 6-route batch, then re-importing it into `app.js` at 40+ call
+sites — a fundamentally different scale of change than this cluster's own size suggests, and
+squarely the same work the `bookings` pass will need to do anyway. Deferred `events` to be handled
+alongside that pass rather than splitting the calendar-engine extraction across two unrelated
+efforts; moved on to `banners` instead. No files changed for this investigation.
+
+### Route batch 17: `routes/admin/banners.js` — DONE
+
+6 routes: list/filter/paginate, get-one-with-usage, create, update, archive, restore.
+`bannerUpload`/`validateBannerImageBuffer`/`saveBannerImage`/`BANNER_CATEGORIES`/
+`BANNER_MIN_WIDTH`/`BANNER_MAX_WIDTH`/`BANNER_MAX_BYTES`/`setBannerStatus` were all single-consumer
+(only these routes used them) — all moved directly into the route file. `setBannerStatus` needed
+manual handling since it's a plain function sitting between routes, not itself an `app.<method>(...)`
+call the extraction script matches — the two archive/restore routes that use it were extracted first,
+then the factory function was added back into the route file ahead of them. `bannerRegistry` (already
+`js/bannerRegistry`) and `uploadsWriteDir` (`lib/runtime-paths.js`) covered the two shared
+dependencies.
+
+**Extra scrutiny applied** given this batch directly touches the exact domain (`banners`) that has
+been the source of this session's recurring `SQLITE_BUSY` crash — read `banner.test.js`'s full
+output on every run rather than just the aggregate pass count. All 33 of its checks passed cleanly
+on all 3 runs, including `archive`/`restore` (exercises the relocated `setBannerStatus`),
+`create`/`update` (exercises `bannerUpload`/`validateBannerImageBuffer`/`saveBannerImage`), and the
+e2e assigned-banner-renders-in-a-real-queued-email check — direct positive confirmation for this
+batch specifically, not just the usual "the crash is unrelated" reasoning by elimination.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 6 paths and zero
+remaining reference to any of the relocated helpers; `npm run smoke` 329/329; `npm test` x3, all
+three 651/651 clean — no flakes, no crashes, this time.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
