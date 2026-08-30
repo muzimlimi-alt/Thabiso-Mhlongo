@@ -1029,6 +1029,70 @@ succeeding on a CANCELLED one with copied client fields and both `REBOOKED`/`CRE
 row on a fresh `place_id` and updating in place (no duplicate row) on a repeat call with the same
 `place_id`.
 
+### Bookings sub-batch F: the admin quote route (1 route, the biggest so far) — DONE
+
+`POST /api/admin/bookings/:id/quote` — the route explicitly flagged since the reconnaissance
+write-up as needing `findOrCreateClient`/`setBookingClientId`, and the single biggest route moved in
+this whole pass (~320 lines): structured/legacy quote bodies, the calendar + per-day-service conflict
+checks, VAT/totals computation, the re-quote-after-committed path (supersedes payment schedules,
+voids the live invoice, resets any contract to draft — all inside one guarded transaction), quote
+PDF generation, and the post-commit side effects (calendar sync, client + admin notification emails).
+
+Every dependency traced individually rather than assumed:
+
+- **`findOrCreateClient`** turned out to already be relocated (to `lib/client-venue.js`, from a
+  batch this write-up hadn't previously covered in detail) — fully leaf-safe, zero new work needed,
+  just an import.
+- **`setBookingClientId`**, **`updateBookingAfterQuote`**, **`deleteBookingLineItems`**,
+  **`deleteBookingServices`**, **`insertBookingLineItem`**, **`insertBookingService`** — existing
+  `bookings.repository` exports, newly imported into `routes/admin/bookings.js`.
+- **`getQuoteNumberCollisionCount`**, **`voidInvoiceForRequote`**, **`archivePreviousQuotations`**,
+  **`getNextQuoteVersion`**, **`insertQuotation`**, **`insertQuoteLineItem`** — existing
+  `invoices-quotations.repository` exports.
+- **`supersedePaymentSchedulesForRequote`** — existing `finance.repository` export.
+- **`resolveLineTaxClasses`/`getVatRate`/`computeDocumentTotals`** (sub-batch C's
+  `lib/document-totals.js`), **`hasCalendarConflict`/`syncBookingToCalendar`** (the calendar-sync
+  engine), **`sendQuoteEmail`/`sendAdminQuoteSentNotification`** (`lib/booking-notifications.js`),
+  **`withDbTransaction`**/**`dbRun`**/**`dbGet`** (the required-singleton transaction queue and
+  `lib/db-helpers.js`) — all already-relocated and just needed importing.
+- **`pdfService`** — first use of this module (`js/pdfService`) in `routes/admin/bookings.js`;
+  `routes/admin/advancing.js` already established the `require('../../js/pdfService')` pattern,
+  followed directly.
+
+**A genuine relocation hazard caught before it shipped:** the route's top-level-error handler writes
+a debug dump via `require('fs').writeFileSync(__dirname + '/scratch/quote-error-toplevel.log', ...)`.
+`__dirname` is file-relative — copied verbatim into `routes/admin/bookings.js`, it would silently
+resolve to `routes/admin/scratch/...` (a directory that doesn't exist) instead of the original
+`<project-root>/scratch/...`, changing behaviour despite the text being byte-identical. Caught by
+checking every use of the moved code's `__dirname`/`__filename` before treating it as a safe verbatim
+copy — an established `lib/runtime-paths.js` export (`PROJECT_ROOT`) already exists for exactly this,
+so the fix is `path.join(PROJECT_ROOT, 'scratch', 'quote-error-toplevel.log')`, preserving the
+original resolved path exactly. Worth checking on every future batch: `__dirname`/`__filename` in
+moved code needs this treatment; nothing else in this route used either.
+
+**Dead-import sweep found one gap the process itself doesn't normally catch:** `sendQuoteEmail` had
+zero remaining callers in `app.js` after the route moved (its only call site went with it), but
+wasn't initially removed from `app.js`'s `lib/booking-notifications` destructure — caught on a
+second, more thorough pass that extracted every call-shaped identifier from the original route body
+and checked each one's remaining `app.js` usage individually (`getQuoteNumberCollisionCount`,
+`voidInvoiceForRequote`, `archivePreviousQuotations`, `getNextQuoteVersion`, `insertQuotation`,
+`insertQuoteLineItem`, `updateBookingAfterQuote`, `deleteBookingLineItems`, `deleteBookingServices`,
+`supersedePaymentSchedulesForRequote`, and `sendAdminQuoteSentNotification` had all already been
+correctly removed; `sendQuoteEmail` was the one miss). Fixed by removing it from the destructure too.
+
+**Static byte-identity check** (same discipline as the calendar-sync-engine move, given the stakes):
+diffed the full relocated route against `git show HEAD:app.js` line by line. The only difference
+anywhere in ~320 lines is the intentional `__dirname` → `PROJECT_ROOT` fix described above, with its
+explanatory comment — everything else, including every SQL string, every audit-log payload, every
+error message, is character-for-character identical.
+
+Verification: `node -c` on both files; confirmed zero remaining `app.js` registration for this path
+and zero remaining references to any of the dependency names above outside comments; `npm run smoke`
+329/329; `npm test` x3, all three clean 664/664 — no flakes at all this time, across the single most
+heavily-tested route in the codebase (exercised, directly or as setup, by 9 different test files:
+`banner`, `booking`, `calendar-booking-sync`, `calendar`, `contract`, `email`, `lifecycle`,
+`payment-callback`, `pdf-golden`).
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

@@ -72,7 +72,6 @@ const {
     insertLegacyBookingFromContactForm, getAllBookingsForMigration, getAllBookingsFull,
     updateBookingClientVenue, deleteBookingById,
     setBookingClientId, updateBookingLedgerAfterInvoice,
-    updateBookingAfterQuote, deleteBookingLineItems, deleteBookingServices,
     insertBookingLineItem, insertBookingService, getBookingStatus, getBookingForContractRemind,
     getBookingIdStatusAsync,
     getBookingsOnDateForHoldConflict, getBookingsOnDateForEventConflict,
@@ -111,8 +110,7 @@ const {
     markQuotationAccepted, markQuotationAcceptedAsync, revertQuotationToSent,
     getActiveQuoteForContractFeeData,
     getLatestQuoteFileForResend, markQuotationResent,
-    getQuoteNumberCollisionCount, voidInvoiceForRequote, archivePreviousQuotations, getNextQuoteVersion,
-    insertQuotation, insertQuoteLineItem, getQuoteHistoryForBooking, getActiveQuoteStatusForInvoiceGuard,
+    getQuoteHistoryForBooking, getActiveQuoteStatusForInvoiceGuard,
     getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload, getLatestQuoteFileForPublicDownload,
     getQuoteForBookingFinancials, getInvoiceForBookingFinancials,
     getOpenInvoiceIdForAdjustmentRegen,
@@ -128,7 +126,7 @@ const {
     getActivePaymentSchedules, deletePaymentSchedulesForBooking,
     prepareInsertPaymentSchedule, prepareUpdatePaymentScheduleAmount,
     cancelPendingPaymentSchedules, cancelPendingPaymentSchedulesAsync,
-    supersedePaymentSchedulesForRequote, getPaymentSchedulesForPayfastInit, getPaymentSchedulesForTracking,
+    getPaymentSchedulesForPayfastInit, getPaymentSchedulesForTracking,
 
     getPayfastTransactionByReference, insertPayfastTransaction,
     insertPaymentLogEntry, insertLoggedPaymentTransaction, getPaymentLogsForBooking,
@@ -1723,9 +1721,10 @@ async function sendBookingUnderReviewEmail(booking) {
 // Phase 5 (HOUSEKEEPING-NOTES.md): generateBookingICS/sendQuoteEmail/sendAdminQuoteSentNotification/
 // sendBookingConfirmedEmail/sendDepositBalanceDueEmail/sendQuoteExpiryWarningEmail/
 // sendReviewRequestEmail/remindBooking/sendDateChangedEmail all moved to lib/booking-notifications.js.
-// remindBooking itself has no remaining caller in app.js (both routes that used it moved with it).
+// remindBooking, sendAdminQuoteSentNotification, and sendQuoteEmail have no remaining caller in
+// app.js (their routes — bulk-remind/remind, and the admin quote route — moved with them).
 const {
-    generateBookingICS, sendQuoteEmail, sendAdminQuoteSentNotification, sendBookingConfirmedEmail,
+    generateBookingICS, sendBookingConfirmedEmail,
     sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail, sendReviewRequestEmail, sendDateChangedEmail
 } = require('./lib/booking-notifications');
 
@@ -6588,325 +6587,6 @@ app.put('/api/admin/bookings/:id/disposition', requireAdmin, (req, res) => {
                 (aErr) => { if (aErr) console.error('[Audit] Disposition change log failed:', aErr.message); });
             res.json({ success: true, disposition });
         });
-    });
-});
-app.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
-    const bookingId = req.params.id;
-    const isStructured = Array.isArray(req.body.items);
-    
-    db.get(`
-        SELECT b.*, c.full_name as client_name, c.email as client_email, c.phone as client_phone, c.company_name as client_company
-        FROM bookings b
-        LEFT JOIN clients c ON b.client_id = c.id
-        WHERE b.id = ?
-    `, [bookingId], async (err, booking) => {
-        try {
-            if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found' });
-
-            // Name/company stay as THIS booking's own values for the document — the shared clients
-            // row can silently diverge from what this specific booking recorded (e.g. a later,
-            // differently-named booking under the same email updates the one shared clients row),
-            // which used to make a re-quoted PDF show a different name than the booking itself.
-            // generateInvoice()/generateContract() already get this right by never overwriting it.
-            booking.email = booking.client_email || booking.email;
-            booking.cell = booking.client_phone || booking.cell;
-
-            // Ensure client_id is resolved and updated in booking record if missing
-            let clientId = booking.client_id;
-            if (!clientId) {
-                clientId = await findOrCreateClient(booking.name, booking.email, booking.cell, booking.company, booking.vat_number);
-                await new Promise((resolve, reject) => {
-                    setBookingClientId(clientId, bookingId, err => err ? reject(err) : resolve());
-                });
-                booking.client_id = clientId;
-            }
-
-
-            let quote_amount, quote_details, quote_expiry_date, finalTotal = 0;
-            let items = [];
-
-            if (isStructured) {
-                const { quote_expiry_date: expiry, terms, items: bodyItems, discount, apply_vat } = req.body;
-                if (!expiry || !bodyItems || bodyItems.length === 0) {
-                    return res.status(400).json({ success: false, message: 'Missing required quote fields' });
-                }
-                if (booking.date && expiry >= booking.date) {
-                    return res.status(400).json({ success: false, message: `Quote expiry date must be before the event date (${booking.date}).` });
-                }
-                if (expiry < new Date().toISOString().split('T')[0]) {
-                    return res.status(400).json({ success: false, message: 'Quote expiry date cannot be in the past.' });
-                }
-                const minExpiry = new Date();
-                minExpiry.setDate(minExpiry.getDate() + 3);
-                if (expiry < minExpiry.toISOString().split('T')[0]) {
-                    return res.status(400).json({ success: false, message: 'Quote expiry must be at least 3 days from today to give the client adequate time to respond.' });
-                }
-                
-                bodyItems.forEach(i => {
-                    i.quantity_minutes = parseFloat(i.quantity_minutes) || parseFloat(i.quantity) || 1; // normalization
-                });
-
-                // Conflict check
-                if (!req.body.override_conflict && booking.date) {
-                    const serviceIds = bodyItems.filter(i => i.service_id).map(i => i.service_id);
-                    if (serviceIds.length) {
-                        const dbServices = await new Promise((resolve) => {
-                            db.all(`SELECT * FROM services WHERE id IN (${serviceIds.map(() => '?').join(',')})`, serviceIds, (err, rows) => resolve(rows || []));
-                        });
-                        
-                        const maxServiceMins = dbServices.reduce((max, srv) => {
-                            const rowInput = bodyItems.find(s => s.service_id == srv.id);
-                            const isDurationBased = srv.pricing_model === 'per_minute' || srv.pricing_model === 'per_hour';
-                            const qtyMins = rowInput ? (parseFloat(rowInput.quantity_minutes) || parseFloat(rowInput.quantity) || 0) : 0;
-                            const length = isDurationBased && qtyMins > 0 ? qtyMins : (parseInt(srv.performance_length_minutes) || 0);
-                            const total = length + (parseInt(srv.setup_time_minutes) || 0);
-                            return Math.max(max, total);
-                        }, 0);
-                        
-                        const durationMins = maxServiceMins > 0 ? maxServiceMins : 120;
-                        const event_start_time = booking.event_start_time || '18:00';
-                        const startTime = moment(`${booking.date} ${event_start_time}`).toISOString();
-                        const endTime   = moment(startTime).add(durationMins, 'minutes').toISOString();
-                        
-                        // 1. Calendar conflict check
-                        const isBusy = await hasCalendarConflict(startTime, endTime, bookingId);
-                        if (isBusy) {
-                            return res.status(409).json({
-                                success: false,
-                                conflict: true,
-                                message: "Scheduling Conflict Detected: Thabiso is busy or holds exist during this slot. Do you want to override and send this quote anyway?"
-                            });
-                        }
-                        
-                        // 2. per_day availability rule check
-                        const hasPerDayService = dbServices.some(s => s.availability_rule === 'per_day');
-                        if (hasPerDayService) {
-                            const conflictingBooking = await new Promise((resolve) => {
-                                db.get(`
-                                    SELECT b.id, b.event_name, s.name AS service_name
-                                    FROM booking_services bs
-                                    JOIN services s ON bs.service_id = s.id
-                                    JOIN bookings b ON bs.booking_id = b.id
-                                    WHERE b.date = ? 
-                                      AND b.id != ? 
-                                      AND b.status NOT IN ('CANCELLED', 'EXPIRED')
-                                      AND s.availability_rule = 'per_day'
-                                    LIMIT 1
-                                `, [booking.date, bookingId], (err, row) => resolve(row));
-                            });
-                            if (conflictingBooking) {
-                                return res.status(409).json({
-                                    success: false,
-                                    conflict: true,
-                                    message: `Scheduling Conflict Detected: "${conflictingBooking.service_name}" is already booked on this day (Booking #${conflictingBooking.id}: "${conflictingBooking.event_name}"). Do you want to override and send this quote anyway?`
-                                });
-                            }
-                        }
-                    }
-                }
-
-                // FIN-2: tag each line's tax_class from the services catalog, then compute totals with
-                // the shared helper so VAT is charged only on taxable lines and the quote total, the
-                // stored invoice, and the PDF all agree.
-                await resolveLineTaxClasses(bodyItems);
-                let dp = parseFloat(discount) || 0;
-                const vatRate = await getVatRate();
-                const totals = computeDocumentTotals(bodyItems, { discount: dp, applyVat: !!apply_vat, vatRate });
-                let subtotal = totals.subtotal;
-                let vat = totals.vat;
-                finalTotal = totals.total;
-                items = bodyItems;
-
-                quote_amount = finalTotal.toFixed(2);
-                quote_details = JSON.stringify({ terms, items, discount: dp, apply_vat, finalTotal, subtotal, vat });
-                quote_expiry_date = expiry;
-                booking.discount = dp;
-                booking.vat_rate = vatRate; // FIN-1/2: quote PDF uses the same rate as the calc
-                booking.terms = terms;
-            } else {
-                // Unstructured fallback (legacy) — normalize to plain numeric string
-                quote_amount = parseFloat((req.body.quote_amount || '0').replace(/[^0-9.]/g, '')).toFixed(2);
-                quote_details = req.body.quote_details;
-                quote_expiry_date = req.body.quote_expiry_date;
-                finalTotal = parseFloat((quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
-                items = [{ description: quote_details || 'Booking Service', quantity_minutes: 0, unit_price: finalTotal }];
-                
-                if (!quote_amount || !quote_details || !quote_expiry_date) {
-                    return res.status(400).json({ success: false, message: 'Missing required quote fields' });
-                }
-            }
-
-            const currentStatus = (booking.status || '').toUpperCase();
-            // Gap 3 (Phase 2): re-quoting a booking the client has already committed to returns it to
-            // QUOTED, supersedes its unpaid milestones and voids its live invoice, so the client must
-            // consent to the new total. Paid milestones and any PAID invoice survive — that money moved.
-            //
-            // "Committed" means ACCEPTED *or* CONFIRMED. A deposit confirms a booking, and CONFIRMED
-            // used to be excluded here: total_amount silently moved to the new figure while the invoice
-            // and the payment plan still described the old one, and the client could not re-accept
-            // (accept-quote requires QUOTED), so the booking was stranded mid-negotiation.
-            //
-            // The writes this implies live INSIDE the transaction below — they used to run here, before
-            // it opened, fire-and-forget with no error callback, so a rolled-back quote left the booking
-            // committed with its schedules superseded and its invoice VOID.
-            const reQuotingCommitted = currentStatus === 'ACCEPTED' || currentStatus === 'CONFIRMED';
-            let nextStatus = ['NEW', 'PENDING', 'REVIEWED', 'ACCEPTED', 'CONFIRMED'].includes(currentStatus) ? 'QUOTED' : currentStatus;
-
-            // Ensure directory exists
-            const quotesDir = docsWriteDir('quotes');
-
-            // Allocate the quote number the same way generateInvoice() allocates an invoice number.
-            // `quotations.quote_number` is UNIQUE and the timestamp only resolves to the second, so two
-            // quotes for one booking inside the same second — a double-click on Generate Quote — used to
-            // collide and roll the second one back with a 500. A revision suffix disambiguates them, and
-            // an archived quote keeps its number.
-            //   first:  QT-44-260710143012
-            //   again:  QT-44-260710143012-R2, -R3, …
-            const baseQuoteNumber = `QT-${bookingId}-${moment().format('YYMMDDHHmmss')}`;
-            const priorQuotes = await getQuoteNumberCollisionCount(baseQuoteNumber, `${baseQuoteNumber}-R%`);
-            const quoteNumber = priorQuotes === 0 ? baseQuoteNumber : `${baseQuoteNumber}-R${priorQuotes + 1}`;
-
-            // Generate PDF
-            const pdfFileName = `${quoteNumber}.pdf`;
-            const pdfPath = path.join(quotesDir, pdfFileName);
-
-            // Pass apply_vat to booking object for pdfService
-            booking.apply_vat = req.body.apply_vat;
-
-            try {
-                // quoteNumber is passed through so the number on the client's PDF is the number stored in
-                // `quotations.quote_number`, as invoices now do.
-                const pdfResult = await pdfService.generateDocument('Quote', booking, items, pdfPath, [], quoteNumber);
-                
-                // Archive the old quotation, restamp the booking, insert the new versioned quotation
-                // and rebuild its line-item snapshot — one atomic unit, queued behind every other
-                // guarded transaction on the shared connection.
-                //
-                // The two DELETEs below previously ran with their error callbacks issuing a ROLLBACK
-                // and a 500 while the insertNext() chain carried on regardless, so a failed clear
-                // could produce a second response on the same request.
-                const quoteResult = await withDbTransaction(async () => {
-                    try {
-                        await dbRun("BEGIN IMMEDIATE");
-                    } catch (beginErr) {
-                        console.error('[Quote] BEGIN IMMEDIATE failed:', beginErr.message);
-                        return { status: 500, body: { success: false, message: 'Database busy. Please retry.' } };
-                    }
-                    try {
-                        // Re-quoting an ACCEPTED booking: supersede its stale schedules and void its
-                        // live invoice, atomically with the new quote. If the quote fails, none of
-                        // this happens and the booking keeps the plan the client already accepted.
-                        if (reQuotingCommitted) {
-                            await supersedePaymentSchedulesForRequote(bookingId);
-                            await voidInvoiceForRequote(bookingId);
-                            // A contract embodies the amount the client accepted; a re-quote changes that
-                            // amount, so any existing contract — draft, sent, or even signed/frozen — is
-                            // superseded and reset to draft. This clears the client's signature and the
-                            // freeze so a fresh contract must be generated and re-signed at the new figure,
-                            // preventing an old-amount (possibly already-signed) contract from surviving a
-                            // re-quote. A SUPERSEDED_BY_REQUOTE audit row records the invalidation.
-                            const supersededContract = await dbGet("SELECT status, is_frozen, contract_amount FROM contracts WHERE booking_id = ?", [bookingId]);
-                            await dbRun(
-                                `UPDATE contracts SET status = 'draft', is_frozen = 0,
-                                        sent_to_client_at = NULL, signed_by_client_at = NULL, signed_by_comedian_at = NULL,
-                                        client_signature_data = NULL, client_ip_address = NULL, signed_by = NULL, signed_date = NULL,
-                                        content_hash = NULL, updated_at = CURRENT_TIMESTAMP
-                                 WHERE booking_id = ?`,
-                                [bookingId]);
-                            if (supersededContract) {
-                                await dbRun(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-                                        VALUES ('contracts', ?, 'SUPERSEDED_BY_REQUOTE', ?, ?, CURRENT_TIMESTAMP)`,
-                                    [bookingId, JSON.stringify({ previous_status: supersededContract.status, was_frozen: supersededContract.is_frozen === 1, previous_amount: supersededContract.contract_amount }), req.session.adminId || 'admin']);
-                            }
-                            await dbRun(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-                                    VALUES ('bookings', ?, 'REQUOTE_AFTER_ACCEPTED', ?, ?, CURRENT_TIMESTAMP)`,
-                                [bookingId, JSON.stringify({ previous_status: currentStatus, new_status: 'QUOTED' }), req.session.adminId || 'admin']);
-                        }
-
-                        // Archive all previous active quotations for this booking
-                        await archivePreviousQuotations(bookingId);
-
-                        // 1. Update Booking.
-                        // quote_amount is kept on bookings for backward-compat (legacy email templates + admin UI
-                        // fallback). The bookings SELECT query prefers quotations.total_amount when a quotations
-                        // row exists. We also update quote_details JSON for fallback/caching on details/invoice generation.
-                        const currentPaid = parseFloat(booking.amount_paid) || 0;
-                        const newOutstanding = Math.max(0, finalTotal - currentPaid);
-                        await updateBookingAfterQuote(quote_amount, quote_details, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId);
-
-                        // 2. Next version
-                        const vRow = await getNextQuoteVersion(bookingId);
-                        const nextVersion = vRow ? vRow.next_version : 1;
-
-                        // 3. Insert new versioned Quotation
-                        const qIns = await insertQuotation(bookingId, quoteNumber, booking.client_id, quote_expiry_date, finalTotal, pdfFileName, nextVersion);
-                        const quotationId = qIns.lastID;
-
-                        // 4. Refresh line items (current snapshot)
-                        await deleteBookingLineItems(bookingId);
-                        await deleteBookingServices(bookingId);
-
-                        for (const it of items) {
-                            const q = parseFloat(it.quantity_minutes) || parseFloat(it.quantity) || 0;
-                            const p = parseFloat(it.unit_price) || 0;
-                            const desc = it.description || it.service_name || 'Service';
-                            await insertBookingLineItem(bookingId, it.service_id || null, desc, q || 1, p);
-                            if (it.service_id) {
-                                await insertBookingService(bookingId, it.service_id, q, p, q * p);
-                            }
-                            await insertQuoteLineItem(quotationId, it.service_id || null, desc, q, p);
-                        }
-
-                        // P3-3: Audit log for quote generation — inside the transaction, so a rollback
-                        // never leaves a log entry for a quote that was not issued.
-                        await dbRun(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-                                     VALUES ('quotations', ?, 'QUOTE_GENERATED', ?, ?, CURRENT_TIMESTAMP)`,
-                            [bookingId, JSON.stringify({ version: nextVersion, amount: finalTotal, expiry: quote_expiry_date }), req.session.adminId || 'admin']);
-
-                        await dbRun("COMMIT");
-                        return { ok: true, nextVersion };
-                    } catch (txErr) {
-                        await dbRun("ROLLBACK").catch(() => {});
-                        console.error("[Quote] Generation failed — rolled back, quote not issued:", txErr.message);
-                        // The structured branch takes items[].service_id on trust, and
-                        // booking_services.service_id carries a foreign key. An unknown id therefore
-                        // aborts the insert; that is the admin's mistake, not a server fault.
-                        if (/SQLITE_CONSTRAINT/i.test(txErr.message || '') && /FOREIGN KEY/i.test(txErr.message || '')) {
-                            return { status: 400, body: { success: false, message: 'One or more selected services no longer exist. Refresh the service list and rebuild the quote.' } };
-                        }
-                        return { status: 500, body: { success: false, message: 'Database error: ' + txErr.message } };
-                    }
-                });
-
-                if (!quoteResult.ok) return res.status(quoteResult.status).json(quoteResult.body);
-                const nextVersion = quoteResult.nextVersion;
-
-                // ---- Side effects, after the commit ----
-                syncBookingToCalendar(booking).catch(e => console.error('[Quote] Calendar sync failed:', e.message));
-                sendQuoteEmail(booking, quote_amount, pdfPath, pdfFileName, items).catch(e => console.error("Quote email error:", e));
-                sendAdminQuoteSentNotification(booking, quote_amount).catch(e => console.error('[Quote] Admin notif failed:', e.message));
-
-                // Per-day availability warning (non-blocking for admins)
-                const perDaySvcIds = items.filter(i => i.service_id).map(i => i.service_id);
-                const sendResponse = (warnings) => res.json({ success: true, message: 'Quote generated and sent.', status: nextStatus, pdfUrl: `/docs/quotes/${pdfFileName}`, version: nextVersion, warnings: warnings.length ? warnings : undefined });
-                if (perDaySvcIds.length && !req.body.override_conflict) {
-                    db.all(`SELECT name FROM services WHERE id IN (${perDaySvcIds.map(() => '?').join(',')}) AND availability_rule = 'per_day'`, perDaySvcIds, (_, perDayRows) => {
-                        sendResponse((perDayRows || []).map(s => `"${s.name}" is limited to one booking per day — verify no date conflicts exist.`));
-                    });
-                } else {
-                    sendResponse([]);
-                }
-        } catch (pdfErr) {
-            console.error("PDF/Quote Error:", pdfErr);
-            res.status(500).json({ success: false, message: 'Failed to generate quote PDF.' });
-        }
-        } catch (topLevelError) {
-            console.error("Unhandled Top Level Error in Quote Generation:", topLevelError);
-            require('fs').writeFileSync(__dirname + '/scratch/quote-error-toplevel.log', topLevelError.stack || topLevelError.message);
-            if (!res.headersSent) {
-                res.status(500).json({ success: false, message: 'Internal server error during quote generation: ' + topLevelError.message });
-            }
-        }
     });
 });
 
