@@ -369,6 +369,20 @@ Verification: `node -c`; confirmed zero remaining `app.js` registrations for all
 smoke` 329/329; `npm test` x3 (1 environmental crash as above, 1 run with only CP3, 1 fully clean
 651/651 run).
 
+### Route batch 13: `routes/admin/legal.js` — DONE
+
+9 routes: legal-centre overview, documents CRUD/versioning (draft/publish/restore/history),
+consent-audit listing, contracts registry. All raw `db` queries against `legal_documents`/
+`legal_document_versions`/`consent_audit`/`contracts` (none owned by a Phase 4 repository);
+cross-domain `bookings` JOINs on the consent-audit and contracts-registry listings stayed inline.
+`computeNextLegalVersion` had exactly one caller (this batch) — moved directly into the route file,
+same single-consumer pattern as `getAnalyticsDates` in the previous batch.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 9 paths; `npm run
+smoke` 329/329; `npm test` x3 — one fully clean 651/651 run, the other two each had only a single
+already-documented flake (CP5, CP17) with the permanent baseline concurrency test *not* failing
+either time, reinforcing that it's a genuine intermittent race rather than a deterministic result.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
