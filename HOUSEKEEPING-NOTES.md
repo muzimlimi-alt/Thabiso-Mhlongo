@@ -456,6 +456,24 @@ refund is still outstanding, 200 once resolved), RBAC on every route including
 `complete-anonymization`, and the legacy `/api/admin/gdpr/delete` route reporting `awaiting_refund`
 correctly rather than a false success — all passing identically pre- and post-relocation.
 
+### Route batch 15: `routes/admin/abandoned-bookings.js` — DONE
+
+6 routes: list/search/filter/paginate, recovery stats, CSV export, single-draft detail, admin
+resend-reminder, mark won/lost/closed/re-open. All raw `db` queries against `abandoned_bookings`
+(never claimed by a Phase 4 repository). `sendAbandonedBookingReminderEmail` has a second caller —
+an automated reminder sweep still in `app.js` — so it moved to its own `lib/abandoned-booking-
+email.js` (leaf deps only: `js/emailComponents`, `js/bannerRegistry`, `js/emailService`,
+`lib/email-context.js`) rather than being inlined into the route file like the single-consumer
+helpers in earlier batches.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 6 paths and zero
+remaining reference to the old `sendAbandonedBookingReminderEmail` definition; `npm run smoke`
+329/329; `npm test` x6 (elevated from the usual x2-3 specifically to build confidence after batch
+14's calendar-client relocation) — 4 clean 651/651 runs, one recurrence of the pre-existing
+`deleteGoogleEvent`/cancel timing flake (Deferred fix #3 update above) and one recurrence of the
+pre-existing `banner.test.js` `SQLITE_BUSY` crash ("Known testing limitations" update above), neither
+touching anything this batch or batch 14 changed.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -1774,6 +1792,13 @@ reschedule/cancel (via log-line matching — the same technique
 correct. Real payload correctness for calendar sync remains unverified by
 this suite.
 
+**Update (Phase 5, route batch 15):** recurred a fifth time, at the identical crash point
+(`banner.test.js`, same test/next-statement boundary), during verification of a batch
+(`routes/admin/abandoned-bookings.js` + `lib/abandoned-booking-email.js`) that touches neither
+banners nor anything that shares a table with them. Clean re-run immediately after, zero leftover
+`node.exe` processes both before and after. No new information, just another data point for the
+"roughly 1-in-3 to 1-in-4" rate already logged above.
+
 ---
 
 ## Deferred fixes
@@ -1937,3 +1962,14 @@ its own change with its own testing.
   more often simply because this session has now run `npm test` upwards of 30 times in one
   continuous stretch — more accumulated test data and process uptime than any single Phase 4
   domain's testing saw, not a new root cause.
+- **Update (Phase 5, route batch 15):** `calendar-booking-sync.test.js`'s "cancel: deleteGoogleEvent
+  was invoked with this booking's calendar id" — the same fixed-`sleep(300)`-racing-a-fire-and-
+  forget-write shape as every instance above — failed once in 6 runs, then passed cleanly on the
+  next two. Given extra scrutiny here specifically because the *previous* batch (14) had just
+  relocated `deleteGoogleEvent` itself into `lib/google-calendar.js`: confirmed the function's body,
+  its `calendar`/`CALENDAR_ID` singleton, and its one call site in the admin cancel route this test
+  exercises are all byte-identical to before the move, and batch 15 (this session's changes) touches
+  only `abandoned-bookings` admin routes and a newsletter-adjacent email helper — nowhere near
+  calendar or booking-cancel code. Per the same reasoning as every prior instance (a real regression
+  from a relocated import would throw a `ReferenceError` on every run, not pass 5 times out of 6):
+  filed as the same pre-existing timing-margin flake, not a regression from either batch.
