@@ -863,6 +863,89 @@ none touching this batch. Direct coverage from the dedicated reminder tests (`re
 quote type`, `remind on CONFIRMED-with-balance -> balance type`, 24h throttling, `bulk-remind`
 summary/skip-counting) and `CP6: manual review-request -> 200`, all passing on every run.
 
+### The Google Calendar sync engine — relocated to `lib/calendar-sync.js` — DONE
+
+The piece flagged since the reconnaissance write-up as "the highest-risk piece of this pass" — given
+its own dedicated, unhurried pass rather than being folded into a route batch: `isWithinWorkingHours`,
+`hasCalendarConflict`, `syncBookingToCalendar`, `syncCalendarHolds`, `syncEventToCalendar`. No routes
+moved in this step — this is a pure prerequisite lib-extraction that the actual booking-conflict/
+calendar-sync ROUTES (the big admin quote route, `book-again`, the venue-linking routes, `sync-
+calendar`, and the deferred `events` cluster) still need as their own follow-up batch(es).
+
+Read all five functions in full before touching anything, then traced every dependency individually
+against the existing `lib/`/repository inventory rather than assuming shape from past batches, given
+that "tests pass" can't be trusted here the way it has for every other batch — these functions make
+real Google API calls, and the whole suite runs against a deliberately-invalid `GOOGLE_REFRESH_TOKEN`
+(support.js), so automated tests only ever exercise the *failure* path, never a real successful sync.
+Finding: **zero new/surprise custom dependencies** — every dependency was either an already-relocated
+`lib/` module (`lib/google-calendar.js`, `lib/time-utils.js`, `lib/booking-config.js`) or an existing
+Phase 4 repository export (`bookings.repository.js`, `calendar.repository.js`). Phase 4's `calendar`
+domain session had already fully isolated the DB layer beneath this engine, so despite its reputation
+the relocation itself was mechanical once every dependency was individually confirmed. Created
+**`lib/calendar-sync.js`**, `node -c` clean. All five have remaining callers scattered across the
+still-deferred bookings/events routes (and app.js's own `syncCalendarHolds` startup wiring) —
+`app.js` re-imports all five from the new module.
+
+**Dead-import cleanup (the same systemic gap first found during the bank-statement bug-fix, recurring
+exactly as flagged then):** once the five functions' own `require`s existed in the new lib file,
+app.js's OWN top-level repository destructures had orphaned copies of the same names. Grepped each
+candidate with `\bname\b` word-boundary matching to confirm zero remaining references outside the
+destructure line itself before removing it. Found and removed 11 dead names total:
+- `bookings.repository` destructure: `getBookingsOnDateForCalendarConflict`, `setBookingGoogleEventId`,
+  `getBookingsWithGoogleEventIdAsync`.
+- `calendar.repository` destructure: `getDateHoldTimesForDay`, `getCalendarSyncHoldIds`,
+  `deleteDateHoldByGoogleEventId`, `getCalendarSyncHoldDetails`, `updateDateHoldFromGoogleSync`,
+  `insertDateHoldFromGoogleSync`, `getEventGoogleCalendarIdsForSync`, `setEventGoogleCalendarId`.
+
+`getEventById` (also consumed by `syncEventToCalendar`) was kept in app.js's own destructure —
+confirmed it has a genuine second call site at the still-in-app.js `POST /api/admin/events/:id/duplicate`
+route. Every other name in both destructure blocks was left untouched without re-checking (out of
+scope — they weren't part of this engine's dependency list).
+
+**Static byte-identity check** (beyond the usual `node -c`/grep sweep, given the stakes): diffed each
+of the five relocated function bodies against the pre-move `app.js` (via `git show HEAD:app.js`) line
+by line. All five are character-for-character identical except a handful of trailing-whitespace-only
+differences — a trailing space trimmed from a handful of blank lines inside `syncCalendarHolds`, and
+one trailing space trimmed from inside a SQL template literal in `syncBookingToCalendar` (cosmetic;
+inert for SQLite). No logic, control flow, comments, or variable names differ at all.
+
+Verification: `node -c` on both changed files; confirmed zero remaining `app.js` definitions of any
+of the 5 functions outside comments, and zero remaining references to any of the 11 removed dead
+names; `npm run smoke` 329/329. `npm test` x6, given the stakes (more than the usual 3-5 run bar) —
+4 clean 664/664 runs, 2 runs with failures, none reproducing the same pairing twice and always clean
+on the very next run:
+- Run 1: one failure, identity lost to a harness output-capture artifact (only the log's last ~62
+  lines were retained) — redirected subsequent runs to a scratchpad file instead to avoid the same
+  gap.
+- Run 4: `calendar-booking-sync.test.js`'s "cancel: deleteGoogleEvent was invoked..." (previously
+  logged, route batch 15 update above) and `calendar.test.js`'s **CP17** ("`syncEventToCalendar` was
+  actually invoked after the drag" — previously logged, Phase 4 `finance` domain update above).
+- Run 5: **CP17** again, plus **CP5** (venue_name propagation — previously logged many times, most
+  recently route batch 24 above; exercises `updateEventVenueLegacyLink`, code this step never read).
+
+CP17 recurring on two consecutive runs is a higher rate than its single-occurrence history, so gave
+it extra scrutiny rather than filing it on pattern-match alone: read the still-in-app.js call site
+(`PATCH /api/admin/events/:id/date`, line ~8665) that fires `syncEventToCalendar(eventId).catch(...)`
+and confirmed it is completely unchanged — same fire-and-forget shape (the `res.json(...)` response
+returns synchronously immediately after, exactly as before), same import path (now from the new
+destructure at the top of the file), nothing about the wiring differs from pre-move. Combined with
+the byte-identity diff above and CP5 (unrelated code, untouched by this step) failing in the same run
+as CP17, the pattern matches this suite's own documented precedent of an entire run occasionally
+landing under heavier timing pressure and producing a small cluster of unrelated fixed-sleep flakes
+together (see the "shared-helper extraction" update above) rather than one function's logic being at
+fault. Treated as the same pre-existing sleep-margin flake family, not a regression.
+
+Existing direct coverage of the relocated engine (none written for this step — all pre-existing):
+`calendar-booking-sync.test.js` proves `syncBookingToCalendar` is actually invoked (not silently
+skipped) on a real booking's confirm/reschedule/cancel via log-line matching; `calendar.test.js`'s
+CP7/CP18 exercise `hasCalendarConflict`'s booking-vs-event and event-vs-event local conflict paths
+(409 rejections); CP17 exercises `syncEventToCalendar`; `isWithinWorkingHours` is exercised
+indirectly via `booking.test.js`'s happy-path working-hours check. `syncCalendarHolds` has no direct
+test coverage — it's cron-only (`startBackgroundClerk`), calls Google's `events.list`, and is wrapped
+in its own top-level try/catch; this is a pre-existing gap (same category as the already-documented
+"Google Calendar request-payload assertions are not achievable" limitation below), not something
+this step introduced or could close without changing application code.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -2384,6 +2467,21 @@ its own change with its own testing.
   call sites, plus the calendar-hold routes. CP5 exercises `updateEventVenueLegacyLink`/
   `updateEventVenueGoogleLink` (already a Phase 4 repository call, untouched here); the other 3 runs
   were fully clean including direct coverage of both hold routes. Same conclusion as every instance.
+- **Update (Phase 5, Google Calendar sync engine relocation):** ran the full suite 6 times on the
+  step that actually owns `syncEventToCalendar` itself. **CP17** recurred on two runs — notably back
+  to back (runs 4 and 5), a higher rate than its single-occurrence history elsewhere — paired with
+  the pre-existing `calendar-booking-sync.test.js` "cancel: deleteGoogleEvent" flake on one of them
+  and **CP5** (unrelated `updateEventVenueLegacyLink` code, untouched by this step) on the other; the
+  other 4 runs were fully clean. Given the higher rate, went beyond pattern-matching this time: a
+  line-by-line diff of all 5 relocated functions against the pre-move `app.js` (`git show HEAD:app.js`)
+  found them byte-identical apart from a few trailing-whitespace-only differences, and the still-in-
+  app.js call site that fires `syncEventToCalendar` (`PATCH /api/admin/events/:id/date`) is completely
+  unchanged — same fire-and-forget shape, response returned synchronously before the sync settles,
+  same as every prior CP17 occurrence. CP5 failing in the same run as CP17, on code this step never
+  read, is the same "one run under heavier timing pressure produces a small unrelated cluster"
+  signature already seen in the shared-helper-extraction update above. Final confirmation, now on the
+  step with the most direct claim to have caused a regression here if one existed: still a pure test-
+  suite timing-margin issue, not a defect in the relocated code.
 
 ### 4. `POST /api/admin/bank-statement/import` had never worked — `db.transaction` is not a function — FIXED
 
