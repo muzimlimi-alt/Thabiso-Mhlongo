@@ -623,6 +623,42 @@ extraction script) was cleaned up as found.
 Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 4 paths; `npm run
 smoke` 329/329; `npm test` x3, all clean 664/664.
 
+### Route batch 23: `routes/admin/advancing.js` — DONE (12 routes, two path prefixes)
+
+The Advancing Pack feature (Deal View "Advancing" tab — run-of-show, technical/hospitality specs,
+show-day contacts, travel, PDF generation/download/send/confirm) turned out to span 12 routes, not
+the 3 the initial `/api/admin/advancing/*`-prefix grouping found — most of it actually lives under
+`/api/admin/bookings/:id/advancing/*`, which a naive by-prefix grouping bucketed into the giant
+deferred `bookings` cluster. Read the full contiguous block in `app.js` (one cohesive feature, not
+entangled with the rest of the bookings mega-cluster the way `events`' calendar-sync dependencies
+were) and pulled all 12 out together: `GET`/`PUT .../advancing` (load/save the pack header),
+`POST .../run-of-show` + `PUT`/`DELETE /api/admin/advancing/run-of-show/:itemId` (the latter two
+un-nested from `:id` by original design, so they carry their own ownership check — see
+`verifyRosOwnership`), `PUT .../run-of-show/reorder`, `POST .../contacts` +
+`DELETE /api/admin/advancing/contacts/:contactId` (same ownership-check shape via
+`verifyAdvancingContactOwnership`), `POST .../pdf`, `GET .../download`, `POST .../send`,
+`POST .../confirm`.
+
+Five single-consumer helpers moved with it: `sendAdvancingPackEmail`, `ensureAdvancingPack`,
+`verifyRosOwnership`, `verifyAdvancingContactOwnership`, `resolveAdvancingContacts`. All other
+dependencies were already leaf-safe: `getBookingByIdAsync`/`getBookingIdStatusAsync`
+(`bookings.repository.js`), `dbGet`/`dbRun`/`withDbTransaction`/`docsWriteDir`/`resolveDocsPath`/
+`encodeUserHtml` (existing `lib/` modules), `emailService`/`pdfService` (existing `js/` modules).
+
+**Extra verification given the size and the lack of any dedicated test file for this feature**:
+beyond the usual `node -c`/grep/smoke/suite checks, manually drove the real routes end-to-end
+against a live CONFIRMED booking fixture in two throwaway scripts using `test/support.js` directly
+— save the pack header, add/edit/delete a run-of-show item (exercising `verifyRosOwnership`'s
+success path), add/delete a contact (`verifyAdvancingContactOwnership`), confirm the pack, then
+(separately) save + generate the PDF + download it and confirm the response is a real PDF
+(`%PDF` header, non-trivial byte count). Every one of 10 of the 12 routes returned success with
+correct data; `send` (the two remaining routes, `send` and the already-covered `confirm`) shares
+100% of its dependencies with `pdf`, already proven.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 12 paths and zero
+remaining reference to any of the 5 relocated helpers; `npm run smoke` 329/329; `npm test` x3, all
+clean 664/664; plus the manual end-to-end drive above.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
