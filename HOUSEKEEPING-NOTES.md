@@ -682,6 +682,20 @@ direct coverage confirmed both hold routes work (`calendar hold create/move retu
 propagation — one of the most frequently recurring entries in this session's Deferred fix #3 log),
 unrelated to anything this batch touched.
 
+### Route batch 25: `routes/admin/email-templates.js` — DONE
+
+3 routes: list (grouped by category), bulk assign/unassign a banner, live preview. All dependencies
+already leaf-safe (`bannerRegistry`, `emailComponents`, `SAMPLES_BY_CATEGORY` from
+`js/emailPreviewSamples`, `getEmailFooterContext`). `SYSTEM_TRACK_TEMPLATE_KEYS` (single-consumer)
+moved directly into the route file. The extraction script's leading-comment absorption pulled in
+two comments that actually belonged to the *banners* section above (a stale "EMAIL BANNER REGISTRY"
+header and batch 17's own relocation marker) — cleaned up as found, same as reconciliation's stray
+comment in batch 22.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 3 paths and zero
+remaining definition of `SYSTEM_TRACK_TEMPLATE_KEYS` outside the route file; `npm run smoke`
+329/329; `npm test` x2, both clean 664/664.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
