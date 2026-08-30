@@ -474,6 +474,24 @@ remaining reference to the old `sendAbandonedBookingReminderEmail` definition; `
 pre-existing `banner.test.js` `SQLITE_BUSY` crash ("Known testing limitations" update above), neither
 touching anything this batch or batch 14 changed.
 
+### Route batch 16: `routes/admin/expenses.js` — DONE
+
+6 routes: list/filter, create, soft-delete, edit, CSV export, receipt upload. `insertExpense`/
+`getActiveExpenseById`/`softDeleteExpense`/`updateExpense` were already Phase 4 repository exports
+(`finance.repository.js`); `VALID_EXPENSE_CATEGORIES` and the `receiptStorage`/`uploadReceipt`
+multer config were both single-consumer (only these routes used them), so both moved directly into
+the route file — same pattern as `getAnalyticsDates`/`computeNextLegalVersion` in earlier batches —
+rather than a new `lib/` module. `uploadsWriteDir` (already `lib/runtime-paths.js`) covers the one
+external dependency `receiptStorage` had.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 6 paths and zero
+remaining reference to `VALID_EXPENSE_CATEGORIES`/`uploadReceipt`/`receiptStorage` outside a comment;
+`npm run smoke` 329/329; `npm test` x6 — 4 clean 651/651 runs, one `banner.test.js` `SQLITE_BUSY`
+crash (same known crash point, sixth occurrence — see "Known testing limitations" update below) and
+one recurrence of `calendar-booking-sync.test.js`'s "reschedule: a SECOND sync attempt was logged"
+(the same Deferred fix #3 family, already seen at this exact wording during Phase 4's `bookings`
+domain). Neither touches `expenses` or anything this batch changed.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -1799,6 +1817,10 @@ banners nor anything that shares a table with them. Clean re-run immediately aft
 `node.exe` processes both before and after. No new information, just another data point for the
 "roughly 1-in-3 to 1-in-4" rate already logged above.
 
+**Update (Phase 5, route batch 16):** a sixth occurrence, one run out of six during
+`routes/admin/expenses.js` verification — a batch touching only the `expenses` table. Zero leftover
+`node.exe` processes before or after; clean re-runs on either side. Nothing new.
+
 ---
 
 ## Deferred fixes
@@ -1973,3 +1995,8 @@ its own change with its own testing.
   calendar or booking-cancel code. Per the same reasoning as every prior instance (a real regression
   from a relocated import would throw a `ReferenceError` on every run, not pass 5 times out of 6):
   filed as the same pre-existing timing-margin flake, not a regression from either batch.
+- **Update (Phase 5, route batch 16):** `calendar-booking-sync.test.js`'s "reschedule: a SECOND sync
+  attempt was logged" (previously seen during Phase 4's `bookings` domain satellite-table pass, see
+  above) recurred once in 6 runs during `routes/admin/expenses.js` verification — a batch that
+  touches only the `expenses` table, nowhere near booking reschedule/calendar-sync code. Same
+  conclusion as every instance on this list.
