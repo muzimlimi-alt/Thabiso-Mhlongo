@@ -309,6 +309,40 @@ Verification: `node -c`; confirmed zero remaining `app.js` registrations for all
 smoke` 329/329; `npm test` x3 (only already-documented flakes — CP5, the calendar-booking-sync
 reschedule test — zero inquiry-specific failures on any run).
 
+### Route batch 11: `routes/admin/direct-emails.js` — DONE
+
+8 routes: attachment upload, list/detail, create/update/delete, send-now, preview. First route
+file to use `requireRoleForInquiryEmail` (the second RBAC middleware from `middleware/rbac.js` —
+extracted in Phase 5 step 1 but never actually imported by a route file until now).
+
+New **`lib/direct-emails.js`**, mirroring `lib/newsletter-scheduling.js`'s shape almost exactly:
+`scheduleDirectEmailSend` + `sendDirectEmail` (the atomic send/mark-sent logic — this is the exact
+code path Deferred-fix-#3's **CP12** flake exercises, via the `markInquiryReplied` call inside
+`sendDirectEmail`'s success branch). `scheduledJobs` is imported from
+`lib/newsletter-scheduling.js` rather than redeclared — this module's jobs share that same map
+under a `direct_${id}`-prefixed key, confirmed back in the newsletter-campaigns batch write-up.
+`sendDirectEmail` resolved a relative attachment path against `__dirname` (correct in `app.js`,
+wrong one level deep from `lib/`) — fixed by adding a `PROJECT_ROOT` export to
+`lib/runtime-paths.js` (the same anchor `database/repositories/*.js` already relies on) and using
+that instead, rather than reintroducing a bare `__dirname`.
+
+`emailAttachUpload` (+ its storage config) added to `lib/uploads.js` alongside the other shared
+multer instances.
+
+**A small cleanup, not scope creep**: `subscriberCsvUpload`'s definition in `app.js` was still
+sitting there unused — its only call site moved to `routes/admin/newsletter-subscribers.js` two
+batches ago (which correctly defined its own local copy, since it had zero other consumers), but
+the now-dead original in `app.js` was never removed at the time. Removed it now while touching
+this same neighborhood of code, since leaving an orphaned copy I myself created behind isn't
+"moving code around later," it's just finishing the job from batch 7 properly.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 8 paths; `npm run
+smoke` 329/329; `npm test` x3 — **two of the three came back fully clean, 651/651**, including the
+normally-permanent concurrency-race baseline (consistent with that being a genuine race, not a
+guaranteed-every-run failure). Specifically confirmed both CP12 assertions passed on every run
+(the exact code path this batch relocated), all 10 `requireRoleForInquiryEmail`-gated RBAC checks
+passed, and the POPIA erasure test's `direct_emails.to_emails` redaction check passed.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

@@ -562,6 +562,7 @@ app.use(require('./routes/admin/home-social'));
 app.use(require('./routes/admin/newsletter-subscribers'));
 app.use(require('./routes/admin/newsletter-campaigns'));
 app.use(require('./routes/admin/inquiries'));
+app.use(require('./routes/admin/direct-emails'));
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/uploads.js — needed by the ~20 admin upload
 // routes being split into routes/, not just this file.
@@ -616,21 +617,12 @@ const uploadReceipt = multer({
 // newsletterAttachStorage/newsletterUpload moved to lib/uploads.js — added to the same import
 // destructured near the top of this file (alongside safeUploadFilename/upload).
 
-// Subscriber CSV import — memory storage, no extension filter (the shared `upload` instance above
-// only allows image extensions and silently rejected every .csv before this existed).
-const subscriberCsvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+// subscriberCsvUpload's only call site (the CSV-import route) already moved to
+// routes/admin/newsletter-subscribers.js, which defines its own local copy (see that file) — no
+// longer needed here.
 
-// Direct email attachment storage
-const emailAttachStorage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, docsWriteDir('email_attachments'));
-    },
-    filename: (req, file, cb) => { cb(null, `${Date.now()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`); }
-});
-const emailAttachUpload = multer({ 
-    storage: emailAttachStorage, 
-    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
-});
+// emailAttachStorage/emailAttachUpload moved to lib/uploads.js (added to the existing import
+// destructured near the top of this file).
 
 
 // Booking client attachments (posters, briefs, programmes)
@@ -13849,115 +13841,9 @@ app.post('/api/admin/compose', requireAdmin, async (req, res) => {
 // --- Direct Emails Upgrade: Scheduled sends and drafts ---
 // =========================================================================
 
-function scheduleDirectEmailSend(emailItem) {
-    const rawDt = emailItem.scheduled_at;
-    if (!rawDt) return;
-    const fireDate = new Date(rawDt.includes('T') ? rawDt : rawDt.replace(' ', 'T') + 'Z');
-    if (isNaN(fireDate.getTime())) return;
-    
-    if (fireDate <= new Date()) {
-        // past date, send immediately
-        sendDirectEmail(emailItem.id);
-        return;
-    }
-
-    const jobKey = `direct_${emailItem.id}`;
-    if (scheduledJobs[jobKey]) {
-        scheduledJobs[jobKey].cancel();
-    }
-
-    scheduledJobs[jobKey] = schedule.scheduleJob(fireDate, function() {
-        sendDirectEmail(emailItem.id);
-    });
-}
-
-async function sendDirectEmail(id) {
-    return new Promise((resolve, reject) => {
-        db.get("SELECT * FROM direct_emails WHERE id = ?", [id], async (err, emailItem) => {
-            if (err) return reject(err);
-            if (!emailItem) return reject(new Error('Email item not found'));
-            if (emailItem.status === 'sent') return resolve();
-
-            let toList = [];
-            try { toList = JSON.parse(emailItem.to_emails || '[]'); } catch(e) { toList = [emailItem.to_emails]; }
-            let ccList = [];
-            try { ccList = JSON.parse(emailItem.cc_emails || '[]'); } catch(e) { ccList = []; }
-            let bccList = [];
-            try { bccList = JSON.parse(emailItem.bcc_emails || '[]'); } catch(e) { bccList = []; }
-
-            const to = toList.join(', ');
-            const cc = ccList.length ? ccList.join(', ') : null;
-            const bcc = bccList.length ? bccList.join(', ') : null;
-
-            let attachments = [];
-            if (emailItem.attachment_paths) {
-                try {
-                    const paths = JSON.parse(emailItem.attachment_paths);
-                    paths.forEach(p => {
-                        if (p && p.path) {
-                            const resolvedPath = path.isAbsolute(p.path) ? p.path : path.join(__dirname, p.path);
-                            attachments.push({ filename: p.filename || path.basename(p.path), path: resolvedPath });
-                        }
-                    });
-                } catch (e) {
-                    console.error('Failed to parse attachments for direct email:', e);
-                }
-            }
-
-            try {
-                // Route through the same registry-resolved rendering every other PREMIUM email uses —
-                // branding_option/selected_banner_url are no longer read (see direct-emails/preview
-                // below): they pointed at the legacy branded-logic branch in sendEmailDirectly(), which
-                // never runs (EMAIL_OVERHAUL_ENABLED is unset in every deployment), so this email was
-                // going out completely raw — no wrapper, no banner, no footer, no unsubscribe.
-                const templateKey = emailItem.inquiry_id ? 'inquiry_reply' : 'direct_compose';
-                const banner = await bannerRegistry.resolveBanner(templateKey);
-                const { socialLinks } = await getEmailFooterContext();
-                const html = emailComponents.renderPremiumEmail({
-                    preheaderText: emailItem.subject || 'A message from Thabiso Mhlongo Management.',
-                    bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-                    headline: banner?.headline || (emailItem.inquiry_id ? 'Management Response' : 'Direct Message'),
-                    bodyHtml: emailItem.body, // already real HTML from Quill's root.innerHTML — embed verbatim
-                    socialLinks
-                });
-
-                const result = await sendEmail({
-                    to,
-                    subject: emailItem.subject || 'Message from Thabiso Mhlongo Management',
-                    htmlContent: html,
-                    preWrapped: true,
-                    replyTo: emailItem.reply_to || process.env.EMAIL_USER || 'admin@thabisomhlongo.com',
-                    cc,
-                    bcc,
-                    attachments,
-                    trigger_event: emailItem.inquiry_id ? 'Admin: Inquiry Reply' : 'Admin: Direct Compose',
-                    related_entity: emailItem.inquiry_id ? 'inquiries' : null,
-                    related_id: emailItem.inquiry_id || null
-                });
-
-                if (result.success) {
-                    db.run("UPDATE direct_emails SET status = 'sent', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id], (updErr) => {
-                        if (emailItem.inquiry_id) {
-                            // responded_at only set once — first response, not every subsequent reply
-                            markInquiryReplied(emailItem.inquiry_id);
-                        }
-                        resolve();
-                    });
-                } else {
-                    db.run("UPDATE direct_emails SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id], () => resolve());
-                }
-            } catch (error) {
-                console.error(`Failed to send direct email #${id}:`, error);
-                db.run("UPDATE direct_emails SET status = 'failed', updated_at = CURRENT_TIMESTAMP WHERE id = ?", [id], () => reject(error));
-            }
-
-            const jobKey = `direct_${id}`;
-            if (scheduledJobs[jobKey]) {
-                delete scheduledJobs[jobKey];
-            }
-        });
-    });
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): scheduleDirectEmailSend/sendDirectEmail moved to
+// lib/direct-emails.js.
+const { scheduleDirectEmailSend, sendDirectEmail } = require('./lib/direct-emails');
 
 function loadPendingDirectEmails() {
     db.all(
@@ -14252,201 +14138,13 @@ app.get('/api/admin/email-templates/:key/preview', requireAdmin, requireRole(['a
     });
 });
 
-// Attachment upload for direct emails
-app.post('/api/admin/direct-emails/upload', requireAdmin, emailAttachUpload.single('file'), (req, res) => {
-    if (!req.file) return res.status(400).json({ success: false, message: 'No file uploaded' });
-    res.json({
-        success: true,
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        size: req.file.size,
-        path: `docs/email_attachments/${req.file.filename}`
-    });
-});
 
-// List drafts and scheduled direct emails
-app.get('/api/admin/direct-emails', requireAdmin, (req, res) => {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    const limit = 50;
-    const offset = (page - 1) * limit;
-    const statusFilter = req.query.status === 'scheduled' ? 'scheduled' : 'draft';
-    const search = (req.query.search || '').trim();
 
-    const conditions = ["status = ?"];
-    const qp = [statusFilter];
-    
-    if (search) {
-        conditions.push("(LOWER(to_emails) LIKE LOWER(?) OR LOWER(subject) LIKE LOWER(?) OR LOWER(body) LIKE LOWER(?))");
-        const term = `%${search}%`;
-        qp.push(term, term, term);
-    }
-    
-    const whereClause = `WHERE ${conditions.join(' AND ')}`;
-    const countSql = `SELECT COUNT(*) AS total FROM direct_emails ${whereClause}`;
-    const dataSql  = `SELECT * FROM direct_emails ${whereClause} ORDER BY updated_at DESC LIMIT ? OFFSET ?`;
 
-    db.get(countSql, qp, (err, countRow) => {
-        if (err) return res.status(500).json({ error: err.message });
-        db.all(dataSql, [...qp, limit, offset], (err2, rows) => {
-            if (err2) return res.status(500).json({ error: err2.message });
-            const total = countRow ? countRow.total : 0;
-            res.json({
-                success: true,
-                emails: rows || [],
-                total,
-                page,
-                pages: Math.ceil(total / limit)
-            });
-        });
-    });
-});
 
-// Get detail of single direct email
-app.get('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
-    db.get("SELECT * FROM direct_emails WHERE id = ?", [req.params.id], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (!row) return res.status(404).json({ error: 'Email item not found' });
-        res.json({ success: true, email: row });
-    });
-});
 
-// Create draft or scheduled direct email
-app.post('/api/admin/direct-emails', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
-    const { inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
-    
-    if (!to_emails || !body) {
-        return res.status(400).json({ error: 'Recipient and body are required.' });
-    }
 
-    const emailStatus = status === 'scheduled' ? 'scheduled' : 'draft';
-    const cleanTo = Array.isArray(to_emails) ? JSON.stringify(to_emails) : JSON.stringify([to_emails]);
-    const cleanCc = cc_emails ? (Array.isArray(cc_emails) ? JSON.stringify(cc_emails) : JSON.stringify([cc_emails])) : '[]';
-    const cleanBcc = bcc_emails ? (Array.isArray(bcc_emails) ? JSON.stringify(bcc_emails) : JSON.stringify([bcc_emails])) : '[]';
-    const cleanAttachments = attachment_paths ? (typeof attachment_paths === 'string' ? attachment_paths : JSON.stringify(attachment_paths)) : '[]';
 
-    db.run(
-        `INSERT INTO direct_emails (inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [inquiry_id || null, cleanTo, cleanCc, cleanBcc, reply_to || null, subject || '', body, branding_option || 'logo', selected_banner_url || null, cleanAttachments, scheduled_at || null, emailStatus],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            const newId = this.lastID;
-            
-            db.get("SELECT * FROM direct_emails WHERE id = ?", [newId], (err2, row) => {
-                if (err2 || !row) return res.json({ success: true, id: newId });
-                if (row.status === 'scheduled') {
-                    scheduleDirectEmailSend(row);
-                }
-                res.json({ success: true, email: row });
-            });
-        }
-    );
-});
-
-// Update draft or scheduled direct email
-app.put('/api/admin/direct-emails/:id', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
-    const { to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
-    const { id } = req.params;
-
-    if (!to_emails || !body) {
-        return res.status(400).json({ error: 'Recipient and body are required.' });
-    }
-
-    const emailStatus = status === 'scheduled' ? 'scheduled' : 'draft';
-    const cleanTo = Array.isArray(to_emails) ? JSON.stringify(to_emails) : JSON.stringify([to_emails]);
-    const cleanCc = cc_emails ? (Array.isArray(cc_emails) ? JSON.stringify(cc_emails) : JSON.stringify([cc_emails])) : '[]';
-    const cleanBcc = bcc_emails ? (Array.isArray(bcc_emails) ? JSON.stringify(bcc_emails) : JSON.stringify([bcc_emails])) : '[]';
-    const cleanAttachments = attachment_paths ? (typeof attachment_paths === 'string' ? attachment_paths : JSON.stringify(attachment_paths)) : '[]';
-
-    // Cancel existing schedule if there is one
-    const jobKey = `direct_${id}`;
-    if (scheduledJobs[jobKey]) {
-        scheduledJobs[jobKey].cancel();
-        delete scheduledJobs[jobKey];
-    }
-
-    db.run(
-        `UPDATE direct_emails 
-         SET to_emails = ?, cc_emails = ?, bcc_emails = ?, reply_to = ?, subject = ?, body = ?, branding_option = ?, selected_banner_url = ?, attachment_paths = ?, scheduled_at = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [cleanTo, cleanCc, cleanBcc, reply_to || null, subject || '', body, branding_option || 'logo', selected_banner_url || null, cleanAttachments, scheduled_at || null, emailStatus, id],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            
-            db.get("SELECT * FROM direct_emails WHERE id = ?", [id], (err2, row) => {
-                if (err2 || !row) return res.json({ success: true });
-                if (row.status === 'scheduled') {
-                    scheduleDirectEmailSend(row);
-                }
-                res.json({ success: true, email: row });
-            });
-        }
-    );
-});
-
-// Delete draft or cancel scheduled email
-app.delete('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
-    const { id } = req.params;
-    const jobKey = `direct_${id}`;
-    if (scheduledJobs[jobKey]) {
-        scheduledJobs[jobKey].cancel();
-        delete scheduledJobs[jobKey];
-    }
-
-    db.get("SELECT attachment_paths FROM direct_emails WHERE id = ?", [id], (err, row) => {
-        if (!err && row && row.attachment_paths) {
-            try {
-                const paths = JSON.parse(row.attachment_paths);
-                paths.forEach(p => {
-                    if (p && p.path && fs.existsSync(p.path)) {
-                        fs.unlink(p.path, () => {});
-                    }
-                });
-            } catch(e) {}
-        }
-        db.run("DELETE FROM direct_emails WHERE id = ?", [id], function(err2) {
-            if (err2) return res.status(500).json({ error: err2.message });
-            res.json({ success: true });
-        });
-    });
-});
-
-// Send direct email immediately
-app.post('/api/admin/direct-emails/:id/send', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
-    const { id } = req.params;
-    
-    // Cancel schedule job if it exists
-    const jobKey = `direct_${id}`;
-    if (scheduledJobs[jobKey]) {
-        scheduledJobs[jobKey].cancel();
-        delete scheduledJobs[jobKey];
-    }
-
-    sendDirectEmail(id)
-        .then(() => res.json({ success: true, message: 'Message sending initiated.' }))
-        .catch(e => res.status(500).json({ error: e.message }));
-});
-
-// Preview direct email html
-// Mirrors sendDirectEmail()'s rendering exactly (registry-resolved banner via renderPremiumEmail) so
-// the preview shown here is byte-identical in shape to what actually sends — previously this called
-// createEmailWrapper() unconditionally while the real send (gated by the always-off
-// EMAIL_OVERHAUL_ENABLED flag) shipped raw HTML, so preview and reality had permanently diverged.
-app.post('/api/admin/direct-emails/preview', requireAdmin, async (req, res) => {
-    const { body, subject, inquiry_id } = req.body;
-    const templateKey = inquiry_id ? 'inquiry_reply' : 'direct_compose';
-    const banner = await bannerRegistry.resolveBanner(templateKey);
-    const { socialLinks } = await getEmailFooterContext();
-
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: subject || 'A message from Thabiso Mhlongo Management.',
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || (inquiry_id ? 'Management Response' : 'Direct Message'),
-        bodyHtml: body,
-        socialLinks
-    });
-    res.json({ success: true, html });
-});
 
 
 
