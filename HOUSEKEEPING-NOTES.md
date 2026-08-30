@@ -659,6 +659,29 @@ Verification: `node -c`; confirmed zero remaining `app.js` registrations for all
 remaining reference to any of the 5 relocated helpers; `npm run smoke` 329/329; `npm test` x3, all
 clean 664/664; plus the manual end-to-end drive above.
 
+### Route batch 24: `routes/admin/calendar.js` — DONE
+
+4 routes: the unified FullCalendar feed (bookings + manual holds + public site events, optionally
+milestones), create/delete/move a manual date hold. All three pulled in the same pure time-
+arithmetic utilities (`timeRangesOverlap`, `addMinutesToTime`, `parseDurationToMinutes`) already
+identified as blocking the deferred `events` batch — unlike the Google Calendar sync engine
+(`hasCalendarConflict`/`syncBookingToCalendar`/`syncEventToCalendar`) also deferred there, these
+three are trivial, zero-dependency pure functions, so — per the standing "relocate each helper as
+needed" policy — they moved now into a new **`lib/time-utils.js`**, with `app.js` re-importing them
+at their ~40 remaining call sites across the still-deferred bookings cluster. This is genuinely
+useful prep for whenever that cluster's own batch happens, not scope creep specific to calendar.
+`findHoldDateConflict` (single-consumer, used only by the two hold routes) moved directly into the
+route file. Everything else was already leaf-safe (`resolveActor`, `bookingConfig`, and repository
+functions from `calendar.repository.js`/`bookings.repository.js`).
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 4 paths and zero
+remaining definitions of `timeRangesOverlap`/`addMinutesToTime`/`parseDurationToMinutes`/
+`findHoldDateConflict` outside the new import/route file; `npm run smoke` 329/329; `npm test` x4 —
+direct coverage confirmed both hold routes work (`calendar hold create/move returns last_updated`);
+3 runs clean 664/664, one run had a single already-documented pre-existing flake (CP5, venue_name
+propagation — one of the most frequently recurring entries in this session's Deferred fix #3 log),
+unrelated to anything this batch touched.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -2174,6 +2197,12 @@ its own change with its own testing.
   above) recurred once in 6 runs during `routes/admin/expenses.js` verification — a batch that
   touches only the `expenses` table, nowhere near booking reschedule/calendar-sync code. Same
   conclusion as every instance on this list.
+- **Update (Phase 5, route batch 24):** CP5 recurred once in 4 runs during
+  `routes/admin/calendar.js` verification — a batch that moved `timeRangesOverlap`/
+  `addMinutesToTime`/`parseDurationToMinutes` to `lib/time-utils.js` and re-imported them at ~40
+  call sites, plus the calendar-hold routes. CP5 exercises `updateEventVenueLegacyLink`/
+  `updateEventVenueGoogleLink` (already a Phase 4 repository call, untouched here); the other 3 runs
+  were fully clean including direct coverage of both hold routes. Same conclusion as every instance.
 
 ### 4. `POST /api/admin/bank-statement/import` had never worked — `db.transaction` is not a function — FIXED
 
