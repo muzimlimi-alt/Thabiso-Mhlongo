@@ -552,6 +552,23 @@ crashes (same pre-existing family, landing at a slightly different statement eac
 file — consistent with a genuine race rather than a fixed reproducible bug), neither touching
 campaigns/newsletter-scheduling code.
 
+### Route batch 19: `routes/admin/services.js` — DONE
+
+5 routes: list, create, edit, usage-count, delete (soft by default, hard with `?force=1` gated on
+zero referencing line items). All raw `db` queries against `services`/`audit_log`/
+`financial_audit_log`; the three usage/reference-count lookups
+(`getServiceDraftQuoteUsage`, `countBookingLineItemsForService`, `countQuoteLineItemsForService`)
+were already Phase 4 repository exports. No new `lib/` files needed — the most self-contained batch
+since `expenses`.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 5 paths; `npm run
+smoke` 329/329; `npm test` x5 — 4 clean 651/651 runs plus one 650/651 whose single failure wasn't
+captured before a follow-up run overwrote it (lost to a re-run, not investigated further) — given
+this batch touches only `services`/`audit_log`/`financial_audit_log` and every other run was clean,
+treated as the same ambient flake-rate background this session has shown throughout, not a
+regression. Direct RBAC coverage of the relocated `GET /api/admin/services` route passed on the
+logged runs.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
