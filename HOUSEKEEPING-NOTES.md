@@ -946,6 +946,62 @@ in its own top-level try/catch; this is a pre-existing gap (same category as the
 "Google Calendar request-payload assertions are not achievable" limitation below), not something
 this step introduced or could close without changing application code.
 
+### Bookings sub-batch E: the calendar/venue/date cluster (6 routes) — DONE
+
+The first routes to actually consume the newly-relocated calendar-sync engine: `POST
+.../book-again`, `POST .../sync-calendar`, `PUT .../venue` (legacy venue_id link/unlink), `PUT
+.../venue-google` (Google Places link), `PATCH .../date` (drag-reschedule), `PATCH .../venue`
+(free-text venue editor).
+
+Two more helper functions needed relocating first, both traced end-to-end before moving anything:
+
+- **`checkDateAvailability`** (local-only, no Google API — the sibling of `hasCalendarConflict`)
+  joined **`lib/calendar-sync.js`**. Every dependency (`getDateHoldsForAvailabilityCheck`,
+  `getUpcomingStandaloneEventOnDate`, `getBookingsOnDateForAvailability`, plus already-present
+  `parseDurationToMinutes`/`addMinutesToTime`/`bookingConfig`) was already either in that module or
+  an existing Phase 4 repository export. `book-again` and `PATCH .../date` both call it; the public
+  `/api/public/availability` route and the public booking-intake flow (both still in app.js, not
+  today's scope) also call it, so app.js re-imports it from the module. While touching this block,
+  also removed two orphaned JSDoc comments left behind by the earlier calendar-sync-engine move
+  (doc comments for `isWithinWorkingHours`/`hasCalendarConflict` that survived the `REMOVED_`
+  rename-then-blank technique because they were physically separate from the function bodies) —
+  genuinely dead now that their subject functions no longer live in this file.
+- **`sendDateChangedEmail`** joined **`lib/booking-notifications.js`** — exactly the same shape as
+  every sibling already there (`escapeEmailFields` + `getEmailFooterContext` + `bannerRegistry` +
+  `emailComponents` + `sendEmail`, all already required by that file for its existing exports; zero
+  new requires needed). `PATCH .../date` is one of its two callers; the other (the events cluster's
+  own `PATCH /:id/date`) is still in app.js and not part of this batch, so app.js re-imports it too.
+
+Dead-import sweep (same `\bname\b`-grep-before-removal discipline as every prior batch) found 12
+more names orphaned once these two routes' repository calls moved with them: `updateBookingVenueUnlink`,
+`updateBookingVenueLinkLegacy`, `updateBookingVenueGoogle`, `getBookingEventId`, `unlinkEventVenue`,
+`updateEventVenueLegacyLink`, `updateEventVenueGoogleLink`, `updateBookingVenueFreeText`,
+`updateEventVenueFreeText`, `updateBookingDateAndTimeFields`, `updateDateHoldDateForBooking`,
+`insertBookAgainBooking`. Kept `updateEventDatetime` (still called at the events cluster's own date
+route) and `getBookingByIdAsync` (4 remaining call sites elsewhere) — both confirmed via the same
+grep before deciding either way. The `venues` table has no Phase 4 repository of its own (never one
+of the 8 domains) — the two venue routes' direct `db.get`/`db.run` against it is not a gap, it
+matches the existing pattern (`db` is already required directly in `routes/admin/bookings.js`).
+
+Verification: `node -c` on all changed files; grep sweep confirmed zero remaining `app.js`
+registrations for all 6 paths and zero remaining dead names; `npm run smoke` 329/329. `npm test` x4
+valid runs (a 5th was invalidated by the self-inflicted DB-collision incident logged under "Known
+testing limitations" above) — 2 clean 664/664, one recurrence of the already-logged "reschedule:
+SECOND sync attempt" flake on the exact route this batch moved (re-diffed byte-identical against
+`git show HEAD:app.js` — confirmed clean), and one new-to-this-session instance of the same timing-
+margin family in `email.test.js`'s Guard 5 (deposit-balance-due email), traced to `PUT
+.../manual-payment` — untouched by this batch — `await`-ing a real Calendar OAuth round-trip before
+firing that email, a sensitivity the test's own comment already flags. Direct coverage from
+`calendar.test.js`'s **CP5** (`PATCH .../venue` free-text venue propagation) and
+`calendar-booking-sync.test.js`'s reschedule check (`PATCH .../date`). No dedicated coverage for
+`book-again`, `sync-calendar`, `PUT .../venue`, or `PUT .../venue-google`, so drove all four
+manually against real fixtures (19 checks, all passing): `sync-calendar` invoking
+`syncBookingToCalendar` with log-line evidence; `book-again` rejecting a non-CANCELLED booking (400),
+succeeding on a CANCELLED one with copied client fields and both `REBOOKED`/`CREATE` audit rows;
+`PUT .../venue` linking-by-`venue_id` and unlinking; `PUT .../venue-google` inserting a new `venues`
+row on a fresh `place_id` and updating in place (no duplicate row) on a repeat call with the same
+`place_id`.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -2282,6 +2338,23 @@ usual exact spot (once one test earlier, at "reject: width 1500px"), which if an
 that this is a genuine timing race rather than a single reproducible bug at one fixed line. Zero
 leftover `node.exe` processes either time; clean re-runs both times.
 
+**A related but distinct, self-inflicted incident (Phase 5, bookings sub-batch E):** not the same
+race as above, but the same category of shared-SQLite-file hazard, worth recording so it isn't
+repeated. A one-off manual verification script's own `support.start()` (which copies a fresh
+`test/.test.sqlite` and spawns its own child `server.js`) was run **concurrently** with an
+already-running backgrounded `npm test`, both racing the same hardcoded `TEST_DB` path and port. The
+manual script failed immediately with "admin login failed: 401" (its own spawn lost the race), and
+the in-flight `npm test` run's child crashed with `SQLITE_CORRUPT: database disk image is malformed`
+on its next write. `PRAGMA integrity_check` on the leftover file afterwards came back `ok` — the
+corruption was a transient WAL-consistency casualty of the concurrent copy/open, not permanent
+damage — but the leftover `.test.sqlite`/`-wal`/`-shm` and throwaway docs/uploads directories were
+deleted by hand rather than trusted, and every run after that (both the retried `npm test` and the
+eventual manual verification run) was run in isolation, with nothing else touching
+`test/support.js` at the same time. Process note for future sessions: never run a manual
+`test/support.js`-based script while a backgrounded `npm test` (or another such script) is still in
+flight — they share one hardcoded DB file and port, and the previous run's TEST_DB is not this
+session's own to touch mid-flight.
+
 ---
 
 ## Deferred fixes
@@ -2482,6 +2555,20 @@ its own change with its own testing.
   signature already seen in the shared-helper-extraction update above. Final confirmation, now on the
   step with the most direct claim to have caused a regression here if one existed: still a pure test-
   suite timing-margin issue, not a defect in the relocated code.
+- **Update (Phase 5, bookings sub-batch E — calendar/venue/date cluster):** ran the full suite 4 times
+  (excluding one run invalidated by a self-inflicted `SQLITE_BUSY`/`SQLITE_CORRUPT` collision — see
+  its own note below, not a suite flake). 2 clean 664/664 runs. One run repeated the already-logged
+  "reschedule: a SECOND sync attempt was logged" flake (`PATCH /:id/date`, the exact route this batch
+  moved — re-diffed byte-identical against pre-move `app.js`, confirmed clean). The other run surfaced
+  a **new test name** for this family: `email.test.js`'s "deposit-balance-due email queued pre-wrapped
+  with exact-figure subject" (Guard 5), cascading into 2 skipped follow-up checks inside its own
+  `if (deposit) {...}` guard (hence 661/662, not 663/664 — the same-shaped drop as every other instance
+  of a fixed-sleep guard skipping its own dependent checks). Traced the cause: `PUT .../manual-payment`
+  (untouched by this batch) does `await syncBookingToCalendar(id)` — a real, slow-failing OAuth
+  round-trip against the deliberately-invalid test token — *before* firing `sendDepositBalanceDueEmail`,
+  and the test's own comment already flags this exact sensitivity ("Same Calendar-OAuth-round-trip-
+  before-queuing margin as Guard 3 above"). Same family as every CP17/CP5 instance, just the first time
+  it happened to land in a logged run; not code this batch touched.
 
 ### 4. `POST /api/admin/bank-statement/import` had never worked — `db.transaction` is not a function — FIXED
 

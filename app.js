@@ -67,7 +67,7 @@ const {
     getBookingsForDepositBalanceReminder, markDepositBalanceReminded,
     getConfirmedBookingsOnDate, markEventReminderSent, getCompletedBookingsAwaitingReview,
     getActiveDuplicateBookingForEmailDate, getActiveDuplicateBookingForEmailDateAsync, insertAdminBooking,
-    getBookingStatusNameEmail, reopenBooking, insertBookAgainBooking, markBookingCompletedManual,
+    getBookingStatusNameEmail, reopenBooking, markBookingCompletedManual,
     updateBookingBuffer, getBookingDisposition, updateBookingDisposition, markBookingPendingAfterRespond,
     insertLegacyBookingFromContactForm, getAllBookingsForMigration, getAllBookingsFull,
     updateBookingClientVenue, deleteBookingById,
@@ -75,9 +75,8 @@ const {
     updateBookingAfterQuote, deleteBookingLineItems, deleteBookingServices,
     insertBookingLineItem, insertBookingService, getBookingStatus, getBookingForContractRemind,
     getBookingIdStatusAsync,
-    getBookingsOnDateForAvailability, getBookingsOnDateForHoldConflict, getBookingsOnDateForEventConflict,
-    updateBookingVenueUnlink, updateBookingVenueLinkLegacy, updateBookingVenueGoogle, getBookingEventId,
-    updateBookingVenueFreeText, updateBookingDateAndTimeFields, getBookingByIdSafeAsync,
+    getBookingsOnDateForHoldConflict, getBookingsOnDateForEventConflict,
+    getBookingByIdSafeAsync,
     setBookingPublicWithNewEvent, setBookingPublicTicketLink, clearBookingPublicWithEvent, clearBookingPublicTicketLink,
     setBookingEventId, insertPlaceholderBookingForEvent, updateBookingDateFromEventEdit,
     clearBookingEventIdWhereEventId, setBookingDateAndStartTimeFromEvent,
@@ -152,21 +151,20 @@ const {
 } = require('./database/repositories/finance.repository');
 // Phase 4: calendar-domain (date_holds, events) data access moved to a repository (HOUSEKEEPING-NOTES.md).
 const {
-    getDateHoldsForAvailabilityCheck, getActiveHoldDatesForMonth,
+    getActiveHoldDatesForMonth,
     getActiveDateHoldsForEventConflict, getDateHoldsForDateConflict,
     getActiveDateHoldsForToday, getActiveDateHoldsForCalendarGrid, getActiveDateHoldsForIcsFeed,
     insertDateHold, deleteDateHoldById, getDateHoldTimesById, updateDateHoldDate,
-    insertDateHoldForNewEvent, clearDateHoldEventId, updateDateHoldDateForBooking,
+    insertDateHoldForNewEvent, clearDateHoldEventId,
     releaseDateHoldsForBooking, releaseDateHoldsForBookingAsync,
 
     getEventById,
     clearEventGoogleCalendarId, clearEventGoogleCalendarIdAsync, getEventGoogleCalendarId,
     advanceAutoCompletedEventS6, getPastStandaloneEventsForAutoComplete, advanceStandaloneEventCompleted,
     advanceEventToCompleted, insertAutoCreatedEvent,
-    getUpcomingStandaloneEventOnDate, getOtherEventsOnDate,
+    getOtherEventsOnDate,
     getEventByBookingId, demoteEventForCancelledBooking, demoteEventForCancelledBookingAsync,
     demoteEventForCancelledBookingByBookingIdAsync,
-    unlinkEventVenue, updateEventVenueLegacyLink, updateEventVenueGoogleLink, updateEventVenueFreeText,
     updateEventDatetime, getEventForDragReschedule,
     insertPublicEvent, checkEventExistsById, updatePublicEvent, deleteEventById,
     insertEventFull, linkEventToPlaceholderBooking, getEventForConflictEdit, updateEventFull,
@@ -682,22 +680,14 @@ app.post('/upload', (req, res, next) => {
 // moved to lib/time-utils.js.
 const { timeRangesOverlap, addMinutesToTime, parseDurationToMinutes } = require('./lib/time-utils');
 
-/**
- * Checks for conflicts on Thabiso's Google Calendar
- * @param {string} startTime - ISO string
- * @param {string} endTime - ISO string
- * @returns {Promise<boolean>} - true if conflict exists
- */
-
-/**
- * Check whether a timed booking falls within configured working hours for that day.
- * Fails open (allows) if no working_hours row exists for that day.
- */
 // Phase 5 (HOUSEKEEPING-NOTES.md): the Google Calendar sync/booking-conflict engine —
 // isWithinWorkingHours/hasCalendarConflict/syncBookingToCalendar/syncCalendarHolds/
-// syncEventToCalendar — all moved to lib/calendar-sync.js.
+// syncEventToCalendar/checkDateAvailability — all moved to lib/calendar-sync.js. (The two orphaned
+// JSDoc comments that used to precede isWithinWorkingHours/hasCalendarConflict here were removed
+// along with them — their subject functions no longer live in this file.)
 const {
-    isWithinWorkingHours, hasCalendarConflict, syncBookingToCalendar, syncCalendarHolds, syncEventToCalendar
+    isWithinWorkingHours, hasCalendarConflict, syncBookingToCalendar, syncCalendarHolds, syncEventToCalendar,
+    checkDateAvailability
 } = require('./lib/calendar-sync');
 
 
@@ -1732,11 +1722,11 @@ async function sendBookingUnderReviewEmail(booking) {
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): generateBookingICS/sendQuoteEmail/sendAdminQuoteSentNotification/
 // sendBookingConfirmedEmail/sendDepositBalanceDueEmail/sendQuoteExpiryWarningEmail/
-// sendReviewRequestEmail/remindBooking all moved to lib/booking-notifications.js. remindBooking
-// itself has no remaining caller in app.js (both routes that used it moved with it).
+// sendReviewRequestEmail/remindBooking/sendDateChangedEmail all moved to lib/booking-notifications.js.
+// remindBooking itself has no remaining caller in app.js (both routes that used it moved with it).
 const {
     generateBookingICS, sendQuoteEmail, sendAdminQuoteSentNotification, sendBookingConfirmedEmail,
-    sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail, sendReviewRequestEmail
+    sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail, sendReviewRequestEmail, sendDateChangedEmail
 } = require('./lib/booking-notifications');
 
 
@@ -2270,32 +2260,8 @@ async function sendRefundProcessedEmail(booking, refundAmount, refundReference) 
         htmlContent: html, preWrapped: true, titleOverride: 'Refund Confirmation', trigger_event: 'Booking: Refund Processed' });
 }
 
-async function sendDateChangedEmail(booking, oldDate, newDate) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type } = booking;
-    const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
-    const trackUrl = `${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}`;
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('booking_date_changed');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Booking #${id}: the event date changed to ${newDate}.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Event Date Updated',
-        greeting: `Hi ${name},`,
-        bodyHtml: `Please note that the date for your booking <strong style="color:#FAFAFA;">#${id}</strong> — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> — has been updated. Please update your calendar accordingly.<br><br><span style="color:#B0B0B0; font-size:13px;">If this change was made in error or you have any concerns, please contact us immediately at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</span>`,
-        cards: [{
-            title: 'Date Change',
-            rows: [
-                { label: 'Previous Date', rawValue: `<span style="text-decoration:line-through; color:#707070;">${oldDate}</span>` },
-                { label: 'New Date', value: newDate, highlight: true }
-            ]
-        }],
-        cta: { label: 'View My Booking', url: trackUrl },
-        socialLinks
-    });
-    return sendEmail({ to: email, subject: `Event Date Updated – Booking #${id}`,
-        htmlContent: html, preWrapped: true, titleOverride: 'Event Date Changed', trigger_event: 'Booking: Date Changed' });
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): sendDateChangedEmail moved to lib/booking-notifications.js —
+// see the require near the top of this file for the re-import.
 
 // ==========================================
 // PUBLIC GET SERVICES
@@ -4669,98 +4635,9 @@ app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, i
 // P2.4 — Date availability check (public, rate-limited)
 const MIN_ADVANCE_HOURS = 48;
 
-function checkDateAvailability(dateStr, callback, excludeBookingId) {
-    getDateHoldsForAvailabilityCheck(dateStr, (err, holds) => {
-        if (err) return callback(err);
-        
-        let allDay = false;
-        const busyRanges = [];
-        
-        if (holds) {
-            holds.forEach(h => {
-                if (!h.start_time) {
-                    allDay = true;
-                } else {
-                    let hEnd = h.end_time;
-                    if (!hEnd) {
-                        // No end_time stored — default to 1 hour after start
-                        const hp = h.start_time.split(':');
-                        let hh = parseInt(hp[0]) + 1;
-                        if (hh >= 24) hh = 23;
-                        hEnd = `${String(hh).padStart(2, '0')}:${hp[1]}`;
-                    }
-                    busyRanges.push({ start: h.start_time, end: hEnd });
-                }
-            });
-        }
-        
-        if (allDay) {
-            return callback(null, { available: false, reason: 'held' });
-        }
-        
-        // Also check standalone events
-        getUpcomingStandaloneEventOnDate(dateStr, (err, events) => {
-            if (err) return callback(err);
-            
-            if (events) {
-                events.forEach(e => {
-                    if (e.event_datetime) {
-                        const parts = e.event_datetime.split(/[T ]/);
-                        const time = parts[1];
-                        if (time) {
-                            const t = time.slice(0, 5);
-                            const tp = t.split(':');
-                            let eh = parseInt(tp[0]) + 1;
-                            if (eh >= 24) eh = 23;
-                            const tEnd = `${String(eh).padStart(2, '0')}:${tp[1]}`;
-                            busyRanges.push({ start: t, end: tEnd });
-                        } else {
-                            allDay = true;
-                        }
-                    } else {
-                        allDay = true;
-                    }
-                });
-            }
-            
-            if (allDay) {
-                return callback(null, { available: false, reason: 'event' });
-            }
-            
-            // Also check confirmed bookings (exclude terminal statuses that no longer hold the date).
-            // excludeBookingId lets a reschedule check the destination date without the booking
-            // being moved conflicting with its own (pre-move) row.
-            const excludeClause = excludeBookingId ? ' AND id != ?' : '';
-            const bookingParams = excludeBookingId ? [dateStr, excludeBookingId] : [dateStr];
-            getBookingsOnDateForAvailability(
-                excludeClause,
-                bookingParams,
-                (err, bookings) => {
-                    if (err) return callback(err);
-
-                    if (bookings) {
-                        for (const b of bookings) {
-                            // A booking with no recorded start time (e.g. an "All Day / Custom
-                            // Hours" request) occupies the whole day, same as an untimed hold or
-                            // standalone event above — it must not be silently invisible here.
-                            if (!b.event_start_time) return callback(null, { available: false, reason: 'booked' });
-                            let bEnd = b.performance_end_time;
-                            if (!bEnd) {
-                                const mins = parseDurationToMinutes(b.performance_duration);
-                                bEnd = addMinutesToTime(b.event_start_time, mins);
-                            }
-                            // Extend end by buffer so next booking can't start immediately after
-                            const bufferedEnd = addMinutesToTime(bEnd, bookingConfig.minGapMins);
-                            busyRanges.push({ start: b.event_start_time, end: bufferedEnd });
-                        }
-                    }
-
-                    callback(null, { available: true, busy_ranges: busyRanges });
-                }
-            );
-        });
-    });
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): checkDateAvailability moved to lib/calendar-sync.js, alongside
+// hasCalendarConflict (its Google-Calendar-aware sibling) — see the require near the top of this
+// file for the re-import.
 
 app.get('/api/public/availability', ipRateLimiter, trackRateLimiter, (req, res) => {
     const { date } = req.query;
@@ -4876,84 +4753,6 @@ const { calculateCancellationRefund } = require('./lib/cancellation-refund');
 
 
 
-// P2.0b — Book Again — creates a new PENDING booking pre-filled from a CANCELLED booking
-app.post('/api/admin/bookings/:id/book-again', requireAdmin, async (req, res) => {
-    const originalId = parseInt(req.params.id, 10);
-    getBookingById(originalId, async (err, orig) => {
-        if (err || !orig) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        if ((orig.status || '').toUpperCase() !== 'CANCELLED') {
-            return res.status(400).json({ success: false, message: `Only CANCELLED bookings can be rebooked. Current status: ${orig.status}.` });
-        }
-
-        // The original date is only free because this booking is CANCELLED — it's excluded from
-        // every conflict query. Someone else may have taken it since. Re-check before recreating a
-        // live NEW booking on it, the same way every other booking-creation path does.
-        if (!(req.body && req.body.override_conflict === true)) {
-            try {
-                let conflict;
-                if (orig.event_start_time) {
-                    const durationMins = (orig.performance_end_time && orig.event_start_time)
-                        ? (() => {
-                            const [eh, em] = orig.performance_end_time.split(':').map(Number);
-                            const [sh, sm] = orig.event_start_time.split(':').map(Number);
-                            return Math.max((eh * 60 + em) - (sh * 60 + sm), 30);
-                          })()
-                        : (parseDurationToMinutes(orig.performance_duration) || 120);
-                    const startISO = moment(`${orig.date} ${orig.event_start_time}`).toISOString();
-                    const endISO = moment(startISO).add(durationMins, 'minutes').toISOString();
-                    conflict = await hasCalendarConflict(startISO, endISO);
-                } else {
-                    const avail = await new Promise((resolve, reject) =>
-                        checkDateAvailability(orig.date, (e, r) => e ? reject(e) : resolve(r)));
-                    conflict = !avail.available || (avail.busy_ranges && avail.busy_ranges.length > 0);
-                }
-                if (conflict) {
-                    return res.status(409).json({
-                        success: false,
-                        conflict: true,
-                        message: `${orig.date} is no longer free — it has since been booked or blocked. Choose a different date, or pass override_conflict:true to rebook on this date anyway.`
-                    });
-                }
-            } catch (availErr) {
-                console.error('[Book Again] Availability check failed:', availErr.message);
-                return res.status(503).json({ success: false, message: 'Could not confirm availability just now. Please try again.' });
-            }
-        }
-
-        // Copy client + event fields; reset all financial and lifecycle fields
-        insertBookAgainBooking(
-            [
-                orig.name, orig.company || null, orig.email, orig.cell,
-                orig.event_name || null, orig.date, orig.event_start_time || null, orig.performance_slot || null, orig.performance_duration || null,
-                orig.event_location, orig.venue_address || null, orig.city || null, orig.country || null, orig.venue_type || null,
-                orig.event_type, orig.audience_size || null, orig.audience_demographic || null, orig.budget_range || null,
-                orig.travel_accommodation || 0, orig.message || '',
-                originalId
-            ],
-            function(insErr) {
-                if (insErr) return res.status(500).json({ success: false, message: insErr.message });
-                const newId = this.lastID;
-                // Audit on old booking
-                db.run(
-                    `INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-                     VALUES ('bookings', ?, 'REBOOKED', ?, ?, CURRENT_TIMESTAMP)`,
-                    [originalId,
-                     JSON.stringify({ new_booking_id: newId, note: 'Client rebooked — new booking created from this cancelled record' }),
-                     req.session.adminId || 'admin']
-                );
-                // Audit on new booking
-                db.run(
-                    `INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-                     VALUES ('bookings', ?, 'CREATE', ?, ?, CURRENT_TIMESTAMP)`,
-                    [newId,
-                     JSON.stringify({ status: 'NEW', rebooked_from_id: originalId, note: 'Created via Book Again from cancelled booking' }),
-                     req.session.adminId || 'admin']
-                );
-                res.json({ success: true, message: `New booking #${newId} created from cancelled booking #${originalId}.`, new_booking_id: newId });
-            }
-        );
-    });
-});
 
 // P2.1 — Cancel booking (admin) — writes to cancellations table and notifies client
 app.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
@@ -5332,16 +5131,6 @@ app.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateLimi
 });
 
 
-// Gap 11: POST — manually re-sync a booking to Google Calendar
-app.post('/api/admin/bookings/:id/sync-calendar', requireAdmin, async (req, res) => {
-    try {
-        await syncBookingToCalendar(parseInt(req.params.id, 10));
-        res.json({ success: true, message: 'Booking synced to Google Calendar.' });
-    } catch (err) {
-        console.error('[Calendar Sync]', err.message);
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
 
 app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
     console.log('[DEBUG] /send-email body:', req.body);
@@ -5959,135 +5748,7 @@ app.get('/api/admin/bookings/full', requireAdmin, (req, res) => {
 });
 
 
-// --- Link a booking to a venue ---
-app.put('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
-    const { venue_id } = req.body;
-    const bookingId = req.params.id;
 
-    if (!venue_id) {
-        // Unlinking
-        updateBookingVenueUnlink(
-            bookingId,
-            function(err) {
-                if (err) return res.status(500).json({ error: err.message });
-                if (this.changes === 0) return res.status(404).json({ error: 'Booking not found.' });
-
-                // Update associated event to remove venue link
-                getBookingEventId(bookingId, (eErr, bookingRow) => {
-                    if (!eErr && bookingRow && bookingRow.event_id) {
-                        unlinkEventVenue(bookingRow.event_id);
-                    }
-                });
-
-                // Sync to calendar
-                getBookingById(bookingId, (e, updated) => {
-                    if (!e && updated) {
-                        syncBookingToCalendar(updated).catch(ce => console.error('[Venue Unlink] Calendar sync failed:', ce.message));
-                    }
-                });
-
-                res.json({ success: true, message: 'Venue unlinked.' });
-            }
-        );
-    } else {
-        // Linking by venue_id (legacy)
-        db.get("SELECT * FROM venues WHERE id = ?", [venue_id], (vErr, venue) => {
-            if (vErr || !venue) return res.status(400).json({ success: false, message: 'Venue not found.' });
-
-            updateBookingVenueLinkLegacy(
-                venue.id, venue.place_id, venue.name, venue.address, venue.city, venue.country, bookingId,
-                function(err) {
-                    if (err) return res.status(500).json({ error: err.message });
-                    if (this.changes === 0) return res.status(404).json({ error: 'Booking not found.' });
-
-                    // Update associated event
-                    getBookingEventId(bookingId, (eErr, bookingRow) => {
-                        if (!eErr && bookingRow && bookingRow.event_id) {
-                            const mapLink = `https://maps.google.com/?q=${encodeURIComponent(venue.name + ' ' + (venue.address || ''))}`;
-                            updateEventVenueLegacyLink(venue.name, venue.id, mapLink, bookingRow.event_id);
-                        }
-                    });
-
-                    // Sync to calendar
-                    getBookingById(bookingId, (e, updated) => {
-                        if (!e && updated) {
-                            syncBookingToCalendar(updated).catch(ce => console.error('[Venue Link] Calendar sync failed:', ce.message));
-                        }
-                    });
-
-                    res.json({ success: true, message: 'Venue linked successfully.' });
-                }
-            );
-        });
-    }
-});
-
-// --- Link booking to a venue using Google Place details ---
-app.put('/api/admin/bookings/:id/venue-google', requireAdmin, async (req, res) => {
-    const { place_id, name, address, city, state, country, latitude, longitude } = req.body;
-    const bookingId = req.params.id;
-
-    if (!place_id || !name) {
-        return res.status(400).json({ success: false, message: 'place_id and name are required.' });
-    }
-
-    try {
-        const venueId = await new Promise((resolve, reject) => {
-            db.get("SELECT id FROM venues WHERE place_id = ?", [place_id], (err, row) => {
-                if (err) return reject(err);
-                if (row) {
-                    db.run(
-                        `UPDATE venues SET 
-                            name = ?, address = ?, city = ?, state = ?, country = ?, 
-                            latitude = ?, longitude = ?, updated_at = CURRENT_TIMESTAMP 
-                         WHERE id = ?`,
-                        [name, address || null, city || null, state || null, country || null, latitude || null, longitude || null, row.id],
-                        (upErr) => {
-                            if (upErr) reject(upErr);
-                            else resolve(row.id);
-                        }
-                    );
-                } else {
-                    db.run(
-                        `INSERT INTO venues (name, address, city, state, country, place_id, latitude, longitude) 
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [name, address || null, city || null, state || null, country || null, place_id, latitude || null, longitude || null],
-                        function(insErr) {
-                            if (insErr) reject(insErr);
-                            else resolve(this.lastID);
-                        }
-                    );
-                }
-            });
-        });
-
-        updateBookingVenueGoogle(
-            venueId, place_id, name, address || null, city || null, country || null, bookingId,
-            function(err) {
-                if (err) return res.status(500).json({ success: false, message: err.message });
-                if (this.changes === 0) return res.status(404).json({ success: false, message: 'Booking not found.' });
-
-                getBookingEventId(bookingId, (eErr, bookingRow) => {
-                    if (!eErr && bookingRow && bookingRow.event_id) {
-                        const mapLink = `https://maps.google.com/?q=${encodeURIComponent(name + ' ' + (address || ''))}`;
-                        updateEventVenueGoogleLink(name, venueId, mapLink, bookingRow.event_id);
-                    }
-                });
-
-                getBookingById(bookingId, (e, updated) => {
-                    if (!e && updated) {
-                        syncBookingToCalendar(updated).catch(ce => console.error('[Venue Link] Calendar sync failed:', ce.message));
-                    }
-                });
-
-                res.json({ success: true, message: 'Venue linked successfully.' });
-            }
-        );
-    } catch(err) {
-        console.error('[Link Google Venue Error]', err);
-        res.status(500).json({ success: false, message: err.message });
-    }
-});
 
 
 // --- Bookings ---
@@ -6674,162 +6335,8 @@ app.patch('/api/admin/bookings/:id/buffer', requireAdmin, (req, res) => {
 });
 
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): findHoldDateConflict (single-consumer for the calendar hold
-// create/move routes) moved to routes/admin/calendar.js.
 
 
-
-
-/**
- * PATCH /api/admin/bookings/:id/date
- * Update booking event date and optionally time (used by FullCalendar eventDrop).
- * Accepts: { date: "YYYY-MM-DD", time?: "HH:MM" }
- */
-app.patch('/api/admin/bookings/:id/date', requireAdmin, async (req, res) => {
-    const { date, time } = req.body;
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return res.status(400).json({ success: false, message: 'Valid date (YYYY-MM-DD) required.' });
-    }
-    if (time && !/^\d{2}:\d{2}$/.test(time)) {
-        return res.status(400).json({ success: false, message: 'time must be HH:MM.' });
-    }
-    try {
-        const row = await getBookingByIdAsync(req.params.id);
-        if (!row) return res.status(404).json({ success: false, message: 'Booking not found.' });
-
-        const oldDate = row.date;
-        const oldTime = row.event_start_time;
-
-        // Determine effective start/end times for conflict checking
-        const effectiveTime = time !== undefined ? time : row.event_start_time;
-        if (effectiveTime) {
-            const durationMins = row.performance_end_time
-                ? (() => {
-                    const [eh, em] = row.performance_end_time.split(':').map(Number);
-                    const [sh, sm] = row.event_start_time.split(':').map(Number);
-                    return Math.max((eh * 60 + em) - (sh * 60 + sm), 30);
-                  })()
-                : parseDurationToMinutes(row.performance_duration);
-            const newStartISO = moment(`${date} ${effectiveTime}`).toISOString();
-            const newEndISO   = moment(newStartISO).add(durationMins, 'minutes').toISOString();
-            const busy = await hasCalendarConflict(newStartISO, newEndISO, parseInt(req.params.id));
-            if (busy) {
-                return res.status(409).json({ success: false, message: `The new time slot on ${date} conflicts with an existing booking or block. Choose a different date/time.` });
-            }
-        } else {
-            // No time on this booking (an "All Day / Custom Hours" request) and none supplied in
-            // the move — it occupies the whole destination day, so ANY existing hold/event/booking
-            // there is a conflict. This branch used to be skipped entirely whenever effectiveTime
-            // was falsy, so an untimed booking could be dragged onto an already-fully-booked day
-            // with no warning.
-            const destAvail = await new Promise((resolve, reject) =>
-                checkDateAvailability(date, (e, r) => e ? reject(e) : resolve(r), parseInt(req.params.id)));
-            if (!destAvail.available || (destAvail.busy_ranges && destAvail.busy_ranges.length > 0)) {
-                return res.status(409).json({ success: false, message: `${date} already has a booking or block on it and is not available for a full-day booking. Choose a different date.` });
-            }
-        }
-
-        // Build update
-        let newQuoteExpiry = row.quote_expiry_date;
-        if (row.quote_expiry_date) {
-            const eventMoment = moment(date);
-            const currentExpiry = moment(row.quote_expiry_date);
-            if (currentExpiry.isSameOrAfter(eventMoment)) {
-                const proposed = eventMoment.clone().subtract(14, 'days');
-                const minExpiry = moment().add(3, 'days');
-                if (proposed.isBefore(minExpiry)) {
-                    newQuoteExpiry = eventMoment.diff(moment(), 'days') > 3 ? minExpiry.format('YYYY-MM-DD') : null;
-                } else {
-                    newQuoteExpiry = proposed.format('YYYY-MM-DD');
-                }
-            }
-        }
-
-        // Compute new performance_end_time if time changed
-        let newPerfEnd = row.performance_end_time;
-        if (time !== undefined && time) {
-            const dMins = parseDurationToMinutes(row.performance_duration) || 120;
-            newPerfEnd = addMinutesToTime(time, dMins);
-        }
-
-        const setClauses = ['date = ?', 'quote_expiry_date = ?', 'modified_on = CURRENT_TIMESTAMP'];
-        const params = [date, newQuoteExpiry];
-        if (time !== undefined) {
-            setClauses.push('event_start_time = ?');
-            params.push(time || null);
-            setClauses.push('performance_start_time = ?');
-            params.push(time || null);
-            setClauses.push('performance_end_time = ?');
-            params.push(newPerfEnd || null);
-        }
-        params.push(req.params.id);
-
-        await updateBookingDateAndTimeFields(setClauses.join(', '), params);
-
-        db.run(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values) VALUES ('bookings', ?, 'UPDATE', ?, ?)`,
-            [req.params.id, JSON.stringify({ date: oldDate, time: oldTime }), JSON.stringify({ date, time })]);
-        updateDateHoldDateForBooking(date, req.params.id);
-
-        // Sync linked event datetime when booking date changes
-        if (row.event_id) {
-            const effectiveStartTime = (time !== undefined ? time : row.event_start_time) || '00:00';
-            const newEventDatetime = date + 'T' + effectiveStartTime;
-            updateEventDatetime(newEventDatetime, row.event_id,
-                (evErr) => { if (evErr) console.error('[Date Change] Event datetime sync failed:', evErr.message); }
-            );
-        }
-
-        getBookingById(req.params.id, async (e, updated) => {
-            if (!e && updated) syncBookingToCalendar(updated).catch(e => console.error('[Date Change] Calendar sync failed:', e.message));
-        });
-
-        sendDateChangedEmail(row, oldDate, date).catch(e => console.error('[Date Change] Client email failed:', e.message));
-
-        res.json({ success: true, newDate: date, newTime: time !== undefined ? time : row.event_start_time });
-    } catch (err) {
-        console.error('[PATCH booking date]', err);
-        res.status(500).json({ success: false, message: 'Server error updating booking date.' });
-    }
-});
-
-
-/**
- * PATCH /api/admin/bookings/:id/venue
- * S5-2: Update booking location/venue details without regenerating the full quote.
- */
-app.patch('/api/admin/bookings/:id/venue', requireAdmin, (req, res) => {
-    const { event_location, venue_address, city, country, venue_type } = req.body;
-    if (!event_location || !event_location.trim()) {
-        return res.status(400).json({ success: false, message: 'event_location is required.' });
-    }
-    getBookingById(req.params.id, (err, row) => {
-        if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        const oldLocation = row.event_location;
-        updateBookingVenueFreeText(
-            event_location.trim(), venue_address || null, city || null, country || null, venue_type || null, req.params.id,
-            function(upErr) {
-                if (upErr) return res.status(500).json({ success: false, error: upErr.message });
-                db.run(
-                    `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values) VALUES ('bookings', ?, 'UPDATE', ?, ?)`,
-                    [req.params.id, JSON.stringify({ event_location: oldLocation }), JSON.stringify({ event_location: event_location.trim() })]
-                );
-                // Propagate to the linked event's venue fields — this free-text venue editor was the
-                // only one of the three venue-editing endpoints (PUT .../venue, PUT .../venue-google
-                // both already do this) that left events.venue_name/venue_map_link stale after a change.
-                if (row.event_id) {
-                    const mapLink = `https://maps.google.com/?q=${encodeURIComponent(event_location.trim() + ' ' + (venue_address || ''))}`;
-                    updateEventVenueFreeText(event_location.trim(), mapLink, row.event_id);
-                }
-                getBookingById(req.params.id, (e, updated) => {
-                    if (!e && updated) {
-                        syncBookingToCalendar(updated).catch(ce => console.error('[Venue Change] Calendar sync failed:', ce.message));
-                    }
-                });
-                res.json({ success: true, message: 'Venue updated.' });
-            }
-        );
-    });
-});
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): the entire Advancing Pack feature (all 12 routes plus
 // sendAdvancingPackEmail/ensureAdvancingPack/verifyRosOwnership/verifyAdvancingContactOwnership/
