@@ -1162,6 +1162,32 @@ write-up above. Remaining Phase 5 scope: the 19-route `/api/public/bookings/*` s
 `autoBuildDepositBalanceSchedule`, `logPaymentEvent`/`generatePayFastSignature`, the remaining
 `send*Email` functions not yet relocated, and ~12 background cron jobs — none started yet.
 
+### The public `/api/public/bookings/*` surface begins — shared prerequisites
+
+Started the last major piece of Phase 5's route-extraction work: 19 routes covering the entire public
+booking self-service surface (draft/resume, tracking OTP, payment initiation, quote acceptance,
+contract signing, downloads, cancellation, review). Before touching any route, relocated the
+shared layer nearly all of them depend on — same "prerequisite first" discipline as
+`lib/calendar-sync.js` before the admin bookings pass:
+
+- **`lib/booking-tracking.js`** (new): `asBookingText` (used pervasively across this whole surface,
+  including the not-yet-moved public booking-intake route itself), `OTP_TTL_MINUTES`/
+  `OTP_MAX_ATTEMPTS`/`ACCESS_TOKEN_TTL_MINUTES`, `generateOtpCode`, `hashAccessToken`. All five were
+  already fully self-contained (built-ins + `crypto` only).
+- **`middleware/booking-access.js`** (new): `requireBookingAccessToken` — the gate 9 of these 19
+  routes use directly as declared middleware (the client-facing analogue of `requireAdmin`).
+  Depends only on the new `lib/booking-tracking.js` and two existing `bookings.repository` exports
+  (`getBookingAccessTokenByHash`, `touchBookingAccessToken`) — both now dead in `app.js` and removed
+  from its destructure, matching `middleware/auth.js`'s own existing shape and location.
+
+`app.js` re-imports all six names — every one of the 19 routes still lives there for now.
+
+Verification: `node -c`; the static undefined-reference sweep on both new files and `app.js` (all
+clean); `npm run smoke` 329/329; `npm test` x2, both clean 664/664 — no routes moved yet, so no new
+direct coverage to speak of; the two runs confirm the relocation itself introduced no regression in
+whatever already exercises this code path indirectly (the tracker OTP flow, quote acceptance, etc.,
+all still living in `app.js` unchanged).
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

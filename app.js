@@ -79,7 +79,7 @@ const {
     setBookingEventId,
     getBookingIdsForEmail, anonymizeBookingsForErasure, deleteBookingAccessCodesForErasure,
     deleteBookingAccessTokensForErasure, redactBookingNotesForErasure, countBookingNotesForIds,
-    getBookingAccessTokenByHash, touchBookingAccessToken, getBookingEmailForTracking,
+    getBookingEmailForTracking,
     consumeUnconsumedAccessCodes, insertBookingAccessCode, getActiveAccessCodeForVerification,
     consumeAccessCodeById, incrementAccessCodeAttempts, insertBookingAccessToken,
     insertBookingNoteFromTracker,
@@ -2337,15 +2337,9 @@ const BOOKING_TEXT_LIMITS = {
     alternative_dates: 300, content_notes: 500, heard_about: 200
 };
 
-// A JSON body may send a number, array or object where a string is expected. Calling
-// .trim()/.replace() on those throws before any validation runs, so every scalar is coerced
-// first; non-scalars collapse to '' and are then caught by the required-field check.
-function asBookingText(v) {
-    if (v == null) return '';
-    if (typeof v === 'string') return v.trim();
-    if (typeof v === 'number' || typeof v === 'boolean') return String(v);
-    return '';
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): asBookingText moved to lib/booking-tracking.js, alongside the
+// tracker OTP helpers/constants it's grouped with there.
+const { asBookingText } = require('./lib/booking-tracking');
 
 app.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (req, res) => {
     let {
@@ -3058,41 +3052,11 @@ function generatePayFastSignature(pfData, passPhrase = null) {
 // Every tracking route below now requires that access_token (via requireBookingAccessToken)
 // instead of a bare client-supplied email.
 // ============================================================
-const OTP_TTL_MINUTES = 10;
-const OTP_MAX_ATTEMPTS = 5;
-const ACCESS_TOKEN_TTL_MINUTES = 60;
-
-function generateOtpCode() {
-    return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-}
-function hashAccessToken(rawToken) {
-    return crypto.createHash('sha256').update(String(rawToken)).digest('hex');
-}
-
-// Verifies req.params.id + a bearer access_token (JSON body for POST, query string for GET
-// downloads) against booking_access_tokens. On success attaches the verified email as
-// req.trackingEmail — routes trust this, not any client-supplied `email` field, for ownership
-// checks. The token itself is high-entropy (32 random bytes), so a fast indexed sha256 lookup is
-// appropriate here — unlike the low-entropy OTP code below, which is bcrypt-hashed and rate-limited
-// on attempts instead.
-function requireBookingAccessToken(req, res, next) {
-    const bookingId = parseInt(req.params.id, 10);
-    const token = (req.body && req.body.access_token) || req.query.access_token;
-    if (!bookingId || !token) {
-        return res.status(401).json({ success: false, message: 'Please verify your booking to continue.', code: 'TOKEN_REQUIRED' });
-    }
-    getBookingAccessTokenByHash(
-        hashAccessToken(token), bookingId,
-        (err, row) => {
-            if (err || !row) {
-                return res.status(401).json({ success: false, message: 'Your verification session has expired. Please verify your booking again.', code: 'TOKEN_REQUIRED' });
-            }
-            req.trackingEmail = row.email;
-            touchBookingAccessToken(row.id);
-            next();
-        }
-    );
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): OTP_TTL_MINUTES/OTP_MAX_ATTEMPTS/ACCESS_TOKEN_TTL_MINUTES/
+// generateOtpCode/hashAccessToken moved to lib/booking-tracking.js; requireBookingAccessToken
+// (which depends on hashAccessToken) moved to middleware/booking-access.js, alongside requireAdmin.
+const { OTP_TTL_MINUTES, OTP_MAX_ATTEMPTS, ACCESS_TOKEN_TTL_MINUTES, generateOtpCode, hashAccessToken } = require('./lib/booking-tracking');
+const { requireBookingAccessToken } = require('./middleware/booking-access');
 
 // Step 1: request a code. Always responds with the same generic message regardless of whether the
 // id/email combination matches a real booking — mirrors the existing anti-enumeration pattern in
