@@ -569,6 +569,24 @@ treated as the same ambient flake-rate background this session has shown through
 regression. Direct RBAC coverage of the relocated `GET /api/admin/services` route passed on the
 logged runs.
 
+### Route batch 20: `routes/admin/invoices.js` — DONE
+
+5 routes: send/resend, bulk-send-unsent, void (with mandatory reason), mark-paid, list. All five
+DB-lifecycle helpers (`markInvoiceSent`, `markInvoiceSentAndPublished`, `getInvoiceById`,
+`voidInvoiceWithReason`, `markInvoicePaidById`) were already Phase 4 repository exports.
+`sendInvoiceEmail` has two other callers (booking-confirmation and quote-acceptance flows, not yet
+moved), so it moved to its own `lib/invoice-email.js` — all of its own dependencies
+(`escapeEmailFields`, `getEmailFooterContext`/`emailBaseUrl`, `getPaymentSchedulesForDocument`) were
+already leaf-safe from earlier batches.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 5 paths and zero
+remaining reference to the old `sendInvoiceEmail` definition; `npm run smoke` 329/329; `npm test` x3
+given this touches payment-adjacent invoice email — one run had 649/651 (two already-documented
+pre-existing flakes, CP3 and CP6, neither invoice-related), the other two clean 651/651. Direct
+positive confirmation for this batch: the invoice-send email tests all passed, including the
+PAYMENT-CRITICAL "schedule amount + reference verbatim" check against the relocated
+`sendInvoiceEmail`.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

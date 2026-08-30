@@ -560,6 +560,7 @@ app.use(require('./routes/admin/expenses'));
 app.use(require('./routes/admin/banners'));
 app.use(require('./routes/admin/campaigns'));
 app.use(require('./routes/admin/services'));
+app.use(require('./routes/admin/invoices'));
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/uploads.js — needed by the ~20 admin upload
 // routes being split into routes/, not just this file.
@@ -2282,75 +2283,8 @@ async function sendAdminQuoteSentNotification(booking, amount) {
     });
 }
 
-async function sendInvoiceEmail(booking, invoicePdfPath) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date } = booking;
-
-    let attachments = [];
-    if (invoicePdfPath && fs.existsSync(invoicePdfPath)) {
-        attachments.push({
-            filename: `Invoice_${id}_Thabiso_Mhlongo.pdf`,
-            path: invoicePdfPath,
-            contentType: 'application/pdf'
-        });
-    }
-
-    const schedules = await getPaymentSchedulesForDocument(id);
-
-    const scheduleTableRows = schedules.length > 0
-        ? schedules.map(s => `
-            <tr>
-                <td style="padding:8px 12px;border-bottom:1px solid #333;color:#ccc;">${s.description}</td>
-                <td style="padding:8px 12px;border-bottom:1px solid #333;color:#ccc;">${s.due_date}</td>
-                <td style="padding:8px 12px;border-bottom:1px solid #333;color:#D4AF37;font-weight:600;">R ${parseFloat(s.expected_amount).toFixed(2)}</td>
-            </tr>`).join('')
-        : `<tr><td colspan="3" style="padding:8px 12px;color:#888;text-align:center;">Payment details are in the attached invoice PDF.</td></tr>`;
-
-    const paymentScheduleHtml = `
-        <div style="margin:20px 0;">
-            <h3 style="color:#D4AF37;font-size:14px;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px;">Payment Schedule</h3>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#111;border:1px solid #333;border-radius:4px;">
-                <thead>
-                    <tr style="background:#1a1a1a;">
-                        <th style="padding:8px 12px;text-align:left;color:#D4AF37;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Description</th>
-                        <th style="padding:8px 12px;text-align:left;color:#D4AF37;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Due Date</th>
-                        <th style="padding:8px 12px;text-align:left;color:#D4AF37;font-size:11px;text-transform:uppercase;letter-spacing:1px;">Amount</th>
-                    </tr>
-                </thead>
-                <tbody>${scheduleTableRows}</tbody>
-            </table>
-        </div>`;
-
-    // PAYMENT-CRITICAL: paymentScheduleHtml (amounts/due dates) kept verbatim; PDF + reference unchanged.
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('invoice');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Your invoice for booking #${id} is attached.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Your Invoice',
-        greeting: `Hi ${name},`,
-        bodyHtml:
-            `Your formal invoice is ready for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>. Please find the attached PDF for the full service breakdown.` +
-            paymentScheduleHtml +
-            `<p style="margin:12px 0 0;"><strong style="color:#D4AF37;">Terms &amp; Policies:</strong><br>${booking.terms || 'Standard cancellation policy applies.'}</p>` +
-            `<p style="margin:10px 0 0; color:#E6E6E6;">Payment can be made via the secure link sent in our previous communications or via bank transfer using the details in the invoice.</p>` +
-            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">Invoice Reference: <strong style="color:#D4AF37;">#${id}</strong></p>`,
-        cta: { label: 'View Your Booking', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
-        socialLinks
-    });
-
-    const result = await sendEmail({
-        to: email,
-        subject: `Invoice for Booking #${id}`,
-        htmlContent: html,
-        preWrapped: true,
-        attachments: attachments,
-        titleOverride: 'Your Invoice',
-        trigger_event: 'Booking: Invoice Generated'
-    });
-
-    return result.success;
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): sendInvoiceEmail moved to lib/invoice-email.js.
+const { sendInvoiceEmail } = require('./lib/invoice-email');
 
 async function sendInvoicePreDueEmail(booking, invoice, daysUntilDue) {
     booking = escapeEmailFields(booking);
@@ -7376,125 +7310,8 @@ app.post('/api/admin/settings/test-notification', requireAdmin, requireRole(['ad
     }
 });
 
-// --- Invoice Actions ---
-app.post('/api/admin/invoices/:id/send', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    db.get(`SELECT i.*, b.id as booking_id_num, b.email, b.name, b.event_name, b.event_type, b.date
-            FROM invoices i JOIN bookings b ON i.booking_id = b.id WHERE i.id = ?`, [req.params.id], async (err, inv) => {
-        if (err || !inv) return res.status(404).json({ error: 'Invoice not found.' });
-        const invoiceFilePath = inv.file_path ? resolveDocsPath('invoices', inv.file_path) : null;
-        if (!invoiceFilePath || !fs.existsSync(invoiceFilePath)) {
-            return res.status(400).json({ error: 'Invoice PDF not found. Please regenerate the invoice first.' });
-        }
-        if ((inv.status || '').toUpperCase() === 'VOID') {
-            return res.status(400).json({ error: 'This invoice is void and cannot be sent.' });
-        }
-        try {
-            const bookingObj = { id: inv.booking_id, name: inv.name, email: inv.email, event_name: inv.event_name, event_type: inv.event_type, date: inv.date };
-            await sendInvoiceEmail(bookingObj, invoiceFilePath);
-            // Draft-then-send: first send publishes the draft (DRAFT→SENT). A later resend leaves an
-            // already-advanced status (SENT/OVERDUE/PAID) untouched — only sent_at refreshes.
-            const wasDraft = (inv.status || '').toUpperCase() === 'DRAFT';
-            markInvoiceSentAndPublished(req.params.id, () => {});
-            res.json({ success: true, message: `Invoice ${inv.invoice_number} ${wasDraft ? 'sent' : 'resent'} to ${inv.email}.` });
-        } catch (e) {
-            res.status(500).json({ error: e.message });
-        }
-    });
-});
-// POST /api/admin/invoices/bulk-send-unsent — email all generated-but-unsent invoices
-app.post('/api/admin/invoices/bulk-send-unsent', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    db.all(
-        `SELECT i.*, b.id AS booking_id_num, b.email, b.name, b.event_name, b.event_type, b.date
-         FROM invoices i
-         JOIN bookings b ON i.booking_id = b.id
-         WHERE i.sent_at IS NULL AND i.status NOT IN ('VOID') AND b.status = 'CONFIRMED'`,
-        [],
-        async (err, rows) => {
-            if (err) return res.status(500).json({ success: false, message: err.message });
-            if (!rows.length) return res.json({ success: true, sent: 0, message: 'No unsent invoices.' });
-            let sent = 0, failed = 0, errors = [];
-            for (const inv of rows) {
-                const invoiceFilePath = inv.file_path ? resolveDocsPath('invoices', inv.file_path) : null;
-                if (!invoiceFilePath || !fs.existsSync(invoiceFilePath)) { failed++; errors.push(inv.invoice_number + ': PDF missing'); continue; }
-                try {
-                    const bookingObj = { id: inv.booking_id, name: inv.name, email: inv.email, event_name: inv.event_name, event_type: inv.event_type, date: inv.date };
-                    await sendInvoiceEmail(bookingObj, invoiceFilePath);
-                    markInvoiceSent(inv.id, () => {});
-                    sent++;
-                } catch(e) { failed++; errors.push(inv.invoice_number + ': ' + e.message); }
-            }
-            res.json({ success: true, sent, failed, errors: errors.length ? errors : undefined });
-        }
-    );
-});
 
-app.post('/api/admin/invoices/:id/void', requireAdmin, requireRole(['administrator']), (req, res) => {
-    const { reason } = req.body;
-    if (!reason || !reason.trim()) {
-        return res.status(400).json({ error: 'Void reason is required.' });
-    }
-    const adminUser = req.session.username || 'system';
-    getInvoiceById(req.params.id, (err, inv) => {
-        if (err || !inv) return res.status(404).json({ error: 'Invoice not found.' });
-        voidInvoiceWithReason(
-            reason.trim(), req.params.id,
-            function(e2) {
-                if (e2) return res.status(500).json({ error: e2.message });
-                if (this.changes === 0) return res.status(404).json({ error: 'Invoice not found.' });
-                // Audit log the void with mandatory reason
-                db.run(
-                    `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json)
-                     VALUES ('invoices', ?, 'VOID', ?, ?)`,
-                    [req.params.id, adminUser, JSON.stringify({ reason: reason.trim(), invoice_number: inv.invoice_number })],
-                    () => {}
-                );
-                // Log to financial_audit_log
-                db.run(
-                    `INSERT INTO financial_audit_log (event_type, entity_type, entity_id, amount, changed_by, notes)
-                     VALUES ('INVOICE_VOIDED', 'invoice', ?, ?, ?, ?)`,
-                    [req.params.id, parseFloat(inv.total_amount || 0), adminUser, `Reason: ${reason.trim()}, Invoice Number: ${inv.invoice_number}`],
-                    () => {}
-                );
-                res.json({ success: true, message: `Invoice ${inv.invoice_number} voided.` });
-            }
-        );
-    });
-});
 
-// POST /api/admin/invoices/:id/mark-paid — quick-mark an invoice as PAID
-app.post('/api/admin/invoices/:id/mark-paid', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    const adminUser = req.session.username || 'system';
-    getInvoiceById(req.params.id, (err, inv) => {
-        if (err || !inv) return res.status(404).json({ success: false, error: 'Invoice not found.' });
-        if (inv.status === 'VOID') {
-            return res.status(400).json({ success: false, error: 'Cannot mark a voided invoice as paid.' });
-        }
-        if (inv.status === 'PAID') {
-            return res.json({ success: true, message: 'Invoice is already marked as paid.' });
-        }
-        markInvoicePaidById(
-            req.params.id,
-            function(e2) {
-                if (e2) return res.status(500).json({ success: false, error: e2.message });
-                // Audit log
-                db.run(
-                    `INSERT INTO audit_log (table_name, record_id, action, changed_by, changes_json)
-                     VALUES ('invoices', ?, 'MARK_PAID', ?, ?)`,
-                    [req.params.id, adminUser, JSON.stringify({ invoice_number: inv.invoice_number, previous_status: inv.status })],
-                    () => {}
-                );
-                // Log to financial_audit_log
-                db.run(
-                    `INSERT INTO financial_audit_log (event_type, entity_type, entity_id, amount, changed_by, notes)
-                     VALUES ('INVOICE_MARKED_PAID', 'invoice', ?, ?, ?, ?)`,
-                    [req.params.id, parseFloat(inv.total_amount || 0), adminUser, `Invoice Number: ${inv.invoice_number}`],
-                    () => {}
-                );
-                res.json({ success: true, message: `Invoice ${inv.invoice_number} marked as PAID.` });
-            }
-        );
-    });
-});
 
 
 // --- Booking Email Actions ---
@@ -10326,16 +10143,6 @@ app.patch('/api/admin/reviews/:id', requireAdmin, (req, res) => {
 
 
 
-// 3. Admin Invoice View
-app.get('/api/admin/invoices', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    db.all(`SELECT i.*, b.name as client_name, b.event_name, b.date as event_date 
-            FROM invoices i 
-            JOIN bookings b ON i.booking_id = b.id 
-            ORDER BY i.invoice_date DESC`, [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
-});
 
 // 3.6 Payment Schedules API (Admin)
 // GET /api/admin/bookings/:id/payment-schedules — get schedules for a booking
