@@ -595,10 +595,12 @@ line, delete a whole batch. All five DB helpers were already Phase 4 repository 
 route file.
 
 **Found a pre-existing, completely-broken route while tracing dependencies** — see Deferred fix #4
-above for the full writeup. `POST .../import` calls `db.transaction(...)`, a `better-sqlite3` method
-that doesn't exist on this app's plain `sqlite3.Database` — every import attempt throws synchronously
-and returns a 500. Relocated byte-identical, not fixed, and flagged to the user directly given the
-severity (a totally non-functional admin feature, not a subtle edge case).
+above for the full writeup. `POST .../import` called `db.transaction(...)`, a `better-sqlite3` method
+that doesn't exist on this app's plain `sqlite3.Database` — every import attempt threw synchronously
+and returned a 500. Relocated byte-identical here and flagged to the user directly given the
+severity; **the user asked for it to be fixed**, done immediately afterward — see Deferred fix #4
+for the fix itself (`withDbTransaction`/`dbRun`, a new regression test, and an unrelated stale-import
+cleanup found along the way).
 
 Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 5 paths; `npm run
 smoke` 329/329 (the smoke test's unauthenticated requests hit `requireAdmin`'s 401 before ever
@@ -2122,31 +2124,63 @@ its own change with its own testing.
   touches only the `expenses` table, nowhere near booking reschedule/calendar-sync code. Same
   conclusion as every instance on this list.
 
-### 4. `POST /api/admin/bank-statement/import` has never worked — `db.transaction` is not a function
+### 4. `POST /api/admin/bank-statement/import` had never worked — `db.transaction` is not a function — FIXED
 
 - **Where found:** `routes/admin/bank-statement.js` (moved verbatim from `app.js` in route batch 21),
   reading the route's own code while tracing dependencies before extraction — not from a test
-  failure; nothing in the suite exercises this route (`test/rbac.test.js` only role-checks the
+  failure; nothing in the suite exercised this route (`test/rbac.test.js` only role-checked the
   sibling `GET .../lines` route).
-- **What happens:** the route wraps its CSV-row-insert loop in `const insertMany =
+- **What happened:** the route wrapped its CSV-row-insert loop in `const insertMany =
   db.transaction(() => { ... }); insertMany();` — a `better-sqlite3` API. `db` (from `database.js`)
   is a plain `sqlite3.Database` instance (the callback-based `node-sqlite3` driver, per
   `package.json`'s only dependency being `"sqlite3"`, not `"better-sqlite3"`), which has no
   `.transaction` method at all — confirmed directly (`typeof new sqlite3.Database(':memory:').transaction
-  === 'undefined'`). The `const insertMany = db.transaction(...)` line itself throws a
+  === 'undefined'`). The `const insertMany = db.transaction(...)` line itself threw a
   synchronous `TypeError` before ever reaching the surrounding `try { insertMany(); } catch(e) {...}`
-  — the try/catch only wraps the *call*, not the assignment that already failed.
-- **Observed:** every POST to this route throws synchronously inside the handler. Express 4 catches
+  — the try/catch only wrapped the *call*, not the assignment that already failed.
+- **Observed:** every POST to this route threw synchronously inside the handler. Express 4 catches
   a synchronous throw from a non-async route handler and routes it to the app's error-handling
-  middleware, so the practical effect is a 500 response to any admin who selects a CSV file and
-  clicks import — not a partial success, a total failure of the feature.
-- **Impact if real:** the bank statement CSV import/reconciliation tool — a `finance.repository.js`-
-  backed admin feature — appears to have never functioned, on any commit that included this exact
-  code (not something this session's move broke; the identical bug already existed in `app.js`
-  before the move, unexercised by any test). Everything downstream of a successful import (the
-  `lines` list, match, and delete routes moved alongside it in the same batch) is unreachable in
-  practice since no line can ever be imported to act on.
-- **Status:** left exactly as it was — relocated byte-identical, not fixed, per "housekeeping, not
-  improvement." Flagged to the user directly in this session's own report (not just logged here)
-  given the severity — a completely non-functional admin feature is a different order of finding
-  than the smaller pre-existing gaps logged as items 1-3 above.
+  middleware, so the practical effect was a 500 response to any admin who selected a CSV file and
+  clicked import — not a partial success, a total failure of the feature.
+- **Impact:** the bank statement CSV import/reconciliation tool — a `finance.repository.js`-backed
+  admin feature — had never functioned, on any commit that included this exact code (not something
+  route batch 21's move broke; the identical bug already existed in `app.js` before the move,
+  unexercised by any test). Everything downstream of a successful import (the `lines` list, match,
+  and delete routes moved alongside it in the same batch) was unreachable in practice since no line
+  could ever be imported to act on.
+- **Status: FIXED, at the user's explicit request**, given the severity — a completely
+  non-functional admin feature is a different order of finding than the smaller pre-existing gaps
+  logged as items 1-3 above, which stayed as documented-but-untouched. This is the one deliberate
+  exception to "housekeeping moves code, it doesn't fix bugs" anywhere in this effort.
+  - **The fix:** rewrote the insert loop to use `withDbTransaction` (`lib/db-transaction.js`) +
+    `dbRun` (`lib/db-helpers.js`) — the same real `BEGIN IMMEDIATE`/`COMMIT`/`ROLLBACK` pattern used
+    throughout `lib/popia.js` — instead of the nonexistent better-sqlite3 calls. The loop is still
+    atomic (a bad row rolls back the whole batch rather than leaving a half-import), matching the
+    original code's evident intent, just using APIs that exist on this driver. All parsing/
+    validation (CSV line regex, header-row skip, `parts.length`/amount checks) is untouched.
+  - **`prepareBankStatementLineInsert()`** (`finance.repository.js`) is now unused — it backed the
+    `db.prepare()` half of the same broken call chain. Left in place (no other caller, but not
+    deleted per the "no deletions, only quarantine" default) with its comment updated to explain why
+    it's dead and point at the replacement.
+  - **Also found while fixing this:** `app.js` still had four stale top-of-file repository-import
+    destructures (`finance.repository`, `invoices-quotations.repository`, `bookings.repository`)
+    listing 15 function names whose *only* remaining caller had already moved into a route file
+    across batches 16 (expenses), 19 (services), 20 (invoices) and 21 (bank-statement) itself —
+    a gap in this session's own extraction process (each batch checked for other call sites of the
+    functions it moved, but never re-checked whether app.js's own import line for that repository
+    still needed every name it listed). Verified each of the 15 by grep (zero remaining references
+    anywhere in `app.js` outside the import line itself) before removing; `markInvoiceSent` and
+    `getExpensesForBookingEmail`, which share an import line with several of the dead names, were
+    confirmed to have real remaining callers and were left in place.
+  - **New regression test:** `test/bank-statement-import.test.js` — imports a CSV with a header row,
+    a normal row, a row with a quoted comma inside a field (exercises the CSV-splitting regex), a
+    malformed row (too few fields), and a non-numeric-amount row; asserts the correct 2 rows land
+    with correct fields, negative amounts survive, fresh rows read back as unmatched, the existing
+    list/batches-summary route reflects the import, and batch delete cleans up correctly. This is
+    exactly the coverage gap that let the bug go unnoticed in the first place.
+  - **Verification:** `node -c` on all changed files; `npm run smoke` 329/329; `npm test` x5 — the
+    new test's 13 checks passed cleanly on every run; three runs were otherwise fully clean, one run
+    hit an already-documented, unrelated PayFast-ITN timing cluster (previously seen during the
+    "shared-helper extraction into lib/" step, did not reproduce on the next run), one run hit the
+    already-documented `banner.test.js` `SQLITE_BUSY` crash — neither touches bank-statement/finance
+    import code.

@@ -468,12 +468,14 @@ function getPeriodExpenses(periodFrom, periodTo, callback) {
 // bank_statement_lines
 // ══════════════════════════════════════════════════════════════════════════
 
-// POST /api/admin/bank-statement/import — NOTE: this route wraps the insert loop in
-// `db.transaction(() => {...})`, but this codebase uses node-sqlite3 (see `require('sqlite3')`
-// elsewhere), whose Database has no `.transaction()` method — that's a better-sqlite3 API. The
-// route would throw at runtime if hit. Not fixed here (housekeeping moves code, it doesn't fix
-// bugs found incidentally) — only this prepared statement's SQL text is relocated; the
-// `db.prepare()`/`db.transaction()`/`insertStmt.run()` call sites all stay exactly as they were.
+// UNUSED as of Phase 5 route batch 21 (HOUSEKEEPING-NOTES.md, Deferred fix #4). This backed
+// POST /api/admin/bank-statement/import's insert loop, which wrapped this prepared statement in
+// `db.transaction(() => {...})` — a better-sqlite3 API this app's plain sqlite3.Database doesn't
+// have, so every import threw before a row was ever inserted. The route was rewritten to use
+// withDbTransaction + dbRun instead (routes/admin/bank-statement.js), at the user's explicit
+// request to fix this specific finding — an exception to the "housekeeping moves code, it doesn't
+// fix bugs" rule that governed everything else in this effort. Left in place rather than deleted
+// (no other caller) in case a future prepared-statement-based rewrite wants it back.
 function prepareBankStatementLineInsert() {
     return db.prepare(
         `INSERT INTO bank_statement_lines (import_batch, import_date, statement_date, description, amount, reference)

@@ -87,7 +87,7 @@ const {
     getBookingAccessTokenByHash, touchBookingAccessToken, getBookingEmailForTracking,
     consumeUnconsumedAccessCodes, insertBookingAccessCode, getActiveAccessCodeForVerification,
     consumeAccessCodeById, incrementAccessCodeAttempts, insertBookingAccessToken,
-    insertBookingNoteFromTracker, countBookingLineItemsForService,
+    insertBookingNoteFromTracker,
     getBookingNotesForBooking, insertBookingNote, getBookingNoteById, deleteBookingNote,
     applyPayfastPaymentToBooking, markBookingPaymentFailedIfUnpaid,
     applyManualPaymentToBooking, getBookingForAutoEventOnPayment, getBookingAmountPaid,
@@ -112,8 +112,6 @@ const {
     getInvoiceForTracking, getQuoteVersionInfoForTracking,
     markQuotationAccepted, markQuotationAcceptedAsync, revertQuotationToSent,
     getActiveQuoteForContractFeeData,
-    getServiceDraftQuoteUsage, countQuoteLineItemsForService,
-    markInvoiceSentAndPublished, getInvoiceById, voidInvoiceWithReason, markInvoicePaidById,
     getLatestQuoteFileForResend, markQuotationResent,
     getQuoteNumberCollisionCount, voidInvoiceForRequote, archivePreviousQuotations, getNextQuoteVersion,
     insertQuotation, insertQuoteLineItem, getQuoteHistoryForBooking, getActiveQuoteStatusForInvoiceGuard,
@@ -150,11 +148,8 @@ const {
 
     redactPaymentLogsForErasure, countPaymentLogsForIds,
 
-    getExpensesForBookingEmail, insertExpense, getActiveExpenseById, softDeleteExpense, updateExpense,
+    getExpensesForBookingEmail,
     getExpensesForBooking, getExpensesByPeriod, getExpenseTrend, getPeriodExpenses,
-
-    prepareBankStatementLineInsert, getBankStatementImportBatches, matchBankStatementLine,
-    deleteBankStatementLine, deleteBankStatementBatch,
 } = require('./database/repositories/finance.repository');
 // Phase 4: calendar-domain (date_holds, events) data access moved to a repository (HOUSEKEEPING-NOTES.md).
 const {
