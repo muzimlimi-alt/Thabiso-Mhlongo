@@ -343,6 +343,32 @@ guaranteed-every-run failure). Specifically confirmed both CP12 assertions passe
 (the exact code path this batch relocated), all 10 `requireRoleForInquiryEmail`-gated RBAC checks
 passed, and the POPIA erasure test's `direct_emails.to_emails` redaction check passed.
 
+### Route batch 12: `routes/admin/analytics.js` — DONE
+
+9 read-only reporting routes: `summary`, `visits-over-time`, `traffic-sources`, `top-referrers`,
+`devices`, `countries`, `top-pages`, `bookings-trend`, `todays-schedule`. All raw `db` queries
+against `analytics_pageviews`/`analytics_sessions` (never claimed by a Phase 4 repository) plus two
+already-extracted repository calls (`getBookingsTrend`, `getActiveDateHoldsForToday`).
+`getAnalyticsDates` (the `?period=` parser) had exactly one caller — this whole batch — so it moved
+directly into the route file rather than a new `lib/` module, matching the `subscriberCsvUpload`
+precedent for single-consumer helpers.
+
+**A new failure mode hit on the first verification run**: the test harness's own initial request
+failed outright (`TEST RUN ERROR: fetch failed`), and the server log showed why — `SQLITE_READONLY:
+attempt to write a readonly database` inside the daily overdue-flagging cron jobs
+(`runDailyOverdueFlaggingSweep` and the payment-schedule equivalent), which fire once shortly after
+boot. Neither cron job's code was touched by this batch or by anything else this session — this
+reads as the isolated test DB file being caught in a transient read-only filesystem state (a
+plausible side effect of the SQLITE_BUSY crashes and hangs earlier in this session leaving the file
+in an inconsistent state at the OS level), not an application bug. Two immediate re-runs were
+clean, one of them fully clean at 651/651 with every analytics RBAC check passing — filed as a new
+`SQLITE_*`-family environmental one-off alongside the existing `SQLITE_BUSY` entry, same "Known
+testing limitations" section.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 9 paths; `npm run
+smoke` 329/329; `npm test` x3 (1 environmental crash as above, 1 run with only CP3, 1 fully clean
+651/651 run).
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
