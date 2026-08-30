@@ -5581,48 +5581,7 @@ app.get('/api/public/availability/month', ipRateLimiter, (req, res) => {
 // Phase 5 (HOUSEKEEPING-NOTES.md): calculateCancellationRefund moved to lib/cancellation-refund.js.
 const { calculateCancellationRefund } = require('./lib/cancellation-refund');
 
-// P2.0 — Cancellation Preview
-app.get('/api/admin/bookings/:id/cancellation-preview', requireAdmin, (req, res) => {
-    const bookingId = req.params.id;
-    db.get("SELECT * FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
-        if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        if (['COMPLETED', 'CANCELLED'].includes((booking.status || '').toUpperCase())) {
-            return res.status(400).json({ success: false, message: `Booking already ${booking.status}` });
-        }
-        
-        db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", (err, policy) => {
-            const policyStr = policy ? policy.policy_value : "";
-            const calc = calculateCancellationRefund(booking, policyStr);
-            res.json({ success: true, preview: calc });
-        });
-    });
-});
 
-// P2.0 — Reopen an EXPIRED booking — resets to PENDING so admin can issue a new quote
-app.post('/api/admin/bookings/:id/reopen', requireAdmin, (req, res) => {
-    const bookingId = parseInt(req.params.id, 10);
-    getBookingStatusNameEmail(bookingId, (err, booking) => {
-        if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        if ((booking.status || '').toUpperCase() !== 'EXPIRED') {
-            return res.status(400).json({ success: false, message: `Only EXPIRED bookings can be reopened. Current status: ${booking.status}.` });
-        }
-        reopenBooking(
-            bookingId,
-            function(upErr) {
-                if (upErr) return res.status(500).json({ success: false, message: upErr.message });
-                db.run(
-                    `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
-                     VALUES ('bookings', ?, 'REOPEN', ?, ?, ?, CURRENT_TIMESTAMP)`,
-                    [bookingId,
-                     JSON.stringify({ status: 'EXPIRED' }),
-                     JSON.stringify({ status: 'PENDING', note: 'Reopened by admin — previous quote cleared' }),
-                     req.session.adminId || 'admin']
-                );
-                res.json({ success: true, message: 'Booking reopened and returned to PENDING.' });
-            }
-        );
-    });
-});
 
 // P2.0b — Book Again — creates a new PENDING booking pre-filled from a CANCELLED booking
 app.post('/api/admin/bookings/:id/book-again', requireAdmin, async (req, res) => {
@@ -8874,33 +8833,6 @@ app.post('/api/admin/bookings/:id/invoice/generate', requireAdmin, requireRole([
     }
 });
 
-// 2. Ledger reconciliation — compares booking's denormalised ledger against transaction sum.
-app.get('/api/admin/bookings/:id/reconcile', requireAdmin, (req, res) => {
-    const bookingId = req.params.id;
-    db.get(
-        `SELECT
-            b.id, b.amount_paid AS ledger_paid, b.amount_outstanding AS ledger_outstanding, b.total_amount AS ledger_total,
-            COALESCE(SUM(CASE WHEN (t.source != 'payfast' OR t.is_verified = 1) AND COALESCE(t.is_duplicate, 0) = 0 AND t.status = 'completed' THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS tx_paid,
-            COUNT(t.id) AS tx_count
-         FROM bookings b
-         LEFT JOIN transactions t ON t.booking_id = b.id
-         WHERE b.id = ?
-         GROUP BY b.id`,
-        [bookingId],
-        (err, row) => {
-            if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
-            const drift = Math.abs((row.ledger_paid || 0) - (row.tx_paid || 0)) > 0.01;
-            res.json({
-                success: true,
-                booking_id: row.id,
-                ledger: { total: row.ledger_total, paid: row.ledger_paid, outstanding: row.ledger_outstanding },
-                transactions: { total_paid: row.tx_paid, count: row.tx_count },
-                drift,
-                drift_amount: drift ? ((row.ledger_paid || 0) - (row.tx_paid || 0)).toFixed(2) : '0.00'
-            });
-        }
-    );
-});
 
 // 2.5 Ledger reconciliation sync — force aligns bookings totals to transactions
 app.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
@@ -9020,40 +8952,7 @@ app.get('/api/public/bookings/:id/contract/download', ipRateLimiter, trackRateLi
     });
 });
 
-// 2b. Download Invoice (Admin Authorized)
-app.get('/api/admin/bookings/:id/invoice/download', requireAdmin, (req, res) => {
-    // Same as the public route: serve the live invoice, never a superseded VOID revision.
-    getInvoiceFileForAdminDownload(req.params.id, (err, row) => {
 
-        if (err || !row) return res.status(404).send('Invoice not found');
-
-        const filePath = resolveDocsPath('invoices', row.file_path);
-        if (fs.existsSync(filePath)) {
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=Invoice_${row.invoice_number}.pdf`);
-            res.sendFile(filePath);
-        } else {
-            res.status(404).send('Physical PDF file not found on server.');
-        }
-    });
-});
-
-// 2c. Download Quote (Admin Authorized)
-app.get('/api/admin/bookings/:id/quote/download', requireAdmin, (req, res) => {
-    getQuoteFileForAdminDownload(req.params.id, (err, row) => {
-
-        if (err || !row) return res.status(404).send('Quotation not found');
-
-        const filePath = resolveDocsPath('quotes', row.file_path);
-        if (fs.existsSync(filePath)) {
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=Quote_${row.quote_number}.pdf`);
-            res.sendFile(filePath);
-        } else {
-            res.status(404).send('Physical PDF file not found on server.');
-        }
-    });
-});
 
 // Public: download own quote PDF (verified via access token)
 app.post('/api/public/bookings/:id/quote/download', ipRateLimiter, trackRateLimiter, requireBookingAccessToken, (req, res) => {

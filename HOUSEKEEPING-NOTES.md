@@ -781,6 +781,34 @@ smoke` 329/329; `npm test` x4, all clean 664/664 — direct coverage confirmed v
 exercising the notes routes specifically: empty-list, validation, RBAC on create/delete, author
 derivation, ordering, delete-404, delete-success) and RBAC checks on the financials-adjacent routes.
 
+### Bookings sub-batch B: 5 more clean routes — DONE
+
+`GET /:id/cancellation-preview` (already-relocated `calculateCancellationRefund` from
+`lib/cancellation-refund.js`), `POST /:id/reopen`, `GET /:id/reconcile`, `GET /:id/invoice/download`,
+`GET /:id/quote/download` — all confirmed to have zero dependency on the ~75 still-deferred
+functions, all already repo-backed. Appended to `routes/admin/bookings.js`.
+
+**Fixed a latent bug in `extract_routes.js`** found while appending this batch: the script's
+append-to-existing-file path matched `EXPORT_LINE` including a trailing `\n`, but `bookings.js` (like
+every route file, per this session's own git-commit warnings about CRLF normalization) had been
+normalized to CRLF line endings by an editor tool since its creation — the `\n`-only match silently
+failed with "Could not find module.exports = router; to insert before." Confirmed via the script's
+own write-order safety that `app.js` was untouched (the failure happens before that write), then
+fixed the script to match `EXPORT_LINE` without requiring a specific trailing line-ending, and
+re-ran cleanly. This is the first time any route file has been appended to a second time (every
+prior file was single-batch), so the bug was latent until now — will not recur for future
+`bookings.js` sub-batches.
+
+Verification: `node -c`; confirmed zero remaining `app.js` registrations for all 5 paths; `npm run
+smoke` 329/329; `npm test` x4 — 2 clean 664/664 runs, one already-documented `banner.test.js`
+`SQLITE_BUSY` crash (9th occurrence), one already-documented calendar-sync reschedule flake, neither
+touching this batch. No dedicated test names these 5 routes directly, so manually drove all 5
+against real fixtures: `cancellation-preview` returned a sensible tiered-refund calc,
+`reconcile` returned correct ledger/transaction figures, `invoice/download` and `quote/download`
+both served genuine PDFs (confirmed `%PDF` header + correct `Content-Type`) for a fixture booking
+that already had real files on disk, and `reopen` correctly flipped an EXPIRED fixture back to
+PENDING.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
