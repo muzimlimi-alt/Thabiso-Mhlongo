@@ -809,6 +809,36 @@ both served genuine PDFs (confirmed `%PDF` header + correct `Content-Type`) for 
 that already had real files on disk, and `reopen` correctly flipped an EXPIRED fixture back to
 PENDING.
 
+### Bookings sub-batch C: the contract cluster (9 routes) — DONE
+
+Generate, builder-data, preview, GET/POST (fetch/upload), sign (admin countersign), download, send,
+remind. Traced the full dependency graph before touching anything:
+
+- **`lib/document-totals.js`** (new): `getVatRate`, `resolveLineTaxClasses`, `computeDocumentTotals`
+  — pure money-math shared by `generateInvoice` and the admin quote route (neither yet moved) *and*
+  the contract fee resolver below. `app.js` re-imports all three for those two remaining call sites.
+- **`lib/contracts.js`** (new): `DEFAULT_CONTRACT_CLAUSES`, `CONTRACT_ELIGIBLE_STATUSES`,
+  `resolveContractFeeData`, `assembleContractHtml`, `generateContract` — the whole contract-
+  generation engine. `generateContract` has two remaining external callers (the public quote-
+  acceptance flow, and `applyStatusChange` — neither yet moved), both re-imported in `app.js`.
+  `resolveContractFeeData`/`assembleContractHtml` turned out to have zero callers outside this
+  cluster once traced, so they didn't need a separate re-import.
+- **`sendContractEmail`** and **`contractUpload`** (the upload multer config) were both confirmed
+  single-consumer (only the `contract/send` and `contract` POST-upload routes, respectively) and
+  moved directly into `routes/admin/bookings.js` rather than a new lib file.
+- **`contract/remind`** inlines its own reminder email (via already-leaf `getEmailFooterContext`/
+  `bannerRegistry`/`emailComponents`/`sendEmail`) rather than calling the generic `remindBooking` —
+  confirmed by reading the route body, not assumed — so it needed no dependency on `remindBooking`
+  or the two `send*Email` functions that function pulls in, which stay deferred.
+
+Verification: `node -c` on all changed/new files; confirmed zero remaining `app.js` registrations
+for all 9 paths and zero remaining reference to any relocated function/constant outside comments;
+`npm run smoke` 329/329; `npm test` x5 — 3 clean 664/664, 2 with the same already-documented
+calendar-sync reschedule flake (unrelated). Direct, thorough coverage from the dedicated
+`contract.test.js` suite — draft generation with a real PDF, send, the full two-party sign/
+countersign flow (including the "blocked before client signs" and "finalised: signed + frozen"
+cases), all passing on every run.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
