@@ -1274,6 +1274,46 @@ already auto-creates a draft contract on quote acceptance, so a real PDF was alr
 — confirmed via the `contracts` table directly, then re-verified the download route itself was never
 at fault.
 
+### Public bookings sub-batch D: cancel, review, attachments — DONE
+
+`POST .../:id/cancel` (client self-cancellation, refund calc + a guarded transaction that cancels
+the booking, records the cancellation, releases date holds, voids invoices, and cancels pending
+payment schedules atomically), `POST .../:id/review` (post-event rating, COMPLETED bookings only),
+`POST .../:id/attachments` (supporting-file upload — the one route in this whole pass that
+authenticates by matching a client-supplied email against the booking's own email rather than
+`requireBookingAccessToken`, an existing, deliberate difference left exactly as found).
+
+New dependencies, all already-existing exports needing only import: `calculateCancellationRefund`
+(`lib/cancellation-refund.js`), `sendCancellationEmail` (`lib/booking-cancellation-email.js`, both
+already relocated in earlier batches), `withDbTransaction`/`dbRun` (the required-singleton
+transaction queue + `lib/db-helpers.js`), `insertCancellationForPublicCancel`
+(`finance.repository`), `releaseDateHoldsForBookingAsync` (`calendar.repository`),
+`voidInvoicesForCancelledBookingAsync` (`invoices-quotations.repository`),
+`cancelPendingPaymentSchedulesAsync` (`finance.repository`), `getNotificationEmail`
+(`settings.repository`). **`bookingAttachUpload`** (the attachments multer config) moved directly
+into the route file as a single-consumer local, matching the `contractUpload` precedent from the
+admin contract-cluster batch.
+
+Dead-import sweep found only `insertCancellationForPublicCancel` newly orphaned in `app.js` — every
+other name above (`sendCancellationEmail`, `calculateCancellationRefund`,
+`releaseDateHoldsForBookingAsync`, `voidInvoicesForCancelledBookingAsync`,
+`cancelPendingPaymentSchedulesAsync`) still has a genuine second caller elsewhere (confirmed via
+`grep -o` occurrence counts, not line counts) in the still-deferred `accept-quote`/
+`quote-revision-request` routes and the admin bulk-cancel path.
+
+Verification: `node -c`; the static undefined-reference sweep (clean); confirmed zero remaining
+`app.js` registrations for all 3 paths and zero remaining reference to the one dead name; `npm run
+smoke` 329/329; `npm test` x3 — 2 clean 664/664, one run with the already-extensively-documented
+`calendar-booking-sync.test.js` "cancel: deleteGoogleEvent" flake, which exercises the *admin*
+cancel route (`/api/admin/bookings/:id/cancel`), not the public one moved here — unrelated. No
+dedicated coverage exists for any of these 3 public routes — manually verified all three against
+real fixtures (15 checks, all passing), including a self-corrected fixture mistake: the admin
+booking-creation route's own `validStatuses` allowlist (`NEW`/`PENDING`/`QUOTED` only) silently
+downgrades any other requested status to `NEW`, so a `COMPLETED` fixture for the review test had to
+be seeded with a direct DB write instead of assumed from the creation call — not a bug in the
+relocated `review` route, a wrong assumption in the test caught by checking the actual persisted
+status before blaming the route.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

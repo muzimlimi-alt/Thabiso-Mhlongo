@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
+const multer = require('multer');
 const db = require('../../database');
 const {
     ipRateLimiter, otpRequestRateLimiter, mutateRateLimiter, lookupRateLimiter, trackRateLimiter
@@ -9,11 +10,17 @@ const {
 const { requireBookingAccessToken } = require('../../middleware/booking-access');
 const { encodeUserHtml } = require('../../lib/html-sanitize');
 const { getEmailFooterContext } = require('../../lib/email-context');
-const { resolveDocsPath } = require('../../lib/runtime-paths');
+const { resolveDocsPath, docsWriteDir } = require('../../lib/runtime-paths');
 const {
     asBookingText, OTP_TTL_MINUTES, OTP_MAX_ATTEMPTS, ACCESS_TOKEN_TTL_MINUTES,
     generateOtpCode, hashAccessToken
 } = require('../../lib/booking-tracking');
+const { calculateCancellationRefund } = require('../../lib/cancellation-refund');
+const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
+const { dbRun } = require('../../lib/db-helpers');
+// Phase 5: MUST stay the exact same singleton module.exports app.js and every other route file
+// import — see lib/db-transaction.js's own header comment.
+const { withDbTransaction } = require('../../lib/db-transaction');
 const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
 const { sendEmail } = require('../../js/emailService');
@@ -23,11 +30,15 @@ const {
     insertBookingAccessToken, getBookingById
 } = require('../../database/repositories/bookings.repository');
 const {
-    getInvoiceForTracking, getQuoteVersionInfoForTracking, getLatestQuoteFileForPublicDownload
+    getInvoiceForTracking, getQuoteVersionInfoForTracking, getLatestQuoteFileForPublicDownload,
+    voidInvoicesForCancelledBookingAsync
 } = require('../../database/repositories/invoices-quotations.repository');
 const {
-    getPaymentSchedulesForTracking, getCancellationSummaryForTracking
+    getPaymentSchedulesForTracking, getCancellationSummaryForTracking,
+    insertCancellationForPublicCancel, cancelPendingPaymentSchedulesAsync
 } = require('../../database/repositories/finance.repository');
+const { releaseDateHoldsForBookingAsync } = require('../../database/repositories/calendar.repository');
+const { getNotificationEmail } = require('../../database/repositories/settings.repository');
 const router = express.Router();
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved from app.js verbatim, byte-identical — single-consumer
@@ -415,5 +426,173 @@ router.post('/api/public/bookings/:id/quote/download', ipRateLimiter, trackRateL
             });
     });
 });
+
+// Public: client self-cancellation (PENDING/QUOTED/ACCEPTED only)
+router.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+    const { reason, reason_code } = req.body;
+    db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, booking) => {
+        if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        const cancellable = ['PENDING','QUOTED','ACCEPTED'];
+        if (!cancellable.includes(booking.status))
+            return res.status(400).json({ success: false, message: `Booking cannot be cancelled at status ${booking.status}. Contact us directly.` });
+
+        db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", [], async (e, policy) => {
+            const calc = calculateCancellationRefund(booking, policy ? policy.policy_value : '');
+
+            const outcome = await withDbTransaction(async () => {
+                try {
+                    await dbRun("BEGIN IMMEDIATE");
+                } catch (beginErr) {
+                    console.error('[Public Cancel] BEGIN IMMEDIATE failed:', beginErr.message);
+                    return { status: 500, body: { success: false, message: 'Database busy. Please retry.' } };
+                }
+                try {
+                    await dbRun("UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [req.params.id]);
+                    await insertCancellationForPublicCancel(req.params.id, reason || 'Client request', reason_code || null, calc.totalPaid, calc.refund, calc.retention);
+                    // Released with the cancellation, not after it: this ran post-COMMIT and could
+                    // leave the date held against a booking that no longer holds it.
+                    await releaseDateHoldsForBookingAsync(req.params.id);
+                    // Bug fix: this cascade was missing here even though both admin cancel paths
+                    // (the dedicated /cancel route and the generic status-change handler) apply it —
+                    // without it, a client self-cancelling an ACCEPTED booking left its invoice SENT
+                    // and its payment-schedule rows pending, corrupting AR/outstanding-balance reporting.
+                    await voidInvoicesForCancelledBookingAsync(req.params.id);
+                    await cancelPendingPaymentSchedulesAsync(req.params.id);
+
+                    await dbRun("COMMIT");
+                    return { ok: true };
+                } catch (txErr) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    console.error('[Public Cancel] Failed — rolled back, booking unchanged:', txErr.message);
+                    return { status: 500, body: { success: false } };
+                }
+            });
+
+            if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+
+            booking.name = booking.client_name || booking.name;
+            try { await sendCancellationEmail(booking, { reason: reason || 'Client request', refund_due: calc.refund, rule: calc.rule, days_until_event: calc.daysUntilEvent }); } catch(ce) {}
+            getNotificationEmail().then(notifEmail => {
+                sendEmail({ to: notifEmail, subject: `Client Cancelled – Booking #${req.params.id}`,
+                    htmlContent: emailComponents.renderSystemEmail({
+                        preheaderText: `${booking.name} cancelled booking #${req.params.id}.`,
+                        category: 'Booking Requests',
+                        severity: 'action',
+                        leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(booking.name)}</strong> cancelled booking <strong style="color:#FAFAFA;">#${req.params.id}</strong>.`,
+                        cards: [{ rows: [
+                            { label: 'Reason', value: reason || 'Not provided', mono: false },
+                            { label: 'Refund Due', value: `R${calc.refund.toFixed(2)}`, highlight: true }
+                        ] }]
+                    }),
+                    preWrapped: true,
+                    titleOverride: 'Client Cancellation', trigger_event: 'Admin: Client Cancellation' }).catch(() => {});
+            });
+            res.json({ success: true, message: 'Booking cancelled.', refund_due: calc.refund, refund_policy: calc.rule });
+        });
+    });
+});
+
+// C7: Public — submit a post-event review (COMPLETED bookings only, verified via access token)
+router.post('/api/public/bookings/:id/review', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, (req, res) => {
+    const { rating, review_text } = req.body;
+    const ratingNum = parseInt(rating, 10);
+    if (!ratingNum || ratingNum < 1 || ratingNum > 5) return res.status(400).json({ success: false, message: 'Rating must be between 1 and 5.' });
+
+    db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, booking) => {
+        if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        if (booking.status !== 'COMPLETED')
+            return res.status(400).json({ success: false, message: 'Reviews can only be submitted for completed bookings.' });
+
+        const clientName = booking.client_name || booking.name || 'Anonymous';
+        db.run(
+            `INSERT INTO service_reviews (booking_id, client_name, rating, review_text)
+             VALUES (?, ?, ?, ?)
+             ON CONFLICT(booking_id) DO UPDATE SET rating=excluded.rating, review_text=excluded.review_text, submitted_at=CURRENT_TIMESTAMP`,
+            [req.params.id, encodeUserHtml(clientName), ratingNum, encodeUserHtml(review_text) || null],
+            function(insErr) {
+                if (insErr) return res.status(500).json({ success: false, message: 'Could not save review.' });
+                // Notify admin of new review
+                getNotificationEmail().then(notifEmail => sendEmail({
+                    to: notifEmail,
+                    subject: `New Review Submitted – Booking #${req.params.id} (${ratingNum}★)`,
+                    htmlContent: emailComponents.renderSystemEmail({
+                        preheaderText: `${clientName} left a ${ratingNum}/5 review for booking #${req.params.id}.`,
+                        category: 'Thank You & Reviews',
+                        severity: 'info',
+                        leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(clientName)}</strong> has submitted a <strong style="color:#D4AF37;">${ratingNum}/5</strong> review for Booking <strong style="color:#FAFAFA;">#${req.params.id}</strong>.`,
+                        bodyHtml:
+                            (review_text ? `<blockquote style="border-left:3px solid #D4AF37; padding:10px 16px; margin:0 0 12px; color:#E6E6E6; background:#1A1A1A;">${review_text}</blockquote>` : '') +
+                            `<p style="margin:0; color:#B0B0B0;">Log in to the admin panel to approve or manage reviews.</p>`
+                    }),
+                    preWrapped: true,
+                    titleOverride: 'New Client Review',
+                    trigger_event: 'Admin: New Review Submitted'
+                })).catch(() => {});
+                res.json({ success: true, message: 'Thank you! Your review has been submitted.' });
+            }
+        );
+    });
+});
+
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved from app.js verbatim, byte-identical — single-consumer
+// (the attachments route below).
+// Booking client attachments (posters, briefs, programmes)
+const bookingAttachUpload = multer({
+    storage: multer.diskStorage({
+        destination: function (req, file, cb) {
+            cb(null, docsWriteDir('booking_attachments'));
+        },
+        filename: function (req, file, cb) {
+            const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+            cb(null, `booking-${req.params.id || 'new'}-${Date.now()}-${safe}`);
+        }
+    }),
+    fileFilter: function (req, file, cb) {
+        const allowedMimes = [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'image/jpeg', 'image/png', 'image/webp'
+        ];
+        if (allowedMimes.includes(file.mimetype)) return cb(null, true);
+        cb(new Error('Allowed types: PDF, Word, JPEG, PNG, WEBP'));
+    },
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+// Public: upload supporting files after booking is created (max 5 × 10 MB)
+router.post('/api/public/bookings/:id/attachments',
+    mutateRateLimiter, ipRateLimiter,
+    bookingAttachUpload.array('attachments', 5),
+    (req, res) => {
+        const { email } = req.body;
+        if (!email) return res.status(400).json({ success: false, message: 'Email required.' });
+        if (!req.files || req.files.length === 0)
+            return res.status(400).json({ success: false, message: 'No files received.' });
+
+        db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, booking) => {
+            if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+            if ((booking.email || '').trim().toLowerCase() !== email.trim().toLowerCase())
+                return res.status(401).json({ success: false, message: 'Email does not match.' });
+
+            const existing = JSON.parse(booking.attachment_files || '[]');
+            const added = req.files.map(f => ({
+                filename: f.filename,
+                original_name: f.originalname,
+                mime_type: f.mimetype,
+                size: f.size
+            }));
+            const merged = [...existing, ...added].slice(0, 10);
+
+            db.run("UPDATE bookings SET attachment_files = ? WHERE id = ?",
+                [JSON.stringify(merged), req.params.id],
+                (upErr) => {
+                    if (upErr) return res.status(500).json({ success: false });
+                    res.json({ success: true, files: added });
+                }
+            );
+        });
+    }
+);
 
 module.exports = router;
