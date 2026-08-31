@@ -1362,6 +1362,84 @@ manually verified against real fixtures (8 checks, all passing): rejecting an in
 exact booking note text and returning 200; a valid revision request also succeeding; and rejecting
 the request entirely on a booking that isn't in QUOTED status.
 
+### Public bookings sub-batch G: accept-quote — the last route, and the financial core with it — DONE
+
+`POST /api/public/bookings/:id/accept-quote` — the second-biggest route in the whole public pass
+(~150 lines): the compare-and-swap status flip (QUOTED→ACCEPTED/CONFIRMED, guarding against a
+concurrent double-accept), the acceptance audit row, the auto-built 50/50 deposit/balance payment
+schedule, and the post-commit side effects (calendar sync, auto-generated SENT invoice + email,
+auto-generated draft contract, client + admin notification emails). This is also the route that
+finally forced relocating the two functions flagged since the very first reconnaissance write-up as
+"the big deferred bookings/events pass" — `generateInvoice` and `autoBuildDepositBalanceSchedule` —
+given its own dedicated, unhurried pass rather than folded in casually, matching the treatment the
+calendar-sync engine got earlier.
+
+**`lib/invoicing.js`** (new): `autoBuildDepositBalanceSchedule` and `generateInvoice`, read in full
+and traced dependency-by-dependency before writing a line — exactly like the calendar-sync engine,
+this "big deferred financial core" turned out to have **zero new/surprise dependencies**: every
+repository call (`getLivePaymentScheduleCount`, `getPaidPaymentScheduleSum`,
+`insertPaymentScheduleMilestone`, `getInvoiceForPaidCheck`, `getActiveQuoteForInvoiceGen`,
+`getQuoteLineItems`, `getInvoiceNumberCollisionCount`, `getPaymentSchedulesForDocument`,
+`voidSupersededInvoiceForRegen`, `insertInvoice`, `insertInvoiceLineItem`,
+`updateBookingLedgerAfterInvoice`, `markInvoiceSent`, `setBookingClientId`) was already an existing
+Phase 4 repository export, and every helper (`findOrCreateClient`, `getVatRate`/
+`resolveLineTaxClasses`/`computeDocumentTotals`, `docsWriteDir`, `sendInvoiceEmail`, `pdfService`,
+`withDbTransaction`/`dbRun`) was already relocated. Both functions have remaining callers scattered
+across still-deferred `app.js` routes (`invoice/generate`, several payment-processing paths); `app.js`
+re-imports both.
+
+**`sendQuoteAcceptedEmail`** joined `lib/booking-notifications.js` (same shape as every sibling
+there — `escapeEmailFields`/`getEmailFooterContext`/`bannerRegistry`/`emailComponents`/`sendEmail`/
+`generateBookingICS`, all already present) — one remaining `app.js` caller, re-imported.
+**`sendAdminQuoteAcceptedNotification`** moved directly into `routes/public/bookings.js` as a
+single-consumer local (fully dead in `app.js` afterward — its only caller moved with it).
+
+**A missing import the static sweep caught before it shipped:** `syncBookingToCalendar` was used in
+`accept-quote`'s post-commit side effects but had never been imported into
+`routes/public/bookings.js` (no earlier sub-batch in this file needed it). The undefined-reference
+sweep (built for the `dbGet` fix earlier this session) flagged it immediately — fixed by adding the
+one-line `lib/calendar-sync.js` import before the route was considered done, rather than after a
+runtime `ReferenceError` surfaced it.
+
+**Dead-import sweep found the largest cleanup of this whole session** — 15 names orphaned in
+`app.js`'s destructures once `generateInvoice`/`autoBuildDepositBalanceSchedule` moved with all
+their own repository calls: `markQuotationAcceptedAsync`, `getLivePaymentScheduleCount`,
+`getPaidPaymentScheduleSum`, `insertPaymentScheduleMilestone`, `getInvoiceForPaidCheck`,
+`getActiveQuoteForInvoiceGen`, `getQuoteLineItems`, `getInvoiceNumberCollisionCount`,
+`getPaymentSchedulesForDocument`, `voidSupersededInvoiceForRegen`, `insertInvoice`,
+`insertInvoiceLineItem`, `updateBookingLedgerAfterInvoice`, `markInvoiceSent`, `setBookingClientId`.
+Every one confirmed via `grep -o` occurrence counting before removal; siblings on the same
+destructure lines with genuine remaining call sites (`sendInvoiceEmail`, `findOrCreateClient`,
+`getNotificationEmail`, `flagOverduePaymentSchedules`, `markQuotationAccepted`,
+`revertQuotationToSent`) were left untouched. Two more orphaned JSDoc comments (for
+`autoBuildDepositBalanceSchedule` and `generateInvoice`, left behind by the `REMOVED_`
+rename-then-blank technique) were also cleaned up — their subject functions' own doc comments
+already live on in `lib/invoicing.js`.
+
+**Static byte-identity check** on all four relocated pieces (`autoBuildDepositBalanceSchedule`,
+`generateInvoice`, `sendQuoteAcceptedEmail`, the `accept-quote` route itself): diffed each against
+`git show HEAD:app.js` line by line. All four are character-for-character identical — zero
+differences anywhere, not even whitespace this time.
+
+Verification: `node -c` on all four changed/new files; the static undefined-reference sweep (clean
+on all four, after fixing the one missing `syncBookingToCalendar` import); confirmed zero remaining
+`app.js` registration for the route and zero remaining reference to any of the 15 dead names; `npm
+run smoke` 329/329; `npm test` x4 given the stakes — 3 clean 664/664, one run hitting the
+already-extensively-documented **CP17** flake (unrelated — the events-cluster drag-reschedule sync,
+not anything touched here). `accept-quote` and the financial functions behind it are the most heavily
+covered code touched this session: 8 test files exercise this exact path directly (`booking`,
+`calendar-booking-sync`, `calendar`, `contract`, `email`, `lifecycle`, `payment-callback`,
+`pdf-golden`), so — unlike every other route this session — no manual fixture verification was
+needed on top of that; the combination of exhaustive existing coverage and a byte-for-byte-identical
+diff gives stronger evidence here than a fresh manual check could add.
+
+**This closes out the entire public `/api/public/bookings/*` pass** (19 of 19 routes now
+relocated), and with it the last of the "big deferred bookings/events pass" scoped at the very start
+of this stretch of Phase 5. Remaining Phase 5 scope: `applyStatusChange` (the generic admin
+status-transition engine) and its dependency web (`processManualPayment`, `alignMilestonePayments`,
+`updateBookingMilestones`, `deriveBookingStatusAfterPayment`), `logPaymentEvent` and the PayFast ITN
+webhook itself, the remaining `send*Email` functions not yet relocated, and ~12 background cron jobs.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

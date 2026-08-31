@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const fs = require('fs');
 const multer = require('multer');
+const moment = require('moment-timezone');
 const db = require('../../database');
 const {
     ipRateLimiter, otpRequestRateLimiter, mutateRateLimiter, lookupRateLimiter, trackRateLimiter
@@ -17,8 +18,12 @@ const {
 } = require('../../lib/booking-tracking');
 const { calculateCancellationRefund } = require('../../lib/cancellation-refund');
 const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
+const { sendQuoteAcceptedEmail } = require('../../lib/booking-notifications');
 const { generatePayFastSignature } = require('../../lib/payfast-signature');
-const { dbRun } = require('../../lib/db-helpers');
+const { syncBookingToCalendar } = require('../../lib/calendar-sync');
+const { autoBuildDepositBalanceSchedule, generateInvoice } = require('../../lib/invoicing');
+const { generateContract } = require('../../lib/contracts');
+const { dbGet, dbRun } = require('../../lib/db-helpers');
 // Phase 5: MUST stay the exact same singleton module.exports app.js and every other route file
 // import — see lib/db-transaction.js's own header comment.
 const { withDbTransaction } = require('../../lib/db-transaction');
@@ -32,7 +37,7 @@ const {
 } = require('../../database/repositories/bookings.repository');
 const {
     getInvoiceForTracking, getQuoteVersionInfoForTracking, getLatestQuoteFileForPublicDownload,
-    voidInvoicesForCancelledBookingAsync
+    voidInvoicesForCancelledBookingAsync, markQuotationAcceptedAsync
 } = require('../../database/repositories/invoices-quotations.repository');
 const {
     getPaymentSchedulesForTracking, getCancellationSummaryForTracking,
@@ -887,6 +892,178 @@ router.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter
             res.status(500).json({ success: false, message: 'Failed to record your request in the database.' });
         }
     });
+});
+
+// Accept quote (public) — client formally accepts a sent quote
+// Gap 1 (Phase 2, resolved 2026-07-16): acceptance used to be authenticated by matching the stored
+// email address alone. Now gated behind requireBookingAccessToken — the caller must have already
+// proven control of the booking's inbox via the /track/request-code + /track/verify-code OTP flow.
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved from app.js verbatim, byte-identical — single-consumer
+// (the accept-quote route directly below).
+async function sendAdminQuoteAcceptedNotification(booking) {
+    const notifEmail = await getNotificationEmail();
+    const { id, name, email, event_name, event_type, date } = booking;
+    const body = emailComponents.renderSystemEmail({
+        preheaderText: `${name} accepted the quote for booking #${id} — invoice auto-generated.`,
+        category: 'Quotes & Proposals',
+        severity: 'action',
+        leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(name)}</strong> (${email}) has accepted the quote for booking <strong style="color:#FAFAFA;">#${id}</strong>.`,
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">An invoice has been auto-generated. Log in to confirm the booking.</p>`,
+        cards: [{ rows: [{ label: 'Event', value: `${event_name || event_type} on ${date}`, mono: false }] }]
+    });
+    await sendEmail({ to: notifEmail, subject: `Invoice Issued – Booking #${id} Awaiting Payment`,
+        htmlContent: body, preWrapped: true, replyTo: email, titleOverride: 'Invoice Issued – Action Required',
+        trigger_event: 'Admin: Quote Accepted Notification' });
+}
+
+router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+    const { terms_agreed } = req.body;
+    const email = req.trackingEmail;
+    if (!terms_agreed) return res.status(400).json({ success: false, message: 'You must agree to the terms and conditions to accept this quote.' });
+
+    // Client-supplied and written straight to bookings.vat_number, which the admin panel renders.
+    // Same treatment as every other public free-text field: bounded and output-encoded.
+    const vat_number = asBookingText(req.body.vat_number);
+    if (vat_number.length > 30) return res.status(400).json({ success: false, message: 'VAT number must be under 30 characters.' });
+
+    const bookingId = req.params.id;
+    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+
+    try {
+        const row = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
+        if (!row) return res.status(404).json({ success: false, message: 'Booking not found.' });
+
+        // Gap 4 (Phase 2): 'RESPONDED' was a legacy status retired in Phase 2 — only 'QUOTED' is valid here.
+        if (row.status !== 'QUOTED') {
+            return res.status(400).json({ success: false, message: `Cannot accept quote – current status is ${row.status}.` });
+        }
+        // quote_amount is written by the quote route as finalTotal.toFixed(2), so a zero quote is the
+        // string "0.00" — the old `=== '0'` check never caught it.
+        const quotedTotal = parseFloat(row.quote_amount);
+        if (!Number.isFinite(quotedTotal) || quotedTotal <= 0) {
+            return res.status(400).json({ success: false, message: 'No quote has been issued for this booking yet.' });
+        }
+        // Expiry is compared in the business's own timezone. This used to use the UTC date, so between
+        // midnight and 02:00 SAST a quote that expired yesterday was still acceptable.
+        if (row.quote_expiry_date) {
+            const todayLocal = moment().tz('Africa/Johannesburg').format('YYYY-MM-DD');
+            if (row.quote_expiry_date < todayLocal) {
+                return res.status(410).json({ success: false, message: `This quote expired on ${row.quote_expiry_date}. Please contact us to request a revised quote.` });
+            }
+        }
+
+        // Acceptance is one atomic unit: the status flip, the quotation stamp, the audit row and the
+        // payment schedule. Previously these were four independent statements and two of them swallowed
+        // their errors, so a schedule failure left an ACCEPTED booking with no payment plan — and
+        // generateInvoice() then rendered an invoice PDF with no split.
+        const outcome = await withDbTransaction(async () => {
+            try {
+                await dbRun("BEGIN IMMEDIATE");
+            } catch (beginErr) {
+                console.error('[Accept-Quote] BEGIN IMMEDIATE failed:', beginErr.message);
+                return { status: 503, body: { success: false, message: 'We could not record your acceptance just now. Please try again in a moment.' } };
+            }
+            try {
+                // Compare-and-swap on the status. The check above is a read, and the event loop yields
+                // between it and this write, so two concurrent acceptances could both pass it. Guarding
+                // the UPDATE with `AND status = 'QUOTED'` makes exactly one of them win.
+                //
+                // A deposit confirms a booking. Re-accepting after a re-quote therefore lands back on
+                // CONFIRMED when money has already been paid, rather than demoting a part-paid booking
+                // to ACCEPTED. Expressed as a CASE so the rule stays race-free inside the same statement.
+                const upd = await dbRun(
+                    `UPDATE bookings SET
+                            status = CASE WHEN COALESCE(amount_paid, 0) > 0 THEN 'CONFIRMED' ELSE 'ACCEPTED' END,
+                            accepted_at = CURRENT_TIMESTAMP, acceptance_ip = ?,
+                            acceptance_agreed_at = CURRENT_TIMESTAMP, vat_number = COALESCE(?, vat_number)
+                     WHERE id = ? AND status = 'QUOTED'`,
+                    [clientIp, encodeUserHtml(vat_number) || null, bookingId]
+                );
+                if (upd.changes === 0) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 409, body: { success: false, message: 'This quote has already been accepted.' } };
+                }
+
+                await markQuotationAcceptedAsync(bookingId);
+
+                // P3-3: Audit log for quote acceptance
+                await dbRun(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp, ip_address)
+                        VALUES ('bookings', ?, 'QUOTE_ACCEPTED', ?, ?, CURRENT_TIMESTAMP, ?)`,
+                    [bookingId, JSON.stringify({ accepted_by: email, ip: clientIp, amount: row.quote_amount }), email, clientIp]);
+
+                // Auto-create the default 50/50 split only when there is no LIVE UNPAID plan.
+                // F3: both rows must exist before generateInvoice() reads payment_schedules for the PDF.
+                //
+                // A surviving PAID row must NOT suppress creation. Re-quoting an ACCEPTED booking
+                // supersedes every unpaid milestone but leaves the paid ones (the money moved), and the
+                // old "does a plan exist?" count treated that paid deposit as an admin-configured plan —
+                // so a client who paid R500 on a R1000 quote, re-quoted to R5000, ended up owing R4500
+                // against no milestones at all. Detection therefore excludes 'paid' too.
+                //
+                // The split covers the OUTSTANDING balance, measured against the paid rows'
+                // expected_amount rather than bookings.amount_paid: the invariant below is defined over
+                // expected_amount, and expected_amount is what the invoice PDF renders.
+                //
+                // Invariant: SUM(expected_amount) over live (non-superseded, non-cancelled) rows == total_amount.
+                // Shared with the admin QUOTED→ACCEPTED path (applyStatusChange) so the two never diverge.
+                const totalAmount = quotedTotal || parseFloat(row.total_amount) || 0;
+                await autoBuildDepositBalanceSchedule(bookingId, totalAmount, row.date || row.event_date);
+
+                // Read back what the CASE above actually resolved to, so the response and the client
+                // email report the real status rather than assuming ACCEPTED.
+                const settled = await dbGet("SELECT status FROM bookings WHERE id = ?", [bookingId]);
+
+                await dbRun("COMMIT");
+                return { ok: true, newStatus: (settled && settled.status) || 'ACCEPTED' };
+            } catch (txErr) {
+                await dbRun("ROLLBACK").catch(() => {});
+                console.error('[Accept-Quote] Failed — rolled back, booking still QUOTED (#' + bookingId + '):', txErr.message);
+                return { status: 500, body: { success: false, message: 'We could not record your acceptance. Please try again.' } };
+            }
+        });
+
+        if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+        const newStatus = outcome.newStatus;
+
+        // ---- Side effects, after the commit. None of these may prevent the response. ----
+        // generateInvoice() and generateContract() open their own guarded transactions, so they must
+        // run outside the one above or they would deadlock behind it in the queue.
+        await syncBookingToCalendar(bookingId).catch(e => console.error('[Accept-Quote] Calendar sync failed:', e.message));
+
+        // Gap 2 (Phase 2): Track whether invoice generation succeeds so we can give an honest
+        // client-facing message. The acceptance is NOT rolled back if the invoice fails — the booking
+        // is accepted; only the invoice email promise changes.
+        let invoiceGenerated = false;
+        try {
+            // Client is actively expecting the invoice — generate AND email it (autoSend), unlike the
+            // admin acceptance path which produces a DRAFT for review first.
+            await generateInvoice(bookingId, { autoSend: true });
+            invoiceGenerated = true;
+        } catch(invErr) {
+            console.error('[Invoice] Auto-generation failed during acceptance (booking #' + bookingId + '):', invErr);
+        }
+
+        // Auto-generate a DRAFT booking contract alongside the invoice. Non-blocking —
+        // acceptance must never fail because of contract generation; it's a draft for admin review.
+        try { await generateContract(bookingId); }
+        catch(cErr) { console.error('[Auto-Contract] Generation failed during acceptance (booking #' + bookingId + '):', cErr.message); }
+
+        // Guarded: this used to be a bare `await` inside a sqlite3 callback, where a rejection became
+        // an unhandled rejection and the client never received a response for a booking already accepted.
+        await sendQuoteAcceptedEmail({ ...row, status: newStatus }, { invoiceGenerated })
+            .catch(e => console.error('[Accept-Quote] Client confirmation email failed:', e.message));
+        sendAdminQuoteAcceptedNotification({ ...row, status: newStatus })
+            .catch(e => console.error('Admin quote-accepted notification failed:', e.message));
+
+        // Gap 2: Conditionally tell the client about the invoice based on whether it was generated.
+        const acceptMsg = invoiceGenerated
+            ? 'Quote accepted successfully. Your invoice has been generated and emailed to you.'
+            : 'Quote accepted successfully. Our team will be in touch shortly with your invoice details.';
+        res.json({ success: true, message: acceptMsg, newStatus, invoice_generated: invoiceGenerated });
+    } catch (e) {
+        console.error('[Accept-Quote] Unexpected failure (booking #' + bookingId + '):', e);
+        res.status(500).json({ success: false, message: 'We could not process your acceptance. Please contact us directly.' });
+    }
 });
 
 module.exports = router;
