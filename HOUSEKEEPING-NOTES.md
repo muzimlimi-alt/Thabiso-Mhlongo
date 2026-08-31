@@ -1314,6 +1314,33 @@ be seeded with a direct DB write instead of assumed from the creation call — n
 relocated `review` route, a wrong assumption in the test caught by checking the actual persisted
 status before blaming the route.
 
+### Public bookings sub-batch E: pay + contract/sign — DONE
+
+`POST .../:id/pay` (PayFast redirect initiation — status/payment-status gating, server-side amount
+calc from milestone payment schedules, signed `pfData`) and `POST .../:id/contract/sign` (the
+client's half of the two-party contract sign/countersign flow — signature bound to the exact PDF
+bytes on disk via a SHA-256 hash, plus admin notification). Appended to `routes/public/bookings.js`.
+
+**`generatePayFastSignature`** relocated to a new **`lib/payfast-signature.js`** — fully
+self-contained (`crypto` only) but shared with the PayFast ITN webhook (`POST
+/api/payment/webhook/payfast`, still in `app.js`, not part of this pass), so `app.js` re-imports it.
+`contract/sign` needed zero new dependencies — everything (`db`, `resolveDocsPath`, `fs`, `crypto`,
+`asBookingText`, `getNotificationEmail`, `sendEmail`, `emailComponents`) was already available from
+earlier sub-batches. `getPaymentSchedulesForPayfastInit` (`finance.repository`) was `pay`'s one new
+import; it had exactly one caller in `app.js` (this route), so it's now dead there and removed.
+
+Verification: `node -c`; the static undefined-reference sweep (clean); confirmed zero remaining
+`app.js` registrations for both paths and zero remaining reference to the one dead name; `npm run
+smoke` 329/329; `npm test` x3 — 2 clean 664/664, one run crashing with the already-extensively-
+documented `banner.test.js` `SQLITE_BUSY` process crash (see "Known testing limitations" — now an
+11th occurrence, same category, unrelated to anything in this batch). `contract/sign` has thorough
+dedicated coverage in `contract.test.js` (wrong-token rejection, a full sign, re-sign rejection,
+and rejection once already finalised) — all passing on every run. `pay` had no coverage at all —
+manually verified against real fixtures (11 checks, all passing): rejecting a still-QUOTED booking
+(quote must be accepted first), rejecting a missing token and an invalid `payment_type`, a valid
+`FULL` request returning a correctly-signed `pfData` payload with the right amount/`m_payment_id`/
+`notify_url`, and rejecting a second payment attempt once the booking is already fully paid.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -2649,6 +2676,11 @@ banners) — each landing at a slightly different statement within `banner.test.
 usual exact spot (once one test earlier, at "reject: width 1500px"), which if anything reinforces
 that this is a genuine timing race rather than a single reproducible bug at one fixed line. Zero
 leftover `node.exe` processes either time; clean re-runs both times.
+
+**Update (Phase 5, public bookings sub-batch E — pay/contract-sign):** another occurrence, one run
+out of three during `pay`/`contract/sign` verification — a batch touching PayFast redirect
+signing and contract-sign, nowhere near `banner.test.js`'s own tables. Clean re-run immediately
+after. Same conclusion as every instance above.
 
 **A related but distinct, self-inflicted incident (Phase 5, bookings sub-batch E):** not the same
 race as above, but the same category of shared-SQLite-file hazard, worth recording so it isn't

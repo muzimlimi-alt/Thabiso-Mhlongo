@@ -120,7 +120,6 @@ const {
     getActivePaymentSchedules, deletePaymentSchedulesForBooking,
     prepareInsertPaymentSchedule, prepareUpdatePaymentScheduleAmount,
     cancelPendingPaymentSchedules, cancelPendingPaymentSchedulesAsync,
-    getPaymentSchedulesForPayfastInit,
 
     getPayfastTransactionByReference, insertPayfastTransaction,
     insertPaymentLogEntry, insertLoggedPaymentTransaction, getPaymentLogsForBooking,
@@ -2853,24 +2852,9 @@ const { sendAbandonedBookingReminderEmail } = require('./lib/abandoned-booking-e
 
 
 
-function generatePayFastSignature(pfData, passPhrase = null) {
-    let pfOutput = '';
-    for (let key in pfData) {
-        if (pfData.hasOwnProperty(key) && pfData[key] !== '') {
-            const val = pfData[key].toString().trim();
-            const encoded = encodeURIComponent(val).replace(/%20/g, "+");
-            const upperEncoded = encoded.replace(/%[0-9a-fA-F]{2}/g, match => match.toUpperCase());
-            pfOutput += `${key}=${upperEncoded}&`;
-        }
-    }
-    let getString = pfOutput.slice(0, -1);
-    if (passPhrase && passPhrase.trim() !== '') {
-        const encodedPass = encodeURIComponent(passPhrase.trim()).replace(/%20/g, "+");
-        const upperPass = encodedPass.replace(/%[0-9a-fA-F]{2}/g, match => match.toUpperCase());
-        getString += `&passphrase=${upperPass}`;
-    }
-    return crypto.createHash("md5").update(getString).digest("hex");
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): generatePayFastSignature moved to lib/payfast-signature.js —
+// shared by the public pay route (moved with it) and the ITN webhook below (still here).
+const { generatePayFastSignature } = require('./lib/payfast-signature');
 
 // ==========================================
 // PayFast Payment Gateway
@@ -3018,126 +3002,6 @@ app.post('/api/public/popia/preview', ipRateLimiter, mutateRateLimiter, async (r
     }
 });
 
-// Hardened Payment Initiation Endpoint
-// SEC: every other public /bookings/:id/* action (track, accept-quote, cancel, contract/sign)
-// verifies the caller controls the booking's own email before returning anything. This route used
-// to skip that check entirely, so POSTing a payment_type against any (sequential, easily-guessed)
-// booking id returned the client's full name, email address and exact quoted amount — an
-// unauthenticated PII leak — and produced a live, signed PayFast redirect for someone else's
-// booking. Now gated behind the same access_token every other tracking route requires.
-app.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, requireBookingAccessToken, (req, res) => {
-    const { payment_type } = req.body; // Expects 'DEPOSIT' or 'FULL'
-    console.log(`[DEBUG] POST /api/public/bookings/${req.params.id}/pay - Type: ${payment_type}`);
-
-    if (!payment_type || !['DEPOSIT', 'FULL'].includes(payment_type)) {
-        return res.status(400).json({ success: false, message: 'Invalid payment type. Must be DEPOSIT or FULL.' });
-    }
-
-    db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
-        if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
-
-        try {
-            // Status gate: only allow payment for ACCEPTED or CONFIRMED bookings
-            const status = (row.status || '').toUpperCase();
-            if (!['ACCEPTED', 'CONFIRMED'].includes(status)) {
-                console.log(`[DEBUG] Pay failed: status is ${status}`);
-                return res.status(400).json({ success: false, message: `Payment not available — booking status is ${status}. Quote must be accepted first.` });
-            }
-
-            // Duplicate payment guard
-            const payStatus = (row.payment_status || 'UNPAID').toUpperCase();
-            if (payStatus === 'PAID') {
-                console.log(`[DEBUG] Pay failed: already paid`);
-                return res.status(400).json({ success: false, message: 'This booking has already been fully paid.' });
-            }
-            // P2-14: Deposit can only be paid from UNPAID state. DEPOSIT_PAID, PARTIALLY_PAID etc.
-            // should proceed to balance/full payment only — not re-pay the deposit.
-            if (payment_type === 'DEPOSIT' && payStatus !== 'UNPAID') {
-                console.log(`[DEBUG] Pay failed: deposit attempted when payStatus=${payStatus}`);
-                return res.status(400).json({ success: false, message: payStatus === 'DEPOSIT_PAID'
-                    ? 'A deposit has already been paid. You can only pay the remaining balance.'
-                    : `Deposit payment is not available for a booking with status ${payStatus}.` });
-            }
-
-            // Server-side amount calculation — query payment_schedules for milestone-aware amounts
-            let baseAmt = 0;
-            if (row.quote_amount) {
-                baseAmt = parseFloat(row.quote_amount.replace(/[^0-9.]/g, ''));
-            }
-            if (isNaN(baseAmt) || baseAmt <= 0) {
-                console.log(`[DEBUG] Pay failed: invalid amount ${row.quote_amount}`);
-                return res.status(400).json({ success: false, message: 'Invalid quote amount. Please contact management.' });
-            }
-
-            getPaymentSchedulesForPayfastInit(
-                row.id,
-                (schedErr, schedules) => {
-                try {
-                    let amt = baseAmt;
-                    let milestoneDesc = 'Full Payment';
-
-                    if (!schedErr && schedules && schedules.length > 0) {
-                        if (payment_type === 'DEPOSIT') {
-                            amt = parseFloat(schedules[0].expected_amount);
-                            milestoneDesc = schedules[0].description;
-                        } else if (payStatus === 'DEPOSIT_PAID') {
-                            amt = schedules.reduce((sum, s) => sum + parseFloat(s.expected_amount), 0);
-                            milestoneDesc = 'Balance Payment';
-                        }
-                    } else {
-                        if (payment_type === 'DEPOSIT') { amt = baseAmt / 2; milestoneDesc = 'Deposit'; }
-                        else if (payStatus === 'DEPOSIT_PAID') { amt = baseAmt / 2; milestoneDesc = 'Balance'; }
-                    }
-
-                    // Derive the public base URL so PayFast's ITN callback always reaches this server.
-                    // Set BASE_URL in .env for production (e.g. https://thabisomhlongo.com).
-                    // When tunnelling locally (ngrok / cloudflared) the forwarded host header is used automatically.
-                    const proto = req.get('x-forwarded-proto') || req.protocol;
-                    const host  = req.get('x-forwarded-host')  || req.get('host');
-                    const baseUrl = (process.env.BASE_URL || `${proto}://${host}`).replace(/\/$/, '');
-
-                    const isPortal = req.body.return_path === 'portal';
-                    const clientName = row.name || 'Client';
-
-                    const pfData = {
-                        merchant_id: process.env.PAYFAST_MERCHANT_ID || '10000100',
-                        merchant_key: process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a',
-                        return_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success` : `${baseUrl}/?track=${row.id}&payment=success`,
-                        cancel_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel`  : `${baseUrl}/?track=${row.id}&payment=cancel`,
-                        notify_url: `${baseUrl}/api/payment/webhook/payfast`,
-                        name_first: (clientName.split(' ')[0] || '').substring(0, 100),
-                        name_last: (clientName.split(' ').slice(1).join(' ') || '').substring(0, 100),
-                        email_address: row.email,
-                        m_payment_id: `${row.id}_${payment_type}`,
-                        amount: amt.toFixed(2),
-                        item_name: `Booking ${row.id} - ${row.event_name || row.event_type || 'Event'} - ${milestoneDesc}`.substring(0, 100).replace(/[^a-zA-Z0-9.\- ]/g, '').replace(/\s+/g, ' ')
-                    };
-
-                    // Remove empty or null values to ensure signature matches submitted form data
-                    Object.keys(pfData).forEach(key => {
-                        if (pfData[key] === '' || pfData[key] === null || pfData[key] === undefined) {
-                            delete pfData[key];
-                        }
-                    });
-
-                    const passphrase = process.env.PAYFAST_PASSPHRASE || null;
-                    pfData.signature = generatePayFastSignature(pfData, passphrase);
-
-                    const pfHost = process.env.PAYFAST_URL || 'https://sandbox.payfast.co.za/eng/process';
-
-                    console.log(`[PayFast] Payment initiated: Booking #${row.id}, Type: ${payment_type}, Amount: R${amt.toFixed(2)}`);
-                    res.json({ success: true, pfData: pfData, pfHost: pfHost });
-                } catch (ex) {
-                    console.error("Pay Route Error:", ex);
-                    res.status(500).json({ success: false, message: 'Internal server error.' });
-                }
-            });
-        } catch (ex) {
-            console.error("Pay Route Error:", ex);
-            res.status(500).json({ success: false, message: 'Internal server error.' });
-        }
-    });
-});
 
 // ==========================================
 // PayFast ITN (Instant Transaction Notification) — SECURE
@@ -4670,92 +4534,6 @@ const { DEFAULT_CONTRACT_CLAUSES, CONTRACT_ELIGIBLE_STATUSES, generateContract }
 
 
 
-// PUBLIC — client e-signs the contract online (typed-name acknowledgement, two-party model).
-// Email-verified like accept-quote (Gap 1 accepted risk). Records the client signature; the admin
-// then countersigns via PUT /contract/sign to finalise. The contract PDF is already served
-// statically, so this endpoint only captures intent + attribution.
-app.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, (req, res) => {
-    const bookingId = req.params.id;
-    const email = req.trackingEmail;
-    const signatoryName = asBookingText(req.body.signatory_name);
-    const agreed = req.body.agreed === true || req.body.agreed === 'true';
-
-    if (!agreed) return res.status(400).json({ success: false, message: 'You must confirm your agreement to sign.' });
-    if (signatoryName.length < 2 || signatoryName.length > 120) {
-        return res.status(400).json({ success: false, message: 'Please enter your full legal name.' });
-    }
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
-
-    db.get("SELECT id, email FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
-        if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        db.get("SELECT status, is_frozen, signed_by_client_at, pdf_url, content_hash FROM contracts WHERE booking_id = ?", [bookingId], (cErr, contract) => {
-            if (cErr) return res.status(500).json({ success: false, message: cErr.message });
-            if (!contract) return res.status(404).json({ success: false, message: 'No contract is available for this booking yet.' });
-            if (contract.is_frozen === 1 || contract.status === 'signed') {
-                return res.status(400).json({ success: false, message: 'This contract has already been finalised.' });
-            }
-            if (contract.status !== 'sent') {
-                return res.status(400).json({ success: false, message: 'This contract is not ready for signing yet. Please wait for it to be sent to you.' });
-            }
-            if (contract.signed_by_client_at) {
-                return res.status(409).json({ success: false, message: 'You have already signed this contract. It is now awaiting our countersignature.' });
-            }
-
-            // Bind the signature to the exact document signed: hash the actual PDF bytes on disk (works
-            // for both generated and uploaded contracts) so the signed version is provable and any later
-            // change to the file is detectable. Stored inside client_signature_data alongside attribution.
-            let signedFileHash = null;
-            try {
-                if (contract.pdf_url) {
-                    const cpath = resolveDocsPath('contracts', contract.pdf_url);
-                    if (fs.existsSync(cpath)) signedFileHash = crypto.createHash('sha256').update(fs.readFileSync(cpath)).digest('hex');
-                }
-            } catch (hErr) { console.error('[Contract Sign] Could not hash PDF for booking #' + bookingId + ':', hErr.message); }
-
-            // Signature = intent + attribution, bound to the document. Store the typed name,
-            // server-stamped time, IP, UA, the signed PDF's hash, and the content_hash of record.
-            const signatureData = JSON.stringify({
-                name: signatoryName,
-                signed_at: new Date().toISOString(),
-                ip: clientIp,
-                user_agent: (req.headers['user-agent'] || '').slice(0, 300),
-                signed_file_sha256: signedFileHash,
-                content_hash_at_signing: contract.content_hash || null
-            });
-            db.run(
-                `UPDATE contracts
-                 SET client_signature_data = ?, signed_by_client_at = CURRENT_TIMESTAMP, client_ip_address = ?, updated_at = CURRENT_TIMESTAMP
-                 WHERE booking_id = ? AND signed_by_client_at IS NULL`,
-                [signatureData, clientIp, bookingId],
-                function (uErr) {
-                    if (uErr) return res.status(500).json({ success: false, message: uErr.message });
-                    if (this.changes === 0) {
-                        return res.status(409).json({ success: false, message: 'You have already signed this contract.' });
-                    }
-                    db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, ip_address)
-                            VALUES ('contracts', ?, 'CLIENT_SIGNED', ?, ?, ?)`,
-                        [bookingId, JSON.stringify({ signatory_name: signatoryName }), email, clientIp], () => {});
-                    // Notify the admin that the client signed and a countersignature is due.
-                    getNotificationEmail().then(notifEmail => notifEmail && sendEmail({
-                        to: notifEmail,
-                        subject: `Contract signed by client — Booking #${bookingId}`,
-                        htmlContent: emailComponents.renderSystemEmail({
-                            preheaderText: `${signatoryName} signed the contract for booking #${bookingId} — countersignature due.`,
-                            category: 'Contracts & Signatures',
-                            severity: 'action',
-                            leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(signatoryName)}</strong> has signed the contract for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> online.`,
-                            bodyHtml: `<p style="margin:0; color:#E6E6E6;">Log in to the admin panel to countersign and finalise it.</p>`
-                        }),
-                        preWrapped: true,
-                        titleOverride: 'Client Signed Contract',
-                        trigger_event: 'Admin: Client Signed Contract'
-                    })).catch(() => {});
-                    res.json({ success: true, message: 'Thank you — your signature has been recorded. Our team will countersign to finalise the contract.' });
-                }
-            );
-        });
-    });
-});
 
 
 
