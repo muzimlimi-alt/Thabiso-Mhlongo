@@ -1526,6 +1526,63 @@ and its own dependency web (`processManualPayment`, `alignMilestonePayments`,
 `updateBookingMilestones`, `deriveBookingStatusAfterPayment`), `logPaymentEvent` and the PayFast ITN
 webhook itself, the remaining `send*Email` functions not yet relocated, and ~12 background cron jobs.
 
+### Bookings prerequisites: the shared status/payment engine + remaining `send*Email` functions — DONE
+
+Before touching any of the 20 remaining admin bookings routes, relocated every shared helper they
+(and `applyStatusChange`) depend on, so the actual route-extraction batch is pure wiring. Full
+reconnaissance confirmed every dependency across this entire cluster (~29 repository function names
+checked) was already a Phase 4 repository export or an already-relocated lib module — zero new
+repository work needed anywhere in this pass.
+
+- **`lib/booking-notifications.js`** gained 7 more functions, verbatim: `sendBookingUnderReviewEmail`,
+  `sendPaymentReceivedEmail`, `sendPaidReceiptEmail`, `sendBookingCompletedEmail`,
+  `sendAdminPaymentNotification`, `sendAdminCompletionSummaryEmail`, `sendRefundProcessedEmail`. All
+  7 still have real remaining callers in `app.js` (`applyStatusChange`, `processManualPayment`, the
+  refund route, the reminders/expiry cron job), so all 7 are re-imported there.
+- **`lib/payment-processing.js`** (new): `logPaymentEvent`, `alignMilestonePayments`,
+  `updateBookingMilestones`, `deriveBookingStatusAfterPayment`, `processManualPayment` — the payment-
+  recording engine shared by the PayFast ITN handler, the manual-payment route, the reconcile/sync
+  route, and the payment-schedule routes (all still in `app.js`, hence the re-import).
+- **`lib/booking-status.js`** (new): `applyStatusChange` — the generic admin status-transition state
+  machine (`ALLOWED_TRANSITIONS`, the COMPLETED-outstanding-balance guard, and every per-status side
+  effect: cancellation cascade, auto-built deposit schedule + draft invoice + draft contract on
+  ACCEPTED, confirmation email + auto-created event on CONFIRMED, completion emails + event advance on
+  COMPLETED). Both `PUT /api/admin/bookings/:id` and `PUT .../status` still call it from `app.js`.
+- **Dead-import sweep after removal**: `resolveActor` lost its only caller (`applyStatusChange`,
+  which now imports it directly from `lib/actor.js`) — removed from `app.js`. 22 repository names
+  across `bookings.repository`/`calendar.repository`/`finance.repository`/`invoices-quotations.repository`
+  lost their only caller the same way and were removed from `app.js`'s own destructures; each
+  `...Async` sibling sharing an import line (e.g. `cancelPendingPaymentSchedulesAsync`,
+  `clearEventGoogleCalendarIdAsync`) was checked separately and kept where it still had a genuine
+  second caller.
+- **Bug found and fixed (own mistake, caught by the test suite, not by static analysis):**
+  `lib/booking-status.js` initially imported `releaseDateHoldsForBooking` from
+  `finance.repository` — it is actually a `calendar.repository` export (confirmed directly against
+  `app.js`'s own import blocks). `find_undefined_refs.js` could not catch this class of error since
+  the name resolves fine at parse time; `require()`-ing a non-existent export just silently yields
+  `undefined`, so the failure only surfaces as a `TypeError: ... is not a function` at the call site.
+  Surfaced by `npm test` (a cancellation flow mid-transaction) rather than by any static check —
+  fixed immediately, then every other repository-source assignment in both new lib files was
+  re-verified programmatically (`typeof` on every import against the real repository modules) rather
+  than trusted from the same reading pass that produced the original mistake.
+- **Scare, resolved:** one `npm run smoke` run hit `SQLITE_CORRUPT` on the throwaway test-DB copy
+  immediately after the bug above crashed a prior `npm test` run mid-transaction. Given this is a
+  live production system, verified the **live** `database.sqlite` directly with `PRAGMA
+  integrity_check` before doing anything else — came back `ok`. The corruption was confined to the
+  disposable copy `test/support.js` always re-creates fresh from the live file; a plain retry of
+  `npm run smoke` succeeded cleanly. No lingering process was holding a lock (checked); treated as the
+  same class of transient copy-time race as the already-documented test-DB flakes, not investigated
+  further since it's isolated to throwaway state.
+- **Verification:** `node -c` on all 4 changed/new files; the undefined-reference sweep (clean after
+  the fix); byte-identity diff of all 13 relocated function bodies against `git show HEAD:app.js`
+  (trivial trailing-whitespace-only differences on blank lines, zero logic/content drift);
+  `npm run smoke` 329/329 (twice, once before and once after the bugfix); `npm test` x5 total across
+  both the notifications move and the payment/status-engine move — one run caught the real bug above
+  (not a flake), one run hit the `SQLITE_CORRUPT` scare (resolved, see above), two runs hit the
+  already-extensively-documented `banner.test.js` `SQLITE_BUSY` full-process crash at the same
+  recurring spot (now recurred well over a dozen times across this whole session, never once
+  correlated with the code being changed), and the final run was a clean 664/664.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

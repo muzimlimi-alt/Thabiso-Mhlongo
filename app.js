@@ -80,24 +80,18 @@ const {
     deleteBookingAccessTokensForErasure, redactBookingNotesForErasure, countBookingNotesForIds,
     getBookingNotesForBooking, insertBookingNote, getBookingNoteById, deleteBookingNote,
     applyPayfastPaymentToBooking, markBookingPaymentFailedIfUnpaid,
-    applyManualPaymentToBooking, getBookingForAutoEventOnPayment, getBookingAmountPaid,
     getBookingsByIds, cancelBookingForErasureAsync, clearBookingPublicAndEventIdAsync, clearBookingGoogleEventIdAsync,
     cancelBookingAsync, setBookingPaymentStatus, updateBookingLedgerFromReconcile,
     applyManualTransactionPaymentToBooking, updateBookingLedgerAfterManualRefund, updateBookingLedgerAfterAdjustment,
-    getBookingOutstandingForCompleteGuard, updateBookingStatusCore, clearBookingPublicAndEventId,
-    setBookingCancellationAttribution,
 } = require('./database/repositories/bookings.repository');
 // Phase 4: invoices+quotations-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
 const {
-    markInvoicePaidForAutoComplete, markInvoicePaidOnStatusComplete,
+    markInvoicePaidForAutoComplete,
     flagOverdueInvoices,
-    getInvoiceForPaidReceipt,
-    getInvoiceTaxAmountForBooking, getQuoteTaxAmountForBooking,
     getQuoteFilesForBookingIds, getQuoteFilesForClientIds, clearQuoteFilePathsForErasure, clearQuoteFilePathsForClientErasure,
     markInvoicePaidIfOpen, markInvoicePaidIfOpenAsync,
     getOpenInvoiceIdForReceiptCheck,
-    voidInvoicesForCancelledBooking, voidInvoicesForCancelledBookingAsync,
-    markQuotationAccepted, revertQuotationToSent,
+    voidInvoicesForCancelledBookingAsync,
     getActiveQuoteForContractFeeData,
     getLatestQuoteFileForResend, markQuotationResent,
     getQuoteHistoryForBooking, getActiveQuoteStatusForInvoiceGuard,
@@ -111,13 +105,12 @@ const {
 // Phase 4: finance-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
 const {
     flagOverduePaymentSchedules,
-    getActiveScheduleRowsForAlignment, markScheduleRowsPaid, markScheduleRowsPending,
     getActivePaymentSchedules, deletePaymentSchedulesForBooking,
     prepareInsertPaymentSchedule, prepareUpdatePaymentScheduleAmount,
-    cancelPendingPaymentSchedules, cancelPendingPaymentSchedulesAsync,
+    cancelPendingPaymentSchedulesAsync,
 
     getPayfastTransactionByReference, insertPayfastTransaction,
-    insertPaymentLogEntry, insertLoggedPaymentTransaction, getPaymentLogsForBooking,
+    getPaymentLogsForBooking,
     getRecentPayfastTransactionForBooking, getCancellationsWithRefundedTotals,
     getTransactionsForBooking, getAlreadyRefundedAmount, insertRefundTransaction,
     getTransactionsPaidSumForReconcile, insertManualTransaction,
@@ -126,13 +119,11 @@ const {
     redactTransactionForErasure,
 
     redactCancellationForErasure, insertCancellationForErasure, insertCancellationForAdminCancel,
-    insertCancellationForStatusChange,
     getCancellationDetailForBooking,
     getCancellationForRefund, updateCancellationRefund, countCancellationsForIds,
 
     redactPaymentLogsForErasure, countPaymentLogsForIds,
 
-    getExpensesForBookingEmail,
     getExpensesForBooking, getExpensesByPeriod, getExpenseTrend, getPeriodExpenses,
 } = require('./database/repositories/finance.repository');
 // Phase 4: calendar-domain (date_holds, events) data access moved to a repository (HOUSEKEEPING-NOTES.md).
@@ -141,12 +132,12 @@ const {
     getDateHoldsForDateConflict,
     getActiveDateHoldsForToday, getActiveDateHoldsForCalendarGrid, getActiveDateHoldsForIcsFeed,
     insertDateHold, deleteDateHoldById, getDateHoldTimesById, updateDateHoldDate,
-    releaseDateHoldsForBooking, releaseDateHoldsForBookingAsync,
+    releaseDateHoldsForBookingAsync,
 
-    clearEventGoogleCalendarId, clearEventGoogleCalendarIdAsync, getEventGoogleCalendarId,
+    clearEventGoogleCalendarIdAsync,
     advanceAutoCompletedEventS6, getPastStandaloneEventsForAutoComplete, advanceStandaloneEventCompleted,
     advanceEventToCompleted, insertAutoCreatedEvent,
-    getEventByBookingId, demoteEventForCancelledBooking, demoteEventForCancelledBookingAsync,
+    getEventByBookingId, demoteEventForCancelledBookingAsync,
     demoteEventForCancelledBookingByBookingIdAsync,
     updateEventDatetime,
     insertPublicEvent, checkEventExistsById, updatePublicEvent, deleteEventById,
@@ -756,6 +747,14 @@ async function processNotificationQueue() {
 // lib/document-totals.js.
 const { getVatRate, resolveLineTaxClasses, computeDocumentTotals } = require('./lib/document-totals');
 const { autoBuildDepositBalanceSchedule, generateInvoice } = require('./lib/invoicing');
+// Phase 5 (HOUSEKEEPING-NOTES.md): logPaymentEvent/alignMilestonePayments/updateBookingMilestones/
+// deriveBookingStatusAfterPayment/processManualPayment moved to lib/payment-processing.js.
+const {
+    logPaymentEvent, alignMilestonePayments, updateBookingMilestones, deriveBookingStatusAfterPayment,
+    processManualPayment
+} = require('./lib/payment-processing');
+// Phase 5 (HOUSEKEEPING-NOTES.md): applyStatusChange moved to lib/booking-status.js.
+const { applyStatusChange } = require('./lib/booking-status');
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): autoBuildDepositBalanceSchedule and generateInvoice both moved
 // to lib/invoicing.js, along with their own doc comments — see the require near the top of this
@@ -1315,49 +1314,21 @@ const { getEmailFooterContext, emailBaseUrl } = require('./lib/email-context');
 // reason to re-import it.
 
 // S2-1: Notify client when their booking moves to PENDING (under review)
-async function sendBookingUnderReviewEmail(booking) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_type, date, event_name } = booking;
-    const eventLabel = event_name || event_type;
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('booking_under_review');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Ref #${id} — your booking is now with our management team.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Your Booking Is Under Review',
-        greeting: `Hi ${name},`,
-        bodyHtml: `Great news — your request for <strong style="color:#FAFAFA;">${eventLabel}</strong> on <strong style="color:#FAFAFA;">${date}</strong> is now being actively reviewed by our management team. We're confirming availability, going through your event details, and preparing a tailored quotation. You can expect to hear from us shortly.`,
-        cards: [{
-            title: `Booking · Ref #${id}`,
-            rows: [
-                { label: 'Event', value: eventLabel, mono: false },
-                { label: 'Date', value: date },
-                { label: 'Reference', value: `#${id}` }
-            ]
-        }],
-        cta: { label: 'Track Your Booking', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
-        socialLinks
-    });
-    const result = await sendEmail({
-        to: email,
-        subject: `Your Booking Is Under Review — Ref #${id}`,
-        htmlContent: html,
-        preWrapped: true,
-        titleOverride: 'Booking Under Review',
-        trigger_event: 'Booking: Under Review'
-    });
-    return result.success;
-}
-
 // Phase 5 (HOUSEKEEPING-NOTES.md): generateBookingICS/sendQuoteEmail/sendAdminQuoteSentNotification/
 // sendBookingConfirmedEmail/sendDepositBalanceDueEmail/sendQuoteExpiryWarningEmail/
-// sendReviewRequestEmail/remindBooking/sendDateChangedEmail all moved to lib/booking-notifications.js.
-// remindBooking, sendAdminQuoteSentNotification, and sendQuoteEmail have no remaining caller in
-// app.js (their routes — bulk-remind/remind, and the admin quote route — moved with them).
+// sendReviewRequestEmail/remindBooking/sendDateChangedEmail/sendBookingUnderReviewEmail/
+// sendPaymentReceivedEmail/sendPaidReceiptEmail/sendBookingCompletedEmail/
+// sendAdminPaymentNotification/sendAdminCompletionSummaryEmail/sendRefundProcessedEmail all moved
+// to lib/booking-notifications.js. remindBooking, sendAdminQuoteSentNotification, and sendQuoteEmail
+// have no remaining caller in app.js (their routes — bulk-remind/remind, and the admin quote route
+// — moved with them). The other 7 re-imported below still have real remaining callers here
+// (applyStatusChange, processManualPayment, the refund route, and the reminders/expiry cron job).
 const {
     generateBookingICS, sendBookingConfirmedEmail,
     sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail, sendReviewRequestEmail, sendDateChangedEmail,
-    sendQuoteAcceptedEmail
+    sendQuoteAcceptedEmail, sendBookingUnderReviewEmail, sendPaymentReceivedEmail, sendPaidReceiptEmail,
+    sendBookingCompletedEmail, sendAdminPaymentNotification, sendAdminCompletionSummaryEmail,
+    sendRefundProcessedEmail
 } = require('./lib/booking-notifications');
 
 
@@ -1503,126 +1474,9 @@ async function sendOverdueInvoiceEmail(booking, invoice) {
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendCancellationEmail moved to lib/booking-cancellation-email.js.
 const { sendCancellationEmail } = require('./lib/booking-cancellation-email');
 
-async function sendPaymentReceivedEmail(booking, newAmountPaid, newOutstanding, newPaymentStatus) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date, total_amount, quote_amount } = booking;
-    
-    const isPartial = newPaymentStatus === 'PARTIALLY_PAID';
-    const titleStatus = isPartial ? 'Partial Payment Received' : 'Full Payment Received';
-    const displayTotal = total_amount || (quote_amount ? parseFloat(quote_amount.replace(/[^0-9.]/g, '')) : 0);
-
-    // PAYMENT-CRITICAL: the exact figure strings (R${...} — no space, as before) are unchanged.
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('payment_received');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `${titleStatus} for booking #${id} — R${newAmountPaid.toFixed(2)}.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || titleStatus,
-        greeting: `Hi ${name},`,
-        bodyHtml:
-            `We've successfully processed a payment for the booking of <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong>.` +
-            `<p style="margin:12px 0 0; color:#E6E6E6;">${isPartial ? 'Your booking will be fully confirmed once the remaining balance is settled.' : `Your booking is now <strong style="color:#D4AF37;">CONFIRMED</strong>. We look forward to performing at your event!`} <span style="color:#B0B0B0; font-size:13px;">(Booking reference #${id})</span></p>`,
-        cards: [{
-            title: 'Payment Summary',
-            rows: [
-                { label: 'Total Quote', value: `R${displayTotal.toFixed(2)}` },
-                { label: 'Amount Paid', value: `R${newAmountPaid.toFixed(2)}`, highlight: true },
-                { label: 'Remaining Balance', rawValue: `<span style="color:${newOutstanding > 0 ? '#E8A83E' : '#D4AF37'};">R${newOutstanding.toFixed(2)}</span>` }
-            ]
-        }],
-        cta: { label: 'View Your Booking', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
-        socialLinks
-    });
-
-    const result = await sendEmail({
-        to: email,
-        subject: `${titleStatus} – Booking #${id}`,
-        htmlContent: html,
-        preWrapped: true,
-        titleOverride: titleStatus,
-        trigger_event: 'Booking: Payment Received'
-    });
-
-    return result.success;
-}
-
-
-
-// P3-7: Resend the paid invoice PDF as a payment receipt when booking becomes fully PAID.
-async function sendPaidReceiptEmail(booking) {
-    booking = escapeEmailFields(booking);
-    const inv = await getInvoiceForPaidReceipt(booking.id);
-    if (!inv || !inv.file_path) return;
-    const pdfPath = resolveDocsPath('invoices', inv.file_path);
-    if (!fs.existsSync(pdfPath)) return;
-    await sendInvoiceEmail(booking, pdfPath);
-}
-
-async function sendBookingCompletedEmail(booking) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date, event_location,
-            total_amount, amount_paid, quote_amount } = booking;
-
-    // Fetch services delivered for the summary table
-    const services = await new Promise(resolve => {
-        db.all(`SELECT bs.quantity_minutes, bs.unit_price, bs.total_price, s.name as service_name, s.display_unit
-                FROM booking_services bs
-                LEFT JOIN services s ON bs.service_id = s.id
-                WHERE bs.booking_id = ?`, [id], (e, rows) => resolve(e ? [] : (rows || [])));
-    });
-
-    // Fetch VAT from the latest non-voided invoice, then fall back to the latest quotation
-    const vatRow = await new Promise(resolve => {
-        getInvoiceTaxAmountForBooking(id, (e, row) => {
-            if (!e && row) return resolve(row);
-            getQuoteTaxAmountForBooking(id, (e2, row2) => resolve(e2 ? null : row2));
-        });
-    });
-    const vatAmount = vatRow ? parseFloat(vatRow.tax_amount) || 0 : 0;
-    const displayTotal = parseFloat(total_amount) || parseFloat((quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
-    const paid = parseFloat(amount_paid) || 0;
-    const subtotal = displayTotal - vatAmount;
-
-    // Services + financial figures below are rendered with the exact same computed strings as before.
-    const { socialLinks } = await getEmailFooterContext();
-    const cards = [];
-    if (services.length > 0) {
-        cards.push({
-            title: 'Services Delivered',
-            rows: services.map(s => {
-                const qty = s.quantity_minutes && s.display_unit ? ` (${s.quantity_minutes} ${s.display_unit})` : '';
-                return { label: `${s.service_name || 'Service'}${qty}`, value: `R ${(parseFloat(s.total_price) || 0).toFixed(2)}` };
-            })
-        });
-    }
-    cards.push({
-        title: 'Financial Summary',
-        rows: [
-            ...(vatAmount > 0 ? [{ label: 'Subtotal (excl. VAT)', value: `R ${subtotal.toFixed(2)}` }] : []),
-            ...(vatAmount > 0 ? [{ label: 'VAT (15%)',            value: `R ${vatAmount.toFixed(2)}` }] : []),
-            { label: 'Total',        value: `R ${displayTotal.toFixed(2)}` },
-            { label: 'Amount Paid',  value: `R ${paid.toFixed(2)}`, highlight: true },
-        ]
-    });
-
-    const banner = await bannerRegistry.resolveBanner('booking_completed');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Thank you — booking #${id} is complete. We hope it was a blast!`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Event Completed — Thank You!',
-        greeting: `Hi ${name},`,
-        bodyHtml:
-            `We hope you had an absolutely wonderful time! Your event — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> at <strong style="color:#FAFAFA;">${event_location || 'your venue'}</strong> — has been marked as completed.<br><br>It was a pleasure working with you. Here's a summary of your booking <span style="color:#B0B0B0; font-size:13px;">(reference #${id})</span>:`,
-        cards,
-        socialLinks
-    });
-    const result = await sendEmail({
-        to: email, subject: `Thank You – Event Completed! Booking #${id}`,
-        htmlContent: html, preWrapped: true, titleOverride: 'Event Completed – Thank You!',
-        trigger_event: 'Booking: Completed'
-    });
-    return result.success;
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): sendPaymentReceivedEmail/sendPaidReceiptEmail/
+// sendBookingCompletedEmail moved to lib/booking-notifications.js — see the require near the top
+// of this file for the re-import.
 
 async function sendQuoteExpiredEmail(booking) {
     booking = escapeEmailFields(booking);
@@ -1697,118 +1551,15 @@ async function sendPendingExpiredEmail(booking) {
     return result.success;
 }
 
-async function sendAdminPaymentNotification(booking, amountPaid, paymentStatus) {
-    const notifEmail = await getNotificationEmail();
-    const { id, name, email, event_name, event_type, date } = booking;
-    const body = emailComponents.renderSystemEmail({
-        preheaderText: `Payment received for booking #${id} — R${parseFloat(amountPaid).toFixed(2)}.`,
-        category: 'Payments & Invoices',
-        severity: 'info',
-        leadFact: `Payment received for booking <strong style="color:#FAFAFA;">#${id}</strong>.`,
-        cards: [{
-            rows: [
-                { label: 'Client', rawValue: `${emailComponents.esc(name)} (<a href="mailto:${email}" style="color:#D4AF37; text-decoration:none;">${email}</a>)` },
-                { label: 'Event', value: `${event_name || event_type} on ${date}`, mono: false },
-                { label: 'Amount Paid', value: `R${parseFloat(amountPaid).toFixed(2)}`, highlight: true },
-                { label: 'Payment Status', value: paymentStatus }
-            ]
-        }]
-    });
-    await sendEmail({ to: notifEmail, subject: `Payment Received – Booking #${id}`,
-        htmlContent: body, preWrapped: true, replyTo: email, titleOverride: 'Payment Received',
-        trigger_event: 'Admin: Payment Notification' });
-}
-
-async function sendAdminCompletionSummaryEmail(booking) {
-    booking = escapeEmailFields(booking);
-    const notifEmail = await getNotificationEmail();
-    const { id, name, email, event_name, event_type, date, event_location,
-            total_amount, amount_paid, quote_amount } = booking;
-
-    const displayTotal = parseFloat(total_amount) || parseFloat((quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
-    const paid = parseFloat(amount_paid) || 0;
-
-    // Fetch services for the P&L view
-    const services = await new Promise(resolve => {
-        db.all(`SELECT bs.quantity_minutes, bs.unit_price, bs.total_price, s.name as service_name, s.display_unit
-                FROM booking_services bs
-                LEFT JOIN services s ON bs.service_id = s.id
-                WHERE bs.booking_id = ?`, [id], (e, rows) => resolve(e ? [] : (rows || [])));
-    });
-
-    // Fetch expenses (table is named 'expenses')
-    const expenseRows = await getExpensesForBookingEmail(id);
-    const totalExpenses = expenseRows.reduce((sum, ex) => sum + (parseFloat(ex.amount) || 0), 0);
-    const netRevenue = paid - totalExpenses;
-
-    const cards = [{
-        rows: [
-            { label: 'Client', rawValue: `${emailComponents.esc(name)} (<a href="mailto:${email}" style="color:#D4AF37; text-decoration:none;">${email}</a>)` },
-            { label: 'Event', value: `${event_name || event_type} on ${date}`, mono: false },
-            { label: 'Venue', value: event_location || '—', mono: false }
-        ]
-    }];
-    if (services.length > 0) {
-        cards.push({ title: 'Services', rows: services.map(s => ({ label: s.service_name || 'Service', value: `R ${(parseFloat(s.total_price) || 0).toFixed(2)}`, mono: false })) });
-    }
-    if (expenseRows.length > 0) {
-        cards.push({ title: 'Expenses', rows: expenseRows.map(ex => ({ label: ex.description, value: `– R ${(parseFloat(ex.amount) || 0).toFixed(2)}`, mono: false })) });
-    }
-    cards.push({
-        title: 'Profit & Loss',
-        rows: [
-            { label: 'Total Quoted',     value: `R ${displayTotal.toFixed(2)}` },
-            { label: 'Amount Collected', value: `R ${paid.toFixed(2)}`, highlight: true },
-            ...(expenseRows.length > 0 ? [{ label: 'Total Expenses', value: `– R ${totalExpenses.toFixed(2)}` }] : []),
-            ...(expenseRows.length > 0 ? [{ label: 'Net Revenue',    value: `R ${netRevenue.toFixed(2)}`, highlight: netRevenue > 0 }] : [])
-        ]
-    });
-
-    const body = emailComponents.renderSystemEmail({
-        preheaderText: `Booking #${id} completed — ${event_name || event_type}.`,
-        category: 'Booking Confirmations',
-        severity: 'info',
-        leadFact: `<strong style="color:#FAFAFA;">Booking #${id}</strong> has been marked as <strong style="color:#D4AF37;">COMPLETED</strong>.`,
-        bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Open the Financials modal for full transaction history and VAT breakdown.</p>`,
-        cards
-    });
-
-    await sendEmail({
-        to: notifEmail, subject: `Booking #${id} Completed — ${event_name || event_type}`,
-        htmlContent: body, preWrapped: true, replyTo: email, titleOverride: 'Booking Completed',
-        trigger_event: 'Admin: Booking Completed Summary'
-    });
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): sendAdminPaymentNotification/sendAdminCompletionSummaryEmail
+// moved to lib/booking-notifications.js — see the require near the top of this file for the
+// re-import.
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendAdminQuoteAcceptedNotification moved directly into
 // routes/public/bookings.js — single-consumer (the accept-quote route moved with it).
 
-
-async function sendRefundProcessedEmail(booking, refundAmount, refundReference) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date } = booking;
-    // PAYMENT-CRITICAL: amtFormatted (`R {amount}`, space kept) and refundReference verbatim.
-    // (Old table used light-mode #f5f5f5 cells inside the dark email — same defect as date-changed.)
-    const amtFormatted = `R ${parseFloat(refundAmount || 0).toFixed(2)}`;
-    const { socialLinks } = await getEmailFooterContext();
-    const rows = [{ label: 'Refund Amount', value: amtFormatted, highlight: true }];
-    if (refundReference) rows.push({ label: 'Reference', value: `${refundReference}` });
-    const banner = await bannerRegistry.resolveBanner('refund_processed');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Your refund of ${amtFormatted} for booking #${id} has been processed.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Refund Confirmation',
-        greeting: `Hi ${name},`,
-        bodyHtml:
-            `We are writing to confirm that your refund for Booking <strong style="color:#FAFAFA;">#${id}</strong> — <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> — has been processed.` +
-            `<p style="margin:14px 0 0; color:#E6E6E6;">Please allow 3&ndash;5 business days for the funds to reflect in your account, depending on your bank or payment method.</p>` +
-            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">If you have any questions, please reply to this email or contact us at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</p>`,
-        cards: [{ title: 'Refund Details', rows }],
-        socialLinks
-    });
-    return sendEmail({ to: email, subject: `Refund Processed – Booking #${id}`,
-        htmlContent: html, preWrapped: true, titleOverride: 'Refund Confirmation', trigger_event: 'Booking: Refund Processed' });
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): sendRefundProcessedEmail moved to lib/booking-notifications.js
+// — see the require near the top of this file for the re-import.
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendDateChangedEmail moved to lib/booking-notifications.js —
 // see the require near the top of this file for the re-import.
@@ -1862,8 +1613,8 @@ const { withDbTransaction } = require('./lib/db-transaction');
 // ============================================================
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): resolveActor moved to lib/actor.js, logAudit to
-// lib/audit-log.js.
-const { resolveActor } = require('./lib/actor');
+// lib/audit-log.js. resolveActor has no remaining caller in app.js — its only call site
+// (applyStatusChange) moved to lib/booking-status.js, which imports it directly from lib/actor.js.
 const { logAudit } = require('./lib/audit-log');
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): the entire POPIA/GDPR erasure subsystem — resolvePopiaTargets,
@@ -2448,114 +2199,8 @@ app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res)
     }
 });
 
-// Helper for comprehensive audit logging into the payment_logs table.
-// opts.auditOnly: write only the payment_logs row, not the transactions row. The PayFast ITN path
-// inserts its transactions row itself, inside a transaction and with pf_payment_id set, so it passes
-// auditOnly for its VERIFIED_OK audit entry to avoid a second, un-deduped transactions insert.
-function logPaymentEvent(bookingId, eventType, pfData, sigValid = true, referenceOverride = null, opts = {}) {
-    const amount = parseFloat(pfData.amount_gross) || 0;
-
-    // 1. Log to generic payment_logs for ITN history
-    insertPaymentLogEntry(
-        bookingId, eventType, JSON.stringify(pfData), sigValid, amount,
-        (err) => {
-            if (err) console.error(`[Audit Log] Failed to insert log for booking #${bookingId}:`, err.message);
-        }
-    );
-
-    // 2. If it's a successful verified payment, also log to the official transactions table
-    if (!opts.auditOnly && (eventType === 'VERIFIED_OK' || eventType === 'MANUAL_PAYMENT_RECORDED')) {
-        const pfMethodMap = {
-            cc: 'credit_card', dc: 'credit_card',          // Visa/MC credit & debit
-            ef: 'bank_transfer',                            // Instant EFT
-            mp: 'payfast', bc: 'payfast', payfast: 'payfast', // Masterpass / Bitcoin (legacy)
-            mc: 'payfast',   // MoreTyme credit
-            sc: 'payfast',   // Scan to Pay
-            cd: 'payfast',   // Capitec Pay
-            mt: 'payfast',   // MobiCred
-            cf: 'payfast',   // Payflex / PayJustNow
-            zp: 'payfast',   // Zero Pay
-            rp: 'payfast',   // RCS Pay
-            cash: 'cash', check: 'check', bank_transfer: 'bank_transfer', manual: 'cash'
-        };
-        const rawMethod = (pfData.payment_method || '').toLowerCase();
-        const mappedMethod = pfMethodMap[rawMethod] || 'payfast'; // default to gateway name, not 'other'
-        const txSource = eventType === 'VERIFIED_OK' ? 'payfast' : 'manual';
-        const txReference = referenceOverride || pfData.pf_payment_id || pfData.m_payment_id || 'manual';
-        insertLoggedPaymentTransaction(
-            bookingId, amount, mappedMethod, txReference, txSource,
-            (err) => { if (err) console.error(`[Transactions] Insert failed for booking #${bookingId}:`, err.message); });
-    }
-}
-
-// Helpers for payment schedules & milestones alignment
-// Greedy waterfall: walk the booking's LIVE milestones in due order and mark each one the running
-// payment total fully covers as 'paid'.
-//
-// Only live rows participate. This used to `SELECT *` — superseded and cancelled rows included — and
-// rewrite every row's status, so any payment after an admin re-quote resurrected the superseded
-// milestones and let them consume the paid budget. It also demoted 'overdue' rows to 'pending' on
-// every call, silently undoing the overdue cron.
-//
-// Deliberately NOT wrapped in withDbTransaction: every caller runs this inside a post-commit
-// side-effect block that issues further independent statements on the shared sqlite connection, and a
-// BEGIN here would sweep those into this transaction. The two set-based UPDATEs below are each atomic
-// on their own, and a partial failure is re-derived by the next align or cron run.
-function alignMilestonePayments(bookingId, amountPaid, callback) {
-    getActiveScheduleRowsForAlignment(
-        bookingId,
-        (err, schedules) => {
-            if (err || !schedules || schedules.length === 0) {
-                if (callback) callback(err);
-                return;
-            }
-
-            let remainingPaid = parseFloat(amountPaid) || 0;
-            const toPaid = [];    // covered, not yet marked paid
-            const toPending = []; // previously paid, no longer covered (a refund) — the cron re-flags overdue
-
-            for (const s of schedules) {
-                const expected = parseFloat(s.expected_amount) || 0;
-                const current = String(s.status || 'pending').toLowerCase();
-                if (remainingPaid + 0.009 >= expected) {
-                    remainingPaid -= expected;
-                    if (current !== 'paid') toPaid.push(s.id);
-                } else {
-                    remainingPaid = 0; // the first milestone we cannot fully cover stops the waterfall
-                    // Leave pending/due_soon/overdue alone — only a previously-paid row is demoted.
-                    if (current === 'paid') toPending.push(s.id);
-                }
-            }
-
-            if (toPaid.length === 0 && toPending.length === 0) {
-                if (callback) callback(null);
-                return;
-            }
-
-            // ids come from the SELECT above, never from user input.
-            const runPaid = (next) => {
-                if (toPaid.length === 0) return next(null);
-                markScheduleRowsPaid(toPaid.map(() => '?').join(','), toPaid, next);
-            };
-            const runPending = (next) => {
-                if (toPending.length === 0) return next(null);
-                markScheduleRowsPending(toPending.map(() => '?').join(','), toPending, next);
-            };
-            runPaid((e1) => runPending((e2) => { if (callback) callback(e1 || e2); }));
-        }
-    );
-}
-
-function updateBookingMilestones(bookingId, callback) {
-    getBookingAmountPaid(bookingId, (err, row) => {
-        if (err || !row) {
-            if (callback) callback(err);
-            return;
-        }
-        const paid = parseFloat(row.amount_paid) || 0;
-        alignMilestonePayments(bookingId, paid, callback);
-    });
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): logPaymentEvent/alignMilestonePayments/updateBookingMilestones
+// moved to lib/payment-processing.js — see the require near the top of this file for the re-import.
 
 // ==========================================
 // Payment Return Pages (cosmetic — ITN is the real confirmation)
@@ -2610,140 +2255,8 @@ app.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole(['ad
     });
 });
 
-// The single rule for how a recorded payment moves bookings.status. Owner decision (2026-07-10):
-// a deposit confirms. Any real payment on a booking the client has committed to (ACCEPTED or
-// CONFIRMED) moves it to CONFIRMED; a full payment on a booking that never got a formal acceptance
-// advances it to ACCEPTED so the acceptance step isn't skipped; anything else leaves status alone.
-//
-// The PayFast ITN encodes the same rule as a race-free SQL CASE and is deliberately NOT routed
-// through this helper — reading the status into JS first would reintroduce a read-then-write window.
-// Keep the two in sync by meaning, not by shared code.
-function deriveBookingStatusAfterPayment(currentStatus, paymentStatus) {
-    const cur = String(currentStatus || '').toUpperCase();
-    const pay = String(paymentStatus || '').toUpperCase();
-    const isRealPayment = ['DEPOSIT_PAID', 'PARTIALLY_PAID', 'PAID'].includes(pay);
-    if (isRealPayment && ['ACCEPTED', 'CONFIRMED'].includes(cur)) return 'CONFIRMED';
-    if (pay === 'PAID') return 'ACCEPTED';
-    return currentStatus;
-}
-
-function processManualPayment(req, res, row) {
-    const { amount_paid } = req.body;
-
-        const total = parseFloat(row.total_amount) ||
-                      parseFloat((row.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
-        const paid  = Math.max(0, parseFloat(amount_paid) || 0);
-        if (total > 0 && paid > total) {
-            return res.status(400).json({ success: false, message: `Overpayment detected. Total is R${total.toFixed(2)} but you entered R${paid.toFixed(2)}.`, overpayment: true, max_amount: total });
-        }
-        const existingPaid = parseFloat(row.amount_paid) || 0;
-        const delta = paid - existingPaid;
-        if (paid < existingPaid) {
-            // P2-4: Reducing amount_paid without a refund record creates ledger drift.
-            // Force the admin to use the dedicated refund endpoint instead.
-            return res.status(400).json({
-                success: false,
-                message: `Cannot reduce the recorded payment from R${existingPaid.toFixed(2)} to R${paid.toFixed(2)} via this form. Use the Refund endpoint to record a refund and update the ledger — this creates a proper audit trail and transaction record.`
-            });
-        }
-        const outstanding = Math.max(0, total - paid);
-        // Derive payment_status from the amount rather than trusting the request body. The body field
-        // is now advisory — an admin could otherwise record R1 as 'PAID'. Same thresholds as
-        // /transactions/manual: >= total → PAID, >= half → DEPOSIT_PAID, > 0 → PARTIALLY_PAID.
-        let payment_status;
-        if (total > 0 && paid >= total)        payment_status = 'PAID';
-        else if (total > 0 && paid >= total * 0.5) payment_status = 'DEPOSIT_PAID';
-        else if (paid > 0)                     payment_status = 'PARTIALLY_PAID';
-        else                                   payment_status = 'UNPAID';
-
-        const newStatus = deriveBookingStatusAfterPayment(row.status, payment_status);
-
-        applyManualPaymentToBooking(
-            payment_status, paid, outstanding, total, newStatus, req.params.id,
-            function(err) {
-                if (err) return res.status(500).json({ success: false, error: err.message });
-                
-                // Record in transactions table + audit log
-                if (delta > 0) {
-                    logPaymentEvent(req.params.id, 'MANUAL_PAYMENT_RECORDED', {
-                        amount_gross: delta,
-                        payment_method: 'manual',
-                        pf_payment_id: null,
-                        m_payment_id: `MANUAL-${req.params.id}-${Date.now()}`
-                    }, true);
-                } else if (delta < 0) {
-                    logPaymentEvent(req.params.id, 'MANUAL_PAYMENT_REDUCED', {
-                        amount_gross: Math.abs(delta),
-                        old_amount: existingPaid,
-                        payment_method: 'manual',
-                        m_payment_id: `MANUAL-REDUCE-${req.params.id}-${Date.now()}`
-                    }, true);
-                }
-                db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-                        VALUES ('bookings', ?, 'PAYMENT', ?, ?, CURRENT_TIMESTAMP)`,
-                    [req.params.id, JSON.stringify({ amount_paid: paid, payment_status, amount_outstanding: outstanding }), req.session.adminId || 'admin'],
-                    (aErr) => { if (aErr) console.error('[Audit] Manual payment log failed:', aErr.message); });
-
-                // Auto-create events row when manual payment results in CONFIRMED (mirrors PayFast ITN behaviour)
-                if (newStatus === 'CONFIRMED') {
-                    getBookingForAutoEventOnPayment(req.params.id, (evSelErr, bRow) => {
-                        if (evSelErr || !bRow || bRow.event_id) return;
-                        const evDatetime = bRow.date + (bRow.event_start_time ? ' ' + bRow.event_start_time : ' 00:00:00');
-                        insertAutoCreatedEvent(
-                            bRow.event_name || bRow.event_type || 'Booking Event', evDatetime, bRow.event_location || null, bRow.venue_id || null, req.params.id,
-                            function(evErr) {
-                                if (evErr) { console.error('[Auto-Event] ManualPayment: Insert failed for booking #' + req.params.id + ':', evErr.message); return; }
-                                setBookingEventId(this.lastID, req.params.id);
-                            }
-                        );
-                    });
-                }
-
-                (async () => {
-                    await syncBookingToCalendar(req.params.id);
-                    sendPaymentReceivedEmail(row, paid, outstanding, payment_status).catch(e => console.error('Manual payment email failed:', e));
-                    sendAdminPaymentNotification(row, paid, payment_status).catch(e => console.error('Admin payment notification failed:', e.message));
-                    // Update payment schedule: mark due items as paid
-                    alignMilestonePayments(req.params.id, paid, (psErr) => {
-                        if (psErr) console.error('[Payment] payment_schedules update failed:', psErr.message);
-                    });
-                    if (payment_status === 'DEPOSIT_PAID' && outstanding > 0) {
-                        sendDepositBalanceDueEmail(row, outstanding).catch(e => console.error('Deposit balance-due email failed:', e.message));
-                    }
-                    if (payment_status === 'PAID') {
-                        const markPaidAndNotify = () => {
-                            markInvoicePaidIfOpen(req.params.id);
-                            getBookingById(req.params.id, (e, updated) => {
-                                if (!e && updated) {
-                                    sendBookingConfirmedEmail(updated).catch(e => console.error('Confirmed email after manual payment failed:', e.message));
-                                    setTimeout(() => sendPaidReceiptEmail(updated).catch(e => console.error('Paid receipt email (manual) failed:', e.message)), 600);
-                                }
-                            });
-                        };
-                        // Ensure an invoice exists before sending the receipt — manual bookings that
-                        // skipped quote acceptance have no invoice yet, so generate one on the spot.
-                        getOpenInvoiceIdForReceiptCheck(
-                            req.params.id,
-                            (invCheckErr, existingInv) => {
-                                if (!existingInv) {
-                                    generateInvoice(req.params.id)
-                                        .then(markPaidAndNotify)
-                                        .catch(genErr => {
-                                            console.error('[ManualPayment] Invoice auto-generation failed:', genErr.message);
-                                            markPaidAndNotify();
-                                        });
-                                } else {
-                                    markPaidAndNotify();
-                                }
-                            }
-                        );
-                    }
-                })();
-
-                res.json({ success: true, message: `Payment recorded for booking #${req.params.id}.` });
-            }
-        );
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): deriveBookingStatusAfterPayment/processManualPayment moved to
+// lib/payment-processing.js — see the require near the top of this file for the re-import.
 
 app.get('/payment/success', (req, res) => {
     const bookingId = req.query.booking_id || '';
@@ -4380,168 +3893,8 @@ app.get('/api/admin/bookings/:id', requireAdmin, (req, res) => {
 });
 // Shared status-change logic used by both PUT /bookings/:id and PUT /bookings/:id/status
 // options.reason — optional cancellation reason string (admin-supplied)
-async function applyStatusChange(bookingId, requestedStatus, currentStatus, res, options = {}) {
-    const ALLOWED_TRANSITIONS = {
-        'NEW': ['PENDING','QUOTED','CANCELLED'],
-        'PENDING': ['QUOTED','CANCELLED'],
-        'QUOTED': ['ACCEPTED','CANCELLED'],
-        'ACCEPTED': ['QUOTED','CONFIRMED','CANCELLED'],
-        'CONFIRMED': ['COMPLETED','CANCELLED'],
-        'COMPLETED': ['CANCELLED'],
-        'CANCELLED': [],
-        'EXPIRED': ['CANCELLED','PENDING']
-    };
-    const allowed = ALLOWED_TRANSITIONS[currentStatus] || [];
-    if (!allowed.includes(requestedStatus)) {
-        return res.status(400).json({ success: false, message: `Invalid transition from ${currentStatus} to ${requestedStatus}` });
-    }
-    // Guard: block COMPLETED when any payment is still outstanding
-    if (requestedStatus === 'COMPLETED') {
-        const chk = await getBookingOutstandingForCompleteGuard(bookingId);
-        if (!chk.e) {
-            const outstanding = parseFloat(chk.row?.amount_outstanding) || 0;
-            if (outstanding > 0.01) {
-                return res.status(400).json({ success: false, message: `Cannot complete — R${outstanding.toFixed(2)} is still outstanding. Record full payment before completing.` });
-            }
-        }
-    }
-    // pending_at is now tracked; all other timestamps already mapped
-    const tsFields = { PENDING: 'pending_at', QUOTED: 'quoted_at', ACCEPTED: 'accepted_at', CONFIRMED: 'confirmed_at', COMPLETED: 'completed_at', CANCELLED: 'cancelled_at' };
-    const tsField = tsFields[requestedStatus];
-    // modified_by/modified_by_role are set here in the same UPDATE so the audit_bookings_update
-    // trigger can read them via NEW.modified_by(_role) into audit_log.actor_role — this replaces the
-    // parallel explicit audit_log insert that used to sit below, which double-wrote a row for every
-    // status change (once here, once from the trigger that already fires on any bookings UPDATE).
-    updateBookingStatusCore(requestedStatus, tsField, options.adminId, options.role, bookingId, async function(upErr) {
-        if (upErr) return res.status(500).json({ success: false, error: upErr.message });
-        const actor = await resolveActor(options.adminId);
-        getBookingById(bookingId, async (e, b) => {
-            if (!e && b) {
-                if (b.event_id && !['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(requestedStatus)) {
-                    clearBookingPublicAndEventId(bookingId);
-                    // On cancellation, switch the linked public event to draft rather than deleting it.
-                    // Also clears events.booking_id — matches POST /:id/cancel's identical cascade
-                    // (see that route) so both cancellation entry points leave the same state instead of
-                    // each clearing only one side of the bookings.event_id <-> events.booking_id pair.
-                    if (requestedStatus === 'CANCELLED') {
-                        getEventGoogleCalendarId(b.event_id, (evErr, evRow) => {
-                            demoteEventForCancelledBooking('Linked booking #' + bookingId + ' was cancelled', b.event_id);
-                            // The event may have its own separate Google Calendar entry (synced via
-                            // syncEventToCalendar, independent of the booking's own google_event_id
-                            // handled above) — without this it stays live/public on Google even though
-                            // it's now locally demoted to draft.
-                            if (!evErr && evRow && evRow.google_calendar_event_id) {
-                                deleteGoogleEvent(evRow.google_calendar_event_id);
-                                clearEventGoogleCalendarId(b.event_id);
-                            }
-                        });
-                    }
-                }
-
-                if (requestedStatus === 'CANCELLED') {
-                    const reason = options.reason || 'Booking cancelled by admin';
-                    await deleteGoogleEvent(b.google_event_id);
-                    // Null it now that we've asked Google to delete it, or any later sync attempt for
-                    // this booking silently fails forever (update-against-a-deleted-event, never
-                    // falls back to re-creating it — see the identical fix in POST /:id/cancel).
-                    if (b.google_event_id) clearBookingGoogleEventId(bookingId);
-                    // E1: store cancellation reason/attribution AND run the SAME financial + hold
-                    // cascade as POST /api/admin/bookings/:id/cancel, so cancelling via the status
-                    // API leaves an identical state (previously this path skipped payment_status,
-                    // invoice void, schedule cancel and hold release).
-                    // Same trigger constraint as the dedicated cancel route: 'CANCELLED' is not a legal
-                    // payment_status, and this statement had no error callback — so the ABORT silently
-                    // discarded cancellation_reason and cancelled_by along with it.
-                    setBookingCancellationAttribution(reason, bookingId,
-                        (e) => { if (e) console.error('[Status Cancel] Failed to record cancellation attribution:', e.message); });
-                    releaseDateHoldsForBooking(bookingId,
-                        (e) => { if (e) console.error('[Status Cancel] Hold release failed:', e.message); });
-                    voidInvoicesForCancelledBooking(bookingId,
-                        (e) => { if (e) console.error('[Status Cancel] Invoice void failed:', e.message); });
-                    cancelPendingPaymentSchedules(bookingId,
-                        (e) => { if (e) console.error('[Status Cancel] Payment schedule cancel failed:', e.message); });
-                    // Apply the same refund policy calculator used by client self-cancellation
-                    db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", [], (pErr, policy) => {
-                        const calc = calculateCancellationRefund(b, policy ? policy.policy_value : '');
-                        // D-1: cancellations.cancelled_by has a CHECK IN ('client','comedian','mutual','force_majeure')
-                        // — 'admin' violated it, so this INSERT failed silently (no cancellation record via the
-                        // status API). Use 'comedian' (business-initiated), matching the dedicated /cancel endpoint's
-                        // default for admin-initiated cancellations. Attribution to admin stays on bookings.cancelled_by.
-                        insertCancellationForStatusChange(bookingId, reason, calc.totalPaid, calc.refund, calc.retention,
-                            (cErr) => { if (cErr) console.error('[Status Cancel] Cancellation record insert failed:', cErr.message); });
-                        // SC-3: Include policy rule + timing in cancellation email
-                        sendCancellationEmail(b, { reason, refund_due: calc.refund, rule: calc.rule, days_until_event: calc.daysUntilEvent }).catch(e => console.error('Cancel email failed:', e.message));
-                    });
-                } else {
-                    await syncBookingToCalendar(b);
-                }
-                if (requestedStatus === 'PENDING') sendBookingUnderReviewEmail(b).catch(e => console.error('Under-review email failed:', e.message));
-                if (requestedStatus === 'ACCEPTED') {
-                    // Update active quotation's status to 'accepted'
-                    markQuotationAccepted(bookingId, (err) => {
-                        if (err) console.error('[Status Change] Failed to update quotation status to accepted:', err.message);
-                    });
-                    sendQuoteAcceptedEmail(b).catch(e => console.error('Invoiced email failed:', e.message));
-                    // Parity with client self-acceptance: build the deposit/balance schedule + a DRAFT
-                    // invoice (admin reviews & sends, unlike the client path which emails immediately) +
-                    // a draft contract — so admin-accept and client-accept leave identical state instead
-                    // of admin-accept leaving the booking bare. Fire-and-forget with logging, matching
-                    // the other post-status side effects; a refresh reflects it.
-                    (async () => {
-                        try {
-                            const total = parseFloat(b.total_amount) || 0;
-                            await withDbTransaction(async () => {
-                                await dbRun("BEGIN IMMEDIATE");
-                                try {
-                                    await autoBuildDepositBalanceSchedule(b.id, total, b.date);
-                                    await dbRun("COMMIT");
-                                } catch (schErr) { await dbRun("ROLLBACK").catch(() => {}); throw schErr; }
-                            });
-                            await generateInvoice(b.id, { autoSend: false }); // DRAFT — admin sends explicitly
-                            await generateContract(b.id).catch(cErr => console.error('[Status Accept] Contract draft failed:', cErr.message));
-                        } catch (finErr) {
-                            console.error('[Status Accept] Auto-finalize failed for booking #' + b.id + ':', finErr.message);
-                        }
-                    })();
-                }
-                if (requestedStatus === 'QUOTED') {
-                    // Revert active quotation's status to 'sent'
-                    revertQuotationToSent(bookingId, (err) => {
-                        if (err) console.error('[Status Change] Failed to revert quotation status to sent:', err.message);
-                    });
-                }
-                if (requestedStatus === 'CONFIRMED') {
-                    sendBookingConfirmedEmail(b).catch(e => console.error('Confirmed email failed:', e.message));
-                    // Auto-create an events row if none exists yet for this booking
-                    if (!b.event_id) {
-                        const eventDatetime = b.date + (b.event_start_time ? ' ' + b.event_start_time : ' 00:00:00');
-                        insertAutoCreatedEvent(
-                            b.event_name || b.event_type || 'Booking Event', eventDatetime, b.event_location || null, b.venue_id || null, b.id,
-                            function(evInsErr) {
-                                if (evInsErr) { console.error('[Auto-Event] Insert failed for booking #' + b.id + ':', evInsErr.message); return; }
-                                setBookingEventId(this.lastID, b.id,
-                                    (evUpErr) => { if (evUpErr) console.error('[Auto-Event] Booking event_id link failed:', evUpErr.message); });
-                            }
-                        );
-                    }
-                }
-                if (requestedStatus === 'COMPLETED') {
-                    sendBookingCompletedEmail(b).catch(e => console.error('Completed email failed:', e.message));
-                    sendAdminCompletionSummaryEmail(b).catch(e => console.error('Admin completion summary failed:', e.message));
-                    // S6-4: Auto-mark invoice as paid when booking is completed with full payment
-                    markInvoicePaidOnStatusComplete(b.id);
-                    // Parity with the dedicated POST /:id/complete route and the hourly auto-complete
-                    // sweep — both advance the linked event; this generic status path used to leave it
-                    // stuck at 'upcoming' when completed via PUT /:id or /:id/status instead.
-                    if (b.event_id) {
-                        advanceEventToCompleted(b.event_id);
-                    }
-                }
-            }
-        });
-        res.json({ success: true, newStatus: requestedStatus, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
-    });
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): applyStatusChange moved to lib/booking-status.js — see the
+// require near the top of this file for the re-import.
 
 app.put('/api/admin/bookings/:id', requireAdmin, (req, res) => {
     const { status, reason } = req.body;
