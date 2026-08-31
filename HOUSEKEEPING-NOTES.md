@@ -1709,6 +1709,39 @@ retry succeeded); `npm test` x2 (one hit **CP17** — `calendar.test.js`'s pre-e
 sync flake, already documented from earlier sessions, on code this batch never touched — the other a
 clean 664/664); the 20-check manual fixture script above, 20/20 passed.
 
+### Route batch: `routes/public/availability.js` (5 routes, new file) — DONE
+
+Second batch of the post-bookings/events Phase 5 continuation: the availability/venue-lookup
+cluster. `GET /api/public/availability` (the date-availability check, including its recursive
+nearest-available-date suggestion scan and the `MIN_ADVANCE_HOURS` advance-notice gate),
+`.../booking-config` (per-day working hours + min booking gap for the frontend slot picker),
+`.../availability/month` (held/booked dates for the calendar widget), and the two Google Places
+proxy routes `.../places/autocomplete`/`.../places/details` (venue address lookup for the booking
+form) — all public, all read-only, none mutate any state.
+
+New file `routes/public/availability.js`, third file in `routes/public/`. New
+`app.use(require('./routes/public/availability'))` registration added to `app.js`'s route-mount
+block, same pattern as the previous new-file batch.
+
+**Dead-import sweep in `app.js`**: `MIN_ADVANCE_HOURS` (its last remaining call site — this route —
+moved; `routes/public/bookings.js` already has its own independent import for the public-intake
+route), `checkDateAvailability` (`lib/calendar-sync.js` — its only call site moved),
+`getMinBookingGapSetting` (`settings.repository` — only call site moved),
+`getActiveHoldDatesForMonth` (`calendar.repository` — only call site moved). `CURRENT_POLICY_VERSION`
+(same import line as `MIN_ADVANCE_HOURS`) and `syncBookingToCalendar`/`syncCalendarHolds`/
+`syncEventToCalendar` (same import line as `checkDateAvailability`) checked and correctly kept —
+all still have real remaining callers elsewhere in `app.js`.
+
+**Byte-identity check**: all 5 routes diffed against `git show HEAD:app.js` — zero differences,
+including the availability route's recursive suggestion-scan logic and the two Google-Places-proxy
+routes' inline `require('https')` calls.
+
+**Verification**: `node -c` on both files; the undefined-reference sweep (clean); every new import
+(`ipRateLimiter`/`trackRateLimiter`, `MIN_ADVANCE_HOURS`, `checkDateAvailability`,
+`getMinBookingGapSetting`, `getActiveHoldDatesForMonth`) verified programmatically against the real
+modules before running anything; byte-identity diffs (clean); `npm run smoke` 329/329 (first try);
+`npm test` x2 — clean 664/664 both times.
+
 ### Route batch: `routes/public/site-content.js` (16 routes, new file) + `publish-home-slider` — DONE
 
 First batch of the post-bookings/events Phase 5 continuation, picking up the ~50 routes left
