@@ -1657,6 +1657,80 @@ above, 16/16 passed.
 `grep -c "app\.\(get\|post\|put\|patch\|delete\)('/api/admin/bookings" app.js` returning 4, not
 trusting a remembered count.
 
+### Bookings sub-batch J: the financial/status-transition core (4 routes) — closes the admin bookings domain
+
+The 4 routes deliberately held back from sub-batch I as the highest-remaining-risk cluster:
+`PUT .../manual-payment`, `POST .../cancel` (the guarded transaction with the full cancellation-
+refund calculation and the FK cross-reference cleanup between `bookings.event_id`/
+`events.booking_id`), `POST .../complete`, `PUT .../refund` (ledger recalculation from
+`SUM(transactions)`, the already-refunded-amount guard, cumulative refund/reference/notes
+across multiple partial refunds). All four now delegate their heavy logic to the
+`lib/payment-processing.js`/`lib/booking-status.js`/`lib/cancellation-refund.js` helpers relocated
+in the prerequisite batch — the routes themselves are comparatively thin.
+
+**Byte-identity check**: all 4 routes diffed against `git show HEAD:app.js` (accounting for the
+leading-comment-inclusive boundaries the extraction tool itself reports) — zero differences beyond
+a trailing blank line at each boundary (an artifact of how blocks are joined, not a content change).
+
+**Dead-import sweep in `app.js`** (the largest of the whole admin-bookings pass, since this was the
+last cluster still calling into many shared helpers): `getRecentPayfastTransactionForBooking`,
+`cancelBookingAsync`, `insertCancellationForAdminCancel`, `releaseDateHoldsForBookingAsync`,
+`voidInvoicesForCancelledBookingAsync`, `cancelPendingPaymentSchedulesAsync`, `getEventByBookingId`,
+`demoteEventForCancelledBookingByBookingIdAsync`, `clearBookingPublicAndEventIdAsync`,
+`clearEventGoogleCalendarIdAsync`, `markBookingCompletedManual`, `getCancellationForRefund`,
+`getAlreadyRefundedAmount`, `updateCancellationRefund`, `insertRefundTransaction`,
+`setBookingPaymentStatus`, `updateBookingLedgerFromReconcile` (missed in sub-batch I's own sweep —
+caught this time by re-running the same check rather than assuming it was already clean),
+`processManualPayment`, `calculateCancellationRefund`, `sendCancellationEmail`,
+`sendRefundProcessedEmail`. Also removed `demoteEventForCancelledBookingAsync`, which turned out to
+already have zero remaining callers in `app.js` independent of this batch — a pre-existing gap from
+an earlier phase, caught only because this sweep checks every name on the touched import lines, not
+just the ones this batch's own routes used. Kept (real remaining callers confirmed): `deleteGoogleEvent`,
+`clearBookingGoogleEventId`, `sendBookingCompletedEmail`, `alignMilestonePayments`,
+`getBookingByIdAsync`, `getBookingById`, `logPaymentEvent`, `deriveBookingStatusAfterPayment`,
+`updateBookingMilestones` — all still called from the PayFast ITN webhook handler or the separate,
+not-yet-relocated `POST /api/admin/transactions/manual` route.
+
+**Manual fixture verification**: a throwaway script drove two full booking lifecycles end-to-end
+against real database state — Flow A: create → NEW→PENDING→QUOTED→ACCEPTED → manual-payment (full
+amount) → confirmed `payment_status=PAID` and `status` auto-advanced to `CONFIRMED` → complete →
+confirmed `status=COMPLETED`. Flow B: create → ACCEPTED → manual-payment → cancel (confirmed the
+refund-due/policy-rule calculation, `status=CANCELLED`, and that a second cancel attempt is rejected
+with 400) → refund (confirmed success, then confirmed the over-refund guard rejects a refund
+exceeding the remaining refundable balance, and that a refund with no reference is rejected once the
+amount is non-zero). 20/20 checks passed — this exercises the exact deep logic paths (status
+derivation, refund arithmetic, guard rails) that a byte-identity diff or a generic smoke check
+cannot.
+
+**Verification**: `node -c`; the undefined-reference sweep (clean); byte-identity diffs (clean);
+`npm run smoke` 329/329 (one run hit the same transient `SQLITE_CORRUPT`-on-throwaway-copy pattern
+now logged in its own "Known testing limitations" entry — live `database.sqlite` re-confirmed `ok`,
+retry succeeded); `npm test` x2 (one hit **CP17** — `calendar.test.js`'s pre-existing drag-reschedule-
+sync flake, already documented from earlier sessions, on code this batch never touched — the other a
+clean 664/664); the 20-check manual fixture script above, 20/20 passed.
+
+### The admin `bookings` domain is now fully relocated — precisely scoped
+
+Verified directly rather than reasoned from a remembered tally, per the standing rule from the
+overclaim corrections earlier in this pass: `grep -c "app\.\(get\|post\|put\|patch\|delete\)
+('/api/admin/bookings" app.js` → **0**. `grep -c "^router\.\(get\|post\|put\|patch\|delete\)"
+routes/admin/bookings.js` → **55** (28 from sub-batches A-D + 6 from E + 1 from F + 16 from I + 4
+from J = 55, matching the original reconnaissance estimate exactly). Every route under
+`/api/admin/bookings/*` now lives in `routes/admin/bookings.js`; `app.js` has none left.
+
+**What this claim does and does not cover**, checked explicitly rather than assumed: the PayFast
+ITN webhook (`POST /api/payment/webhook/payfast`, confirmed via direct grep — a different URL
+prefix, never part of the `/api/admin/bookings` count above) and the site's ~3 remaining
+`schedule.scheduleJob(...)` cron registrations (booking-lifecycle reminders/expiry/auto-complete
+sweeps) are **not** part of this claim and remain unrelocated — they were never counted in the 55
+above and this entry does not claim them done. The admin `events` cluster (6/6, `routes/admin/
+events.js`) and the entire public `/api/public/bookings/*` surface (19/19, `routes/public/
+bookings.js`) were already completed earlier in this pass (see their own entries above) — combined
+with the 55 admin bookings routes above, that closes out every `/api/admin/bookings/*`,
+`/api/admin/events/*`, and `/api/public/bookings/*` route in the original "big deferred
+bookings/events pass" scope. The PayFast webhook and the cron jobs remain as separate, distinct,
+not-yet-started future work.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
@@ -3014,6 +3088,30 @@ eventual manual verification run) was run in isolation, with nothing else touchi
 `test/support.js`-based script while a backgrounded `npm test` (or another such script) is still in
 flight — they share one hardcoded DB file and port, and the previous run's TEST_DB is not this
 session's own to touch mid-flight.
+
+### A second, distinct `SQLITE_CORRUPT` pattern: solo `npm run smoke`, no concurrency (Phase 5, final admin bookings routes)
+
+Unlike the incident logged just above, this one is **not** explained by a concurrent script —
+recurred three separate times during the final admin-bookings route-extraction work (once after
+the payment/status-engine prerequisite batch, once after the 16-route CRUD batch, once after the
+4-route financial-core batch), each time on a plain solo `npm run smoke` invocation with nothing
+else running against `test/.test.sqlite` (checked directly via `tasklist`/`wmic` each time — the
+only other `node.exe` processes present were an unrelated `chrome-devtools-mcp` session, never a
+leftover test child). Same signature every time: `SQLITE_CORRUPT: database disk image is malformed`
+immediately on `test/smoke.js`'s own first write, i.e. `test/support.js`'s fresh
+`fs.copyFileSync(database.sqlite → .test.sqlite)` apparently landing on a torn/inconsistent copy of
+a WAL-mode file. Given this is a live production system, the **live** `database.sqlite` was
+verified directly with `PRAGMA integrity_check` before doing anything else on all three
+occurrences — came back `ok` every time, confirming the corruption is confined to the disposable
+copy, never the source file. A plain immediate retry of `npm run smoke` succeeded cleanly all three
+times, no manual cleanup needed. Treated as the same underlying class of hazard as the
+`SQLITE_BUSY`-mid-suite flake logged above — a WAL-mode SQLite file copied via plain
+`fs.copyFileSync` while technically idle can still land mid-checkpoint often enough to matter on
+this filesystem — but landing on `smoke.js`'s copy step specifically rather than mid-suite. Not
+investigated further (same reasoning as the `SQLITE_BUSY` flake: a test-harness/OS-level timing
+question, not an application-code one); logged here so a future occurrence is recognised
+immediately as "retry, and if worried, check `PRAGMA integrity_check` on the live file — it's never
+been affected" rather than treated as a fresh scare each time.
 
 ---
 

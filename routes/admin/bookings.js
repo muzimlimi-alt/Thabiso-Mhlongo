@@ -2625,4 +2625,311 @@ router.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
     });
 });
 
+// Admin: manually record a payment when the PayFast ITN was not received
+router.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+    const { payment_status, amount_paid, force } = req.body;
+    // payment_status is advisory now — processManualPayment derives the real value from the amount
+    // (an admin could otherwise record R1 as PAID). Still reject a garbage value if one is supplied,
+    // but do not require it.
+    const valid = ['UNPAID', 'DEPOSIT_PAID', 'PARTIALLY_PAID', 'PAID', 'FAILED'];
+    if (payment_status != null && payment_status !== '' && !valid.includes(payment_status)) {
+        return res.status(400).json({ success: false, message: 'Invalid payment_status.' });
+    }
+    getBookingById(req.params.id, (err, row) => {
+        if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        if (['CANCELLED', 'EXPIRED'].includes(row.status)) {
+            return res.status(400).json({ success: false, message: `Cannot record payment on a ${row.status} booking.` });
+        }
+
+        // P2-5: Warn if a PayFast transaction was recorded for this booking within the last 2 hours —
+        // recording a manual payment on top may create a duplicate credit.
+        if (!force) {
+            getRecentPayfastTransactionForBooking(
+                req.params.id,
+                (txErr, recentTx) => {
+                    if (!txErr && recentTx) {
+                        return res.status(409).json({
+                            success: false,
+                            duplicate_warning: true,
+                            message: `A PayFast payment of R${parseFloat(recentTx.amount).toFixed(2)} was already recorded for this booking within the last 2 hours (at ${recentTx.created_at}). Recording a manual payment now may double-credit this booking. Send { force: true } to proceed anyway.`
+                        });
+                    }
+                    // No recent PayFast tx — fall through to same-callback logic below
+                    processManualPayment(req, res, row);
+                }
+            );
+            return;
+        }
+        processManualPayment(req, res, row);
+    });
+});
+
+// P2.1 — Cancel booking (admin) — writes to cancellations table and notifies client
+router.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => {
+    const bookingId = req.params.id;
+    const { reason, cancelled_by, notes } = req.body;
+    const validCancelledBy = ['client', 'comedian', 'mutual', 'force_majeure'];
+    const cancelledBy = validCancelledBy.includes(cancelled_by) ? cancelled_by : 'comedian';
+
+    getBookingById(bookingId, (err, booking) => {
+        if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        const currentStatus = (booking.status || '').toUpperCase();
+        if (['COMPLETED', 'CANCELLED'].includes(currentStatus)) {
+            return res.status(400).json({ success: false, message: `Cannot cancel a booking with status ${booking.status}.` });
+        }
+        
+        db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", async (err, policy) => {
+            // SC-2: Force majeure — full refund regardless of timeline
+            const isForceMajeure = cancelledBy === 'force_majeure';
+            const policyStr = policy ? policy.policy_value : "";
+            const calc = calculateCancellationRefund(booking, policyStr);
+            const totalPaid = calc.totalPaid;
+            const refundDue       = isForceMajeure ? totalPaid : calc.refund;
+            const retentionAmount = isForceMajeure ? 0          : calc.retention;
+            const policyRule      = isForceMajeure ? 'Force Majeure — Full Refund Granted' : calc.rule;
+
+            // Everything a cancellation implies is one atomic unit. The audit row and the four
+            // cascades (holds, invoices, payment schedules, events) used to run AFTER `COMMIT` with
+            // their errors logged and ignored, so a cancelled booking could keep an open invoice the
+            // admin would go on chasing.
+            let linkedEventGoogleId = null;
+            const outcome = await withDbTransaction(async () => {
+                try {
+                    await dbRun("BEGIN IMMEDIATE");
+                } catch (beginErr) {
+                    console.error('[Cancel] BEGIN IMMEDIATE failed:', beginErr.message);
+                    return { status: 500, body: { success: false, message: 'Database busy. Please retry.' } };
+                }
+                try {
+                    // payment_status is deliberately NOT set to 'CANCELLED'. The
+                    // chk_bookings_payment_status_update trigger only permits
+                    // UNPAID|DEPOSIT_PAID|PARTIALLY_PAID|PAID|REFUNDED|FAILED, so writing 'CANCELLED'
+                    // aborted the whole statement — this route returned 500 on every call. The real
+                    // payment state must survive cancellation anyway: the refund owed is computed
+                    // from what the client actually paid.
+                    await cancelBookingAsync(bookingId);
+
+                    await insertCancellationForAdminCancel(bookingId, cancelledBy, reason || null, totalPaid, refundDue, retentionAmount, notes || null, req.session.adminId);
+
+                    await dbRun(
+                        `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
+                         VALUES ('bookings', ?, 'CANCEL', ?, ?, ?, CURRENT_TIMESTAMP)`,
+                        [bookingId,
+                         JSON.stringify({ status: booking.status, payment_status: booking.payment_status }),
+                         JSON.stringify({ status: 'CANCELLED', cancelled_by: cancelledBy, reason: reason || null, refund_due: refundDue, retention: retentionAmount, policy_rule: policyRule }),
+                         req.session.adminId || 'admin']);
+
+                    // Release date holds
+                    await releaseDateHoldsForBookingAsync(bookingId);
+                    // Cascade: void open invoices so admin stops chasing payment
+                    await voidInvoicesForCancelledBookingAsync(bookingId);
+                    // Cascade: cancel pending payment schedule items
+                    await cancelPendingPaymentSchedulesAsync(bookingId);
+                    // Cascade: demote the linked event to draft/cancelled AND clear both cross-reference
+                    // FKs (bookings.event_id <-> events.booking_id) — this used to only clear the event's
+                    // side (booking_id=NULL) while applyStatusChange's CANCELLED branch only cleared the
+                    // booking's side (event_id=NULL) and demoted the event, so depending on which of the
+                    // two cancellation entry points fired, the pair ended up pointing at each other
+                    // inconsistently and a publicly-listed show could keep showing 'upcoming' after its
+                    // booking was cancelled. Matches by booking_id (the event's own pointer) rather than
+                    // only booking.event_id, so a pre-existing orphaned cross-reference left by that
+                    // inconsistency still gets cleaned up here rather than silently skipped.
+                    const linkedEvent = await getEventByBookingId(bookingId);
+                    if (linkedEvent) linkedEventGoogleId = linkedEvent.google_calendar_event_id || null;
+                    await demoteEventForCancelledBookingByBookingIdAsync('Linked booking #' + bookingId + ' was cancelled', bookingId);
+                    if (booking.event_id) {
+                        await clearBookingPublicAndEventIdAsync(bookingId);
+                    }
+                    // The event may have its own separate Google Calendar entry (synced via
+                    // syncEventToCalendar, independent of the booking's own google_event_id, handled as
+                    // a post-commit side effect below alongside it) — without clearing it here too, it
+                    // stays live/public on Google even though it's now locally demoted to draft.
+                    if (linkedEventGoogleId) {
+                        await clearEventGoogleCalendarIdAsync(linkedEvent.event_id);
+                    }
+
+                    await dbRun("COMMIT");
+                    return { ok: true };
+                } catch (txErr) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    console.error('[Cancel] Cancellation failed — rolled back, booking unchanged:', txErr.message);
+                    return { status: 500, body: { success: false, message: txErr.message } };
+                }
+            });
+
+            if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+
+            // ---- Side effects, after the commit ----
+            // Remove Google Calendar event so date shows as available
+            if (booking.google_event_id) {
+                deleteGoogleEvent(booking.google_event_id).catch(calErr => {
+                    console.error(`[Cancel] Google Calendar event removal failed for booking #${bookingId}:`, calErr.message);
+                });
+                // Null it regardless of the delete's outcome above — deleteGoogleEvent() never rejects
+                // (it swallows its own errors), and leaving a stale ID here permanently breaks any later
+                // sync attempt for this booking (update-against-a-deleted-event fails silently forever).
+                clearBookingGoogleEventId(bookingId);
+            }
+            // The linked event's own separate Google Calendar entry (if any) — already nulled in the DB
+            // inside the transaction above; the actual Google delete call happens here, after commit,
+            // same as the booking's own event above.
+            if (linkedEventGoogleId) deleteGoogleEvent(linkedEventGoogleId);
+            booking.name = booking.client_name || booking.name;
+            booking.email = booking.client_email || booking.email;
+            // SC-3: Pass policy rule + timing so client knows what was applied
+            try { await sendCancellationEmail(booking, { reason, refund_due: refundDue, rule: policyRule, days_until_event: calc.daysUntilEvent, is_force_majeure: isForceMajeure }); }
+            catch (e) { console.error('Cancellation email failed:', e.message); }
+            res.json({ success: true, message: 'Booking cancelled and client notified.', refund_due: refundDue, rule: policyRule });
+        });
+    });
+});
+
+/**
+ * POST /api/admin/bookings/:id/complete
+ * Mark a CONFIRMED booking as COMPLETED and notify the client.
+ */
+router.post('/api/admin/bookings/:id/complete', requireAdmin, (req, res) => {
+    const bookingId = req.params.id;
+    getBookingById(bookingId, (err, booking) => {
+        if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        if (booking.status !== 'CONFIRMED') {
+            return res.status(400).json({ success: false, message: `Only CONFIRMED bookings can be marked complete (current: ${booking.status}).` });
+        }
+        const outstanding = parseFloat(booking.amount_outstanding) || 0;
+        const force = req.body && req.body.force === true;
+        if (outstanding > 0 && !force) {
+            return res.status(400).json({
+                success: false,
+                message: `Cannot complete: outstanding balance of R${outstanding.toFixed(2)} remains. Settle payment first, or pass force:true to override.`,
+                amount_outstanding: outstanding
+            });
+        }
+        markBookingCompletedManual(bookingId, async function(upErr) {
+            if (upErr) return res.status(500).json({ success: false, error: upErr.message });
+            db.run(
+                `INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
+                 VALUES ('bookings', ?, 'COMPLETE', ?, ?, ?, CURRENT_TIMESTAMP)`,
+                [bookingId,
+                 JSON.stringify({ status: booking.status }),
+                 JSON.stringify({ status: 'COMPLETED', forced: force || false }),
+                 req.session.adminId || 'admin'],
+                (aErr) => { if (aErr) console.error('[Audit] Completion log failed:', aErr.message); }
+            );
+            booking.name  = booking.client_name  || booking.name;
+            booking.email = booking.client_email || booking.email;
+            sendBookingCompletedEmail(booking).catch(e => console.error('Completed email failed:', e.message));
+            // Advance linked event to 'completed' status
+            if (booking.event_id) {
+                advanceEventToCompleted(booking.event_id,
+                    (evErr) => { if (evErr) console.error('[Complete] Event status advance failed:', evErr.message); }
+                );
+            }
+            res.json({ success: true, message: 'Booking marked as completed and client notified.' });
+        });
+    });
+});
+
+/**
+ * PUT /api/admin/bookings/:id/refund
+ * Record that a refund has been issued for a cancelled booking.
+ */
+router.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+    const { refund_amount, refund_reference, notes } = req.body;
+    const bookingId = req.params.id;
+    const amt = parseFloat(refund_amount) || 0;
+
+    if (amt < 0) {
+        return res.status(400).json({ success: false, message: 'Refund amount cannot be negative.' });
+    }
+    if (amt > 0 && (!refund_reference || !refund_reference.trim())) {
+        return res.status(400).json({ success: false, message: 'A payment reference (bank transaction ID or PayFast reference) is required when recording a refund. Process the bank/PayFast transfer first, then record the reference here.' });
+    }
+
+    try {
+        const row = await getCancellationForRefund(bookingId);
+        if (!row) return res.status(404).json({ success: false, message: 'No cancellation record found for this booking.' });
+
+        // Validate against what has ACTUALLY been refunded so far (the transactions ledger — the
+        // same source of truth the amount_paid recalculation below reads from), not just the single
+        // amount submitted in this call. Comparing `amt` alone against total_paid_to_date let two
+        // separate calls each pass the check individually and refund more than the client ever paid.
+        const refRow = await getAlreadyRefundedAmount(bookingId);
+        const alreadyRefunded = parseFloat(refRow && refRow.already_refunded) || 0;
+        const remaining = row.total_paid_to_date - alreadyRefunded;
+
+        if (amt > remaining) {
+            return res.status(400).json({
+                success: false,
+                message: alreadyRefunded > 0
+                    ? `Refund amount (R${amt.toFixed(2)}) exceeds the remaining refundable balance (R${remaining.toFixed(2)}). R${alreadyRefunded.toFixed(2)} of R${row.total_paid_to_date.toFixed(2)} paid has already been refunded.`
+                    : `Refund amount (R${amt.toFixed(2)}) exceeds total paid (R${row.total_paid_to_date.toFixed(2)}).`
+            });
+        }
+
+        // refund_amount/reference/notes reflect the running total across possibly multiple partial
+        // refunds — overwriting them on each call erased the previous bank reference and understated
+        // the total refunded on the client's public tracking page.
+        const cumulativeRefund = alreadyRefunded + amt;
+        const cumulativeReference = refund_reference
+            ? (row.refund_reference ? `${row.refund_reference}; ${refund_reference}` : refund_reference)
+            : row.refund_reference || null;
+        const cumulativeNotes = notes
+            ? (row.refund_notes ? `${row.refund_notes}\n${notes}` : notes)
+            : row.refund_notes || null;
+
+        await updateCancellationRefund(cumulativeRefund, cumulativeReference, cumulativeNotes, bookingId);
+
+        // P2-11: Record refund transaction first, then recalculate amount_paid from
+        // SUM(transactions) to avoid ledger drift from arithmetic operations.
+        await insertRefundTransaction(bookingId, amt, refund_reference || null, notes || `Refund for cancellation of Booking #${bookingId}`)
+            .catch(tErr => console.error('[Refund] Transaction log failed:', tErr.message));
+
+        await dbRun(`UPDATE bookings SET
+                amount_paid = MAX(0, (
+                    SELECT COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)
+                    FROM transactions t WHERE t.booking_id = bookings.id
+                      AND t.is_duplicate = 0 AND (t.status = 'completed' OR t.status IS NULL)
+                )),
+                amount_outstanding = MAX(0, COALESCE(total_amount, 0) - MAX(0, (
+                    SELECT COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)
+                    FROM transactions t WHERE t.booking_id = bookings.id
+                      AND t.is_duplicate = 0 AND (t.status = 'completed' OR t.status IS NULL)
+                )))
+                WHERE id = ?`, [bookingId]
+        ).catch(bErr => console.error('[Refund] Ledger recalculation failed:', bErr.message));
+
+        db.run(`INSERT OR IGNORE INTO audit_log (table_name, record_id, action, new_values) VALUES ('cancellations', ?, 'REFUND_ISSUED', ?)`,
+            [bookingId, JSON.stringify({ refund_amount: amt, refund_reference, cumulative_refund: cumulativeRefund })]);
+
+        // Re-derive payment_status from the recomputed ledger. This route recomputed
+        // amount_paid/amount_outstanding but left payment_status stale, so a fully
+        // refunded booking stayed marked PAID. Same derivation the /transactions/manual
+        // refund branch uses. (trg_auto_payment_status only ever forces PAID when
+        // outstanding hits 0, so it cannot demote a refunded booking on its own.)
+        const bRow = await getBookingByIdAsync(bookingId);
+        if (!bRow) {
+            return res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.` });
+        }
+        const total = parseFloat(bRow.total_amount) || 0;
+        const newPaid = parseFloat(bRow.amount_paid) || 0;
+        let payment_status;
+        if (total > 0 && newPaid >= total)      payment_status = 'PAID';
+        else if (newPaid <= 0)                   payment_status = 'UNPAID';
+        else if (total > 0 && newPaid >= total * 0.5) payment_status = 'DEPOSIT_PAID';
+        else                                     payment_status = 'PARTIALLY_PAID';
+        setBookingPaymentStatus(payment_status, bookingId,
+            (psErr) => { if (psErr) console.error('[Refund] payment_status re-derivation failed:', psErr.message); });
+        // amount_paid dropped — re-run the milestone waterfall so covered rows
+        // that are no longer covered fall back to pending.
+        alignMilestonePayments(bookingId, newPaid, () => {});
+
+        sendRefundProcessedEmail(bRow, amt, refund_reference)
+            .catch(e => console.error('[Refund] Client email failed:', e.message));
+        res.json({ success: true, message: `Refund of R${amt.toFixed(2)} recorded and transaction logged.`, payment_status });
+    } catch (e) {
+        console.error('[Refund] Failed:', e.message);
+        res.status(500).json({ success: false, message: 'Server error recording refund.' });
+    }
+});
+
 module.exports = router;
