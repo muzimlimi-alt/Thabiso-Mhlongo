@@ -1447,6 +1447,71 @@ admin status-transition engine) and its dependency web (`processManualPayment`,
 `logPaymentEvent` and the PayFast ITN webhook itself, the remaining `send*Email` functions not yet
 relocated, and ~12 background cron jobs.
 
+### Public bookings sub-batch H: the intake route — this time genuinely closes the pass (19/19)
+
+`POST /api/public/bookings` — the public booking-intake form handler, and the single largest route
+in the entire housekeeping effort (~500 lines): full field validation and sanitisation, service
+selection with lead-time/per-day/quantity rules, the read-before-write ordering fix that keeps a
+rejected submission from leaving orphan `clients`/`venues` rows behind, the calendar-conflict and
+working-hours gates, the guarded transaction (with every gate re-checked inside the write lock to
+close the concurrent-submission race), and the post-commit side effects (calendar sync with an
+admin alert on failure, dual admin+client emails, abandoned-draft recovery marking).
+
+Prerequisites relocated first, all found either fully self-contained or already available:
+
+- **`lib/booking-policy.js`** (new): `MIN_ADVANCE_HOURS` and `CURRENT_POLICY_VERSION` — two small
+  constants shared across this route, the still-deferred public availability route, the admin
+  manual-booking-creation route, and the newsletter subscribe flow. Given a shared home (rather than
+  duplicating the literal values) so a future policy-version bump can't update some call sites and
+  miss others.
+- **`sendBookingReceivedEmail`** joined `lib/booking-notifications.js` (same established shape —
+  `escapeEmailFields`/`getEmailFooterContext`/`bannerRegistry`/`emailComponents`/`sendEmail`/
+  `generateBookingICS`, all already present). Its only caller was this route, so it is not
+  re-imported into `app.js`.
+- **`parseDurationMins`** and **`BOOKING_TEXT_LIMITS`** moved directly into
+  `routes/public/bookings.js` as single-consumer locals (same treatment as `contractUpload`/
+  `bookingAttachUpload` before them) — both were already fully self-contained.
+- Everything else needed was already relocated and just needed importing:
+  `findOrCreateClient`/`findOrCreateVenueFromPlace` (`lib/client-venue.js`),
+  `checkDateAvailability`/`hasCalendarConflict`/`isWithinWorkingHours`/`syncBookingToCalendar`
+  (`lib/calendar-sync.js`), `addMinutesToTime`/`parseDurationToMinutes` (`lib/time-utils.js`),
+  `insertBookingService`/`insertBookingLineItem` (`bookings.repository`, both keeping their existing
+  `app.js` import too — the admin manual-booking-creation route still calls both directly).
+
+Unlike almost every other batch this session, the very first undefined-reference sweep on the new
+route file came back clean — every dependency had already been traced correctly on the first pass,
+with nothing caught only after the fact.
+
+**Static byte-identity check** on all three relocated pieces (`sendBookingReceivedEmail`, and the
+intake route itself against `git show HEAD:app.js`): both are character-for-character identical
+apart from the one intentional `__dirname` → relative-path fix in `sendBookingReceivedEmail` (the
+same class of hazard caught in the admin quote route batch — a bare `path.join(__dirname, 'images',
+...)` would have silently resolved to `lib/images/...` instead of `<root>/images/...` once moved)
+and a couple of incidental trailing-whitespace trims. The intake route itself has zero differences
+at all, not even whitespace.
+
+Verification: `node -c` on all four changed/new files; the static undefined-reference sweep (clean
+on the first pass); confirmed zero remaining `app.js` registration for the route and confirmed
+`findOrCreateVenueFromPlace`/`insertBookingService`/`insertBookingLineItem` all still have a genuine
+second caller in `app.js` (kept, not removed); `npm run smoke` 329/329; `npm test` x4 given the
+exceptional stakes — this route is the fixture-creation step for nearly every test in the suite, so
+a real regression here would have failed loudly and repeatedly across dozens of unrelated tests, not
+quietly. 3 clean 664/664 runs, one run hitting the already-extensively-documented **CP3** flake
+(unrelated — `calendar.test.js`'s own generic-status-route parity check, not booking intake). Given
+the combination of that exceptionally broad indirect coverage and a byte-for-byte-identical diff, no
+additional manual fixture verification was needed on top of it — the same reasoning applied to
+`accept-quote` in the previous sub-batch.
+
+**This is the point where the public `/api/public/bookings/*` pass is actually closed out — 19 of
+19 routes relocated** (correcting the premature claim made, and then walked back, in sub-batch G's
+own write-up above). With it, the entire "big deferred bookings/events pass" scoped at the very
+start of this stretch of Phase 5 — admin `bookings`/`events` routes, the calendar-sync engine, and
+now the full public self-service surface — is complete. Remaining Phase 5 scope: `applyStatusChange`
+(the generic admin status-transition engine) and its dependency web (`processManualPayment`,
+`alignMilestonePayments`, `updateBookingMilestones`, `deriveBookingStatusAfterPayment`),
+`logPaymentEvent` and the PayFast ITN webhook itself, the remaining `send*Email` functions not yet
+relocated, and ~12 background cron jobs.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
