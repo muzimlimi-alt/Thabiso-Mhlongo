@@ -1709,6 +1709,69 @@ retry succeeded); `npm test` x2 (one hit **CP17** — `calendar.test.js`'s pre-e
 sync flake, already documented from earlier sessions, on code this batch never touched — the other a
 clean 664/664); the 20-check manual fixture script above, 20/20 passed.
 
+### Route batch: `routes/public/site-content.js` (16 routes, new file) + `publish-home-slider` — DONE
+
+First batch of the post-bookings/events Phase 5 continuation, picking up the ~50 routes left
+scattered across small one-off prefixes once the bookings/events pass closed out. Chose the public
+site-content cluster first as lowest-risk: every route already has an admin-side CRUD counterpart
+already living in `routes/admin/{site-content,content,home-social}.js` from earlier batches, and
+all but one of the 16 are plain read-only `db.get`/`db.all` passthroughs with no business logic.
+
+**New file `routes/public/site-content.js`** (the second file ever in `routes/public/`, after
+`bookings.js`) — a fresh `app.use(require('./routes/public/site-content'))` registration was added
+to `app.js`'s existing route-mount block, since (unlike every route file touched so far this
+session) this one didn't already exist and get incrementally extended. Routes: `GET .../services`,
+`.../legal/cookie-policy`, `.../branding`, `.../events`, `.../highlights`, `.../footprint`,
+`.../testimonials` (+ its `POST` sibling — public, rate-limited, restricted-upload testimonial
+submission), `.../home-slider`, `.../gallery`, `.../manager`, `.../contact_info`,
+`.../social_links`, `.../about-me`, `.../social_embeds`, `.../site-content`.
+
+Two data/upload blocks moved as single-consumer locals alongside their routes: `SITE_CONTENT_KEYS`
+(the settings-table key list backing the editable-homepage-content endpoint) and
+`publicImageUploadStorage`/`publicImageUpload` (the SVG-excluding multer variant for the public,
+unauthenticated testimonial-photo upload — kept separate from the admin-only `upload` for the
+SEC-1 stored-XSS reason its own comment explains, preserved verbatim in the new location).
+
+**`POST /api/admin/publish-home-slider`** moved separately into the existing
+`routes/admin/home-social.js` (an admin-authenticated route, so it belongs on the admin side of the
+auth boundary per Phase 5's own rationale, not alongside the public reads) — homepage-carousel HTML
+regeneration triggered by home-slider changes, so it sits naturally next to that file's existing
+home-slider CRUD. **Caught and fixed the `__dirname`-relative-path hazard** on the first read, before
+it could ship: `path.join(__dirname, 'index.html')` would have silently resolved to
+`routes/admin/index.html` instead of the real one at the project root once moved — same class of bug
+caught twice earlier in this session (the admin quote route's debug-log path;
+`sendBookingReceivedEmail`'s logo path). Fixed via `PROJECT_ROOT` (`lib/runtime-paths.js`), the
+established pattern; no other logic changed. Deliberately **not** exercised by a manual fixture
+script — this route performs a real disk write to the live `index.html` and no existing test calls
+it, so running it manually would risk mutating a real repository file as a side effect for no
+verification benefit the byte-identity diff doesn't already provide.
+
+**Byte-identity check**: all 17 routes diffed against `git show HEAD:app.js` — the three with any
+non-trivial logic (`about-me`'s HTML-unescaping, `site-content`'s settings-JSON assembly, the
+testimonials `POST` upload handler) and `publish-home-slider` all came back with zero differences
+beyond the one intentional `__dirname` fix; the rest are one-line `db` passthroughs, verified but not
+individually re-typed here.
+
+**Dead-import sweep in `app.js`**: `unescapeHtml`/`sanitizeAboutHtml`/`SECTION_KEYS` (all three
+lost their only caller — `routes/admin/site-content.js` already had its own independent import of
+the same three from `lib/html-sanitize.js` for the admin write-side, so nothing else needed
+touching), `getSettingsByKeys` (its remaining two call sites, `branding` and `site-content`, both
+moved together). `ipRateLimiter` and `encodeUserHtml` checked and correctly kept — both still have
+real remaining callers elsewhere in `app.js`.
+
+**Verification**: `node -c` on all three changed/new files; the undefined-reference sweep (clean);
+confirmed the new file's module loads without a runtime `require` error before running anything
+against it; byte-identity diffs (clean); `npm run smoke` 329/329 (first try, no flake this time).
+`npm test` x5, given a higher-than-usual flake rate this round — 2 clean 664/664 runs, and 3 runs
+each hitting a *different* already-independently-documented pre-existing flake, none touching
+anything this batch changed: the `SQLITE_CORRUPT`-on-throwaway-copy pattern above (live
+`database.sqlite` re-confirmed `ok`), **CP6** (`review_email_sent_at` stamping — a long-documented
+timing-margin flake, see "Deferred fixes"/CP-series entries elsewhere in this file), and the
+extensively-logged `banner.test.js` `SQLITE_BUSY` full-process crash. Three different flakes in one
+run of five is itself consistent with this session's established baseline noise rate, not a new
+signal — every single one traces to a pattern already independently documented well before this
+batch existed.
+
 ### The admin `bookings` domain is now fully relocated — precisely scoped
 
 Verified directly rather than reasoned from a remembered tally, per the standing rule from the
@@ -3089,26 +3152,28 @@ eventual manual verification run) was run in isolation, with nothing else touchi
 flight — they share one hardcoded DB file and port, and the previous run's TEST_DB is not this
 session's own to touch mid-flight.
 
-### A second, distinct `SQLITE_CORRUPT` pattern: solo `npm run smoke`, no concurrency (Phase 5, final admin bookings routes)
+### A second, distinct `SQLITE_CORRUPT` pattern: solo `npm run smoke`/`npm test`, no concurrency (Phase 5, final admin bookings routes + public site-content batch)
 
 Unlike the incident logged just above, this one is **not** explained by a concurrent script —
-recurred three separate times during the final admin-bookings route-extraction work (once after
-the payment/status-engine prerequisite batch, once after the 16-route CRUD batch, once after the
-4-route financial-core batch), each time on a plain solo `npm run smoke` invocation with nothing
-else running against `test/.test.sqlite` (checked directly via `tasklist`/`wmic` each time — the
-only other `node.exe` processes present were an unrelated `chrome-devtools-mcp` session, never a
-leftover test child). Same signature every time: `SQLITE_CORRUPT: database disk image is malformed`
-immediately on `test/smoke.js`'s own first write, i.e. `test/support.js`'s fresh
-`fs.copyFileSync(database.sqlite → .test.sqlite)` apparently landing on a torn/inconsistent copy of
-a WAL-mode file. Given this is a live production system, the **live** `database.sqlite` was
-verified directly with `PRAGMA integrity_check` before doing anything else on all three
-occurrences — came back `ok` every time, confirming the corruption is confined to the disposable
-copy, never the source file. A plain immediate retry of `npm run smoke` succeeded cleanly all three
-times, no manual cleanup needed. Treated as the same underlying class of hazard as the
-`SQLITE_BUSY`-mid-suite flake logged above — a WAL-mode SQLite file copied via plain
-`fs.copyFileSync` while technically idle can still land mid-checkpoint often enough to matter on
-this filesystem — but landing on `smoke.js`'s copy step specifically rather than mid-suite. Not
-investigated further (same reasoning as the `SQLITE_BUSY` flake: a test-harness/OS-level timing
+recurred four separate times during the final admin-bookings and public site-content route-
+extraction work (three times after `npm run smoke` — once after the payment/status-engine
+prerequisite batch, once after the 16-route CRUD batch, once after the 4-route financial-core
+batch — and once after a plain `npm test`, during the public site-content batch), each time with
+nothing else running against `test/.test.sqlite` (checked directly via `tasklist`/`wmic` each
+time — the only other `node.exe` processes present were an unrelated `chrome-devtools-mcp` session,
+never a leftover test child). Same signature every time: `SQLITE_CORRUPT: database disk image is
+malformed` immediately on the harness's own first write against the fresh copy, i.e.
+`test/support.js`'s `fs.copyFileSync(database.sqlite → .test.sqlite)` apparently landing on a
+torn/inconsistent copy of a WAL-mode file — not specific to `smoke.js`, since the fourth occurrence
+hit plain `npm test` instead. Given this is a live production system, the **live**
+`database.sqlite` was verified directly with `PRAGMA integrity_check` before doing anything else on
+all four occurrences — came back `ok` every time, confirming the corruption is confined to the
+disposable copy, never the source file. A plain immediate retry succeeded cleanly all four times,
+no manual cleanup needed. Treated as the same underlying class of hazard as the `SQLITE_BUSY`-mid-
+suite flake logged above — a WAL-mode SQLite file copied via plain `fs.copyFileSync` while
+technically idle can still land mid-checkpoint often enough to matter on this filesystem, and it
+isn't specific to one entry point into the harness. Not investigated further (same reasoning as the
+`SQLITE_BUSY` flake: a test-harness/OS-level timing
 question, not an application-code one); logged here so a future occurrence is recognised
 immediately as "retry, and if worried, check `PRAGMA integrity_check` on the live file — it's never
 been affected" rather than treated as a fresh scare each time.

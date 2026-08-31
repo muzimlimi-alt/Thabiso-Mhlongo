@@ -1,8 +1,11 @@
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { logAudit } = require('../../lib/audit-log');
+const { PROJECT_ROOT } = require('../../lib/runtime-paths');
 const router = express.Router();
 
 router.get('/api/admin/home-slider', requireAdmin, (req, res) => {
@@ -156,6 +159,52 @@ router.delete('/api/admin/social_embeds/:id', requireAdmin, requireRole(['admini
     db.run("DELETE FROM social_embeds WHERE id = ?", [req.params.id], function(err) {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ success: true, message: 'Social embed deleted successfully.' });
+    });
+});
+
+router.post('/api/admin/publish-home-slider', requireAdmin, (req, res) => {
+    db.all("SELECT url, alt FROM home_slider ORDER BY display_order ASC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+
+        try {
+            // Phase 5 (HOUSEKEEPING-NOTES.md): __dirname here now resolves relative to this file's
+            // own directory (routes/admin/), not the project root as it did in app.js — same
+            // __dirname-relative-path hazard caught in earlier route moves. Fixed via PROJECT_ROOT
+            // (lib/runtime-paths.js) rather than a bare __dirname, no other logic changed.
+            const indexPath = path.join(PROJECT_ROOT, 'index.html');
+            let content = fs.readFileSync(indexPath, 'utf8');
+
+            // Find the carousel-inner section
+            // <div class="carousel-inner"> ... </div>
+            const regex = /(<div class="carousel-inner">)([\s\S]*?)(<\/div>)/;
+            
+            let sliderHtml = '\n';
+            rows.forEach((row, index) => {
+                const isActive = index === 0 ? ' active' : '';
+                sliderHtml += `                <div class="item${isActive}"><img src="${row.url}" alt="${row.alt || ''}"></div>\n`;
+            });
+            sliderHtml += '            ';
+
+            content = content.replace(regex, `$1${sliderHtml}$3`);
+
+            // Also update indicators
+            // <ol class="carousel-indicators"> ... </ol>
+            const indicatorRegex = /(<ol class="carousel-indicators">)([\s\S]*?)(<\/ol>)/;
+            let indicatorHtml = '\n';
+            rows.forEach((_, index) => {
+                const isActive = index === 0 ? ' class="active"' : '';
+                indicatorHtml += `                <li data-target="#featured" data-slide-to="${index}"${isActive}></li>\n`;
+            });
+            indicatorHtml += '            ';
+
+            content = content.replace(indicatorRegex, `$1${indicatorHtml}$3`);
+
+            fs.writeFileSync(indexPath, content, 'utf8');
+            res.json({ success: true, message: 'Homepage slider updated successfully' });
+        } catch (e) {
+            console.error("Publish error:", e);
+            res.status(500).json({ error: 'Failed to update index.html' });
+        }
     });
 });
 
