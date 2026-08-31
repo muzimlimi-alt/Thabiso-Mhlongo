@@ -1,62 +1,37 @@
+// Phase 5 (HOUSEKEEPING-NOTES.md): final route-split cleanup — app.js now holds only the
+// background cron jobs, session/middleware/static setup, and the one order-sensitive route
+// (robots.txt) left after every other route moved to its own file. multer/PDFDocument/pdfService/
+// emailTemplates/transporter (and dozens of repository/lib re-imports further below) have no
+// remaining caller here — each was already re-imported directly by whichever route file its last
+// caller moved into. Verified via an AST-based check (every remaining destructured `require`
+// checked for a real `name(` call site elsewhere in the file, cross-checked against bare
+// property-access references before removal) rather than by memory.
 const express = require('express');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
-const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const emailService = require('./js/emailService');
 const sendEmail = emailService.sendEmail;
-const transporter = emailService.transporter;
-const emailTemplates = require('./js/emailTemplates');
 const emailComponents = require('./js/emailComponents');
 const bannerRegistry = require('./js/bannerRegistry');
-const { applyMergeFields } = require('./js/mergeFields');
-const { SAMPLES_BY_CATEGORY } = require('./js/emailPreviewSamples');
-const { imageSize } = require('image-size');
 const crypto = require('crypto');
-const PDFDocument = require('pdfkit');
 const db = require('./database');
-const pdfService = require('./js/pdfService');
 // Phase 4 (HOUSEKEEPING-NOTES.md): settings-domain data access moved to a repository. Destructured
 // here so every existing call site throughout this file keeps working unchanged.
-const {
-    getAllSettings, getNotificationEmail, getBirthdaySettings: repoGetBirthdaySettings,
-    getTypeBuffersSetting, saveMinBookingGapMinutes, saveTypeBuffers,
-    upsertSettingWithConflictClause, upsertSetting, getSettingVal,
-} = require('./database/repositories/settings.repository');
+const { getAllSettings, getNotificationEmail } = require('./database/repositories/settings.repository');
 // Phase 4: newsletter-domain data access moved to a repository — same destructure-in pattern.
 const {
-    countSubscribers, listSubscribers, getSubscriberStats, insertSubscriberManual, updateSubscriberProfile,
-    getSubscriberForStatusToggle, updateSubscriberStatus, deleteSubscriber, bulkUpdateSubscriberStatus,
-    bulkConfirmPendingSubscribers, getPendingSubscribersForBulkActivate, bulkDeleteSubscribers,
-    updateSubscriberFromCsvRow, insertSubscriberFromCsvRow,
-    insertDraft, updateDraft, listDrafts, getDraft, deleteDraft,
-    getPendingScheduledNewsletters, claimScheduledNewsletterForSending, getActiveSubscribersForSegment,
-    markScheduledNewsletterFailed, markScheduledNewsletterSkipped, markScheduledNewsletterSent, insertCampaignLog,
-    insertScheduledNewsletter, getScheduledNewsletterById, listScheduledNewsletters,
-    getScheduledNewsletterAttachmentsIfPending, cancelScheduledNewsletter, updateScheduledNewsletter,
-    getAudienceCount,
-    getSubscriberBirthdayFields, getSubscribersWithBirthdayToday,
-    deleteCampaign, countUnifiedCampaigns, listUnifiedCampaigns, bulkDeleteCampaigns,
-    getScheduledAttachmentsForIds, bulkDeleteScheduled,
-    deleteOldUnsubscribedSubscribers, deleteSubscriberForErasure,
+    getPendingScheduledNewsletters,
+    deleteOldUnsubscribedSubscribers,
 } = require('./database/repositories/newsletter.repository');
 // Phase 4: inquiries-domain data access moved to a repository — same destructure-in pattern.
-const {
-    anonymizeOldInquiries, getInquiryIdsForEmail, anonymizeInquiriesForErasure, redactInquiryNotesForErasure,
-    countInquiryNotesForIds, insertInquiry, markInquiryReplied,
-    countInquiries, countInquiriesByStatus, countMyInquiries,
-    updateInquiryStatus, unassignInquiry, assignInquiry, updateInquiryPriority, listInquiryCategories, updateInquiryCategory,
-    listInquiryNotes, insertInquiryNote, getInquiryNoteById, deleteInquiryNote,
-    bulkUpdateInquiryStatus, bulkDeleteInquiries, deleteInquiry,
-} = require('./database/repositories/inquiries.repository');
+const { anonymizeOldInquiries } = require('./database/repositories/inquiries.repository');
 // Phase 4: bookings-domain data access moved to a repository (staged extraction — see
 // HOUSEKEEPING-NOTES.md for the sub-pass plan; this import grows as later stages land).
 const {
-    getBookingById, getBookingByIdAsync,
-    getBookingsTrend, stampReviewEmailSent, unlinkBookingClient,
-    getOutstandingTotal, getBookingStatusCounts,
+    getBookingById,
     getStaleNewBookings, promoteBookingToPending, getConfirmedPaidPastEvents, markBookingAutoCompleted,
     getStalePendingBookings, expirePendingBooking, getOverdueQuotedBookings, expireQuotedBooking,
     clearBookingGoogleEventId, getQuotesExpiringTomorrow, markQuoteExpiryWarned,
@@ -64,83 +39,23 @@ const {
     getBookingsForQuoteFollowUp, markQuoteFollowUpSent, findActiveBookingByEmailAndDate,
     getBookingsForDepositBalanceReminder, markDepositBalanceReminded,
     getConfirmedBookingsOnDate, markEventReminderSent, getCompletedBookingsAwaitingReview,
-    getBookingStatusNameEmail, reopenBooking,
-    insertLegacyBookingFromContactForm,
-    getBookingForContractRemind,
-    getBookingIdStatusAsync,
-    getBookingsOnDateForHoldConflict,
-    setBookingEventId,
-    getBookingIdsForEmail, anonymizeBookingsForErasure, deleteBookingAccessCodesForErasure,
-    deleteBookingAccessTokensForErasure, redactBookingNotesForErasure, countBookingNotesForIds,
-    getBookingNotesForBooking, insertBookingNote, getBookingNoteById, deleteBookingNote,
-    applyPayfastPaymentToBooking, markBookingPaymentFailedIfUnpaid,
-    getBookingsByIds, cancelBookingForErasureAsync, clearBookingGoogleEventIdAsync,
+    stampReviewEmailSent,
 } = require('./database/repositories/bookings.repository');
 // Phase 4: invoices+quotations-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
 const {
     markInvoicePaidForAutoComplete,
     flagOverdueInvoices,
-    getQuoteFilesForBookingIds, getQuoteFilesForClientIds, clearQuoteFilePathsForErasure, clearQuoteFilePathsForClientErasure,
-    markInvoicePaidIfOpen, markInvoicePaidIfOpenAsync,
-    getOpenInvoiceIdForReceiptCheck,
-    getActiveQuoteForContractFeeData,
-    getLatestQuoteFileForResend, markQuotationResent,
-    getQuoteHistoryForBooking,
-    getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload,
-    getQuoteForBookingFinancials, getInvoiceForBookingFinancials,
-    countQuotationsForIds, countQuotationsForClientIds,
     markInvoicePreDueReminded, markInvoiceOverdueReminded,
-    getInvoiceAgingSummary, getOverdueInvoicesSummary, getDueSoonInvoicesSummary,
 } = require('./database/repositories/invoices-quotations.repository');
 // Phase 4: finance-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
-const {
-    flagOverduePaymentSchedules,
-
-    getPayfastTransactionByReference, insertPayfastTransaction,
-    getPaymentLogsForBooking,
-    getCancellationsWithRefundedTotals,
-    getTransactionsForBooking,
-    getTransactionRevenueTrend, getTransactionRevenueByPeriod, getPeriodRevenue, getTotalTransactionCount,
-    getCompletedTransactionsForReconciliation, setTransactionDuplicateFlag, countTransactionsForIds,
-    redactTransactionForErasure,
-
-    redactCancellationForErasure, insertCancellationForErasure,
-    getCancellationDetailForBooking,
-    countCancellationsForIds,
-
-    redactPaymentLogsForErasure, countPaymentLogsForIds,
-
-    getExpensesForBooking, getExpensesByPeriod, getExpenseTrend, getPeriodExpenses,
-} = require('./database/repositories/finance.repository');
+const { flagOverduePaymentSchedules } = require('./database/repositories/finance.repository');
 // Phase 4: calendar-domain (date_holds, events) data access moved to a repository (HOUSEKEEPING-NOTES.md).
 const {
-    getDateHoldsForDateConflict,
-    getActiveDateHoldsForToday, getActiveDateHoldsForCalendarGrid, getActiveDateHoldsForIcsFeed,
-    insertDateHold, deleteDateHoldById, getDateHoldTimesById, updateDateHoldDate,
-
     advanceAutoCompletedEventS6, getPastStandaloneEventsForAutoComplete, advanceStandaloneEventCompleted,
-    advanceEventToCompleted, insertAutoCreatedEvent,
-    updateEventDatetime,
-    getEventsForSitemap,
 } = require('./database/repositories/calendar.repository');
 // Phase 4: auth+users-domain (admins, admin_login_logs, password_reset_tokens) data access moved
 // to a repository (HOUSEKEEPING-NOTES.md).
-const {
-    getAdminActiveStatus, getAdminByEmailFull, updateAdminLastLogin, getActiveAdministratorCountExcluding,
-    updateAdminPassword,
-    getAdminSessionProfileById, getAdminSessionProfileByUsername,
-    getAdminIdAndUsernameByEmail, getAdminIdByEmail, getAdminNameRoleById, getAdminEmailById,
-    getAdminsListWithCreatorModifier, insertAdminUser, getAdminForInvite, getAdminForEditById,
-    getAdminPasswordHashById, updateAdminUserFields, getAdminRoleActiveById, deleteAdminUser,
-    getAssignableAdmins, checkAdminActiveById, getAdminDisplayNameById,
-    countAllAdmins, insertBootstrapAdmin,
-
-    insertAdminLoginLog, finalizeAdminLoginLogOnLogout, updateAdminLoginLogHeartbeat,
-    getAdminLoginLogsWithNames,
-
-    insertPasswordResetToken, getUnexpiredPasswordResetTokens,
-    deletePasswordResetTokenById, deletePasswordResetTokensForAdmin,
-} = require('./database/repositories/auth-users.repository');
+const { countAllAdmins, insertBootstrapAdmin } = require('./database/repositories/auth-users.repository');
 require('dotenv').config();
 
 // Ensure scratch directory exists
@@ -166,9 +81,9 @@ const { UPLOADS_PATH } = require('./lib/runtime-paths');
 // lib/newsletter-birthday.js respectively.
 const schedule = require('node-schedule');
 
-// Analytics: geo + UA parsing for the first-party page-view tracker
-const geoip    = require('geoip-lite');
-const UAParser = require('ua-parser-js');
+// Phase 5 (HOUSEKEEPING-NOTES.md): geoip/UAParser (geo + UA parsing for the first-party page-view
+// tracker) have no remaining caller here — their only call site, POST /api/public/analytics/track,
+// moved to routes/public/misc.js, which imports both directly.
 
 // Booking scheduling config — defaults overridden by settings table at startup. Phase 5
 // (HOUSEKEEPING-NOTES.md): moved to lib/booking-config.js as a shared mutable object so the write
@@ -209,31 +124,31 @@ const moment = require('moment-timezone');
 moment.tz.setDefault('Africa/Johannesburg');
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): Google Calendar client (oauth2Client/calendar/CALENDAR_ID)
-// moved to lib/google-calendar.js, verbatim, at this exact point in the file's execution order.
-const { calendar, CALENDAR_ID } = require('./lib/google-calendar');
+// moved to lib/google-calendar.js. calendar/CALENDAR_ID have no remaining caller in app.js — per
+// that module's own header comment, their construction has no order dependency beyond "requires
+// somewhere during startup," which the later deleteGoogleEvent import below still satisfies.
 
 const helmet = require('helmet');
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): every rate limiter moved to middleware/rate-limiters.js, so
-// route files extracted into routes/admin/ and routes/public/ have one place to import whichever
-// limiter their route used. Destructured here so every existing call site keeps working unchanged.
-const {
-    bookingRateLimiter, exportRateLimiter, sitemapRateLimiter, trackRateLimiter,
-    otpRequestRateLimiter, mutateRateLimiter, adminRateLimiter, adminLoginRateLimiter,
-    lookupRateLimiter, analyticsTrackLimiter, ipRateLimiter,
-    PAYFAST_VALID_IPS, payfastItnRateLimiter,
-} = require('./middleware/rate-limiters');
+// Phase 5 (HOUSEKEEPING-NOTES.md): every rate limiter moved to middleware/rate-limiters.js. This
+// re-import has no remaining caller in app.js — every route that used to call one of these directly
+// has now moved to its own route file (the final standalone/webhook batch closed out the last of
+// them), each importing whichever limiter it needs from middleware/rate-limiters.js directly.
+// middleware/auth.js still builds requireAdmin from adminRateLimiter via its own independent import
+// of that module — unaffected by removing this one.
 
 // Bypass local antivirus/proxy self-signed certificates
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/validation.js.
-const { sanitizeEmailInput } = require('./lib/validation');
+// Phase 5 (HOUSEKEEPING-NOTES.md): sanitizeEmailInput (lib/validation.js) has no remaining caller
+// here — its last call site, /send-email, moved to routes/public/misc.js, which imports it
+// directly.
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/newsletter-scheduling.js, alongside
-// scheduledJobs/scheduleNewsletterSend below (same file — all part of the same scheduling
-// subsystem, and buildSegmentCondition is called from inside scheduleNewsletterSend).
-const { scheduledJobs, buildSegmentCondition, scheduleNewsletterSend } = require('./lib/newsletter-scheduling');
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/newsletter-scheduling.js. scheduledJobs and
+// buildSegmentCondition have no remaining caller here (buildSegmentCondition is called from inside
+// scheduleNewsletterSend, itself in that same module) — only scheduleNewsletterSend is still
+// called directly from this file.
+const { scheduleNewsletterSend } = require('./lib/newsletter-scheduling');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -366,6 +281,14 @@ app.use((req, res, next) => {
 });
 
 // Disallow admin and API paths from search engine crawlers
+// Phase 5 (HOUSEKEEPING-NOTES.md): deliberately NOT moved to a route file, unlike every other
+// route in the final standalone/webhook batch. This handler is registered before the blanket
+// static-file server further below (`express.static(path.join(__dirname, '/'))`), and a physical
+// `robots.txt` file exists at the project root with genuinely different content (confirmed via
+// diff) — Express matches routes/middleware in registration order, so moving this into the
+// `app.use(require(...))` mount block (itself registered after that static server) would let the
+// physical file silently shadow this dynamic handler, a real behaviour change. Left in place here
+// to preserve the exact registration order the plan's own middleware-ordering rule requires.
 app.get('/robots.txt', (req, res) => {
     res.type('text/plain');
     res.send('User-agent: *\nDisallow: /admin\nDisallow: /api\n');
@@ -508,69 +431,13 @@ app.use(require('./routes/admin/misc'));
 app.use(require('./routes/admin/transactions'));
 app.use(require('./routes/public/popia'));
 app.use(require('./routes/public/newsletter'));
+app.use(require('./routes/public/payment'));
+app.use(require('./routes/public/misc'));
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/uploads.js — needed by the ~20 admin upload
-// routes being split into routes/, not just this file.
-const { safeUploadFilename, upload, newsletterUpload } = require('./lib/uploads');
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/uploads.js. None of safeUploadFilename/upload/
+// newsletterUpload has a remaining caller in app.js — every admin upload route that used one has
+// moved to its own route file, each importing directly whichever of the three it needs.
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): publicImageUploadStorage/publicImageUpload (the restricted,
-// SVG-excluding upload variant for the public testimonial-submission route — see SEC-1 near the
-// /upload route below for why SVG is excluded here but not from `upload` above) moved into
-// routes/public/site-content.js as single-consumer locals alongside POST /api/public/testimonials.
-
-// receiptStorage/uploadReceipt/VALID_EXPENSE_CATEGORIES's only callers were the /api/admin/expenses
-// routes, which now define their own local copies in routes/admin/expenses.js (same single-consumer
-// pattern as subscriberCsvUpload below).
-
-// newsletterAttachStorage/newsletterUpload moved to lib/uploads.js — added to the same import
-// destructured near the top of this file (alongside safeUploadFilename/upload).
-
-// subscriberCsvUpload's only call site (the CSV-import route) already moved to
-// routes/admin/newsletter-subscribers.js, which defines its own local copy (see that file) — no
-// longer needed here.
-
-// emailAttachStorage/emailAttachUpload moved to lib/uploads.js (added to the existing import
-// destructured near the top of this file).
-
-
-// Phase 5 (HOUSEKEEPING-NOTES.md): bookingAttachUpload moved to routes/public/bookings.js —
-// single-consumer (the attachments route moved with it).
-
-app.post('/upload', (req, res, next) => {
-    // SEC-1: require an admin session BEFORE multer runs — this route is defined above the
-    // requireAdmin const (~L1569) so it can't use that middleware, and gating pre-multer means an
-    // unauthenticated request never writes a file. Previously anyone could upload into the
-    // web-served images/* dirs (the filter allows .svg → stored-XSS vector, plus defacement/DoS).
-    if (!req.session || !req.session.adminId) {
-        return res.status(401).json({ success: false, message: 'Unauthorized. Please log in.' });
-    }
-    next();
-}, upload.single('file'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ success: false, message: 'No file uploaded' });
-    }
-    
-    // Construct the relative path string that the website expects (e.g. "images/gallery/photo.jpg")
-    let folderPath = 'images/';
-    const section = req.body.section;
-    if (section === 'gallery') folderPath = 'images/gallery/';
-    else if (section === 'events') folderPath = 'images/events/';
-    else if (section === 'home') folderPath = 'images/carousel/';
-    else if (section === 'about') folderPath = 'images/about/';
-    else if (section === 'backgrounds') folderPath = 'images/backgrounds/';
-    else if (section === 'branding') folderPath = 'images/branding/';
-    else if (section === 'footprint') folderPath = 'images/footprint/';
-    else if (section === 'testimonials') folderPath = 'images/testimonials/';
-
-    const relativePath = folderPath + req.file.filename;
-
-    res.json({
-        success: true,
-        message: 'File uploaded successfully',
-        filePath: relativePath,
-        filename: req.file.filename
-    });
-});
 
 
 
@@ -581,21 +448,20 @@ app.post('/upload', (req, res, next) => {
 // ==========================================
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): timeRangesOverlap/addMinutesToTime/parseDurationToMinutes
-// moved to lib/time-utils.js.
-const { timeRangesOverlap, addMinutesToTime, parseDurationToMinutes } = require('./lib/time-utils');
+// moved to lib/time-utils.js. None has a remaining caller in app.js — their last call sites
+// (the calendar/feed.ics route and the availability route) moved to their own route files, each
+// importing directly whichever of the three it needs.
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): the Google Calendar sync/booking-conflict engine —
 // isWithinWorkingHours/hasCalendarConflict/syncBookingToCalendar/syncCalendarHolds/
 // syncEventToCalendar/checkDateAvailability — all moved to lib/calendar-sync.js. (The two orphaned
 // JSDoc comments that used to precede isWithinWorkingHours/hasCalendarConflict here were removed
-// along with them — their subject functions no longer live in this file.) Neither
-// isWithinWorkingHours nor hasCalendarConflict has a remaining caller here — their only call site
-// (the admin manual-booking-creation route) moved to routes/admin/bookings.js, which imports both.
-// checkDateAvailability likewise has no remaining caller — its only call site (the public
-// availability route) moved to routes/public/availability.js, which imports it directly.
-const {
-    syncBookingToCalendar, syncCalendarHolds, syncEventToCalendar
-} = require('./lib/calendar-sync');
+// along with them — their subject functions no longer live in this file.) Of the six,
+// syncCalendarHolds is the only one still called directly from app.js (the nightly hold-sync cron);
+// isWithinWorkingHours/hasCalendarConflict/checkDateAvailability/syncBookingToCalendar/
+// syncEventToCalendar all had their last real call site move to a route file, each importing
+// directly whichever of these it still needs.
+const { syncCalendarHolds } = require('./lib/calendar-sync');
 
 
 
@@ -708,18 +574,13 @@ async function processNotificationQueue() {
 
 
 // P2-3: Returns the active VAT rate from tax_rates table (falls back to 0.15 / 15%).
-// FIN-1: the tax_rates table has no tax_type/is_active columns (real columns: name, rate,
-// is_default, effective_from, effective_to), so the original query always errored and
-// silently returned the 0.15 fallback — meaning a reconfigured VAT rate was never picked up.
 // Phase 5 (HOUSEKEEPING-NOTES.md): getVatRate/resolveLineTaxClasses/computeDocumentTotals moved to
-// lib/document-totals.js.
-const { getVatRate, resolveLineTaxClasses, computeDocumentTotals } = require('./lib/document-totals');
-const { autoBuildDepositBalanceSchedule, generateInvoice } = require('./lib/invoicing');
-// Phase 5 (HOUSEKEEPING-NOTES.md): logPaymentEvent/alignMilestonePayments/updateBookingMilestones/
-// deriveBookingStatusAfterPayment/processManualPayment moved to lib/payment-processing.js.
-const {
-    logPaymentEvent, alignMilestonePayments, updateBookingMilestones, deriveBookingStatusAfterPayment
-} = require('./lib/payment-processing');
+// lib/document-totals.js (the FIN-1 tax-rate-fallback fix documented there and in lib/invoicing.js
+// carries over). autoBuildDepositBalanceSchedule/generateInvoice moved to lib/invoicing.js.
+// logPaymentEvent/alignMilestonePayments/updateBookingMilestones/deriveBookingStatusAfterPayment/
+// processManualPayment moved to lib/payment-processing.js. None of these has a remaining caller
+// here — all of their call sites moved out with the routes that used them, and each of those
+// route files imports directly from the relevant lib.
 // processManualPayment has no remaining caller in app.js — its only call site
 // (PUT .../manual-payment) moved to routes/admin/bookings.js, which imports it directly.
 // Phase 5 (HOUSEKEEPING-NOTES.md): applyStatusChange moved to lib/booking-status.js. Its two
@@ -1078,123 +939,18 @@ schedule.scheduleJob('5 0 * * *', runDailyOverdueFlaggingSweep);
 // ==========================================
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): auth/RBAC middleware moved to middleware/auth.js and
-// middleware/rbac.js. requireAdmin is the exact same [adminRateLimiter, checkFn] array it always
-// was — middleware/auth.js builds it from the same rate-limiters module this file imports from.
-const { requireAdmin } = require('./middleware/auth');
-const { requireRole, requireRoleForInquiryEmail } = require('./middleware/rbac');
-
-// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/admin-users.js, alongside createAndSendInvite
-// below, which shares this same concern.
-const { VALID_ADMIN_ROLES, countOtherActiveAdministrators, createAndSendInvite } = require('./lib/admin-users');
+// middleware/rbac.js (requireAdmin/requireRole/requireRoleForInquiryEmail). Admin-user management
+// (VALID_ADMIN_ROLES/countOtherActiveAdministrators/createAndSendInvite) moved to lib/admin-users.js.
+// None of these five has a remaining caller here — all their call sites (the admin-users routes,
+// and every admin route that used requireAdmin/requireRole as middleware) moved out with the
+// routes, each importing directly from the relevant module.
 
 // ════════════════════════════════════════════════════════════════════════════
 // ANALYTICS — first-party visitor tracking + dashboard endpoints
 // ════════════════════════════════════════════════════════════════════════════
 
-// Classify a visit into a marketing channel from its referrer + UTM params
-function classifyChannel(referrer, utmSource, utmMedium) {
-    if (utmMedium === 'email' || utmSource === 'email') return 'Email';
-    if (utmMedium === 'cpc' || utmMedium === 'ppc' || utmMedium === 'paid') return 'Paid Search';
-    if (utmSource || utmMedium || utmMedium === 'social') {
-        const socialHosts = ['facebook', 'instagram', 'twitter', 'x.com', 'tiktok', 'linkedin', 'youtube', 'wa.me'];
-        if (socialHosts.some(h => (utmSource || '').toLowerCase().includes(h))) return 'Social';
-        return 'Campaign';
-    }
-    if (!referrer) return 'Direct';
-    try {
-        const host = new URL(referrer).hostname.replace('www.', '');
-        const searchEngines = ['google', 'bing', 'yahoo', 'duckduckgo', 'baidu', 'yandex'];
-        if (searchEngines.some(e => host.includes(e))) return 'Organic Search';
-        const socialDomains = ['facebook.com', 'instagram.com', 'twitter.com', 'x.com', 'tiktok.com',
-                               'linkedin.com', 'youtube.com', 't.co', 'wa.me'];
-        if (socialDomains.some(d => host.includes(d))) return 'Social';
-        return 'Referral';
-    } catch (_) {
-        return 'Direct';
-    }
-}
-
-// POST /api/public/analytics/track — no auth required; IP discarded after geo lookup
-app.post('/api/public/analytics/track', analyticsTrackLimiter, (req, res) => {
-    // Respond immediately so the beacon gets a fast 204
-    res.status(204).end();
-
-    try {
-        const { event, visitor_id, session_id, page, referrer,
-                utm_source, utm_medium, utm_campaign, dwell } = req.body || {};
-
-        if (!visitor_id || !session_id || !event) return;
-
-        // Geo — extract country from IP then discard the IP
-        const ip  = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
-        const geo = geoip.lookup(ip) || {};
-        const countryCode = geo.country || 'ZZ';
-        const countryName = geo.country || 'Unknown'; // geoip-lite returns ISO alpha-2
-
-        // UA parsing — no raw storage of UA string
-        const uaResult  = new UAParser(req.headers['user-agent']).getResult();
-        const browser   = (uaResult.browser.name || 'Unknown') + ' ' + (uaResult.browser.major || '');
-        const os        = uaResult.os.name || 'Unknown';
-        const deviceType = (uaResult.device.type || 'desktop').toLowerCase();
-
-        // Derived fields
-        const referrerHost = (() => {
-            try { return referrer ? new URL(referrer).hostname.replace('www.', '') : ''; } catch (_) { return ''; }
-        })();
-        const channel = classifyChannel(referrer || '', utm_source || '', utm_medium || '');
-
-        if (event === 'pageview') {
-            // Upsert session
-            db.run(`INSERT INTO analytics_sessions
-                        (session_id, visitor_id, started_at, entry_page, exit_page,
-                         country_code, country_name, device_type, browser, os,
-                         channel, referrer_host, utm_source, utm_medium, utm_campaign)
-                    VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(session_id) DO UPDATE SET
-                        exit_page   = excluded.entry_page,
-                        page_count  = page_count + 1,
-                        is_bounce   = 0,
-                        ended_at    = CURRENT_TIMESTAMP`,
-                [session_id, visitor_id, page || '/', page || '/',
-                 countryCode, countryName, deviceType, browser.trim(), os,
-                 channel, referrerHost, utm_source || '', utm_medium || '', utm_campaign || ''],
-                (err) => { if (err) console.error('[analytics] session upsert:', err.message); }
-            );
-
-            // Insert page view
-            db.run(`INSERT INTO analytics_pageviews
-                        (session_id, visitor_id, page, referrer, referrer_host, channel,
-                         utm_source, utm_medium, utm_campaign, country_code, country_name,
-                         device_type, browser, os)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [session_id, visitor_id, page || '/', referrer || '', referrerHost, channel,
-                 utm_source || '', utm_medium || '', utm_campaign || '',
-                 countryCode, countryName, deviceType, browser.trim(), os],
-                (err) => { if (err) console.error('[analytics] pageview insert:', err.message); }
-            );
-
-        } else if (event === 'heartbeat' || event === 'page_exit') {
-            const dwellSecs = parseInt(dwell, 10) || 0;
-            if (dwellSecs > 0 && dwellSecs < 7200) { // sanity cap: 2 hours
-                db.run(`UPDATE analytics_pageviews
-                        SET dwell_seconds = MAX(dwell_seconds, ?)
-                        WHERE session_id = ? AND page = ?
-                          AND id = (SELECT MAX(id) FROM analytics_pageviews
-                                    WHERE session_id = ? AND page = ?)`,
-                    [dwellSecs, session_id, page || '/', session_id, page || '/'],
-                    (err) => { if (err) console.error('[analytics] dwell update:', err.message); }
-                );
-                db.run(`UPDATE analytics_sessions
-                        SET total_dwell_seconds = ?, ended_at = CURRENT_TIMESTAMP
-                        WHERE session_id = ?`,
-                    [dwellSecs, session_id]
-                );
-            }
-        }
-    } catch (e) {
-        console.error('[analytics] track handler error:', e.message);
-    }
-});
+// Phase 5 (HOUSEKEEPING-NOTES.md): classifyChannel moved to routes/public/misc.js as a
+// single-consumer local alongside its only caller, POST /api/public/analytics/track.
 
 // getAnalyticsDates moved to routes/admin/analytics.js — its only caller.
 
@@ -1274,12 +1030,14 @@ const { escapeEmailFields } = require('./lib/email-escape');
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/html-sanitize.js, alongside unescapeHtml/
 // sanitizeAboutHtml/SECTION_KEYS (same file, all pure content-sanitization helpers). None of those
-// three has a remaining caller in app.js — their call sites (GET /api/public/about-me and GET
-// /api/public/site-content) moved to routes/public/site-content.js, which imports both directly.
-const { encodeUserHtml } = require('./lib/html-sanitize');
+// has a remaining caller in app.js — their call sites (GET /api/public/about-me and GET
+// /api/public/site-content, plus /send-email for encodeUserHtml) moved out, each importing
+// directly from lib/html-sanitize.js.
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/email-context.js.
-const { getEmailFooterContext, emailBaseUrl } = require('./lib/email-context');
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/email-context.js. getEmailFooterContext is still
+// called directly from app.js (the surviving background cron jobs' emails); emailBaseUrl has no
+// remaining caller here — its call sites moved out with their routes, each importing it directly.
+const { getEmailFooterContext } = require('./lib/email-context');
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendBookingReceivedEmail moved to lib/booking-notifications.js
 // — its only remaining caller (the public booking-intake route) moved with it, so app.js has no
@@ -1290,25 +1048,19 @@ const { getEmailFooterContext, emailBaseUrl } = require('./lib/email-context');
 // sendBookingConfirmedEmail/sendDepositBalanceDueEmail/sendQuoteExpiryWarningEmail/
 // sendReviewRequestEmail/remindBooking/sendDateChangedEmail/sendBookingUnderReviewEmail/
 // sendPaymentReceivedEmail/sendPaidReceiptEmail/sendBookingCompletedEmail/
-// sendAdminPaymentNotification/sendAdminCompletionSummaryEmail/sendRefundProcessedEmail all moved
-// to lib/booking-notifications.js. remindBooking, sendAdminQuoteSentNotification, sendQuoteEmail,
-// and (now that applyStatusChange and the refund/manual-payment/cancel/complete routes have all
-// moved to routes/admin/bookings.js and lib/booking-status.js) sendRefundProcessedEmail, have no
-// remaining caller in app.js. The other 6 re-imported below still have real remaining callers here
-// (the PayFast ITN handler, the /api/admin/transactions/manual route, and the reminders/expiry cron
-// job).
+// sendAdminPaymentNotification/sendAdminCompletionSummaryEmail/sendRefundProcessedEmail/
+// sendInvoiceEmail (lib/invoice-email.js) all moved out. Now that the PayFast ITN webhook has also
+// moved to routes/public/payment.js (which imports directly whichever of these it needs), only the
+// 6 background cron jobs' calls below are still real remaining callers in app.js:
+// sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail, sendReviewRequestEmail,
+// sendBookingUnderReviewEmail, sendBookingCompletedEmail, sendAdminCompletionSummaryEmail.
 const {
-    generateBookingICS, sendBookingConfirmedEmail,
-    sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail, sendReviewRequestEmail, sendDateChangedEmail,
-    sendQuoteAcceptedEmail, sendBookingUnderReviewEmail, sendPaymentReceivedEmail, sendPaidReceiptEmail,
-    sendBookingCompletedEmail, sendAdminPaymentNotification, sendAdminCompletionSummaryEmail
+    sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail, sendReviewRequestEmail,
+    sendBookingUnderReviewEmail, sendBookingCompletedEmail, sendAdminCompletionSummaryEmail
 } = require('./lib/booking-notifications');
 
 
 // S2-2: Notify all admin users when a quote has been dispatched to a client
-
-// Phase 5 (HOUSEKEEPING-NOTES.md): sendInvoiceEmail moved to lib/invoice-email.js.
-const { sendInvoiceEmail } = require('./lib/invoice-email');
 
 async function sendInvoicePreDueEmail(booking, invoice, daysUntilDue) {
     booking = escapeEmailFields(booking);
@@ -1474,33 +1226,8 @@ async function sendQuoteExpiredEmail(booking) {
     return result.success;
 }
 
-async function sendPaymentFailedEmail(booking) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date, total_amount, quote_amount } = booking;
-    const displayTotal = total_amount || (quote_amount ? parseFloat((quote_amount || '0').replace(/[^0-9.]/g, '')) : 0);
-    // PAYMENT-CRITICAL: `R${...}` amount format kept verbatim (no space).
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('payment_failed');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `We couldn't complete your payment for booking #${id}.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Payment Not Completed',
-        greeting: `Hi ${name},`,
-        bodyHtml:
-            `We noticed that your payment for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> was not completed successfully.` +
-            (displayTotal > 0 ? `<p style="margin:12px 0 0;"><strong style="color:#D4AF37;">Amount Due:</strong> R${parseFloat(displayTotal).toFixed(2)}</p>` : '') +
-            `<p style="margin:10px 0 0; color:#E6E6E6;">Please try again via your booking tracker, or contact us directly if you need assistance. <span style="color:#B0B0B0; font-size:13px;">(Booking reference #${id})</span></p>` +
-            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">If this was a mistake, no action is needed — your booking remains active.</p>`,
-        cta: { label: 'Try Payment Again', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
-        socialLinks
-    });
-    const result = await sendEmail({
-        to: email, subject: `Payment Unsuccessful – Booking #${id}`,
-        htmlContent: html, preWrapped: true, titleOverride: 'Payment Not Completed',
-        trigger_event: 'Booking: Payment Failed'
-    });
-    return result.success;
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): sendPaymentFailedEmail moved to routes/public/payment.js as a
+// single-consumer local alongside its only caller, the PayFast ITN webhook.
 
 
 async function sendPendingExpiredEmail(booking) {
@@ -1528,8 +1255,9 @@ async function sendPendingExpiredEmail(booking) {
 
 // ==========================================
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/db-helpers.js — used pervasively (~190 call
-// sites) by business logic not owned by any single Phase 4 domain repository.
-const { dbRun, dbGet, dbAll } = require('./lib/db-helpers');
+// sites) by business logic not owned by any single Phase 4 domain repository. Now that every
+// route touching the shared connection has moved out (each importing dbRun/dbGet/dbAll directly
+// where it still needs them), none of the three has a remaining caller in app.js.
 
 // Serializes transactional sections that run on the shared sqlite connection.
 //
@@ -1541,20 +1269,18 @@ const { dbRun, dbGet, dbAll } = require('./lib/db-helpers');
 // swept into it and are discarded by its ROLLBACK.
 //
 // Queuing guarded sections behind one another makes BEGIN → COMMIT/ROLLBACK atomic with respect
-// to other guarded sections. Every `BEGIN TRANSACTION` site in this file should migrate onto this
-// helper; the public booking intake is the first.
+// to other guarded sections.
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/db-transaction.js — MUST stay a singleton (see
 // that file's header comment), so route files import the exact same module rather than each
-// getting their own dbTxnQueue.
-const { withDbTransaction } = require('./lib/db-transaction');
+// getting their own dbTxnQueue. No remaining caller in app.js — the public booking intake (the
+// first, and only, `BEGIN TRANSACTION` site to migrate onto this helper) moved out with its route.
 
 // "Last Updated By" feature — shared audit/actor helpers.
 // ============================================================
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): resolveActor moved to lib/actor.js, logAudit to
-// lib/audit-log.js. resolveActor has no remaining caller in app.js — its only call site
-// (applyStatusChange) moved to lib/booking-status.js, which imports it directly from lib/actor.js.
-const { logAudit } = require('./lib/audit-log');
+// lib/audit-log.js. Neither has a remaining caller in app.js — their only call site
+// (applyStatusChange) moved to lib/booking-status.js, which imports both directly.
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): the entire POPIA/GDPR erasure subsystem — resolvePopiaTargets,
 // anonymizeClientData, and the request-lifecycle block further below (POPIA_REASONS through
@@ -1572,8 +1298,7 @@ const { logAudit } = require('./lib/audit-log');
 // single-consumer (the booking-intake route moved with it).
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): asBookingText moved to lib/booking-tracking.js, alongside the
-// tracker OTP helpers/constants it's grouped with there.
-const { asBookingText } = require('./lib/booking-tracking');
+// tracker OTP helpers/constants it's grouped with there. No remaining caller in app.js.
 
 
 // ============================================================================
@@ -1608,508 +1333,13 @@ const { sendAbandonedBookingReminderEmail } = require('./lib/abandoned-booking-e
 
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): generatePayFastSignature moved to lib/payfast-signature.js —
-// shared by the public pay route (moved with it) and the ITN webhook below (still here).
-const { generatePayFastSignature } = require('./lib/payfast-signature');
-
-// ==========================================
-// PayFast Payment Gateway
-// ==========================================
-// PAYFAST_VALID_IPS and payfastItnRateLimiter moved to middleware/rate-limiters.js (Phase 5,
-// HOUSEKEEPING-NOTES.md) — both destructured in with every other rate limiter near the top of
-// this file now.
-
-// ============================================================
-// Public booking tracker — email-verification second factor.
-//
-// Previously, "booking id + the email on file" alone was accepted as proof of ownership across
-// every public tracking route (/track, /pay, /accept-quote, /cancel, /contract/sign, downloads).
-// Booking ids are sequential and easily guessed, and an email address is often knowable to a third
-// party (a colleague, a shared inbox, a leak elsewhere) — so that pair falls short of proving the
-// caller actually controls the client's inbox. This flow adds that proof:
-//   1. POST /track/request-code  — emails a 6-digit code to the address on file.
-//   2. POST /track/verify-code   — exchanges a correct code for a booking-scoped access_token.
-// Every tracking route below now requires that access_token (via requireBookingAccessToken)
-// instead of a bare client-supplied email.
-// ============================================================
-// Phase 5 (HOUSEKEEPING-NOTES.md): OTP_TTL_MINUTES/OTP_MAX_ATTEMPTS/ACCESS_TOKEN_TTL_MINUTES/
-// generateOtpCode/hashAccessToken moved to lib/booking-tracking.js; requireBookingAccessToken
-// (which depends on hashAccessToken) moved to middleware/booking-access.js, alongside requireAdmin.
-// None of the five has a remaining caller in app.js — the booking-tracker routes and verifyPopiaOtp
-// (its only caller of OTP_MAX_ATTEMPTS) all moved to routes/public/{bookings,popia}.js, each
-// importing whichever of these it still needs directly.
-
-
-
-// Phase 5 (HOUSEKEEPING-NOTES.md): verifyPopiaOtp (the POPIA OTP verification helper — mirrors the
-// booking-tracker OTP mechanics above but keyed by email alone) moved to routes/public/popia.js
-// alongside its three call sites (preview, erasure-requests, compliance/request-forget), all of
-// which moved together in the same batch.
+// shared by the public pay route and the PayFast ITN webhook, both of which have since moved to
+// routes/public/payment.js, which imports it directly. No remaining caller in app.js.
 
 
 
 
-// ==========================================
-// PayFast ITN (Instant Transaction Notification) — SECURE
-// ==========================================
-app.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, res) => {
-    // Step 1: Immediately acknowledge to PayFast
-    res.sendStatus(200);
-    
-    const pfData = req.body;
-    if (!pfData || !pfData.m_payment_id) {
-        console.error('[PayFast ITN] Empty or malformed ITN received.');
-        return;
-    }
 
-    console.log(`[PayFast ITN] Received notification for m_payment_id: ${pfData.m_payment_id}`);
-
-    const parts = (pfData.m_payment_id || '').split('_');
-    const bookingId = parseInt(parts[0], 10);
-    const paymentType = parts[1] || 'FULL';
-
-    if (isNaN(bookingId)) {
-        console.error('[PayFast ITN] Invalid bookingId in m_payment_id:', pfData.m_payment_id);
-        return;
-    }
-
-    try {
-        // ── 0. Log & detect environment ──
-        logPaymentEvent(bookingId, 'ITN_RECEIVED', pfData, false);
-        const isSandbox = (process.env.PAYFAST_URL || '').includes('sandbox');
-
-        // P3-15: Timestamp replay protection — reject ITNs older than 30 minutes in production.
-        if (!isSandbox && pfData.timestamp) {
-            const itnTime = new Date(pfData.timestamp);
-            const ageMins = (Date.now() - itnTime.getTime()) / 60000;
-            if (isNaN(itnTime.getTime()) || ageMins > 30) {
-                console.error(`[PayFast ITN] STALE TIMESTAMP for booking #${bookingId}: timestamp=${pfData.timestamp}, age=${ageMins.toFixed(1)}m — rejecting as possible replay.`);
-                logPaymentEvent(bookingId, 'FAILED_STALE_TIMESTAMP', pfData, false);
-                return;
-            }
-        }
-
-        // ── A. Signature Validation ──
-        const passphrase = process.env.PAYFAST_PASSPHRASE || null;
-        const receivedSignature = pfData.signature;
-
-        // Reconstruct signature from all params EXCEPT 'signature'
-        let sigData = {};
-        for (let key in pfData) {
-            if (key !== 'signature') sigData[key] = pfData[key];
-        }
-        const calculatedSignature = generatePayFastSignature(sigData, passphrase);
-
-        if (calculatedSignature !== receivedSignature) {
-            console.error(`[PayFast ITN] SIGNATURE MISMATCH booking #${bookingId} — expected: ${calculatedSignature}, received: ${receivedSignature}`);
-            logPaymentEvent(bookingId, 'FAILED_SIGNATURE', pfData, false);
-            if (!isSandbox) return; // Hard-fail in production only
-            // In sandbox: log and continue — passphrase in .env may differ from sandbox account setting
-            console.warn(`[PayFast ITN] Sandbox: proceeding despite mismatch. Verify PAYFAST_PASSPHRASE in .env matches your sandbox merchant account.`);
-        } else {
-            console.log(`[PayFast ITN] ✓ Signature valid for booking #${bookingId}`);
-        }
-
-        // ── B. Source IP Validation ──
-        // Use req.ip, not the raw X-Forwarded-For header. `app.set('trust proxy', 1)` is configured,
-        // so Express resolves req.ip from the trusted proxy hop. Reading X-Forwarded-For directly and
-        // taking its leftmost value let a caller spoof an allowlisted PayFast IP with a header, which
-        // would defeat this check entirely.
-        const sourceIp = (req.ip || req.connection.remoteAddress || '').split(',')[0].trim().replace('::ffff:', '');
-
-        if (!isSandbox && !PAYFAST_VALID_IPS.includes(sourceIp)) {
-            console.error(`[PayFast ITN] INVALID SOURCE IP: ${sourceIp}`);
-            logPaymentEvent(bookingId, 'FAILED_IP', pfData, true);
-            return;
-        }
-        console.log(`[PayFast ITN] ✓ Source IP valid: ${sourceIp}`);
-
-        // ── B2. Merchant ID Validation ──
-        if (String(pfData.merchant_id) !== String(process.env.PAYFAST_MERCHANT_ID)) {
-            console.error(`[PayFast ITN] MERCHANT ID MISMATCH booking #${bookingId}: got ${pfData.merchant_id}, expected ${process.env.PAYFAST_MERCHANT_ID}`);
-            logPaymentEvent(bookingId, 'FAILED_MERCHANT_ID', pfData, false);
-            return;
-        }
-        console.log(`[PayFast ITN] ✓ Merchant ID valid for booking #${bookingId}`);
-
-        // ── C. Database Lookup ──
-        const booking = await getBookingByIdAsync(bookingId);
-
-        if (!booking) {
-            console.error(`[PayFast ITN] Booking #${bookingId} NOT FOUND.`);
-            return;
-        }
-
-        if (booking.payment_status === 'PAID') {
-            console.warn(`[PayFast ITN] Booking #${bookingId} already fully PAID. Ignoring duplicate ITN.`);
-            logPaymentEvent(bookingId, 'IGNORED_DUPLICATE', pfData, true);
-            return;
-        }
-
-        // ── D. PayFast Server Confirmation (POST BACK) ──
-        const pfValidateHost = isSandbox
-            ? 'https://sandbox.payfast.co.za/eng/query/validate'
-            : 'https://www.payfast.co.za/eng/query/validate';
-            
-        // Include BOTH payload AND signature for validation POST per PayFast requirements
-        let validateParams = [];
-        for (let key in pfData) {
-            validateParams.push(`${key}=${encodeURIComponent(pfData[key]).replace(/%20/g, '+')}`);
-        }
-        const validateBody = validateParams.join('&');
-        
-        let pfServerValid = false;
-        try {
-            const https = require('https');
-            const urlModule = require('url');
-            const parsedUrl = urlModule.parse(pfValidateHost);
-            
-            pfServerValid = await new Promise((resolve) => {
-                const options = {
-                    hostname: parsedUrl.hostname, port: 443, path: parsedUrl.path, method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(validateBody), 'connection': 'close' },
-                    rejectUnauthorized: !isSandbox,
-                    timeout: 8000
-                };
-                const request = https.request(options, (response) => {
-                    let data = '';
-                    response.on('data', (chunk) => data += chunk);
-                    response.on('end', () => resolve(data.trim() === 'VALID'));
-                });
-                request.on('timeout', () => { request.destroy(); resolve(false); });
-                request.on('error', () => resolve(false));
-                request.write(validateBody);
-                request.end();
-            });
-        } catch (serverErr) {
-            console.error('[PayFast ITN] Server confirmation error:', serverErr.message);
-        }
-
-        if (!pfServerValid && !isSandbox) {
-            console.error(`[PayFast ITN] SERVER CONFIRMATION FAILED for booking #${bookingId}`);
-            logPaymentEvent(bookingId, 'FAILED_API_VALIDATION', pfData, true);
-            return;
-        }
-
-        // Idempotency guard: check BEFORE inserting the transaction record.
-        // In production, require pf_payment_id — synthetic keys based on amount+status can collide
-        // on PayFast retries with rounding differences, creating duplicate transactions.
-        if (!pfData.pf_payment_id && !isSandbox) {
-            console.error(`[PayFast ITN] Missing pf_payment_id for booking #${bookingId} in production — rejecting to prevent synthetic-key dedup collision.`);
-            logPaymentEvent(bookingId, 'FAILED_NO_PAYMENT_ID', pfData, false);
-            return; // res already sent with 200 at top; return stops processing
-        }
-        const itnRef = pfData.pf_payment_id || `synthetic-${bookingId}-${pfData.amount_gross}-${pfData.payment_status}`;
-        const alreadyProcessed = await getPayfastTransactionByReference(itnRef, bookingId);
-        if (alreadyProcessed) {
-            console.warn(`[PayFast ITN] Duplicate ITN ignored for ref=${itnRef} booking #${bookingId}`);
-            logPaymentEvent(bookingId, 'IGNORED_DUPLICATE', pfData, true);
-            return;
-        }
-
-        // ══════════════════════════════════════════
-        // Ledger Execution Engine
-        // ══════════════════════════════════════════
-        if (pfData.payment_status === 'COMPLETE') {
-            const itnAmount = parseFloat(pfData.amount_gross) || 0;
-            const currentTotal = parseFloat(booking.total_amount) || parseFloat((booking.quote_amount||'0').replace(/[^0-9.]/g, '')) || 0;
-            // P2-13: If we still can't resolve a total, reject the ITN — overpayment guard cannot function without it.
-            if (currentTotal === 0) {
-                console.error(`[PayFast ITN] REJECTED: booking #${bookingId} has no resolvable total_amount. Cannot apply payment safely.`);
-                logPaymentEvent(bookingId, 'FAILED_NO_TOTAL', pfData, true);
-                getNotificationEmail().then(notifEmail => {
-                    if (!notifEmail) return;
-                    // PAYMENT-GATEWAY (HIGH): `R${itnAmount.toFixed(2)}` and the booking ID kept verbatim.
-                    sendEmail({
-                        to: notifEmail,
-                        subject: `PayFast ITN Rejected – Missing Total – Booking #${bookingId}`,
-                        htmlContent: emailComponents.renderSystemEmail({
-                            preheaderText: `PayFast ITN for booking #${bookingId} rejected — no total_amount set.`,
-                            category: 'Payments & Invoices',
-                            severity: 'alert',
-                            leadFact: `A PayFast ITN for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> (R${itnAmount.toFixed(2)}) was <strong style="color:#E8A83E;">rejected</strong> because the booking has no total_amount set.`,
-                            bodyHtml: `<p style="margin:0; color:#E6E6E6;">Set the booking total and replay the transaction manually.</p>`
-                        }),
-                        preWrapped: true,
-                        titleOverride: 'ITN Rejected – Missing Total',
-                        trigger_event: 'Admin: ITN No Total'
-                    });
-                }).catch(e => console.error('[ITN] Admin alert failed:', e.message));
-                return;
-            }
-
-            const rawMethod = (pfData.payment_method || '').toLowerCase();
-            const PF_METHOD_MAP = { cc: 'credit_card', dc: 'credit_card', ef: 'bank_transfer', mp: 'payfast',
-                bc: 'payfast', payfast: 'payfast', mc: 'payfast', sc: 'payfast', cd: 'payfast', mt: 'payfast',
-                cf: 'payfast', zp: 'payfast', rp: 'payfast' };
-            const mappedMethod = PF_METHOD_MAP[rawMethod] || 'payfast';
-
-            // The transactions row, the ledger credit and the invoice→PAID sync are ONE atomic unit.
-            //
-            // Idempotency is enforced by the DB, not by the check-then-act SELECT above. transactions
-            // .pf_payment_id is UNIQUE and was never populated on this path, so a replayed or
-            // concurrent duplicate ITN could pass the pre-check and credit twice. We now write
-            // pf_payment_id inside the transaction; a duplicate ITN fails the UNIQUE constraint and
-            // the whole credit rolls back. Legacy/manual rows have NULL pf_payment_id, and SQLite
-            // permits many NULLs in a UNIQUE column, so no backfill is needed.
-            //
-            // F4: the credit is a single atomic UPDATE — increment, outstanding/status derivation and
-            // the overpayment guard (WHERE new_total <= total + R1) in one statement. Column refs read
-            // the pre-update row, so (amount_paid + ?) is the post-credit total across every clause.
-            const outcome = await withDbTransaction(async () => {
-                try {
-                    await dbRun("BEGIN IMMEDIATE");
-                } catch (beginErr) {
-                    console.error(`[PayFast ITN] BEGIN IMMEDIATE failed for booking #${bookingId}:`, beginErr.message);
-                    return { retry: true };
-                }
-                try {
-                    await insertPayfastTransaction(bookingId, itnAmount, mappedMethod, itnRef, pfData.pf_payment_id || null, pfData.payment_status, receivedSignature);
-
-                    const credit = await applyPayfastPaymentToBooking(
-                        itnAmount, currentTotal, paymentType,
-                        pfData.pf_payment_id || null, receivedSignature, JSON.stringify(pfData), pfData.payment_method || 'payfast',
-                        bookingId
-                    );
-                    if (credit.changes === 0) {
-                        await dbRun("ROLLBACK").catch(() => {}); // overpayment guard blocked it — undo the tx insert too
-                        return { overpayment: true };
-                    }
-
-                    const fresh = await getBookingByIdAsync(bookingId);
-                    if (fresh && fresh.payment_status === 'PAID') {
-                        await markInvoicePaidIfOpenAsync(bookingId);
-                    }
-
-                    await dbRun("COMMIT");
-                    return { ok: true, fresh };
-                } catch (txErr) {
-                    await dbRun("ROLLBACK").catch(() => {});
-                    if (/UNIQUE constraint/i.test(txErr.message || '')) return { duplicate: true };
-                    return { error: txErr };
-                }
-            });
-
-            // res.sendStatus(200) was already sent (correct for PayFast), so nothing can be returned to
-            // the caller — every outcome is logged and, where it matters, an admin is alerted.
-            if (outcome.retry) { logPaymentEvent(bookingId, 'DEFERRED_DB_BUSY', pfData, true); return; }
-            if (outcome.duplicate) {
-                console.warn(`[PayFast ITN] Duplicate pf_payment_id for booking #${bookingId} — rejected by UNIQUE constraint.`);
-                logPaymentEvent(bookingId, 'IGNORED_DUPLICATE', pfData, true, itnRef, { auditOnly: true });
-                return;
-            }
-            if (outcome.error) {
-                console.error(`[PayFast ITN] Credit transaction failed for booking #${bookingId}:`, outcome.error.message);
-                logPaymentEvent(bookingId, 'CRITICAL_ERROR', pfData, false);
-                // PAYMENT-GATEWAY (HIGH): `R${itnAmount.toFixed(2)}`, booking ID and the error message
-                // (outcome.error.message) are kept verbatim.
-                getNotificationEmail().then(notifEmail => notifEmail && sendEmail({ to: notifEmail,
-                    subject: `PayFast ITN Failed – Booking #${bookingId}`,
-                    htmlContent: emailComponents.renderSystemEmail({
-                        preheaderText: `PayFast payment for booking #${bookingId} could not be recorded.`,
-                        category: 'Payments & Invoices',
-                        severity: 'alert',
-                        leadFact: `A verified PayFast payment for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> (R${itnAmount.toFixed(2)}) could not be recorded: ${outcome.error.message}.`,
-                        bodyHtml: `<p style="margin:0; color:#E6E6E6;">The booking ledger is unchanged. Replay manually.</p>`
-                    }),
-                    preWrapped: true,
-                    titleOverride: 'ITN Processing Failed', trigger_event: 'Admin: ITN Failure' })).catch(() => {});
-                return;
-            }
-            if (outcome.overpayment) {
-                console.warn(`[PayFast ITN] OVERPAYMENT REJECTED for booking #${bookingId} (atomic guard). Total: ${currentTotal}, ITN amount: ${itnAmount}`);
-                logPaymentEvent(bookingId, 'OVERPAYMENT_REJECTED', pfData, true);
-                // PAYMENT-GATEWAY (HIGH): both `R${amount}` figures and the booking ID kept verbatim.
-                getNotificationEmail().then(notifEmail => {
-                    sendEmail({ to: notifEmail,
-                        subject: `Overpayment Detected – Booking #${bookingId}`,
-                        htmlContent: emailComponents.renderSystemEmail({
-                            preheaderText: `Overpayment detected for booking #${bookingId} — credit NOT applied.`,
-                            category: 'Payments & Invoices',
-                            severity: 'alert',
-                            leadFact: `PayFast sent <strong style="color:#FAFAFA;">R${itnAmount.toFixed(2)}</strong> for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> but crediting it would exceed the R${currentTotal.toFixed(2)} booking total.`,
-                            bodyHtml: `<p style="margin:0; color:#E6E6E6;">Credit was <strong style="color:#E8A83E;">NOT applied</strong>. Manual review required.</p>`
-                        }),
-                        preWrapped: true,
-                        titleOverride: 'Overpayment Alert', trigger_event: 'Admin: Overpayment Alert' });
-                }).catch((emailErr) => {
-                    console.error(`[PayFast ITN] CRITICAL: Overpayment admin notification failed for booking #${bookingId}:`, emailErr.message);
-                });
-                return;
-            }
-
-            // ── Committed. The transactions row exists; log the payment_logs audit entries only. ──
-            logPaymentEvent(bookingId, 'VERIFIED_OK', pfData, true, itnRef, { auditOnly: true });
-            const updatedRow = outcome.fresh;
-            const newAmountPaid = parseFloat(updatedRow.amount_paid) || 0;
-            const newOutstanding = parseFloat(updatedRow.amount_outstanding) || 0;
-            const newPaymentStatus = updatedRow.payment_status;
-
-            console.log(`[PayFast ITN] ✅ Booking #${bookingId} Ledger Updated: Paid=R${newAmountPaid.toFixed(2)}, Remaining=R${newOutstanding.toFixed(2)}, Status=${newPaymentStatus}`);
-            logPaymentEvent(bookingId, 'LEDGER_UPDATED_COMPLETE', pfData, true, itnRef, { auditOnly: true });
-
-            // ── Side effects, all after the commit. None may re-enter the transaction queue. ──
-            await syncBookingToCalendar(updatedRow).catch(e => console.error('[PayFast ITN] Calendar sync failed:', e.message));
-            await sendPaymentReceivedEmail(updatedRow, newAmountPaid, newOutstanding, newPaymentStatus).catch(e => console.error('Payment-received email failed:', e.message));
-            sendAdminPaymentNotification(updatedRow, newAmountPaid, newPaymentStatus)
-                .catch(e => console.error('Admin payment notification failed:', e.message));
-            if (newPaymentStatus === 'DEPOSIT_PAID' && newOutstanding > 0) {
-                sendDepositBalanceDueEmail(updatedRow, newOutstanding).catch(e => console.error('Deposit balance-due email failed:', e.message));
-            }
-            if (newPaymentStatus === 'PAID') {
-                sendBookingConfirmedEmail(updatedRow).catch(e => console.error('Confirmed email after payment failed:', e.message));
-                // Invoice was set PAID inside the transaction; just send the receipt.
-                sendPaidReceiptEmail(updatedRow).catch(e => console.error('Paid receipt email (ITN) failed:', e.message));
-            }
-            // Auto-create the events row whenever the payment CONFIRMED the booking — deposit or full.
-            // This used to be gated on newPaymentStatus === 'PAID', so a PayFast deposit that confirmed
-            // the booking got no events row, while the identical deposit recorded via the manual-payment
-            // route (processManualPayment) and an admin status-change (applyStatusChange) both do create
-            // one. Gating on the resulting CONFIRMED status makes all three paths consistent.
-            // created_by is NULL, not 'system': events.created_by is an INTEGER FK to admins(id), so the
-            // string 'system' failed the FK constraint every time — which is why this auto-create had
-            // NEVER produced a row on any of the three paths. NULL is the system-created marker (existing
-            // rows already use it) and is what admins(id) FK allows for an event no admin authored.
-            if (updatedRow.status === 'CONFIRMED' && !updatedRow.event_id) {
-                const evDatetime = updatedRow.date + (updatedRow.event_start_time ? ' ' + updatedRow.event_start_time : ' 00:00:00');
-                insertAutoCreatedEvent(
-                    updatedRow.event_name || updatedRow.event_type || 'Booking Event', evDatetime,
-                    updatedRow.event_location || null, updatedRow.venue_id || null, bookingId,
-                    function(evErr) {
-                        if (evErr) { console.error('[Auto-Event] PayFast: Insert failed for booking #' + bookingId + ':', evErr.message); return; }
-                        setBookingEventId(this.lastID, bookingId);
-                    }
-                );
-            }
-            // Mark payment schedule items as paid based on total amount now credited
-            alignMilestonePayments(bookingId, newAmountPaid, (psErr) => {
-                if (psErr) console.error(`[Payment Schedules] Update failed for booking #${bookingId}:`, psErr.message);
-            });
-        } else {
-            console.warn(`[PayFast ITN] Payment status is "${pfData.payment_status}" (not COMPLETE) for booking #${bookingId}`);
-            logPaymentEvent(bookingId, `STATUS_${pfData.payment_status.toUpperCase()}`, pfData, true);
-            // CANCELLED: customer aborted — keep UNPAID (retryable); do not mark as FAILED
-            // FAILED/other: set FAILED on UNPAID bookings; preserve DEPOSIT_PAID for balance-payment failures
-            if (pfData.payment_status === 'CANCELLED') {
-                console.log(`[PayFast ITN] Booking #${bookingId} payment cancelled by customer. Status unchanged (retryable).`);
-            } else {
-                markBookingPaymentFailedIfUnpaid(bookingId);
-            }
-            getBookingById(bookingId, (e, failedRow) => {
-                if (!e && failedRow) {
-                    if (pfData.payment_status !== 'CANCELLED') {
-                        sendPaymentFailedEmail(failedRow).catch(e => console.error('Payment-failed email error:', e.message));
-                    }
-                    // C6: If a balance payment failed on a partially-paid booking, explicitly alert admin.
-                    // PAYMENT-GATEWAY (HIGH): client name, booking ID and pfData.payment_status verbatim.
-                    if (failedRow.payment_status === 'DEPOSIT_PAID') {
-                        getNotificationEmail().then(notifEmail => sendEmail({
-                            to: notifEmail,
-                            subject: `⚠️ Balance Payment Failed – Booking #${bookingId}`,
-                            htmlContent: emailComponents.renderSystemEmail({
-                                preheaderText: `Balance payment failed for booking #${bookingId} — deposit remains on record.`,
-                                category: 'Payments & Invoices',
-                                severity: 'alert',
-                                leadFact: `A balance payment attempt by <strong style="color:#FAFAFA;">${failedRow.name || failedRow.client_name}</strong> for Booking <strong style="color:#FAFAFA;">#${bookingId}</strong> has failed.`,
-                                bodyHtml: `<p style="margin:0; color:#E6E6E6;">The booking still has a deposit on record. Payment status remains <strong style="color:#D4AF37;">DEPOSIT_PAID</strong>. Please follow up with the client.</p>`,
-                                cards: [{ rows: [{ label: 'PayFast Status', value: pfData.payment_status, highlight: true }] }]
-                            }),
-                            preWrapped: true,
-                            titleOverride: 'Balance Payment Failed',
-                            trigger_event: 'Admin: Balance Payment Failed'
-                        })).catch(err => console.error('Admin balance-failed email error:', err.message));
-                    }
-                }
-            });
-        }
-
-    } catch (itnError) {
-        console.error(`[PayFast ITN] Unhandled error processing ITN for booking #${bookingId}:`, itnError);
-        logPaymentEvent(bookingId, `CRITICAL_ERROR`, pfData, false);
-    }
-});
-
-// Phase 5 (HOUSEKEEPING-NOTES.md): logPaymentEvent/alignMilestonePayments/updateBookingMilestones
-// moved to lib/payment-processing.js — see the require near the top of this file for the re-import.
-
-// ==========================================
-// Payment Return Pages (cosmetic — ITN is the real confirmation)
-// ==========================================
-// Fetch ITN Audit Logs for Admin
-app.get('/api/bookings/:id/payment-logs', (req, res) => {
-    if (!req.session || !req.session.admin) {
-        return res.status(401).json({ success: false, message: 'Unauthorized' });
-    }
-    getPaymentLogsForBooking(req.params.id, (err, rows) => {
-        if (err) return res.status(500).json({ success: false, message: 'Database error fetching logs' });
-        res.json({ success: true, logs: rows });
-    });
-});
-
-
-// Phase 5 (HOUSEKEEPING-NOTES.md): deriveBookingStatusAfterPayment/processManualPayment moved to
-// lib/payment-processing.js — see the require near the top of this file for the re-import.
-
-app.get('/payment/success', (req, res) => {
-    const bookingId = req.query.booking_id || '';
-    res.send(`<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Payment Successful | Thabiso Mhlongo</title>
-<link rel="icon" href="images/icon.png" type="image/gif" sizes="16x16">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#0e0e0e;color:#fff;font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:20px}
-.card{background:#161616;border:1px solid #2a2a2a;border-radius:16px;padding:50px 40px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
-.icon{font-size:64px;margin-bottom:20px;animation:pop 0.6s ease}
-@keyframes pop{0%{transform:scale(0)}50%{transform:scale(1.2)}100%{transform:scale(1)}}
-h2{color:#4CAF50;font-size:24px;margin-bottom:12px}
-p{color:#aaa;font-size:15px;line-height:1.6;margin-bottom:8px}
-.ref{color:#D4AF37;font-weight:bold;font-size:18px;margin:16px 0}
-.note{color:#666;font-size:12px;margin-top:20px;padding-top:16px;border-top:1px solid #2a2a2a}
-.btn{display:inline-block;margin-top:24px;padding:12px 30px;background:#D4AF37;color:#111;font-weight:bold;text-decoration:none;border-radius:6px;transition:all 0.2s}
-.btn:hover{background:#d6d435;transform:translateY(-2px)}
-</style></head><body>
-<div class="card">
-<div class="icon">✅</div>
-<h2>Payment Received!</h2>
-<p>Thank you for your payment. Your booking is being confirmed.</p>
-${bookingId ? `<div class="ref">Booking #${bookingId.replace(/[^0-9]/g, '')}</div>` : ''}
-<p>You will receive a confirmation email shortly with all the details.</p>
-<a href="/index.html${bookingId ? '?track=' + bookingId.replace(/[^0-9]/g, '') + '&payment=success' : ''}" class="btn">Track My Booking</a>
-<p class="note">This page is for your reference only. Payment verification happens securely in the background via PayFast.</p>
-</div></body></html>`);
-});
-
-app.get('/payment/cancel', (req, res) => {
-    const bookingId = req.query.booking_id || '';
-    res.send(`<!DOCTYPE html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Payment Cancelled | Thabiso Mhlongo</title>
-<link rel="icon" href="images/icon.png" type="image/gif" sizes="16x16">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#0e0e0e;color:#fff;font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:20px}
-.card{background:#161616;border:1px solid #2a2a2a;border-radius:16px;padding:50px 40px;max-width:480px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5)}
-.icon{font-size:64px;margin-bottom:20px}
-h2{color:#FF9800;font-size:24px;margin-bottom:12px}
-p{color:#aaa;font-size:15px;line-height:1.6;margin-bottom:8px}
-.btn{display:inline-block;margin-top:24px;padding:12px 30px;background:#D4AF37;color:#111;font-weight:bold;text-decoration:none;border-radius:6px;transition:all 0.2s;margin-right:10px}
-.btn:hover{background:#d6d435;transform:translateY(-2px)}
-.btn-outline{background:transparent;color:#D4AF37;border:2px solid #D4AF37}
-.btn-outline:hover{background:#D4AF37;color:#111}
-.note{color:#666;font-size:12px;margin-top:20px;padding-top:16px;border-top:1px solid #2a2a2a}
-</style></head><body>
-<div class="card">
-<div class="icon">⚠️</div>
-<h2>Payment Cancelled</h2>
-<p>Your payment was not completed. No charges have been made.</p>
-<p>You can try again at any time from the booking tracker.</p>
-<div style="margin-top:24px">
-<a href="/index.html${bookingId ? '?track=' + bookingId.replace(/[^0-9]/g, '') + '&payment=cancel' : ''}" class="btn">Try Again</a>
-<a href="/index.html" class="btn btn-outline">Back to Homepage</a>
-</div>
-<p class="note">If you're experiencing issues with payment, please contact management directly.</p>
-</div></body></html>`);
-});
 
 
 
@@ -2141,7 +1371,8 @@ p{color:#aaa;font-size:15px;line-height:1.6;margin-bottom:8px}
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): DEFAULT_CONTRACT_CLAUSES, CONTRACT_ELIGIBLE_STATUSES,
 // resolveContractFeeData, assembleContractHtml, and generateContract all moved to lib/contracts.js.
-const { DEFAULT_CONTRACT_CLAUSES, CONTRACT_ELIGIBLE_STATUSES, generateContract } = require('./lib/contracts');
+// None has a remaining caller in app.js — the contract routes moved to routes/admin/bookings.js,
+// which imports directly whichever of these it needs.
 
 
 
@@ -2160,128 +1391,6 @@ const { DEFAULT_CONTRACT_CLAUSES, CONTRACT_ELIGIBLE_STATUSES, generateContract }
 
 
 
-app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
-    console.log('[DEBUG] /send-email body:', req.body);
-    let { name, email, cell, category, subject, message, recipientEmail, popia_consent } = req.body;
-
-    
-    // Sanitize subject and email to prevent header injection
-    name = sanitizeEmailInput(name);
-    email = sanitizeEmailInput(email);
-    subject = sanitizeEmailInput(subject);
-    recipientEmail = sanitizeEmailInput(recipientEmail);
-
-    if (!name || !email || !message) {
-        return res.status(400).json({ success: false, message: 'Name, email, and message are required.' });
-    }
-    if (subject && subject.trim().length < 3) {
-        return res.status(400).json({ success: false, message: 'Subject must be at least 3 characters.' });
-    }
-
-    // Manual XSS Sanitization for Message (Strip HTML Tags)
-    message = message.replace(/<[^>]*>?/gm, '');
-
-
-    if (!popia_consent) {
-        return res.status(400).json({ success: false, message: 'POPIA consent is required to submit an inquiry.' });
-    }
-
-    // Attempt to dynamically resolve the logo path to embed it.
-    const logoFilePath = path.join(__dirname, 'images', 'logo4.png');
-
-    // 0. FETCH CONFIGURED DELIVERY EMAIL FROM DB
-    db.get("SELECT email FROM contact_info ORDER BY quote_id ASC LIMIT 1", [], async (err, contactRow) => {
-        let configuredReceiverEmail = process.env.EMAIL_USER || 'admin@thabisomhlongo.com';
-        if (!err && contactRow && contactRow.email) {
-            configuredReceiverEmail = contactRow.email;
-        }
-        
-        // Use explicitly forwarded recipientEmail from body, OR the DB configured one
-        const receiver = recipientEmail || configuredReceiverEmail;
-
-        // 1. SAVE TO DATABASE
-        const isBooking = category && category.toLowerCase().includes('booking');
-        
-        if (isBooking) {
-            // We lack specific date/event_type from the current frontend form, so we use placeholders or derivations
-            insertLegacyBookingFromContactForm(name, email, cell, category, `${subject}\n\n${message}`, function(err) {
-                    if (err) console.error("DB Insert Error (Bookings):", err);
-                });
-        } else {
-            const ip_address = req.ip || req.connection.remoteAddress || '';
-            const user_agent = req.get('User-Agent') || '';
-            const routing_path = req.get('Referrer') || req.originalUrl || '';
-            
-            insertInquiry(encodeUserHtml(name), email, receiver, cell || '', category || 'Contact Form', encodeUserHtml(subject) || 'No Subject', encodeUserHtml(message), routing_path, ip_address, user_agent, function(err) {
-                    if (err) console.error("DB Insert Error (Inquiries):", err);
-                });
-        }
-
-    // 2. DISPATCH EMAIL
-    const inquiryRows = [
-        { label: 'Name', value: name, mono: false },
-        { label: 'Email', rawValue: `<a href="mailto:${email}" style="color:#D4AF37; text-decoration:none;">${email}</a>` },
-        { label: 'Phone', rawValue: cell ? `<a href="tel:${cell}" style="color:#D4AF37; text-decoration:none;">${cell}</a>` : 'N/A' },
-        { label: 'Category', value: category || 'General Inquiry', mono: false, highlight: true },
-        { label: 'Subject', value: subject || 'No Subject', mono: false }
-    ];
-
-    const emailBody = emailComponents.renderSystemEmail({
-        preheaderText: `New website inquiry: ${subject || 'No Subject'}.`,
-        category: 'Contact & Support',
-        severity: 'action',
-        leadFact: `You have received a new contact message through the Thabiso Mhlongo official website.`,
-        bodyHtml:
-            `<p style="margin:14px 0 6px; color:#D4AF37; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px;">Message Body</p>` +
-            `<div style="padding:16px; background:#1A1A1A; border-left:3px solid #D4AF37; white-space:pre-wrap; color:#E6E6E6; font-size:14px; line-height:1.6;">${message.replace(/\n/g, '<br>')}</div>` +
-            `<p style="margin:16px 0 0; color:#707070; font-size:11px; text-align:center;">This email was securely dispatched and logged in the CRM database.</p>`,
-        cards: [{ rows: inquiryRows }]
-    });
-
-    try {
-        // 1. Notification to Admin
-        await sendEmail({
-            to: receiver,
-            subject: `Website Inquiry: ${subject || 'No Subject'}`,
-            htmlContent: emailBody,
-            preWrapped: true,
-            replyTo: email, // Allow admin to reply directly to the visitor
-            titleOverride: 'New Website Inquiry',
-            trigger_event: 'Contact Form: Admin Notification'
-        });
-
-        // 2. Receipt to Visitor
-        const { socialLinks: contactSocialLinks } = await getEmailFooterContext();
-        const contactBanner = await bannerRegistry.resolveBanner('contact_auto_reply');
-        const visitorBody = emailComponents.renderPremiumEmail({
-            preheaderText: `We've received your message — thanks for reaching out, ${name}!`,
-            bannerSrc: contactBanner?.src, bannerAlt: contactBanner?.alt, subtitle: contactBanner?.subtitle,
-            headline: contactBanner?.headline || "We've Received Your Message",
-            greeting: `Hi ${name},`,
-            bodyHtml:
-                `Thank you for reaching out to Thabiso Mhlongo Management. We have successfully received your inquiry regarding <strong style="color:#D4AF37;">"${subject || 'General Inquiry'}"</strong> and our team will review it shortly.` +
-                `<p style="margin:10px 0 0; color:#E6E6E6;">In the meantime, feel free to follow Thabiso on social media for the latest updates and tour dates.</p>` +
-                `<p style="margin:18px 0 0; color:#B0B0B0;">Stay funny,<br><span style="font-family:'Cormorant Garamond',Georgia,serif; font-size:18px; color:#D4AF37;">Thabiso Mhlongo Management</span></p>`,
-            socialLinks: contactSocialLinks
-        });
-
-        await sendEmail({
-            to: email,
-            subject: `Thank you for your message, ${name}!`,
-            htmlContent: visitorBody,
-            preWrapped: true,
-            titleOverride: "We've Received Your Message!",
-            trigger_event: 'Contact Form: Visitor Receipt'
-        });
-
-        console.log('Inquiry and Receipt sent successfully via Unified Service');
-        res.json({ success: true, message: 'Form submitted and confirmation sent!' });
-    } catch (error) {
-        console.error('Error in contact form dispatch:', error);
-        res.status(500).json({ success: false, message: 'Server error during dispatch.' });
-    }
-    }); // End DB Query Callback
-});
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): the public newsletter subscribe/confirm/unsubscribe routes,
 // NEWSLETTER_PENDING_MESSAGE, and sendNewsletterConfirmationEmail all moved to
@@ -2380,96 +1489,6 @@ registerBirthdayJob();
 
 
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): the entire Advancing Pack feature (all 12 routes plus
-// sendAdvancingPackEmail/ensureAdvancingPack/verifyRosOwnership/verifyAdvancingContactOwnership/
-// resolveAdvancingContacts, all single-consumer) moved to routes/admin/advancing.js.
-
-
-/**
- * GET /api/calendar/feed.ics
- * Public (signed) ICS feed for external calendar sync
- */
-app.get('/api/calendar/feed.ics', async (req, res) => {
-    const expectedToken = process.env.CALENDAR_FEED_SECRET;
-    // Fail CLOSED, not open: this feed lists every client's name, event and location. An unset
-    // secret previously made the whole feed public rather than blocking it.
-    if (!expectedToken) {
-        console.error('[Calendar Feed] CALENDAR_FEED_SECRET is not configured — refusing to serve the feed.');
-        return res.status(503).type('text').send('Calendar feed is not configured.');
-    }
-    if (req.query.token !== expectedToken) {
-        return res.status(401).type('text').send('Unauthorized: invalid or missing calendar token.');
-    }
-
-    const ical = require('ical-generator').default;
-    const calendar = ical({ name: 'Thabiso Mhlongo Schedule' });
-
-    db.all(`SELECT b.id, COALESCE(c.full_name, b.name) AS name, b.event_name, b.date,
-                   b.event_start_time, b.performance_end_time, b.performance_duration,
-                   COALESCE(v.name, b.event_location) AS event_location
-            FROM bookings b
-            LEFT JOIN clients c ON b.client_id = c.id
-            LEFT JOIN venues v ON b.venue_id = v.id
-            WHERE b.status IN ('ACCEPTED', 'CONFIRMED', 'COMPLETED')`, [], (err, bookings) => {
-        if (err) return res.status(500).send('Error generating calendar.');
-
-        // ical-generator throws synchronously on an invalid date, and that throw was uncaught here
-        // (inside a db.all callback, several stack frames from any try/catch) — one malformed
-        // date/time value on a single row crashed the entire Node process, taking the whole site
-        // down for every request, not just this feed. Each event is now isolated so a bad record
-        // is skipped and logged instead.
-        bookings.forEach(b => {
-            try {
-                const bStart = moment(`${b.date}T${b.event_start_time || '18:00'}`);
-                let bEnd;
-                if (b.performance_end_time) {
-                    bEnd = moment(`${b.date}T${b.performance_end_time}`);
-                } else {
-                    const mins = parseDurationToMinutes(b.performance_duration);
-                    bEnd = bStart.clone().add(mins, 'minutes');
-                }
-                calendar.createEvent({
-                    start: bStart,
-                    end: bEnd,
-                    summary: (b.event_name || 'Booking') + ' - ' + b.name,
-                    location: b.event_location,
-                    url: `https://www.thabisomhlongo.com/admin#bookingsAdmin`
-                });
-            } catch (evErr) {
-                console.error(`[Calendar Feed] Skipped booking #${b.id} — invalid date/time on record:`, evErr.message);
-            }
-        });
-
-        getActiveDateHoldsForIcsFeed((err, holds) => {
-            if (!err) {
-                holds.forEach(h => {
-                    try {
-                        if (h.start_time) {
-                            const hEnd = h.end_time || addMinutesToTime(h.start_time, 60);
-                            calendar.createEvent({
-                                start: moment(`${h.hold_date}T${h.start_time}`),
-                                end:   moment(`${h.hold_date}T${hEnd}`),
-                                summary: '[HOLD] ' + (h.notes || 'Blocked')
-                            });
-                        } else {
-                            calendar.createEvent({
-                                start: moment(h.hold_date),
-                                allDay: true,
-                                summary: '[HOLD] ' + (h.notes || 'Blocked')
-                            });
-                        }
-                    } catch (hErr) {
-                        console.error(`[Calendar Feed] Skipped hold on ${h.hold_date} — invalid date/time on record:`, hErr.message);
-                    }
-                });
-            }
-
-            res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-            res.setHeader('Content-Disposition', 'attachment; filename="thabiso_schedule.ics"');
-            res.send(calendar.toString());
-        });
-    });
-});
 
 
 
@@ -2587,37 +1606,7 @@ function loadPendingDirectEmails() {
 
 
 
-// --- Dynamic Sitemap ---
-app.get('/sitemap.xml', sitemapRateLimiter, (req, res) => {
-    const baseUrl = 'https://www.thabisomhlongo.com';
-    const staticPages = ['', '#about', '#gallery', '#events', '#contact'];
-    
-    getEventsForSitemap((err, events) => {
-        let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
-        xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
-        
-        staticPages.forEach(p => {
-            xml += `  <url>\n    <loc>${baseUrl}/${p}</loc>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n`;
-        });
 
-        if (!err && events) {
-            events.forEach(ev => {
-                const lastMod = ev.created_at ? new Date(ev.created_at).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
-                xml += `  <url>\n    <loc>${baseUrl}/#events</loc>\n    <lastmod>${lastMod}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.5</priority>\n  </url>\n`;
-            });
-        }
-        xml += '</urlset>';
-        res.header('Content-Type', 'application/xml');
-        res.send(xml);
-    });
-});
-
-// Dynamic admin backgrounds debug logger
-app.post('/api/debug', requireAdmin, (req, res) => {
-    // SEC-2: gated behind admin auth — it was an open endpoint that logged arbitrary request bodies.
-    console.log('[DEBUG API] Background configuration trace:', req.body);
-    return res.status(200).json({ success: true });
-});
 
 // --- Custom Error Handling ---
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to middleware/error-handler.js. __dirname here is still

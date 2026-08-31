@@ -293,4 +293,11 @@ router.post('/api/admin/system/migrate-legacy-data', requireAdmin, requireRole([
     });
 });
 
+// Dynamic admin backgrounds debug logger
+router.post('/api/debug', requireAdmin, (req, res) => {
+    // SEC-2: gated behind admin auth — it was an open endpoint that logged arbitrary request bodies.
+    console.log('[DEBUG API] Background configuration trace:', req.body);
+    return res.status(200).json({ success: true });
+});
+
 module.exports = router;

@@ -1992,6 +1992,130 @@ specifically — 141 tests — passed identically on every run, meeting the plan
 character" bar for auth/RBAC. `npm run smoke` 329/329. `git status` confirmed only `app.js`,
 `server.js`, and `middleware/*.js` changed.
 
+### Final route batch: the standalone/webhook cluster — closes out the 10-route list from Step 1
+
+The last 9 of the 10 routes flagged in "Step 1" above as falling outside the plan's `/api/admin`/
+`/api/public` boundary (`/robots.txt` was always the one deliberate exception, see below) are now
+relocated, sorted by behavior exactly as decided there — auth-gated into `routes/admin/`,
+unauthenticated into `routes/public/`:
+
+- **`routes/public/payment.js`** (new): `POST /api/payment/webhook/payfast` (the PayFast ITN
+  webhook — the single largest, highest-stakes route moved in this whole pass, ~415 lines; diffed
+  byte-identical against `git show HEAD:app.js` with **zero** differences), `GET
+  /api/bookings/:id/payment-logs` (the pre-existing `req.session.admin`-vs-`.adminId` bug flagged in
+  Step 1 moves with it unchanged, still not fixed), `GET /payment/success`, `GET /payment/cancel`,
+  plus the local `sendPaymentFailedEmail` helper moved with them. All 27 of its imports
+  (`dbRun`/`withDbTransaction`/`escapeEmailFields`/`getEmailFooterContext`/`emailBaseUrl`/
+  `syncBookingToCalendar`/`generatePayFastSignature`/the PayFast rate-limiter + IP allowlist/
+  `logPaymentEvent`/`alignMilestonePayments`/5 `booking-notifications` senders/the banner+email-
+  send helpers/`getNotificationEmail`/5 bookings-repository functions/`insertAutoCreatedEvent`/3
+  finance-repository functions/`markInvoicePaidIfOpenAsync`) were verified programmatically
+  (`node -e` checking each resolves to a function) before running anything against the route.
+- **`routes/public/misc.js`** (new): `POST /upload` (the inline `req.session.adminId` check Step 1
+  noted — kept exactly as-is, not consolidated onto `requireAdmin`), `POST
+  /api/public/analytics/track`, `POST /send-email`, `GET /api/calendar/feed.ics`, `GET
+  /sitemap.xml`, plus the local `classifyChannel` helper. `/send-email`'s `logoFilePath` — already
+  confirmed dead in the original `app.js` (built but never read) — got the same `__dirname` →
+  `PROJECT_ROOT` (`lib/runtime-paths.js`) fix as `sendBookingReceivedEmail` got in an earlier batch,
+  applied for consistency despite having zero behavioral effect.
+- **`routes/admin/misc.js`** (extended): `POST /api/debug`, added with zero new imports
+  (`requireAdmin` was already present in the file), diffed byte-identical. Reported to the user
+  directly per Step 1's own instruction and again here: it is `requireAdmin`-gated, does nothing but
+  `console.log('[DEBUG API] Background configuration trace:', req.body)`, and returns
+  `{success:true}` — it does not read or return any stored data, its only effect is writing an
+  authenticated admin's own POST body into the server console. Unchanged behavior; only its file
+  location moved.
+
+**`/robots.txt` stays in `app.js`, confirmed once more before leaving it.** Mapped every blanket
+(no-path) `app.use()` registration in the file end to end (helmet, the session/body-parser/
+sanitisation middleware, the `/images`/`/uploads` static mounts, the blanket
+`express.static(path.join(__dirname, '/'))`, session, then the route-mount block) to make sure no
+other still-to-move route would skip past a middleware it used to sit after — this route was the one
+genuine exception found. It's registered *before* both the "protect sensitive files" middleware and
+the blanket static server, and a physical `robots.txt` file with genuinely different content lives at
+the project root (dynamic: disallows `/admin` and `/api`; physical: disallows only `admin.html` and
+`/api/`, adds a sitemap line). Moving it into the post-static mount block would let the physical file
+silently shadow the dynamic handler. Left in place with an explanatory comment; directly verified
+with a live server + HTTP GET that the dynamic content (not the physical file's) is still served.
+
+### The app.js dead-import backlog — a full sweep, not just this batch's own
+
+With this batch, essentially every route has left `app.js` (see route count below), which exposed
+something no single batch's own dead-import check had ever caught: dozens of top-of-file
+`const { ... } = require(...)` re-imports of `lib/`/repository functions whose *last* real caller
+had moved out one, two, or even many batches ago, each batch only ever checking the names *it*
+personally touched. Built a proper AST-based checker (`acorn`, scratchpad-only) to sweep the whole
+file at once: parse every top-level destructured `require(...)`, collect the bound (local) names,
+and count real `name(` call sites elsewhere in the file, excluding the declaration's own range.
+
+**Two checker limitations found and worked around, not just trusted blindly:**
+- A count of exactly **0** is unambiguous — even a comment mentioning `name(` would have bumped it
+  above zero, so every 0-count name reported here is genuinely dead, no further check needed.
+- A count of **1 or more** is not automatically "alive": (1) the checker's `name(` pattern doesn't
+  exclude comment text, and one name (`syncBookingToCalendar`) turned out to have its only "call"
+  sitting inside a `// syncBookingToCalendar() for this booking takes the...` comment — a real dead
+  name the checker's raw count made look alive; found only by reading the actual matched line. (2) a
+  name can be used without ever being *called* — passed as a
+  bare reference (e.g. `requireAdmin` used as `app.get(path, requireAdmin, handler)`, never
+  `requireAdmin(...)`) — so a separate bare-word-boundary checker was run over every 0-count name to
+  catch that case too. That second checker has its own false-positive class: word-boundary matches
+  inside unrelated compound strings (`"calendar"` inside `"calendar.repository"`, `"calendar-sync"`,
+  `"google-calendar"`) and inside this file's own explanatory prose comments. Of ~34 names it flagged
+  "suspicious," 33 were exactly that — re-verified individually via `grep -n "\bname\b"` context
+  inspection — and exactly **one was a genuine save**: `bookingConfig`, used via property access
+  (`bookingConfig.minGapMins = ...`, `bookingConfig.typeBuffers = ...` in the startup settings-load
+  block), never as a call, correctly kept.
+
+**Removed** (all independently confirmed 0 real references, comments excluded): the top-of-file
+`multer`/`transporter`/`emailTemplates`/`PDFDocument`/`pdfService`/`applyMergeFields`/
+`SAMPLES_BY_CATEGORY`/`imageSize` plain requires; `geoip`/`UAParser` (analytics/track moved);
+`calendar`/`CALENDAR_ID` (from `lib/google-calendar` — its own header comment confirms no
+construction-order dependency on this import surviving); `sanitizeEmailInput`/`encodeUserHtml`
+(`lib/html-sanitize` — send-email and site-content moved); `emailBaseUrl` (`lib/email-context`;
+`getEmailFooterContext` stays, still called directly by the surviving cron jobs); `scheduledJobs`/
+`buildSegmentCondition` (from `lib/newsletter-scheduling` — `scheduleNewsletterSend` stays);
+the entire `lib/uploads` and `lib/time-utils` imports; `getVatRate`/`resolveLineTaxClasses`/
+`computeDocumentTotals` (`lib/document-totals`); `autoBuildDepositBalanceSchedule`/`generateInvoice`
+(`lib/invoicing`); `logPaymentEvent`/`alignMilestonePayments`/`updateBookingMilestones`/
+`deriveBookingStatusAfterPayment` (`lib/payment-processing`); `requireAdmin` (`middleware/auth`) and
+`requireRole`/`requireRoleForInquiryEmail` (`middleware/rbac`); `VALID_ADMIN_ROLES`/
+`countOtherActiveAdministrators`/`createAndSendInvite` (`lib/admin-users`); 7 of the 13
+`lib/booking-notifications` names — `generateBookingICS`, `sendBookingConfirmedEmail`,
+`sendDateChangedEmail`, `sendQuoteAcceptedEmail`, `sendPaymentReceivedEmail`, `sendPaidReceiptEmail`,
+`sendAdminPaymentNotification` — now that the PayFast ITN webhook (their last real caller) has
+itself moved to `routes/public/payment.js`, which imports what it needs directly; `sendInvoiceEmail`
+(`lib/invoice-email`); `dbRun`/`dbGet`/`dbAll` (`lib/db-helpers`); `withDbTransaction`
+(`lib/db-transaction`); `logAudit` (`lib/audit-log`); `asBookingText` (`lib/booking-tracking`);
+`generatePayFastSignature` (`lib/payfast-signature` — its last two callers, the pay route and the
+ITN webhook, are now both in `routes/public/payment.js`); `DEFAULT_CONTRACT_CLAUSES`/
+`CONTRACT_ELIGIBLE_STATUSES`/`generateContract` (`lib/contracts`); `syncBookingToCalendar`/
+`syncEventToCalendar` (`lib/calendar-sync` — `syncCalendarHolds`, confirmed alive via a real call
+in the nightly hold-sync cron, is the only one of the three kept).
+
+**Explicitly kept**, each with a confirmed real call site in a surviving background cron job or
+final handler: `crypto` (bootstrap-admin generation), `bookingConfig`, `UPLOADS_PATH`,
+`escapeEmailFields`, `getEmailFooterContext`, `deleteGoogleEvent`, `syncCalendarHolds`,
+`sendAbandonedBookingReminderEmail`, `registerBirthdayJob`, `scheduleDirectEmailSend`/
+`sendDirectEmail`, `createNotFoundHandler`/`createServerErrorHandler` (the final 404/500 handlers —
+critical, must stay), `runPaymentReminderJob`, `scheduleNewsletterSend`, 6 of the 13
+`booking-notifications` senders (`sendDepositBalanceDueEmail`, `sendQuoteExpiryWarningEmail`,
+`sendReviewRequestEmail`, `sendBookingUnderReviewEmail`, `sendBookingCompletedEmail`,
+`sendAdminCompletionSummaryEmail`), plus the ~23 specific repository functions the surviving cron
+jobs call directly.
+
+**app.js route count, verified directly, not from memory**: the same `list_all_routes.js` scratchpad
+tool used throughout this pass now reports **exactly 1** remaining route registration in `app.js` —
+`GET /robots.txt`, the one deliberate, documented exception above. Every other route in the original
+site now lives under `routes/admin/` or `routes/public/`.
+
+**Verification**: `node -c` on all 4 changed/new files; a full re-sweep with the AST checker
+(`--dead-only`) after every edit in this section came back with exactly one flag — the already-
+understood `bookingConfig` false positive — a clean pass; the undefined-reference sweep, clean;
+`npm run smoke` 329/329; `npm test` x4 given the scale of this cleanup — 3 runs fully clean 664/664,
+one run 663/664 on the pre-existing, extensively-documented Deferred fix #3 (`calendar.test.js` CP3)
+timing flake, confirmed unrelated to this batch and non-reproducing on immediate re-run (see the
+Deferred fix #3 update below).
+
 ---
 
 ## Phase 4 — Data-access extraction
@@ -3535,6 +3659,17 @@ its own change with its own testing.
   and the test's own comment already flags this exact sensitivity ("Same Calendar-OAuth-round-trip-
   before-queuing margin as Guard 3 above"). Same family as every CP17/CP5 instance, just the first time
   it happened to land in a logged run; not code this batch touched.
+- **Update (Phase 5, final standalone/webhook batch + the app.js dead-import sweep):** ran the full
+  suite 4 times. CP3 itself — the original test this entire entry is named after — recurred once (run
+  3, 663/664), then passed cleanly on an immediate re-run; the other 3 runs were fully clean 664/664.
+  Given extra scrutiny specifically because this batch touched `app.js`'s own `lib/calendar-sync`
+  import (removing the now-fully-dead `syncBookingToCalendar`/`syncEventToCalendar` names, keeping
+  only `syncCalendarHolds`): confirmed via `git diff`/`git log` that `lib/booking-status.js` and
+  `database/repositories/calendar.repository.js` — the two files that actually own CP3's code path
+  (`applyStatusChange`'s COMPLETED branch calling `advanceEventToCompleted(b.event_id)` with no
+  callback, a plain fire-and-forget `db.run`) — have **zero** uncommitted diff and were last touched
+  in an earlier, already-committed batch, not this one. Same conclusion as every prior instance: a
+  test-suite-wide fixed-sleep timing margin, unrelated to whatever any given batch actually changed.
 
 ### 4. `POST /api/admin/bank-statement/import` had never worked — `db.transaction` is not a function — FIXED
 
