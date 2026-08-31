@@ -1709,6 +1709,63 @@ retry succeeded); `npm test` x2 (one hit **CP17** — `calendar.test.js`'s pre-e
 sync flake, already documented from earlier sessions, on code this batch never touched — the other a
 clean 664/664); the 20-check manual fixture script above, 20/20 passed.
 
+### Route batch: `routes/public/popia.js` (5 routes, new file) + `routes/public/newsletter.js` (3 routes, new file) — DONE
+
+Fourth and last batch of the post-bookings/events Phase 5 continuation, and the one flagged in
+advance as the real risk step-up: POPIA/GDPR erasure self-service (a protected surface per the
+standing rules) plus the newsletter subscribe/confirm/unsubscribe flow. Read every route in full
+before touching anything, per the protected-surface discipline.
+
+**`routes/public/popia.js`** (5 routes): `POST .../popia/request-otp`, `.../popia/preview`,
+`.../popia/erasure-requests`, `.../compliance/request-forget` (the legacy compat route, already
+rewritten in an earlier session to require the same OTP as the primary flow), `.../compliance/
+export-data`. The shared helper `verifyPopiaOtp` — used by 3 of the 5 (`preview`,
+`erasure-requests`, `request-forget`) — moved alongside as a local in this file, same treatment as
+`checkEventConflicts` before it. It reuses the *same* `OTP_TTL_MINUTES`/`OTP_MAX_ATTEMPTS`/
+`generateOtpCode` from `lib/booking-tracking.js` that the unrelated booking-tracker flow uses (its
+own comment says so explicitly — same constants, same bcrypt/attempts/expiry shape, different table)
+— confirmed `routes/public/bookings.js` already has its own independent import of the same three for
+the tracker's own use, so no conflict moving this file's own copy in.
+
+**`routes/public/newsletter.js`** (3 routes): `POST /api/public/subscribe`, `.../newsletter/confirm`,
+`.../newsletter/unsubscribe`. Two shared pieces moved alongside as locals: `NEWSLETTER_PENDING_MESSAGE`
+(single-consumer within `subscribe`) and `sendNewsletterConfirmationEmail` (the double-opt-in email,
+fired from 3 call sites all within `subscribe` — confirm and unsubscribe use the separate, already-
+relocated `sendNewsletterWelcomeEmail` from `lib/newsletter-emails.js` instead, imported directly).
+
+Both new files get their own `app.use()` registrations in `app.js`'s route-mount block.
+
+**Dead-import sweep in `app.js`** was the largest of this whole continuation, since this cluster was
+the last real concentration of shared state: the entire `OTP_TTL_MINUTES`/`OTP_MAX_ATTEMPTS`/
+`ACCESS_TOKEN_TTL_MINUTES`/`generateOtpCode`/`hashAccessToken`/`requireBookingAccessToken` import
+block (every remaining caller — `verifyPopiaOtp` — moved), the entire `lib/popia.js` re-import
+(`resolvePopiaTargets`/`getBookingErasureImpact`/`createPopiaRequest`/`POPIA_REASONS` — all three
+routes that used them directly moved together), `getInquiriesForEmail` (its only caller,
+`export-data`, moved), and — once `subscribe` moved — `CURRENT_POLICY_VERSION` itself finally became
+fully dead in `app.js` (it had been kept through two earlier batches specifically because this route
+was its last real caller; noted explicitly in both of those earlier entries as a reason to watch
+for). Also removed: `EMAIL_FORMAT_RE`, `isValidBirthday` (both from `lib/validation.js`;
+`sanitizeEmailInput` on the same import line correctly kept — it has 4 other real callers),
+`sendNewsletterWelcomeEmail`, and the 8 `newsletter.repository` subscriber-lifecycle functions
+(`insertPendingSubscriber` through `unsubscribeSubscriber`) that only `subscribe`/`confirm`/
+`unsubscribe` ever called.
+
+**Byte-identity check**: all 8 routes plus both shared helpers (`verifyPopiaOtp`,
+`sendNewsletterConfirmationEmail`) and `NEWSLETTER_PENDING_MESSAGE` diffed against `git show
+HEAD:app.js` — zero differences beyond harmless sed-range boundary artifacts in the verification
+script itself (trailing comments/blank lines belonging to whichever route sat immediately after the
+diffed range in the original file — confirmed by inspection, not a real content change).
+
+**Verification**: `node -c` on all three changed/new files; the undefined-reference sweep (clean);
+every new import (`OTP_TTL_MINUTES`/`OTP_MAX_ATTEMPTS`/`generateOtpCode`, `lib/popia.js`'s four
+exports, `lib/validation.js`'s three, the 8 newsletter-repository functions, `sendNewsletterWelcomeEmail`,
+`applyMergeFields`, etc.) verified programmatically against the real modules before running
+anything; byte-identity diffs (clean); `npm run smoke` 329/329 (first try). This cluster already has
+substantial dedicated test coverage (`popia-erasure.test.js`, `newsletter-optin.test.js`,
+`email.test.js`, `inquiries.test.js` all exercise these exact routes), so no additional manual
+fixture script was written on top of the full suite run; `npm test` x2 — clean 664/664 both times,
+given the protected-surface stakes.
+
 ### Route batch: `routes/admin/misc.js` (8 routes, new file) + `routes/admin/transactions.js` (1 route, new file) — DONE
 
 Third batch of the post-bookings/events Phase 5 continuation: the small admin-utilities grab-bag —

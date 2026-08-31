@@ -27,8 +27,6 @@ const {
 } = require('./database/repositories/settings.repository');
 // Phase 4: newsletter-domain data access moved to a repository — same destructure-in pattern.
 const {
-    insertPendingSubscriber, getSubscriberDuplicateCheck, touchSubscriberCooldown, reactivateSubscriber,
-    getSubscriberForConfirm, confirmSubscriber, getSubscriberForUnsubscribe, unsubscribeSubscriber,
     countSubscribers, listSubscribers, getSubscriberStats, insertSubscriberManual, updateSubscriberProfile,
     getSubscriberForStatusToggle, updateSubscriberStatus, deleteSubscriber, bulkUpdateSubscriberStatus,
     bulkConfirmPendingSubscribers, getPendingSubscribersForBulkActivate, bulkDeleteSubscribers,
@@ -47,7 +45,7 @@ const {
 // Phase 4: inquiries-domain data access moved to a repository — same destructure-in pattern.
 const {
     anonymizeOldInquiries, getInquiryIdsForEmail, anonymizeInquiriesForErasure, redactInquiryNotesForErasure,
-    countInquiryNotesForIds, getInquiriesForEmail, insertInquiry, markInquiryReplied,
+    countInquiryNotesForIds, insertInquiry, markInquiryReplied,
     countInquiries, countInquiriesByStatus, countMyInquiries,
     updateInquiryStatus, unassignInquiry, assignInquiry, updateInquiryPriority, listInquiryCategories, updateInquiryCategory,
     listInquiryNotes, insertInquiryNote, getInquiryNoteById, deleteInquiryNote,
@@ -230,7 +228,7 @@ const {
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/validation.js.
-const { sanitizeEmailInput, EMAIL_FORMAT_RE, isValidBirthday } = require('./lib/validation');
+const { sanitizeEmailInput } = require('./lib/validation');
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/newsletter-scheduling.js, alongside
 // scheduledJobs/scheduleNewsletterSend below (same file — all part of the same scheduling
@@ -240,11 +238,11 @@ const { scheduledJobs, buildSegmentCondition, scheduleNewsletterSend } = require
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): CURRENT_POLICY_VERSION (and MIN_ADVANCE_HOURS, its neighbour in
-// this file) moved to lib/booking-policy.js. MIN_ADVANCE_HOURS has no remaining caller here — its
-// last two call sites (the public availability route and the public booking-intake route) both
-// moved to routes/public/{availability,bookings}.js, each importing it directly.
-const { CURRENT_POLICY_VERSION } = require('./lib/booking-policy');
+// Phase 5 (HOUSEKEEPING-NOTES.md): CURRENT_POLICY_VERSION and MIN_ADVANCE_HOURS both moved to
+// lib/booking-policy.js. Neither has a remaining caller here — every call site (the public
+// availability route, the public booking-intake route, the newsletter subscribe route, the admin
+// manual-booking-creation route) has moved to its own route file, each importing directly whichever
+// of the two it needs.
 
 app.use(helmet({
     // Helmet's default Referrer-Policy is "no-referrer", which strips the Referer header from
@@ -508,6 +506,8 @@ app.use(require('./routes/public/site-content'));
 app.use(require('./routes/public/availability'));
 app.use(require('./routes/admin/misc'));
 app.use(require('./routes/admin/transactions'));
+app.use(require('./routes/public/popia'));
+app.use(require('./routes/public/newsletter'));
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/uploads.js — needed by the ~20 admin upload
 // routes being split into routes/, not just this file.
@@ -1558,11 +1558,11 @@ const { logAudit } = require('./lib/audit-log');
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): the entire POPIA/GDPR erasure subsystem — resolvePopiaTargets,
 // anonymizeClientData, and the request-lifecycle block further below (POPIA_REASONS through
-// notifyPopiaCancellations) — moved to lib/popia.js (batch 14). Re-imported here because the
-// not-yet-moved public self-service routes (POST /api/public/popia/preview, /erasure-requests,
-// and the legacy /api/public/compliance/request-forget) still call resolvePopiaTargets,
-// getBookingErasureImpact, createPopiaRequest and POPIA_REASONS directly.
-const { resolvePopiaTargets, getBookingErasureImpact, createPopiaRequest, POPIA_REASONS } = require('./lib/popia');
+// notifyPopiaCancellations) — moved to lib/popia.js (batch 14). The public self-service routes that
+// used to re-import resolvePopiaTargets/getBookingErasureImpact/createPopiaRequest/POPIA_REASONS
+// here (POST /api/public/popia/preview, /erasure-requests, and the legacy
+// /api/public/compliance/request-forget) have all since moved to routes/public/popia.js, which
+// imports these four directly — no remaining caller here.
 
 // anonymizeClientData(email) also moved to lib/popia.js as part of the same relocation — it has
 // no caller left in app.js (only lib/popia.js's own processPopiaRequest/completePopiaAnonymization
@@ -1634,128 +1634,18 @@ const { generatePayFastSignature } = require('./lib/payfast-signature');
 // Phase 5 (HOUSEKEEPING-NOTES.md): OTP_TTL_MINUTES/OTP_MAX_ATTEMPTS/ACCESS_TOKEN_TTL_MINUTES/
 // generateOtpCode/hashAccessToken moved to lib/booking-tracking.js; requireBookingAccessToken
 // (which depends on hashAccessToken) moved to middleware/booking-access.js, alongside requireAdmin.
-const { OTP_TTL_MINUTES, OTP_MAX_ATTEMPTS, ACCESS_TOKEN_TTL_MINUTES, generateOtpCode, hashAccessToken } = require('./lib/booking-tracking');
-const { requireBookingAccessToken } = require('./middleware/booking-access');
+// None of the five has a remaining caller in app.js — the booking-tracker routes and verifyPopiaOtp
+// (its only caller of OTP_MAX_ATTEMPTS) all moved to routes/public/{bookings,popia}.js, each
+// importing whichever of these it still needs directly.
 
 
 
-// ============================================================
-// POPIA erasure request — email-ownership verification via OTP.
-// Mirrors the tracker OTP mechanics directly above (same constants, same bcrypt/attempts/expiry
-// shape) but keyed by email alone — there's no prior booking record to match against here; this
-// proves mailbox ownership, not an existing account, so /request-otp always sends (no anti-
-// enumeration silence needed/possible). No second session-token table: the raw code is re-verified
-// (not re-consumed) across the read-only preview call below, then actually consumed only on the
-// final POST /erasure-requests submit — there's only one subsequent authenticated action needed,
-// unlike the tracker's multi-route session.
-// ============================================================
+// Phase 5 (HOUSEKEEPING-NOTES.md): verifyPopiaOtp (the POPIA OTP verification helper — mirrors the
+// booking-tracker OTP mechanics above but keyed by email alone) moved to routes/public/popia.js
+// alongside its three call sites (preview, erasure-requests, compliance/request-forget), all of
+// which moved together in the same batch.
 
-// Looks up the latest unconsumed, unexpired code for `email` and checks it against `code`.
-// `consume:false` (used by the preview endpoint) leaves the row alone on a correct match so the
-// same code can still be used again by the final submit; `consume:true` marks it spent. The
-// attempts budget is shared across every caller of this function, so hitting the preview endpoint
-// doesn't grant extra guesses beyond OTP_MAX_ATTEMPTS.
-async function verifyPopiaOtp(email, code, { consume }) {
-    if (!code) return { ok: false, message: 'A verification code is required.' };
-    const codeRow = await dbGet(
-        `SELECT id, code_hash, attempts FROM popia_verification_codes
-         WHERE lower(email) = lower(?) AND consumed = 0 AND expires_at > CURRENT_TIMESTAMP
-         ORDER BY created_at DESC LIMIT 1`,
-        [email]
-    );
-    if (!codeRow) {
-        return { ok: false, message: 'That code is invalid or has expired. Please request a new one.' };
-    }
-    if (codeRow.attempts >= OTP_MAX_ATTEMPTS) {
-        await dbRun("UPDATE popia_verification_codes SET consumed = 1 WHERE id = ?", [codeRow.id]);
-        return { ok: false, message: 'Too many incorrect attempts. Please request a new code.' };
-    }
 
-    const match = await bcrypt.compare(code, codeRow.code_hash);
-    if (!match) {
-        await dbRun("UPDATE popia_verification_codes SET attempts = attempts + 1 WHERE id = ?", [codeRow.id]);
-        const remaining = OTP_MAX_ATTEMPTS - (codeRow.attempts + 1);
-        await dbRun(
-            `INSERT INTO audit_log (table_name, record_id, action, user_email, change_timestamp) VALUES ('popia_verification_codes', ?, 'POPIA_OTP_FAILED', ?, CURRENT_TIMESTAMP)`,
-            [codeRow.id, email]
-        ).catch(() => {});
-        return { ok: false, message: remaining > 0 ? `Incorrect code. ${remaining} attempt(s) remaining.` : 'Too many incorrect attempts. Please request a new code.' };
-    }
-
-    if (consume) {
-        await dbRun("UPDATE popia_verification_codes SET consumed = 1 WHERE id = ?", [codeRow.id]);
-    }
-    return { ok: true, codeId: codeRow.id };
-}
-
-app.post('/api/public/popia/request-otp', ipRateLimiter, otpRequestRateLimiter, async (req, res) => {
-    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-        return res.status(400).json({ success: false, message: 'A valid email address is required.' });
-    }
-    try {
-        // Kill any earlier unconsumed code for this email so only the most recently sent one is live.
-        await dbRun("UPDATE popia_verification_codes SET consumed = 1 WHERE lower(email) = lower(?) AND consumed = 0", [email]);
-        const code = generateOtpCode();
-        const codeHash = await bcrypt.hash(code, 10);
-        const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60000).toISOString();
-        const ins = await dbRun("INSERT INTO popia_verification_codes (email, code_hash, expires_at) VALUES (?, ?, ?)", [email, codeHash, expiresAt]);
-
-        const banner = await bannerRegistry.resolveBanner('popia_verification_code');
-        const { socialLinks } = await getEmailFooterContext();
-        await sendEmail({
-            to: email,
-            subject: `Your POPIA verification code: ${code}`,
-            htmlContent: emailComponents.renderPremiumEmail({
-                preheaderText: `Your verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
-                bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-                headline: banner?.headline || 'Verify Your Email',
-                bodyHtml:
-                    `<p style="margin:0 0 12px;">Use this code to verify your email address for your POPIA data erasure request:</p>` +
-                    `<p style="margin:0; color:#B0B0B0; font-size:13px;">This code expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can safely ignore this email.</p>`,
-                cards: [{ rows: [{ label: 'Verification code', value: code, mono: true, highlight: true }] }],
-                socialLinks
-            }),
-            preWrapped: true,
-            titleOverride: 'Verify Your Email',
-            trigger_event: 'POPIA: Erasure Verification Code'
-        });
-
-        await dbRun(
-            `INSERT INTO audit_log (table_name, record_id, action, user_email, ip_address, change_timestamp) VALUES ('popia_verification_codes', ?, 'POPIA_OTP_REQUESTED', ?, ?, CURRENT_TIMESTAMP)`,
-            [ins.lastID, email, req.ip]
-        ).catch(() => {});
-
-        res.json({ success: true, message: 'A verification code has been sent to that email address.' });
-    } catch (e) {
-        console.error('[POPIA OTP] request-otp failed:', e.message);
-        res.status(500).json({ success: false, message: 'Could not send a verification code. Please try again.' });
-    }
-});
-
-// Read-only, pre-submission preview: verifies the code WITHOUT consuming it, then shows the client
-// exactly which of their bookings are in scope for cancellation and the refund figures that will
-// actually apply — reusing the same calculateCancellationRefund() the real cancellation step uses,
-// via the shared getBookingErasureImpact() (defined further below, alongside the erasure lifecycle
-// functions it's grouped with), so this preview can never drift from what processing will do.
-app.post('/api/public/popia/preview', ipRateLimiter, mutateRateLimiter, async (req, res) => {
-    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
-    const otpCode = typeof req.body?.otp_code === 'string' ? req.body.otp_code.trim() : '';
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
-        return res.status(400).json({ success: false, message: 'A valid email address is required.' });
-    }
-    const verify = await verifyPopiaOtp(email, otpCode, { consume: false });
-    if (!verify.ok) return res.status(400).json({ success: false, message: verify.message });
-
-    try {
-        const { bookingIds } = await resolvePopiaTargets(email);
-        const impact = await getBookingErasureImpact(bookingIds);
-        res.json({ success: true, bookings: impact });
-    } catch (e) {
-        console.error('[POPIA] preview failed:', e.message);
-        res.status(500).json({ success: false, message: 'Could not generate a preview. Please try again.' });
-    }
-});
 
 
 // ==========================================
@@ -2221,146 +2111,8 @@ p{color:#aaa;font-size:15px;line-height:1.6;margin-bottom:8px}
 </div></body></html>`);
 });
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): the request-lifecycle block that used to run from here
-// (POPIA_REASONS) through notifyPopiaCancellations() — popiaReferenceNumber, createPopiaRequest,
-// approvePopiaRequest, rejectPopiaRequest, processPopiaRequest, completePopiaAnonymization,
-// deletePopiaFiles, isBookingInPopiaErasureScope, cancelActiveBookingsForErasure,
-// getUnresolvedRefundBookingIds, notifyPopiaCancellations — moved to lib/popia.js. Of these, only
-// POPIA_REASONS and createPopiaRequest are re-imported above (alongside resolvePopiaTargets/
-// getBookingErasureImpact) — the public routes immediately below only ever create a request, never
-// approve/process/notify one; the rest have no remaining caller in app.js.
 
-// Public request form (index.html footer -> #popiaErasureModal)
-app.post('/api/public/popia/erasure-requests', ipRateLimiter, mutateRateLimiter, async (req, res) => {
-    const { email, otp_code, reason, reason_other_text, additional_comments, consequences_acknowledged } = req.body || {};
-    const emailNorm = typeof email === 'string' ? email.trim() : '';
-    if (!emailNorm || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailNorm)) {
-        return res.status(400).json({ success: false, message: 'A valid email address is required.' });
-    }
-    if (!POPIA_REASONS.includes(reason)) {
-        return res.status(400).json({ success: false, message: 'Please select a valid reason for your request.' });
-    }
-    if (reason === 'other' && !String(reason_other_text || '').trim()) {
-        return res.status(400).json({ success: false, message: 'Please describe your reason for the request.' });
-    }
-    if (!consequences_acknowledged) {
-        return res.status(400).json({ success: false, message: 'Please confirm you understand the consequences of this request before submitting.' });
-    }
 
-    // Verify but don't consume yet — only mark the code spent once createPopiaRequest() has actually
-    // succeeded, so a transient DB failure doesn't force the client to request an entirely new code
-    // for a problem that wasn't theirs.
-    const verify = await verifyPopiaOtp(emailNorm, typeof otp_code === 'string' ? otp_code.trim() : '', { consume: false });
-    if (!verify.ok) return res.status(400).json({ success: false, message: verify.message });
-
-    const outcome = await createPopiaRequest({
-        email: emailNorm,
-        reason,
-        reasonOtherText: reason === 'other' ? encodeUserHtml(String(reason_other_text).trim().slice(0, 500)) : null,
-        additionalComments: additional_comments ? encodeUserHtml(String(additional_comments).trim().slice(0, 2000)) : null,
-        source: 'public',
-        ip: req.ip,
-        userAgent: req.get('User-Agent') || null,
-        actorEmail: emailNorm
-    });
-    if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
-
-    await dbRun("UPDATE popia_verification_codes SET consumed = 1 WHERE id = ?", [verify.codeId]).catch(() => {});
-    await dbRun(
-        `INSERT INTO audit_log (table_name, record_id, action, user_email, change_timestamp) VALUES ('popia_erasure_requests', ?, 'POPIA_OTP_VERIFIED', ?, CURRENT_TIMESTAMP)`,
-        [outcome.id, emailNorm]
-    ).catch(() => {});
-
-    try {
-        const { socialLinks } = await getEmailFooterContext();
-        const html = emailComponents.renderPremiumEmail({
-            preheaderText: `We've received your data erasure request — Ref #${outcome.reference_number}.`,
-            headline: 'Data Erasure Request Received',
-            greeting: 'Hello,',
-            bodyHtml: `We've received your request to have your personal information anonymised under POPIA. Your reference number is <strong style="color:#D4AF37;">${outcome.reference_number}</strong> — please keep this for your records.<br><br>Our team will review your request and process it in accordance with our data retention obligations. You'll receive a further email once it has been actioned.`,
-            cards: [{
-                title: 'Request Summary',
-                rows: [
-                    { label: 'Reference', value: outcome.reference_number },
-                    { label: 'Email', value: emailNorm },
-                    { label: 'Submitted', value: new Date().toLocaleDateString('en-ZA') }
-                ]
-            }],
-            socialLinks
-        });
-        await sendEmail({
-            to: emailNorm,
-            subject: `Data Erasure Request Received — Ref #${outcome.reference_number}`,
-            htmlContent: html,
-            preWrapped: true,
-            titleOverride: 'Data Erasure Request Received',
-            trigger_event: 'POPIA: Erasure Request Received'
-        });
-    } catch (emailErr) {
-        console.error('[POPIA] confirmation email failed:', emailErr.message);
-    }
-
-    res.json({ success: true, message: 'Your data erasure request has been received. Please check your email for confirmation.', reference_number: outcome.reference_number });
-});
-
-// Legacy public compat route — previously anonymized bookings/inquiries INSTANTLY, unauthenticated,
-// for any email posted to it (no verification the caller owned the address, no review step, no
-// audit trail). Rewritten to create a reviewable request like every other entry point instead, and
-// now gated behind the same OTP verification as /erasure-requests — otherwise this would remain a
-// way to bypass that requirement entirely. Callers must first hit /request-otp for the email, same
-// as the primary flow.
-app.post('/api/public/compliance/request-forget', ipRateLimiter, mutateRateLimiter, async (req, res) => {
-    const emailNorm = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
-    if (!emailNorm || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailNorm)) {
-        return res.status(400).json({ success: false, message: 'A valid email address is required.' });
-    }
-    const otpCode = typeof req.body?.otp_code === 'string' ? req.body.otp_code.trim() : '';
-    const verify = await verifyPopiaOtp(emailNorm, otpCode, { consume: false });
-    if (!verify.ok) return res.status(400).json({ success: false, message: verify.message });
-
-    const outcome = await createPopiaRequest({
-        email: emailNorm, reason: 'other', reasonOtherText: 'Submitted via legacy /request-forget endpoint',
-        source: 'public', ip: req.ip, userAgent: req.get('User-Agent') || null, actorEmail: emailNorm
-    });
-    if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
-
-    await dbRun("UPDATE popia_verification_codes SET consumed = 1 WHERE id = ?", [verify.codeId]).catch(() => {});
-    await dbRun(
-        `INSERT INTO audit_log (table_name, record_id, action, user_email, change_timestamp) VALUES ('popia_erasure_requests', ?, 'POPIA_OTP_VERIFIED', ?, CURRENT_TIMESTAMP)`,
-        [outcome.id, emailNorm]
-    ).catch(() => {});
-
-    res.json({ success: true, message: 'Your data erasure request has been received and will be reviewed by our team.', reference_number: outcome.reference_number });
-});
-
-// 2. Data Portability (Export Request)
-app.post('/api/public/compliance/export-data', ipRateLimiter, (req, res) => {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, message: 'Email required.' });
-
-    const dataExport = {};
-    
-    db.all("SELECT * FROM bookings WHERE LOWER(email) = LOWER(?)", [email], (err, bookings) => {
-        if (err) console.error('[POPIA] export-data bookings query failed:', err.message);
-        dataExport.bookings = bookings || [];
-        getInquiriesForEmail(email, (err, inquiries) => {
-            if (err) console.error('[POPIA] export-data inquiries query failed:', err.message);
-            dataExport.inquiries = inquiries || [];
-            
-            if (dataExport.bookings.length === 0 && dataExport.inquiries.length === 0) {
-                return res.status(404).json({ success: false, message: 'No data found for this email address.' });
-            }
-
-            // In production, we'd email this as a secure ZIP/PDF.
-            // For now, we return the JSON payload.
-            res.json({
-                success: true,
-                message: 'Data export generated successfully.',
-                data: dataExport
-            });
-        });
-    });
-});
 
 
 
@@ -2531,178 +2283,14 @@ app.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
     }); // End DB Query Callback
 });
 
-// ==========================================
-// Public Newsletter Subscribe Route
-// ==========================================
-const NEWSLETTER_PENDING_MESSAGE = 'Almost there! Check your email to confirm your subscription.';
+// Phase 5 (HOUSEKEEPING-NOTES.md): the public newsletter subscribe/confirm/unsubscribe routes,
+// NEWSLETTER_PENDING_MESSAGE, and sendNewsletterConfirmationEmail all moved to
+// routes/public/newsletter.js. sendNewsletterWelcomeEmail (lib/newsletter-emails.js) has no
+// remaining caller here — its only call site (newsletter/confirm) moved too, and imports it
+// directly.
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/newsletter-emails.js.
-const { sendNewsletterWelcomeEmail } = require('./lib/newsletter-emails');
 
-// Fired at signup (and on a cooldown-gated resend) to gate the subscription behind double opt-in.
-// Deliberately does NOT fall through to the banner's own headline/subtitle — a custom headline an
-// admin later sets on the newsletter_welcome template key must never leak onto this pre-confirmation email.
-async function sendNewsletterConfirmationEmail(email, first_name, unsubscribe_token) {
-    const { socialLinks } = await getEmailFooterContext();
-    const confirmUrl = `${emailBaseUrl()}/confirm-subscription.html?token=${unsubscribe_token}&email=${encodeURIComponent(email)}`;
-    const banner = await bannerRegistry.resolveBanner('newsletter_welcome');
-    const greeting = applyMergeFields('Hi {{first_name}},', { first_name }, confirmUrl);
-    const emailBody = emailComponents.renderPremiumEmail({
-        preheaderText: 'One more step — confirm your subscription.',
-        bannerSrc: banner?.src, bannerAlt: banner?.alt,
-        headline: 'Confirm Your Subscription',
-        bodyHtml:
-            `<p style="text-align:center;">${greeting}</p>` +
-            `<p style="text-align:center;">Please confirm your email address to start receiving Thabiso Mhlongo's newsletter — tour dates, new releases, and exclusive content.</p>` +
-            `<p style="text-align:center; color:#B0B0B0;">If you didn't request this, you can safely ignore this email — you won't be subscribed unless you confirm.</p>`,
-        cta: { label: 'Confirm My Subscription', url: confirmUrl },
-        socialLinks
-    });
-    return sendEmail({
-        to: email,
-        subject: "Confirm Your Subscription to Thabiso Mhlongo's Newsletter",
-        htmlContent: emailBody,
-        preWrapped: true,
-        titleOverride: 'Confirm your subscription',
-        trigger_event: 'Newsletter: Confirmation Request'
-    });
-}
 
-app.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
-    let { email, popia_consent, first_name, birthday_day, birthday_month } = req.body;
-    if (!email) {
-        return res.status(400).json({ success: false, message: 'Email is required' });
-    }
-    email = sanitizeEmailInput(email);
-    if (!EMAIL_FORMAT_RE.test(email)) {
-        return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
-    }
-    first_name = (typeof first_name === 'string') ? sanitizeEmailInput(first_name).slice(0, 100) : '';
-    if (!first_name) {
-        return res.status(400).json({ success: false, message: 'First name is required.' });
-    }
-
-    // Validate POPIA consent
-    if (!popia_consent) {
-        return res.status(400).json({ success: false, message: 'POPIA consent is required to subscribe.' });
-    }
-
-    // Birthday is optional — day/month only, never a year (see newsletter_subscribers schema).
-    let birthdayDayVal = null, birthdayMonthVal = null;
-    const hasDay = birthday_day != null && birthday_day !== '';
-    const hasMonth = birthday_month != null && birthday_month !== '';
-    if (hasDay || hasMonth) {
-        if (!hasDay || !hasMonth || !isValidBirthday(birthday_day, birthday_month)) {
-            return res.status(400).json({ success: false, message: 'Please provide a valid birthday day and month.' });
-        }
-        birthdayDayVal = parseInt(birthday_day, 10);
-        birthdayMonthVal = parseInt(birthday_month, 10);
-    }
-
-    const ip_address = req.ip || req.connection.remoteAddress || 'unknown';
-    const user_agent = req.get('User-Agent') || 'unknown';
-    const source = 'index.html';
-    console.log(`[Newsletter] Attempting subscription for: ${email} from ${ip_address}`);
-
-    const unsubscribe_token = crypto.randomBytes(16).toString('hex');
-
-    // Double opt-in: new signups start pending, not active — they only count toward campaigns
-    // (status='active' everywhere) and get the real welcome email once they confirm.
-    insertPendingSubscriber(email, unsubscribe_token, ip_address, user_agent, source, CURRENT_POLICY_VERSION, first_name, birthdayDayVal, birthdayMonthVal, function(err) {
-        if (err) {
-            if (!err.message.includes('UNIQUE')) {
-                console.error("Newsletter Subscription DB Error:", err.message);
-                return res.status(500).json({ success: false, message: 'Server error: ' + err.message });
-            }
-            // Duplicate email — branch on the existing row's status rather than a flat reject.
-            // All non-'active' branches return the SAME response body: differentiating "brand new"
-            // vs. "resend" vs. "reactivating" in the response would let an attacker learn an
-            // email's subscription history without ever proving they control that inbox.
-            getSubscriberDuplicateCheck(email, (selErr, row) => {
-                if (selErr || !row) return res.status(500).json({ success: false, message: 'Server error.' });
-
-                if (row.status === 'active') {
-                    return res.status(409).json({ success: false, message: 'You are already subscribed!' });
-                }
-
-                if (row.status === 'pending_confirmation') {
-                    // Cooldown-gated resend (5 min, keyed off modified_on — no new column) so
-                    // repeatedly resubmitting the same email can't be used to bomb an inbox.
-                    touchSubscriberCooldown(row.subscriber_id, function(cooldownErr) {
-                        if (!cooldownErr && this.changes > 0) {
-                            sendNewsletterConfirmationEmail(email, first_name, row.unsubscribe_token).catch(e => console.error('Error resending confirmation email to ' + email + ':', e));
-                        }
-                        res.json({ success: true, message: NEWSLETTER_PENDING_MESSAGE });
-                    });
-                    return;
-                }
-
-                // status === 'unsubscribed' (the bug fix): a genuine resubscribe. Reuse the
-                // existing unsubscribe_token (any unsubscribe link from a past campaign keeps working)
-                // and re-capture consent/profile fields fresh from this submission.
-                reactivateSubscriber(CURRENT_POLICY_VERSION, first_name, birthdayDayVal, birthdayMonthVal, ip_address, user_agent, source, row.subscriber_id, (reErr) => {
-                    if (reErr) return res.status(500).json({ success: false, message: 'Server error.' });
-                    sendNewsletterConfirmationEmail(email, first_name, row.unsubscribe_token).catch(e => console.error('Error sending confirmation email to ' + email + ':', e));
-                    res.json({ success: true, message: NEWSLETTER_PENDING_MESSAGE });
-                });
-            });
-            return;
-        }
-        console.log(`[Newsletter] DB Insert SUCCESS (pending confirmation) for: ${email}`);
-
-        sendNewsletterConfirmationEmail(email, first_name, unsubscribe_token)
-            .catch(e => console.error("Error sending confirmation email to " + email + ":", e));
-
-        res.json({ success: true, message: NEWSLETTER_PENDING_MESSAGE });
-    });
-});
-
-// Confirm a pending subscription (double opt-in).
-app.post('/api/public/newsletter/confirm', ipRateLimiter, (req, res) => {
-    const { email, token } = req.body;
-    if (!email || !token) {
-        return res.status(400).json({ success: false, message: 'Missing required parameters.' });
-    }
-
-    getSubscriberForConfirm(email, token, (err, row) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        if (!row) return res.status(404).json({ success: false, message: 'Invalid confirmation link or subscriber not found.' });
-
-        if (row.status === 'active') {
-            return res.json({ success: true, message: 'Your subscription is already confirmed!', alreadyConfirmed: true });
-        }
-        if (row.status !== 'pending_confirmation') {
-            // e.g. 'unsubscribed' — a stale confirm link from before they unsubscribed must NOT
-            // silently reactivate them; that would bypass the POPIA consent re-capture that a
-            // genuine resubscribe through the public form always performs.
-            return res.status(409).json({ success: false, message: 'This subscription is no longer active. Please sign up again to resubscribe.' });
-        }
-
-        confirmSubscriber(row.subscriber_id, (uErr) => {
-            if (uErr) return res.status(500).json({ success: false, error: uErr.message });
-            sendNewsletterWelcomeEmail(email, row.first_name, row.unsubscribe_token).catch(e => console.error('Error sending welcome email to ' + email + ':', e));
-            res.json({ success: true, message: 'Subscription confirmed! Welcome aboard.' });
-        });
-    });
-});
-
-// Unsubscribe API
-app.post('/api/public/newsletter/unsubscribe', ipRateLimiter, (req, res) => {
-    const { email, token } = req.body;
-    if (!email || !token) {
-        return res.status(400).json({ success: false, message: 'Missing required parameters.' });
-    }
-
-    getSubscriberForUnsubscribe(email, token, (err, row) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        if (!row) return res.status(404).json({ success: false, message: 'Invalid unsubscription link or subscriber not found.' });
-
-        unsubscribeSubscriber(row.subscriber_id, (uErr) => {
-            if (uErr) return res.status(500).json({ success: false, error: uErr.message });
-            res.json({ success: true, message: 'Successfully unsubscribed.' });
-        });
-    });
-});
 
 
 
