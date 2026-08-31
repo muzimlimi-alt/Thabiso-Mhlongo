@@ -18,38 +18,44 @@ const emailComponents = require('./js/emailComponents');
 const bannerRegistry = require('./js/bannerRegistry');
 const crypto = require('crypto');
 const db = require('./database');
-// Phase 4 (HOUSEKEEPING-NOTES.md): settings-domain data access moved to a repository. Destructured
-// here so every existing call site throughout this file keeps working unchanged.
-const { getAllSettings, getNotificationEmail } = require('./database/repositories/settings.repository');
+// Phase 4 (HOUSEKEEPING-NOTES.md): settings-domain data access moved to a repository. getAllSettings
+// is still used by the startup settings-load block below; getNotificationEmail's last remaining
+// callers in this file (the Background Clerk sweep and 2 of the standalone job functions) have all
+// since moved to their own lib/*.js files (Phase 5), each importing it directly — no remaining
+// caller here.
+const { getAllSettings } = require('./database/repositories/settings.repository');
 // Phase 4: newsletter-domain data access moved to a repository — same destructure-in pattern.
-const {
-    getPendingScheduledNewsletters,
-    deleteOldUnsubscribedSubscribers,
-} = require('./database/repositories/newsletter.repository');
+// getPendingScheduledNewsletters's only caller (loadPendingScheduledJobs) moved to
+// lib/newsletter-scheduling.js, which imports it directly; deleteOldUnsubscribedSubscribers's only
+// caller (startDataRetentionCaretaker) moved to lib/data-retention-caretaker.js, same pattern —
+// no remaining caller here.
 // Phase 4: inquiries-domain data access moved to a repository — same destructure-in pattern.
-const { anonymizeOldInquiries } = require('./database/repositories/inquiries.repository');
+// anonymizeOldInquiries's only caller (startDataRetentionCaretaker) moved to
+// lib/data-retention-caretaker.js, which imports it directly — no remaining caller here.
+
 // Phase 4: bookings-domain data access moved to a repository (staged extraction — see
-// HOUSEKEEPING-NOTES.md for the sub-pass plan; this import grows as later stages land).
-const {
-    getBookingById,
-    getStaleNewBookings, promoteBookingToPending, getConfirmedPaidPastEvents, markBookingAutoCompleted,
-    getStalePendingBookings, expirePendingBooking, getOverdueQuotedBookings, expireQuotedBooking,
-    clearBookingGoogleEventId, getQuotesExpiringTomorrow, markQuoteExpiryWarned,
-    getPendingEnquiriesNearingExpiry, markPendingExpiryWarned, markBookingOverdueReminded,
-} = require('./database/repositories/bookings.repository');
+// HOUSEKEEPING-NOTES.md for the sub-pass plan). Every name that used to be destructured here
+// (getBookingById and the 14 S0/S6/S7/expiry/reminder helpers) had its only remaining caller in
+// the Background Clerk's hourly sweep or the standalone job functions — all moved to their own
+// lib/*.js files (Phase 5), each importing directly whichever of these it still needs. No
+// remaining caller here.
+
 // Phase 4: invoices+quotations-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
-const {
-    markInvoicePaidForAutoComplete,
-    flagOverdueInvoices,
-} = require('./database/repositories/invoices-quotations.repository');
+// markInvoicePaidForAutoComplete and flagOverdueInvoices both had their only remaining caller move
+// to lib/background-clerk.js / lib/overdue-flagging-sweep.js respectively — no remaining caller here.
+
 // Phase 4: finance-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
-const { flagOverduePaymentSchedules } = require('./database/repositories/finance.repository');
-// Phase 4: calendar-domain (date_holds, events) data access moved to a repository (HOUSEKEEPING-NOTES.md).
-const {
-    advanceAutoCompletedEventS6, getPastStandaloneEventsForAutoComplete, advanceStandaloneEventCompleted,
-} = require('./database/repositories/calendar.repository');
+// flagOverduePaymentSchedules's only remaining caller moved to lib/overdue-flagging-sweep.js,
+// which imports it directly — no remaining caller here.
+
+// Phase 4: calendar-domain (date_holds, events) data access moved to a repository
+// (HOUSEKEEPING-NOTES.md). advanceAutoCompletedEventS6/getPastStandaloneEventsForAutoComplete/
+// advanceStandaloneEventCompleted's only remaining caller (the Background Clerk sweep) moved to
+// lib/background-clerk.js, which imports all three directly — no remaining caller here.
+
 // Phase 4: auth+users-domain (admins, admin_login_logs, password_reset_tokens) data access moved
-// to a repository (HOUSEKEEPING-NOTES.md).
+// to a repository (HOUSEKEEPING-NOTES.md). countAllAdmins/insertBootstrapAdmin are still used by
+// the bootstrap-admin startup check below.
 const { countAllAdmins, insertBootstrapAdmin } = require('./database/repositories/auth-users.repository');
 require('dotenv').config();
 
@@ -141,9 +147,11 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/newsletter-scheduling.js. scheduledJobs and
 // buildSegmentCondition have no remaining caller here (buildSegmentCondition is called from inside
-// scheduleNewsletterSend, itself in that same module) — only scheduleNewsletterSend is still
-// called directly from this file.
-const { scheduleNewsletterSend } = require('./lib/newsletter-scheduling');
+// scheduleNewsletterSend, itself in that same module). scheduleNewsletterSend's own last remaining
+// caller (loadPendingScheduledJobs) has since moved into the same module — loadPendingScheduledJobs
+// is re-imported here only to re-export it below for server.js; nothing in app.js calls
+// scheduleNewsletterSend directly any more.
+const { loadPendingScheduledJobs } = require('./lib/newsletter-scheduling');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -451,24 +459,14 @@ app.use(require('./routes/public/misc'));
 // isWithinWorkingHours/hasCalendarConflict/syncBookingToCalendar/syncCalendarHolds/
 // syncEventToCalendar/checkDateAvailability — all moved to lib/calendar-sync.js. (The two orphaned
 // JSDoc comments that used to precede isWithinWorkingHours/hasCalendarConflict here were removed
-// along with them — their subject functions no longer live in this file.) Of the six,
-// syncCalendarHolds is the only one still called directly from app.js (the nightly hold-sync cron);
-// isWithinWorkingHours/hasCalendarConflict/checkDateAvailability/syncBookingToCalendar/
-// syncEventToCalendar all had their last real call site move to a route file, each importing
-// directly whichever of these it still needs.
-const { syncCalendarHolds } = require('./lib/calendar-sync');
-
-
-
-/**
- * Creates or updates a Google Calendar event for a booking
- * @param {number|object} bookingOrId - Booking ID or booking object
- * @returns {Promise<string|null>} - The Google Event ID
- */
+// along with them — their subject functions no longer live in this file.) syncCalendarHolds's own
+// last remaining caller (the nightly hold-sync interval) has since moved to
+// lib/background-clerk.js, which imports it directly — none of the six has a remaining caller in
+// app.js any more.
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): deleteGoogleEvent moved to lib/google-calendar.js, alongside
-// the calendar client it wraps.
-const { deleteGoogleEvent } = require('./lib/google-calendar');
+// the calendar client it wraps. Its last remaining caller (the Background Clerk sweep) has since
+// moved to lib/background-clerk.js, which imports it directly — no remaining caller here.
 
 
 // Single-flight guard: a batch (attachments / slow SMTP) can take longer than the 20s
@@ -477,96 +475,12 @@ const { deleteGoogleEvent } = require('./lib/google-calendar');
 // only permits ('pending','sent','failed','read','dismissed'), so the previous
 // `SET status='sending'` flip always failed the CHECK (its error was ignored), leaving the
 // double-send guard non-functional and sent_at never written.
-let _notificationSweepRunning = false;
-async function processNotificationQueue() {
-    if (_notificationSweepRunning) return; // a prior sweep is still draining the queue
-    _notificationSweepRunning = true;
-    try {
-        // Process up to 10 pending notifications
-        const rows = await new Promise((resolve) => {
-            db.all(
-                `SELECT * FROM notifications
-                 WHERE status = 'pending' AND channel = 'email'
-                 AND (scheduled_at IS NULL OR scheduled_at <= datetime('now'))
-                 LIMIT 10`,
-                [],
-                (err, r) => {
-                    if (err) { console.error('[Notification Queue] Error fetching pending emails:', err.message); return resolve([]); }
-                    resolve(r || []);
-                }
-            );
-        });
-        if (rows.length === 0) return;
-
-        const { sendEmailDirectly } = require('./js/emailService');
-
-        for (const row of rows) {
-            let emailDetails = {};
-            try {
-                emailDetails = JSON.parse(row.body || '{}');
-            } catch (e) {
-                console.error(`[Notification Queue] Failed to parse body for notification #${row.id}:`, e.message);
-                db.run("UPDATE notifications SET status = 'failed', error_message = ? WHERE id = ?", ['JSON_PARSE_ERROR: ' + e.message, row.id]);
-                continue;
-            }
-
-            // Map attachment paths to standard nodemailer attachments array
-            const attachments = [];
-            if (row.attachment_paths) {
-                try {
-                    const paths = JSON.parse(row.attachment_paths);
-                    paths.forEach(p => {
-                        if (typeof p === 'string') {
-                            const pathModule = require('path');
-                            const resolvedPath = pathModule.isAbsolute(p) ? p : pathModule.join(__dirname, p);
-                            const filename = pathModule.basename(p);
-                            attachments.push({ filename, path: resolvedPath });
-                        }
-                    });
-                } catch(e) {
-                    console.error(`[Notification Queue] Failed to parse attachments for #${row.id}:`, e.message);
-                }
-            }
-
-            try {
-                const result = await sendEmailDirectly({
-                    to: row.recipient_email,
-                    subject: row.subject,
-                    htmlContent: emailDetails.htmlContent,
-                    plainTextAlternative: emailDetails.plainTextAlternative,
-                    attachments: attachments,
-                    fromName: row.recipient_name || emailDetails.fromName || "Thabiso Mhlongo Management",
-                    replyTo: emailDetails.replyTo,
-                    skipBrandAttachments: emailDetails.skipBrandAttachments,
-                    titleOverride: emailDetails.titleOverride,
-                    trigger_event: emailDetails.trigger_event || 'Notification Queue Dispatch',
-                    preWrapped: emailDetails.preWrapped,
-                    cc: emailDetails.cc,
-                    bcc: emailDetails.bcc,
-                    branding: emailDetails.branding
-                });
-
-                if (result.success) {
-                    db.run("UPDATE notifications SET status = 'sent', sent_at = CURRENT_TIMESTAMP WHERE id = ?", [row.id]);
-                    console.log(`✓ [Notification Queue] Successfully sent email #${row.id} to ${row.recipient_email}`);
-                } else {
-                    throw new Error(result.error || 'SMTP_SEND_FAILED');
-                }
-            } catch (sendErr) {
-                console.error(`❌ [Notification Queue] Failed to send email #${row.id} to ${row.recipient_email}:`, sendErr.message);
-                const newRetryCount = (row.retry_count || 0) + 1;
-                const nextStatus = newRetryCount >= 3 ? 'failed' : 'pending';
-                db.run(
-                    "UPDATE notifications SET status = ?, retry_count = ?, error_message = ? WHERE id = ?",
-                    [nextStatus, newRetryCount, sendErr.message.substring(0, 255), row.id]
-                );
-            }
-        }
-    } finally {
-        _notificationSweepRunning = false;
-    }
-}
-
+// Phase 5 (HOUSEKEEPING-NOTES.md): processNotificationQueue, checkStuckNotifications, and
+// startBackgroundClerk (which wires both, plus the Google Calendar hold sync and the giant hourly
+// booking-lifecycle sweep, onto their intervals) all moved to lib/background-clerk.js — they share
+// the _notificationSweepRunning single-flight guard and startBackgroundClerk calls the other two
+// directly, so all three moved together. See further below for the startBackgroundClerk() call,
+// at the same module-load-time position it always sat at.
 
 // P2-3: Returns the active VAT rate from tax_rates table (falls back to 0.15 / 15%).
 // Phase 5 (HOUSEKEEPING-NOTES.md): getVatRate/resolveLineTaxClasses/computeDocumentTotals moved to
@@ -590,345 +504,31 @@ async function processNotificationQueue() {
 // BACKGROUND TASKS
 // ==========================================
 
-async function checkStuckNotifications() {
-    db.get(
-        `SELECT COUNT(*) AS count FROM notifications 
-         WHERE status IN ('pending', 'sending') 
-         AND datetime(created_at, '+10 minutes') < datetime('now')`,
-        [],
-        async (err, row) => {
-            if (err) {
-                console.error('[Background Clerk] Error checking stuck notifications:', err.message);
-                return;
-            }
-            if (row && row.count > 0) {
-                const count = row.count;
-                db.all(
-                    `SELECT id, recipient_email, subject, status, created_at FROM notifications 
-                     WHERE status IN ('pending', 'sending') 
-                     AND datetime(created_at, '+10 minutes') < datetime('now') 
-                     ORDER BY created_at DESC LIMIT 5`,
-                    [],
-                    async (err2, details) => {
-                        const notifEmail = await getNotificationEmail();
-                        const { sendEmailDirectly } = require('./js/emailService');
-                        const body = emailComponents.renderSystemEmail({
-                            preheaderText: `${count} notification(s) stuck in the queue for over 10 minutes.`,
-                            category: 'System',
-                            severity: 'alert',
-                            leadFact: `There are <strong style="color:#FAFAFA;">${count}</strong> notification(s) stuck in the queue for more than 10 minutes.`,
-                            bodyHtml: `<p style="margin:0; color:#E6E6E6;">This may indicate that the background queue processor is down, experiencing high latency, or has crashed.</p>`,
-                            cards: (details || []).length ? [{
-                                title: 'Stuck Notifications',
-                                rows: (details || []).map(d => ({ label: `#${d.id} — ${d.status}`, value: `To ${d.recipient_email} · ${d.created_at}`, mono: false }))
-                            }] : []
-                        });
-
-                        await sendEmailDirectly({
-                            to: notifEmail,
-                            subject: `⚠️ Alert: ${count} Stuck Notification(s) in Queue`,
-                            htmlContent: body,
-                            preWrapped: true,
-                            titleOverride: 'Stuck Notification Alert',
-                            trigger_event: 'System: Stuck Notification Alert',
-                            skipBrandAttachments: true
-                        }).catch(sendErr => console.error('[Background Clerk] Failed to send stuck notifications alert:', sendErr.message));
-                    }
-                );
-            }
-        }
-    );
-}
-
-/**
- * Periodically cleans up expired holds and pending bookings
- */
-function startBackgroundClerk() {
-    console.log('Starting [Background Clerk] - Monitoring holds and expirations...');
-    
-    // Sync Google Calendar holds every 15 minutes
-    setInterval(syncCalendarHolds, 15 * 60 * 1000);
-    // Also run it immediately on start
-    syncCalendarHolds();
-
-    // Sweep and process asynchronous email queue every 20 seconds
-    setInterval(processNotificationQueue, 20 * 1000);
-    processNotificationQueue();
-
-    // Check for stuck email notifications every 10 minutes
-    setInterval(checkStuckNotifications, 10 * 60 * 1000);
-    // Run once on startup after 30 seconds
-    setTimeout(checkStuckNotifications, 30 * 1000);
-
-    setInterval(() => {
-      try {
-        const nowLocal = moment().tz('Africa/Johannesburg').format('YYYY-MM-DD HH:mm:ss');
-        const todayLocal = moment().tz('Africa/Johannesburg').format('YYYY-MM-DD');
-        const tomorrowLocal = moment().tz('Africa/Johannesburg').add(1, 'day').format('YYYY-MM-DD');
-        const overdueLimitLocal = moment().tz('Africa/Johannesburg').subtract(7, 'days').format('YYYY-MM-DD HH:mm:ss');
-
-        // S0: Promote stale NEW bookings to PENDING after 24 hours with no admin action
-        getStaleNewBookings(nowLocal, (err, rows) => {
-            if (rows && rows.length > 0) {
-                rows.forEach(row => {
-                    promoteBookingToPending(row.id);
-                    sendBookingUnderReviewEmail(row).catch(e => console.error(`[S0] Under-review email failed for #${row.id}:`, e.message));
-                });
-                console.log(`✓ [S0] Promoted ${rows.length} NEW booking(s) to PENDING after 24h.`);
-            }
-        });
-
-        // S6: Auto-complete CONFIRMED fully-paid bookings whose event date has passed
-        getConfirmedPaidPastEvents(todayLocal, (err, rows) => {
-            if (rows && rows.length > 0) {
-                rows.forEach(row => {
-                    markBookingAutoCompleted(row.id);
-                    if (row.event_id) {
-                        advanceAutoCompletedEventS6(row.event_id, (e) => { if (e) console.error('[AutoComplete] Event advance failed:', e.message); });
-                    }
-                    // Parity with manual completion (applyStatusChange): also mark the linked invoice PAID
-                    // and send the admin completion summary — not just the client completion email.
-                    markInvoicePaidForAutoComplete(row.id,
-                        (e) => { if (e) console.error('[S6] Invoice mark-paid failed:', e.message); });
-                    sendBookingCompletedEmail(row).catch(e =>
-                        console.error(`[S6] Completion email failed for #${row.id}:`, e.message)
-                    );
-                    getBookingById(row.id, (e, full) => {
-                        if (!e && full) sendAdminCompletionSummaryEmail(full).catch(err => console.error(`[S6] Admin completion summary failed for #${row.id}:`, err.message));
-                    });
-                });
-                console.log(`✓ [S6] Auto-completed ${rows.length} fully-paid past-event booking(s) (completion + admin summary emails sent).`);
-            }
-        });
-
-        // S7: Auto-complete standalone public events (no linked booking) whose date has passed.
-        // Booking-linked events already advance via S6 above - a standalone event (created directly
-        // in the Events module) had no equivalent, so it could sit at "Upcoming" indefinitely after
-        // the show had already happened, until an admin noticed and fixed it manually.
-        getPastStandaloneEventsForAutoComplete(nowLocal, (err, rows) => {
-            if (rows && rows.length > 0) {
-                rows.forEach(row => {
-                    advanceStandaloneEventCompleted(row.event_id);
-                });
-                console.log(`✓ [S7] Auto-completed ${rows.length} past standalone event(s).`);
-            }
-        });
-
-        // 1. Expire unquoted PENDING bookings after 48 hours of inactivity
-        getStalePendingBookings(nowLocal, (err, rows) => {
-            if (rows && rows.length > 0) {
-                rows.forEach(row => {
-                    expirePendingBooking(row.id);
-                    sendPendingExpiredEmail(row).catch(e => console.error(`Expiry email failed for booking #${row.id}:`, e.message));
-                });
-                console.log(`✓ Expired ${rows.length} inactive pending requests (clients notified).`);
-            }
-        });
-
-        // 2. Expire QUOTED bookings after quote_expiry_date
-        getOverdueQuotedBookings(todayLocal, (err, rows) => {
-            if (rows && rows.length > 0) {
-                rows.forEach(row => {
-                    expireQuotedBooking(row.id);
-                    // Null the local ID once we've asked Google to delete it — otherwise every future
-                    // syncBookingToCalendar() for this booking takes the "already synced" update branch
-                    // against an event that no longer exists on Google, fails, and never re-creates it.
-                    if (row.google_event_id) {
-                        deleteGoogleEvent(row.google_event_id);
-                        clearBookingGoogleEventId(row.id);
-                    }
-                    sendQuoteExpiredEmail(row).catch(e => console.error(`Quote expiry email failed for booking #${row.id}:`, e.message));
-                });
-                console.log(`✓ Expired ${rows.length} overdue quotes (clients notified).`);
-            }
-        });
-
-        // 3. Warn clients 24h before quote expires
-        getQuotesExpiringTomorrow(tomorrowLocal, (err, rows) => {
-            if (rows && rows.length > 0) {
-                rows.forEach(row => {
-                    markQuoteExpiryWarned(row.id);
-                    sendQuoteExpiryWarningEmail(row).catch(e => console.error('Quote warning email failed:', e.message));
-                });
-            }
-        });
-
-        // 3b. Warn the ADMIN about PENDING enquiries about to auto-expire — the final window
-        // before step 1 auto-EXPIRES them at 48h from creation. Prevents leads being silently
-        // lost. One digest per enquiry (pending_expiry_warned flag stops hourly re-spam).
-        getPendingEnquiriesNearingExpiry(nowLocal, async (err, rows) => {
-            if (rows && rows.length > 0) {
-                const notifEmail = await getNotificationEmail();
-                rows.forEach(row => {
-                    markPendingExpiryWarned(row.id);
-                });
-                const digestBody = emailComponents.renderSystemEmail({
-                    preheaderText: `${rows.length} enquiry(ies) expiring within ~24 hours.`,
-                    category: 'Booking Requests',
-                    severity: 'action',
-                    leadFact: `The following enquiries will <strong style="color:#FAFAFA;">auto-expire within the next ~24 hours</strong> unless a quote is sent — after which the client is notified their request lapsed.`,
-                    bodyHtml: `<p style="margin:0; color:#E6E6E6;">Open the Bookings pipeline and send a quote to keep them alive.</p>`,
-                    cards: [{
-                        title: 'Expiring Enquiries',
-                        rows: rows.map(r => ({ label: `#${r.id} — ${r.name}`, value: `${r.event_name || r.event_type || 'Event'}${r.date ? ' (event ' + r.date + ')' : ''}`, mono: false }))
-                    }]
-                });
-                sendEmail({ to: notifEmail, subject: `Enquiries expiring soon – ${rows.length} pending request(s) need a quote`,
-                    htmlContent: digestBody, preWrapped: true,
-                    titleOverride: 'Enquiries Expiring Soon', trigger_event: 'Admin: Pending Expiry Warning' }).catch(() => {});
-                console.log(`✓ [3b] Warned admin about ${rows.length} pending enquiry(ies) nearing auto-expiry.`);
-            }
-        });
-
-        // 4. Overdue payment reminder (CONFIRMED, unpaid, event date passed)
-        db.all(`SELECT b.*, COALESCE(c.email, b.email) as email, COALESCE(c.full_name, b.name) as name
-                FROM bookings b LEFT JOIN clients c ON b.client_id = c.id
-                WHERE b.status = 'CONFIRMED'
-                AND b.payment_status NOT IN ('PAID')
-                AND b.date < ?
-                AND (b.overdue_reminded_at IS NULL OR b.overdue_reminded_at < ?)`, [todayLocal, overdueLimitLocal], async (err, rows) => {
-            if (rows && rows.length > 0) {
-                const notifEmail = await getNotificationEmail();
-                rows.forEach(row => {
-                    markBookingOverdueReminded(row.id);
-                });
-                const totalOverdue = rows.reduce((sum, r) => sum + parseFloat(r.amount_outstanding || 0), 0);
-                const digestBody = emailComponents.renderSystemEmail({
-                    preheaderText: `${rows.length} overdue booking(s), R${totalOverdue.toFixed(2)} outstanding.`,
-                    category: 'Payments & Invoices',
-                    severity: 'alert',
-                    leadFact: `The following confirmed bookings have unpaid balances with past event dates.`,
-                    cards: [{
-                        title: 'Overdue Bookings',
-                        rows: rows.map(r => ({ label: `#${r.id} — ${r.name}`, value: `R${parseFloat(r.amount_outstanding || 0).toFixed(2)} outstanding`, mono: false }))
-                    }]
-                });
-                sendEmail({ to: notifEmail, subject: `Overdue Payments – ${rows.length} booking(s), R${totalOverdue.toFixed(2)} due`,
-                    htmlContent: digestBody, preWrapped: true,
-                    titleOverride: 'Overdue Payment Alert', trigger_event: 'Admin: Overdue Payment Digest' }).catch(() => {});
-            }
-        });
-
-        // 5. Pre-event balance reminders: 7, 3, 1 days before event for CONFIRMED bookings with outstanding balance
-        for (const daysBefore of [7, 3, 1]) {
-            const targetStr = moment().tz('Africa/Johannesburg').add(daysBefore, 'days').format('YYYY-MM-DD');
-
-            db.all(`SELECT b.id, COALESCE(c.full_name, b.name) as name, COALESCE(c.email, b.email) as email,
-                           b.event_name, b.event_type, b.date, b.amount_outstanding, b.total_amount
-                    FROM bookings b LEFT JOIN clients c ON b.client_id = c.id
-                    WHERE b.status = 'CONFIRMED'
-                      AND b.date = ?
-                      AND b.amount_outstanding > 0.01`,
-                [targetStr], (err, rows) => {
-                    if (err || !rows || rows.length === 0) return;
-                    rows.forEach(row => {
-                        // Idempotency keyed on the table's real columns. This used to SELECT and INSERT a
-                        // `reminder_type` column that does not exist on reminders_log — the SELECT errored,
-                        // its callback saw no prior row, so the reminder was RE-SENT every hour, and the
-                        // INSERT errored too so nothing was ever recorded. These are event-based (not tied
-                        // to a payment_schedules milestone), so schedule_id is NULL and days_before (7/3/1)
-                        // distinguishes them; the milestone reminders (which always carry a non-NULL
-                        // schedule_id) can never collide with this key.
-                        db.get("SELECT id FROM reminders_log WHERE booking_id = ? AND schedule_id IS NULL AND days_before = ?",
-                            [row.id, daysBefore], (e, existing) => {
-                                if (e) { console.error(`Balance-due reminder lookup failed for #${row.id}:`, e.message); return; }
-                                if (existing) return; // already sent this window — do not re-send
-                                sendDepositBalanceDueEmail(row, row.amount_outstanding)
-                                    .then(() => {
-                                        db.run("INSERT OR IGNORE INTO reminders_log (booking_id, schedule_id, days_before, due_date, amount_due, recipient_email, status) VALUES (?, NULL, ?, ?, ?, ?, 'sent')",
-                                            [row.id, daysBefore, row.date, row.amount_outstanding, row.email],
-                                            (insErr) => { if (insErr) console.error(`Balance-due reminder log failed for #${row.id}:`, insErr.message); });
-                                        console.log(`✓ Balance-due reminder (${daysBefore}d) sent for booking #${row.id}`);
-                                    })
-                                    .catch(e => console.error(`Balance-due reminder failed for #${row.id}:`, e.message));
-                            });
-                    });
-                }
-            );
-        }
-
-        // Google Calendar holds synchronization is run outside this interval to prevent duplicate timers
-
-      } catch (clerkErr) {
-          console.error('[Background Clerk] Unhandled error in interval:', clerkErr.message);
-      }
-    }, 3600000); // Run every hour
-}
-
+// Phase 5 (HOUSEKEEPING-NOTES.md): checkStuckNotifications and startBackgroundClerk moved to
+// lib/background-clerk.js alongside processNotificationQueue (see the comment above). Called once
+// here, at the same module-load-time position.
+const { startBackgroundClerk } = require('./lib/background-clerk');
 startBackgroundClerk();
 
-/**
- * Data Retention Caretaker (POPIA Compliance)
- * Ensures data is not kept longer than necessary.
- */
-function startDataRetentionCaretaker() {
-    console.log('Starting [Compliance Caretaker] - Managing record retention...');
-    setInterval(() => {
-        // 1. Delete inactive newsletter subscribers (unsubscribed for > 1 year)
-        deleteOldUnsubscribedSubscribers(function(err) {
-            if (this.changes > 0) console.log(`✓ POPIA: Removed ${this.changes} long-unsubscribed newsletter records.`);
-        });
-
-        // 2. Anonymize old inquiries (2 years)
-        // We keep the record for stats but wipe PII
-        anonymizeOldInquiries(function(err) {
-            if (err) { console.error('✗ POPIA: Failed to anonymize stale inquiries:', err.message); return; }
-            if (this.changes > 0) console.log(`✓ POPIA: Anonymized ${this.changes} stale inquiries.`);
-        });
-
-        // 3. Delete system logs (audit_log) older than 1 year
-        db.run("DELETE FROM audit_log WHERE change_timestamp < date('now', '-1 year')", function(err) {
-            if (this.changes > 0) console.log(`✓ Cleanup: Removed ${this.changes} old audit logs.`);
-        });
-
-    }, 86400000); // Run once every 24 hours
-}
-
+// Phase 5 (HOUSEKEEPING-NOTES.md): startDataRetentionCaretaker moved to
+// lib/data-retention-caretaker.js. Called once here, at the same module-load-time position.
+const { startDataRetentionCaretaker } = require('./lib/data-retention-caretaker');
 startDataRetentionCaretaker();
 
-// Quote expiry lives in step 2 of the hourly Background Clerk cron (~line 1406), which flips
-// QUOTED → EXPIRED *and* emails the client *and* releases the Google Calendar event.
+// Quote expiry lives in step 2 of the hourly Background Clerk cron (lib/background-clerk.js), which
+// flips QUOTED → EXPIRED *and* emails the client *and* releases the Google Calendar event.
 //
 // A second sweep used to live here. It ran at module load — i.e. on every single server start — and
 // flipped QUOTED → EXPIRED with no email and no calendar cleanup. Because the hourly cron only
 // matches `status = 'QUOTED'`, anything this sweep had already expired became invisible to it, so the
 // client was never told their quote had lapsed. Removed; the hourly cron is the sole owner.
 
-// Phase 4: Daily Overdue Auto-Flagging Cron Job (runs at 00:05 AM)
-// Flag invoices and payment milestones as OVERDUE/overdue when past their due dates
-function runDailyOverdueFlaggingSweep() {
-    console.log('[cron] Starting daily overdue flagging sweep...');
-    // Africa/Johannesburg, not UTC — SQLite's DATE('now') is UTC and SA is UTC+2, so an invoice due
-    // "today" was flagged overdue up to two hours before the local business day ended.
-    const todayLocal = moment().tz('Africa/Johannesburg').format('YYYY-MM-DD');
-    db.serialize(() => {
-        // 1. Flag invoices as OVERDUE
-        flagOverdueInvoices(
-            todayLocal,
-            function(err) {
-                if (err) {
-                    console.error('[cron] Invoice overdue flagging error:', err.message);
-                } else if (this.changes > 0) {
-                    console.log(`[cron] Flagged ${this.changes} invoice(s) as OVERDUE.`);
-                }
-            }
-        );
-
-        // 2. Flag payment schedules as overdue
-        flagOverduePaymentSchedules(
-            todayLocal,
-            function(err) {
-                if (err) {
-                    console.error('[cron] Payment schedule overdue flagging error:', err.message);
-                } else if (this.changes > 0) {
-                    console.log(`[cron] Flagged ${this.changes} payment schedule milestone(s) as overdue.`);
-                }
-            }
-        );
-    });
-}
-runDailyOverdueFlaggingSweep();
-schedule.scheduleJob('5 0 * * *', runDailyOverdueFlaggingSweep);
+// Phase 5 (HOUSEKEEPING-NOTES.md): runDailyOverdueFlaggingSweep (Phase 4) moved to
+// lib/overdue-flagging-sweep.js, alongside its own immediate-run + schedule.scheduleJob wiring,
+// wrapped into registerOverdueFlaggingSweep() to match every other scheduled job's convention.
+// Called once here, at the same module-load-time position the inline pair used to sit at.
+const { registerOverdueFlaggingSweep } = require('./lib/overdue-flagging-sweep');
+registerOverdueFlaggingSweep();
 
 // Admin: Generic Stats & System Monitor
 // ==========================================
@@ -958,48 +558,12 @@ schedule.scheduleJob('5 0 * * *', runDailyOverdueFlaggingSweep);
 
 
 
-// Aggregate yesterday's analytics into analytics_daily (runs at 00:06 each day,
-// staggered after the 00:05 overdue-flagging sweep)
-schedule.scheduleJob('6 0 * * *', function () {
-    const yesterday = new Date(Date.now() - 864e5).toISOString().split('T')[0];
-    db.get(`
-        SELECT
-            COUNT(*)                     AS pageviews,
-            COUNT(DISTINCT visitor_id)   AS unique_visitors,
-            COUNT(DISTINCT session_id)   AS sessions
-        FROM analytics_pageviews
-        WHERE date(viewed_at) = ?`, [yesterday],
-        (err, row) => {
-            if (err || !row) return;
-            db.get(`
-                SELECT
-                    SUM(is_bounce)          AS bounced,
-                    SUM(total_dwell_seconds) AS dwell_sum
-                FROM analytics_sessions
-                WHERE date(started_at) = ?`, [yesterday],
-                (err2, sess) => {
-                    if (err2) return;
-                    db.run(`INSERT INTO analytics_daily (date, pageviews, unique_visitors, sessions, bounced_sessions, total_dwell_secs)
-                            VALUES (?, ?, ?, ?, ?, ?)
-                            ON CONFLICT(date) DO UPDATE SET
-                                pageviews        = excluded.pageviews,
-                                unique_visitors  = excluded.unique_visitors,
-                                sessions         = excluded.sessions,
-                                bounced_sessions = excluded.bounced_sessions,
-                                total_dwell_secs = excluded.total_dwell_secs`,
-                        [yesterday,
-                         row.pageviews       || 0,
-                         row.unique_visitors || 0,
-                         row.sessions        || 0,
-                         (sess && sess.bounced)    || 0,
-                         (sess && sess.dwell_sum)  || 0]
-                    );
-                    console.log('[analytics] Daily roll-up complete for', yesterday);
-                }
-            );
-        }
-    );
-});
+// Phase 5 (HOUSEKEEPING-NOTES.md): the daily analytics roll-up (runs at 00:06 each day, staggered
+// after the 00:05 overdue-flagging sweep) moved to lib/analytics-daily-rollup.js, wrapped into
+// registerAnalyticsDailyRollup() to match every other scheduled job's convention. Called once
+// here, at the same module-load-time position the inline schedule.scheduleJob(...) used to sit at.
+const { registerAnalyticsDailyRollup } = require('./lib/analytics-daily-rollup');
+registerAnalyticsDailyRollup();
 
 
 
@@ -1045,27 +609,20 @@ schedule.scheduleJob('6 0 * * *', function () {
 // sendReviewRequestEmail/remindBooking/sendDateChangedEmail/sendBookingUnderReviewEmail/
 // sendPaymentReceivedEmail/sendPaidReceiptEmail/sendBookingCompletedEmail/
 // sendAdminPaymentNotification/sendAdminCompletionSummaryEmail/sendRefundProcessedEmail/
-// sendInvoiceEmail (lib/invoice-email.js) all moved out. sendReviewRequestEmail's own last caller
-// (runPostEventFollowupJob) has since moved to lib/post-event-followup-job.js, which imports it
-// directly — only the Background Clerk's hourly sweep below still calls the remaining 5 directly
-// from this file: sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail,
-// sendBookingUnderReviewEmail, sendBookingCompletedEmail, sendAdminCompletionSummaryEmail.
-const {
-    sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail,
-    sendBookingUnderReviewEmail, sendBookingCompletedEmail, sendAdminCompletionSummaryEmail
-} = require('./lib/booking-notifications');
-
+// sendInvoiceEmail (lib/invoice-email.js) all moved out. The remaining 5
+// (sendDepositBalanceDueEmail/sendQuoteExpiryWarningEmail/sendBookingUnderReviewEmail/
+// sendBookingCompletedEmail/sendAdminCompletionSummaryEmail) had their last real caller — the
+// Background Clerk's hourly sweep — move to lib/background-clerk.js, which imports all 5 directly.
+// No remaining caller in app.js.
 
 // S2-2: Notify all admin users when a quote has been dispatched to a client
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendInvoicePreDueEmail/sendEventReminderEmail/
 // sendOverdueInvoiceEmail/sendQuoteExpiredEmail/sendPendingExpiredEmail — the 5 email helpers used
-// only by the background scheduled-job functions — moved to lib/scheduled-job-emails.js. The first
-// 3 have each moved out with their only caller (lib/invoice-pre-due-reminder-job.js,
-// lib/event-reminder-job.js, lib/overdue-invoice-sweep-job.js, each importing directly). Only
-// sendQuoteExpiredEmail/sendPendingExpiredEmail still have a real caller here — the Background
-// Clerk's hourly sweep below, not yet relocated.
-const { sendQuoteExpiredEmail, sendPendingExpiredEmail } = require('./lib/scheduled-job-emails');
+// only by the background scheduled-job functions — moved to lib/scheduled-job-emails.js. All 5 now
+// have their only remaining caller in one of the lib/*.js job files, each importing directly
+// whichever it needs (sendQuoteExpiredEmail/sendPendingExpiredEmail's last caller, the Background
+// Clerk sweep, moved to lib/background-clerk.js). No remaining caller in app.js.
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendContractEmail (single-consumer) moved into
 // routes/admin/bookings.js alongside the contract/send route.
@@ -1251,34 +808,10 @@ const { sendQuoteExpiredEmail, sendPendingExpiredEmail } = require('./lib/schedu
 
 
 
-// --- Newsletter Scheduling ---
-
-function loadPendingScheduledJobs() {
-    // Fetch ALL pending rows and partition future-vs-overdue in JS rather than filtering with SQL's
-    // `scheduled_at > datetime('now')` — that comparison is a byte-for-byte TEXT compare, and
-    // scheduled_at is stored as an ISO instant ("...T06:25:42.296Z") while datetime('now') returns
-    // "...08:25:42" (space, no T) — 'T' (0x54) sorts after ' ' (0x20) at that byte offset
-    // UNCONDITIONALLY, so the old SQL filter treated every same-day-overdue row as "still pending"
-    // and handed it to scheduleNewsletterSend(), which then silently dropped it via its own
-    // fireDate <= new Date() guard. This table is low-volume (one comedian's newsletter, not a
-    // mass-mailer), so fetching everything and partitioning in JS is simpler and correct.
-    getPendingScheduledNewsletters((err, rows) => {
-        if (err) return console.error('Failed to load scheduled jobs:', err);
-        let recovered = 0;
-        rows.forEach(row => {
-            const rawDt = row.scheduled_at;
-            const fireDate = new Date(rawDt.includes('T') ? rawDt : rawDt.replace(' ', 'T') + 'Z');
-            if (isNaN(fireDate.getTime())) return; // corrupt row — leave for manual review, don't guess
-            if (fireDate.getTime() <= Date.now()) {
-                recovered++;
-                scheduleNewsletterSend(row, { fireImmediately: true });
-            } else {
-                scheduleNewsletterSend(row);
-            }
-        });
-        if (recovered > 0) console.log(`[Newsletter] Recovering ${recovered} overdue scheduled campaign(s) after restart`);
-    });
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): loadPendingScheduledJobs moved to lib/newsletter-scheduling.js,
+// alongside scheduleNewsletterSend and getPendingScheduledNewsletters it calls — re-imported below
+// (see the require near scheduleNewsletterSend) and re-exported at the bottom of this file, since
+// server.js still calls it directly from its own app.listen() callback.
 
 
 
@@ -1403,26 +936,11 @@ registerBirthdayJob();
 // =========================================================================
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): scheduleDirectEmailSend/sendDirectEmail moved to
-// lib/direct-emails.js.
-const { scheduleDirectEmailSend, sendDirectEmail } = require('./lib/direct-emails');
-
-function loadPendingDirectEmails() {
-    db.all(
-        "SELECT * FROM direct_emails WHERE status = 'scheduled'",
-        (err, rows) => {
-            if (err) return console.error('Failed to load scheduled direct emails:', err);
-            rows.forEach(row => {
-                const rawDt = row.scheduled_at;
-                const fireDate = new Date(rawDt.includes('T') ? rawDt : rawDt.replace(' ', 'T') + 'Z');
-                if (isNaN(fireDate.getTime()) || fireDate <= new Date()) {
-                    sendDirectEmail(row.id).catch(e => console.error('Error sending immediate/expired direct email:', e.message));
-                } else {
-                    scheduleDirectEmailSend(row);
-                }
-            });
-        }
-    );
-}
+// lib/direct-emails.js. loadPendingDirectEmails (their only remaining caller here) moved with
+// them, into the same file — re-imported below and re-exported at the bottom of this file, since
+// server.js still calls it directly from its own app.listen() callback. Neither
+// scheduleDirectEmailSend nor sendDirectEmail has a remaining caller in app.js any more.
+const { loadPendingDirectEmails } = require('./lib/direct-emails');
 
 
 

@@ -2116,6 +2116,118 @@ one run 663/664 on the pre-existing, extensively-documented Deferred fix #3 (`ca
 timing flake, confirmed unrelated to this batch and non-reproducing on immediate re-run (see the
 Deferred fix #3 update below).
 
+### Post-scope extension: relocating app.js's remaining background scheduled-job functions
+
+After the above closed out every route in the site, `app.js` still held ~1,200 lines of inline
+business logic that was never a route: ~12 background cron/interval jobs (payment/quote/invoice/
+event reminders, the abandoned-booking recovery pair, ledger reconciliation, PayFast pending-
+timeout detection, the notification-queue drain + stuck-notification alert + hourly booking-
+lifecycle sweep ("Background Clerk"), POPIA data retention, daily overdue-flagging, the daily
+analytics roll-up) plus `loadPendingScheduledJobs`/`loadPendingDirectEmails` (called by
+`server.js`). Phase 5's own task text is scoped to "routes" ("split server.js **routes** along the
+admin/public boundary"), so this was never automatically in scope — but its stated end-state
+("server.js becomes the process entry point only: config, listen, shutdown") is in real tension
+with ~1,200 lines of non-trivial job logic still sitting there. Flagged as an open question after
+the batch above; **the user explicitly asked for it to be relocated now.**
+
+Same move-only discipline as every route batch: read every function fully before touching
+anything, map every dependency, verify each import programmatically (`typeof` check) before
+running anything, diff the moved bodies byte-identical against the pre-move file, `node -c` +
+undefined-reference sweep + dead-import re-sweep after every edit, smoke + full suite after every
+batch, commit incrementally. Split into 3 batches by entanglement/risk, since the whole surface is
+~1,400 lines across 22 functions with a shared single-flight guard in the middle:
+
+**Batch 1 — the 5 shared email helpers + 4 fully self-contained jobs (commit `a431cc4`):**
+`lib/scheduled-job-emails.js` (`sendInvoicePreDueEmail`/`sendEventReminderEmail`/
+`sendOverdueInvoiceEmail`/`sendQuoteExpiredEmail`/`sendPendingExpiredEmail` — a prerequisite,
+moved first per this whole effort's established "shared helpers before their consumers" rule);
+`lib/quote-follow-up-job.js`, `lib/stalled-booking-alert-job.js`, `lib/abandoned-booking-jobs.js`
+(reminder + purge, sharing one wiring block in the original), `lib/deposit-balance-reminder-job.js`
+— each moved byte-identical alongside its own startup `setTimeout`/`setInterval` wiring, wrapped
+into a `registerXJob()` export matching the `registerBirthdayJob()` convention
+`lib/newsletter-birthday.js` already established in this codebase, called once from `app.js` at the
+same module-load-time position each job's inline wiring used to sit at.
+
+**Batch 2 — the remaining 6 self-contained jobs (same commit):**
+`lib/invoice-pre-due-reminder-job.js`, `lib/event-reminder-job.js`,
+`lib/overdue-invoice-sweep-job.js`, `lib/post-event-followup-job.js`,
+`lib/ledger-reconciliation-job.js`, `lib/payfast-pending-timeout-job.js` — same pattern. Also
+folded `lib/payment-reminders.js` (already holding `runPaymentReminderJob` from an earlier batch)
+into the same convention: its previously-inline wiring became `registerPaymentReminderJob()`. Then
+trimmed every now-fully-dead top-of-file re-import whose only caller moved out with these 10 jobs
+(12 `bookings`/`invoices-quotations` repository functions, 3 of the 5 scheduled-job email helpers,
+`escapeEmailFields`, `getEmailFooterContext`, `sendAbandonedBookingReminderEmail`,
+`sendReviewRequestEmail`) — each verified dead via direct grep, not assumed.
+
+**Batch 3 — the entangled cluster + the loadPending pair:**
+`processNotificationQueue`/`checkStuckNotifications`/`startBackgroundClerk` moved together into
+`lib/background-clerk.js` — they share the `_notificationSweepRunning` single-flight guard and
+`startBackgroundClerk` calls the other two directly, so splitting them across files would have
+meant importing shared mutable state across a module boundary for no reason.
+`startDataRetentionCaretaker` → `lib/data-retention-caretaker.js`. `runDailyOverdueFlaggingSweep`
+→ `lib/overdue-flagging-sweep.js`, wrapped into `registerOverdueFlaggingSweep()`. The anonymous
+daily analytics roll-up `schedule.scheduleJob('6 0 * * *', ...)` → `lib/analytics-daily-rollup.js`,
+wrapped into `registerAnalyticsDailyRollup()`. `loadPendingScheduledJobs` moved into
+`lib/newsletter-scheduling.js` (alongside `scheduleNewsletterSend`/`getPendingScheduledNewsletters`
+it calls) and `loadPendingDirectEmails` into `lib/direct-emails.js` (alongside
+`scheduleDirectEmailSend`/`sendDirectEmail` it calls) — both re-imported into `app.js` and
+re-exported from its `module.exports` completely unchanged, since `server.js` calls both directly
+from its own `app.listen()` callback and must keep working without any change on its side.
+Verified via `git diff`/`git log` on `server.js` that its import/call sites needed zero changes.
+
+Every one of the ~29 names `lib/background-clerk.js` alone needs was verified programmatically
+(`typeof` check against the real repository/lib modules) before running anything against it — the
+largest single dependency surface of any file moved in this whole housekeeping effort. A full byte-
+identity diff of the relocated `processNotificationQueue`/`checkStuckNotifications`/
+`startBackgroundClerk` body against the pre-move file came back with exactly two classes of
+difference: the expected `require('./js/...')` → `require('../js/...')` path fix (this file now
+sits one directory deeper, same fix pattern established for every other relocated file all
+session), and harmless trailing-whitespace-only differences inside a couple of multi-line SQL
+string literals — no semantic change.
+
+Then trimmed the remaining now-fully-dead imports this final batch exposed: `syncCalendarHolds`
+(`lib/calendar-sync`) and `deleteGoogleEvent` (`lib/google-calendar`) — both had their last caller
+move into `lib/background-clerk.js`, which imports each directly; the 5 remaining
+`booking-notifications` senders used only by the Background Clerk sweep
+(`sendDepositBalanceDueEmail`/`sendQuoteExpiryWarningEmail`/`sendBookingUnderReviewEmail`/
+`sendBookingCompletedEmail`/`sendAdminCompletionSummaryEmail`) and the remaining 2
+`scheduled-job-emails` (`sendQuoteExpiredEmail`/`sendPendingExpiredEmail`), same reasoning;
+`getNotificationEmail` (`settings.repository`) and `getBookingById` plus the 14 remaining
+`bookings.repository` S0/S6/S7/expiry/reminder helpers, `markInvoicePaidForAutoComplete`
+(`invoices-quotations.repository`), `flagOverdueInvoices`/`flagOverduePaymentSchedules`,
+`advanceAutoCompletedEventS6`/`getPastStandaloneEventsForAutoComplete`/
+`advanceStandaloneEventCompleted` (`calendar.repository`) — every one confirmed to have had its
+only real caller in the code that just moved out, each re-imported directly by whichever `lib/*.js`
+file now owns it. Also caught, only after the `loadPendingScheduledJobs` relocation: `scheduleNewsletterSend`
+and `getPendingScheduledNewsletters` had their real (non-comment) call sites entirely inside the
+function that just moved into the same target file — both dead in `app.js` now, removed;
+`loadPendingScheduledJobs` itself correctly kept despite showing "0 calls" on the AST checker — a
+bare property-shorthand reference inside `module.exports = { app, loadPendingScheduledJobs,
+loadPendingDirectEmails }` is a real use the call-only checker can't see, the same false-positive
+shape as the already-documented `bookingConfig` case.
+
+**`app.js`'s final shape, verified directly**: zero top-level `function`/`async function`
+declarations remain (`grep -c "^async function \|^function "` → 0) — every one of the original
+~22 background-job functions has left the file. What's left is exactly what the plan asked for:
+requires, middleware/session/static setup, the ~40-line route-mount block, the one deliberately-
+kept `/robots.txt` route, a dozen one-line `registerXJob()`/`startX()` calls (each immediately after
+its own `require`), the first-run bootstrap-admin `setTimeout` (genuine startup/config logic, not a
+recurring job — deliberately left as-is), the C9 sandbox-PayFast-in-production guard, and
+`module.exports`.
+
+**Verification**: `node -c` after every edit in all three batches; the AST dead-import checker
+re-run to a clean pass after each batch (only the two established false positives —
+`bookingConfig`, `loadPendingScheduledJobs` — ever remained); the undefined-reference sweep clean
+throughout; confirmed via a live `require('./app')` that all three startup log lines
+(`[Background Clerk]`, `[Compliance Caretaker]`, `[cron] Starting daily overdue flagging sweep`)
+still fire in the same order and that `app`/`loadPendingScheduledJobs`/`loadPendingDirectEmails`
+all still resolve to functions; `npm run smoke` 329/329 after every batch; `npm test` — after
+batches 1+2, 663/664 (the pre-existing CP17 timing flake, code this pair of batches never touched);
+after batch 3, 3 runs — 664/664 twice, and once more 663/664 on Deferred fix #3's CP3 (the same
+family, a different specific instance), confirmed via `git diff`/`git log` that `lib/booking-
+status.js` and `calendar.repository.js` — the two files that actually own CP3's code path — have
+zero uncommitted diff and were last touched in an earlier, already-committed batch, not this one.
+
 ---
 
 ## Phase 4 — Data-access extraction
@@ -3670,6 +3782,12 @@ its own change with its own testing.
   callback, a plain fire-and-forget `db.run`) — have **zero** uncommitted diff and were last touched
   in an earlier, already-committed batch, not this one. Same conclusion as every prior instance: a
   test-suite-wide fixed-sleep timing margin, unrelated to whatever any given batch actually changed.
+- **Update (Phase 5, post-scope background scheduled-job relocation, batch 3):** CP3 recurred once
+  more (of 3 runs on this batch, the other 2 fully clean 664/664) — the same code path
+  (`lib/booking-status.js` / `calendar.repository.js`'s `advanceEventToCompleted`) confirmed via
+  `git diff`/`git log` to have zero uncommitted diff and no history in this batch, which only moved
+  `app.js`'s background cron functions (`lib/background-clerk.js` and 9 sibling files) — nowhere
+  near booking-status or calendar-repository code. Same conclusion as every instance on this list.
 
 ### 4. `POST /api/admin/bank-statement/import` had never worked — `db.transaction` is not a function — FIXED
 
