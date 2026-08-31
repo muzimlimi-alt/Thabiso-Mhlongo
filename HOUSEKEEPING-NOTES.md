@@ -1214,6 +1214,43 @@ calls, `furthest_step` staying monotonic, fetch-for-resume returning the exact p
 at the same path, the POST actually flipping `opt_out`/`status`, and the fetch route correctly
 returning 410 once opted out.
 
+### Public bookings sub-batch B: tracker OTP + lookup + data-fetch (4 routes) — DONE
+
+`POST .../:id/track/request-code` + `.../:id/track/verify-code` (the two-step OTP flow that gates
+every other tracking-adjacent route via `requireBookingAccessToken`), `POST .../bookings/lookup`
+(find bookings by email), `POST .../:id/track` (the actual client-facing data fetch — booking
+summary, invoice, payment schedule, services, quote version, cancellation, contract — built from an
+explicit allowlist rather than the raw `bookings` row). Appended to `routes/public/bookings.js`.
+
+All dependencies were already-existing exports needing only import: `getBookingEmailForTracking`,
+`consumeUnconsumedAccessCodes`, `insertBookingAccessCode`, `getActiveAccessCodeForVerification`,
+`consumeAccessCodeById`, `incrementAccessCodeAttempts`, `insertBookingAccessToken`, `getBookingById`
+(`bookings.repository`); `getInvoiceForTracking`, `getQuoteVersionInfoForTracking`
+(`invoices-quotations.repository`); `getPaymentSchedulesForTracking`,
+`getCancellationSummaryForTracking` (`finance.repository`); `bcrypt`, `bannerRegistry`,
+`emailComponents`, `sendEmail`, `getEmailFooterContext` (all already-established import patterns);
+`otpRequestRateLimiter`/`mutateRateLimiter`/`lookupRateLimiter`/`trackRateLimiter` and
+`requireBookingAccessToken` from the prerequisite work above.
+
+Dead-import sweep found 11 more names orphaned in `app.js`'s destructures (all seven access-code/
+token functions, `getInvoiceForTracking`, `getQuoteVersionInfoForTracking`,
+`getPaymentSchedulesForTracking`, `getCancellationSummaryForTracking`) — removed; kept
+`getBookingById` (heavily used elsewhere) and every sibling on the same lines confirmed to still
+have a real call site.
+
+Verification: `node -c`; the static undefined-reference sweep (clean on both files); confirmed zero
+remaining `app.js` registrations for all 4 paths and zero remaining references to any of the 11 dead
+names; `npm run smoke` 329/329; `npm test` x2, both clean 664/664. `track/request-code` and
+`track/verify-code` have exceptionally heavy *indirect* coverage — `test/support.js`'s
+`getTrackingToken()` helper drives this exact two-step flow as setup for nearly every test file that
+needs quote acceptance (`booking`, `calendar-booking-sync`, `calendar`, `contract`, `email`,
+`lifecycle`, `payment-callback`, `pdf-golden`). The plain data-fetch `track` route and `lookup` had
+no dedicated coverage — manually verified both against real fixtures (11 checks, all passing):
+`lookup` finding a real booking by email, a friendly `success:false` on an unknown email, 400 on a
+malformed address; `track` rejecting a missing token (401), returning the full allowlisted payload
+for a valid token (confirmed no internal-only fields like `admin_notes`/`ip_address` leak), and a
+token scoped to one booking correctly failing (401, not 404) against a different booking id.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

@@ -1,8 +1,31 @@
 const express = require('express');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const db = require('../../database');
-const { ipRateLimiter } = require('../../middleware/rate-limiters');
+const {
+    ipRateLimiter, otpRequestRateLimiter, mutateRateLimiter, lookupRateLimiter, trackRateLimiter
+} = require('../../middleware/rate-limiters');
+const { requireBookingAccessToken } = require('../../middleware/booking-access');
 const { encodeUserHtml } = require('../../lib/html-sanitize');
+const { getEmailFooterContext } = require('../../lib/email-context');
+const {
+    asBookingText, OTP_TTL_MINUTES, OTP_MAX_ATTEMPTS, ACCESS_TOKEN_TTL_MINUTES,
+    generateOtpCode, hashAccessToken
+} = require('../../lib/booking-tracking');
+const bannerRegistry = require('../../js/bannerRegistry');
+const emailComponents = require('../../js/emailComponents');
+const { sendEmail } = require('../../js/emailService');
+const {
+    getBookingEmailForTracking, consumeUnconsumedAccessCodes, insertBookingAccessCode,
+    getActiveAccessCodeForVerification, consumeAccessCodeById, incrementAccessCodeAttempts,
+    insertBookingAccessToken, getBookingById
+} = require('../../database/repositories/bookings.repository');
+const {
+    getInvoiceForTracking, getQuoteVersionInfoForTracking
+} = require('../../database/repositories/invoices-quotations.repository');
+const {
+    getPaymentSchedulesForTracking, getCancellationSummaryForTracking
+} = require('../../database/repositories/finance.repository');
 const router = express.Router();
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved from app.js verbatim, byte-identical — single-consumer
@@ -151,6 +174,180 @@ router.post('/api/public/bookings/draft/:resumeToken/optout', ipRateLimiter, (re
             if (err) return res.status(500).send(_abOptOutPage('<div style="font-size:34px;color:#888;margin-bottom:12px;">&#9888;</div><h2 style="font-weight:400;margin:0 0 10px;">Something went wrong.</h2><p style="color:#b0b0b0;font-size:14px;">Please try again later.</p>' + back));
             res.send(_abOptOutPage('<div style="font-size:34px;color:#D4AF37;margin-bottom:12px;">&#10003;</div><h2 style="font-weight:400;margin:0 0 10px;">You have been unsubscribed.</h2><p style="color:#b0b0b0;font-size:14px;">You will not receive any more booking reminders.</p>' + back));
         });
+});
+
+// Step 1: request a code. Always responds with the same generic message regardless of whether the
+// id/email combination matches a real booking — mirrors the existing anti-enumeration pattern in
+// /api/admin/forgot-password. Only a real match actually queues an email.
+router.post('/api/public/bookings/:id/track/request-code', ipRateLimiter, otpRequestRateLimiter, (req, res) => {
+    const email = asBookingText(req.body.email);
+    const bookingId = parseInt(req.params.id, 10);
+    const generic = { success: true, message: 'If those details match a booking, a verification code has been sent to the email on file.' };
+    if (!email || !bookingId) return res.status(400).json({ success: false, message: 'Booking ID and email are required.' });
+
+    getBookingEmailForTracking(bookingId, async (err, row) => {
+        if (err || !row || row.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
+            return res.json(generic);
+        }
+        try {
+            // Kill any earlier unconsumed code for this booking so only the most recent one sent is live.
+            await consumeUnconsumedAccessCodes(bookingId);
+            const code = generateOtpCode();
+            const codeHash = await bcrypt.hash(code, 10);
+            const expiresAt = new Date(Date.now() + OTP_TTL_MINUTES * 60000).toISOString();
+            await insertBookingAccessCode(bookingId, row.email, codeHash, expiresAt);
+
+            const banner = await bannerRegistry.resolveBanner('booking_verification_code');
+            const { socialLinks } = await getEmailFooterContext();
+            await sendEmail({
+                to: row.email,
+                subject: `Your verification code: ${code}`,
+                htmlContent: emailComponents.renderPremiumEmail({
+                    preheaderText: `Your verification code is ${code}. It expires in ${OTP_TTL_MINUTES} minutes.`,
+                    bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
+                    headline: banner?.headline || 'Verify Your Booking',
+                    bodyHtml:
+                        `<p style="margin:0 0 12px;">Use this code to view booking <strong style="color:#FAFAFA;">#${bookingId}</strong> (${emailComponents.esc(row.event_name || row.event_type || 'your event')}):</p>` +
+                        `<p style="margin:0; color:#B0B0B0; font-size:13px;">This code expires in ${OTP_TTL_MINUTES} minutes. If you didn't request this, you can safely ignore this email.</p>`,
+                    cards: [{ rows: [{ label: 'Verification code', value: code, mono: true, highlight: true }] }],
+                    socialLinks
+                }),
+                preWrapped: true,
+                titleOverride: 'Verify Your Booking',
+                trigger_event: 'Booking: Tracker Verification Code'
+            });
+        } catch (e) {
+            console.error('[Tracking OTP] request-code failed:', e.message);
+        }
+        res.json(generic);
+    });
+});
+
+// Step 2: verify a code, issue a booking-scoped access token.
+router.post('/api/public/bookings/:id/track/verify-code', ipRateLimiter, mutateRateLimiter, async (req, res) => {
+    const email = asBookingText(req.body.email);
+    const code = asBookingText(req.body.code);
+    const bookingId = parseInt(req.params.id, 10);
+    if (!email || !code) return res.status(400).json({ success: false, message: 'Email and code are required.' });
+
+    try {
+        const codeRow = await getActiveAccessCodeForVerification(bookingId, email);
+        if (!codeRow) {
+            return res.status(400).json({ success: false, message: 'That code is invalid or has expired. Please request a new one.' });
+        }
+        if (codeRow.attempts >= OTP_MAX_ATTEMPTS) {
+            await consumeAccessCodeById(codeRow.id);
+            return res.status(400).json({ success: false, message: 'Too many incorrect attempts. Please request a new code.' });
+        }
+
+        const match = await bcrypt.compare(code, codeRow.code_hash);
+        if (!match) {
+            await incrementAccessCodeAttempts(codeRow.id);
+            const remaining = OTP_MAX_ATTEMPTS - (codeRow.attempts + 1);
+            return res.status(400).json({ success: false, message: remaining > 0 ? `Incorrect code. ${remaining} attempt(s) remaining.` : 'Too many incorrect attempts. Please request a new code.' });
+        }
+
+        await consumeAccessCodeById(codeRow.id);
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_MINUTES * 60000).toISOString();
+        await insertBookingAccessToken(bookingId, email, hashAccessToken(rawToken), expiresAt);
+
+        res.json({ success: true, access_token: rawToken, expires_in: ACCESS_TOKEN_TTL_MINUTES * 60 });
+    } catch (e) {
+        console.error('[Tracking OTP] verify-code failed:', e.message);
+        res.status(500).json({ success: false, message: 'Could not verify your code. Please try again.' });
+    }
+});
+
+// Email-only booking lookup with pagination (5 lookups per 10 min per IP)
+router.post('/api/public/bookings/lookup', lookupRateLimiter, (req, res) => {
+    const { email, page } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) {
+        return res.status(400).json({ success: false, message: 'A valid email address is required.' });
+    }
+    const offset = ((parseInt(page) || 1) - 1) * 10;
+    const emailNorm = email.trim();
+    // First fetch total count so client can show "Load more"
+    db.get(
+        `SELECT COUNT(*) AS total FROM bookings
+         WHERE lower(email) = lower(?) AND status NOT IN ('CANCELLED')`,
+        [emailNorm],
+        (cErr, countRow) => {
+            const total = (countRow && !cErr) ? countRow.total : 0;
+            db.all(
+                `SELECT id, event_name, date, status, created_at FROM bookings
+                 WHERE lower(email) = lower(?) AND status NOT IN ('CANCELLED')
+                 ORDER BY created_at DESC LIMIT 10 OFFSET ?`,
+                [emailNorm, offset],
+                (err, rows) => {
+                    if (err) return res.status(500).json({ success: false, message: 'Lookup failed.' });
+                    if (!rows || !rows.length) return res.json({ success: false, message: 'No bookings found for that email address.' });
+                    res.json({ success: true, bookings: rows, total, page: parseInt(page) || 1 });
+                }
+            );
+        }
+    );
+});
+
+router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, requireBookingAccessToken, (req, res) => {
+    getBookingById(req.params.id, (err, row) => {
+        if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
+
+        // Include latest invoice if exists
+        getInvoiceForTracking(row.id, (e, inv) => {
+            getPaymentSchedulesForTracking(row.id, (e2, schedule) => {
+                db.all(`SELECT s.name AS service_name, s.pricing_model, bs.quantity_minutes, bs.unit_price,
+                               (bs.unit_price * bs.quantity_minutes) AS line_total
+                        FROM booking_services bs
+                        JOIN services s ON bs.service_id = s.id
+                        WHERE bs.booking_id = ?`, [row.id], (e3, services) => {
+                    getQuoteVersionInfoForTracking(row.id, (qvErr, qv) => {
+                            getCancellationSummaryForTracking(row.id, (cErr, cancRow) => {
+                                    db.get("SELECT pdf_url, status, sent_to_client_at, signed_by_client_at, signed_by_comedian_at, is_frozen FROM contracts WHERE booking_id = ?", [row.id], (contractErr, contractRow) => {
+                                        // SEC: build the public payload from an explicit allowlist rather than
+                                        // spreading the full `bookings` row and denylisting a few gateway fields.
+                                        // The denylist previously missed `admin_notes` — a free-text field admins
+                                        // write about the client — plus every other internal-only column (IPs,
+                                        // FK ids, reminder-sent timestamps, etc.), all of which were silently
+                                        // exposed in the JSON response to anyone tracking that booking. This
+                                        // table gains new columns constantly, so a denylist rots; an allowlist
+                                        // of exactly what the tracking UI reads does not.
+                                        const publicBooking = {
+                                            id: row.id,
+                                            status: row.status,
+                                            payment_status: row.payment_status,
+                                            event_name: row.event_name,
+                                            event_type: row.event_type,
+                                            date: row.date,
+                                            quote_amount: row.quote_amount,
+                                            quote_details: row.quote_details,
+                                            quote_expiry_date: row.quote_expiry_date,
+                                            company: row.company,
+                                            vat_number: row.vat_number,
+                                            total_amount: row.total_amount,
+                                            amount_paid: row.amount_paid,
+                                            amount_outstanding: row.amount_outstanding
+                                        };
+
+                                        res.json({
+                                            success: true,
+                                            booking: publicBooking,
+                                            invoice: inv || null,
+                                            payment_schedule: schedule || [],
+                                            services: services || [],
+                                            quote_version: qv ? qv.version : null,
+                                            quote_version_count: qv ? qv.total_versions : 0,
+                                            cancellation: cancRow || null,
+                                            contract: contractRow || null
+                                        });
+                                    });
+                                });
+                        }
+                    );
+                });
+            });
+        });
+    });
 });
 
 module.exports = router;
