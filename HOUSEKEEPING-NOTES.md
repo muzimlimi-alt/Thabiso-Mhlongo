@@ -1362,7 +1362,7 @@ manually verified against real fixtures (8 checks, all passing): rejecting an in
 exact booking note text and returning 200; a valid revision request also succeeding; and rejecting
 the request entirely on a booking that isn't in QUOTED status.
 
-### Public bookings sub-batch G: accept-quote — the last route, and the financial core with it — DONE
+### Public bookings sub-batch G: accept-quote, and the financial core with it — DONE
 
 `POST /api/public/bookings/:id/accept-quote` — the second-biggest route in the whole public pass
 (~150 lines): the compare-and-swap status flip (QUOTED→ACCEPTED/CONFIRMED, guarding against a
@@ -1433,12 +1433,19 @@ covered code touched this session: 8 test files exercise this exact path directl
 needed on top of that; the combination of exhaustive existing coverage and a byte-for-byte-identical
 diff gives stronger evidence here than a fresh manual check could add.
 
-**This closes out the entire public `/api/public/bookings/*` pass** (19 of 19 routes now
-relocated), and with it the last of the "big deferred bookings/events pass" scoped at the very start
-of this stretch of Phase 5. Remaining Phase 5 scope: `applyStatusChange` (the generic admin
-status-transition engine) and its dependency web (`processManualPayment`, `alignMilestonePayments`,
-`updateBookingMilestones`, `deriveBookingStatusAfterPayment`), `logPaymentEvent` and the PayFast ITN
-webhook itself, the remaining `send*Email` functions not yet relocated, and ~12 background cron jobs.
+**Correction to this entry's own original claim:** this was first written up as closing out the
+entire public `/api/public/bookings/*` pass at "19 of 19 routes." That count is wrong — it only
+ever covered the 18 routes actually enumerated across sub-batches A-G. The 19th, **`POST
+/api/public/bookings`** itself (the public booking-intake route, ~540 lines — the single largest
+piece of the whole housekeeping effort), was never part of any sub-batch and is still sitting in
+`app.js` untouched. Caught immediately after committing sub-batch G and corrected here rather than
+left to stand; the git history for that commit still carries the original overclaim in its message.
+
+Remaining Phase 5 scope: the public booking-intake route above, `applyStatusChange` (the generic
+admin status-transition engine) and its dependency web (`processManualPayment`,
+`alignMilestonePayments`, `updateBookingMilestones`, `deriveBookingStatusAfterPayment`),
+`logPaymentEvent` and the PayFast ITN webhook itself, the remaining `send*Email` functions not yet
+relocated, and ~12 background cron jobs.
 
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
