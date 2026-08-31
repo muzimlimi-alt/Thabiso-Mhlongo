@@ -1583,6 +1583,80 @@ repository work needed anywhere in this pass.
   recurring spot (now recurred well over a dozen times across this whole session, never once
   correlated with the code being changed), and the final run was a clean 664/664.
 
+### Bookings sub-batch I: the CRUD + auxiliary cluster (16 routes) — DONE
+
+The largest single route-extraction batch of the whole session: `GET /full`, `POST` create (the
+biggest route, ~250 lines — duplicate/working-hours/conflict gates, the guarded transaction with
+every gate re-checked inside the write lock, services snapshotting), `GET` list, `GET/PUT /:id`,
+`PATCH .../buffer`, `PUT .../public` (promote-to-public event create/update/unlink), `PUT
+.../status`, `PUT .../disposition`, `POST .../invoice/generate`, `POST .../reconcile/sync`, `GET/
+POST .../payment-schedules` + `.../rebalance`, `DELETE /:id` (the FK-ordered cascade purge), `POST
+.../respond`. Deliberately excluded from this batch: `manual-payment`/`cancel`/`complete`/`refund`
+— the 4 remaining routes with the deepest financial/state-transition logic, held back for their own
+final sub-batch.
+
+Two data blocks moved as single-consumer locals alongside their routes, same treatment as
+`contractUpload` before them: `BOOKING_DISPOSITIONS` (the disposition allowlist) and
+`BOOKING_DELETE_PURGE`/`BOOKING_DELETE_UNLINK` (the FK-ordered purge/unlink SQL lists for the delete
+route) — both hand-retyped rather than tool-extracted (they're plain `const` declarations, not
+`app.*` route registrations the extraction script recognises), so both were diffed byte-for-byte
+against `git show HEAD:app.js` specifically because of that extra transcription risk. Clean.
+
+`routes/admin/bookings.js` picked up a large batch of new imports for this: 19 more
+`bookings.repository` exports, 9 more `calendar.repository` exports, 12 more `finance.repository`
+exports, 3 more `invoices-quotations.repository` exports, `linkInquiryToBooking`
+(`inquiries.repository`, new import for this file), `findOrCreateVenueFromPlace`
+(`lib/client-venue.js`), `isWithinWorkingHours` (`lib/calendar-sync.js`), `applyStatusChange`
+(`lib/booking-status.js`), `generateInvoice` (`lib/invoicing.js`). Every one individually confirmed
+against `app.js`'s own import blocks before extraction, then re-verified programmatically (`typeof`
+on every import against the real repository/lib modules) — the same discipline adopted after the
+`releaseDateHoldsForBooking` mistake in the previous prerequisite batch. All came back correct on
+the first pass this time.
+
+**Dead-import sweep in `app.js`** was unusually large given how much single-purpose logic just left
+it: `applyStatusChange` (both its callers moved together), `getBookingStatus`, `updateBookingBuffer`,
+`getBookingDisposition`/`updateBookingDisposition`, `getBookingTotalAmount`, `deleteBookingById`,
+`markBookingPendingAfterRespond`, the 4 `setBookingPublic*`/`clearBookingPublic*` pairs,
+`getActiveDuplicateBookingForEmailDate(Async)`, `insertAdminBooking`, `insertBookingService`/
+`insertBookingLineItem`, `insertPublicEvent`/`checkEventExistsById`/`updatePublicEvent`/
+`deleteEventById`, `getActiveQuoteStatusForInvoiceGuard`, `getTransactionsPaidSumForReconcile`,
+`getActivePaymentSchedules`/`deletePaymentSchedulesForBooking`/`prepareInsertPaymentSchedule`/
+`prepareUpdatePaymentScheduleAmount`, `linkInquiryToBooking`, `findOrCreateClient`/
+`findOrCreateVenueFromPlace` (entire `require` line removed — both dead), `isWithinWorkingHours`/
+`hasCalendarConflict` (removed from their shared import line; `syncBookingToCalendar`/
+`syncCalendarHolds`/`syncEventToCalendar`/`checkDateAvailability` on the same line all confirmed
+still genuinely called elsewhere and kept). `deriveBookingStatusAfterPayment`, `alignMilestonePayments`,
+`updateBookingMilestones`, `generateInvoice`, `markInvoicePaidIfOpen`, and `CURRENT_POLICY_VERSION`
+were checked and correctly kept — each still has a real remaining caller in `app.js`'s own `POST
+/api/admin/transactions/manual` route (a separate, not-yet-relocated admin route) or, for
+`CURRENT_POLICY_VERSION`, the newsletter subscribe flow.
+
+**Byte-identity check**: every relocated route diffed against `git show HEAD:app.js` (accounting
+for the `app.` → `router.` swap) — the create route (250+ lines), the public-promotion route, the
+reconcile/sync route, and the delete route all came back with **zero** differences, not even
+whitespace; the two hand-retyped constant blocks likewise zero differences.
+
+**Manual fixture verification** (this cluster has thin dedicated automated coverage — `disposition`,
+`reconcile/sync`, `invoice/generate`, and `payment-schedules`/`rebalance` have no test file of their
+own, only the smoke test's generic non-5xx check): wrote a throwaway script against
+`test/support.js` exercising create → disposition (valid + invalid) → payment-schedules create/get
+→ rebalance → reconcile/sync → invoice/generate → buffer → respond → delete, in sequence against one
+real booking. All 16 checks passed, including the delete route's FK-ordered purge actually removing
+the booking (confirmed via a follow-up 404).
+
+**Verification**: `node -c` on both files; the undefined-reference sweep (clean); byte-identity
+diffs (clean); `npm run smoke` 329/329 (one run hit the same transient `SQLITE_CORRUPT`-on-throwaway-
+copy scare as the previous batch — live `database.sqlite` integrity re-confirmed `ok`, plain retry
+succeeded); `npm test` x2 (one clean 664/664, one hit the already-extensively-documented
+`banner.test.js` `SQLITE_BUSY` crash at the same recurring spot — now recurred well over a dozen
+times this session, never once correlated with the code under test); the manual fixture script
+above, 16/16 passed.
+
+**This closes 16 of the final 20 admin bookings routes.** 4 remain: `PUT .../manual-payment`,
+`POST .../cancel`, `POST .../complete`, `PUT .../refund` — verified directly via
+`grep -c "app\.\(get\|post\|put\|patch\|delete\)('/api/admin/bookings" app.js` returning 4, not
+trusting a remembered count.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
