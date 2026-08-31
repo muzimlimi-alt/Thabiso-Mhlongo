@@ -1504,13 +1504,27 @@ additional manual fixture verification was needed on top of it — the same reas
 
 **This is the point where the public `/api/public/bookings/*` pass is actually closed out — 19 of
 19 routes relocated** (correcting the premature claim made, and then walked back, in sub-batch G's
-own write-up above). With it, the entire "big deferred bookings/events pass" scoped at the very
-start of this stretch of Phase 5 — admin `bookings`/`events` routes, the calendar-sync engine, and
-now the full public self-service surface — is complete. Remaining Phase 5 scope: `applyStatusChange`
-(the generic admin status-transition engine) and its dependency web (`processManualPayment`,
-`alignMilestonePayments`, `updateBookingMilestones`, `deriveBookingStatusAfterPayment`),
-`logPaymentEvent` and the PayFast ITN webhook itself, the remaining `send*Email` functions not yet
-relocated, and ~12 background cron jobs.
+own write-up above). The admin `events` cluster (6/6) is also fully done.
+
+**Correction, caught by actually counting before writing the next sentence rather than trusting
+memory:** this entry originally went on to claim the whole "big deferred bookings/events pass" was
+therefore complete. It is not. The admin `bookings` domain itself is only at 35 of the ~55 routes
+scoped in the original reconnaissance write-up — sub-batches A/B/C/D (28 routes) + E (6) + F (the
+quote route, 1) = 35. **20 admin bookings routes are still in `app.js`, unmoved**, and several are
+squarely in "highest remaining risk" territory: `PUT .../manual-payment`, `POST .../cancel`, `POST
+.../complete`, `PUT .../refund` (all status-transition/financial), plus the CRUD surface (`GET
+/full`, `POST` create, `GET` list, `GET/PUT /:id`, `PATCH .../buffer`, `PUT .../public`, `PUT
+.../status`, `PUT .../disposition`, `POST .../invoice/generate`, `POST .../reconcile/sync`, `GET/
+POST .../payment-schedules` + `.../rebalance`, `DELETE /:id`, `POST .../respond`). Verified by
+grepping `app.js` directly for every remaining `/api/admin/bookings` registration rather than
+recomputing from an earlier tally — worth doing that check again before any future claim that this
+domain is finished.
+
+Remaining Phase 5 scope, accurately: the 20 admin bookings routes above, `applyStatusChange` (the
+generic admin status-transition engine, almost certainly the dependency behind several of those 20)
+and its own dependency web (`processManualPayment`, `alignMilestonePayments`,
+`updateBookingMilestones`, `deriveBookingStatusAfterPayment`), `logPaymentEvent` and the PayFast ITN
+webhook itself, the remaining `send*Email` functions not yet relocated, and ~12 background cron jobs.
 
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
