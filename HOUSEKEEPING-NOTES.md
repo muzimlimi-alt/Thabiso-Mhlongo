@@ -1251,6 +1251,29 @@ malformed address; `track` rejecting a missing token (401), returning the full a
 for a valid token (confirmed no internal-only fields like `admin_notes`/`ip_address` leak), and a
 token scoped to one booking correctly failing (401, not 404) against a different booking id.
 
+### Public bookings sub-batch C: the three download routes — DONE
+
+`GET .../:id/invoice/download`, `GET .../:id/contract/download`, `POST .../:id/quote/download` —
+the public-facing analogues of the admin download routes moved in the very first bookings sub-batch.
+Appended to `routes/public/bookings.js`. All dependencies already existed: `resolveDocsPath`
+(`lib/runtime-paths.js`), `getLatestQuoteFileForPublicDownload`
+(`invoices-quotations.repository`), `fs`/`db` directly — only `getLatestQuoteFileForPublicDownload`
+was newly dead in `app.js` and removed.
+
+Verification: `node -c`; the static undefined-reference sweep (clean); confirmed zero remaining
+`app.js` registrations and zero remaining reference to the one dead name; `npm run smoke` 329/329;
+`npm test` x2, both clean 664/664. No dedicated coverage exists for any of these 3 routes
+(`pdf-golden.test.js` only exercises their `/api/admin/bookings/*` counterparts) — manually verified
+all three end-to-end against real generated PDFs (13 checks, all passing): `quote/download`
+succeeding once a quote exists and rejecting a missing token; `invoice/download` correctly 404ing
+before an invoice exists and succeeding once one is generated; `contract/download` — where the
+first verification attempt surfaced a wrong *assumption in the test*, not a bug: it expected no
+contract to exist until an explicit admin `contract/generate` call, but `accept-quote`'s own
+`generateContract(bookingId)` call (documented in the *admin bookings* sub-batch C write-up above)
+already auto-creates a draft contract on quote acceptance, so a real PDF was already being served correctly
+— confirmed via the `contracts` table directly, then re-verified the download route itself was never
+at fault.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,

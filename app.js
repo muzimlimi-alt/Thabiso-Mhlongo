@@ -105,7 +105,7 @@ const {
     getActiveQuoteForContractFeeData,
     getLatestQuoteFileForResend, markQuotationResent,
     getQuoteHistoryForBooking, getActiveQuoteStatusForInvoiceGuard,
-    getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload, getLatestQuoteFileForPublicDownload,
+    getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload,
     getQuoteForBookingFinancials, getInvoiceForBookingFinancials,
     getOpenInvoiceIdForAdjustmentRegen,
     countQuotationsForIds, countQuotationsForClientIds,
@@ -6347,71 +6347,10 @@ app.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(['a
     );
 });
 
-// 3. Download Invoice (Public Secured)
-app.get('/api/public/bookings/:id/invoice/download', ipRateLimiter, trackRateLimiter, requireBookingAccessToken, async (req, res) => {
-    // A booking accumulates one invoice per revision (INV-…, INV-…-R2, …), the superseded ones VOID.
-    // Without the filter and ordering this `db.get` returned the lowest rowid — the VOID original —
-    // and served the client a stale invoice after any re-quote.
-    db.get(`SELECT i.file_path, i.invoice_number
-            FROM bookings b
-            JOIN invoices i ON b.id = i.booking_id
-            WHERE b.id = ? AND UPPER(i.status) <> 'VOID'
-            ORDER BY i.created_at DESC, i.id DESC
-            LIMIT 1`, [req.params.id], async (err, row) => {
-
-        if (err || !row) return res.status(404).send('Invoice not found');
-
-        const filePath = resolveDocsPath('invoices', row.file_path);
-        if (fs.existsSync(filePath)) {
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=Invoice_${row.invoice_number}.pdf`);
-            res.sendFile(filePath);
-        } else {
-            res.status(404).send('Physical PDF file not found on server.');
-        }
-    });
-});
-
-// Download Contract (Public Secured)
-app.get('/api/public/bookings/:id/contract/download', ipRateLimiter, trackRateLimiter, requireBookingAccessToken, async (req, res) => {
-    db.get(`SELECT c.pdf_url
-            FROM bookings b
-            JOIN contracts c ON b.id = c.booking_id
-            WHERE b.id = ?`, [req.params.id], async (err, row) => {
-
-        if (err || !row || !row.pdf_url) return res.status(404).send('Contract not found');
-
-        const filePath = resolveDocsPath('contracts', row.pdf_url);
-        if (fs.existsSync(filePath)) {
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=Contract_${row.pdf_url}`);
-            res.sendFile(filePath);
-        } else {
-            res.status(404).send('Physical PDF file not found on server.');
-        }
-    });
-});
 
 
 
-// Public: download own quote PDF (verified via access token)
-app.post('/api/public/bookings/:id/quote/download', ipRateLimiter, trackRateLimiter, requireBookingAccessToken, (req, res) => {
-    db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, booking) => {
-        if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        if (!['QUOTED','ACCEPTED','CONFIRMED','COMPLETED'].includes(booking.status))
-            return res.status(403).json({ success: false, message: 'No quote available for your booking.' });
-        getLatestQuoteFileForPublicDownload(
-            req.params.id, (e, q) => {
-                if (e || !q) return res.status(404).json({ success: false, message: 'Quote PDF not found.' });
-                const filePath = resolveDocsPath('quotes', q.file_path);
-                if (!fs.existsSync(filePath))
-                    return res.status(404).json({ success: false, message: 'Quote file not found on server.' });
-                res.setHeader('Content-Type', 'application/pdf');
-                res.setHeader('Content-Disposition', `attachment; filename=Quote_${q.quote_number}.pdf`);
-                res.sendFile(filePath);
-            });
-    });
-});
+
 
 // Public: client self-cancellation (PENDING/QUOTED/ACCEPTED only)
 app.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, async (req, res) => {
