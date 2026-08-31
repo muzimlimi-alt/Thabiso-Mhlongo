@@ -67,8 +67,7 @@ const {
     getBookingsForDepositBalanceReminder, markDepositBalanceReminded,
     getConfirmedBookingsOnDate, markEventReminderSent, getCompletedBookingsAwaitingReview,
     getBookingStatusNameEmail, reopenBooking,
-    insertLegacyBookingFromContactForm, getAllBookingsForMigration, getAllBookingsFull,
-    updateBookingClientVenue,
+    insertLegacyBookingFromContactForm,
     getBookingForContractRemind,
     getBookingIdStatusAsync,
     getBookingsOnDateForHoldConflict,
@@ -78,7 +77,6 @@ const {
     getBookingNotesForBooking, insertBookingNote, getBookingNoteById, deleteBookingNote,
     applyPayfastPaymentToBooking, markBookingPaymentFailedIfUnpaid,
     getBookingsByIds, cancelBookingForErasureAsync, clearBookingGoogleEventIdAsync,
-    applyManualTransactionPaymentToBooking, updateBookingLedgerAfterManualRefund, updateBookingLedgerAfterAdjustment,
 } = require('./database/repositories/bookings.repository');
 // Phase 4: invoices+quotations-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
 const {
@@ -92,7 +90,6 @@ const {
     getQuoteHistoryForBooking,
     getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload,
     getQuoteForBookingFinancials, getInvoiceForBookingFinancials,
-    getOpenInvoiceIdForAdjustmentRegen,
     countQuotationsForIds, countQuotationsForClientIds,
     markInvoicePreDueReminded, markInvoiceOverdueReminded,
     getInvoiceAgingSummary, getOverdueInvoicesSummary, getDueSoonInvoicesSummary,
@@ -105,7 +102,6 @@ const {
     getPaymentLogsForBooking,
     getCancellationsWithRefundedTotals,
     getTransactionsForBooking,
-    insertManualTransaction,
     getTransactionRevenueTrend, getTransactionRevenueByPeriod, getPeriodRevenue, getTotalTransactionCount,
     getCompletedTransactionsForReconciliation, setTransactionDuplicateFlag, countTransactionsForIds,
     redactTransactionForErasure,
@@ -157,10 +153,10 @@ if (!fs.existsSync(scratchDir)) {
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): runtime storage locations (Phase 3 originally) moved to
 // lib/runtime-paths.js — needed by route files being split out of this one, not just app.js.
-const {
-    DOCS_PATH, UPLOADS_PATH, BACKUPS_PATH, LEGACY_DOCS_DIR,
-    ensureDir, docsWriteDir, resolveDocsPath, uploadsWriteDir,
-} = require('./lib/runtime-paths');
+// DOCS_PATH/BACKUPS_PATH/LEGACY_DOCS_DIR/ensureDir/docsWriteDir/resolveDocsPath have no remaining
+// caller here — every route that used them has moved to its own route file, each importing
+// whichever of these it still needs directly. Only UPLOADS_PATH still has real callers here.
+const { UPLOADS_PATH } = require('./lib/runtime-paths');
 
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): parseDurationMins moved to routes/public/bookings.js —
@@ -510,6 +506,8 @@ app.use(require('./routes/admin/events'));
 app.use(require('./routes/public/bookings'));
 app.use(require('./routes/public/site-content'));
 app.use(require('./routes/public/availability'));
+app.use(require('./routes/admin/misc'));
+app.use(require('./routes/admin/transactions'));
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/uploads.js — needed by the ~20 admin upload
 // routes being split into routes/, not just this file.
@@ -2706,64 +2704,6 @@ app.post('/api/public/newsletter/unsubscribe', ipRateLimiter, (req, res) => {
     });
 });
 
-// GET Email Logs (Advanced: Sorting, Filtering, Searching, Pagination)
-app.get('/api/admin/email-logs', requireAdmin, (req, res) => {
-    const { 
-        page = 1, 
-        limit = 20, 
-        search = '', 
-        status = '', 
-        trigger = '', 
-        sort = 'sent_at', 
-        order = 'DESC' 
-    } = req.query;
-
-    const offset = (page - 1) * limit;
-    let whereClauses = [];
-    let params = [];
-
-    if (search) {
-        whereClauses.push("(recipient_email LIKE ? OR subject LIKE ? OR trigger_event LIKE ?)");
-        params.push(`%${search}%`, `%${search}%`, `%${search}%`);
-    }
-    if (status) {
-        whereClauses.push("status = ?");
-        params.push(status);
-    }
-    if (trigger) {
-        whereClauses.push("trigger_event = ?");
-        params.push(trigger);
-    }
-
-    const whereString = whereClauses.length > 0 ? "WHERE " + whereClauses.join(" AND ") : "";
-    const allowedSortCols = ['sent_at', 'recipient_email', 'subject', 'status', 'trigger_event'];
-    const safeSort = allowedSortCols.includes(sort) ? sort : 'sent_at';
-    const safeOrder = order.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-
-    const countQuery = `SELECT COUNT(*) as total FROM email_logs ${whereString}`;
-    const dataQuery = `SELECT * FROM email_logs ${whereString} ORDER BY ${safeSort} ${safeOrder} LIMIT ? OFFSET ?`;
-    
-    const queryParams = [...params, parseInt(limit), parseInt(offset)];
-
-    db.get(countQuery, params, (countErr, countRow) => {
-        if (countErr) return res.status(500).json({ success: false, error: countErr.message });
-        
-        db.all(dataQuery, queryParams, (err, rows) => {
-            if (err) return res.status(500).json({ success: false, error: err.message });
-            
-            // Defensive: Check both 'total' alias and default 'COUNT(*)' column names
-            const rawTotal = countRow ? (countRow.total !== undefined ? countRow.total : countRow['COUNT(*)']) : 0;
-            const total = parseInt(rawTotal) || 0;
-            res.json({ 
-                success: true, 
-                logs: rows,
-                total: total,
-                page: parseInt(page),
-                totalPages: Math.ceil(total / parseInt(limit))
-            });
-        });
-    });
-});
 
 
 
@@ -2827,27 +2767,6 @@ registerBirthdayJob();
 
 
 
-app.post('/api/admin/settings/test-notification', requireAdmin, requireRole(['administrator']), async (req, res) => {
-    try {
-        const to = await getNotificationEmail();
-        await sendEmail({
-            to,
-            subject: 'Test Notification — Thabiso Mhlongo Admin',
-            htmlContent: emailComponents.renderSystemEmail({
-                preheaderText: `Test notification — confirming admin routing to ${to}.`,
-                category: 'System',
-                severity: 'info',
-                leadFact: `This is a test email confirming that admin notifications are correctly routed to <strong style="color:#FAFAFA;">${to}</strong>.`,
-                timestamp: new Date().toISOString()
-            }),
-            preWrapped: true,
-            trigger_event: 'Admin: Test Notification'
-        });
-        res.json({ success: true, message: `Test email sent to ${to}` });
-    } catch (e) {
-        res.status(500).json({ success: false, error: e.message });
-    }
-});
 
 
 
@@ -2857,43 +2776,6 @@ app.post('/api/admin/settings/test-notification', requireAdmin, requireRole(['ad
 
 
 
-// P3-12: Client duplicate detection — finds clients with the same phone number
-// or very similar name (within 2-char edit distance) but different emails.
-app.get('/api/admin/clients/duplicates', requireAdmin, (req, res) => {
-    // Phone-based duplicates: same non-null phone, different email
-    db.all(
-        `SELECT a.id AS id_a, a.full_name AS name_a, a.email AS email_a, a.phone AS phone,
-                b.id AS id_b, b.full_name AS name_b, b.email AS email_b,
-                'phone' AS match_type
-         FROM clients a
-         JOIN clients b ON a.phone = b.phone
-           AND a.id < b.id
-           AND LOWER(a.email) != LOWER(b.email)
-           AND a.phone IS NOT NULL AND a.phone != ''
-         ORDER BY a.phone`,
-        [],
-        (pErr, phoneRows) => {
-            if (pErr) return res.status(500).json({ success: false, error: pErr.message });
-            // Name-based duplicates: same name (case-insensitive), different email
-            db.all(
-                `SELECT a.id AS id_a, a.full_name AS name_a, a.email AS email_a, a.phone AS phone_a,
-                        b.id AS id_b, b.full_name AS name_b, b.email AS email_b, b.phone AS phone_b,
-                        'name' AS match_type
-                 FROM clients a
-                 JOIN clients b ON LOWER(TRIM(a.full_name)) = LOWER(TRIM(b.full_name))
-                   AND a.id < b.id
-                   AND LOWER(a.email) != LOWER(b.email)
-                 ORDER BY a.full_name`,
-                [],
-                (nErr, nameRows) => {
-                    if (nErr) return res.status(500).json({ success: false, error: nErr.message });
-                    const all = [...(phoneRows || []), ...(nameRows || [])];
-                    res.json({ success: true, count: all.length, duplicates: all });
-                }
-            );
-        }
-    );
-});
 
 
 
@@ -3018,373 +2900,59 @@ app.get('/api/calendar/feed.ics', async (req, res) => {
 
 
 
-// Admin: serve a booking attachment file
-app.get('/api/admin/booking-attachments/:filename', requireAdmin, (req, res) => {
-    const filePath = resolveDocsPath('booking_attachments', req.params.filename);
-    if (!fs.existsSync(filePath)) return res.status(404).send('File not found.');
-    res.sendFile(filePath);
-});
-
-
-// Admin: approve or delete a review
-app.patch('/api/admin/reviews/:id', requireAdmin, (req, res) => {
-    const { is_approved } = req.body;
-    db.run("UPDATE service_reviews SET is_approved = ? WHERE id = ?", [is_approved ? 1 : 0, req.params.id],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            res.json({ success: true });
-        }
-    );
-});
-
-
-
-
-
-
-
-// GET — bookings whose ACTIVE schedule total diverges from the booking total (reconciliation sweep)
-app.get('/api/admin/payment-schedules/mismatches', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    db.all(
-        `SELECT b.id, b.name, b.event_name, b.event_type, b.date, b.status, b.total_amount,
-                (SELECT COALESCE(SUM(expected_amount),0) FROM payment_schedules ps
-                 WHERE ps.booking_id=b.id AND LOWER(COALESCE(ps.status,'pending')) NOT IN ('superseded','cancelled')) AS scheduled_total
-         FROM bookings b
-         WHERE b.status NOT IN ('CANCELLED')
-           AND b.total_amount > 0
-           AND EXISTS (SELECT 1 FROM payment_schedules ps2 WHERE ps2.booking_id=b.id AND LOWER(COALESCE(ps2.status,'pending')) NOT IN ('superseded','cancelled'))`,
-        [], (err, rows) => {
-            if (err) return res.status(500).json({ success: false, message: err.message });
-            const mismatches = (rows || [])
-                .map(r => {
-                    const total_amount = parseFloat(r.total_amount) || 0;
-                    const scheduled_total = parseFloat(r.scheduled_total) || 0;
-                    return { ...r, total_amount, scheduled_total, diff: Math.round((scheduled_total - total_amount) * 100) / 100 };
-                })
-                .filter(r => Math.abs(r.diff) > 0.01)
-                .sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
-            res.json({ success: true, mismatches, count: mismatches.length });
-        }
-    );
-});
-
-
-
-// Phase 5 (HOUSEKEEPING-NOTES.md): expense-tracking admin routes (and VALID_EXPENSE_CATEGORIES,
-// receiptStorage/uploadReceipt above) moved to routes/admin/expenses.js.
-
-
-
-
-
-
-
-// POST /api/admin/transactions/manual — log a manual payment, refund, or adjustment
-app.post('/api/admin/transactions/manual', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    const { booking_id, amount, transaction_type, payment_method, reference, notes, transaction_date, direction } = req.body;
-    if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0)
-        return res.status(400).json({ success: false, message: 'A valid positive amount is required.' });
-    const validTypes = ['payment', 'refund', 'adjustment'];
-    if (!transaction_type || !validTypes.includes(transaction_type))
-        return res.status(400).json({ success: false, message: 'Transaction type must be payment, refund, or adjustment.' });
-    if (transaction_type === 'adjustment' && (!direction || !['credit', 'debit'].includes(direction)))
-        return res.status(400).json({ success: false, message: 'Adjustment direction must be credit or debit.' });
-
-    const amt = parseFloat(amount).toFixed(2);
-    const txDate = transaction_date || new Date().toISOString().split('T')[0];
-    const finalNotes = transaction_type === 'adjustment'
-        ? (notes ? `[Adjustment: ${direction}] ${notes.trim()}` : `[Adjustment: ${direction}]`)
-        : (notes ? notes.trim() : null);
-
-    // D-2: normalize to a value the transactions.payment_method CHECK permits
-    // ('cash','check','bank_transfer','credit_card','payfast','other'). The UI sends 'eft'/'card',
-    // which the CHECK rejects — the INSERT then 500'd and the manual payment went unrecorded.
-    const PM_MAP = { eft: 'bank_transfer', bank_transfer: 'bank_transfer', card: 'credit_card',
-        credit_card: 'credit_card', cash: 'cash', check: 'check', cheque: 'check', payfast: 'payfast' };
-    const normalizedMethod = (transaction_type === 'adjustment' || !payment_method)
-        ? null
-        : (PM_MAP[String(payment_method).toLowerCase().trim()] || 'other');
-
-    insertManualTransaction(
-        booking_id || null, amt, transaction_type, normalizedMethod, reference || null, finalNotes, txDate,
-        function(err) {
-            if (err) return res.status(500).json({ success: false, message: err.message });
-            const txId = this.lastID;
-            
-            // Log to financial_audit_log
-            const adminUser = req.session.username || 'system';
-            db.run(
-                `INSERT INTO financial_audit_log (event_type, entity_type, entity_id, amount, changed_by, notes)
-                 VALUES ('MANUAL_PAYMENT', 'transaction', ?, ?, ?, ?)`,
-                [txId, parseFloat(amt), adminUser, `Type: ${transaction_type}, Method: ${payment_method || 'N/A'}, Ref: ${reference || 'N/A'}, Notes: ${finalNotes || ''}`],
-                () => {}
-            );
-
-            // Update booking financials if linked
-            if (booking_id) {
-                if (transaction_type === 'payment') {
-                    // Fetch booking row to compute new outstanding balance and run notifications/sync
-                    getBookingById(booking_id, (bookErr, row) => {
-                        if (bookErr || !row) {
-                            console.error(`[Manual Transaction] Booking #${booking_id} not found:`, bookErr?.message);
-                            return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
-                        }
-
-                        const total = parseFloat(row.total_amount) ||
-                                      parseFloat((row.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
-                        const existingPaid = parseFloat(row.amount_paid) || 0;
-                        const paid = existingPaid + parseFloat(amt);
-                        const outstanding = Math.max(0, total - paid);
-
-                        // Determine correct payment status
-                        const isFullyPaid = total > 0 ? paid >= total : false;
-                        let payment_status = 'PARTIALLY_PAID';
-                        if (isFullyPaid) {
-                            payment_status = 'PAID';
-                        } else {
-                            const depositThreshold = total * 0.5;
-                            if (paid >= depositThreshold) {
-                                payment_status = 'DEPOSIT_PAID';
-                            }
-                        }
-
-                        // A deposit confirms, same as every other payment path.
-                        const newStatus = deriveBookingStatusAfterPayment(row.status, payment_status);
-
-                        applyManualTransactionPaymentToBooking(
-                            payment_status, paid, outstanding, total, newStatus, booking_id,
-                            (upErr) => {
-                                if (upErr) {
-                                    console.error('[Manual Transaction] Booking update failed:', upErr.message);
-                                    return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking update failed.' });
-                                }
-
-                                // Record payment event
-                                logPaymentEvent(booking_id, 'MANUAL_PAYMENT_RECORDED', {
-                                    amount_gross: parseFloat(amt),
-                                    payment_method: payment_method || 'manual',
-                                    pf_payment_id: null,
-                                    m_payment_id: `MANUAL-${booking_id}-${Date.now()}`
-                                }, true);
-
-                                db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-                                        VALUES ('bookings', ?, 'PAYMENT', ?, ?, CURRENT_TIMESTAMP)`,
-                                    [booking_id, JSON.stringify({ amount_paid: paid, payment_status, amount_outstanding: outstanding }), adminUser],
-                                    (aErr) => { if (aErr) console.error('[Audit] Manual payment transaction log failed:', aErr.message); });
-
-                                (async () => {
-                                    await syncBookingToCalendar(booking_id);
-                                    sendPaymentReceivedEmail(row, parseFloat(amt), outstanding, payment_status).catch(e => console.error('Manual transaction payment email failed:', e));
-                                    sendAdminPaymentNotification(row, parseFloat(amt), payment_status).catch(e => console.error('Admin payment notification failed:', e.message));
-
-                                    alignMilestonePayments(booking_id, paid, (psErr) => {
-                                        if (psErr) console.error('[Manual Transaction] payment_schedules update failed:', psErr.message);
-                                    });
-
-                                    if (payment_status === 'DEPOSIT_PAID' && outstanding > 0) {
-                                        sendDepositBalanceDueEmail(row, outstanding).catch(e => console.error('Deposit balance-due email failed:', e.message));
-                                    }
-
-                                    if (payment_status === 'PAID') {
-                                        markInvoicePaidIfOpen(booking_id);
-                                        getBookingById(booking_id, (e, updated) => {
-                                            if (!e && updated) {
-                                                sendBookingConfirmedEmail(updated).catch(e => console.error('Confirmed email failed:', e.message));
-                                                setTimeout(() => sendPaidReceiptEmail(updated).catch(e => console.error('Paid receipt email failed:', e.message)), 600);
-                                            }
-                                        });
-                                    }
-                                })();
-
-                                res.json({ success: true, transaction_id: txId, message: 'Transaction logged and booking updated.' });
-                            }
-                        );
-                    });
-                } else if (transaction_type === 'refund') {
-                    getBookingById(booking_id, (bookErr, row) => {
-                        if (bookErr || !row) {
-                            return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
-                        }
-                        // FIN-4: recompute outstanding as (total - new paid), NOT additively — the old
-                        // `amount_outstanding + amt` could push outstanding above total_amount (e.g. a
-                        // refund larger than amount_paid) and never re-derived payment_status, leaving a
-                        // refunded booking still marked PAID.
-                        const total = parseFloat(row.total_amount) || parseFloat((row.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
-                        const newPaid = Math.max(0, (parseFloat(row.amount_paid) || 0) - parseFloat(amt));
-                        const outstanding = Math.max(0, total - newPaid);
-                        let payment_status;
-                        if (total > 0 && newPaid >= total)      payment_status = 'PAID';
-                        else if (newPaid <= 0)                   payment_status = 'UNPAID';
-                        else if (newPaid >= total * 0.5)         payment_status = 'DEPOSIT_PAID';
-                        else                                     payment_status = 'PARTIALLY_PAID';
-                        updateBookingLedgerAfterManualRefund(
-                            newPaid, outstanding, payment_status, booking_id, (upErr) => {
-                                if (upErr) {
-                                    console.error('[Manual Transaction] Refund booking update failed:', upErr.message);
-                                    return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking update failed.' });
-                                }
-                                updateBookingMilestones(booking_id, (psErr) => {
-                                    if (psErr) console.error('[Manual Transaction] Milestone update failed:', psErr.message);
-                                });
-                                db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-                                        VALUES ('bookings', ?, 'REFUND', ?, ?, CURRENT_TIMESTAMP)`,
-                                    [booking_id, JSON.stringify({ amount_paid: newPaid, amount_outstanding: outstanding, payment_status }), adminUser],
-                                    (aErr) => { if (aErr) console.error('[Audit] Manual refund log failed:', aErr.message); });
-                                res.json({ success: true, transaction_id: txId, message: 'Refund recorded and booking updated.' });
-                            });
-                    });
-                } else if (transaction_type === 'adjustment') {
-                    getBookingById(booking_id, (bookErr, row) => {
-                        if (bookErr || !row) {
-                            console.error(`[Manual Transaction] Booking #${booking_id} not found:`, bookErr?.message);
-                            return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
-                        }
-                        const total = parseFloat(row.total_amount) || 0;
-                        const newTotal = direction === 'credit' ? Math.max(0, total - parseFloat(amt)) : total + parseFloat(amt);
-                        const paid = parseFloat(row.amount_paid) || 0;
-                        const outstanding = Math.max(0, newTotal - paid);
-
-                        // Determine correct payment status
-                        const isFullyPaid = newTotal > 0 ? paid >= newTotal : false;
-                        let payment_status = row.payment_status;
-                        if (isFullyPaid) {
-                            payment_status = 'PAID';
-                        } else if (newTotal > 0) {
-                            const depositThreshold = newTotal * 0.5;
-                            if (paid >= depositThreshold) {
-                                payment_status = 'DEPOSIT_PAID';
-                            } else if (paid > 0) {
-                                payment_status = 'PARTIALLY_PAID';
-                            } else {
-                                payment_status = 'UNPAID';
-                            }
-                        }
 
-                        // A deposit confirms, same as every other payment path.
-                        const newStatus = deriveBookingStatusAfterPayment(row.status, payment_status);
 
-                        updateBookingLedgerAfterAdjustment(
-                            payment_status, newTotal, outstanding, newStatus, booking_id,
-                            (upErr) => {
-                                if (upErr) {
-                                    console.error('[Manual Transaction] Booking update failed:', upErr.message);
-                                    return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking update failed.' });
-                                }
 
-                                // Log audit trails
-                                db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
-                                        VALUES ('bookings', ?, 'ADJUSTMENT', ?, ?, CURRENT_TIMESTAMP)`,
-                                    [booking_id, JSON.stringify({ total_amount: newTotal, payment_status, amount_outstanding: outstanding }), adminUser],
-                                    (aErr) => { if (aErr) console.error('[Audit] Manual adjustment log failed:', aErr.message); });
-
-                                (async () => {
-                                    await syncBookingToCalendar(booking_id);
-                                    updateBookingMilestones(booking_id, (psErr) => {
-                                        if (psErr) console.error('[Manual Transaction] Milestone update failed:', psErr.message);
-                                    });
-
-                                    // Void and regenerate invoice if one exists that is not paid/void
-                                    getOpenInvoiceIdForAdjustmentRegen(booking_id, async (invErr, invRow) => {
-                                        if (!invErr && invRow) {
-                                            try {
-                                                await generateInvoice(booking_id);
-                                            } catch (e) {
-                                                console.error('[Manual Transaction] Auto-regeneration of invoice failed:', e.message);
-                                            }
-                                        }
-                                    });
-                                })();
-
-                                res.json({ success: true, transaction_id: txId, message: 'Transaction logged and booking total adjusted.' });
-                            }
-                        );
-                    });
-                } else {
-                    res.json({ success: true, transaction_id: txId, message: 'Transaction logged.' });
-                }
-            } else {
-                res.json({ success: true, transaction_id: txId, message: 'Transaction logged.' });
-            }
-        }
-    );
-});
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// Note: the legacy POST /:id/reply endpoint was removed — no longer called by any client code,
-// superseded by the direct_emails composer (POST/PUT /api/admin/direct-emails, POST /:id/send).
-
-// --- Admin Compose (freeform outbound email) ---
-app.post('/api/admin/compose', requireAdmin, async (req, res) => {
-    const { to, subject, body } = req.body;
-    if (!to || !body) return res.status(400).json({ error: 'Recipient and message body are required.' });
-
-    // Bug fixed in passing: htmlTemplate was built here but never used — the send below passed the
-    // raw body, so composed messages went out with NO wrapper/logo/shell at all.
-    const { socialLinks } = await getEmailFooterContext();
-    const composeBanner = await bannerRegistry.resolveBanner('direct_compose');
-    const htmlTemplate = emailComponents.renderPremiumEmail({
-        preheaderText: subject || 'A message from Thabiso Mhlongo Management.',
-        bannerSrc: composeBanner?.src, bannerAlt: composeBanner?.alt, subtitle: composeBanner?.subtitle,
-        headline: composeBanner?.headline || 'Direct Message',
-        bodyHtml: body.replace(/\n/g, '<br>'),
-        socialLinks
-    });
-
-    try {
-        await sendEmail({
-            to: to,
-            subject: subject || 'Message from Thabiso Mhlongo Management',
-            htmlContent: htmlTemplate,
-            preWrapped: true,
-            replyTo: process.env.EMAIL_USER || 'admin@thabisomhlongo.com',
-            titleOverride: 'Direct Message',
-            trigger_event: 'Admin: Direct Compose'
-        });
-        res.json({ success: true, message: 'Message sent successfully.' });
-    } catch (error) {
-        console.error("Error sending composed email:", error);
-        res.status(500).json({ error: error.message });
-    }
-});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -3430,87 +2998,6 @@ function loadPendingDirectEmails() {
 
 
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): SITE_CONTENT_KEYS moved into routes/public/site-content.js as a
-// single-consumer local alongside GET /api/public/site-content.
-
-
-
-
-
-
-
-// Phase 5 (HOUSEKEEPING-NOTES.md): legacy admin route POST /api/admin/gdpr/delete moved to
-// routes/admin/popia.js (batch 14) — it's a one-click wrapper around createPopiaRequest/
-// approvePopiaRequest/processPopiaRequest/notifyPopiaCancellations/deletePopiaFiles, all of which
-// live there now alongside the rest of the POPIA admin surface.
-
-
-
-
-
-
-
-
-
-// --- Migration & System ---
-/**
- * Admin-Only: Data Migration Tool (Legacy Bookings -> New Relational Schema)
- * This tool scans existing flat 'bookings' records and creates unique 'clients' and 'venues' 
- * entries, then updates the booking record with foreign key references.
- */
-app.post('/api/admin/system/migrate-legacy-data', requireAdmin, requireRole(['administrator']), async (req, res) => {
-    getAllBookingsFull(async (err, bookings) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        
-        let stats = { processed: 0, clientsCreated: 0, venuesCreated: 0, updated: 0 };
-        
-        for (const booking of bookings) {
-            stats.processed++;
-            
-            // 1. Resolve Client
-            let clientId = await new Promise((resolve) => {
-                db.get("SELECT id FROM clients WHERE LOWER(email) = LOWER(?)", [booking.email], (e, row) => resolve(row ? row.id : null));
-            });
-            
-            if (!clientId) {
-                clientId = await new Promise((resolve) => {
-                    db.run("INSERT INTO clients (full_name, company_name, email, phone) VALUES (?, ?, ?, ?)",
-                        [booking.name, booking.company, booking.email, booking.cell],
-                        function() { resolve(this.lastID); }
-                    );
-                });
-                stats.clientsCreated++;
-            }
-            
-            // 2. Resolve Venue
-            let venueId = null;
-            if (booking.event_location || booking.venue_address) {
-                const venueName = booking.event_location || 'Unknown Venue';
-                venueId = await new Promise((resolve) => {
-                    db.get("SELECT id FROM venues WHERE LOWER(name) = LOWER(?)", [venueName], (e, row) => resolve(row ? row.id : null));
-                });
-                
-                if (!venueId) {
-                    venueId = await new Promise((resolve) => {
-                        db.run("INSERT INTO venues (name, address, city, country, capacity) VALUES (?, ?, ?, ?, ?)",
-                            [venueName, booking.venue_address, booking.city, booking.country, booking.audience_size],
-                            function() { resolve(this.lastID); }
-                        );
-                    });
-                    stats.venuesCreated++;
-                }
-            }
-            
-            // 3. Update Booking with Foreign Keys
-            await new Promise((resolve) => {
-                updateBookingClientVenue(clientId, venueId, booking.id, () => resolve());
-            });
-            stats.updated++;
-        }
-        
-        res.json({ success: true, message: 'Migration completed successfully.', stats });
-    });
-});
 
 // --- Dynamic Sitemap ---
 app.get('/sitemap.xml', sitemapRateLimiter, (req, res) => {

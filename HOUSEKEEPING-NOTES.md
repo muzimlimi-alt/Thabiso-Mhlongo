@@ -1709,6 +1709,59 @@ retry succeeded); `npm test` x2 (one hit **CP17** — `calendar.test.js`'s pre-e
 sync flake, already documented from earlier sessions, on code this batch never touched — the other a
 clean 664/664); the 20-check manual fixture script above, 20/20 passed.
 
+### Route batch: `routes/admin/misc.js` (8 routes, new file) + `routes/admin/transactions.js` (1 route, new file) — DONE
+
+Third batch of the post-bookings/events Phase 5 continuation: the small admin-utilities grab-bag —
+8 routes spanning unrelated domains with no single natural home (`GET .../email-logs`,
+`POST .../settings/test-notification`, `GET .../clients/duplicates`, `GET .../booking-attachments/
+:filename`, `PATCH .../reviews/:id`, `GET .../payment-schedules/mismatches`, `POST .../compose`,
+`POST .../system/migrate-legacy-data`) — plus `POST /api/admin/transactions/manual` split into its
+own file given its size (~230 lines) and its much heavier dependency footprint (the same payment-
+processing/booking-notifications/invoicing web already relocated for the bookings domain).
+
+Two new files: `routes/admin/misc.js` (named honestly — a grab-bag, not a domain) and
+`routes/admin/transactions.js`. New `app.use()` registrations for both added to `app.js`'s
+route-mount block.
+
+**Dead-import sweep in `app.js`** turned up more than usual, including two pre-existing gaps
+unrelated to this batch's own routes, caught only because the sweep checks every name sharing an
+import line, not just the ones just moved: `getAllBookingsForMigration` (its real remaining caller,
+`POST /api/admin/migrate`, already lives in `routes/admin/site-content.js` with its own independent
+import — this app.js copy was dead already, missed by whichever earlier batch moved that route) and
+three names on the `lib/runtime-paths.js` import (`DOCS_PATH`, `BACKUPS_PATH`, `LEGACY_DOCS_DIR`) —
+all three lost their only caller across earlier batches and were never swept. `ensureDir`,
+`docsWriteDir`, `resolveDocsPath` also removed (their last call site, `booking-attachments`, moved
+this batch). `UPLOADS_PATH` on the same import line checked and correctly kept. Also removed:
+`insertManualTransaction`, `applyManualTransactionPaymentToBooking`,
+`updateBookingLedgerAfterManualRefund`, `updateBookingLedgerAfterAdjustment`,
+`getOpenInvoiceIdForAdjustmentRegen`, `updateBookingClientVenue`, `getAllBookingsFull` — all lost
+their only remaining caller to this batch.
+
+**Byte-identity check**: all 9 routes diffed against `git show HEAD:app.js` — zero differences,
+including `transactions/manual`'s full ~230-line payment/refund/adjustment branching logic.
+
+**Bug found while writing manual fixture coverage (not fixed, logged as Deferred fix #5)**:
+`transactions/manual` 500s with a raw SQLite constraint error whenever no `booking_id` is supplied
+— the route's own code has a branch for exactly this case, but `transactions.booking_id` is
+`NOT NULL` in the actual schema, so the `INSERT` fails before that branch is ever reached. Confirmed
+pre-existing (a schema constraint has nothing to do with which file the route lives in) — not
+introduced by this move, and not fixed per the standing "housekeeping moves code, it doesn't repair
+behaviour" rule. Full writeup under "Deferred fixes" below.
+
+**Manual fixture verification**: `transactions/manual` has no dedicated test file, so a throwaway
+script drove all three transaction types against one real booking — payment (partial, then to PAID,
+confirming `payment_status` derivation at each step), refund (confirming the ledger recalculation
+and `payment_status` re-derivation, not left stale at PAID), adjustment/credit (confirming
+`total_amount` reduction) — plus the validation guards (negative amount, invalid type, missing
+adjustment direction all correctly rejected with 400). 16 of 17 checks passed; the one failure is
+Deferred fix #5 above, not a relocation defect.
+
+**Verification**: `node -c` on all three changed/new files; the undefined-reference sweep (clean);
+every new import verified programmatically against the real modules before running anything;
+byte-identity diffs (clean); `npm run smoke` 329/329 (twice — once before, once after the larger
+dead-import cleanup); `npm test` — clean 664/664; the manual fixture script above (16/17, the one
+failure being the pre-existing bug logged separately, not a regression).
+
 ### Route batch: `routes/public/availability.js` (5 routes, new file) — DONE
 
 Second batch of the post-bookings/events Phase 5 continuation: the availability/venue-lookup
@@ -3486,3 +3539,35 @@ its own change with its own testing.
     "shared-helper extraction into lib/" step, did not reproduce on the next run), one run hit the
     already-documented `banner.test.js` `SQLITE_BUSY` crash — neither touches bank-statement/finance
     import code.
+
+### 5. `POST /api/admin/transactions/manual` 500s whenever no `booking_id` is supplied
+
+- **Where found:** `routes/admin/transactions.js` (moved verbatim from `app.js` in the small-admin-
+  utilities route batch), while writing a manual fixture-verification script to cover this route
+  (no dedicated test file exercises it) — not from a test-suite failure.
+- **What happens:** the route accepts a standalone transaction with no `booking_id` (its own code
+  passes `booking_id || null` into `insertManualTransaction`, and the "no booking_id" branch at the
+  bottom of the handler exists specifically to handle this case: `else { res.json({ success: true,
+  message: 'Transaction logged.' }); }`). But `transactions.booking_id` is `NOT NULL` in the actual
+  schema (confirmed via `PRAGMA table_info(transactions)`), so the `INSERT` inside
+  `insertManualTransaction` (`finance.repository.js`) throws `SQLITE_CONSTRAINT: NOT NULL constraint
+  failed: transactions.booking_id` before that branch is ever reached. The route's own `catch`
+  surfaces this as `{ success: false, message: err.message }` — a raw SQLite error string reaching
+  the admin UI, not a crash.
+- **Impact:** logging a manual transaction *not* tied to any booking — e.g. miscellaneous cash
+  income, a walk-in payment with no booking record yet — always fails. Every transaction the admin
+  UI's manual-transaction form actually exercises in practice supplies a `booking_id`, which is
+  presumably why this has gone unnoticed; the code path for the no-booking case is dead in the sense
+  that it can never successfully execute, not in the sense that nothing calls it.
+- **Not fixed** — housekeeping moves code, it does not repair behaviour (the one exception this
+  session, item 4 above, was fixed only at the user's explicit request given its severity; this is a
+  narrower, opt-in code path, not a broken core feature). Logged here per Phase 2's own rule for a
+  bug found rather than caused.
+  - **Reproduced with:** `POST /api/admin/transactions/manual` with `{ amount: 50,
+    transaction_type: 'payment', payment_method: 'cash' }` (no `booking_id` field at all) —
+    confirmed via a throwaway fixture script, not by application code inspection alone.
+  - **Possible fix directions, not applied:** either make `transactions.booking_id` nullable (a
+    schema migration, out of scope for a housekeeping pass) or have the route reject a missing
+    `booking_id` with a clear `400` instead of letting the SQLite constraint surface a raw message —
+    the smaller of the two changes, but still a behaviour change requiring the user's decision on
+    which direction they actually want.
