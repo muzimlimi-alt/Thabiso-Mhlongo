@@ -79,7 +79,6 @@ const {
     setBookingEventId,
     getBookingIdsForEmail, anonymizeBookingsForErasure, deleteBookingAccessCodesForErasure,
     deleteBookingAccessTokensForErasure, redactBookingNotesForErasure, countBookingNotesForIds,
-    insertBookingNoteFromTracker,
     getBookingNotesForBooking, insertBookingNote, getBookingNoteById, deleteBookingNote,
     applyPayfastPaymentToBooking, markBookingPaymentFailedIfUnpaid,
     applyManualPaymentToBooking, getBookingForAutoEventOnPayment, getBookingAmountPaid,
@@ -4039,89 +4038,6 @@ app.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLimit
     }
 });
 
-// Quote revision request (public) — client requests extension or revision of a QUOTED booking
-app.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, async (req, res) => {
-    const { request_type, message } = req.body;
-    const email = req.trackingEmail;
-    if (!request_type || !['extension', 'revision'].includes(request_type)) {
-        return res.status(400).json({ success: false, message: 'request_type must be "extension" or "revision".' });
-    }
-    if (!message || message.trim().length < 10) {
-        return res.status(400).json({ success: false, message: 'Please provide more detail about your request (at least 10 characters).' });
-    }
-
-    db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], async (err, row) => {
-        if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        // Gap 4 (Phase 2): 'RESPONDED' was a legacy status retired in Phase 2 — only 'QUOTED' is valid.
-        if (row.status !== 'QUOTED') {
-            return res.status(400).json({ success: false, message: 'Quote revision requests can only be made on bookings in QUOTED status.' });
-        }
-
-        const typeLabel = request_type === 'extension' ? 'Quote Expiry Extension' : 'Quote Revision';
-        const notifEmail = await getNotificationEmail();
-
-        const adminHtml = emailComponents.renderSystemEmail({
-            preheaderText: `${typeLabel} request from ${row.name} for booking #${row.id}.`,
-            category: 'Quotes & Proposals',
-            severity: 'action',
-            leadFact: `A client has submitted a <strong style="color:#D4AF37;">${typeLabel}</strong> request for booking <strong style="color:#FAFAFA;">#${row.id}</strong>.`,
-            bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Please review this request in the admin panel and respond to the client accordingly.</p>`,
-            cards: [{
-                rows: [
-                    { label: 'Client', value: row.name, mono: false },
-                    { label: 'Email', value: row.email },
-                    { label: 'Event', value: `${row.event_name || row.event_type} on ${row.date}`, mono: false },
-                    { label: 'Quote Amount', value: `R ${parseFloat(row.quote_amount || 0).toFixed(2)}`, highlight: true },
-                    { label: 'Quote Expiry', value: row.quote_expiry_date || 'Not set' },
-                    { label: 'Request Type', value: typeLabel, mono: false, highlight: true },
-                    { label: 'Client Message', value: message.trim(), mono: false }
-                ]
-            }]
-        });
-
-        try {
-            // Log the client's request as a booking note first (critical operation)
-            const noteText = `[${typeLabel} Request]\n"${message.trim()}"`;
-            await insertBookingNoteFromTracker(row.id, encodeUserHtml(noteText));
-
-            // Send email notifications asynchronously in the background (no await)
-            sendEmail({
-                to: notifEmail,
-                subject: `[ACTION REQUIRED] ${typeLabel} Request – Booking #${row.id}`,
-                htmlContent: adminHtml,
-                preWrapped: true,
-                titleOverride: `${typeLabel} Request`,
-                trigger_event: 'Booking: Quote Revision Request'
-            }).catch(e => console.error('[Quote Revision Request] Admin email notification failed:', e.message));
-
-            getEmailFooterContext().then(async ({ socialLinks }) => {
-                const banner = await bannerRegistry.resolveBanner('custom_response');
-                return sendEmail({
-                    to: row.email,
-                    subject: `We've Received Your Request – Booking #${row.id}`,
-                    htmlContent: emailComponents.renderPremiumEmail({
-                        preheaderText: `We've received your request for booking #${row.id}.`,
-                        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-                        headline: banner?.headline || 'Request Received',
-                        greeting: `Hi ${row.name},`,
-                        bodyHtml:
-                            `We've received your <strong style="color:#D4AF37;">${typeLabel.toLowerCase()}</strong> request for booking <strong style="color:#FAFAFA;">#${row.id}</strong>. Our team will review your request and get back to you shortly.` +
-                            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">Your request: "${message.trim()}"</p>`,
-                        socialLinks
-                    }),
-                    preWrapped: true,
-                    titleOverride: 'Request Received',
-                    trigger_event: 'Booking: Quote Revision Acknowledgement'
-                });
-            }).catch(e => console.error('[Quote Revision Request] Client email acknowledgement failed:', e.message));
-
-            res.json({ success: true, message: 'Your request has been recorded. We will be in touch shortly.' });
-        } catch (dbErr) {
-            console.error('[Quote Revision Request] DB insert failed:', dbErr.message);
-            res.status(500).json({ success: false, message: 'Failed to record your request in the database.' });
-        }
-    });
-});
 
 // P2.4 — Date availability check (public, rate-limited)
 const MIN_ADVANCE_HOURS = 48;

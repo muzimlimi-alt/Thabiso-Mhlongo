@@ -1341,6 +1341,27 @@ manually verified against real fixtures (11 checks, all passing): rejecting a st
 `FULL` request returning a correctly-signed `pfData` payload with the right amount/`m_payment_id`/
 `notify_url`, and rejecting a second payment attempt once the booking is already fully paid.
 
+### Public bookings sub-batch F: quote-revision-request — DONE
+
+`POST .../:id/quote-revision-request` (client asks for a quote-expiry extension or a revision on a
+QUOTED booking — logs a booking note and fires both an admin-action email and a client
+acknowledgement). Appended to `routes/public/bookings.js`. Fully self-contained: every dependency
+(`db`, `getNotificationEmail`, `emailComponents`, `encodeUserHtml`, `sendEmail`,
+`getEmailFooterContext`, `bannerRegistry`) was already available from earlier sub-batches.
+`insertBookingNoteFromTracker` (`bookings.repository`) was the one new import; it had exactly one
+caller in `app.js` (this route), now dead there and removed.
+
+Verification: `node -c`; the static undefined-reference sweep (clean); confirmed zero remaining
+`app.js` registration and zero remaining reference to the one dead name; `npm run smoke` 329/329;
+`npm test` x4 given an elevated flake rate this round — 2 clean 664/664, one run crashing with the
+already-documented `banner.test.js` `SQLITE_BUSY` process crash, one run hitting **CP3**
+(`calendar.test.js`'s original, most-documented flake — the whole "Deferred fix #3" tracker is named
+after it), both unrelated to anything in this batch. No dedicated coverage exists for this route —
+manually verified against real fixtures (8 checks, all passing): rejecting an invalid
+`request_type`, a too-short message, and a missing token; a valid extension request recording the
+exact booking note text and returning 200; a valid revision request also succeeding; and rejecting
+the request entirely on a booking that isn't in QUOTED status.
+
 ### Step 1: app.js/server.js skeleton split + middleware extraction — DONE
 
 See the commit message for the mechanics (byte-identical `middleware/auth.js`, `middleware/rbac.js`,
