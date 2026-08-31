@@ -36,16 +36,11 @@ const {
     getStalePendingBookings, expirePendingBooking, getOverdueQuotedBookings, expireQuotedBooking,
     clearBookingGoogleEventId, getQuotesExpiringTomorrow, markQuoteExpiryWarned,
     getPendingEnquiriesNearingExpiry, markPendingExpiryWarned, markBookingOverdueReminded,
-    getBookingsForQuoteFollowUp, markQuoteFollowUpSent, findActiveBookingByEmailAndDate,
-    getBookingsForDepositBalanceReminder, markDepositBalanceReminded,
-    getConfirmedBookingsOnDate, markEventReminderSent, getCompletedBookingsAwaitingReview,
-    stampReviewEmailSent,
 } = require('./database/repositories/bookings.repository');
 // Phase 4: invoices+quotations-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
 const {
     markInvoicePaidForAutoComplete,
     flagOverdueInvoices,
-    markInvoicePreDueReminded, markInvoiceOverdueReminded,
 } = require('./database/repositories/invoices-quotations.repository');
 // Phase 4: finance-domain data access moved to a repository (HOUSEKEEPING-NOTES.md).
 const { flagOverduePaymentSchedules } = require('./database/repositories/finance.repository');
@@ -1025,8 +1020,9 @@ schedule.scheduleJob('6 0 * * *', function () {
 
 // EMAIL-1: HTML-escape user-controlled free-text before it is interpolated into email HTML,
 // Phase 5 (HOUSEKEEPING-NOTES.md): escapeEmailHtml/EMAIL_ESCAPE_FIELDS/escapeEmailFields moved to
-// lib/email-escape.js.
-const { escapeEmailFields } = require('./lib/email-escape');
+// lib/email-escape.js. escapeEmailFields's last remaining callers in this file (the 5 email
+// helpers that used to sit here) moved to lib/scheduled-job-emails.js, which imports it directly —
+// no remaining caller in app.js.
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/html-sanitize.js, alongside unescapeHtml/
 // sanitizeAboutHtml/SECTION_KEYS (same file, all pure content-sanitization helpers). None of those
@@ -1034,10 +1030,10 @@ const { escapeEmailFields } = require('./lib/email-escape');
 // /api/public/site-content, plus /send-email for encodeUserHtml) moved out, each importing
 // directly from lib/html-sanitize.js.
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/email-context.js. getEmailFooterContext is still
-// called directly from app.js (the surviving background cron jobs' emails); emailBaseUrl has no
-// remaining caller here — its call sites moved out with their routes, each importing it directly.
-const { getEmailFooterContext } = require('./lib/email-context');
+// Phase 5 (HOUSEKEEPING-NOTES.md): moved to lib/email-context.js. getEmailFooterContext's last
+// remaining callers in this file (the same 5 email helpers) moved to lib/scheduled-job-emails.js,
+// which imports it directly; emailBaseUrl's call sites moved out with their routes even earlier.
+// Neither has a remaining caller in app.js.
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendBookingReceivedEmail moved to lib/booking-notifications.js
 // — its only remaining caller (the public booking-intake route) moved with it, so app.js has no
@@ -1049,147 +1045,30 @@ const { getEmailFooterContext } = require('./lib/email-context');
 // sendReviewRequestEmail/remindBooking/sendDateChangedEmail/sendBookingUnderReviewEmail/
 // sendPaymentReceivedEmail/sendPaidReceiptEmail/sendBookingCompletedEmail/
 // sendAdminPaymentNotification/sendAdminCompletionSummaryEmail/sendRefundProcessedEmail/
-// sendInvoiceEmail (lib/invoice-email.js) all moved out. Now that the PayFast ITN webhook has also
-// moved to routes/public/payment.js (which imports directly whichever of these it needs), only the
-// 6 background cron jobs' calls below are still real remaining callers in app.js:
-// sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail, sendReviewRequestEmail,
+// sendInvoiceEmail (lib/invoice-email.js) all moved out. sendReviewRequestEmail's own last caller
+// (runPostEventFollowupJob) has since moved to lib/post-event-followup-job.js, which imports it
+// directly — only the Background Clerk's hourly sweep below still calls the remaining 5 directly
+// from this file: sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail,
 // sendBookingUnderReviewEmail, sendBookingCompletedEmail, sendAdminCompletionSummaryEmail.
 const {
-    sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail, sendReviewRequestEmail,
+    sendDepositBalanceDueEmail, sendQuoteExpiryWarningEmail,
     sendBookingUnderReviewEmail, sendBookingCompletedEmail, sendAdminCompletionSummaryEmail
 } = require('./lib/booking-notifications');
 
 
 // S2-2: Notify all admin users when a quote has been dispatched to a client
 
-async function sendInvoicePreDueEmail(booking, invoice, daysUntilDue) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date } = booking;
-    const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
-    const payUrl  = `${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}`;
-    const amount  = parseFloat(invoice.total_amount || 0).toFixed(2);
-    const dueDate = invoice.due_date || '';
-
-    // PAYMENT-CRITICAL: invoice number, due date, `R ${amount}` and payUrl kept verbatim.
-    // (The old card used display:flex, which many email clients ignore — infoCard is table-based.)
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('invoice_pre_due');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Invoice ${invoice.invoice_number || id} is due in ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Invoice Payment Reminder',
-        greeting: `Hi ${name},`,
-        bodyHtml:
-            `This is a friendly reminder that your invoice for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> is due in <strong style="color:#D4AF37;">${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}</strong>.` +
-            `<p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">If you have already arranged payment, please disregard this message. <span style="font-size:12px;">(Booking reference #${id})</span></p>`,
-        cards: [{
-            title: 'Payment Due',
-            rows: [
-                { label: 'Invoice #', value: `${invoice.invoice_number || id}` },
-                { label: 'Due Date', value: dueDate },
-                { label: 'Amount Due', value: `R ${amount}`, highlight: true }
-            ]
-        }],
-        cta: { label: 'Pay Now', url: payUrl },
-        socialLinks
-    });
-
-    const result = await sendEmail({
-        to: email,
-        subject: `Invoice Due in ${daysUntilDue} Day${daysUntilDue !== 1 ? 's' : ''} — Booking #${id}`,
-        htmlContent: html,
-        preWrapped: true,
-        titleOverride: 'Invoice Payment Reminder',
-        trigger_event: 'Booking: Invoice Pre-Due Reminder'
-    });
-    return result.success;
-}
-
-// Pre-event logistics reminder — a friendly countdown, not a payment nudge (that's the separate
-// balance-due reminder). Mirrors sendInvoicePreDueEmail's structure.
-async function sendEventReminderEmail(booking, daysBefore) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date, event_location } = booking;
-
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('event_reminder');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Your event is in ${daysBefore} day${daysBefore !== 1 ? 's' : ''} — ${event_name || event_type}.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Your Event Is Coming Up',
-        greeting: `Hi ${name},`,
-        bodyHtml:
-            `Just a friendly reminder that <strong style="color:#FAFAFA;">${event_name || event_type}</strong> is coming up in <strong style="color:#D4AF37;">${daysBefore} day${daysBefore !== 1 ? 's' : ''}</strong>! We're looking forward to it.` +
-            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">If anything about your booking has changed, just reply to this email. (Booking reference #${id})</p>`,
-        cards: [{
-            title: 'Event Details',
-            rows: [
-                { label: 'Event', value: event_name || event_type },
-                { label: 'Date', value: date },
-                { label: 'Venue', value: event_location || 'TBD' }
-            ]
-        }],
-        socialLinks
-    });
-
-    const result = await sendEmail({
-        to: email,
-        subject: `Your Event Is in ${daysBefore} Day${daysBefore !== 1 ? 's' : ''} — ${event_name || event_type} (Booking #${id})`,
-        htmlContent: html,
-        preWrapped: true,
-        titleOverride: 'Your Event Is Coming Up',
-        trigger_event: 'Booking: Event Reminder'
-    });
-    return result.success;
-}
+// Phase 5 (HOUSEKEEPING-NOTES.md): sendInvoicePreDueEmail/sendEventReminderEmail/
+// sendOverdueInvoiceEmail/sendQuoteExpiredEmail/sendPendingExpiredEmail — the 5 email helpers used
+// only by the background scheduled-job functions — moved to lib/scheduled-job-emails.js. The first
+// 3 have each moved out with their only caller (lib/invoice-pre-due-reminder-job.js,
+// lib/event-reminder-job.js, lib/overdue-invoice-sweep-job.js, each importing directly). Only
+// sendQuoteExpiredEmail/sendPendingExpiredEmail still have a real caller here — the Background
+// Clerk's hourly sweep below, not yet relocated.
+const { sendQuoteExpiredEmail, sendPendingExpiredEmail } = require('./lib/scheduled-job-emails');
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendContractEmail (single-consumer) moved into
 // routes/admin/bookings.js alongside the contract/send route.
-
-async function sendOverdueInvoiceEmail(booking, invoice) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date } = booking;
-    const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
-    const payUrl  = `${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}`;
-    const amount  = parseFloat(invoice.total_amount || 0).toFixed(2);
-    const dueDate = invoice.due_date || '';
-
-    // PAYMENT-CRITICAL: invoice number, due date, `R ${amount}` and payUrl kept verbatim.
-    // Red (#ef4444) replaced with the design system's amber alert (no red-on-black per HARD RULES).
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('invoice_overdue');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Invoice ${invoice.invoice_number || id} is overdue — R ${amount} outstanding.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Invoice Overdue',
-        greeting: `Hi ${name},`,
-        bodyHtml:
-            `Your invoice for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> was due on <strong style="color:#E8A83E;">${dueDate}</strong> and is now <strong style="color:#E8A83E;">overdue</strong>.` +
-            emailComponents.spacer(14) +
-            emailComponents.alertStrip({ severity: 'alert', text: 'Please settle this payment at your earliest convenience to avoid any disruption to your booking.' }) +
-            `<p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">If you believe this is an error or have already made payment, please contact us immediately and we will update your records. <span style="font-size:12px;">(Booking reference #${id})</span></p>`,
-        cards: [{
-            title: 'Outstanding Invoice',
-            rows: [
-                { label: 'Invoice #', value: `${invoice.invoice_number || id}` },
-                { label: 'Was Due', value: dueDate },
-                { label: 'Outstanding Amount', value: `R ${amount}`, highlight: true }
-            ]
-        }],
-        cta: { label: 'Pay Now', url: payUrl },
-        socialLinks
-    });
-
-    const result = await sendEmail({
-        to: email,
-        subject: `Invoice Overdue — Booking #${id}`,
-        htmlContent: html,
-        preWrapped: true,
-        titleOverride: 'Invoice Overdue',
-        trigger_event: 'Booking: Invoice Overdue Reminder'
-    });
-    return result.success;
-}
 
 // Gap 2 (Phase 2): accepts an options object { invoiceGenerated: bool } so that the email subject
 // and title are honest — if invoice generation failed during acceptance, we don't claim it succeeded.
@@ -1204,53 +1083,8 @@ async function sendOverdueInvoiceEmail(booking, invoice) {
 // sendBookingCompletedEmail moved to lib/booking-notifications.js — see the require near the top
 // of this file for the re-import.
 
-async function sendQuoteExpiredEmail(booking) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date } = booking;
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('quote_expired');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Your quote for booking #${id} has expired.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Your Quote Has Expired',
-        greeting: `Hi ${name},`,
-        bodyHtml: `Your quote for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> has expired and is no longer valid.<br><br>If you're still interested in booking Thabiso Mhlongo for your event, we'd be glad to prepare a fresh quote — just submit a new enquiry and we'll take it from there. <span style="color:#B0B0B0; font-size:13px;">(Booking reference #${id})</span>`,
-        cta: { label: 'Submit a New Enquiry', url: `${process.env.SITE_URL || ''}/index.html#booking` },
-        socialLinks
-    });
-    const result = await sendEmail({
-        to: email, subject: `Your Quote Has Expired – Booking #${id}`,
-        htmlContent: html, preWrapped: true, titleOverride: 'Quote Expired',
-        trigger_event: 'Booking: Quote Expired'
-    });
-    return result.success;
-}
-
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendPaymentFailedEmail moved to routes/public/payment.js as a
 // single-consumer local alongside its only caller, the PayFast ITN webhook.
-
-
-async function sendPendingExpiredEmail(booking) {
-    booking = escapeEmailFields(booking);
-    const { id, name, email, event_name, event_type, date } = booking;
-    const { socialLinks } = await getEmailFooterContext();
-    const banner = await bannerRegistry.resolveBanner('pending_expired');
-    const html = emailComponents.renderPremiumEmail({
-        preheaderText: `Enquiry #${id} has expired — you can submit a new one any time.`,
-        bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-        headline: banner?.headline || 'Your Enquiry Has Expired',
-        greeting: `Hi ${name},`,
-        bodyHtml: `Your booking enquiry for <strong style="color:#FAFAFA;">${event_name || event_type}</strong>${date ? ` on <strong style="color:#FAFAFA;">${date}</strong>` : ''} has expired due to inactivity.<br><br>If you're still interested, we'd love to help make your event special — just submit a new enquiry. <span style="color:#B0B0B0; font-size:13px;">(Original reference #${id})</span>`,
-        cta: { label: 'Submit a New Enquiry', url: `${process.env.SITE_URL || ''}/index.html#booking` },
-        socialLinks
-    });
-    const result = await sendEmail({
-        to: email, subject: `Booking Enquiry Expired – Reference #${id}`,
-        htmlContent: html, preWrapped: true, titleOverride: 'Enquiry Expired',
-        trigger_event: 'Booking: Enquiry Expired'
-    });
-    return result.success;
-}
 
 
 // ==========================================
@@ -1316,8 +1150,9 @@ async function sendPendingExpiredEmail(booking) {
 
 // Branded recovery reminder email with a one-click resume link + opt-out.
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendAbandonedBookingReminderEmail moved to
-// lib/abandoned-booking-email.js.
-const { sendAbandonedBookingReminderEmail } = require('./lib/abandoned-booking-email');
+// lib/abandoned-booking-email.js. Its last remaining caller in this file (runAbandonedBookingReminderJob)
+// has since moved to lib/abandoned-booking-jobs.js, which imports it directly — no remaining
+// caller in app.js.
 
 
 
@@ -1647,539 +1482,47 @@ setTimeout(() => {
 // PAYMENT REMINDER JOB
 // ========================================
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): runPaymentReminderJob moved to lib/payment-reminders.js.
-const { runPaymentReminderJob } = require('./lib/payment-reminders');
+// Phase 5 (HOUSEKEEPING-NOTES.md): runPaymentReminderJob moved to lib/payment-reminders.js in an
+// earlier batch; its startup/scheduling wiring (a bare setTimeout+setInterval, previously still
+// inline here) has now been wrapped into that same module's registerPaymentReminderJob(), matching
+// every other scheduled job's convention.
+const { registerPaymentReminderJob } = require('./lib/payment-reminders');
+registerPaymentReminderJob();
 
-// Run reminder job daily at 09:00 local time (simplified: every 24h after first run at startup + 10s)
-setTimeout(() => {
-    runPaymentReminderJob().catch(err => console.error('[Reminder Job] Startup run failed:', err.message));
-    setInterval(() => {
-        runPaymentReminderJob().catch(err => console.error('[Reminder Job] Scheduled run failed:', err.message));
-    }, 24 * 60 * 60 * 1000);
-}, 10000);
+// Phase 5 (HOUSEKEEPING-NOTES.md): runQuoteFollowUpJob (S2-6) moved to lib/quote-follow-up-job.js,
+// runStalledBookingAdminAlertJob (S3) to lib/stalled-booking-alert-job.js,
+// runAbandonedBookingReminderJob/runAbandonedBookingPurgeJob (Booking Recovery) to
+// lib/abandoned-booking-jobs.js, and runDepositBalanceReminderJob (S4-1) to
+// lib/deposit-balance-reminder-job.js — each byte-identical, alongside its own startup/scheduling
+// wiring, exporting a registerXJob() called once here at the same module-load-time position.
+const { registerQuoteFollowUpJob } = require('./lib/quote-follow-up-job');
+registerQuoteFollowUpJob();
+const { registerStalledBookingAlertJob } = require('./lib/stalled-booking-alert-job');
+registerStalledBookingAlertJob();
+const { registerAbandonedBookingJobs } = require('./lib/abandoned-booking-jobs');
+registerAbandonedBookingJobs();
+const { registerDepositBalanceReminderJob } = require('./lib/deposit-balance-reminder-job');
+registerDepositBalanceReminderJob();
 
-// S2-6: Automated quote follow-up — sends a reminder to clients with open (QUOTED) quotes older than N days
-async function runQuoteFollowUpJob() {
-    const policyRow = await new Promise(resolve =>
-        db.get("SELECT policy_value FROM policies WHERE policy_key = 'quote_followup_days'", [], (err, row) => resolve(row))
-    );
-    const followUpDays = parseInt(policyRow?.policy_value) || 5;
-
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - followUpDays);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
-    const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
-
-    const bookings = await new Promise(resolve =>
-        getBookingsForQuoteFollowUp(cutoffStr, (err, rows) => resolve(err ? [] : (rows || [])))
-    );
-
-    let sent = 0, errors = 0;
-    for (const b of bookings) {
-        try {
-            // PAYMENT-CRITICAL: `R ${parseFloat(b.quote_amount || 0).toFixed(2)}` kept verbatim.
-            const expiryNote = b.quote_expiry_date
-                ? ` Please note your quote expires on <strong style="color:#D4AF37;">${b.quote_expiry_date}</strong>.`
-                : '';
-            const { socialLinks: followUpSocialLinks } = await getEmailFooterContext();
-            const banner = await bannerRegistry.resolveBanner('quote_still_open');
-            const emailBody = emailComponents.renderPremiumEmail({
-                preheaderText: `Your quote for booking #${b.id} is still open.`,
-                bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-                headline: banner?.headline || 'Your Quote Awaits',
-                greeting: `Hi ${b.name},`,
-                bodyHtml:
-                    `This is a friendly reminder that you have an open quotation for your upcoming <strong style="color:#FAFAFA;">${b.event_type}</strong> on <strong style="color:#FAFAFA;">${b.date}</strong>.` +
-                    `<p style="margin:10px 0 0; color:#B0B0B0;">Your quote of <strong style="color:#D4AF37;">R ${parseFloat(b.quote_amount || 0).toFixed(2)}</strong> is still awaiting your response.${expiryNote}</p>` +
-                    `<p style="margin:10px 0 0; color:#E6E6E6;">Use the button below to review and accept — the date is still available for you.</p>` +
-                    `<p style="margin:10px 0 0; color:#707070; font-size:12px;">If you no longer wish to proceed, simply reply to this email or contact us directly and we will close the enquiry. (Booking reference #${b.id})</p>`,
-                cta: { label: 'Review & Accept Quote', url: `${baseUrl}/?track=${b.id}&email=${encodeURIComponent(b.email)}&action=accept` },
-                socialLinks: followUpSocialLinks
-            });
-            const result = await sendEmail({
-                to: b.email,
-                subject: `Reminder: Your Quote Is Still Open — Ref #${b.id}`,
-                htmlContent: emailBody,
-                preWrapped: true,
-                titleOverride: 'Your Quote Awaits',
-                trigger_event: 'Booking: Quote Follow-Up Reminder'
-            });
-            if (result.success) {
-                markQuoteFollowUpSent(b.id);
-                sent++;
-            } else {
-                errors++;
-            }
-        } catch (e) {
-            console.error(`[Quote Follow-Up] Failed for booking ${b.id}:`, e.message);
-            errors++;
-        }
-    }
-    console.log(`[Quote Follow-Up Job] Done — sent: ${sent}, errors: ${errors}`);
-    return { sent, errors };
-}
-
-setTimeout(() => {
-    runQuoteFollowUpJob().catch(err => console.error('[Quote Follow-Up Job] Startup run failed:', err.message));
-    setInterval(() => {
-        runQuoteFollowUpJob().catch(err => console.error('[Quote Follow-Up Job] Scheduled run failed:', err.message));
-    }, 24 * 60 * 60 * 1000);
-}, 20000);
-
-// S3: Stalled-booking admin alert — ACCEPTED with no invoice after 3 days
-async function runStalledBookingAdminAlertJob() {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - 3);
-    const cutoffStr = cutoff.toISOString().split('T')[0];
-
-    const stalled = await new Promise(resolve =>
-        db.all(
-            `SELECT b.id, b.name, b.email, b.event_name, b.event_type, b.date, b.accepted_at
-             FROM bookings b
-             LEFT JOIN invoices i ON i.booking_id = b.id AND UPPER(i.status) != 'VOID'
-             WHERE b.status = 'ACCEPTED'
-               AND DATE(b.accepted_at) <= ?
-               AND i.id IS NULL`,
-            [cutoffStr], (err, rows) => resolve(err ? [] : (rows || []))
-        )
-    );
-
-    if (stalled.length === 0) return;
-
-    const adminEmail = await getNotificationEmail();
-    if (!adminEmail) return;
-
-    const body = emailComponents.renderSystemEmail({
-        preheaderText: `${stalled.length} ACCEPTED booking(s) missing an invoice.`,
-        category: 'Payments & Invoices',
-        severity: 'action',
-        leadFact: `The following bookings have been in <strong style="color:#D4AF37;">ACCEPTED</strong> status for more than 3 days with no invoice generated.`,
-        bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Log in to the admin portal to generate invoices for these bookings.</p>`,
-        cards: [{
-            title: 'Stalled Bookings',
-            rows: stalled.map(b => ({
-                label: `#${b.id} — ${b.name}`,
-                value: `${b.event_name || b.event_type} · Event: ${b.date} · Accepted: ${b.accepted_at ? b.accepted_at.slice(0, 10) : 'N/A'}`,
-                mono: false
-            }))
-        }]
-    });
-
-    await sendEmail({
-        to: adminEmail,
-        subject: `Action Required: ${stalled.length} ACCEPTED booking(s) missing invoice`,
-        htmlContent: body,
-        preWrapped: true,
-        titleOverride: 'Stalled Bookings Alert',
-        trigger_event: 'Admin: Stalled Booking Alert'
-    }).catch(e => console.error('[Stalled Booking Alert] Email failed:', e.message));
-
-    console.log(`[Stalled Booking Alert] Notified admin of ${stalled.length} stalled booking(s).`);
-}
-
-setTimeout(() => {
-    runStalledBookingAdminAlertJob().catch(e => console.error('[Stalled Booking Alert] Startup run failed:', e.message));
-    setInterval(() => {
-        runStalledBookingAdminAlertJob().catch(e => console.error('[Stalled Booking Alert] Scheduled run failed:', e.message));
-    }, 24 * 60 * 60 * 1000);
-}, 30000);
-
-// ============================================================================
-// BOOKING RECOVERY — reminder + purge jobs
-//  Reminder cadence: #1 at last_activity + 1h, #2 at last_reminder + 24h,
-//  #3 at last_reminder + 72h. Consent-gated (consent_given=1), opt-out-aware,
-//  capped at 3. Due-time selection is done in SQL to avoid TZ parsing issues.
-// ============================================================================
-async function runAbandonedBookingReminderJob() {
-    const candidates = await new Promise(resolve =>
-        db.all(`SELECT * FROM abandoned_bookings
-                WHERE status IN ('ABANDONED','REMINDED') AND consent_given=1 AND opt_out=0
-                  AND converted_booking_id IS NULL AND reminders_sent < 3 AND email IS NOT NULL
-                  AND (
-                    (reminders_sent = 0 AND last_activity_at <= datetime('now','-1 hour')) OR
-                    (reminders_sent = 1 AND last_reminder_at <= datetime('now','-24 hours')) OR
-                    (reminders_sent = 2 AND last_reminder_at <= datetime('now','-72 hours'))
-                  )`, [], (err, rows) => resolve(err ? [] : (rows || []))));
-    if (!candidates.length) return;
-
-    for (const d of candidates) {
-        // Defensive: if a real booking now exists for this email+date, mark recovered instead of emailing.
-        if (d.event_date) {
-            const existing = await new Promise(resolve => findActiveBookingByEmailAndDate(d.email, d.event_date, (e, row) => resolve(row)));
-            if (existing) {
-                await new Promise(r => db.run(`UPDATE abandoned_bookings SET status='RECOVERED', converted_booking_id=? WHERE id=?`, [existing.id, d.id], () => r()));
-                continue;
-            }
-        }
-        const ok = await sendAbandonedBookingReminderEmail(d);
-        if (ok) {
-            await new Promise(r => db.run(`UPDATE abandoned_bookings SET reminders_sent=reminders_sent+1, last_reminder_at=CURRENT_TIMESTAMP, status='REMINDED' WHERE id=?`, [d.id], () => r()));
-            console.log(`[Booking Recovery] reminder #${d.reminders_sent + 1} sent for draft ${d.id}`);
-        }
-    }
-}
-
-// POPIA retention: purge stale, non-converted drafts after 30 days.
-function runAbandonedBookingPurgeJob() {
-    db.run(`DELETE FROM abandoned_bookings WHERE status NOT IN ('RECOVERED','WON') AND last_activity_at < datetime('now','-30 days')`, function (err) {
-        if (err) return console.error('[Booking Recovery] purge failed:', err.message);
-        if (this && this.changes > 0) console.log(`[Booking Recovery] POPIA purge removed ${this.changes} stale draft(s).`);
-    });
-}
-
-setTimeout(() => {
-    runAbandonedBookingReminderJob().catch(e => console.error('[Booking Recovery] reminder startup run failed:', e.message));
-    setInterval(() => {
-        runAbandonedBookingReminderJob().catch(e => console.error('[Booking Recovery] reminder run failed:', e.message));
-    }, 15 * 60 * 1000);
-    runAbandonedBookingPurgeJob();
-    setInterval(runAbandonedBookingPurgeJob, 24 * 60 * 60 * 1000);
-}, 30000);
-
-// S4-1: DEPOSIT_PAID approaching-event reminder job
-// Fires for DEPOSIT_PAID bookings whose event is within 14 days; deduplicates per booking using deposit_balance_reminded_at.
-async function runDepositBalanceReminderJob() {
-    const windowDays = 14; // start reminding when event is this many days away
-    const targetDate = moment().add(windowDays, 'days').format('YYYY-MM-DD');
-    const baseUrl = process.env.BASE_URL || 'https://www.thabisomhlongo.com';
-
-    const bookings = await new Promise(resolve =>
-        getBookingsForDepositBalanceReminder(targetDate, (err, rows) => resolve(err ? [] : (rows || [])))
-    );
-
-    let sent = 0, errors = 0;
-    for (const b of bookings) {
-        const outstanding = parseFloat(b.amount_outstanding) || 0;
-        if (outstanding <= 0) continue; // already fully paid
-
-        const daysUntilEvent = moment(b.event_date).diff(moment(), 'days');
-        const payUrl = `${baseUrl}/?track=${b.id}&email=${encodeURIComponent(b.email)}`;
-
-        // PAYMENT-CRITICAL: `R ${outstanding.toFixed(2)}` kept verbatim (both mentions).
-        const { socialLinks: balanceSocialLinks } = await getEmailFooterContext();
-        const banner = await bannerRegistry.resolveBanner('balance_payment_reminder');
-        const emailBody = emailComponents.renderPremiumEmail({
-            preheaderText: `Balance of R ${outstanding.toFixed(2)} due — event in ${daysUntilEvent} day${daysUntilEvent !== 1 ? 's' : ''}.`,
-            bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
-            headline: banner?.headline || 'Balance Due — Event Approaching',
-            greeting: `Hi ${b.name},`,
-            bodyHtml:
-                `Your event <strong style="color:#FAFAFA;">${b.event_name || b.event_type}</strong> is coming up in <strong style="color:#D4AF37;">${daysUntilEvent} day${daysUntilEvent !== 1 ? 's' : ''}</strong>!` +
-                `<p style="margin:10px 0 0; color:#E6E6E6;">We wanted to remind you that a <strong style="color:#D4AF37;">balance payment of R ${outstanding.toFixed(2)}</strong> is still outstanding for your booking.</p>`,
-            cards: [{
-                title: 'Balance Due',
-                rows: [
-                    { label: 'Event Date', value: b.event_date },
-                    { label: 'Balance Due', value: `R ${outstanding.toFixed(2)}`, highlight: true }
-                ]
-            }],
-            cta: { label: 'Pay Balance Now', url: payUrl },
-            socialLinks: balanceSocialLinks
-        });
-
-        try {
-            await sendEmail({
-                to: b.email,
-                subject: `Balance Payment Reminder — ${b.event_date} Event (Booking #${b.id})`,
-                htmlContent: emailBody,
-                preWrapped: true,
-                titleOverride: 'Balance Due — Event Approaching',
-                trigger_event: 'Booking: Deposit Balance Approaching Event Reminder'
-            });
-            markDepositBalanceReminded(b.id);
-            sent++;
-            console.log(`[Deposit Balance Reminder] Sent to booking #${b.id} (${b.email})`);
-        } catch (e) {
-            console.error(`[Deposit Balance Reminder] Failed for booking #${b.id}:`, e.message);
-            errors++;
-        }
-    }
-    console.log(`[Deposit Balance Reminder Job] Done — sent: ${sent}, errors: ${errors}`);
-}
-
-setTimeout(() => {
-    runDepositBalanceReminderJob().catch(err => console.error('[Deposit Balance Reminder Job] Startup run failed:', err.message));
-    setInterval(() => {
-        runDepositBalanceReminderJob().catch(err => console.error('[Deposit Balance Reminder Job] Scheduled run failed:', err.message));
-    }, 24 * 60 * 60 * 1000);
-}, 30000);
-
-// S4-2: Invoice pre-due reminder — sends email 3 days before invoice due_date for SENT invoices
-async function runInvoicePreDueReminderJob() {
-    const daysBefore = 3;
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + daysBefore);
-    const targetStr = targetDate.toISOString().split('T')[0];
-
-    const invoices = await new Promise(resolve =>
-        db.all(
-            `SELECT i.id, i.invoice_number, i.due_date, i.total_amount,
-                    b.id AS booking_id, b.name, b.email, b.event_name, b.event_type, b.date
-             FROM invoices i
-             JOIN bookings b ON b.id = i.booking_id
-             WHERE UPPER(i.status) = 'SENT'
-               AND i.due_date = ?
-               AND i.pre_due_reminded_at IS NULL
-               AND b.status = 'CONFIRMED'
-               AND b.payment_status NOT IN ('PAID')`,
-            [targetStr],
-            (err, rows) => resolve(err ? [] : (rows || []))
-        )
-    );
-
-    let sent = 0, errors = 0;
-    for (const inv of invoices) {
-        const booking = { id: inv.booking_id, name: inv.name, email: inv.email, event_name: inv.event_name, event_type: inv.event_type, date: inv.date };
-        try {
-            await sendInvoicePreDueEmail(booking, inv, daysBefore);
-            markInvoicePreDueReminded(inv.id);
-            sent++;
-            console.log(`[Invoice Pre-Due Reminder] Sent to booking #${inv.booking_id} (invoice #${inv.id})`);
-        } catch (e) {
-            console.error(`[Invoice Pre-Due Reminder] Failed for invoice #${inv.id}:`, e.message);
-            errors++;
-        }
-    }
-    console.log(`[Invoice Pre-Due Reminder Job] Done — sent: ${sent}, errors: ${errors}`);
-}
-
-setTimeout(() => {
-    runInvoicePreDueReminderJob().catch(err => console.error('[Invoice Pre-Due Reminder Job] Startup run failed:', err.message));
-    setInterval(() => {
-        runInvoicePreDueReminderJob().catch(err => console.error('[Invoice Pre-Due Reminder Job] Scheduled run failed:', err.message));
-    }, 24 * 60 * 60 * 1000);
-}, 40000);
-
-// Pre-event reminder — a logistics/countdown nudge for every CONFIRMED booking 3 days before its
-// event, regardless of payment status (that's the separate balance-due reminder's job). Mirrors
-// runInvoicePreDueReminderJob's exact-date-match + dedup-column pattern.
-async function runEventReminderJob() {
-    const daysBefore = 3;
-    const targetDate = new Date();
-    targetDate.setDate(targetDate.getDate() + daysBefore);
-    const targetStr = targetDate.toISOString().split('T')[0];
-
-    const bookings = await new Promise(resolve =>
-        getConfirmedBookingsOnDate(targetStr, (err, rows) => resolve(err ? [] : (rows || [])))
-    );
-
-    let sent = 0, errors = 0;
-    for (const b of bookings) {
-        try {
-            await sendEventReminderEmail(b, daysBefore);
-            markEventReminderSent(b.id);
-            sent++;
-            console.log(`[Event Reminder] Sent to booking #${b.id} (${b.email})`);
-        } catch (e) {
-            console.error(`[Event Reminder] Failed for booking #${b.id}:`, e.message);
-            errors++;
-        }
-    }
-    console.log(`[Event Reminder Job] Done — sent: ${sent}, errors: ${errors}`);
-}
-
-setTimeout(() => {
-    runEventReminderJob().catch(err => console.error('[Event Reminder Job] Startup run failed:', err.message));
-    setInterval(() => {
-        runEventReminderJob().catch(err => console.error('[Event Reminder Job] Scheduled run failed:', err.message));
-    }, 24 * 60 * 60 * 1000);
-}, 44000);
-
-// S4-3: Overdue invoice sweep — sends the overdue notice for invoices past their due_date
-async function runOverdueInvoiceSweepJob() {
-    // Africa/Johannesburg, not UTC. SQLite's DATE('now') is UTC, and SA is UTC+2, so for the two
-    // hours after local midnight an invoice due "today" was treated as already overdue.
-    const todayLocal = moment().tz('Africa/Johannesburg').format('YYYY-MM-DD');
-    const invoices = await new Promise(resolve =>
-        db.all(
-            // Match SENT *and* OVERDUE. runDailyOverdueFlaggingSweep() runs at startup + 00:05 and
-            // flips SENT → OVERDUE, so by the time this reminder ran the invoices it should chase were
-            // already OVERDUE and this WHERE — which only matched SENT — found nothing. The result was
-            // that the overdue reminder had NEVER fired (measured: 7 OVERDUE invoices, 0 with
-            // overdue_reminded_at set). overdue_reminded_at IS NULL keeps it idempotent.
-            `SELECT i.id, i.invoice_number, i.due_date, i.total_amount,
-                    b.id AS booking_id, b.name, b.email, b.event_name, b.event_type, b.date
-             FROM invoices i
-             JOIN bookings b ON b.id = i.booking_id
-             WHERE UPPER(i.status) IN ('SENT','OVERDUE')
-               AND i.due_date IS NOT NULL
-               AND i.due_date < ?
-               AND i.overdue_reminded_at IS NULL
-               AND b.status = 'CONFIRMED'
-               AND b.payment_status NOT IN ('PAID')`,
-            [todayLocal],
-            (err, rows) => resolve(err ? [] : (rows || []))
-        )
-    );
-
-    let sent = 0, errors = 0;
-    for (const inv of invoices) {
-        const booking = { id: inv.booking_id, name: inv.name, email: inv.email, event_name: inv.event_name, event_type: inv.event_type, date: inv.date };
-        try {
-            await sendOverdueInvoiceEmail(booking, inv);
-            markInvoiceOverdueReminded(inv.id);
-            sent++;
-            console.log(`[Overdue Invoice Sweep] Sent to booking #${inv.booking_id} (invoice #${inv.id})`);
-        } catch (e) {
-            console.error(`[Overdue Invoice Sweep] Failed for invoice #${inv.id}:`, e.message);
-            errors++;
-        }
-    }
-    console.log(`[Overdue Invoice Sweep Job] Done — sent: ${sent}, errors: ${errors}`);
-}
-
-setTimeout(() => {
-    runOverdueInvoiceSweepJob().catch(err => console.error('[Overdue Invoice Sweep Job] Startup run failed:', err.message));
-    setInterval(() => {
-        runOverdueInvoiceSweepJob().catch(err => console.error('[Overdue Invoice Sweep Job] Scheduled run failed:', err.message));
-    }, 24 * 60 * 60 * 1000);
-}, 45000);
-
-// S6-1: Post-event follow-up job — sends review-request email the day after a COMPLETED event
-async function runPostEventFollowupJob() {
-    const baseUrl = process.env.SITE_URL || '';
-    // Bug fix: this previously selected c.name/b.client_name and c.email/b.client_email — none of
-    // which exist (bookings.name/email are the real columns; clients has full_name, not name). The
-    // query threw "no such column" on every run, silently swallowed by the resolve(err ? [] : ...)
-    // below, so this job — the only automatic trigger for review-request emails — never fired.
-    const bookings = await new Promise(resolve => {
-        getCompletedBookingsAwaitingReview((err, rows) => { if (err) console.error('[Post-Event Followup] query failed:', err.message); resolve(err ? [] : (rows || [])); });
-    });
-
-    let sent = 0, errors = 0;
-    for (const b of bookings) {
-        try {
-            // Send the review request (function already exists)
-            await sendReviewRequestEmail(b);
-            stampReviewEmailSent(b.id);
-            sent++;
-            console.log(`[Post-Event Followup] Review request sent for booking #${b.id} (${b.email})`);
-        } catch (e) {
-            console.error(`[Post-Event Followup] Failed for booking #${b.id}:`, e.message);
-            errors++;
-        }
-    }
-    if (sent > 0 || errors > 0) {
-        console.log(`[Post-Event Followup Job] Done — sent: ${sent}, errors: ${errors}`);
-    }
-}
-
-setTimeout(() => {
-    runPostEventFollowupJob().catch(err => console.error('[Post-Event Followup Job] Startup run failed:', err.message));
-    setInterval(() => {
-        runPostEventFollowupJob().catch(err => console.error('[Post-Event Followup Job] Scheduled run failed:', err.message));
-    }, 24 * 60 * 60 * 1000);
-}, 35000);
-
-// P2-10: Daily ledger reconciliation — compare bookings.amount_paid vs SUM(verified transactions).
-async function runLedgerReconciliationJob() {
-    const discrepancies = await new Promise(resolve => {
-        db.all(
-            `SELECT b.id, b.name, b.event_name, b.amount_paid AS recorded,
-                    COALESCE(SUM(t.amount), 0) AS actual
-             FROM bookings b
-             LEFT JOIN transactions t ON t.booking_id = b.id
-               AND t.is_duplicate = 0
-               AND (t.status = 'completed' OR t.status IS NULL)
-             WHERE b.payment_status NOT IN ('UNPAID','CANCELLED')
-             GROUP BY b.id
-             HAVING ABS(b.amount_paid - COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)) > 1`,
-            [],
-            (err, rows) => resolve(err ? [] : (rows || []))
-        );
-    });
-
-    if (discrepancies.length === 0) return;
-
-    console.warn(`[Ledger Reconciliation] ${discrepancies.length} booking(s) have amount_paid vs transaction-sum discrepancy.`);
-
-    const adminEmail = await getNotificationEmail();
-    if (!adminEmail) return;
-
-    const body = emailComponents.renderSystemEmail({
-        preheaderText: `${discrepancies.length} booking(s) with a payment ledger discrepancy.`,
-        category: 'Payments & Invoices',
-        severity: 'alert',
-        leadFact: `The following bookings have a mismatch between <strong style="color:#FAFAFA;">bookings.amount_paid</strong> and the <strong style="color:#FAFAFA;">sum of completed non-duplicate transactions</strong>. Please investigate and correct manually.`,
-        cards: [{
-            title: 'Payment Ledger Discrepancies',
-            rows: discrepancies.map(d => ({
-                label: `#${d.id} — ${d.name || ''}${d.event_name ? ' · ' + d.event_name : ''}`,
-                value: `Recorded R ${parseFloat(d.recorded).toFixed(2)} · Tx Sum R ${parseFloat(d.actual).toFixed(2)} · Drift R ${(parseFloat(d.recorded) - parseFloat(d.actual)).toFixed(2)}`,
-                mono: false
-            }))
-        }]
-    });
-
-    await sendEmail({
-        to: adminEmail,
-        subject: `[Ledger Alert] ${discrepancies.length} booking(s) with payment discrepancy`,
-        htmlContent: body,
-        preWrapped: true,
-        titleOverride: 'Ledger Discrepancy Alert',
-        trigger_event: 'Admin: Ledger Reconciliation'
-    });
-}
-
-setTimeout(() => {
-    runLedgerReconciliationJob().catch(err => console.error('[Ledger Reconciliation] Startup run failed:', err.message));
-    setInterval(() => {
-        runLedgerReconciliationJob().catch(err => console.error('[Ledger Reconciliation] Scheduled run failed:', err.message));
-    }, 24 * 60 * 60 * 1000);
-}, 55000);
-
-// P3-14: Detect transactions stuck in pending PayFast status for >1 hour and alert admin.
-async function runPayFastPendingTimeoutJob() {
-    const stuckTx = await new Promise(resolve => {
-        db.all(
-            `SELECT t.id, t.booking_id, t.amount, t.created_at, b.name, b.email, b.event_name
-             FROM transactions t
-             JOIN bookings b ON b.id = t.booking_id
-             WHERE t.source = 'payfast'
-               AND (t.pf_status = 'PENDING' OR (t.status = 'pending' AND t.pf_status IS NULL))
-               AND t.created_at <= datetime('now', '-1 hour')`,
-            [],
-            (err, rows) => resolve(err ? [] : (rows || []))
-        );
-    });
-
-    if (stuckTx.length === 0) return;
-
-    console.warn(`[PayFast Pending] ${stuckTx.length} transaction(s) stuck in PENDING for >1 hour.`);
-    const adminEmail = await getNotificationEmail();
-    if (!adminEmail) return;
-
-    const body = emailComponents.renderSystemEmail({
-        preheaderText: `${stuckTx.length} PayFast transaction(s) stuck in PENDING for over 1 hour.`,
-        category: 'Payments & Invoices',
-        severity: 'alert',
-        leadFact: `The following PayFast transactions have been in <strong style="color:#FAFAFA;">PENDING</strong> status for more than 1 hour. PayFast may have not sent an ITN. Please check the PayFast dashboard and confirm or void manually.`,
-        cards: [{
-            title: 'Stuck PayFast Transactions',
-            rows: stuckTx.map(t => ({
-                label: `#${t.booking_id} — ${t.name || ''}`,
-                value: `R${parseFloat(t.amount).toFixed(2)} · Started ${t.created_at}`,
-                mono: false
-            }))
-        }]
-    });
-
-    await sendEmail({
-        to: adminEmail,
-        subject: `[PayFast Alert] ${stuckTx.length} transaction(s) stuck in PENDING for >1 hour`,
-        htmlContent: body,
-        preWrapped: true,
-        titleOverride: 'PayFast Pending Timeout',
-        trigger_event: 'Admin: PayFast Pending Timeout'
-    });
-}
-
-setTimeout(() => {
-    runPayFastPendingTimeoutJob().catch(e => console.error('[PayFast Pending Timeout] Startup run failed:', e.message));
-    setInterval(() => {
-        runPayFastPendingTimeoutJob().catch(e => console.error('[PayFast Pending Timeout] Scheduled run failed:', e.message));
-    }, 60 * 60 * 1000); // check hourly
-}, 65000);
+// Phase 5 (HOUSEKEEPING-NOTES.md): runInvoicePreDueReminderJob (S4-2) moved to
+// lib/invoice-pre-due-reminder-job.js, runEventReminderJob to lib/event-reminder-job.js,
+// runOverdueInvoiceSweepJob (S4-3) to lib/overdue-invoice-sweep-job.js, runPostEventFollowupJob
+// (S6-1) to lib/post-event-followup-job.js, runLedgerReconciliationJob (P2-10) to
+// lib/ledger-reconciliation-job.js, and runPayFastPendingTimeoutJob (P3-14) to
+// lib/payfast-pending-timeout-job.js — each byte-identical, alongside its own startup/scheduling
+// wiring, exporting a registerXJob() called once here at the same module-load-time position.
+const { registerInvoicePreDueReminderJob } = require('./lib/invoice-pre-due-reminder-job');
+registerInvoicePreDueReminderJob();
+const { registerEventReminderJob } = require('./lib/event-reminder-job');
+registerEventReminderJob();
+const { registerOverdueInvoiceSweepJob } = require('./lib/overdue-invoice-sweep-job');
+registerOverdueInvoiceSweepJob();
+const { registerPostEventFollowupJob } = require('./lib/post-event-followup-job');
+registerPostEventFollowupJob();
+const { registerLedgerReconciliationJob } = require('./lib/ledger-reconciliation-job');
+registerLedgerReconciliationJob();
+const { registerPayFastPendingTimeoutJob } = require('./lib/payfast-pending-timeout-job');
+registerPayFastPendingTimeoutJob();
 
 // C9: Prevent sandbox PayFast config from silently disabling payment validation in production
 if (process.env.NODE_ENV === 'production' && (process.env.PAYFAST_URL || '').includes('sandbox')) {
