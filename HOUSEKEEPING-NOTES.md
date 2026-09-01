@@ -79,6 +79,57 @@ exercise Add/Edit/Delete on a country, confirm no console errors, confirm Testim
 Gallery/Home Slider/Events still work) deferred to the user's own convenience** rather than
 blocking the commit.
 
+### Section 2: Testimonials (`testimonialsAdmin`) — DONE
+
+Chosen next: same shared-drawer shape as Footprint (its own header comment says so — "same
+shared-drawer pattern as Footprint, plus a status filter and per-card Approve/Reject"), one section
+number over in the file (`5c`, immediately after Footprint's `5b`), so a natural second proof point
+on the same low-risk family before moving to a structurally different section.
+
+- **JS moved**: `admin.html:15500-15781` → new `js/admin/testimonials.js`. Contains
+  `resetTestimonialsForm`/`openTestimonialEditor`/`loadTestimonials` (the 3 `function decl` entries
+  `admin-html-map.md` lists), `window.tsThumbFallback` (a 4th function, already `window.x =
+  function` style **in the original source** — its own pre-existing comment explains it's
+  referenced from a dynamically-generated `onerror=""` attribute and "must hang off window
+  regardless of which `<script>` block this one turns out to be (re-)loaded inside," meaning this
+  exact housekeeping move was already anticipated when that function was written), local state
+  (`editingTestimonialId`/`testimonialImageCleared` — zero references outside this span, verified
+  via whole-file grep), and every delegated handler (status filter, add/close/cancel, edit/delete/
+  approve/reject/retract, clear-image, file-input change, drag-drop zone, form submit).
+- **Explicitly NOT moved — two Phase 7 "Shared candidates" this time**: `window.atlActivateDrawerTab`
+  (same one flagged for Footprint) and **`uploadFileToServer`** (`admin.html` ~line 13462), a
+  generic file-upload helper also used by Home Slider and About Me — at least 3 sections deep, a
+  new shared-candidate not seen in the Footprint pass (Footprint's own upload path used a raw
+  `fetch(...)`+`FormData`, not this helper, since it has no image field).
+- **CSS**: none — same as Footprint, zero `#testimonialsAdmin`/`.testimonial-*` selectors anywhere
+  in the 8 style blocks.
+- **Markup**: untouched (section 9567-9649, drawer 26218-26284) — zero inline `on*=` handlers in
+  either (the dynamically-generated `onerror="window.tsThumbFallback(this)"` lives in JS-built HTML
+  injected at runtime, not static markup, and already correctly uses the `window.` prefix).
+- **Reachability**: `loadTestimonials()` has two external call sites (`admin.html` ~25413/~25543),
+  both inside the same "refresh everything" function that also calls `loadFootprint()` — already
+  proven to work correctly across the script-tag splice by the Footprint section. All three
+  `function`-declared exports get explicit `window.` attachment for consistency;
+  `window.tsThumbFallback` keeps its pre-existing one unchanged.
+- **Script-tag splice**: same technique as Footprint — the block sat inside the third of the three
+  tags Footprint's splice created; that tag is now itself split in the same way, giving four total
+  `<script>` tags across this stretch of the file, execution order unchanged.
+
+**Verification**: `node --check js/admin/testimonials.js` (syntax valid). A line-by-line diff of
+the extracted block (dedented) against `git show HEAD:admin.html`'s original span came back with
+exactly 3 differences — the 3 deliberate `window.functionName = functionName;` lines — otherwise
+byte-identical (one comment line — the "must hang off window..." explanation already on
+`tsThumbFallback` — simply moved along with the function it documents, not a real diff). Full
+`git diff --stat` on `admin.html` for this section: 9 insertions, 281 deletions — consistent with
+removing 282 lines and inserting 10.
+
+**Same known gap as Section 1**: the plan's manual click-through gate could not be automated in
+this sandbox (see Section 1's entry for the full Puppeteer/Chrome-spawn investigation — same
+constraint applies here, not re-litigated per-section). Committed on the strength of static
+verification; add Testimonials to the live check list already deferred for Footprint (Add/Edit/
+Delete/Approve/Reject/Retract a testimonial, console open, confirm the image-upload path and the
+status filter both work, confirm Footprint/Career/Gallery/Home Slider/Events still work too).
+
 ---
 
 ## Phase 5 — Route & middleware split
