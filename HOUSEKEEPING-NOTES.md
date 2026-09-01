@@ -6,6 +6,81 @@ optional reading before starting a new phase.
 
 ---
 
+## Phase 6 — `admin.html` decomposition
+
+In progress. One section per session, per the plan. `docs-internal/admin-html-map.md` (generated
+in Phase 1, before `admin.html` was last touched by any commit — confirmed via `git log`, so still
+accurate) is the reference for section boundaries, function inventories, and endpoint lists.
+
+### Section 1: Footprint (`footprintAdmin`) — DONE
+
+Chosen first deliberately small and self-contained — prove the whole Phase 6 pipeline (JS
+extraction, `window`-attachment for cross-scope reachability, verification) on the cheapest section
+before scaling up, same reasoning Phase 4/5 used to pick their first domain/batch.
+
+**Scope stated and confirmed with the user before any file was touched**, per the plan's explicit
+Phase 6 gate ("state which lines you will touch and which functions belong to this section. Wait
+for my confirmation") — a harder requirement than Phase 5's batches ever carried, since a bare
+"Continue" doesn't imply consent to a specific admin.html line range the way it did for a route
+batch.
+
+- **JS moved**: `admin.html:15488-15834` (the "5b. Footprint Logic" block, one contiguous span
+  inside the single ~13,400-line inline `<script>` that starts at line 12116) → new
+  `js/admin/footprint.js`. Contains `resetFootprintForm`/`openFootprintEditor`/`loadFootprint` (the
+  3 functions `admin-html-map.md` lists for this section), local state
+  (`editingFootprintId`/`footprintCountriesList` — verified via whole-file grep to have zero
+  references outside this span), and the delegated click/submit/change handlers bound to
+  `footprintAddNewBtn`/`.footprint-edit-btn`/`.footprint-delete-btn`/`#footprintForm`/
+  `#footprintCountrySelect`/the drawer-close buttons.
+- **Explicitly NOT moved**: `window.atlActivateDrawerTab` (`admin.html` ~line 14783), called from
+  inside `openFootprintEditor` — its own comment says it's shared verbatim by Events/Gallery/
+  Career/Home Slider/Testimonials/Footprint. Left in `admin.html`, flagged here as a **Phase 7
+  "Shared candidate"** per the plan's own step 4.
+- **CSS**: none to move. Grepped all 8 `<style>` blocks for `#footprintAdmin`/`.footprint-*`
+  selectors and found zero — Footprint is styled entirely through shared framework classes
+  (`.atl-btn`, `.um-form`, `.evt-card-grid`, `.atl-drawer`, etc.), themselves Phase 7 material, not
+  anything private to this section.
+- **Markup**: untouched, both the section div (9517-9566) and the drawer (26506-26553), per the
+  plan's own rule ("splitting markup into partials requires a build step... a separate decision I
+  have not made yet").
+- **Reachability**: confirmed zero inline `on*=` handlers anywhere in Footprint's markup or
+  drawer (the `on` substring matches found were false positives from `role="tab"`-style attribute
+  text, not real event handlers). `loadFootprint()` does have two call sites in a *separate*,
+  later `<script>` block (`admin.html` ~25748/25878, part of the change-history refresh
+  machinery) — confirmed via whole-file grep — so despite classic (non-module) `<script>` tags
+  already sharing one global scope in every browser (meaning this would likely have worked even
+  without it), all three functions are attached to `window` explicitly, matching the plan's own
+  instruction and removing any dependence on that scoping subtlety.
+- **Script-tag splice**: the one physical inline `<script>` (12116-25554) is now three tags —
+  `<script>...(everything before Footprint)...</script>`, `<script
+  src="js/admin/footprint.js"></script>`, `<script>...(everything from Testimonials on)...</script>`
+  — with the external tag inserted at the exact document position the removed code occupied, so
+  execution order relative to both `window.atlActivateDrawerTab` (defined earlier, still needed)
+  and everything after (which calls `loadFootprint` etc.) is unchanged.
+
+**Verification**: `node --check js/admin/footprint.js` (syntax valid). A line-by-line diff of the
+extracted block (dedented one level) against `git show HEAD:admin.html`'s original span came back
+with exactly 3 differences — the 3 deliberate `window.functionName = functionName;` attachment
+lines — otherwise byte-identical. Script-tag count before/after reconciled exactly (a naive
+`grep -c "<script"` delta looked off by one at first; traced to this very housekeeping-notes-style
+explanatory comment's own prose containing the literal string `<script>`, not a structural issue —
+the real open/close counts match the intended +2/+2 from splitting one tag into three).
+
+**What could not be verified: the plan's own manual click-through gate.** Attempted to automate it
+with Puppeteer (already a project dependency) driving a real headless Chrome against the app booted
+on the isolated test DB (`test/support.js`, same machinery `npm test` uses) — the sandbox this
+agent runs in blocks spawning the Chrome binary directly (confirmed with a raw invocation outside
+Puppeteer: `Permission denied`, not a Puppeteer-specific failure), so no automated click-through
+could run. Bypassing the sandbox for this was deliberately not done — that override is for cases
+that genuinely require it, not a convenience for a routine verification step the plan already
+expects a human to do. **At the user's explicit direction, this section was committed on the
+strength of the static verification above, with the live manual check (open the admin console,
+exercise Add/Edit/Delete on a country, confirm no console errors, confirm Testimonials/Career/
+Gallery/Home Slider/Events still work) deferred to the user's own convenience** rather than
+blocking the commit.
+
+---
+
 ## Phase 5 — Route & middleware split
 
 In progress. Splits `server.js` along the admin/public boundary per the plan: `routes/admin/`,
