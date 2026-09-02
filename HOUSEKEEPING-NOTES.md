@@ -215,6 +215,55 @@ on static verification. Live-check list now also covers Gallery — add an image
 confirm the new order survives a refresh, edit one, use Clear All, confirm the inline `onclick`
 Cancel button still works post-move.
 
+### Section 5: Home Slider (`homeAdmin`) — DONE
+
+Scoped alongside two alternatives (Contact Me, About Me) so the choice of what to do next wasn't
+made blind; chosen because it's the same proven drawer+drag-reorder+inline-`onclick` family as
+Gallery — in fact its original template, per Gallery's own comment ("Mirrors `initDraggableSlider()`
+in the Home Slider section above").
+
+- **The one real wrinkle, found during scoping and confirmed before touching anything**:
+  `uploadFileToServer` (`admin.html` ~13462, the already-flagged shared upload helper Career/Gallery/
+  Testimonials all still depend on) sits physically at the very top of the "1. Home Slider Logic"
+  labeled block — not merely called from within it, but defined there. Moving the whole labeled
+  block would have broken three already-migrated sections. Handled with a **non-contiguous split**:
+  `uploadFileToServer` and the section's header comment stayed in `admin.html` (the header comment
+  itself rewritten to explain the carve-out); everything else in the block moved.
+- **JS moved**: `admin.html:13477-13773` (post-carve-out) → new `js/admin/home-slider.js`. Contains
+  `uploadHomeFiles`/`fetchHomeSlider`/`renderHomeList`/`initDraggableSlider`/`resetHomeForm`/
+  `applyHomeToEditor` (plain `function decl`s) and `openHomeCreateDrawer`/`openHomeEditDrawer`/
+  `homeCancelEdit` — already `window.x = function` in the source, same inline-`onclick` pattern as
+  Career/Gallery (a dynamic `onclick="window.openHomeEditDrawer(...)"` per card, a static
+  `onclick="homeCancelEdit();"` on the drawer's Cancel button, `admin.html` line 25664, confirmed by
+  reading the markup). Local state `homeEditId` (zero external references) and every delegated
+  handler (file-select preview, drag-drop zone, delete, clear-all, add/edit submit) moved too.
+- **New explicit `window.` attachment**: `fetchHomeSlider` — 5 external call sites total, 3 of them
+  already using a defensive `typeof fetchHomeSlider === 'function'` guard (lower-risk than the bare
+  calls seen for the four prior `loadX` functions — this call pattern would have degraded
+  gracefully even without the attachment, but it's added anyway for consistency).
+- **Explicitly NOT moved**: `window.atlActivateDrawerTab` (shared candidate, called here too).
+- **CSS**: `#homeAdmin` appears only in the same 15-section shared "no background" rule already
+  seen for Career/Gallery.
+- **Markup**: section (9057-9171) and drawer (25616-25682) untouched.
+- **Housekeeping on the housekeeping**: while verifying this splice, noticed the same cosmetic
+  double-blank-line artifact already caught and fixed for Section 1 (Footprint) had gone unnoticed
+  in Sections 2-4 (Testimonials/Career/Gallery) — the extraction script's replacement array and the
+  original file's own blank line both survived the splice. Fixed all three in this same commit
+  (one blank line removed each, purely cosmetic, no content change) for consistency.
+
+**Verification**: `node --check js/admin/home-slider.js` (syntax valid). A line-by-line diff of the
+moved portion (dedented) against `git show HEAD:admin.html`'s original span came back with exactly
+1 difference — the deliberate `window.fetchHomeSlider = fetchHomeSlider;` line. `git diff --stat`
+on `admin.html`: 13 insertions, 300 deletions — reconciled exactly against the extraction's own
+13/297 plus the 3 separate one-line blank-line fixes. Script-tag line-content diff showed exactly
+the 3 expected splice lines for this section (the three blank-line fixes don't show up in that
+particular check, since blank lines match neither `<script` nor `</script>`).
+
+**Same known gap as Sections 1-4**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Home Slider — add a slide (file and URL),
+drag to reorder, edit one, use Clear All, confirm the inline `onclick` Cancel button works
+post-move.
+
 ---
 
 ## Phase 5 — Route & middleware split
