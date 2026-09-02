@@ -130,6 +130,49 @@ verification; add Testimonials to the live check list already deferred for Footp
 Delete/Approve/Reject/Retract a testimonial, console open, confirm the image-upload path and the
 status filter both work, confirm Footprint/Career/Gallery/Home Slider/Events still work too).
 
+### Section 3: Career Highlights (`careerAdmin`) — DONE
+
+A structurally different section from the first two, not just a third instance of the same shape —
+worth the extra scrutiny it got before the move.
+
+- **JS moved**: `admin.html:15149-15486` → new `js/admin/career.js`. Contains
+  `initCareerYears`/`loadHighlights`/`resetCareerForm`/`applyCareerToEditor` (plain `function decl`s)
+  and `openCareerCreateDrawer`/`openCareerEditDrawer`/`careerCancelEdit` — the latter three were
+  **already** `window.x = function` in the original source, because Career uses genuine inline
+  `onclick=""` attributes rather than jQuery delegated handlers: a dynamically-generated
+  `onclick="window.openCareerEditDrawer(${item.id})"` baked into each card's HTML, and (confirmed by
+  reading the actual markup, not just grepping) a **static** `onclick="careerCancelEdit();"` on the
+  drawer's own Cancel button (`admin.html` line 25878, inside the `careerDrawer` markup). Both
+  continue to work unchanged — `window` attachment doesn't care which file defines the function.
+  Local state `editingHighlightId`/`careerImageCleared` (zero external references) and every
+  delegated handler (add/delete/clear-all, form submit with video-vs-image branching, clear-image,
+  file-change with video-type blocking, drag-drop zone) moved too.
+- **New explicit `window.` attachment added**: `loadHighlights`, matching the `loadFootprint`/
+  `loadTestimonials` precedent — it has the same two external call sites (`admin.html` ~25139/25269,
+  the same "refresh everything" function already proven safe across two prior script-tag splices).
+- **Explicitly NOT moved**: `window.atlActivateDrawerTab` and `uploadFileToServer` (both
+  already-flagged Phase 7 "Shared candidates", called here too).
+- **CSS**: `#careerAdmin` appears in the stylesheets exactly once, as one of 15 section IDs in a
+  single generic "no background" rule (`admin.html:848-862`) shared by nearly every admin section —
+  not private to Career, left untouched; not logged as a new shared-candidate since it's already
+  effectively global infrastructure, not a per-section duplication Phase 7 would consolidate.
+- **Markup**: section (9402-9516) and drawer (25804-25897) both untouched; the drawer's full range
+  was read end-to-end (not just grepped) specifically to catch the static `onclick` mentioned above.
+
+**Verification**: `node --check js/admin/career.js` (syntax valid). A line-by-line diff of the
+extracted block (dedented) against `git show HEAD:admin.html`'s original span came back with
+exactly 1 difference — the deliberate `window.loadHighlights = loadHighlights;` line — otherwise
+byte-identical. `git diff --stat` on `admin.html`: 10 insertions, 337 deletions, consistent with
+removing 338 lines and inserting 11. Script-tag line-content diff showed exactly the 3 expected
+splice lines, nothing else.
+
+**Same known gap as Sections 1-2**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now covers all three: Add/Edit/Delete a country
+(Footprint), Add/Edit/Delete/Approve/Reject/Retract a testimonial (Testimonials), and for Career
+specifically — add a highlight with an image, add one with a YouTube/Vimeo URL (confirm the video
+badge and thumbnail extraction), edit one, use Clear All, and confirm the inline `onclick` Cancel
+button still closes the drawer correctly post-move.
+
 ---
 
 ## Phase 5 — Route & middleware split
