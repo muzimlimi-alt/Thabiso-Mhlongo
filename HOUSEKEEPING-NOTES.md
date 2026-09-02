@@ -264,6 +264,39 @@ on static verification. Live-check list now also covers Home Slider — add a sl
 drag to reorder, edit one, use Clear All, confirm the inline `onclick` Cancel button works
 post-move.
 
+### Section 6: Contact Me (`contactAdmin`) — DONE
+
+Scoped alongside Home Slider and About Me before picking; chosen to prove a structurally different
+shape than the five drawer-based sections done so far.
+
+- **JS moved**: `admin.html:14898-15059` → new `js/admin/contact.js`. Contains `isValidEmail`/
+  `loadContactData`/`loadManagerData` (plain `function decl`s), local state `itiManagerCell`/
+  `itiManagerWhatsApp` (the two `intl-tel-input` widget instances), the `$(document).ready(...)`
+  block that initializes both phone widgets and does the first data load, and three handlers
+  (`#contactAdminForm` submit, `#managerAdminForm` submit, `#managerClearBtn` click).
+- **No shared candidates this time** — no drawer at all here, so no `atlActivateDrawerTab`/
+  `uploadFileToServer` dependency to carve out, unlike every prior section.
+- **New explicit `window.` attachment**: `loadContactData` — 2 external call sites (`admin.html`
+  ~24227/24357), the same refresh-everything pattern as every prior section.
+- **CSS**: `#contactAdmin` appears only in the same 15-section shared "no background" rule. A
+  generic `.iti__dropdown` light-theme override (`admin.html` line 4375) touches the
+  `intl-tel-input` library Contact Me happens to be the only current user of, but it's grouped with
+  unrelated library theming (FullCalendar, toast, modal) as one of several numbered "light theme
+  override" rules, not scoped to `#contactAdmin` — left in place, not treated as private styling.
+- **Markup**: section (10290-10478) untouched — no drawer to separately check this time.
+
+**Verification**: `node --check js/admin/contact.js` (syntax valid). A line-by-line diff of the
+extracted block (dedented) against `git show HEAD:admin.html`'s original span came back with the
+deliberate `window.loadContactData = loadContactData;` line plus a handful of trailing-whitespace-
+only differences inside a couple of `setTimeout` callback bodies (the same harmless class
+documented throughout this whole housekeeping effort) — no semantic differences. `git diff --stat`
+on `admin.html`: 7 insertions, 162 deletions, exactly matching the extraction (162 lines removed, 7
+inserted). Script-tag line-content diff showed exactly the 3 expected splice lines.
+
+**Same known gap as Sections 1-5**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Contact Me — save the contact form, save
+the manager form (including cell/WhatsApp number validation), and Clear Manager Details.
+
 ---
 
 ## Phase 5 — Route & middleware split
