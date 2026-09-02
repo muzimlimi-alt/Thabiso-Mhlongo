@@ -173,6 +173,48 @@ specifically — add a highlight with an image, add one with a YouTube/Vimeo URL
 badge and thumbnail extraction), edit one, use Clear All, and confirm the inline `onclick` Cancel
 button still closes the drawer correctly post-move.
 
+### Section 4: Gallery (`galleryAdmin`) — DONE
+
+Same shape as Career (inline `onclick=""`, not jQuery delegation, for the create/edit/cancel
+trio), plus one new element: drag-to-reorder.
+
+- **JS moved**: `admin.html:15347-15652` → new `js/admin/gallery.js`. Contains
+  `loadGallery`/`initDraggableGallery`/`resetGalleryForm`/`applyGalleryToEditor` (plain
+  `function decl`s — `initDraggableGallery` posts to `PUT /api/admin/gallery/reorder` on drag-end)
+  and `openGalleryCreateDrawer`/`openGalleryEditDrawer`/`galleryCancelEdit` — again already
+  `window.x = function` in the source, for the same reason as Career: a dynamically-generated
+  `onclick="window.openGalleryEditDrawer(${item.id})"` per card, and a **static**
+  `onclick="galleryCancelEdit();"` on the drawer's own Cancel button (`admin.html` line 25794,
+  confirmed by reading the drawer markup, matching Career's pattern exactly). Local state
+  `galleryEditId` (zero external references — one in-block forward reference relies on `var`
+  hoisting, unaffected since both sides moved together) and every delegated handler (video-type
+  blocking on file-select, multi-file-or-URL add/edit submit, delete, clear-all) moved too.
+- **New explicit `window.` attachment**: `loadGallery`, matching the by-now-established
+  `loadFootprint`/`loadTestimonials`/`loadHighlights` precedent — same two external call sites
+  (`admin.html` ~24815/24945, the same refresh-everything function proven safe three times over).
+- **Explicitly NOT moved**: `window.atlActivateDrawerTab` and `uploadFileToServer` (both
+  already-flagged Phase 7 "Shared candidates", called here too).
+- **CSS**: `#galleryAdmin` appears only in the same 15-section shared "no background" rule already
+  seen for Career — no private styling, nothing to move.
+- **Markup**: section (9650-9756) and drawer (25743-25812) untouched; the drawer's full range was
+  read end-to-end to catch the static `onclick`, same discipline as Career.
+- **Incidental confirmation, not new evidence needed**: the very next block in the file (Banner
+  Management Centre, untouched, not part of this section) opens with its own pre-existing comment —
+  *"plain declarations aren't reliably reachable across this file's several separate `<script>`
+  blocks"* — the original developer already applying the same window-attachment discipline this
+  whole Phase 6 pass has been following.
+
+**Verification**: `node --check js/admin/gallery.js` (syntax valid). A line-by-line diff of the
+extracted block (dedented) against `git show HEAD:admin.html`'s original span came back with
+exactly 1 difference — the deliberate `window.loadGallery = loadGallery;` line. `git diff --stat`
+on `admin.html`: 10 insertions, 305 deletions, consistent with removing 306 lines and inserting 11.
+Script-tag line-content diff showed exactly the 3 expected splice lines.
+
+**Same known gap as Sections 1-3**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Gallery — add an image, drag to reorder and
+confirm the new order survives a refresh, edit one, use Clear All, confirm the inline `onclick`
+Cancel button still works post-move.
+
 ---
 
 ## Phase 5 — Route & middleware split
