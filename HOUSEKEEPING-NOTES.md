@@ -297,6 +297,74 @@ inserted). Script-tag line-content diff showed exactly the 3 expected splice lin
 on static verification. Live-check list now also covers Contact Me — save the contact form, save
 the manager form (including cell/WhatsApp number validation), and Clear Manager Details.
 
+### Section 7: About Me (`aboutAdmin`) — DONE
+
+The most entangled section done so far — the earlier scoping pass flagged this section's boundary
+as unresolved, and digging in properly turned up a real structural finding, not just a bigger
+version of the same shape.
+
+**The "2. About Me Logic" labeled block actually bundles three distinct things, only two of which
+are About Me's:**
+1. The bio/profile editor (`updateAboutPreview`, `loadAboutData`, the `aboutDrawer` wiring,
+   `#aboutForm` submit, upload/drag-drop) — genuinely About Me's own.
+2. The Hero/Services/Features/Announcement homepage-content editors (`loadSiteContent`,
+   `buildSvcCardEditors`, `renderHeroPreview`, etc., and 4 form-submit handlers) — confirmed
+   genuinely About Me's too, via its own tab markup (`aboutServicesPanel`/`aboutFeaturesPanel`/
+   `aboutHeroPanel`/`aboutAnnouncePanel` all live inside `aboutAdmin`'s section div, 9172-9401).
+3. The "Website Sections" visibility toggle (`SECTION_REGISTRY`, `secEsc`, `renderSectionsUI`,
+   `secSetToggle`, `loadSectionVisibility`, `secFilter`, `saveSectionVisibility`) — confirmed to
+   belong to a **future System Settings (`preferencesAdmin`) extraction instead**: its own tab
+   (`prefPanelSections`) and a static `onclick="saveSectionVisibility(this)"` both live in System
+   Settings' own markup (11003-11243), not About Me's, despite sitting physically in the middle of
+   this labeled block.
+
+- **JS moved, non-contiguous (two pieces)**: `admin.html:13491-13853` and `admin.html:13981-14016`
+  → new `js/admin/about.js`. `admin.html:13855-13979` (item 3 above) stays exactly in place,
+  untouched, sandwiched between where the two moved pieces used to be.
+- **A genuine cross-reference verified safe, not just assumed**: `saveSectionVisibility` (staying
+  inline) reads and writes `_siteContent` (a `var` declared in the moved code, now in
+  `js/admin/about.js`). Verified this is safe with zero extra code needed — `var` declarations at
+  the top level of a classic (non-module) `<script>` bind to one shared global scope regardless of
+  whether the script is inline or external, so the two locations share the exact same live
+  binding, the same mechanism that already made every prior section's "later script block calls
+  this function" cross-references safe.
+- **First section with genuine private CSS**: `admin.html:4826-4852`
+  (`#aboutAdmin`/`#collapseAboutPreview`-scoped mobile-polish rules, explicitly commented "Scoped
+  to `#aboutAdmin` so no other section shifts") → new `css/admin/about.css`, loaded via a `<link>`
+  tag at the exact document position the rules sat at — the enclosing `<style>` block split in two,
+  mirroring the `<script>`-splitting technique used for every JS move so far. The generic "MOBILE
+  UI/UX POLISH — additive & admin-scoped" header comment immediately above stayed in `admin.html`
+  — it reads as general-purpose, not About-Me-specific, so it wasn't moved with the content under
+  it. (Caught and fixed one mistake before committing: the replacement comment inside the `<style>`
+  block was first written with `//` JS-style comment syntax instead of CSS's `/* */` — invalid CSS
+  a browser would have silently swallowed rather than errored on, but wrong regardless; fixed.)
+- **New explicit `window.` attachment**: `loadAboutData` — 2 direct external call sites
+  (`admin.html` ~24068/24199) plus already-`typeof`-guarded ones from the Quill initialization
+  block elsewhere in the file.
+- **Explicitly NOT moved**: `window.atlActivateDrawerTab` and `uploadFileToServer` (both
+  already-flagged Phase 7 "Shared candidates," called from the moved code).
+- **Markup**: the section (9172-9401) and all 5 relevant drawers (`aboutDrawer`, `heroDrawer`,
+  `servicesDrawer`, `featuresDrawer`, `announceDrawer`) untouched. 5 static
+  `onclick="if(window.openAtlDrawer)openAtlDrawer('...')"` attributes found in the section markup
+  all reference the already-shared `openAtlDrawer`, nothing About-Me-owned — zero real on*=
+  dependency on the moved code itself.
+
+**Verification**: `node --check js/admin/about.js` (syntax valid). Line-by-line diffs of both moved
+JS pieces and the moved CSS against `git show HEAD:admin.html`'s original spans came back with only
+the one intentional `window.loadAboutData = loadAboutData;` line (JS) and zero differences (CSS) —
+byte-identical otherwise. Tag-structure diff (`<script`/`</script>`/`<style`/`</style>`/`<link`)
+showed exactly the 6 expected new structural tags (2 closing + 1 `<link>` + 1 `<script src>` + 2
+reopening) plus one harmless false-positive from this very explanatory comment's own prose
+containing the literal string `<script src>`. `git diff --stat` on `admin.html`: 23 insertions, 426
+deletions — reconciles exactly against the three splices' own line counts (363+36+27 removed,
+12+4+7 inserted).
+
+**Same known gap as Sections 1-6**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers About Me — save the biography (Quill
+editors), save Hero/Features/What-I-Do/Announcement individually, and confirm Website Sections
+(still inline, untouched) still loads and saves correctly given its cross-reference into the newly
+external `about.js`.
+
 ---
 
 ## Phase 5 — Route & middleware split

@@ -1,0 +1,35 @@
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — the only
+   #aboutAdmin/#collapseAboutPreview-scoped rules in the whole stylesheet (every prior Phase 6
+   section had zero private CSS; this is the first with real section-specific styling). The
+   generic "MOBILE UI/UX POLISH — additive & admin-scoped" header comment that preceded this block
+   in admin.html was NOT moved — it's phrased generically, not About-Me-specific, and may cover
+   other admin-scoped mobile fixes elsewhere in the stylesheet later. Order preserved exactly
+   relative to where this rule set sat in the original file. */
+
+/* Defect: the About-Me live preview shows a grey highlight behind the bio
+   text — it inherits a background carried on the HTML injected from the Quill
+   editors. Strip any background so the preview renders clean (colour/weight kept). */
+#collapseAboutPreview p,
+#collapseAboutPreview p * {
+    background: transparent !important;
+    background-color: transparent !important;
+}
+
+/* ── About-section panels (Live Preview / Announcement / Hero / Features /
+   What I Do / Edit Biography / About): heading on its own line, description
+   directly beneath, consistent body typography, and headers that reflow
+   cleanly on small screens. Scoped to #aboutAdmin so no other section shifts. */
+#aboutAdmin .um-icon-header { flex-wrap: wrap; row-gap: 10px; }
+#aboutAdmin .um-icon-header > div { min-width: 0; }
+#aboutAdmin .um-icon-header > .atl-btn { margin-left: auto; }
+#aboutAdmin .um-section-label { display: block; font-size: 16px; line-height: 1.3; margin: 0 0 6px; }
+#aboutAdmin .um-section-desc { line-height: 1.6; }
+/* Bio live-preview body text — match the interface body font/size/rhythm
+   (drop the thin 300-weight lead and the mixed inline sizes). */
+#collapseAboutPreview { color: var(--atl-ink-dim); }
+#collapseAboutPreview .about-preview-lead { font-size: 16px; line-height: 1.7; font-weight: 400; margin: 0 0 14px; text-align: justify; }
+#collapseAboutPreview .about-preview-body { font-size: 16px; line-height: 1.7; margin: 0 0 12px; text-align: justify;}
+#collapseAboutPreview .about-preview-body:last-child { margin-bottom: 0; }
+@media (max-width: 575px) {
+    #aboutAdmin .um-icon-header > .atl-btn { width: 100%; margin-left: 0; justify-content: center; }
+}
