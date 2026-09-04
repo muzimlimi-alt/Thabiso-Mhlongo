@@ -1,0 +1,20 @@
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — the second of two
+   separate .log-row rule blocks in the original stylesheet (the first is email-logs.css,
+   loaded via its own <link> at its own, earlier, original document position). See that
+   file's header comment for the full explanation of why these stayed as two files instead
+   of being combined. */
+.log-row {
+    border-bottom: 1px solid var(--atl-line) !important;
+    padding: 10px 14px !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    color: var(--atl-muted) !important;
+    transition: background var(--atl-t-fast) !important;
+}
+.log-row:hover { background: rgba(212,175,55,0.03) !important; }
+.log-row .log-time {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 11px !important;
+    color: var(--atl-muted-dim) !important;
+    white-space: nowrap !important;
+}

@@ -1,0 +1,179 @@
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — the "EMAIL LOGS MODULE"
+   block. Every function called from an inline onclick/oninput/onchange attribute in the section
+   markup (loadEmailLogs(), debounceLogSearch(), applyLogFilters(), toggleLogSort('...')) was
+   already window-attached in the original source — no new window.X = X lines needed here, unlike
+   every prior section this pass. Uses only qs/qsa (the file's foundational DOM-query helpers,
+   defined near the very top of the main script and used everywhere in this file) — no
+   atlActivateDrawerTab/uploadFileToServer dependency, no drawer here. */
+let logState = {
+    page: 1,
+    limit: 15,
+    search: '',
+    status: '',
+    trigger: '',
+    sort: 'sent_at',
+    order: 'DESC'
+};
+let logSearchTimer;
+
+window.loadEmailLogs = async function() {
+    const body = qs('#emailLogsBody');
+    const empty = qs('#emailLogsEmpty');
+    const stats = qs('#logStats');
+    const pagination = qs('#logPagination');
+    if (!body) return;
+
+    body.innerHTML = `<tr><td colspan="5" class="text-center" style="padding: 40px; border:none; opacity: 0.5;"><i class="fa fa-spinner fa-spin" style="margin-right: 10px;"></i> Fetching logs...</td></tr>`;
+
+    try {
+        const query = new URLSearchParams(logState).toString();
+        const response = await fetch(`/api/admin/email-logs?${query}`, { credentials: 'include' });
+
+        if (response.status === 401) {
+            if (body) body.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Unauthorized. Redirecting to login...</td></tr>';
+            setTimeout(() => window.location.reload(), 2000);
+            return;
+        }
+
+        const res = await response.json();
+
+        if (res && res.success) {
+            body.innerHTML = '';
+            updateSortIcons();
+
+            if (!res.logs || res.logs.length === 0) {
+                empty.style.display = 'block';
+                stats.textContent = 'Showing 0 logs';
+                pagination.innerHTML = '';
+                return;
+            }
+
+            empty.style.display = 'none';
+            res.logs.forEach(log => {
+                const tr = document.createElement('tr');
+                tr.style.background = 'rgba(255,255,255,0.03)';
+                tr.style.transition = '0.2s';
+                tr.onmouseover = () => tr.style.background = 'rgba(255,255,255,0.06)';
+                tr.onmouseout = () => tr.style.background = 'rgba(255,255,255,0.03)';
+
+                const date = new Date(log.sent_at).toLocaleString();
+                const statusClass = log.status === 'success' ? 'text-success' : (log.status === 'pending' ? 'text-warning' : 'text-danger');
+                const triggerIcon = (log.trigger_event||'').includes('Newsletter') ? 'fa-envelopes-bulk' :
+                                   (log.trigger_event||'').includes('Booking') ? 'fa-calendar-check' :
+                                   (log.trigger_event||'').includes('Admin') ? 'fa-user-shield' : 'fa-paper-plane';
+
+                const escape = (str) => {
+                    const div = document.createElement('div');
+                    div.textContent = str || '';
+                    return div.innerHTML;
+                };
+
+                tr.innerHTML = `
+                    <td style="padding: 15px; border:none; font-size: 13px; color: #aaa;">${escape(date)}</td>
+                    <td style="padding: 15px; border:none; font-weight: 500;">${escape(log.recipient_email)}</td>
+                    <td style="padding: 15px; border:none; color: #ddd;">${escape(log.subject)}</td>
+                    <td style="padding: 15px; border:none; font-size: 12px;"><i class="fa-solid ${triggerIcon}" style="margin-right:6px; opacity:0.6;"></i>${escape(log.trigger_event)}</td>
+                    <td style="padding: 15px; border:none;"><span class="${statusClass}" style="font-weight:bold; text-transform:uppercase; font-size:11px;"><i class="fa-solid ${log.status === 'success' ? 'fa-check-circle' : (log.status === 'pending' ? 'fa-clock' : 'fa-circle-xmark')}" style="margin-right:4px;"></i>${escape(log.status)}</span></td>
+                `;
+                body.appendChild(tr);
+            });
+
+            // Update Stats
+            const total = parseInt(res.total) || 0;
+            const pageNum = parseInt(res.page) || logState.page;
+            const limitNum = parseInt(logState.limit) || 15;
+            const startNum = total === 0 ? 0 : (pageNum - 1) * limitNum + 1;
+            const endNum = Math.min(pageNum * limitNum, total);
+
+
+            if (stats) stats.textContent = `Showing ${startNum}-${endNum} of ${total} logs`;
+
+            // Update Pagination
+            renderLogPagination(parseInt(res.totalPages) || 0);
+        }
+    } catch (e) {
+        console.error("❌ Failed to load email logs:", e);
+        const bodyErr = window.qs('#emailLogsBody');
+        if (bodyErr) bodyErr.innerHTML = '<tr><td colspan="6" class="text-center text-danger" style="padding:20px;">Failed to load logs. Session may have expired.</td></tr>';
+        if (window.notificationService) window.notificationService.showError('Could not load email logs. Please try again.');
+    }
+}
+
+function renderLogPagination(totalPages) {
+    const container = qs('#logPagination');
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (totalPages <= 1) return;
+
+    // Prev
+    const prevBtn = document.createElement('button');
+    prevBtn.className = `um-btn um-btn--ghost ${logState.page === 1 ? 'disabled' : ''}`;
+    prevBtn.innerHTML = '<i class="fa fa-chevron-left"></i>';
+    prevBtn.onclick = () => { if (logState.page > 1) { logState.page--; window.loadEmailLogs(); } };
+    container.appendChild(prevBtn);
+
+    // Simple page numbers
+    for (let i = 1; i <= totalPages; i++) {
+        if (i > 5 && i < totalPages) { // Simple ellipsis logic
+            if (i === 6) {
+                const span = document.createElement('span');
+                span.textContent = '...';
+                span.style.color = '#555';
+                container.appendChild(span);
+            }
+            continue;
+        }
+        const btn = document.createElement('button');
+        btn.className = `um-btn ${logState.page === i ? 'um-btn--primary' : 'um-btn--ghost'}`;
+        btn.textContent = i;
+        btn.onclick = () => { logState.page = i; window.loadEmailLogs(); };
+        container.appendChild(btn);
+    }
+
+    // Next
+    const nextBtn = document.createElement('button');
+    nextBtn.className = `um-btn um-btn--ghost ${logState.page === totalPages ? 'disabled' : ''}`;
+    nextBtn.innerHTML = '<i class="fa fa-chevron-right"></i>';
+    nextBtn.onclick = () => { if (logState.page < totalPages) { logState.page++; window.loadEmailLogs(); } };
+    container.appendChild(nextBtn);
+}
+
+window.toggleLogSort = function(col) {
+    if (logState.sort === col) {
+        logState.order = logState.order === 'ASC' ? 'DESC' : 'ASC';
+    } else {
+        logState.sort = col;
+        logState.order = 'DESC';
+    }
+    logState.page = 1;
+    loadEmailLogs();
+}
+
+function updateSortIcons() {
+    qsa('#logSortHeaders i').forEach(icon => {
+        icon.className = 'fa-solid fa-sort';
+        icon.style.opacity = '0.3';
+    });
+    const activeIcon = qs(`#sort-${logState.sort}`);
+    if (activeIcon) {
+        activeIcon.className = logState.order === 'ASC' ? 'fa-solid fa-sort-up' : 'fa-solid fa-sort-down';
+        activeIcon.style.opacity = '1';
+    }
+}
+
+window.applyLogFilters = function() {
+    logState.status = qs('#logStatusFilter').value;
+    logState.trigger = qs('#logTriggerFilter').value;
+    logState.page = 1;
+    loadEmailLogs();
+}
+
+window.debounceLogSearch = function() {
+    clearTimeout(logSearchTimer);
+    logSearchTimer = setTimeout(() => {
+        logState.search = qs('#logSearch').value;
+        logState.page = 1;
+        loadEmailLogs();
+    }, 400);
+}

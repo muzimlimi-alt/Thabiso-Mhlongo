@@ -1,0 +1,22 @@
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — the first of two
+   separate .log-row rule blocks in the original stylesheet (the second lives in
+   email-logs-2.css, loaded via its own <link> at its own original document position).
+   These two blocks define overlapping/conflicting properties for the same selectors
+   (.log-row, .log-row:hover, .log-row .log-time) — a pre-existing duplication, not
+   something this housekeeping pass merges or fixes (see HOUSEKEEPING-NOTES.md). Neither
+   class currently appears in the admin.html markup (log rows are built entirely in JS
+   with inline styles), so this may be dead CSS — left as a note for a future Phase 8
+   pass, not resolved here. */
+.log-row {
+    border-bottom: 1px solid var(--atl-line) !important;
+    transition: background var(--atl-t-fast) !important;
+}
+.log-row:hover { background: rgba(212,175,55,0.03) !important; }
+.log-row .log-time {
+    font-family: 'JetBrains Mono', monospace !important;
+    color: var(--atl-muted-dim) !important;
+}
+.log-row .log-status-sent     { color: var(--atl-sage) !important; }
+.log-row .log-status-failed   { color: var(--atl-clay) !important; }
+.log-row .log-status-queued   { color: var(--atl-orange) !important; }
+.log-row .log-status-opened   { color: var(--atl-blue) !important; }

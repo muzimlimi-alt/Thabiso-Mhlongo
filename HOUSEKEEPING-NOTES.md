@@ -365,6 +365,47 @@ editors), save Hero/Features/What-I-Do/Announcement individually, and confirm We
 (still inline, untouched) still loads and saves correctly given its cross-reference into the newly
 external `about.js`.
 
+### Section 8: Email Logs (`emailLogsAdmin`) — DONE
+
+The cleanest JS of any section so far, paired with a genuine CSS complication.
+
+- **JS moved**: `admin.html:29196-29370` → new `js/admin/email-logs.js`. Contains `logState`/
+  `logSearchTimer` (local state), `window.loadEmailLogs`, `renderLogPagination`, `window.toggleLogSort`,
+  `updateSortIcons`, `window.applyLogFilters`, `window.debounceLogSearch`. **Zero new `window.`
+  attachments needed** — every function called from an inline `onclick`/`oninput`/`onchange`
+  attribute in the section markup (`loadEmailLogs()`, `debounceLogSearch()`, `applyLogFilters()`,
+  `toggleLogSort('...')`) was already properly `window`-attached by whoever wrote this module —
+  the first section this whole pass where that was already fully true.
+- **No shared-candidate carve-out** — only depends on `qs`/`qsa`, the file's foundational
+  DOM-query helpers (defined once, near the top of the whole script, used throughout the entire
+  file) — not a per-section dependency worth flagging the way `atlActivateDrawerTab` is.
+- **A genuine pre-existing CSS duplication, found and deliberately NOT fixed**: `.log-row` (and
+  related classes) has **two separate, non-identical rule blocks** at different points in the
+  stylesheet — `admin.html:4129-4142` (border/transition + 4 `.log-status-*` color rules) and
+  `admin.html:4546-4561` (a different, overlapping property set for the *same* `.log-row`/
+  `.log-row:hover`/`.log-row .log-time` selectors — padding, font, color). Neither class currently
+  appears anywhere in the static markup (log rows are built entirely in JS with inline styles), so
+  this may well be dead CSS — that determination belongs to a future Phase 8 pass, not this one.
+  Per "no merge, no reorder," moved each chunk to its **own** file — `css/admin/email-logs.css`
+  (chunk 1) and `css/admin/email-logs-2.css` (chunk 2) — each loaded via its own `<link>` at its
+  own original document position, preserving the exact cascade order rather than silently changing
+  which rule wins where by combining them into one file.
+- **Markup**: section (11635-11805, confirmed via the exact `admin-section` div boundaries, not
+  the map's approximate range) untouched.
+
+**Verification**: `node --check js/admin/email-logs.js` (syntax valid). Line-by-line diffs of the
+JS and both CSS chunks against `git show HEAD:admin.html`'s original spans came back clean apart
+from harmless trailing-whitespace-only differences (JS) and the original short inline section-label
+comments being replaced by the fuller Phase 6 relocation comments (CSS) — the same treatment every
+prior section's original label comment got. Tag-structure diff (`<script`/`</script>`/`<style`/
+`</style>`/`<link`) showed exactly the 9 expected new structural tags (3 closing + 2 `<link>` + 1
+`<script src>` + 3 reopening). `git diff --stat` on `admin.html`: 23 insertions, 205 deletions —
+reconciles exactly against the three splices' own line counts (175+16+14 removed, 8+7+8 inserted).
+
+**Same known gap as Sections 1-7**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Email Logs — load the log table, search,
+filter by status/trigger, sort by column, and page through results.
+
 ---
 
 ## Phase 5 — Route & middleware split
