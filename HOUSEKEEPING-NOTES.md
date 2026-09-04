@@ -406,6 +406,62 @@ reconciles exactly against the three splices' own line counts (175+16+14 removed
 on static verification. Live-check list now also covers Email Logs — load the log table, search,
 filter by status/trigger, sort by column, and page through results.
 
+### Section 9: Social Media (`socialAdmin`) — DONE
+
+The biggest single JS payload of any section so far (899 lines) — social links CRUD, media-embed
+CRUD with real per-platform oEmbed/metadata fetching (YouTube Data API, Vimeo API, Facebook Graph
+API, TikTok oEmbed, plus `noembed.com`/`api.microlink.io` fallbacks), and the Dashboard
+follower-count KPI credentials tab.
+
+- **A stale placeholder header, not the real content**: `admin.html`'s original "3. Social Media
+  Logic" comment (near About Me, already-migrated territory) says outright "live CRUD lives further
+  down" — the real block is a separate "8. Dynamic Social Media Logic" section hundreds of lines
+  later, confirmed before touching anything (the same lesson as Email Logs: a section-numbered
+  comment in this file is not a reliable pointer to where its code actually lives).
+- **JS moved**: `admin.html:14935-15835` → new `js/admin/social.js`.
+- **Genuinely NOT part of this move**: a generic, cross-cutting `$(document).ready(...)`
+  initializer sat immediately after (page-wide drag-drop prevention + several commented-out legacy
+  init calls mentioning Home/About/Events/Career/Contact, not just Social Media) — left exactly in
+  place, same treatment as About Me's Website Sections carve-out.
+- **Already correctly attached, zero new work for on*= reachability**: `window.openSocialLinkDrawer`,
+  `window.openSocialEmbedDrawer`, `window.toggleKpiFields`, `window.saveSocialKpiSettings` — all
+  referenced from static `onclick=""` attributes in the section markup, all already properly
+  `window`-attached in the original source.
+- **New explicit `window.` attachment**: `loadSocialData` — 2 external call sites (`admin.html`
+  ~23651/23782), the by-now-standard refresh-everything pattern.
+- **No shared-candidate dependency** — neither drawer (`socialLinkDrawer`, `socialEmbedDrawer`) uses
+  the tabbed Edit/History pattern, so no `atlActivateDrawerTab`; no image uploads here, so no
+  `uploadFileToServer`.
+- **A cross-reference to code staying elsewhere, left as an ordinary call**:
+  `saveSocialKpiSettings` calls `loadAnalyticsDashboard()`, Dashboard's own function, defined much
+  later in `admin.html` (not yet migrated) — works exactly like every other cross-script-block call
+  already verified safe this whole pass, no special handling needed.
+- **CSS/Markup**: no private CSS (`#socialAdmin` only in the same 15-section shared rule); section
+  and both drawers untouched.
+
+**Built the file programmatically instead of retyping it** — given the size (900 lines read across
+several fragments), a small Node script extracted `admin.html:14935-15835` directly, dedented it,
+and inserted the one `window.loadSocialData` line — eliminating any risk of a transcription slip
+across content this large. One self-caught mistake during verification: the first diff against the
+original came back showing *every* line as different; traced immediately to a line-ending mismatch
+(`git show | sed` normalizes to LF, the new file correctly kept the project's own CRLF) rather than
+a real content problem — normalizing both sides for the comparison confirmed the true diff was
+clean. A second false alarm right after (an apparently-missing final `};`) turned out to be a
+`head -n -1` in the verification command wrongly assuming a trailing blank line that didn't exist,
+not a problem with the actual file (confirmed by reading the file's real tail directly).
+
+**Verification**: `node --check js/admin/social.js` (syntax valid). Once both self-caught
+comparison-tooling mistakes above were corrected, the true diff came back with exactly 1
+difference — the intentional `window.loadSocialData = loadSocialData;` line — byte-identical
+otherwise. Tag-structure diff showed exactly the 3 expected splice lines. `git diff --stat` on
+`admin.html`: 8 insertions, 901 deletions — reconciles exactly (901 = 15835−14935+1 lines removed,
+8 = the replacement array's own length).
+
+**Same known gap as Sections 1-8**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Social Media — add/edit/delete a social
+link, add a media embed for at least one platform with real metadata fetching (e.g. a YouTube URL)
+and confirm the thumbnail/title populate, and save the KPI settings tab.
+
 ---
 
 ## Phase 5 — Route & middleware split
