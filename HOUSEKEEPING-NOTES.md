@@ -531,6 +531,69 @@ a service, filter by category pill/search/model/status, verify stats update) and
 (change and save each policy field, confirm validation on deposit %/quote validity/reminder-day
 ordering).
 
+### Section 11: Upcoming Events (`eventsAdmin`) — DONE
+
+Same CRUD-list shape as the earlier Gallery/Career/Testimonials sections, correctly located exactly
+where its own "4. Events Logic (Database API Driven)" header comment said it would be (unlike Email
+Logs/Social Media/Services, no stale-placeholder surprise here).
+
+- **JS moved (two pieces around a carve-out)**: `admin.html:13607-14389` (list rendering, search,
+  bulk-selection actions and all `#evtBulk*` handlers, single-delete and duplicate handlers,
+  `window.openCancelEventModal` + its delegated confirm handler, the `#evtDrawer` create/edit
+  controller — `applyEventToEditor`/`resetEventForm`/`window.openEvtCreateDrawer`/
+  `window.openEvtEditDrawer`/`cancelEventEdit`, the `#eventsForm` submit handler with poster upload,
+  and `window.initEventsPickers`) and `admin.html:14422-14445` (the Google Maps Places Autocomplete
+  venue lookup, `window.initEventsMap`) → new `js/admin/events.js`, concatenated in their original
+  relative order.
+- **A genuinely cross-cutting carve-out sat physically between those two pieces, left in place**:
+  `admin.html:14391-14420` — `_fpDate`/`_fpTime`/`_fpDateTime`/`window.initAdminDateTimePickers`, a
+  generic Flatpickr-init helper used by Financials/Services/Security/Contracts/Bookings and more
+  (`finDateFrom`, `svcValidFrom`, `auditDateFrom`, `contractSignedDate`, `boDate`, etc.) — not
+  Events-specific despite the physical location, same treatment as About Me's Website Sections
+  carve-out and the shared bootstrap block ahead of Services/Policies.
+- **CSS moved**: `admin.html:1282-1351` ("EVENTS SECTION — Card grid + editor dock": `.evt-*` card
+  grid, bulk bar, badges, list heading) → new `css/admin/events.css`. The immediately-following
+  `.atl-edit-card` block was explicitly marked shared in its own comment ("isolated from
+  booking/event JS hooks") and was NOT moved. `#eventsAdmin` also appears in the separate shared
+  15-section "no background" rule elsewhere — not moved either.
+- **Two new `window.` attachments** — both were plain function declarations in the original source:
+  `renderEventsList` (called from 3 external script blocks — the standard refresh-everything
+  pattern) and `cancelEventEdit` (referenced from a static `onclick="cancelEventEdit();"` in the
+  `evtDrawer` markup). `window.openCancelEventModal`/`window.openEvtCreateDrawer`/
+  `window.openEvtEditDrawer`/`window.initEventsPickers`/`window.initEventsMap` were already
+  window-attached in the original source.
+- **Self-caught mistake during extraction, fixed before verification**: the first build of this
+  file used brace-pattern matching (`line.trim() === '}'` within N lines of a function's signature)
+  to locate where to insert the two new `window.` attachments — it wrongly matched an inner
+  `if (data === null) { ... }` block's closing brace inside `renderEventsList` instead of the
+  function's own closing brace, landing `window.renderEventsList = renderEventsList;` mid-function
+  (syntactically valid, but wrong — it would have re-run on every call instead of once at load,
+  and isn't a byte-identical relocation). Caught by inspecting the generated file directly before
+  committing; the extraction was reverted (`git checkout admin.html`, new files deleted) and redone
+  using the exact, hand-verified closing-brace line number for each function instead of pattern
+  matching.
+- **No shared-candidate dependency beyond what's already flagged**: `window.atlActivateDrawerTab`,
+  `uploadFileToServer`, `openAtlDrawer`/`closeAtlDrawer` are called from inside this block but not
+  moved — the same Phase 7 "Shared candidates" as every prior drawer-owning section.
+- **Pre-existing developer comment preserved, not resolved**: a comment a few lines above
+  `window.initEventsMap`'s definition claims it "was defined but never called anywhere... a complete
+  dead end", immediately next to code that DOES conditionally call it on drawer-open — an apparent
+  inconsistency in the original comment, left byte-identical (a Phase 8 question, not this pass's to
+  resolve).
+
+**Verification**: `node --check` clean on `events.js`. Byte-identity diffs against the pre-move
+`admin.html` (built by re-deriving the exact expected body — piece A with the two attachments woven
+in at their verified line numbers, plus piece B — from the saved pre-change copy) came back clean
+for both the JS and CSS bodies. `git diff --stat` on `admin.html`: 11 insertions, 877 deletions; the
+diff was reviewed hunk-by-hunk end-to-end (3 hunks) and confirms the carve-out block is preserved
+byte-for-byte as unchanged context between the two removed pieces, with clean boundaries against the
+untouched "5. Career Accordion Logic" marker immediately after.
+
+**Same known gap as Sections 1-10**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Upcoming Events (create/edit/cancel/postpone/
+duplicate/delete an event individually and via bulk actions, venue autocomplete, and — if a Google
+Maps API key is configured — the venue search field).
+
 ---
 
 ## Phase 5 — Route & middleware split
