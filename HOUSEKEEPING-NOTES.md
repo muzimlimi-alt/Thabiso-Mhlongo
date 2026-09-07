@@ -462,6 +462,75 @@ on static verification. Live-check list now also covers Social Media — add/edi
 link, add a media embed for at least one platform with real metadata fetching (e.g. a YouTube URL)
 and confirm the thumbnail/title populate, and save the KPI settings tab.
 
+### Section 10: Services Catalogue (`servicesAdmin`) + Booking Policies (narrow tab) — DONE
+
+A combined batch: two logically distinct, physically adjacent, self-contained blocks with zero
+cross-dependency on each other, extracted together in one pass.
+
+- **JS moved**: `admin.html:30357-30783` (Services CRUD: `allServicesCache`/`_showArchivedServices`/
+  `_svcActiveCat` local state, the `.svc-cat-pill` click handler, `_updateSvcStats`,
+  `window.loadAdminServices`, `window.filterServicesTable`, `window.clearSvcFilters`,
+  `window.restoreService`, `window.toggleArchivedServices`, `window.toggleServiceForm`,
+  `window.togglePricingFields`, `window.cancelServiceForm`, `window.editService`,
+  `window.saveService`, `window.deleteService`) → new `js/admin/services.js`.
+- **JS moved**: `admin.html:30785-30840` (`window.loadPolicies`, `window.savePolicies` — deposit %,
+  quote validity, payment terms, cancellation policy, reminder days, inquiry SLA) → new
+  `js/admin/policies.js`.
+- **"Booking Policies" is two different things, discovered during scoping**: the sidebar tab labeled
+  Booking Policies is this narrow `loadPolicies`/`savePolicies` pair only. Immediately adjacent
+  (`admin.html:30842` onward, same `policiesAdmin` panel) sits a much bigger, unrelated
+  "Legal & Compliance Centre" module — 8 further tabs (Privacy Policy, Terms, Cookie & Consent,
+  Consent Audit, Contract Registry, Version History, plus 2 more) touching POPIA/legal-compliance
+  territory. Deliberately NOT part of this batch — deferred to its own dedicated scoping pass given
+  its size and sensitivity.
+- **Explicitly NOT moved**: `admin.html:30329-30355`, a shared cross-cutting Bootstrap tab-shown
+  wiring block that lazily triggers `loadAdminServices()`/`loadPolicies()` alongside
+  Home/Finance/Security/Bookings/Preferences/Branding on their own tabs — genuinely cross-cutting,
+  stays in place untouched.
+- **Zero new `window.` attachments needed** — every function reachable from the two sections' static
+  `onclick`/`oninput`/`onchange` markup attributes (`toggleServiceForm()`, `filterServicesTable()`,
+  `clearSvcFilters()`, `toggleArchivedServices()`, `togglePricingFields()`, `saveService()`,
+  `savePolicies()`, etc.) was already `window`-attached in the original source — the same
+  fully-clean precedent as Email Logs and Social Media.
+- **A local, section-owned helper left in place, called not moved**: `svcDrawerOpen()` (called from
+  both `toggleServiceForm` and `editService`) sits physically between the two moved Services
+  functions that call it but is itself just above the shared drawer-stacking infrastructure
+  (`atlDrawerPush`/`atlDrawerPop`/`atlDrawerFocusEntry`, `window.openAtlDrawer`/`closeAtlDrawer`,
+  `window.openQuoteDrawer`/`closeQuoteDrawer`) — all of that infrastructure is a **Phase 7 shared
+  candidate** already flagged from prior sections, so `svcDrawerOpen` and everything after it in
+  that shared block was left exactly where it is; `services.js` calls it as an ordinary
+  cross-script-block reference, the same mechanism verified safe every prior section.
+- **No shared-candidate dependency beyond the drawer stack noted above** — no `atlActivateDrawerTab`
+  (Services' drawer has no tabs), no `uploadFileToServer` (no image uploads in either section).
+- **CSS**: no private CSS for either section — `#servicesAdmin` only appears in the shared
+  15-section "no background" rule; the "UNIFIED SEARCH BOXES" comment nearby documents a shared
+  convention across `#eventsAdmin`/`#bookingsAdmin`/`#servicesAdmin`/`#inquiriesAdmin`, not
+  anything private to Services. Nothing moved.
+- **Markup structural curiosity, no extraction impact**: Services Catalogue's drawer (`#svcDrawer`,
+  `admin.html:8166-8648` range) uses an older `svc-drawer` class embedded directly within the
+  section's own markup, unlike the `atl-drawer` pattern most other sections use (markup living in a
+  separate late-file drawer zone). Noted for awareness; the plan's "leave markup in place" rule
+  means this has no bearing on the extraction either way — both the section markup and its drawer
+  stay in `admin.html` untouched.
+
+**Verification**: `node --check` clean on both new files. Byte-identity diffs against the pre-move
+`admin.html` (CRLF-normalized from the start this time, having learned that lesson from Social
+Media) came back clean for both files — the only content difference in either is the intentional
+header comment block, confirmed by diffing bodies only (offset past each file's own header length,
+7 lines for `services.js`, 8 for `policies.js` — a header-length mismatch first produced a
+false-alarm single-blank-line diff on `policies.js`, immediately traced to the verification script's
+`tail` offset rather than the file, then re-confirmed clean). `git diff --stat` on `admin.html`: 12
+insertions, 484 deletions — reconciles exactly (484 = 30840−30357+1 lines removed across both
+blocks, 12 = the two-file replacement's own combined line count). Diff reviewed directly end-to-end:
+single contiguous removal, clean boundary against the untouched Legal & Compliance Centre header
+immediately after.
+
+**Same known gap as Sections 1-9**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Services Catalogue (add/edit/archive/restore
+a service, filter by category pill/search/model/status, verify stats update) and Booking Policies
+(change and save each policy field, confirm validation on deposit %/quote validity/reminder-day
+ordering).
+
 ---
 
 ## Phase 5 — Route & middleware split
