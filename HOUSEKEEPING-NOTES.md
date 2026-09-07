@@ -594,6 +594,86 @@ on static verification. Live-check list now also covers Upcoming Events (create/
 duplicate/delete an event individually and via bulk actions, venue autocomplete, and — if a Google
 Maps API key is configured — the venue search field).
 
+### ⚠ Regression found and fixed: two earlier extractions broke live functionality
+
+While scoping Section 12, a fuller check of the verification methodology used for every section so
+far turned up a real, already-committed bug in **two** earlier extractions — **Section 8 (Email
+Logs)** and **Section 10 (Services Catalogue + Booking Policies)**. This entry documents what was
+wrong, why every diff/line-count check up to now hadn't caught it, how it was found, and the fix.
+
+**What was wrong**: every section's verification checked that the *extracted file* was byte-identical
+to the original, and that `admin.html`'s own diff arithmetic reconciled — but never checked that
+`admin.html`'s own *remaining* inline `<script>` tags were still independently valid JavaScript after
+the splice. For 9 of the 11 sections so far, the extracted content sat at a clean top-level boundary,
+so this was never an issue. For Email Logs and Services/Policies, the extracted content actually sat
+in the **middle of a large enclosing IIFE** — `(function initUserManagement() { ... })();` (User
+Management's own module, ~1,400 lines, never itself scoped for Phase 6) and
+`(function initFinanceManagement() { ... })();` (Finance's own module) respectively. Splicing a
+`<script src="...">` into the middle of either IIFE's body split it into two separate `<script>`
+tags, each a syntactically incomplete fragment — one missing its closing `})();`, the other left with
+an orphaned, unmatched `}`. A browser encountering a `<script>` tag with a syntax error executes
+**none** of that tag's top-level code — meaning, on the live site since those two commits landed,
+**all of `initUserManagement`'s own functions (User Management's entire CRUD — load/render/paginate/
+sort/delete/update users, the Login Activity Logs panel, bulk controls) and all of
+`initFinanceManagement`'s own functions (Financial stats/transactions/invoices/charts, Audit Log
+rendering, POPIA request handling, the session-timeout timer) silently stopped running.** This was
+never exercised by this pass's own verification (byte-identical diffs of the *extracted* file don't
+catch a syntax break in what's *left behind*), and the plan's own manual click-through gate — the
+one check that would have caught this immediately — is the exact gap already flagged as "same known
+gap as Sections 1-N" in every section's write-up (Puppeteer/Chrome blocked in this sandbox).
+
+**How it was found**: prompted by the "Auto Mode" system reminder's push to keep moving, a
+belt-and-suspenders pass wrote a small script (`vm.Script` per inline `<script>...</script>` block,
+skipping `src=` tags) that parses every inline script block in `admin.html` independently — the same
+grammar unit a browser treats each tag as. Run against the pre-Phase-6 original: 14/14 blocks parse
+clean (confirming the bug is not pre-existing). Run against the current file: 4 blocks failed,
+exactly the two seams above (one "unclosed" + one "orphaned close" per seam).
+
+**Why the fix is not a re-extraction**: the *extracted files themselves* (`email-logs.js`,
+`services.js`, `policies.js`) were re-verified — `node --check` clean, byte-identical to source — and
+are not at fault. The break is entirely in how `admin.html`'s residual scaffolding was reconstructed
+around the splice point.
+
+**The fix, per seam**:
+- Checked whether the code on either side of each seam has a real closure dependency on the other
+  (bare references to functions/state defined only on the far side). **Services/Policies**: zero
+  cross-references found (`grep` across both remaining halves for every one of `initFinanceManagement`'s
+  top-level names) — the two halves are safely independent. **Email Logs**: the remaining
+  "PANEL 5: LOGIN ACTIVITY LOGS" code (User Management's own separate login-activity log viewer,
+  distinct from the sitewide Email Logs admin tab) genuinely calls back into `initUserManagement`'s
+  own closure-scoped `esc()`, `initTabs()`, `moduleLoaded`, and `loadAllUsers()` — a real dependency.
+- Given that, the safest fix (matching "relocate, don't rewrite") for **both** seams was the same:
+  reunite each IIFE into one continuous `<script>` tag exactly as it always was (verified by
+  concatenating both halves and running `node --check` — clean), and relocate the extracted
+  section's `<script src="...">` tag(s) to sit **just before** the whole reunited block instead of
+  inside it. Order preserved for Services-then-Policies. Verified this relocation changes nothing
+  observable: every symbol these files reference from the page (`window.qs`/`window.qsa`, defined at
+  `admin.html:12016-17`, well before either old or new position) is already resolvable from the new,
+  earlier position, and every function these files themselves define is only ever *called* from user
+  interaction — never at parse time — so loading earlier changes no execution order that matters.
+- A pre-existing (not introduced by this fix) name collision was noted, not touched: both
+  `email-logs.js` and the reunited `initUserManagement` block define `window.toggleLogSort` for two
+  conceptually different log tables (Email Logs' own vs. User Management's Login Activity panel) —
+  in the original file the second one (User Management's, defined later in execution order) always
+  won, silently shadowing the Email Logs tab's own sort-icon handler. The fix preserves this exact
+  same "last one loaded wins" order (Email Logs' script tag still loads and runs before
+  `initUserManagement`'s own code), so this pre-existing bug's behavior is unchanged either way — a
+  Phase 8 dead-code/bug-fix question, not this pass's to resolve.
+
+**Verification**: a purpose-built script parses every inline `<script>` block in the *current*
+`admin.html` independently (`node`'s `vm.Script`, mirroring how a browser treats each tag) — 23/23
+blocks parse clean (0 failures, down from 4). `node --check` re-run on all 12 extracted
+`js/admin/*.js` files — all clean, confirming the fix touched only `admin.html`. `git diff --stat` on
+`admin.html`: 23 insertions, 15 deletions, entirely comment and `<script>`/`<script src>` tag lines —
+reviewed in full; no line of actual application code was added, removed, or reordered.
+
+**Process takeaway, applied going forward**: every future Phase 6 section's verification now also
+runs this same inline-script parse-check against the post-splice `admin.html`, not just against the
+extracted file — added as a standing step, not a one-off. This is the direct, concrete substitute for
+the manual click-through gate this sandbox still can't automate — it wouldn't have caught a *behavior*
+regression, but it does catch exactly this class of *structural* one, which the byte-diff/line-count
+checks used so far were structurally blind to.
+
 ---
 
 ## Phase 5 — Route & middleware split

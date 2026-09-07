@@ -26469,6 +26469,10 @@
 })();
 </script>
 
+    <!-- Phase 6 (HOUSEKEEPING-NOTES.md) FIX: relocated here (from mid-way through the User
+         Management module's own script block below) so that block could be reunited into
+         one continuous closure. -->
+    <script src="js/admin/email-logs.js"></script>
 <!-- ============================================================
      USER MANAGEMENT MODULE — JavaScript Engine
      Connects to /api/admin/users, /api/admin/session, /api/admin/users/:id
@@ -27424,9 +27428,13 @@
        applyLogFilters/debounceLogSearch) moved to js/admin/email-logs.js. Every publicly-
        needed function was already window-attached in the original source (inline onclick/
        oninput/onchange attributes in the markup call these) — no new attachments needed. */
-    </script>
-    <script src="js/admin/email-logs.js"></script>
-    <script>
+    // Phase 6 (HOUSEKEEPING-NOTES.md) FIX: the "EMAIL LOGS MODULE" block that used to sit here
+    // was moved to js/admin/email-logs.js. It originally lived inside this same
+    // initUserManagement(...) closure — removing it left a hole that broke this IIFE across two
+    // <script> tags (a bug, now fixed). Unlike Services/Policies, the surrounding code here DOES
+    // depend on this closure (esc/initTabs/moduleLoaded/loadAllUsers), so this IIFE is reunited
+    // as one continuous block and the <script src> tag was moved to just before this whole block
+    // instead — see that file's header comment for full detail.
 
     /* ================================================================
        PANEL 5: LOGIN ACTIVITY LOGS — state, API fetch, pagination, sort
@@ -27826,6 +27834,11 @@
 </script>
 
 
+    <!-- Phase 6 (HOUSEKEEPING-NOTES.md) FIX: relocated here (from mid-way through the
+         Finance module's own script block below) so that block could be reunited into one
+         continuous closure. Order preserved (services before policies). -->
+    <script src="js/admin/services.js"></script>
+    <script src="js/admin/policies.js"></script>
 <!-- ============================================================
      FINANCE MODULE — JavaScript Engine
      ============================================================ -->
@@ -29488,18 +29501,13 @@
         });
     }
 
-    // Phase 6 (HOUSEKEEPING-NOTES.md): the "Services CRUD" block moved to js/admin/services.js
-    // — see that file's header comment for full detail.
-    </script>
-    <script src="js/admin/services.js"></script>
-    <script>
-    // Phase 6 (HOUSEKEEPING-NOTES.md): the narrow "Booking Policies" tab (loadPolicies/
-    // savePolicies) moved to js/admin/policies.js. The separate, much larger "Legal &
-    // Compliance Centre" module immediately below was NOT moved — see that file's header
-    // comment for full detail.
-    </script>
-    <script src="js/admin/policies.js"></script>
-    <script>
+    // Phase 6 (HOUSEKEEPING-NOTES.md) FIX: the "Services CRUD" and narrow "Booking Policies"
+    // tab blocks that used to sit here were moved to js/admin/services.js and
+    // js/admin/policies.js. They originally lived inside this same initFinanceManagement(...)
+    // closure — removing them left a hole that broke this IIFE across two <script> tags (a bug,
+    // now fixed). Both files have no dependency on this closure's local state (verified), so
+    // this IIFE is reunited as one continuous block and the two <script src> tags were moved to
+    // just before this whole block instead — see each file's header comment for full detail.
 
     // ============================================================
     // Legal & Compliance Centre — frontend (Tabs 1-8)
