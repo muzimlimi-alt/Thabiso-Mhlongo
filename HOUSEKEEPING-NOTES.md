@@ -674,6 +674,55 @@ the manual click-through gate this sandbox still can't automate — it wouldn't 
 regression, but it does catch exactly this class of *structural* one, which the byte-diff/line-count
 checks used so far were structurally blind to.
 
+### Section 12: Branding (`brandingAdmin`) — DONE
+
+First section scoped *after* the regression fix above, and the first to deliberately apply its
+lesson from the start rather than discover it the hard way: this code also sat in the middle of
+`initFinanceManagement(...)`'s closure (the same one Services/Policies came from), immediately after
+Working Hours' save handler and immediately before System Settings' `sendTestNotification`.
+
+- **JS moved**: `admin.html:30034-30190` (`uploadBrandingAsset`, `updateBrandPreview`,
+  `updateBrandFontPreview`, `updateBrandColorPreview`, `resetBrandColor`, `resetBrandFont`,
+  `resetLoginBackground`, `loadBrandingSettings`, `saveBranding`) → new `js/admin/branding.js`.
+- **Checked cross-references in both directions before touching anything** (the check this whole
+  regression was about): grepped the full `initFinanceManagement` closure for every one of
+  Branding's own names (zero hits outside its own range, aside from inline markup attributes) and
+  grepped Branding's own code for every other name known to be declared elsewhere in that closure
+  (Finance/Audit/POPIA/session-timer/Working-Hours state and helpers — zero hits). Confirmed safe to
+  remove with no cross-dependency.
+- **Applied the fix pattern proactively, not reactively**: did *not* split the enclosing `<script>`
+  tag at the extraction point. Working Hours' code (just before) and `sendTestNotification`'s code
+  (just after) are joined directly with a short explanatory comment in between — no script-tag
+  break. The new `<script src="js/admin/branding.js">` tag sits before the whole
+  `initFinanceManagement` block instead, alongside the `services.js`/`policies.js` tags already
+  relocated there by the earlier fix.
+- **A second pre-existing dead-code path found, and knowingly left as a side-effect fix**:
+  `updateBrandPreview` is called from 3 inline `oninput=""` attributes (the Logo/Favicon/Login
+  Background URL fields' live preview) but was never `window`-attached in the original source — and
+  since it was closure-scoped inside `initFinanceManagement`, those `oninput` calls have almost
+  certainly thrown `ReferenceError` silently for as long as this code has existed (inline attribute
+  handlers execute in global scope; they cannot see into an unexposed closure). Presented to the
+  user before proceeding: option to preserve the exact broken behavior, or let a correctly-added
+  `window.updateBrandPreview` (required anyway by this plan's own on*= reachability rule) incidentally
+  make the live preview work. User chose to proceed as scoped — the attachment was added, which
+  likely makes those 3 preview fields start working live for the first time. Noted here explicitly
+  rather than silently, per the plan's "narrow, explicitly-reasoned exceptions" rule.
+- **CSS**: no private CSS — `#brandingAdmin` only in the shared 15-section rule; `.brand-name`/
+  `.brand-tagline` (admin header's own logo styling) are unrelated to this section's form.
+
+**Verification**: `node --check` clean on `branding.js`. The inline-script parse-checker (added as a
+standing step per the takeaway above) reports 23/23 clean — confirming the reunite-and-relocate
+pattern was applied correctly this time, no repeat of the earlier bug. Byte-identity diff of the
+extracted body (excluding the one intentional `window.updateBrandPreview` line) against the
+pre-extraction `admin.html` came back clean. `git diff --stat` on `admin.html`: 6 insertions, 157
+deletions — reviewed in full; a single clean removal plus one relocated `<script src>` line, no
+script-tag split introduced.
+
+**Same known gap as Sections 1-11**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Branding (upload/change logo, favicon, login
+background; confirm the 3 live-preview fields now actually update as you type/paste a URL; change
+accent colour and theme font; save both Identity and Site scopes; the "Reset" buttons).
+
 ---
 
 ## Phase 5 — Route & middleware split
