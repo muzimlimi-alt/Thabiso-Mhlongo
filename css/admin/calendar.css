@@ -1,0 +1,157 @@
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — Unified Calendar CSS,
+   assembled from three separate clusters that were physically scattered in the original
+   stylesheet (sidebar gap media query, mobile toolbar layout, and the main FullCalendar theming
+   block), concatenated here in their original document order. This one file is linked from all
+   three original positions in admin.html (not just one) — guarantees the cascade order relative
+   to whatever other sections' rules used to sit between the three clusters is unchanged, at the
+   cost of loading this small file three times (cached after the first).
+
+   An adjacent, unrelated rule — .cal-block-chip, immediately after the third cluster — has zero
+   references anywhere in markup or JS (orphaned dead CSS) and was deliberately NOT moved; it
+   stays in admin.html, flagged for Phase 8. */
+
+/* Calendar sidebar gap when columns stack below lg breakpoint */
+@media (max-width: 1199px) {
+    #calendarAdmin .col-lg-4 { margin-top: 20px; }
+}
+
+/* Calendar toolbar mobile — buttons on one row, title below */
+@media (max-width: 599px) {
+    #calendarAdmin .fc-header-toolbar {
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        gap: 4px 0 !important;
+    }
+    /* Nav buttons (prev/next/today) — left side */
+    #calendarAdmin .fc-header-toolbar .fc-toolbar-chunk:nth-child(1) {
+        order: 1 !important;
+        flex: 1 0 auto !important;
+    }
+    /* View toggles (month/week/list) — right side, same row */
+    #calendarAdmin .fc-header-toolbar .fc-toolbar-chunk:nth-child(3) {
+        order: 2 !important;
+        flex-shrink: 0 !important;
+    }
+    /* Title (June 2026) — full-width row below */
+    #calendarAdmin .fc-header-toolbar .fc-toolbar-chunk:nth-child(2) {
+        order: 3 !important;
+        width: 100% !important;
+        text-align: center !important;
+        justify-content: center !important;
+        padding-top: 4px !important;
+    }
+}
+
+/* ── CALENDAR SECTION ── */
+#calendarAdmin .fc {
+    font-family: 'Outfit', sans-serif !important;
+    color: var(--atl-ink) !important;
+    --fc-page-bg-color: var(--atl-paper);
+    --fc-neutral-bg-color: var(--atl-surface2);
+    --fc-list-event-hover-bg-color: var(--atl-card);
+}
+#calendarAdmin .fc-list-table,
+#calendarAdmin .fc-list-table tbody {
+    background: transparent !important;
+}
+#calendarAdmin .fc-toolbar-title {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: clamp(20px, 3vw, 26px) !important;
+    color: var(--atl-ink-dim) !important;
+}
+#calendarAdmin .fc-button {
+    background: var(--atl-card) !important;
+    border: 1px solid var(--atl-line) !important;
+    color: var(--atl-muted) !important;
+    font-family: 'Outfit', sans-serif !important;
+    border-radius: var(--atl-r-sm) !important;
+}
+#calendarAdmin .fc-button:hover,
+#calendarAdmin .fc-button-active {
+    background: var(--atl-amber-dim) !important;
+    border-color: var(--atl-amber-border) !important;
+    color: var(--atl-amber) !important;
+}
+#calendarAdmin .fc-daygrid-day-number,
+#calendarAdmin .fc-col-header-cell-cushion {
+    font-family: 'Outfit', sans-serif !important;
+    color: var(--atl-muted) !important;
+}
+#calendarAdmin .fc-day-today { background: var(--atl-amber-dim) !important; }
+/* --atl-amber-dim is only a 12% amber tint - reads fine over the light theme's paper
+   background but nearly disappears over the dark theme's near-black one, unlike the
+   mini-calendar's solid "today" cell. Bump just this indicator in dark mode. */
+[data-theme="dark"] #calendarAdmin .fc-day-today {
+    background: rgba(212, 175, 55, 0.22) !important;
+    box-shadow: inset 0 0 0 1px var(--atl-amber-border);
+}
+#calendarAdmin .fc-daygrid-event {
+    border-radius: var(--atl-r-sm) !important;
+}
+/* ── List View ── */
+#calendarAdmin .fc-list-day td,
+#calendarAdmin .fc-list-day-cushion {
+    background: var(--atl-surface2) !important;
+    border-color: var(--atl-line) !important;
+}
+#calendarAdmin .fc-list-day-cushion {
+    padding: 10px 14px !important;
+    border-left: 3px solid var(--atl-amber-border) !important;
+}
+#calendarAdmin .fc-list-day-text {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: 15px !important;
+    font-weight: 600 !important;
+    color: var(--atl-amber) !important;
+    text-decoration: none !important;
+}
+#calendarAdmin .fc-list-day-side-text {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    color: var(--atl-muted) !important;
+    text-decoration: none !important;
+}
+#calendarAdmin .fc-list-event td {
+    background: var(--atl-paper) !important;
+    border-color: var(--atl-line) !important;
+    color: var(--atl-ink) !important;
+    padding: 10px 14px !important;
+}
+#calendarAdmin .fc-list-event:hover td {
+    background: var(--atl-card) !important;
+    cursor: pointer !important;
+}
+#calendarAdmin .fc-list-event-time {
+    font-family: 'Outfit', sans-serif !important;
+    color: var(--atl-muted) !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+    min-width: 110px !important;
+}
+#calendarAdmin .fc-list-event-title a {
+    font-family: 'Outfit', sans-serif !important;
+    color: var(--atl-ink) !important;
+    text-decoration: none !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+}
+#calendarAdmin .fc-list-event-title a:hover {
+    color: var(--atl-amber) !important;
+}
+#calendarAdmin .fc-list-empty-cushion {
+    font-family: 'Outfit', sans-serif !important;
+    color: var(--atl-muted) !important;
+    font-size: 14px !important;
+    text-align: center !important;
+    padding: 40px !important;
+}
+/* FC manages its own day-cell highlight — suppress the card-level hover glow */
+#calendarAdmin .atl-card:hover {
+    border-color: var(--atl-line) !important;
+    box-shadow: none !important;
+}
+/* Constrain FC selection preview to a subtle per-cell amber tint */
+#calendarAdmin { --fc-highlight-color: rgba(212, 175, 55, 0.12); }

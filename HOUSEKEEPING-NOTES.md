@@ -914,6 +914,72 @@ on static verification. Live-check list now also covers Financials — load the 
 Invoices tabs, generate/send/void/mark-paid an invoice, filter transactions, and load the Financial
 Analytics charts across each period preset.
 
+### Section 17: Unified Calendar (`calendarAdmin`) — DONE (self-caught mistake mid-extraction)
+
+A third instance of the "mega-closure housing multiple sections" pattern — but this one was missed
+on first pass because, unlike `initUserManagement`/`initFinanceManagement`, it's an **anonymous**
+`(function() {...})();` with no name to grep for.
+
+- **The mistake**: initial scoping concluded Calendar's own JS (`admin.html:24918-25457`) was plain
+  top-level code with no enclosing IIFE — based on checking for *named* IIFEs and finding none, and
+  on the correct-but-incomplete observation that its cross-references (to/from Bookings' success
+  handlers and Working Hours) would resolve via shared global scope if nothing wrapped it. A
+  same-position `<script>` split was applied (the technique used for 9 of the first 11 sections) and
+  broke the actual enclosing closure — `admin.html:24485-26348`, 1,864 lines, wrapping the core
+  admin-shell (`toggleSidebar`/`switchTab`/dropdowns/breadcrumb/profile-display) *and* Bookings'
+  Manual Booking modal around Calendar's own content — into two unparseable halves. Caught
+  immediately by the inline-script parse-checker (2 failures), reverted cleanly (`git checkout` +
+  delete untracked files, `git status` confirmed clean) before any commit.
+- **The corrected plan, verified this time before touching anything again**: grepped every one of
+  Calendar's internal names for local-scope shadowing anywhere else in the 1,864-line closure (none
+  found); verified the closure's own content-before-Calendar concatenated directly to its
+  content-after-Calendar parses cleanly standalone; and reasoned through the cross-reference
+  direction explicitly — Bookings' success handlers (same closure) and Working Hours (a *different*
+  closure, inside `initFinanceManagement`) calling `adminCalendar`/`renderWorkingSchedule` is
+  **outward/upward** scope resolution (inner function → enclosing global scope), the same always-safe
+  direction already relied on for `_siteContent` and the Website Sections carve-out — categorically
+  different from the `auditState`/`updateBrandPreview` bugs, which needed impossible **inward** access
+  from global scope into a closure.
+- **JS moved**: `admin.html:24918-25457` (540 lines — `adminCalendar`/`_calFilterState` state,
+  `window._calSwitchToList`, `window.handleRemoveHold`, `showCalEventPopup`, `initAdminCalendar`,
+  `initMiniCalendar`/`refreshEventDots`/`window.refreshMiniCalendar`, `renderWorkingSchedule`, the
+  Refresh Calendar button handler) → new `js/admin/calendar.js`, using the reunite-and-relocate
+  pattern this time — the anonymous closure stays whole, `<script src="js/admin/calendar.js">` sits
+  before its `<script>` tag.
+- **A third incidental dead-code fix, expected rather than newly discovered**: Working Hours'
+  `adminCalendar.setOption('businessHours', ...)` call was silently inert (a `typeof adminCalendar
+  !== 'undefined'` guard defensively written by the original developer, precisely because it's in a
+  different closure with no access to Calendar's `adminCalendar`) — will likely start working now
+  that `adminCalendar` is declared at `calendar.js`'s own top level, joining the shared global scope
+  both closures can already reach into. No explicit user sign-off sought this time since it's a pure
+  consequence of the scope-resolution mechanics already explained and approved for this section,
+  not a new closure-scoped-bare-attribute bug of the `auditState` kind.
+- **CSS moved**: three separate clusters — `admin.html:1277-1280` (sidebar gap), `1348-1373` (mobile
+  toolbar layout), `3866-3978` (main FullCalendar theming) — concatenated in original document order
+  into new `css/admin/calendar.css`, linked from **all three** original positions (not consolidated
+  to one) to guarantee the cascade order relative to whatever other sections' rules sat between the
+  clusters is unchanged, matching the two-file approach used for Email Logs' duplicate `.log-row`
+  rules.
+- **Found and flagged, not touched**: `.cal-block-chip` (`admin.html:3979-3983` originally),
+  immediately after the third CSS cluster — zero references anywhere in markup or JS, orphaned dead
+  CSS, left in place per the no-deletions rule, flagged for Phase 8.
+- **Explicitly staying put**: the core admin-shell and Bookings' Manual Booking modal, both
+  untouched, as agreed before this section was scoped.
+
+**Verification**: `node --check` clean on `calendar.js`; re-run across all 17 extracted files — clean.
+The inline-script parse-checker reports 22/22 clean on the corrected version (after the initial 2
+failures on the first, reverted attempt). Byte-identity diffs of the JS and the concatenated CSS both
+came back clean against the pre-extraction `admin.html`. `git diff --stat`: 14 insertions, 683
+deletions across 5 hunks (3 CSS splices, the relocated `<script src>` line, and the JS reunite) —
+reviewed end-to-end; the `(function() {` opening and Manual Booking modal's start both appear
+unchanged, as context, on either side of the JS removal.
+
+**Same known gap as Sections 1-16**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Unified Calendar — load the main calendar,
+toggle the bookings/holds/events/milestones filters, remove a hold, click an event for the popup,
+use the mini calendar, and confirm the Refresh Calendar button (including whether Working Hours'
+business-hours now visibly reflects on the calendar, given the incidental fix above).
+
 ---
 
 ## Phase 5 — Route & middleware split
