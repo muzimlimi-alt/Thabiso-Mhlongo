@@ -783,6 +783,47 @@ Search button and sort-column clicks now actually filter/re-sort (previously sil
 through both tables, open a POPIA request's detail drawer, and exercise approve/reject/process/CSV
 export on a test request if the environment allows it safely.
 
+### Section 14: System Settings (`preferencesAdmin`) — DONE
+
+Assembled from three physically scattered pieces — the first section built this way from a
+combination of an old carve-out and a fresh IIFE extraction, rather than either alone.
+
+- **Piece A** — `admin.html:13402-13527`: the "Website Sections" block left over from the About Me
+  extraction (`SECTION_REGISTRY`, `renderSectionsUI`, `secSetToggle`, `loadSectionVisibility`,
+  `secFilter`, `saveSectionVisibility`, delegated handlers). Plain top-level code, not inside any
+  IIFE — same same-position `<script src>` splice used for every non-closure section.
+- **Piece B** — `admin.html:29308-29377`: `loadSystemSettings`/`saveSystemSettings` (PayFast +
+  SMTP configuration).
+- **Piece C** — `admin.html:29491-29507`: `sendTestNotification`.
+- **A carve-out sandwiched between B and C, confirmed via its own markup and left untouched**:
+  `admin.html:29379-29483` ("Working Hours" — `WH_DAY_NAMES`, `window.loadWorkingHours`,
+  `window.saveWorkingHours`). Despite living physically between two System Settings pieces, its
+  markup (`#workingHoursTbody`, `#btnSaveWorkingHours`) is inside `calendarAdmin`'s own section —
+  this is Unified Calendar's own booking-schedule configuration, not System Settings'.
+- **B and C both sat inside `initFinanceManagement(...)`'s closure** (the same one
+  Services/Policies/Branding/Security & Audit came from) — applied the reunite-and-relocate pattern
+  a third time: no script-tag split at either point, Working Hours stays exactly where it is between
+  them untouched, and `<script src="js/admin/system-settings.js">` sits before the whole
+  `initFinanceManagement` block, alongside the four already there.
+- **No new `window.` attachments needed** — `loadSystemSettings`/`saveSystemSettings`/
+  `sendTestNotification` were already window-attached; `saveSectionVisibility` (referenced from a
+  static `onclick="saveSectionVisibility(this)"`) is plain top-level code outside any IIFE, so it
+  was already globally reachable exactly as before.
+- **CSS/shared-candidates**: no private CSS (`#preferencesAdmin` only in the shared 15-section rule);
+  no drawer, so no `atlActivateDrawerTab`/`uploadFileToServer` dependency in any of the three pieces.
+
+**Verification**: `node --check` clean on `system-settings.js`; re-run across all 14 extracted files —
+clean. The inline-script parse-checker reports 23/23 clean — third consecutive clean application of
+the reunite-and-relocate pattern. Byte-identity diffs of all three pieces came back clean against the
+pre-extraction `admin.html`. `git diff --stat`: 11 insertions, 213 deletions across 4 hunks (Piece A's
+removal, the relocated `<script src>` line, and Pieces B and C's removals) — reviewed end-to-end;
+Working Hours' code appears unchanged, as context, in the diff between the B and C hunks.
+
+**Same known gap as Sections 1-13**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers System Settings — toggle/save Website
+Sections visibility (including the shared Announcement toggle), save PayFast and SMTP settings with
+invalid input to confirm validation, and send a test notification.
+
 ---
 
 ## Phase 5 — Route & middleware split
