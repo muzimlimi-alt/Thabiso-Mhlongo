@@ -1,0 +1,371 @@
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — Inquiries (Email
+   Client) CSS: three-panel shell, list rows, read/detail view, compose view, chip inputs,
+   attachments, notes. Already consolidated by the original developers (per the header comment
+   this file inherits below) from css/redesign.css plus two overlapping inline retrofits — a
+   single, clean cluster with no duplication concern, unlike Dashboard's CSS. */
+
+/* ── INQUIRIES SECTION ──
+   Consolidated from css/redesign.css + two overlapping inline retrofits into one
+   tokenized definition (see docs history / commit for the prior fragmented state).
+   Every color below resolves through --atl-* custom properties, so dark/light theme
+   and the shared 767px/479px breakpoints apply automatically — no per-theme overrides
+   needed here. */
+
+/* Three-panel shell */
+.inq-client {
+    display: grid;
+    grid-template-columns: 210px 1fr;
+    height: calc(100vh - 200px);
+    min-height: 520px;
+    background: var(--atl-paper);
+    border-radius: var(--atl-r-lg);
+    overflow: hidden;
+    border: 1px solid var(--atl-line);
+    position: relative;
+}
+
+/* Left: folder nav */
+.inq-nav {
+    background: var(--atl-sidebar-bg);
+    border-right: 1px solid var(--atl-line);
+    padding: 16px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--atl-line-strong) transparent;
+}
+.inq-compose-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--atl-amber);
+    color: var(--atl-on-amber);
+    border: none;
+    border-radius: var(--atl-r-md);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 11px 14px;
+    cursor: pointer;
+    width: 100%;
+    min-height: 44px;
+    transition: all var(--atl-t-base);
+    margin-bottom: 6px;
+    letter-spacing: 0.3px;
+}
+.inq-compose-btn:hover { background: var(--atl-amber-hover); transform: translateY(-1px); }
+.inq-compose-btn:active { transform: translateY(0); }
+
+
+.inq-folders { display: flex; flex-direction: column; gap: 1px; }
+.inq-folder {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: var(--atl-r-md);
+    text-decoration: none !important;
+    /* !important: a global `a { color: var(--atl-amber) !important; }` reset (line ~4160)
+       otherwise forces every folder link gold regardless of selected state, making "active"
+       indistinguishable from "not active" - see reference_blockout... style blanket-rule bugs. */
+    color: var(--atl-muted) !important;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px; font-weight: 500;
+    transition: all var(--atl-t-base);
+    position: relative;
+}
+.inq-folder:hover { background: var(--atl-amber-dim); color: var(--atl-ink) !important; }
+.inq-folder.active { background: var(--atl-amber-dim); color: var(--atl-amber) !important; font-weight: 600; border-left: 2px solid var(--atl-amber); }
+.inq-folder i { width: 14px; text-align: center; font-size: 12px; flex-shrink: 0; }
+.inq-folder-count { margin-left: auto; background: var(--atl-amber); color: var(--atl-on-amber); border-radius: var(--atl-r-pill); font-size: 10px; font-weight: 700; padding: 1px 6px; min-width: 16px; text-align: center; line-height: 1.4; }
+.inq-folder:not(.active) .inq-folder-count { background: var(--atl-surface3); color: var(--atl-muted); }
+
+/* Centre: message list */
+.inq-list-panel { border-right: 1px solid var(--atl-line); display: flex; flex-direction: column; background: var(--atl-sidebar-bg); overflow: hidden; }
+.inq-list-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid var(--atl-line); background: var(--atl-paper); gap: 8px; flex-shrink: 0; min-height: 46px; }
+.inq-list-toolbar-left, .inq-list-toolbar-right { display: flex; align-items: center; gap: 8px; }
+.inq-folder-title { font-size: 13px; font-weight: 600; color: var(--atl-ink-dim); font-family: 'Outfit', sans-serif; }
+
+.inq-tool-btn {
+    background: transparent;
+    border: 1px solid var(--atl-line);
+    color: var(--atl-muted);
+    border-radius: var(--atl-r-sm);
+    padding: 5px 9px;
+    font-size: 12px;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 5px;
+    transition: all var(--atl-t-fast);
+    white-space: nowrap;
+}
+.inq-tool-btn:hover { background: var(--atl-amber-dim); color: var(--atl-ink); border-color: var(--atl-line-strong); }
+.inq-tool-btn:focus-visible { outline: 2px solid var(--atl-amber); outline-offset: 2px; }
+.inq-tool-btn--danger:hover { background: color-mix(in srgb, var(--atl-clay) 12%, transparent); color: var(--atl-clay); border-color: color-mix(in srgb, var(--atl-clay) 35%, transparent); }
+
+.inq-sort-select { background: var(--atl-input-bg); border: 1px solid var(--atl-line); color: var(--atl-muted); border-radius: var(--atl-r-sm); padding: 5px 8px; font-size: 12px; cursor: pointer; transition: border-color var(--atl-t-base); }
+.inq-sort-select:focus { outline: none; border-color: var(--atl-amber); color: var(--atl-ink); }
+
+.inq-list-body { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--atl-line-strong) transparent; display: flex; flex-direction: column; gap: 7px; padding: 10px; }
+.inq-list-body::-webkit-scrollbar { width: 3px; }
+.inq-list-body::-webkit-scrollbar-track { background: transparent; }
+.inq-list-body::-webkit-scrollbar-thumb { background: var(--atl-line-strong); border-radius: 3px; }
+
+/* Message rows — soft "card row" treatment (mirrors .atl-edit-card elsewhere) instead of a
+   flat divided list, so a short inbox doesn't read as an unstyled blank list. */
+.inq-row { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); background: var(--atl-card); cursor: pointer; transition: background var(--atl-t-fast), border-color var(--atl-t-fast), box-shadow var(--atl-t-fast); position: relative; user-select: none; }
+.inq-row:hover { background: var(--atl-amber-dim); border-color: var(--atl-amber-border); box-shadow: var(--atl-shadow-card); }
+.inq-row:focus-visible { outline: none; background: var(--atl-amber-dim); border-color: var(--atl-amber-border); }
+.inq-row--active { background: var(--atl-amber-dim) !important; border-color: var(--atl-amber) !important; box-shadow: var(--atl-shadow-card); }
+.inq-row--unread .inq-row-name { font-weight: 700; color: var(--atl-ink); }
+.inq-row--unread .inq-row-subject { color: var(--atl-ink-dim); font-weight: 600; }
+
+.inq-row-avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--atl-amber); color: var(--atl-on-amber); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; flex-shrink: 0; }
+.inq-row-main { flex: 1; min-width: 0; }
+.inq-row-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.inq-row-name { font-family: 'Outfit', sans-serif; font-size: 14px; color: var(--atl-muted); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 155px; }
+.inq-row-date { font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--atl-muted-dim); flex-shrink: 0; }
+.inq-row-subject { font-family: 'Outfit', sans-serif; font-size: 12.5px; color: var(--atl-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+.inq-row-preview { font-size: 12px; color: var(--atl-placeholder); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* End-of-list marker — replaces the dead empty void below the last card with a deliberate,
+   lightweight sign-off instead of looking like the list cut off mid-render. */
+.inq-list-end { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 22px 20px 26px; color: var(--atl-muted-dim); font-size: 12px; }
+.inq-list-end i { color: var(--atl-sage); font-size: 13px; }
+
+.inq-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.inq-status-dot--unread { background: var(--atl-amber); }
+.inq-status-dot--read { background: transparent; border: 1px solid var(--atl-line-strong); }
+.inq-status-dot--replied { background: var(--atl-sage); }
+.inq-status-dot--archived { background: var(--atl-muted-dim); }
+.inq-status-dot--draft { background-color: var(--atl-muted-dim); }
+.inq-status-dot--scheduled { background-color: var(--atl-amber); }
+
+/* Priority flag (only rendered in list rows for high/urgent — see renderInqList) */
+.inq-priority-flag { font-size: 11px; margin-right: 4px; }
+.inq-priority-flag--high { color: var(--atl-orange); }
+.inq-priority-flag--urgent { color: var(--atl-clay); }
+.inq-priority-dot--low { background: var(--atl-blue); }
+.inq-priority-dot--normal { background: var(--atl-muted); }
+.inq-priority-dot--high { background: var(--atl-orange); }
+.inq-priority-dot--urgent { background: var(--atl-clay); }
+
+/* SLA overdue indicator (CP12) — purely derived server-side, no background job */
+.inq-overdue-flag { color: var(--atl-clay); font-size: 11px; margin-right: 4px; }
+.inq-overdue-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: color-mix(in srgb, var(--atl-clay) 12%, transparent);
+    color: var(--atl-clay);
+    border: 1px solid color-mix(in srgb, var(--atl-clay) 30%, transparent);
+    border-radius: var(--atl-r-pill); padding: 2px 9px; font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px; margin-left: 6px;
+}
+
+/* Bulk select, bulk bar, pagination */
+.inq-selectall { accent-color: var(--atl-amber); cursor: pointer; width: 15px; height: 15px; }
+.inq-row-check { accent-color: var(--atl-amber); cursor: pointer; width: 15px; height: 15px; margin: 2px 4px 0 0; flex: 0 0 auto; align-self: flex-start; }
+.inq-bulk-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 8px 12px; background: var(--atl-card); border-bottom: 1px solid var(--atl-line); }
+.inq-bulk-count { color: var(--atl-amber); font-weight: 600; font-size: 12px; }
+.inq-bulk-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.inq-pagination { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--atl-line); }
+.inq-page-info { font-size: 12px; color: var(--atl-muted-dim); }
+
+/* Empty state */
+.inq-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: var(--atl-muted-dim); gap: 14px; padding: 40px 20px; text-align: center; }
+.inq-empty-state i { font-size: 40px; color: var(--atl-surface3); }
+.inq-empty-state p { font-size: 13px; color: var(--atl-muted); margin: 0; }
+
+/* Right: detail / compose panel (hosted inside #inqDetailDrawer) */
+.inq-detail-panel { background: var(--atl-sidebar-bg); display: flex; flex-direction: column; overflow: hidden; }
+.inq-detail-panel--drawer { flex: 1 1 auto; min-height: 0; height: 100%; }
+.inq-read-view, .inq-compose-view { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+/* inqComposeView lives inside #inqDetailDrawer alongside inqReadView (an unstyled, unrelated
+   sibling), so it can't rely on the parent being a flex column — anchor to the drawer itself
+   (the nearest positioned ancestor, .atl-drawer's position:fixed) instead of the flow, so the
+   atl-drawer__header/body/footer split (fixed header/footer, scrolling body) works regardless
+   of what inqReadView's own layout is doing. JS sets display:flex directly (not .show()/.hide(),
+   which would default to display:block and break this). */
+#inqComposeView { position: absolute; inset: 0; flex-direction: column; }
+
+.inq-read-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; border-bottom: 1px solid var(--atl-line); background: var(--atl-paper); flex-shrink: 0; min-height: 46px; gap: 8px; }
+.inq-read-toolbar-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.inq-read-header { display: flex; align-items: flex-start; gap: 14px; padding: 18px 20px; border-bottom: 1px solid var(--atl-line); flex-shrink: 0; }
+.inq-read-avatar { width: 46px; height: 46px; border-radius: 50%; background: var(--atl-amber); color: var(--atl-on-amber); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; flex-shrink: 0; }
+.inq-read-meta { flex: 1; min-width: 0; }
+.inq-read-subject { font-size: 16px; font-weight: 700; color: var(--atl-ink); line-height: 1.3; margin-bottom: 6px; word-break: break-word; }
+.inq-read-from { font-size: 12px; color: var(--atl-muted); margin-bottom: 4px; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.inq-read-email-addr { color: var(--atl-amber); font-size: 11px; }
+.inq-read-date { font-size: 11px; color: var(--atl-muted-dim); }
+
+.inq-read-status-badge, .inq-badge { padding: 3px 10px; border-radius: var(--atl-r-pill); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap; flex-shrink: 0; }
+.inq-badge--unread { background: var(--atl-amber-dim); color: var(--atl-amber); border: 1px solid var(--atl-amber-border); }
+.inq-badge--read { background: color-mix(in srgb, var(--atl-ink) 7%, transparent); color: var(--atl-muted); border: 1px solid var(--atl-line-strong); }
+.inq-badge--replied { background: color-mix(in srgb, var(--atl-sage) 15%, transparent); color: var(--atl-sage); border: 1px solid color-mix(in srgb, var(--atl-sage) 30%, transparent); }
+.inq-badge--archived { background: color-mix(in srgb, var(--atl-muted) 12%, transparent); color: var(--atl-muted); border: 1px solid var(--atl-line-strong); }
+
+.inq-read-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 20px; border-bottom: 1px solid var(--atl-line); flex-shrink: 0; background: var(--atl-input-bg); }
+.inq-chip { display: flex; align-items: center; gap: 5px; background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: var(--atl-r-pill); padding: 3px 10px; font-size: 11px; color: var(--atl-muted); }
+.inq-chip i { color: var(--atl-amber); font-size: 9px; }
+.inq-chip a { color: inherit; text-decoration: none; }
+.inq-chip a:hover { color: var(--atl-amber); }
+
+/* CRM panel: assignment (CP7), priority/tags/notes appended in later checkpoints */
+.inq-crm-panel { display: flex; flex-direction: column; gap: 8px; padding: 12px 20px; border-bottom: 1px solid var(--atl-line); background: var(--atl-input-bg); flex-shrink: 0; }
+.inq-crm-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.inq-crm-label { font-family: 'Outfit', sans-serif; font-size: 12px; color: var(--atl-muted); font-weight: 600; display: flex; align-items: center; gap: 6px; min-width: 110px; }
+.inq-crm-select { background: var(--atl-card); border: 1px solid var(--atl-line); color: var(--atl-ink); border-radius: var(--atl-r-sm); padding: 5px 8px; font-size: 12px; cursor: pointer; flex: 1; min-width: 140px; }
+.inq-crm-select:focus { outline: none; border-color: var(--atl-amber); }
+.inq-crm-select:disabled { opacity: 0.6; cursor: not-allowed; }
+input.inq-crm-select { cursor: text; }
+
+/* Internal notes (CP9) — not manager+-gated, mirrors booking_notes precedent */
+.inq-notes-panel { border-bottom: 1px solid var(--atl-line); flex-shrink: 0; }
+.inq-notes-toggle {
+    width: 100%; display: flex; align-items: center; gap: 8px;
+    background: transparent; border: none; color: var(--atl-muted);
+    font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 600;
+    padding: 10px 20px; cursor: pointer; text-align: left;
+}
+.inq-notes-toggle:hover { color: var(--atl-ink); }
+.inq-notes-count { color: var(--atl-amber); font-weight: 700; }
+.inq-notes-chevron { margin-left: auto; transition: transform var(--atl-t-fast); }
+.inq-notes-toggle[aria-expanded="true"] .inq-notes-chevron { transform: rotate(180deg); }
+.inq-notes-body { padding: 0 20px 14px; }
+.inq-notes-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; max-height: 220px; overflow-y: auto; }
+.inq-note-item { background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: var(--atl-r-sm); padding: 8px 12px; }
+.inq-note-meta { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--atl-muted-dim); margin-bottom: 4px; }
+.inq-note-author { color: var(--atl-amber); font-weight: 600; }
+.inq-note-delete { background: transparent; border: none; color: var(--atl-muted); cursor: pointer; font-size: 12px; }
+.inq-note-delete:hover { color: var(--atl-clay); }
+.inq-note-text { font-size: 13px; color: var(--atl-ink-dim); white-space: pre-wrap; word-break: break-word; }
+.inq-notes-empty { font-size: 12px; color: var(--atl-muted-dim); padding: 4px 0; }
+.inq-notes-add-row { display: flex; flex-direction: column; gap: 6px; }
+.inq-notes-input { width: 100%; background: var(--atl-input-bg); border: 1px solid var(--atl-line); color: var(--atl-ink); border-radius: var(--atl-r-sm); padding: 8px 10px; font-size: 12px; font-family: inherit; resize: vertical; box-sizing: border-box; }
+.inq-notes-input:focus { outline: none; border-color: var(--atl-amber); }
+.inq-notes-add-row .um-btn { align-self: flex-end; }
+
+.inq-read-body { flex: 1; overflow-y: auto; padding: 20px; font-size: 14px; color: var(--atl-ink-dim); line-height: 1.75; background: var(--atl-sidebar-bg); scrollbar-width: thin; scrollbar-color: var(--atl-line-strong) transparent; }
+.inq-read-body::-webkit-scrollbar { width: 3px; }
+.inq-read-body::-webkit-scrollbar-track { background: transparent; }
+.inq-read-body::-webkit-scrollbar-thumb { background: var(--atl-line-strong); border-radius: 3px; }
+
+/* Compose view: recipient chip inputs (To/Cc/Bcc) */
+.inq-chip-input-container { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; background: var(--atl-input-bg); border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); width: 100%; min-height: 40px; cursor: text; transition: border-color var(--atl-t-base); }
+.inq-chip-input-container:focus-within { border-color: var(--atl-amber); box-shadow: 0 0 0 2px var(--atl-amber-dim); }
+.inq-recipient-chip { display: inline-flex; align-items: center; background: var(--atl-amber-dim); border: 1px solid var(--atl-amber-border); color: var(--atl-amber); padding: 2px 8px; border-radius: 4px; font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 500; }
+.inq-recipient-chip .inq-chip-remove { margin-left: 6px; cursor: pointer; color: var(--atl-muted); opacity: 0.8; transition: all var(--atl-t-fast); }
+.inq-recipient-chip .inq-chip-remove:hover { opacity: 1; color: var(--atl-clay); }
+.inq-recipient-chip.inq-recipient-invalid { background: color-mix(in srgb, var(--atl-clay) 10%, transparent); border-color: color-mix(in srgb, var(--atl-clay) 35%, transparent); color: var(--atl-clay); text-decoration: line-through; }
+.inq-chip-input { border: none; outline: none; background: transparent; color: var(--atl-ink); font-family: 'Outfit', sans-serif; font-size: 13px; flex-grow: 1; min-width: 120px; padding: 2px 0; }
+
+.inq-field-toggle-btn { background: transparent; border: 1px solid var(--atl-line); color: var(--atl-muted); font-family: 'Outfit', sans-serif; font-size: 11px; font-weight: 500; padding: 4px 8px; border-radius: 4px; cursor: pointer; transition: all var(--atl-t-fast); white-space: nowrap; }
+.inq-field-toggle-btn:hover { border-color: var(--atl-amber); color: var(--atl-amber); }
+.inq-collapsible-field { animation: slideDownInq 0.25s ease-out; }
+@keyframes slideDownInq { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Personalization tokens bar */
+.inq-tokens-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; padding: 6px 10px; background: color-mix(in srgb, var(--atl-ink) 3%, transparent); border: 1px solid var(--atl-line); border-radius: var(--atl-r-sm); }
+.inq-tokens-label { font-family: 'Outfit', sans-serif; font-size: 11px; color: var(--atl-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
+.inq-token-chip { background: var(--atl-card); border: 1px solid var(--atl-line); color: var(--atl-ink); font-family: 'JetBrains Mono', monospace; font-size: 10px; padding: 2px 6px; border-radius: 4px; cursor: pointer; transition: all var(--atl-t-fast); }
+.inq-token-chip:hover { border-color: var(--atl-amber); color: var(--atl-amber); background: var(--atl-amber-dim); }
+
+/* Attachments: drag & drop, progress, tiles */
+.inq-drag-drop-zone { border: 2px dashed var(--atl-line); border-radius: var(--atl-r-md); background: color-mix(in srgb, var(--atl-ink) 1%, transparent); padding: 20px; text-align: center; cursor: pointer; transition: all var(--atl-t-base); margin-bottom: 12px; margin-top: 12px; }
+.inq-drag-drop-zone.dragover { background: var(--atl-amber-dim); border-color: var(--atl-amber); }
+.inq-upload-icon { font-size: 24px; color: var(--atl-muted); margin-bottom: 8px; }
+.inq-upload-text { font-family: 'Outfit', sans-serif; font-size: 13px; color: var(--atl-muted); margin: 0; }
+.inq-browse-link { color: var(--atl-amber); font-weight: 600; text-decoration: underline; }
+
+.inq-upload-progress-container { background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); padding: 10px 14px; margin-bottom: 12px; }
+.inq-upload-progress-header { display: flex; justify-content: space-between; font-family: 'Outfit', sans-serif; font-size: 12px; color: var(--atl-ink); margin-bottom: 6px; }
+.inq-progress-bar-bg { background: var(--atl-surface3); height: 6px; border-radius: 3px; overflow: hidden; }
+.inq-progress-bar-fill { background: var(--atl-amber); height: 100%; transition: width 0.1s ease-out; }
+
+.inq-attachments-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.inq-attachment-tile { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); }
+.inq-attach-info { display: flex; align-items: center; gap: 10px; }
+.inq-attach-icon { font-size: 16px; color: var(--atl-amber); }
+.inq-attach-name { font-family: 'Outfit', sans-serif; font-size: 13px; color: var(--atl-ink); font-weight: 500; }
+.inq-attach-size { font-family: 'Outfit', sans-serif; font-size: 11px; color: var(--atl-muted); }
+.inq-attach-remove { background: transparent; border: none; color: var(--atl-muted); cursor: pointer; font-size: 16px; transition: color var(--atl-t-fast); }
+.inq-attach-remove:hover { color: var(--atl-clay); }
+
+/* Schedule-send row */
+.inq-schedule-row { background: var(--atl-amber-dim); border: 1px solid var(--atl-amber-border); padding: 8px 12px; border-radius: var(--atl-r-md); margin-bottom: 12px; margin-top: 12px; display: flex; align-items: center; justify-content: space-between; }
+.inq-datetime-picker { background: transparent; border: none; outline: none; color: var(--atl-amber); font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 600; padding: 0; cursor: pointer; flex-grow: 1; margin-left: 8px; }
+.inq-clear-schedule-btn { background: transparent; border: none; color: var(--atl-muted); font-size: 18px; cursor: pointer; line-height: 1; padding: 0 4px; }
+.inq-clear-schedule-btn:hover { color: var(--atl-ink); }
+
+.inq-compose-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.inq-send-btn { background: var(--atl-amber); color: var(--atl-on-amber); border: none; border-radius: var(--atl-r-md); padding: 9px 18px; font-weight: 700; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all var(--atl-t-base); white-space: nowrap; }
+.inq-send-btn:hover { background: var(--atl-amber-hover); transform: translateY(-1px); }
+.inq-send-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+.inq-send-btn:focus-visible { outline: 2px solid var(--atl-amber); outline-offset: 2px; }
+.inq-cancel-btn { background: transparent; border: 1px solid var(--atl-line-strong); color: var(--atl-muted); border-radius: var(--atl-r-md); padding: 9px 14px; font-size: 12px; cursor: pointer; transition: all var(--atl-t-fast); }
+.inq-cancel-btn:hover { background: var(--atl-amber-dim); color: var(--atl-ink); border-color: var(--atl-amber); }
+.inq-cancel-btn:focus-visible { outline: 2px solid var(--atl-amber); outline-offset: 2px; }
+
+.inq-split-send-container { display: inline-flex; position: relative; }
+.inq-split-toggle-btn { background: var(--atl-amber); color: var(--atl-on-amber); border: none; border-left: 1px solid rgba(0,0,0,0.15); border-top-right-radius: var(--atl-r-md); border-bottom-right-radius: var(--atl-r-md); padding: 0 10px; cursor: pointer; transition: all var(--atl-t-fast); min-height: 38px; }
+.inq-split-toggle-btn:hover { background: var(--atl-amber-hover); }
+.inq-split-send-container .inq-send-btn { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.inq-send-menu { position: absolute; bottom: 100%; right: 0; background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); padding: 4px 0; box-shadow: var(--atl-shadow-card); min-width: 140px; z-index: 100; margin-bottom: 4px; animation: slideUpMenu 0.15s ease-out; }
+@keyframes slideUpMenu { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.inq-menu-item { display: block; width: 100%; text-align: left; background: transparent; border: none; padding: 8px 14px; font-family: 'Outfit', sans-serif; font-size: 13px; color: var(--atl-ink); cursor: pointer; transition: background var(--atl-t-fast); }
+.inq-menu-item:hover { background: var(--atl-amber-dim); color: var(--atl-amber); }
+
+/* Email render preview modal */
+.inq-preview-backdrop { position: fixed; inset: 0; background: var(--atl-overlay); backdrop-filter: blur(4px); z-index: 10000; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: opacity 0.25s ease; }
+.inq-preview-backdrop.active { opacity: 1; pointer-events: auto; }
+.inq-preview-dialog { background: var(--atl-card); border: 1px solid var(--atl-line-strong); border-radius: var(--atl-r-lg); width: 90%; max-width: 700px; height: 85%; display: flex; flex-direction: column; box-shadow: var(--atl-shadow-modal); transform: scale(0.95); transition: transform 0.25s ease; }
+.inq-preview-backdrop.active .inq-preview-dialog { transform: scale(1); }
+.inq-preview-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--atl-line); }
+.inq-preview-title { font-family: 'Cormorant Garamond', serif; font-size: 18px; color: var(--atl-amber); margin: 0; letter-spacing: 0.5px; }
+.inq-preview-close { background: transparent; border: none; color: var(--atl-muted); font-size: 24px; cursor: pointer; line-height: 1; transition: color var(--atl-t-fast); }
+.inq-preview-close:hover { color: var(--atl-ink); }
+/* Preview body/iframe stay white regardless of theme — the point is to preview the email
+   the way it renders in a real (light-background) email client, not to match the admin UI. */
+.inq-preview-body { flex-grow: 1; padding: 10px; background: #ffffff; }
+.inq-preview-iframe { width: 100%; height: 100%; border: none; background: #ffffff; }
+
+#inqComposeBodyEditor { min-height: 400px; }
+#inqComposeBodyEditor .ql-editor { min-height: 400px; }
+
+/* Responsive — aligned to the shared 767px/479px tiers used across the rest of the admin */
+@media (max-width: 767px) {
+    .inq-client { grid-template-columns: 1fr; height: calc(100vh - 140px); }
+    .inq-nav {
+        border-right: none;
+        border-bottom: 1px solid var(--atl-line);
+        display: flex; flex-direction: row; flex-wrap: wrap; align-items: center;
+        gap: 10px; padding: 12px; overflow: visible;
+    }
+    .inq-compose-btn { width: auto; flex: 0 0 auto; margin: 0; height: 44px; min-height: 44px; padding: 0 16px; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+    .inq-nav .um-input-wrap { flex: 1 1 0%; margin: 0; height: 44px; min-width: 150px; }
+    .inq-nav .um-input-wrap .um-input { height: 44px; font-size: 16px; padding: 0 12px 0 34px; }
+    .inq-folders {
+        width: 100%; flex: 0 0 100%;
+        display: flex; flex-direction: row; flex-wrap: nowrap;
+        overflow-x: auto; gap: 8px; padding: 4px 0; margin-top: 4px;
+        scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    }
+    .inq-folders::-webkit-scrollbar { display: none; }
+    .inq-folder {
+        flex-shrink: 0; white-space: nowrap; padding: 6px 12px; font-size: 12px;
+        background: color-mix(in srgb, var(--atl-ink) 3%, transparent);
+        border: 1px solid var(--atl-line);
+        border-radius: var(--atl-r-pill);
+        display: flex; align-items: center; gap: 6px;
+    }
+    .inq-folder.active { background: var(--atl-amber-dim); border-color: var(--atl-amber-border); color: var(--atl-amber); font-weight: 600; }
+    .inq-folder-count { margin-left: 4px; font-size: 9px; padding: 2px 6px; }
+    .inq-list-panel { border-right: none; }
+    .inq-send-btn, .inq-cancel-btn { font-size: 11px; padding: 8px 12px; }
+}
+
+@media (max-width: 479px) {
+    .inq-read-header { padding: 14px 16px; gap: 10px; }
+    .inq-read-subject { font-size: 15px; }
+    .inq-read-body { padding: 14px; }
+    .inq-row { padding: 12px 14px; }
+    .inq-row-name { max-width: 110px; }
+}

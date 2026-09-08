@@ -1050,6 +1050,55 @@ every Analytics chart renders across period presets, today's schedule loads, the
 toggle persists, and (given the CSS duplication above) that the Dashboard layout still looks correct
 at each responsive breakpoint.
 
+### Section 19: Inquiries (`inquiriesAdmin`) — DONE
+
+The section originally flagged, at the very start of this whole pass, as too large and
+email-composer-heavy to tackle casually — revisited once the extraction methodology (and the lessons
+from two recent near-misses) had matured enough to handle it carefully. Clean result: no enclosing
+IIFE, no cross-reference surprises, extraction succeeded on the first attempt.
+
+- **JS moved**: `admin.html:13570-14976` (1,407 lines — the "INQUIRIES — EMAIL CLIENT" block: inbox
+  list/search/filter/sort/pagination, the detail drawer, a Quill-based compose view with recipient
+  chips, attachments, scheduling, autosave drafts, templates, bulk status actions, and notes) → new
+  `js/admin/inquiries.js`.
+- **Verified no enclosing IIFE before touching anything, exhaustively this time** (given the
+  Unified Calendar and Dashboard near-misses immediately before this section): a full scan of the
+  entire ~1,700-line surrounding range for `(function`/`})();` patterns found none; the exact
+  13570-14976 range parses standalone; and — most reassuringly — the source itself confirms it via
+  an existing developer comment: *"this section's `<script>` block is a separate scope from the
+  manual-booking drawer's"*, written specifically to explain why `loadInquiries` needed an explicit
+  `window.` attachment. The same-position split technique (no reunite-and-relocate needed) was used
+  with confidence as a result.
+- **Zero new `window.` attachments needed**: `window.loadInquiries` was already explicitly attached
+  (per that comment). Every other one of Inquiries' ~50 top-level names (including `openInquiry`,
+  called bare from the anonymous mega-closure's notification-popup code) is a plain top-level
+  function/`let` declaration with no wrapping IIFE — already globally reachable exactly as before.
+  One cross-closure reference specifically checked and confirmed **already working** (not a dead-code
+  case like `adminCalendar`'s): `allInquiriesCache`, read via a
+  `typeof allInquiriesCache !== 'undefined'` guard from inside the mega-closure's own "Notifications"
+  dropdown feature — since it's a `let` declared at Inquiries' own true top level (not inside any
+  IIFE), it was already part of the one shared global lexical environment every classic `<script>`
+  tag on the page can reach into, unlike `adminCalendar` (declared inside a closure).
+- **CSS moved**: `admin.html:3157-3521` (365 lines, one clean cluster) → new `css/admin/inquiries.css`
+  — already explicitly consolidated by the original developers (per its own header comment, inherited
+  into the new file) from `css/redesign.css` plus two prior overlapping inline retrofits; no
+  duplication concern here, unlike Dashboard's CSS.
+- **Shared-candidate usage, not moved**: `openAtlDrawer`/`closeAtlDrawer` (the detail drawer) — the
+  usual Phase 7 candidates.
+
+**Verification**: `node --check` clean on `inquiries.js`; re-run across all 19 extracted files —
+clean. The inline-script parse-checker reports 24/24 clean — no failures on this attempt, unlike the
+two sections immediately before it. Byte-identity diffs of both the JS and CSS came back clean
+against the pre-extraction `admin.html`. `git diff --stat`: 8 insertions, 1,772 deletions across 2
+hunks — reviewed end-to-end; the "USER MANAGEMENT SECTION" CSS header and the "--- Bookings ---" JS
+comment both appear unchanged, as context, on either side of the two removals.
+
+**Same known gap as Sections 1-18**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Inquiries — load the inbox, filter/search/
+sort/paginate, open an inquiry's detail drawer, compose and send/schedule a reply with an attachment
+and a recipient chip, save/discard an autosaved draft, apply a template, and exercise bulk status
+actions.
+
 ---
 
 ## Phase 5 — Route & middleware split
