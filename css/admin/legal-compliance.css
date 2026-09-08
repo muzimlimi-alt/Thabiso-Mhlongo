@@ -1,0 +1,32 @@
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — Legal & Compliance
+   Centre CSS: document status badges, version list items, tables, stat grid, editor grid,
+   toolbar, pagination, light-mode overrides. A generic "MOBILE UI/UX POLISH" section
+   immediately after this cluster (already confirmed not section-specific during the About Me
+   extraction) was NOT moved — it stays in admin.html. */
+
+/* ── Legal & Compliance Centre ── */
+#policiesAdmin .lc-panel-inner { padding: 24px 0; }
+.lc-doc-status { display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:999px; font-size:11px; font-weight:700; letter-spacing:0.5px; text-transform:uppercase; }
+.lc-doc-status--published { background: rgba(52,211,153,0.12); color:#34d399; border:1px solid rgba(52,211,153,0.2); }
+.lc-doc-status--draft { background: rgba(212,175,55,0.12); color: var(--atl-amber); border:1px solid var(--atl-amber-border); }
+.lc-version-item { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; border-radius:6px; border:1px solid var(--atl-line); background: var(--atl-surface2); margin-bottom:6px; gap:8px; }
+.lc-version-item:last-child { margin-bottom:0; }
+.lc-version-num { font-family: var(--atl-mono, 'JetBrains Mono', monospace); font-size:12px; color: var(--atl-amber); font-weight:700; flex-shrink:0; }
+.lc-version-meta { flex:1; min-width:0; font-size:11px; color: var(--atl-muted); }
+.lc-quick-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:20px; }
+.lc-table-wrap { overflow-x:auto; border-radius:8px; border:1px solid var(--atl-line); }
+.lc-table { width:100%; border-collapse:collapse; font-size:13px; }
+.lc-table th { padding:10px 14px; text-align:left; font-size:11px; font-weight:700; letter-spacing:0.6px; text-transform:uppercase; color: var(--atl-muted); background: var(--atl-surface2); border-bottom:1px solid var(--atl-line); white-space:nowrap; }
+.lc-table td { padding:10px 14px; border-bottom:1px solid var(--atl-line); color: var(--atl-ink-dim); vertical-align:middle; }
+.lc-table tbody tr:hover { background: var(--atl-paper-hover, rgba(255,255,255,0.02)); }
+.lc-table tbody tr:last-child td { border-bottom:none; }
+.lc-stat-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:14px; }
+.lc-editor-grid { display:grid; grid-template-columns: 2fr 1fr; gap:20px; align-items:start; }
+@media (max-width: 900px) { .lc-editor-grid { grid-template-columns: 1fr; } }
+.lc-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+.lc-toolbar .um-input-wrap { flex:1 1 200px; }
+.lc-pagination { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:12px; }
+.lc-quill-host .ql-container { min-height: 320px; }
+.admin-light-mode .lc-version-item { background: var(--atl-surface2); border-color: var(--atl-line); }
+.admin-light-mode .lc-table th { background: #f5f5f5; }
+.admin-light-mode .lc-table td { color: var(--atl-ink-dim); }

@@ -1198,6 +1198,59 @@ sync content — checking cross-references fresh at each step, the same way ever
 pass was verified, and treating the two satellite pieces (Manual Booking modal, Payment Milestone
 Schedules) as part of whichever of those batches they turn out to belong with.
 
+### Section 22: Legal & Compliance Centre (`policiesAdmin`, tabs beyond Booking Policies) — DONE (a fourth self-caught mistake, distinct from the other three)
+
+Turned out much smaller and cleaner than its "8 tabs, too big/sensitive" reputation from the
+Services/Policies entry suggested — but the extraction still went wrong once before landing right.
+
+- **JS moved**: `admin.html:22523-22846` (324 lines — Privacy Policy/Terms/Cookie Policy draft-save
+  & publish, version restore, Consent Audit with CSV export, Contract Registry with a "View
+  Booking"/"Send Contract" bridge into Bookings, and Version History) → new
+  `js/admin/legal-compliance.js`, moved as one atomic self-contained `(function () {...})();` — the
+  module shares no state with the larger closure it physically sat inside.
+- **Self-caught mistake #4 this session, a new variant**: this module's self-containment (verified
+  correctly — it needs no cross-reference checking of its own content) was wrongly treated as
+  meaning the surrounding `<script>` tag was also safe to same-position-split around it. It wasn't —
+  the module still physically sits inside `initFinanceManagement`'s own single enclosing `<script>`
+  tag (the same closure Services/Policies/Branding/Security & Audit/System Settings/Financials were
+  all extracted from), which needs the reunite-and-relocate treatment for *any* removal from within
+  it, regardless of what's being removed. A same-position split broke that tag into two unparseable
+  halves; caught immediately by the inline-script parse-checker (2 failures), reverted cleanly
+  (`git checkout` + delete untracked files, `git status` confirmed clean, re-ran the checker to
+  confirm 0 failures) before any commit. Fixed by reunating `initFinanceManagement`'s content around
+  the hole and placing `<script src="js/admin/legal-compliance.js">` before the whole
+  `initFinanceManagement` tag, alongside the six already there — the established pattern, correctly
+  applied this time.
+- **A small cosmetic fix caught during review, not by the parse-checker**: the corrected script's
+  `<script src>` insertion landed *after* the "FINANCE MODULE" HTML comment instead of grouped with
+  the other six `<script src>` tags before it — functionally identical (still loads before
+  `initFinanceManagement` runs) but inconsistent with the established convention. Moved up one
+  position by hand; re-ran the parse-checker to confirm still 25/25 clean.
+- **All cross-references verified safe before either attempt** (this part was right from the start):
+  every externally-called function (`saveLegalDraft`, `publishLegalDocument`, `lcActivateTab`,
+  `exportConsentCsv`, etc.) is called from markup `onclick=""` attributes, already window-attached;
+  `loadLegalOverview` is called via a `typeof` guard from `initFinanceManagement`'s own
+  tab-bootstrap code — already safe since it's window-attached; `lcViewBooking` calls
+  `window.toggleBookingDetail(...)` via a `typeof` guard, a cross-reference into deferred Bookings
+  territory — already safe (window-prefixed on both ends), no Bookings code touched by this move.
+- **CSS moved**: `admin.html:4105-4130` (26 lines, one clean cluster) → new
+  `css/admin/legal-compliance.css`. A generic "MOBILE UI/UX POLISH" section immediately after
+  (already confirmed not section-specific during the About Me extraction) was not moved.
+- **No shared-candidate dependency** — no drawer or upload-helper usage.
+
+**Verification**: `node --check` clean on `legal-compliance.js`; re-run across all 21 extracted
+files — clean. The inline-script parse-checker reports 25/25 clean on the corrected version (after
+the initial same-position-split attempt's 2 failures were caught and reverted). Byte-identity diffs
+of both the JS and CSS came back clean against the pre-extraction `admin.html`. `git diff --stat`: 8
+insertions, 353 deletions across 3 hunks — reviewed end-to-end; `initFinanceManagement`'s own
+opening line and its `window.triggerReminderJob`/Working Hours continuation both appear unchanged,
+as context, confirming the closure is genuinely whole again.
+
+**Same known gap as Sections 1-20**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers the Legal & Compliance Centre — save/publish
+a policy draft, restore a prior version, export the Consent Audit CSV, view a contract's linked
+booking and send it, and page through Version History.
+
 ---
 
 ## Phase 5 — Route & middleware split
