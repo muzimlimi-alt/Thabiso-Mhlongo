@@ -1,0 +1,5 @@
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — Audit Log table
+   row-highlighting (.row-ok / .row-suspect) for the Security & Audit tab. */
+
+#securityAdmin .table tr.row-ok      td:first-child { border-left: 2px solid var(--atl-sage) !important; }
+#securityAdmin .table tr.row-suspect td:first-child { border-left: 2px solid var(--atl-clay) !important; }

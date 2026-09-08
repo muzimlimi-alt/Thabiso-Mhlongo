@@ -723,6 +723,66 @@ on static verification. Live-check list now also covers Branding (upload/change 
 background; confirm the 3 live-preview fields now actually update as you type/paste a URL; change
 accent colour and theme font; save both Identity and Site scopes; the "Reset" buttons).
 
+### Section 13: Security & Audit (`securityAdmin`) — DONE
+
+Also sat inside `initFinanceManagement(...)`'s closure. Bigger than the map's abbreviated function
+list suggested — Audit Log Logic and POPIA Requests Logic together, plus the full POPIA request
+lifecycle UI (detail drawer, approve/reject/process/complete-anonymization, an admin-initiated
+"Anonymize Now" flow, CSV export) that isn't in the function inventory at all.
+
+- **JS moved**: `admin.html:28850-29405` (`auditState`, `auditSearchTimer`, `AUDIT_TABLE_LABELS`,
+  `auditSectionLabel`, `prettyFieldKey`, `formatAuditFieldValue`, `buildAuditDiffHtml`,
+  `window.loadAuditLogs`, `renderAuditPagination`, `updateAuditSortIcons`; `popiaState`,
+  `popiaSearchTimer`, `POPIA_REASON_LABELS`, `POPIA_STATUS_BADGE`, `popiaQueryParams`, `popiaFetch`,
+  `window.loadPopiaRequests`, `renderPopiaRow`, `renderPopiaPagination`,
+  `window.debouncePopiaSearch`, `updatePopiaPendingBadge`, `openPopiaRequestDrawer`,
+  `popiaApprove`/`popiaReject`/`popiaProcess`/`popiaCompleteAnonymization`, `window.popiaExportCsv`,
+  and the delegated click/submit handlers for both the request-detail drawer and the "Anonymize Now"
+  drawer) → new `js/admin/security-audit.js`.
+- **A second discovered-and-fixed dead-control bug, this time material and POPIA-adjacent**:
+  `auditState`/`popiaState` are referenced bare from inline markup — `onclick="auditState.page=1;
+  loadAuditLogs()"` on the Audit Log's Search button, and `onclick`/`onchange="popiaState.page=1;
+  loadPopiaRequests();"` on every POPIA filter/search control (status, source, date-from, date-to,
+  search). Both objects were plain `let` declarations, never `window`-attached, and — being
+  closure-scoped inside `initFinanceManagement` — inline attribute handlers (which execute in global
+  scope) cannot see them. The first statement in each handler throws `ReferenceError` before the
+  handler ever reaches its own `loadAuditLogs()`/`loadPopiaRequests()` call, so **Search and every
+  filter control on both panels have almost certainly done nothing, silently, since this code
+  existed** (page-load and the Prev/Next pagination buttons, which don't touch `auditState`/
+  `popiaState` from markup, still work fine). Flagged to the user explicitly before touching
+  anything, given this sits on the POPIA data-subject-request surface; they chose to fix it as part
+  of this move. Fix: `window.auditState = auditState;` / `window.popiaState = popiaState;` added
+  right after each declaration — same object reference, so this file's own internal reads/writes and
+  the newly-exposed global stay perfectly in sync; not a copy, no risk of the two drifting apart.
+- **Applied the reunite-and-relocate fix pattern proactively** (second time running, after Branding):
+  did not split the enclosing `<script>` tag. The code before this block (Bookings/Quote-Builder
+  milestone editor, unrelated) and the "Global Upload Zone Logic" block immediately after are joined
+  directly with a short comment in between. `<script src="js/admin/security-audit.js">` sits before
+  the whole `initFinanceManagement` block, alongside `services.js`/`policies.js`/`branding.js`.
+- **Two things immediately adjacent, explicitly NOT moved**: the "Global Upload Zone Logic" drag-drop
+  handler right after this block is shared across multiple sections (its own comment names Home
+  Slider, Events, About) — a Phase 7 "Shared candidate". "Session Expiry Monitoring" right after
+  that (`sessionTimeoutSec`/`lastActivity`/`updateSessionTimer`, the admin-wide inactivity timeout)
+  is global admin-app infrastructure, not specific to the Security & Audit tab — confirmed it's never
+  referenced from `securityAdmin`'s own markup.
+- **CSS moved**: `admin.html:4040-4041` (`#securityAdmin .table tr.row-ok`/`.row-suspect` — Audit
+  Log row highlighting) → new `css/admin/security-audit.css`, split into the main `<style>` block at
+  exactly this point (still well before the three existing splits further down for Email Logs ×2 and
+  About Me, all untouched).
+
+**Verification**: `node --check` clean on `security-audit.js`; re-run across all 13 extracted files —
+clean. The inline-script parse-checker reports 23/23 clean again — the fix pattern held on its second
+application. Byte-identity diff of the extracted JS body (excluding the two intentional `window.`
+attachment lines) and the extracted CSS both came back clean against the pre-extraction `admin.html`.
+`git diff --stat`: 8 insertions, 558 deletions across 3 hunks (the CSS split, the relocated
+`<script src>` line, and the JS reunite) — reviewed end-to-end, clean boundaries on all three.
+
+**Same known gap as Sections 1-12**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Security & Audit — confirm the Audit Log
+Search button and sort-column clicks now actually filter/re-sort (previously silently broken), page
+through both tables, open a POPIA request's detail drawer, and exercise approve/reject/process/CSV
+export on a test request if the environment allows it safely.
+
 ---
 
 ## Phase 5 — Route & middleware split
