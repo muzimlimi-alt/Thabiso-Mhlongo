@@ -1140,6 +1140,64 @@ subscribers, import/export a CSV, save Birthday Automation settings and send a t
 campaign with a merge field and an attachment, save a draft, schedule a send, and view a delivery
 log.
 
+### Section 21: Bookings (`bookingsAdmin`) — DEFERRED, treated as its own dedicated future session
+
+Reconnaissance only this pass — **no extraction attempted, nothing in `admin.html` touched for this
+section**. Presented to the user mid-investigation once the true scale became clear; the user
+explicitly chose to defer this to its own dedicated session rather than attempt it now. Recording
+the findings here so that future session doesn't have to rediscover them from scratch.
+
+**What was found**: Bookings' "main block" — `admin.html:13214-17780` as of this commit (~3,200 lines
+of actual content once Newsletter's already-extracted middle section is subtracted) — is far larger
+and more entangled than any section handled so far, and is NOT simply the bookings pipeline/deal-view
+UI. Mapped via its own comment headers, it contains, all physically interleaved in one continuous
+run with no clean sub-boundaries yet identified:
+
+- Core Bookings: pipeline list, sort/pagination (shared by Pipeline and Archive), the Archive tab,
+  bulk pipeline actions (select mode/CSV export/bulk cancel), the deal view, venue edit handlers,
+  ticket link save, ticket/venue link-unlink handlers, ticket "Promote" toggle, ticket buffer save,
+  reopen-expired-booking, book-again-from-cancelled, review requests, and the Record Payment modal
+  (already found and left untouched during the Newsletter extraction, immediately after it).
+- The Quote Builder: auto-save & recovery, and a "Terms Source Switcher".
+- Resend Quote / Resend Confirmation.
+- **"Sync Booking to Google Calendar"** ("Gap 11") — a protected Calendar-integration surface.
+- "View all bookings by this client" (filter by email) and "Refresh email communication history for
+  a booking".
+- **Contract Management** — its own labeled sub-block.
+- **A second, previously undiscovered Finance module** — Expense Tracking, Manual Transaction / Log
+  Adjustment, Bank Statement Import & Matching, and Reconciliation. None of this was part of the
+  `initFinanceManagement` closure extracted in Section 16 (Financials) — it is separate finance
+  territory that happens to be coded inside Bookings' own script range.
+
+**Also already known, from earlier sections' own reconnaissance, to belong to Bookings but to live
+physically elsewhere**:
+- The "Manual Booking" modal (`loadServicesForManualBooking`/`addMbServiceRow`/`recalcMbTotals`/
+  `performSubmit`/etc.) — inside the anonymous mega-closure documented in the Unified Calendar entry
+  (Section 17), sitting right after Calendar's own code.
+- The "Payment Milestone Schedules (Phase 4 Widget)" — inside the `initFinanceManagement` closure,
+  documented and deliberately left in place during the Financials extraction (Section 16).
+
+**Why deferred rather than attempted**: this single area touches four of the plan's most protected
+surfaces at once — booking workflow, payment handling, Google Calendar sync, and finance/
+reconciliation — is by a wide margin the largest single remaining block in the file (bigger than
+User Management's 1,247 lines or Inquiries' 1,407, before even counting the two satellite pieces
+above), and — per this session's own track record on the sections immediately preceding it (three
+self-caught near-misses, one of them a genuine short-lived production regression) — is not something
+to scope and extract in one continuous push the way recent single-piece sections went. No cross-
+reference verification, IIFE-boundary check, or sub-boundary mapping was attempted beyond what's
+recorded above; none of it should be assumed safe or accurate for an actual extraction without
+redoing that work properly.
+
+**Suggested starting point for that future session** (not a commitment, just this session's read of
+where the natural seams might be, still unverified): scope it as several much smaller sub-batches
+rather than one section — e.g. Contract Management on its own first (labeled, likely the most
+self-contained), then the Expense/Bank-Statement/Reconciliation module (large but conceptually
+distinct from booking-pipeline logic, may even belong under a future "Financials, part 2" rather than
+under Bookings at all), then Quote Builder, then finally the core pipeline/archive/deal-view/Calendar-
+sync content — checking cross-references fresh at each step, the same way every other section this
+pass was verified, and treating the two satellite pieces (Manual Booking modal, Payment Milestone
+Schedules) as part of whichever of those batches they turn out to belong with.
+
 ---
 
 ## Phase 5 — Route & middleware split
