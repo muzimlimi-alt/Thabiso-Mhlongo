@@ -865,6 +865,55 @@ on static verification. Live-check list now also covers User Management — load
 user, sort/paginate/bulk-select the users table, and separately exercise the Login Activity Logs
 panel's own search/filter/sort/pagination.
 
+### Section 16: Financials (`financeAdmin`) — DONE (core content only, scope deliberately narrowed)
+
+The remaining `initFinanceManagement(...)` closure (1,592 lines after Services/Policies/Branding/
+Security & Audit/System Settings had already been carved out of it) turned out to be a mix of
+Financials' own content and territory belonging to a different, not-yet-scoped, also-protected
+section. Flagged to the user before deciding how to proceed, given both Financials and Bookings are
+on the plan's protected-surfaces list.
+
+- **JS moved**: `admin.html:26482-27178` (697 lines — Financial State/helpers, Transactions,
+  Invoices, Generate Invoice Modal, Financial Analytics & Reports/charts) → new
+  `js/admin/financials.js`.
+- **Deliberately NOT moved, deferred rather than scoped now**: a "Payment Milestone Schedules
+  (Phase 4 Widget)" block (~300 lines) immediately after this content —
+  `window.loadBookingPaymentSchedule` and friends, keyed by `bookingId`, hitting
+  `/api/admin/bookings/:id/payment-schedules`. This is Bookings' own Deal View feature, not
+  Financials', physically adjacent only by historical accident of where it was originally coded.
+  Verified zero cross-reference in either direction (grepped every core-Finance name against the
+  milestone block and vice versa — clean both ways), so leaving it behind cost nothing in
+  cleanliness. Deferred to a future, dedicated Bookings scoping pass rather than folded in here or
+  extracted alone right now.
+- **Everything else in the closure, already known and still untouched**: Global Upload Zone Logic
+  (shared, Phase 7 candidate), Session Expiry Monitoring + the shared Tab Bootstrap block (global
+  infra), Working Hours (confirmed Unified Calendar's own, not yet extracted), and the Gate B1
+  global error handler.
+- **Applied the reunite-and-relocate pattern a fourth time**: no script-tag split; the closure's own
+  `(function initFinanceManagement() { 'use strict';` opening stays exactly as-is, core Finance's
+  content is removed and replaced with an explanatory comment, and the Payment Milestone Schedules
+  block continues immediately after, untouched. `<script src="js/admin/financials.js">` sits before
+  the whole `initFinanceManagement` block, alongside the five already there.
+- **No new `window.` attachments needed** — every publicly-referenced function
+  (`window.loadFinancialStats`, `loadFinAnalytics`, `generateInvoice`, `sendInvoice`,
+  `markInvoicePaid`, `voidInvoice`, `filterTransactions`, `applyInvoiceFilter`,
+  `openGenerateInvoiceModal`, `onFinPeriodPresetChange`, the quote/invoice card resend helpers,
+  `loadRemindersLog`) was already window-attached in the original source.
+- **CSS/shared-candidates**: no private CSS (`#financeAdmin` only in the shared 15-section rule); no
+  drawer dependency.
+
+**Verification**: `node --check` clean on `financials.js`; re-run across all 16 extracted files —
+clean. The inline-script parse-checker reports 22/22 clean — fourth consecutive clean application of
+the reunite-and-relocate pattern. Byte-identity diff of the extracted content came back clean against
+the pre-extraction `admin.html`. `git diff --stat`: 6 insertions, 697 deletions across 2 hunks
+(the relocated `<script src>` line and the core-content removal) — reviewed end-to-end; the Payment
+Milestone Schedules block appears unchanged, as context, immediately after the removal.
+
+**Same known gap as Sections 1-15**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Financials — load the Transactions and
+Invoices tabs, generate/send/void/mark-paid an invoice, filter transactions, and load the Financial
+Analytics charts across each period preset.
+
 ---
 
 ## Phase 5 — Route & middleware split
