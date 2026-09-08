@@ -824,6 +824,47 @@ on static verification. Live-check list now also covers System Settings — togg
 Sections visibility (including the shared Announcement toggle), save PayFast and SMTP settings with
 invalid input to confirm validation, and send a test notification.
 
+### Section 15: User Management (`usersAdmin`) — DONE
+
+A different, simpler extraction shape from every prior IIFE-adjacent section: the whole
+`initUserManagement(...)` closure moved as one atomic unit, not picked apart.
+
+- **Why atomic works here**: Email Logs was the *only* foreign content ever nested inside this
+  closure (already extracted in Section 8, confirmed working by the regression fix). With that
+  gone, everything remaining between the closure's own `(function initUserManagement() {` and its
+  `})();` is 100% User Management's own code — its full CRUD (load/render/paginate/sort/delete/
+  update users), bulk selection controls, and its own separate "Login Activity Logs" panel (Panel
+  5, distinct from the sitewide Email Logs admin tab covered in Section 8).
+- **JS moved**: `admin.html:26360-27606` (1,247 lines, the largest single move of Phase 6 so far) →
+  new `js/admin/user-management.js`, kept wrapped in its own original `(function
+  initUserManagement() {...})();` — the one section this pass where the enclosing IIFE itself moves
+  wholesale rather than being reunited around a hole.
+- **Verified before moving, not assumed**: the extracted closure parses standalone (`node --check`);
+  a systematic grep for every one of its internal top-level names (`loadAllUsers`, `initTabs`,
+  `renderUsersTable`, `deleteUsers`, `umUpdateUser`, `initUsersBulkControls`, `formatUserAgent`,
+  `initManageLogs`, `loadAllLogs`, `moduleLoaded`, `currentUserId`, `allUsersCache`, and more)
+  outside `admin.html:26360-27606` returned zero references anywhere else in the file. Every inline
+  event attribute in this section's own markup already calls through an explicit `window.` prefix
+  (`window.toggleUserSort(...)`, `window.toggleLogSort(...)`) — no bare-identifier risk like
+  Branding's or Security & Audit's, and so **no new `window.` attachments were needed at all**.
+- **CSS**: no private CSS — `#usersAdmin` only in the shared 15-section rule.
+- **Structural note for Phase 8**: this closure still contains the pre-existing `window.toggleLogSort`
+  name collision documented in the Email Logs / Services+Policies fix entry — both `email-logs.js`
+  and this file's own Login Activity panel define it, with this one's definition (loaded later)
+  always winning, unchanged by this move.
+
+**Verification**: `node --check` clean on `user-management.js`; re-run across all 15 extracted files
+— clean. The inline-script parse-checker now reports 22/22 clean (one fewer block than before, since
+the whole tag was removed rather than split) — confirms the atomic move didn't disturb anything
+around it. Byte-identity diff of the full moved content against the pre-extraction `admin.html` came
+back completely clean. `git diff --stat`: 4 insertions, 1,253 deletions in a single contiguous hunk —
+reviewed end-to-end.
+
+**Same known gap as Sections 1-14**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers User Management — load/create/edit/delete a
+user, sort/paginate/bulk-select the users table, and separately exercise the Login Activity Logs
+panel's own search/filter/sort/pagination.
+
 ---
 
 ## Phase 5 — Route & middleware split
