@@ -1,0 +1,129 @@
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — Dashboard CSS from the
+   MAIN stylesheet, two non-conflicting clusters (stat/social/crm/schedule cards; summary/social
+   grids) concatenated in original document order and linked from both original positions (the
+   same multi-link-one-file approach used for Unified Calendar's three clusters).
+
+   IMPORTANT — pre-existing duplication, NOT resolved here: Dashboard's own markup also embeds a
+   full second <style> block (~440 lines, now css/admin/dashboard-widget.css) that redefines
+   several of the SAME classes (.db-summary-grid, .db-stat-card, .db-schedule-item,
+   .db-social-grid) with DIFFERENT breakpoint values — the same class of bug as Email Logs'
+   duplicate .log-row rules. Both files are kept separate, each linked at its own original
+   position, to preserve the exact pre-existing cascade order rather than merging them. Flagged
+   for Phase 8. */
+
+/* ── DASHBOARD SECTION ── */
+.db-stat-card {
+    background: var(--atl-card) !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-xl) !important;
+    transition: border-color var(--atl-t-base), box-shadow var(--atl-t-base), transform var(--atl-t-fast) !important;
+}
+.db-stat-card:hover {
+    border-color: var(--atl-amber-border) !important;
+    box-shadow: var(--atl-shadow-card) !important;
+    transform: translateY(-2px) !important;
+    background: var(--atl-card) !important;
+}
+.db-stat-icon {
+    background: var(--atl-amber-dim) !important;
+    color: var(--atl-amber) !important;
+    border-radius: var(--atl-r-lg) !important;
+}
+.db-stat-label {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 10px !important;
+    color: var(--atl-muted) !important;
+}
+.db-stat-value {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: 28px !important;
+    font-weight: 600 !important;
+    color: var(--atl-ink-dim) !important;
+}
+.db-social-card {
+    background: var(--atl-card) !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-lg) !important;
+}
+.db-social-card:hover { border-color: var(--atl-amber-border) !important; }
+.db-social-name {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 12px !important;
+    color: var(--atl-muted) !important;
+}
+.db-social-count {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: 26px !important;
+    font-weight: 600 !important;
+    color: var(--atl-ink-dim) !important;
+}
+.db-social-label {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 10px !important;
+    color: var(--atl-muted-dim) !important;
+}
+.trend-up { color: var(--atl-sage) !important; }
+.trend-down { color: var(--atl-clay) !important; }
+.db-crm-card {
+    background: var(--atl-card) !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-xl) !important;
+}
+.db-crm-label {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 10px !important;
+    color: var(--atl-muted) !important;
+}
+.db-crm-value {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: 28px !important;
+    font-weight: 600 !important;
+    color: var(--atl-ink-dim) !important;
+}
+.db-crm-progress-bar {
+    background: var(--atl-surface2) !important;
+    border-radius: var(--atl-r-pill) !important;
+}
+.db-crm-progress {
+    background: linear-gradient(to right, var(--atl-amber), var(--atl-amber-hover)) !important;
+    border-radius: var(--atl-r-pill) !important;
+}
+.db-schedule-item {
+    border-bottom: 1px solid var(--atl-line) !important;
+    background: transparent !important;
+    border-left: 3px solid var(--atl-amber) !important;
+    border-radius: 0 !important;
+}
+.db-schedule-time {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 11px !important;
+    color: var(--atl-amber) !important;
+}
+.db-schedule-title {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    color: var(--atl-ink) !important;
+}
+.db-schedule-desc {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 12px !important;
+    color: var(--atl-muted) !important;
+}
+
+.db-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+@media (min-width: 480px)  { .db-summary-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
+@media (min-width: 768px)  { .db-summary-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; } }
+@media (min-width: 1024px) { .db-summary-grid { grid-template-columns: repeat(6, 1fr); } }
+
+.db-social-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+@media (min-width: 480px)  { .db-social-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 640px)  { .db-social-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1024px) { .db-social-grid { grid-template-columns: repeat(5, 1fr); } }

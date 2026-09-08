@@ -980,6 +980,76 @@ toggle the bookings/holds/events/milestones filters, remove a hold, click an eve
 use the mini calendar, and confirm the Refresh Calendar button (including whether Working Hours'
 business-hours now visibly reflects on the calendar, given the incidental fix above).
 
+### Section 18: Dashboard (`dashboardAdmin`) — DONE (largest CSS footprint of any section; a second self-caught mistake mid-extraction)
+
+The biggest and most structurally unusual section yet — two JS pieces plus CSS scattered across
+**three** locations, one of them a ~440-line `<style>` tag embedded directly inside the section's own
+markup, a pattern no other admin section uses.
+
+- **JS moved**: `admin.html:21493-21543` (`loadDashboardKPIs`, the small overview tiles) and
+  `admin.html:27075-27670` (the full "Dashboard Analytics" module — KPI summary, visitor/traffic/
+  device/bookings charts, today's schedule, social-visibility toggle) → new `js/admin/dashboard.js`,
+  concatenated. Both plain top-level code, no enclosing IIFE — verified this explicitly given the
+  two near-misses on the two sections immediately before this one.
+- **Self-caught mistake #2 this session (different kind from Unified Calendar's)**: the first build
+  of the extraction script processed its five splice points in the WRONG order — the three CSS
+  edits (lower line numbers, ~3151-5809) were applied *before* the two JS edits (higher line
+  numbers, ~21493 and ~27075), violating this project's own established "always splice from the
+  highest original line number to the lowest" rule. Since the CSS edits shifted everything after
+  them, the JS edits' hard-coded original line numbers were stale by the time they ran, and the
+  script spliced in the middle of unrelated Events-tab markup, corrupting a large stretch of the
+  file. Caught immediately by the inline-script parse-checker (`Unexpected token '<'`), reverted
+  cleanly (`git checkout` + delete untracked files, `git status` confirmed clean) before any commit.
+  Fixed by reordering the five splices strictly descending: JS piece 2 (27075) → JS piece 1
+  (21493) → embedded widget CSS (5368) → CSS cluster 2 (3986) → CSS cluster 1 (3151).
+- **Avoiding a double-load bug while fixing the above**: `loadDashboardKPIs` (piece 1, earlier in
+  the document) and the Analytics module (piece 2, later) both needed to end up in the same
+  `dashboard.js` file, but the Analytics module's own body contains a top-level
+  `document.addEventListener('DOMContentLoaded', ...)` registration — loading `dashboard.js` via a
+  `<script src>` at *both* pieces' original positions would have registered that listener twice,
+  double-firing `loadAnalyticsDashboard`/`loadTodaysSchedule`/`initDashboardSocialPref` on every
+  page load. Fixed by loading `dashboard.js` only once, at piece 1's (earlier) position, and simply
+  removing piece 2's content at its own position with no `<script src>` there — by the time the
+  document reaches piece 2's original spot, the whole file (both pieces) is already loaded and has
+  already run.
+- **CSS moved, three locations**: `admin.html:3151-3248` and `3986-4002` (two non-conflicting
+  main-stylesheet clusters — stat/social/crm/schedule cards; summary/social grids) combined into new
+  `css/admin/dashboard.css`, linked from both original positions (the same multi-link-one-file
+  approach used for Unified Calendar's three clusters); and the ~440-line embedded `<style>` tag at
+  `admin.html:5368-5809` (period selector, KPI cards, CRM cards, chart grids, schedule list,
+  sparklines, ranked lists, country map, social cards, trend indicators, KPI config cards) → new,
+  separate `css/admin/dashboard-widget.css`, replacing that whole `<style>...</style>` pair with one
+  `<link>` at the same position.
+- **A third pre-existing CSS-duplication bug found, not resolved**: the embedded widget stylesheet
+  redefines several classes ALSO defined in the main-stylesheet file (`.db-summary-grid`,
+  `.db-stat-card`, `.db-schedule-item`, `.db-social-grid`) using *different* breakpoint values
+  (576/992/1200px vs 480/768/1024px) — the same class of bug as Email Logs' duplicate `.log-row`
+  rules. Kept as two separate files, each linked at its own original position, to preserve the exact
+  pre-existing cascade order rather than merge them. A smaller instance of the same pattern
+  (`.trend-up`/`.trend-down`, defined once in the main stylesheet and again inside the embedded
+  block) was folded into the widget file as-is, alongside its own duplicate — not deduplicated.
+  Flagged for Phase 8.
+- **No new `window.` attachments needed** — every cross-reference (the anonymous mega-closure's
+  `switchTab` calling `loadDashboardKPIs`/`loadAnalyticsDashboard`/`loadTodaysSchedule` bare, a
+  static `onclick="loadAnalyticsDashboard()"` in markup, and Social Media's own
+  `saveSocialKpiSettings` calling `loadAnalyticsDashboard()` bare from its own separate file) relies
+  on plain function declarations becoming `window` properties automatically, unaffected by which
+  physical file they end up in.
+
+**Verification**: `node --check` clean on `dashboard.js`; re-run across all 18 extracted files —
+clean. The inline-script parse-checker reports 23/23 clean on the corrected version (after the
+initial ordering-bug corruption was caught and reverted). Byte-identity diffs of both JS pieces and
+all three CSS sources came back clean against the pre-extraction `admin.html`. `git diff --stat`: 18
+insertions, 1,204 deletions across 5 hunks — reviewed end-to-end; the RBAC "Role-based UI gating"
+header and the Events-tab markup that follows the widget `<style>` block both appear unchanged, as
+context, confirming the corrected splice order landed exactly where intended.
+
+**Same known gap as Sections 1-17**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Dashboard — confirm the KPI tiles populate,
+every Analytics chart renders across period presets, today's schedule loads, the social-visibility
+toggle persists, and (given the CSS duplication above) that the Dashboard layout still looks correct
+at each responsive breakpoint.
+
 ---
 
 ## Phase 5 — Route & middleware split

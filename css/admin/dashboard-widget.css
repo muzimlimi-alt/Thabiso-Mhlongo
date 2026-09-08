@@ -1,0 +1,451 @@
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — a <style> tag that was
+   embedded directly inside Dashboard's own markup (a pattern no other admin section uses).
+   Comprehensive: period selector, KPI cards, CRM cards, chart grids, schedule list, sparklines,
+   ranked lists, country map, social cards, trend indicators, KPI config cards.
+
+   IMPORTANT — pre-existing duplication, NOT resolved here: several classes here
+   (.db-summary-grid, .db-stat-card, .db-schedule-item, .db-social-grid) are ALSO defined in the
+   main stylesheet (now css/admin/dashboard.css) with DIFFERENT breakpoint values. Kept as a
+   fully separate file, linked at this exact original position, to preserve the pre-existing
+   cascade order rather than merging the two. Flagged for Phase 8. */
+
+    /* ── Dashboard local brand colours ──────────────────────────────── */
+    #dashboardAdmin {
+        --db-fb-blue:  #1877F2;
+        --db-ig-pink:  #E4405F;
+        --db-x-ink:    var(--atl-ink);
+        --db-yt-red:   #FF0000;
+        --db-tt-red:   #FE2C55;
+    }
+
+    /* ── Layout container ─────────────────────────────────────────────── */
+    .db-container {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        padding: 0 4px;
+    }
+
+    /* ── Period selector ─────────────────────────────────────────────── */
+    .db-period-bar {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .db-period-btn {
+        padding: 7px 18px;
+        border-radius: var(--atl-r-md);
+        border: 1px solid var(--atl-line);
+        background: transparent;
+        color: var(--atl-muted);
+        font-family: 'Outfit', sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: border-color var(--atl-t-fast), color var(--atl-t-fast), background var(--atl-t-fast);
+    }
+    .db-period-btn:hover    { border-color: var(--atl-amber); color: var(--atl-amber); }
+    .db-period-btn.active   { border-color: var(--atl-amber); background: var(--atl-amber-dim); color: var(--atl-amber); }
+
+    /* ── Analytics KPI cards (4-col strip) ─────────────────────────── */
+    .db-analytics-kpi-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    @media (min-width: 576px) { .db-analytics-kpi-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (min-width: 992px) { .db-analytics-kpi-grid { grid-template-columns: repeat(4,1fr); } }
+
+    .db-analytics-kpi-card {
+        background: var(--atl-card);
+        border: 1px solid var(--atl-line);
+        border-radius: var(--atl-r-xl);
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        transition: border-color var(--atl-t-fast);
+    }
+    .db-analytics-kpi-card:hover { border-color: var(--atl-amber); }
+    .db-analytics-kpi-icon {
+        font-size: 22px;
+        color: var(--atl-amber);
+        flex-shrink: 0;
+    }
+    .db-analytics-kpi-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+    }
+
+    /* ── CRM Summary stat cards ───────────────────────────── */
+    .db-summary-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    @media (min-width: 576px) { .db-summary-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (min-width: 992px) { .db-summary-grid { grid-template-columns: repeat(6,1fr); } }
+
+    .db-stat-card {
+        background: var(--atl-card);
+        border: 1px solid var(--atl-line);
+        border-radius: var(--atl-r-xl);
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        cursor: pointer;
+        transition: transform var(--atl-t-fast), border-color var(--atl-t-fast), box-shadow var(--atl-t-fast);
+    }
+    .db-stat-card:hover {
+        transform: translateY(-3px);
+        border-color: var(--atl-amber);
+        box-shadow: var(--atl-shadow-card);
+    }
+    .db-stat-icon {
+        width: 44px;
+        height: 44px;
+        background: var(--atl-amber-dim);
+        border-radius: var(--atl-r-md);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        color: var(--atl-amber);
+        flex-shrink: 0;
+    }
+    .db-stat-content { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .db-stat-label {
+        font-family: 'Outfit', sans-serif;
+        font-size: 11px;
+        color: var(--atl-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .db-stat-value {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 20px;
+        font-weight: 700;
+        color: var(--atl-ink);
+    }
+
+    /* ── Paired chart grid (traffic sources + devices) ─────── */
+    .db-analytics-pair-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    @media (min-width: 900px) { .db-analytics-pair-grid { grid-template-columns: repeat(2,1fr); } }
+
+    /* ── Main 2-col grid (bookings chart + schedule) ─────────────── */
+    .db-main-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    @media (min-width: 992px) { .db-main-grid { grid-template-columns: 2fr 1fr; } }
+
+    /* ── Schedule list ────────────────────────────────────────────── */
+    .db-schedule-list   { display: flex; flex-direction: column; gap: 10px; }
+    .db-schedule-item {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 10px 14px;
+        background: var(--atl-surface2);
+        border-radius: var(--atl-r-md);
+        border-left: 3px solid var(--atl-amber);
+    }
+    .db-schedule-time {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: var(--atl-amber);
+        min-width: 68px;
+        flex-shrink: 0;
+    }
+    .db-schedule-title {
+        font-family: 'Outfit', sans-serif;
+        font-size: 13px;
+        color: var(--atl-ink);
+        font-weight: 500;
+        flex: 1;
+    }
+    .db-schedule-desc {
+        font-family: 'Outfit', sans-serif;
+        font-size: 12px;
+        color: var(--atl-muted);
+        white-space: nowrap;
+    }
+    .db-schedule-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 32px 0;
+        text-align: center;
+    }
+
+    /* ── Sparklines strip ─────────────────────────────────────────── */
+    .db-spark-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    @media (min-width: 768px) { .db-spark-grid { grid-template-columns: repeat(2,1fr); } }
+    .db-spark-card { padding: 4px 0; }
+    .db-spark-value {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 18px;
+        font-weight: 700;
+        color: var(--atl-ink);
+    }
+
+    /* ── Ranked lists (top locations / top pages) ─────────────────── */
+    .db-rank-list { display: flex; flex-direction: column; gap: 2px; padding: 4px 6px 8px; }
+    .db-rank-item {
+        display: grid;
+        grid-template-columns: 18px 1fr auto;
+        align-items: center;
+        gap: 12px;
+        padding: 9px 8px;
+        border-radius: var(--atl-r-md);
+        transition: background var(--atl-t-fast);
+    }
+    .db-rank-item:hover { background: var(--atl-surface2); }
+    .db-rank-idx {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: var(--atl-muted);
+        text-align: center;
+    }
+    .db-rank-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+    .db-rank-label {
+        font-family: 'Outfit', sans-serif;
+        font-size: 13px;
+        color: var(--atl-ink);
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .db-rank-bar { height: 4px; background: var(--atl-line); border-radius: 2px; overflow: hidden; }
+    .db-rank-bar::after {
+        content: '';
+        display: block;
+        height: 100%;
+        width: var(--db-rank-pct, 0%);
+        background: var(--atl-amber);
+        border-radius: 2px;
+    }
+    .db-rank-value {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--atl-ink);
+        white-space: nowrap;
+        text-align: right;
+    }
+    .db-rank-value small {
+        display: block;
+        font-weight: 500;
+        font-size: 10px;
+        color: var(--atl-muted);
+    }
+    .db-rank-empty {
+        padding: 28px 0;
+        text-align: center;
+        color: var(--atl-muted);
+        font-family: 'Outfit', sans-serif;
+        font-size: 13px;
+    }
+
+    /* ── Visits by Country — world map + list ─────────────────────── */
+    .db-geo-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 18px;
+        align-items: stretch;
+    }
+    @media (min-width: 900px) {
+        .db-geo-grid { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+    }
+    .db-geo-map {
+        background: var(--atl-surface2);
+        border: 1px solid var(--atl-line);
+        border-radius: var(--atl-r-lg);
+        overflow: hidden;
+        min-height: 340px;
+    }
+    #db-mapCountries { width: 100%; height: 340px; }
+    .db-geo-list { align-self: start; }
+    /* jsVectorMap chrome — align with Atelier tokens */
+    .jvm-container { background: transparent !important; }
+    .jvm-tooltip {
+        background: var(--atl-ink) !important;
+        color: var(--atl-paper) !important;
+        font-family: 'Outfit', sans-serif !important;
+        font-size: 12px !important;
+        border: 1px solid var(--atl-line) !important;
+        border-radius: 6px !important;
+        padding: 7px 10px !important;
+        box-shadow: var(--atl-shadow-card) !important;
+    }
+    .jvm-zoom-btn {
+        background: var(--atl-amber) !important;
+        color: var(--atl-on-amber, #1a1205) !important;
+        border-radius: 4px !important;
+        border: none !important;
+        width: 22px !important;
+        height: 22px !important;
+        line-height: 20px !important;
+    }
+
+    /* ── Social media cards ───────────────────────────────────────── */
+    .db-social-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    @media (min-width: 576px)  { .db-social-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (min-width: 992px)  { .db-social-grid { grid-template-columns: repeat(3,1fr); } }
+    @media (min-width: 1200px) { .db-social-grid { grid-template-columns: repeat(5,1fr); } }
+
+    .db-social-card {
+        background: var(--atl-card);
+        border: 1px solid var(--atl-line);
+        border-radius: var(--atl-r-xl);
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .db-social-header { display: flex; align-items: center; gap: 10px; }
+    .db-social-header i  { font-size: 18px; }
+    .db-social-name  { font-family: 'Outfit', sans-serif; font-size: 13px; color: var(--atl-ink); font-weight: 500; flex: 1; }
+    .db-social-trend { font-family: 'Outfit', sans-serif; font-size: 11px; font-weight: 600; }
+    .db-social-body  { display: flex; flex-direction: column; gap: 3px; }
+    .db-social-count { font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 700; color: var(--atl-ink); }
+    .db-social-label { font-family: 'Outfit', sans-serif; font-size: 11px; color: var(--atl-muted); }
+    .db-social-progress { height: 3px; background: var(--atl-line); border-radius: 2px; margin-top: 4px; position: relative; overflow: hidden; }
+    .db-social-progress::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        width: var(--db-pct, 0%);
+        background: var(--atl-amber);
+        border-radius: 2px;
+    }
+
+    /* ── Trend indicators ─────────────────────────────────────────── */
+    .trend-up   { color: var(--atl-sage);  }
+    .trend-down { color: var(--atl-clay);  }
+
+    /* ── Platform icon colours ────────────────────────────────────── */
+    .db-icon-fb { color: var(--db-fb-blue); }
+    .db-icon-ig { color: var(--db-ig-pink); }
+    .db-icon-x  { color: var(--db-x-ink);  }
+    .db-icon-yt { color: var(--db-yt-red); }
+    .db-icon-tt { color: var(--db-tt-red); }
+
+    /* ── KPI config cards (Social → Dashboard KPIs settings) ──────── */
+    .kpi-cfg-grid {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+    @media (min-width: 640px)  { .kpi-cfg-grid { grid-template-columns: repeat(2,1fr); } }
+    @media (min-width: 1100px) { .kpi-cfg-grid { grid-template-columns: repeat(3,1fr); } }
+
+    .kpi-cfg-card {
+        --kpi-accent: var(--atl-amber);
+        position: relative;
+        background: var(--atl-surface);
+        border: 1px solid var(--atl-line);
+        border-top: 3px solid var(--kpi-accent);
+        border-radius: var(--atl-r-md);
+        padding: 16px;
+        transition: box-shadow var(--atl-t-fast), transform var(--atl-t-fast), border-color var(--atl-t-fast);
+    }
+    .kpi-cfg-card:hover {
+        box-shadow: var(--atl-shadow-card);
+        transform: translateY(-2px);
+        border-color: var(--atl-amber);
+    }
+    .kpi-cfg-card[data-platform-key="fb"] { --kpi-accent: var(--db-fb-blue); }
+    .kpi-cfg-card[data-platform-key="ig"] { --kpi-accent: var(--db-ig-pink); }
+    .kpi-cfg-card[data-platform-key="x"]  { --kpi-accent: var(--db-x-ink);  }
+    .kpi-cfg-card[data-platform-key="yt"] { --kpi-accent: var(--db-yt-red); }
+    .kpi-cfg-card[data-platform-key="tt"] { --kpi-accent: var(--db-tt-red); }
+
+    .kpi-cfg-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 16px;
+    }
+    .kpi-cfg-icon  { font-size: 20px; color: var(--atl-amber); width: 22px; text-align: center; }
+    .kpi-cfg-title { font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 600; color: var(--atl-ink); flex: 1; }
+
+    .kpi-cfg-chip {
+        font-family: 'Outfit', sans-serif;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        padding: 3px 9px 3px 8px;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+    .kpi-cfg-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .kpi-cfg-chip--live   { color: var(--atl-sage);  background: var(--atl-sage-dim, rgba(74,222,128,0.12)); }
+    .kpi-cfg-chip--manual { color: var(--atl-amber); background: var(--atl-amber-dim); }
+
+    /* Segmented data-source control */
+    .kpi-seg { display: flex; gap: 6px; }
+    .kpi-seg-btn {
+        flex: 1;
+        padding: 8px 10px;
+        border-radius: var(--atl-r-md);
+        border: 1px solid var(--atl-line);
+        background: transparent;
+        color: var(--atl-muted);
+        font-family: 'Outfit', sans-serif;
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        transition: border-color var(--atl-t-fast), color var(--atl-t-fast), background var(--atl-t-fast);
+    }
+    .kpi-seg-btn:hover  { border-color: var(--atl-amber); color: var(--atl-amber); }
+    .kpi-seg-btn.active { border-color: var(--atl-amber); background: var(--atl-amber-dim); color: var(--atl-amber); }
+
+    .kpi-cfg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* Reveal (eye) button for API credential inputs */
+    .kpi-input-wrap { position: relative; }
+    .kpi-input-wrap .atl-input { padding-right: 38px; }
+    .kpi-eye {
+        position: absolute;
+        top: 50%;
+        right: 8px;
+        transform: translateY(-50%);
+        background: transparent;
+        border: none;
+        color: var(--atl-muted);
+        cursor: pointer;
+        padding: 4px;
+        line-height: 1;
+        transition: color var(--atl-t-fast);
+    }
+    .kpi-eye:hover { color: var(--atl-amber); }
