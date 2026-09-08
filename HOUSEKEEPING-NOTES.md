@@ -1099,6 +1099,47 @@ sort/paginate, open an inquiry's detail drawer, compose and send/schedule a repl
 and a recipient chip, save/discard an autosaved draft, apply a template, and exercise bulk status
 actions.
 
+### Section 20: Newsletter (`newsletterAdmin`) — DONE
+
+Same clean shape as Inquiries — no enclosing IIFE, no cross-reference surprises, single attempt.
+
+- **JS moved**: `admin.html:17742-19101` (1,360 lines — Subscribers list/search/filter/sort/
+  pagination/bulk actions/CSV import-export, Birthday Automation settings with its own Quill editor,
+  Campaign composition with merge fields/audience targeting/attachments, Drafts, Scheduled sends,
+  and Campaign delivery-log/reuse/edit/delete) → new `js/admin/newsletter.js`.
+- **Verified no enclosing IIFE**: a full scan of the range for `(function`/`})();` patterns found
+  only two self-contained, same-line pagination-button IIFEs (the standard "capture loop variable"
+  idiom — open and close on one line each, not spanning wrappers); the range parses standalone.
+  Same-position split used with confidence.
+- **Zero new `window.` attachments needed**: `window.toggleSubscriberSort`/`subscribersData`/
+  `birthdayBodyQuill`/`loadBirthdaySettings` were already explicitly attached.
+  `window.newsletterQuill` is read here but assigned elsewhere (a separate Quill-init block that
+  runs after the Quill library itself loads) — already safe via existing `window.` prefixing on
+  both ends, unaffected by which file either side lives in. Every other name is a plain top-level
+  function/`let` declaration with no wrapping IIFE — already globally reachable exactly as before,
+  including 5 external bare calls (`loadDraftsList`/`loadScheduledList`/`loadSubscriberStats`/
+  `refreshAudienceCount`/`renderSubscribersList`) from a "refresh everything" handler just after
+  this range, inside the same giant non-IIFE script tag that also houses Inquiries and Bookings.
+- **No private CSS found** — Newsletter relies entirely on shared framework classes (`.um-*`/
+  `.atl-*`), confirmed via both a header-comment search and a class-prefix search.
+- **Shared-candidate usage, not moved**: `openAtlDrawer`/`closeAtlDrawer` (the edit-subscriber
+  drawer) — the usual Phase 7 candidates.
+- **Explicitly bounded by, not touched**: a generic, cross-cutting `.status-select`/`.delete-btn`
+  delegated-handler block shared by Inquiries and Bookings (immediately before this range) and a
+  "Record Payment Modal" feature belonging to Bookings (immediately after) — both untouched.
+
+**Verification**: `node --check` clean on `newsletter.js`; re-run across all 20 extracted files —
+clean. The inline-script parse-checker reports 25/25 clean — no failures. Byte-identity diff of the
+extracted content came back clean against the pre-extraction `admin.html`. `git diff --stat`: 6
+insertions, 1,360 deletions in a single contiguous hunk — reviewed end-to-end; both neighboring
+blocks appear unchanged, as context, on either side of the removal.
+
+**Same known gap as Sections 1-19**: manual click-through not automatable in this sandbox; committed
+on static verification. Live-check list now also covers Newsletter — load/search/sort/paginate
+subscribers, import/export a CSV, save Birthday Automation settings and send a test, compose a
+campaign with a merge field and an attachment, save a draft, schedule a send, and view a delivery
+log.
+
 ---
 
 ## Phase 5 — Route & middleware split
