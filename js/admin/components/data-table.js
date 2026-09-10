@@ -44,7 +44,9 @@
         this.tableEl = resolveEl(config.table);
         this.statsEl = config.stats ? resolveEl(config.stats.el) : null;
         this.countEl = resolveEl(config.countEl);
-        this.siblingEl = (config.states && config.states.idiom === 'sibling-el')
+        // Resolved whenever the config names one — it may back only SOME of the state rows
+        // (email-logs #9: empty → sibling element, loading/error → tbody rows).
+        this.siblingEl = (config.states && config.states.siblingEl)
             ? resolveEl(config.states.siblingEl) : null;
 
         // Owned state for bulk-select store:'map'
@@ -80,11 +82,27 @@
     DataTable.prototype._stateBody = function (kind, searchActive) {
         // kind: 'loading' | 'empty' | 'error'
         var st = (this.cfg.states && this.cfg.states[kind]) || {};
-        var idiom = (this.cfg.states && this.cfg.states.idiom) || 'row-text';
+        // Top-level idiom, overridable per kind — a table can mix idioms across its state rows
+        // (email-logs #9: empty → 'sibling-el', loading/error → 'row-html').
+        var idiom = st.idiom || (this.cfg.states && this.cfg.states.idiom) || 'row-text';
         var msg = st.message || '';
         if (kind === 'empty' && searchActive && st.altMessage) msg = st.altMessage;
         var icon = st.icon || '';
         var sub = st.subMessage || '';
+
+        // 'row-html' / an explicit st.html: the caller supplies this state's entire tbody markup
+        // verbatim (the <tr><td colspan=…>…</td></tr>). For state rows whose bespoke inline styling
+        // the generic row-text / row-component renderers would not reproduce byte-for-byte
+        // (email-logs' "Fetching logs…" spinner row, its colspan=6 error row).
+        if (st.html != null || idiom === 'row-html') {
+            if (this.siblingEl) this.siblingEl.style.display = 'none';
+            if (this.tableEl) this.tableEl.style.display = '';
+            if (!this.bodyEl) return;
+            this.bodyEl.innerHTML = (typeof st.html === 'function')
+                ? st.html({ kind: kind, searchActive: searchActive, colspan: this._colspan(kind) })
+                : (st.html || '');
+            return;
+        }
 
         if (idiom === 'sibling-el') {
             // A separate element carries the state. Two sub-modes:
@@ -242,6 +260,13 @@
             this.countEl.textContent = String(total);
         }
         if (!this.statsEl || !this.cfg.stats) return;
+        // Some tables print a bespoke line when there are no rows (email-logs #9: literally
+        // "Showing 0 logs", not "Showing 0-0 of 0 logs"). stats.emptyText wins on total === 0.
+        if (total === 0 && this.cfg.stats.emptyText != null) {
+            this.statsEl.textContent = (typeof this.cfg.stats.emptyText === 'function')
+                ? this.cfg.stats.emptyText() : this.cfg.stats.emptyText;
+            return;
+        }
         var joiner = this.cfg.stats.format === 'X-Y' ? '-' : ' to ';
         var noun = this.cfg.stats.noun || 'entries';  // email-logs uses "logs", not "entries"
         this.statsEl.textContent = total === 0
@@ -307,6 +332,11 @@
 
         return Promise.resolve(cfg.server.fetch(params)).then(function (res) {
             if (self._destroyed) return;
+            // The fetch wrapper can return DataTable.ABORT to mean "I've taken over the UI, don't
+            // paint" — email-logs' 401 path writes its own row and schedules a reload; a
+            // non-success response leaves the loading row up. Without this, ABORT would fall through
+            // to an empty-state render and clobber that message.
+            if (res === DataTable.ABORT) return;
             var rows = (res && res.rows) || [];
             var total = (res && res.total) || 0;
             var totalPages = (res && res.totalPages) || Math.max(1, Math.ceil(total / cfg.server.pageSize));
@@ -361,6 +391,9 @@
         this._destroyed = true;
         this._selected = Object.create(null);
     };
+
+    // Sentinel a server.fetch wrapper returns to suppress the post-fetch paint (see reload()).
+    DataTable.ABORT = { __dataTableAbort: true };
 
     window.DataTable = DataTable;
 })();

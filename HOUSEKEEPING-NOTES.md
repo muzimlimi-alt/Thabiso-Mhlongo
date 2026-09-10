@@ -272,14 +272,136 @@ existing per-row template.
   `response.status === 401` case (message + `setTimeout` reload) and resolves the DataTable's
   `server.fetch` promise with `{ rows: [], total: 0, totalPages: 0 }` afterwards.
 
-**Next session**: migrate #9 for real — `<script src="js/admin/components/data-table.js">` into
-`admin.html` *before* `email-logs.js`, rewrite `loadEmailLogs` as `new DataTable({...})` using the
-v2 config above (keep `renderLogPagination`/`updateSortIcons`/`toggleLogSort`/`applyLogFilters`/
-`debounceLogSearch` in place — Pagination is Component 2, sort-icons fold in later), verify with the
-inline-script parse-checker + a live load of the Email Logs tab, commit. Then #3, #2, #11, #7, #8,
-#5, #6, #1, #4, #12 — expect each to surface its own gaps the way #9 did; fold them into the
-component as you go, one commit each, originals to `_quarantine/` only once their call site is
-migrated.
+See the **DataTable v3** section immediately below — a closer read of `loadEmailLogs` against the
+v2 component turned up three more gaps, now also covered; the v3 section carries the finished,
+drop-in `email-logs` config so the live edit is mechanical.
+
+### Component 1 — DataTable v3: 3 more gaps found on close read of `loadEmailLogs`, all covered (still inert)
+
+`js/admin/components/data-table.js` extended to 399 lines — additive config only, no shape change,
+`node --check` clean, still referenced nowhere. `admin.html` untouched (25/25 inline-script parse).
+
+Re-reading `js/admin/email-logs.js:19–100` line by line against v2 (not just the dry-run notes)
+showed the v2 plan for **gap 4** was under-specified and surfaced **gaps 6–8**. Forcing the v2
+config in would have put three visible deltas into the live Email Logs tab (a 2-second "no logs"
+flash on 401, a restyled loading row, `"Showing 0-0 of 0 logs"` where the original says
+`"Showing 0 logs"`) — each a *standardise-a-difference-away*, which the plan forbids. v3 adds:
+
+- **Gap 4 revisited — `DataTable.ABORT` sentinel.** A `server.fetch` wrapper may now
+  `return DataTable.ABORT` to mean "I've taken over the tbody, don't paint". `reload()`'s
+  `.then` bails on it *before* the empty/row render. email-logs' 401 path (writes its own
+  "Unauthorized. Redirecting…" row + `setTimeout` reload) and its non-`success` path (leave the
+  loading row up) both use it. The v2 note's "resolve with `{rows:[],total:0}`" would have let
+  `_stateBody('empty')` wipe that row.
+- **Gap 6 — per-kind `states.<kind>.idiom`.** `states.idiom` is still the default, but each of
+  `loading` / `empty` / `error` can override it. email-logs is a hybrid: **empty → `sibling-el`**
+  (`#emailLogsEmpty`), **loading + error → tbody rows**. The constructor now resolves `siblingEl`
+  whenever `states.siblingEl` is named (not only when the top-level idiom is `sibling-el`).
+- **Gap 7 — `states.<kind>.html` (raw markup) / `idiom: 'row-html'`.** The caller supplies that
+  state's entire tbody markup verbatim — `<tr><td colspan=…>…</td></tr>`. For state rows whose
+  bespoke inline styling `row-text`/`row-component` would not reproduce byte-for-byte: email-logs'
+  `padding: 40px; opacity: 0.5` "Fetching logs…" spinner row and its `colspan="6"` error row.
+  `html` may be a string or `({kind, searchActive, colspan}) => string`.
+- **Gap 8 — `stats.emptyText`.** A literal line used when `total === 0`, winning over the
+  `noun`/`format` template. email-logs: `'Showing 0 logs'`.
+
+**v3 config for #9 (drop-in).** Replace only `js/admin/email-logs.js:19–100` (the
+`window.loadEmailLogs = async function () {…}` body) with the instance + a thin `window.loadEmailLogs`
+below. `logState`, `logSearchTimer`, `renderLogPagination`, `toggleLogSort`, `updateSortIcons`,
+`applyLogFilters`, `debounceLogSearch` all stay **byte-identical** (Pagination + sort-icons are
+Components 2/later). Add `<script src="js/admin/components/data-table.js"></script>` immediately
+before `admin.html`'s `<script src="js/admin/email-logs.js"></script>` (currently line ~21949 — a
+standalone sibling include, *not* inside any inline block, so no reunite-and-relocate hazard; still
+eyeball lines ~21940–21955 first).
+
+```js
+const emailLogsTable = new DataTable({
+    body:  '#emailLogsBody',
+    table: null,                              // #9 leaves the <table> visible with an empty tbody
+    stats: { el: '#logStats', format: 'X-Y', noun: 'logs', emptyText: 'Showing 0 logs' },
+    colspan: { loading: 5, empty: 5, error: 6 },   // 5-col table; the 6 is the pre-existing quirk (kept)
+    states: {
+        siblingEl: '#emailLogsEmpty',
+        empty:   { idiom: 'sibling-el', siblingMode: 'toggle-only' },   // markup carries the message
+        loading: { idiom: 'row-html', html: '<tr><td colspan="5" class="text-center" style="padding: 40px; border:none; opacity: 0.5;"><i class="fa fa-spinner fa-spin" style="margin-right: 10px;"></i> Fetching logs...</td></tr>' },
+        error:   { idiom: 'row-html', html: '<tr><td colspan="6" class="text-center text-danger" style="padding:20px;">Failed to load logs. Session may have expired.</td></tr>' }
+    },
+    server: {
+        pageSize: 15,
+        // wrapper ignores the component's params and queries from logState directly — logState still
+        // holds page/limit/search/status/trigger/sort/order and is still mutated in place by
+        // renderLogPagination / toggleLogSort / applyLogFilters / debounceLogSearch (all unchanged).
+        fetch: async function () {
+            const query = new URLSearchParams(logState).toString();
+            let response;
+            try {
+                response = await fetch(`/api/admin/email-logs?${query}`, { credentials: 'include' });
+            } catch (e) {
+                console.error("❌ Failed to load email logs:", e);
+                if (window.notificationService) window.notificationService.showError('Could not load email logs. Please try again.');
+                throw e;                                   // → component .catch → states.error.html
+            }
+            if (response.status === 401) {
+                const body = qs('#emailLogsBody');
+                if (body) body.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Unauthorized. Redirecting to login...</td></tr>';
+                setTimeout(() => window.location.reload(), 2000);
+                return DataTable.ABORT;                    // keep that row; suppress the paint
+            }
+            let res;
+            try { res = await response.json(); }
+            catch (e) {
+                console.error("❌ Failed to load email logs:", e);
+                if (window.notificationService) window.notificationService.showError('Could not load email logs. Please try again.');
+                throw e;
+            }
+            if (res && res.success) {
+                return { rows: res.logs || [], total: parseInt(res.total) || 0, totalPages: parseInt(res.totalPages) || 0 };
+            }
+            return DataTable.ABORT;                        // non-success non-401: original left the loading row up
+        }
+    },
+    renderRow: function (log) {
+        const escape = (str) => { const div = document.createElement('div'); div.textContent = str || ''; return div.innerHTML; };
+        const date = new Date(log.sent_at).toLocaleString();
+        const statusClass = log.status === 'success' ? 'text-success' : (log.status === 'pending' ? 'text-warning' : 'text-danger');
+        const triggerIcon = (log.trigger_event||'').includes('Newsletter') ? 'fa-envelopes-bulk' :
+                           (log.trigger_event||'').includes('Booking') ? 'fa-calendar-check' :
+                           (log.trigger_event||'').includes('Admin') ? 'fa-user-shield' : 'fa-paper-plane';
+        // cells template is byte-identical to the original tr.innerHTML (cells only); wrap in <tr>
+        const cells = `
+                    <td style="padding: 15px; border:none; font-size: 13px; color: #aaa;">${escape(date)}</td>
+                    <td style="padding: 15px; border:none; font-weight: 500;">${escape(log.recipient_email)}</td>
+                    <td style="padding: 15px; border:none; color: #ddd;">${escape(log.subject)}</td>
+                    <td style="padding: 15px; border:none; font-size: 12px;"><i class="fa-solid ${triggerIcon}" style="margin-right:6px; opacity:0.6;"></i>${escape(log.trigger_event)}</td>
+                    <td style="padding: 15px; border:none;"><span class="${statusClass}" style="font-weight:bold; text-transform:uppercase; font-size:11px;"><i class="fa-solid ${log.status === 'success' ? 'fa-check-circle' : (log.status === 'pending' ? 'fa-clock' : 'fa-circle-xmark')}" style="margin-right:4px;"></i>${escape(log.status)}</span></td>
+                `;
+        return '<tr>' + cells + '</tr>';
+    },
+    rowDecorate: function (tr) {                           // was set per-row before innerHTML; effect-identical
+        tr.style.background = 'rgba(255,255,255,0.03)';
+        tr.style.transition = '0.2s';
+        tr.onmouseover = () => tr.style.background = 'rgba(255,255,255,0.06)';
+        tr.onmouseout  = () => tr.style.background = 'rgba(255,255,255,0.03)';
+    },
+    onRender:   function () { updateSortIcons(); },        // original ran it on every success path (empty + non-empty)
+    pagination: function (info) { renderLogPagination(info.totalPages); }   // renderLogPagination(1) clears + early-returns → matches empty path too
+});
+
+window.loadEmailLogs = function () { return emailLogsTable.setPage(logState.page); };  // sync page from logState, reload
+```
+
+**Accepted micro-deltas** (documented, judged non-observable — confirm on the live load):
+- Stats page number is `emailLogsTable._page` (synced from `logState.page`) not `res.page` (server-echoed) — equal unless the server clamps the page.
+- If the API ever omits `totalPages`, the original passed `0` to `renderLogPagination` (cleared it); the component passes a computed `≥1`. The API currently returns it (`res.totalPages` is read today), so inert.
+- Error path fires `console.error` → `showError` → (throw) → error row; original was `console.error` → error row → `showError`. Same three effects, reordered.
+- `updateSortIcons()` runs after the rows paint, not before — it only touches `#logSortHeaders i` / `#sort-*` (header elements), so order is irrelevant.
+
+**Still requires a live load of the Email Logs tab** (sandbox can't): rows render + hover swap, the
+three sort headers, pagination prev/next/numbers, the empty state (`#emailLogsEmpty` shows, table
+stays), a forced 401, and the newsletter-tab `window.loadEmailLogs()` call site
+(`js/admin/newsletter.js:1312`). Commit after that. Then #3, #2, #11, #7, #8, #5, #6, #1, #4, #12 —
+each will surface its own gaps like #9 did; fold them in, one commit each, originals to
+`_quarantine/` only once their call site is migrated.
 
 ---
 
