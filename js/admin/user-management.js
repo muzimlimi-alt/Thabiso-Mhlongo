@@ -1103,30 +1103,27 @@
         }
     }
 
-    function renderLogsTable() {
-        var body = qs('#umLogsTableBody');
-        var countEl = qs('#umLogCount');
-        var statsEl = qs('#umLogStats');
-        if (!body) return;
-
-        var view = getLogsView();
-        var total = view.length;
-        if (countEl) countEl.textContent = allLogsCache.length + ' log' + (allLogsCache.length === 1 ? '' : 's');
-
-        var totalPages = Math.max(1, Math.ceil(total / logTableState.limit));
-        if (logTableState.page > totalPages) logTableState.page = totalPages;
-        var start = (logTableState.page - 1) * logTableState.limit;
-        var pageRows = view.slice(start, start + logTableState.limit);
-
-        if (!total) {
-            body.innerHTML = '<tr><td colspan="6" class="text-center" style="padding:48px; border:none; color:var(--atl-muted);"><i class="fa-solid fa-clock-rotate-left" style="font-size:28px; opacity:0.4; display:block; margin-bottom:10px;"></i>' + (logTableState.search ? 'No logs match your search.' : 'No activity logs found.') + '</td></tr>';
-            if (statsEl) statsEl.textContent = 'Showing 0 to 0 of 0 entries';
-            renderLogPagination(1);
-            updateSortIconsLogs();
-            return;
-        }
-
-        body.innerHTML = pageRows.map(function(l) {
+    /* Phase 7 Component 1 (HOUSEKEEPING-NOTES.md "#2"): renderLogsTable (Login Activity) is now a
+       DataTable instance. getLogsView / logTableState / allLogsCache / renderLogPagination /
+       toggleLogSort / updateSortIconsLogs and the format* helpers are UNCHANGED. window.DataTable
+       comes from js/admin/components/data-table.js (loaded before this file). */
+    var umLogsTable = new DataTable({
+        body:    '#umLogsTableBody',
+        table:   null,
+        countEl: '#umLogCount',
+        countText: function () { return allLogsCache.length + ' log' + (allLogsCache.length === 1 ? '' : 's'); },
+        stats: { el: '#umLogStats', format: ' to ' },
+        colspan: 6,
+        states: {
+            searchActive: function () { return !!logTableState.search; },
+            empty: { idiom: 'row-text', icon: 'fa-solid fa-clock-rotate-left', padding: '48px', iconFontSize: '28px', iconOpacity: 0.4,
+                     message: 'No activity logs found.', altMessage: 'No logs match your search.' }
+        },
+        client: {
+            pageSize: 10,
+            rows: function () { return getLogsView(); }
+        },
+        renderRow: function (l) {
             var userName = l.full_name || l.username || l.email || 'Deleted User';
             var userDetail = l.email ? '<span class="um-row-email" style="display:block; font-size:11px; opacity:0.7;">' + esc(l.email) + '</span>' : '';
             var duration = formatDuration(l.duration_seconds);
@@ -1147,15 +1144,18 @@
                    '  <td style="border:none; padding:12px; font-family:\'JetBrains Mono\', monospace; font-size:12px;">' + esc(l.ip_address || '—') + '</td>' +
                    '  <td style="border:none; padding:12px; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;" title="' + esc(l.user_agent) + '">' + esc(formatUserAgent(l.user_agent)) + '</td>' +
                    '</tr>';
-        }).join('');
+        },
+        onRender:   function () { updateSortIconsLogs(); },
+        pagination: function (info) { renderLogPagination(info.totalPages); }
+    });
 
-        if (statsEl) {
-            var end = Math.min(start + logTableState.limit, total);
-            statsEl.textContent = 'Showing ' + (start + 1) + ' to ' + end + ' of ' + total + ' entries';
-        }
-
-        renderLogPagination(totalPages);
-        updateSortIconsLogs();
+    function renderLogsTable() {
+        // clamp logTableState.page from the current view first (was renderLogsTable's own lines
+        // 1116-1117) so renderLogPagination — which reads logTableState.page directly — sees the
+        // clamped value, exactly as before.
+        var _tp = Math.max(1, Math.ceil(getLogsView().length / logTableState.limit));
+        if (logTableState.page > _tp) logTableState.page = _tp;
+        return umLogsTable.setPage(logTableState.page);
     }
 
     function renderLogPagination(totalPages) {

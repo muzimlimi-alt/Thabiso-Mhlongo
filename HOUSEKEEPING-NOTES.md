@@ -596,6 +596,18 @@ handlers, all four filters + search debounce, pagination, empty + error states, 
 
 ### Component 1 — DataTable: #2 `renderLogsTable` dry run (Login Activity panel — closure-bound, client-paged; no component change)
 
+**MIGRATED (this session, `<commit>`).** `js/admin/user-management.js` — `renderLogsTable` (inside
+the `initUserManagement` IIFE) is now `var umLogsTable = new DataTable({…})` + `function
+renderLogsTable() { <clamp logTableState.page> return umLogsTable.setPage(logTableState.page); }`.
+Lines 1–1104 and `renderLogPagination`→EOF **byte-identical to HEAD** (verified). `node --check` +
+`admin.html` 25/25 green. **Deviation from the notes block**: the bridge clamps `logTableState.page`
+against `getLogsView().length / limit` *before* `setPage` (reproducing the original's own lines
+1116–1117) so the closure-local `renderLogPagination` — which reads `logTableState.page` directly —
+sees the clamped value. Empty row output verified byte-identical (`row-text` `48px`/`28px`/`0.4`,
+property order set in v5 for exactly this). Client path skips the transient loading paint (v5).
+First-run-blind accepted. Still owed: live load of the Login Activity panel (rows + "Active Now"
+pulse, 6 sort headers, search box, page-size-10 pagination, `#umLogCount`).
+
 Read `js/admin/user-management.js:975–1211` in full. #2 is the first **client-paged** table dry-run
 and the first whose render fn is **not `window`-attached** — it's a plain `function renderLogsTable()`
 inside the `initUserManagement` IIFE, called from ~6 places in that closure. Migration keeps the
