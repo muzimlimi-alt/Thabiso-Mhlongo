@@ -206,14 +206,59 @@ via `setSearch()` — tables that read a search box directly (#1 `umTable.search
 that through, likely by having `client.rows()` already reflect the filter and the section calling
 `setSearch()` on input. `_stateBody`'s `searchActive` plumbing is stubbed in the server path.
 
-**Next session**: migrate call site #9 (`js/admin/email-logs.js` `loadEmailLogs`, lines 19–101) —
-the simplest (server paging, server sort, no bulk-select, `row-text` states). Rewrite it as
-`new DataTable({...})`, load `<script src="js/admin/components/data-table.js">` in `admin.html`
-before `email-logs.js`, verify with the inline-script parse-checker + a live load of the Email Logs
-tab, commit, then move the old `renderLogPagination`/`updateSortIcons` only once Pagination
-(Component 2) is done — for now keep them, passed via the `pagination` callback. Then #3, #2, #11,
-#7, #8, #5, #6, #1, #4, #12 in that order, one commit each, originals to `_quarantine/` as their
-call sites migrate.
+### Component 1 — DataTable: first-migration dry run (#9 `loadEmailLogs`) — gaps found, migration NOT done
+
+Attempted the #9 migration on paper (read `js/admin/email-logs.js:19–180` in full, compared against
+`data-table.js` as built). **Did not rewrite it** — a faithful migration is blocked on five spec
+gaps the component doesn't yet cover, and forcing it now would put visible regressions into the live
+Email Logs tab. These findings refine the component spec; the next session builds `data-table.js`
+v2 to cover them, then migrates #9.
+
+1. **Stats noun.** `loadEmailLogs` prints `"Showing X-Y of N logs"` — literally "logs", not
+   "entries". `data-table.js` hardcodes "entries". Need `stats.noun` (default `'entries'`; #9 passes
+   `'logs'`). Check every other table's exact wording before v2 — at least #1 uses "entries".
+2. **Empty-state sibling element with pre-existing static markup.** #9 shows `#emailLogsEmpty` via
+   `style.display='block'` and leaves the `<table>` visible (empty tbody). It never writes into the
+   sibling — the markup already contains the empty message. `data-table.js`'s `sibling-el` idiom
+   *overwrites* `siblingEl.innerHTML` with generated icon+text. Need a `states.siblingMode:
+   'toggle-only' | 'render'` (or `states.empty.render:false`) so the component just shows/hides an
+   element whose content is authored in the markup. Also: #9's variant does **not** hide the table;
+   `newsletter.js` #10's variant **does**. Both must stay — already handled by `table: null`, but
+   document it.
+3. **Per-row hover handlers.** #9 sets `tr.onmouseover`/`onmouseout` inline per row (a JS hover
+   background swap, not a CSS `:hover`). `rowAttrs` can't express this (it's attributes only). Route
+   through `onRender(bodyEl, rows)` — confirm that hook fires on the empty path too (it does) — or
+   add a `rowDecorate: (trEl, row) => void` hook called per `<tr>` after paint. Prefer `rowDecorate`;
+   `onRender` for whole-table rebinding, `rowDecorate` for per-row.
+4. **401 handling.** #9's `fetch` path special-cases `response.status === 401`: renders an
+   "Unauthorized. Redirecting to login…" row and `setTimeout(() => window.location.reload(), 2000)`.
+   The component's `server.fetch` is a black box that returns `{rows,total,totalPages}` — a 401
+   thrown inside it just lands in the generic `.catch` → error state, losing the auto-reload. Options:
+   (a) let the section's `fetch` wrapper keep doing its own 401 handling and resolve with
+   `{rows:[],total:0,totalPages:0}` after kicking off the reload — simplest, no component change; or
+   (b) add an `onFetchError(err)` hook. Go with (a) for #9, note it.
+5. **`colspan` asymmetry (pre-existing quirk — keep, don't fix).** #9's loading row is
+   `colspan="5"`, its error row is `colspan="6"` (the table has 5 columns — the 6 is a copy-paste
+   slip). `data-table.js` takes one `colspan`. Per the plan ("a difference that looks like a bug is
+   kept and noted"), `colspan` should accept either a number or `{loading, empty, error}` so #9 can
+   pass `{loading:5, empty:5, error:6}` and preserve the quirk exactly. Logged under **Deferred
+   fixes** below as well.
+
+**Also confirmed OK for #9** (no gap): server paging via flat `logState` params (status/trigger are
+just fields on `logState`, no `extraParams` needed — pass `server.extraParams: () => ({status:
+logState.status, trigger: logState.trigger})` or fold them into a params builder), server sort with
+`iconTarget: c => 'sort-' + c` and a header-clear step (`#logSortHeaders i` → `fa-sort` @ 0.3
+opacity) that `_updateSortIcons` already does close enough, no bulk-select, `renderRow` via the
+existing per-row template.
+
+**Next session**: (1) extend `data-table.js` to v2 covering gaps 1–5 above (all additive config,
+no breaking change to the shape); (2) migrate #9 for real — `<script src="js/admin/components/data-table.js">`
+into `admin.html` before `email-logs.js`, rewrite `loadEmailLogs` as `new DataTable({...})`, keep
+`renderLogPagination`/`updateSortIcons`/`toggleLogSort`/`applyLogFilters`/`debounceLogSearch` in
+place (Pagination is Component 2; sort-icons fold in later), verify with the parse-checker + a live
+load of the Email Logs tab, commit; (3) then #3, #2, #11, #7, #8, #5, #6, #1, #4, #12 — expect each
+to surface its own gaps the same way #9 did; fold them into the component as you go, one commit each,
+originals to `_quarantine/` only once their call site is migrated.
 
 ---
 
@@ -5339,3 +5384,18 @@ its own change with its own testing.
     `booking_id` with a clear `400` instead of letting the SQLite constraint surface a raw message —
     the smaller of the two changes, but still a behaviour change requiring the user's decision on
     which direction they actually want.
+
+### 6. `js/admin/email-logs.js` — loading row is `colspan="5"`, error row is `colspan="6"`
+
+- **Where found:** `js/admin/email-logs.js` `loadEmailLogs` (lines 26 and 97), while doing the
+  Phase 7 DataTable first-migration dry run.
+- **What:** the Email Logs table has 5 columns. The "Fetching logs…" loading row spans `colspan="5"`
+  (correct); the "Failed to load logs" error row spans `colspan="6"` (one too many — a harmless
+  copy-paste slip; the extra phantom column just widens that one row's cell slightly if it ever
+  shows).
+- **Impact:** cosmetic only, and only visible on a fetch failure.
+- **Not fixed** — carried as a known quirk. When #9 migrates to the shared `DataTable`, the
+  component's `colspan` config is being designed to accept `{loading, empty, error}` specifically so
+  this asymmetry is *preserved* rather than silently normalised (per Phase 7's "a difference that
+  looks like a bug is kept and noted"). If you'd rather just fix it, it's a one-character change
+  (`6` → `5` on line 97).
