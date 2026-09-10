@@ -1173,6 +1173,34 @@ converge?" left for a human.
 time — same live-load gate as DataTable (verifying page-button clicks needs a real page). Do this
 **interleaved with** or **after** the DataTable migrations, since both touch the same 8 sections.
 
+## Component 3 — Modal: step-1 assessment — ALREADY SHARED, little/nothing to build
+
+Read `js/notificationService.js` + every `.modal(` call site. Unlike DataTable/Pagination (hand-rolled,
+divergent), **the admin modal layer is already consolidated**, in two mechanisms:
+
+1. **Confirm / alert / prompt dialogs → `window.notificationService`** (`js/notificationService.js`,
+   ~550-line `NotificationService` class, predates Phase 6). `showConfirm({title?, message, isDestructive?})`
+   → `Promise<boolean>`; also `showAlert`, `showPrompt`, the toasts (`showError/Success/Info/Warning`),
+   and `showHttpError`. **~45 call sites across 15 admin modules already use it.** Nothing to build —
+   it *is* the shared dialog component.
+2. **Rich-content modals → Bootstrap `$('#x').modal('show'|'hide')`** on bespoke markup styled with
+   the shared `.atl-modal-*` classes (one copy, in `admin.html` `<style>` ~L1507–1628). Six in
+   extracted JS — `#cancelEventModal` (events), `#generateInvoiceModal` (financials), `#lcPreviewModal`
+   (legal-compliance), `#importSubscribersModal` / `#newsletterPreviewModal` / `#campaignDeliveryLogModal`
+   (newsletter) — plus `#adminBookingModal` / `#promoteBookingModal` / `#cancelBookingModal` /
+   `#cancelModal` (still in `admin.html`, **deferred with Bookings**). Each modal's *content* (forms,
+   preview iframes, a delivery-log table) is inherently section-specific and lives in the markup; the
+   show/hide is a single Bootstrap call with **no duplicated JS** to extract. Any per-modal reset
+   (e.g. `_resetImportModal`) is field-specific and stays put.
+
+**Recommendation: Component 3 is effectively a no-op.** There is no hand-rolled modal system to
+consolidate. The only thing that *could* be built is a cosmetic `AtlModal.show(id)/hide(id)` wrapper
+over the six Bootstrap one-liners — near-zero value, adds an indirection — so **skip it** unless you
+want the naming consistency. The real remaining Phase 7 components are **#4 Drawer** (substantial —
+`openAtlDrawer`/`closeAtlDrawer`/`atlActivateDrawerTab` + `uploadFileToServer`, woven through ~10
+Phase 6 sections, flagged as "Shared candidate" in nearly every section entry below) and **#5
+FilterBar**. Those are the ones worth a session each.
+
 ---
 
 ## Phase 6 — `admin.html` decomposition
