@@ -1012,6 +1012,20 @@ Phase 8 removal candidate *(user decision pending)*.
 
 ### Component 1 — DataTable: #10 `renderSubscribersList` dry run — v6 (one knob), the `sibling-el` path validated
 
+**MIGRATED (this session, `<commit>`).** `js/admin/newsletter.js` `renderSubscribersList` →
+`const subscribersTable = new DataTable({…})` (sibling-el render mode; `table` hidden while
+`#subscriberListEmpty` carries the state via `siblingRender` → `subscribersEmptyState`) + thin
+`function renderSubscribersList(resetPage)`. Lines 1–29 and `renderSubscribersPaginationNumbered`→EOF
+**byte-identical to HEAD** (verified). `node --check` + `admin.html` 25/25. Wrapper owns both error
+messages + the `#subscriberCount`/`#subscriberCountLabel` writes + the page-underflow step-back
+(`subscribersPage--; renderSubscribersList(); return DataTable.ABORT`). `renderRow: () => ''` +
+`onRender` → `injectSubscribers(rows); updateSortIconsSubscribers()`. **Extra micro-deltas** (benign,
+documented): on `data.total===0` the component runs `onRender` (→ `injectSubscribers([])` +
+`updateSortIconsSubscribers()`) and `cfg.pagination` where the original returned early; pagination
+now runs before `injectSubscribers` (independent DOM). First-run-blind accepted. Still owed: live
+load of the Subscribers tab (loading sibling → rows with table shown, sort headers, search + count
+label, pagination, underflow step-back, forced non-success + thrown error).
+
 Read `js/admin/newsletter.js:20–208`. #10 is the seventh and **last** genuine table, and the only
 one on the **`sibling-el` idiom in `render` mode with the `<table>` hidden** (#9 is sibling-el but
 `toggle-only`). It validates that v1/v2 design. Server-paged/sorted/searched, jQuery,

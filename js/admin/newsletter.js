@@ -28,61 +28,68 @@ function subscribersEmptyState(iconClass, message) {
     return `<i class="${iconClass}" style="font-size:28px;color:var(--atl-muted-dim);display:block;margin-bottom:10px;"></i><p style="color:var(--atl-muted);margin:0;">${message}</p>`;
 }
 
-async function renderSubscribersList(resetPage) {
+/* Phase 7 Component 1 (HOUSEKEEPING-NOTES.md "#10"): renderSubscribersList is now a DataTable
+   instance (sibling-el render mode — the <table> is hidden while #subscriberListEmpty carries the
+   state, fed by subscribersEmptyState). subscribersPage/SortCol/SortOrder/SearchTerm/Data/
+   TotalPages, subscribersEmptyState, injectSubscribers, updateSortIconsSubscribers,
+   renderSubscribersPaginationNumbered, toggleSubscriberSort are UNCHANGED. window.DataTable comes
+   from js/admin/components/data-table.js (loaded before this file). */
+const subscribersTable = new DataTable({
+    body:  '#subscriberListBody',
+    table: $('#subscriberListBody').closest('table'),      // jQuery obj; resolveEl unwraps .jquery
+    colspan: 6,
+    states: {
+        idiom: 'sibling-el',
+        siblingEl: '#subscriberListEmpty',
+        siblingMode: 'render',
+        searchActive: function () { return !!subscribersSearchTerm; },
+        siblingRender: function (ctx) { return subscribersEmptyState(ctx.icon, ctx.message); },
+        loading: { icon: 'fa-solid fa-circle-notch fa-spin', message: 'Loading subscribers…' },
+        empty:   { icon: 'fa-solid fa-inbox', message: 'No subscribers found.', altMessage: 'No subscribers match your search.' }
+        // no `error` — the wrapper owns both error messages ("Could not load..." / "An error occurred...")
+    },
+    server: {
+        pageSize: 50,
+        fetch: async function () {
+            $('#subscribersPagination').hide();                // mirrors the original's pre-fetch hide
+            const params = new URLSearchParams({ page: subscribersPage, limit: 50, sort: subscribersSortCol, order: subscribersSortOrder });
+            if (subscribersSearchTerm) params.set('search', subscribersSearchTerm);
+            let data;
+            try {
+                data = await apiCall('/api/admin/newsletter/subscribers?' + params.toString());
+            } catch (err) {
+                $('#subscriberCount').text('0');
+                window.notificationService.showError('Unexpected error loading subscribers.');
+                $('#subscriberListEmpty').html(subscribersEmptyState('fa-solid fa-triangle-exclamation', 'An error occurred. Please refresh.')).show();
+                return DataTable.ABORT;
+            }
+            if (!data || !data.success || !Array.isArray(data.subscribers)) {
+                $('#subscriberCount').text('0');
+                window.notificationService.showError('Could not load subscribers — please refresh and try again.');
+                $('#subscriberListEmpty').html(subscribersEmptyState('fa-solid fa-triangle-exclamation', 'Could not load subscribers.')).show();
+                subscribersData = [];
+                return DataTable.ABORT;
+            }
+            // If a deletion emptied the current page (but earlier pages still have rows), step back.
+            if (data.subscribers.length === 0 && subscribersPage > 1 && (data.total || 0) > 0) {
+                subscribersPage--; renderSubscribersList(); return DataTable.ABORT;
+            }
+            subscribersData = data.subscribers;
+            window.subscribersData = data.subscribers;
+            $('#subscriberCount').text(data.total);
+            $('#subscriberCountLabel').text(subscribersSearchTerm ? 'Matching Subscribers' : 'Total Subscribers');
+            subscribersTotalPages = data.pages || 1;
+            return { rows: data.subscribers, total: data.total || 0, totalPages: data.pages || 1 };
+        }
+    },
+    renderRow:  function () { return ''; },                 // injectSubscribers fills the tbody in onRender
+    onRender:   function (bodyEl, rows) { injectSubscribers(rows); updateSortIconsSubscribers(); },
+    pagination: function (info) { renderSubscribersPaginationNumbered(info.totalPages); }
+});
+
+function renderSubscribersList(resetPage) {
     if (resetPage) subscribersPage = 1;
-    var $tbody = $('#subscriberListBody');
-    var $count = $('#subscriberCount');
-    var $empty = $('#subscriberListEmpty');
-    var $table = $tbody.closest('table');
-
-    $tbody.empty();
-    $table.hide();
-    $('#subscribersPagination').hide();
-    $empty.html(subscribersEmptyState('fa-solid fa-circle-notch fa-spin', 'Loading subscribers…')).show();
-
-    try {
-        const params = new URLSearchParams({
-            page: subscribersPage, limit: 50,
-            sort: subscribersSortCol, order: subscribersSortOrder
-        });
-        if (subscribersSearchTerm) params.set('search', subscribersSearchTerm);
-        const data = await apiCall('/api/admin/newsletter/subscribers?' + params.toString());
-
-        if (!data || !data.success || !Array.isArray(data.subscribers)) {
-            $count.text('0');
-            window.notificationService.showError('Could not load subscribers — please refresh and try again.');
-            $empty.html(subscribersEmptyState('fa-solid fa-triangle-exclamation', 'Could not load subscribers.')).show();
-            subscribersData = [];
-            return;
-        }
-
-        // If a deletion emptied the current page (but earlier pages still have rows), step back.
-        if (data.subscribers.length === 0 && subscribersPage > 1 && (data.total || 0) > 0) {
-            subscribersPage--;
-            return renderSubscribersList();
-        }
-
-        subscribersData = data.subscribers;
-        window.subscribersData = data.subscribers;
-        $count.text(data.total);
-        $('#subscriberCountLabel').text(subscribersSearchTerm ? 'Matching Subscribers' : 'Total Subscribers');
-
-        if (data.total === 0) {
-            $empty.html(subscribersEmptyState('fa-solid fa-inbox', subscribersSearchTerm ? 'No subscribers match your search.' : 'No subscribers found.')).show();
-            return;
-        }
-
-        $table.show();
-        $empty.hide();
-        injectSubscribers(data.subscribers);
-        subscribersTotalPages = data.pages || 1;
-        renderSubscribersPaginationNumbered(subscribersTotalPages);
-        updateSortIconsSubscribers();
-    } catch (err) {
-          $count.text('0');
-          window.notificationService.showError('Unexpected error loading subscribers.');
-          $empty.html(subscribersEmptyState('fa-solid fa-triangle-exclamation', 'An error occurred. Please refresh.')).show();
-    }
+    return subscribersTable.setPage(subscribersPage);
 }
 
 function renderSubscribersPaginationNumbered(totalPages) {
