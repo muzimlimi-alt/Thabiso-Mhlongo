@@ -305,6 +305,17 @@ flash on 401, a restyled loading row, `"Showing 0-0 of 0 logs"` where the origin
 - **Gap 8 — `stats.emptyText`.** A literal line used when `total === 0`, winning over the
   `noun`/`format` template. email-logs: `'Showing 0 logs'`.
 
+**MIGRATED (this session, `<commit>`).** `js/admin/email-logs.js` — `loadEmailLogs` is now
+`const emailLogsTable = new DataTable({…})` + `window.loadEmailLogs = () => emailLogsTable.setPage(logState.page)`.
+`<script src="js/admin/components/data-table.js">` added to `admin.html` after `drawer.js` (line
+12319 — before every section script, so it's ready for #3/#1/etc. too). `renderLogPagination` /
+`toggleLogSort` / `updateSortIcons` / `applyLogFilters` / `debounceLogSearch` / `logState` /
+`logSearchTimer` **byte-identical to HEAD** (verified). Static checks green: `node --check`
+(email-logs.js + data-table.js), `check_script_blocks.js` 25/25, every reload/`_paint`/`_stateBody`
+path traced against the config. **First-run-blind: accepted by the user on Phase-6 terms.** Still
+owed: a live load of the Email Logs tab (rows + hover, 3 sort headers, pagination, empty state, a
+forced 401) + the `newsletter.js:1312` call site. Config kept below for reference / rollback.
+
 **v3 config for #9 (drop-in).** Replace only `js/admin/email-logs.js:19–100` (the
 `window.loadEmailLogs = async function () {…}` body) with the instance + a thin `window.loadEmailLogs`
 below. `logState`, `logSearchTimer`, `renderLogPagination`, `toggleLogSort`, `updateSortIcons`,
