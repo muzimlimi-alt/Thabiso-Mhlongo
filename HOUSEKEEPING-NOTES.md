@@ -403,6 +403,165 @@ stays), a forced 401, and the newsletter-tab `window.loadEmailLogs()` call site
 each will surface its own gaps like #9 did; fold them in, one commit each, originals to
 `_quarantine/` only once their call site is migrated.
 
+### Component 1 — DataTable: #3 `loadAuditLogs` + #4 `loadPopiaRequests` dry run (on paper — no file touched; v4 = one small knob)
+
+Read `js/admin/security-audit.js:142–401` in full against v3. **#3 and #4 are the only two tables
+that use the `.atl-empty-state` (`row-component`) idiom**, so they're dry-run together — the one
+thing they needed drove the v4 component change.
+
+- **Finding A (#3 only) — `updateAuditSortIcons()` runs even on a non-`success` response.** Original
+  `loadAuditLogs` line 159 calls it unconditionally right after `await response.json()`, *before* the
+  `res.success` gate — it fires on success-empty, success-rows, and malformed-`res`. The component's
+  `onRender` only fires on the paint paths (empty + rows), not when the wrapper returns
+  `DataTable.ABORT` for a bad `res`. Fix: the `server.fetch` wrapper calls `updateAuditSortIcons()`
+  itself right after it parses `res`, mirroring line 159 exactly. No component change. (#4 has no
+  such call — it never renders sort icons.)
+- **Finding B (#3 + #4) — the `.atl-empty-state` blocks carry per-instance icon opacity** and
+  nothing else varies: audit empty `0.4`, popia empty `0.4`, both errors `0.6`, vs the renderer's
+  hardcoded `0.5`. `color` (`--atl-muted` / `--atl-clay` by kind), `font-size:32px`, the `<td
+  colspan style="border:none;">` wrapper, and the `atl-empty-display` / `atl-empty-sub` `<p>`s are
+  **already byte-identical** to what `row-component` emits. So this is a knob, not a fork.
+  → **v4**: `states.<kind>.iconOpacity` (default `0.5`) on the `row-component` branch. Both tables
+  then render their state rows through `row-component` with `message` / `subMessage` / `icon` /
+  `iconOpacity` — no pasted `html` blobs (which would be brittle to keep byte-identical by hand).
+  `row-html` stays for #9's genuinely-bespoke loading/error rows.
+
+`js/admin/components/data-table.js` → 403 lines (v4). Additive only, `node --check` clean, still
+referenced nowhere. `admin.html` untouched (25/25 inline-script parse).
+
+**v4 config for #3 (drop-in).** Replace only `js/admin/security-audit.js:142–201` (the
+`window.loadAuditLogs = async function () {…}` body). `auditState` (+ `window.auditState`),
+`auditSearchTimer`, `renderAuditPagination`, `toggleAuditSort`, `updateAuditSortIcons`,
+`debounceAuditSearch`, and every audit helper above `loadAuditLogs` (`AUDIT_TABLE_LABELS`,
+`auditSectionLabel`, `buildAuditDiffHtml`, `loadChangeHistoryCard`, …) all stay **byte-identical**.
+`data-table.js`'s `<script src>` goes in once for the whole Phase-7 batch (added with #9), so #3
+only needs the rewrite. The config object lives in `security-audit.js`, so its `renderRow` closes
+over `escHtml` (window-global) and `auditSectionLabel` (module-local) directly.
+
+```js
+const auditLogsTable = new DataTable({
+    body:  '#auditLogsBody',
+    table: null,
+    colspan: 7,                                     // fallback only — loading supplies own html; empty/error via row-component
+    stats: { el: '#auditStats', format: 'X-Y', noun: 'entries', emptyText: 'Showing 0 of 0 entries' },
+    states: {
+        loading: { idiom: 'row-html', html: '<tr><td colspan="7" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Refreshing trail...</td></tr>' },
+        empty:   { idiom: 'row-component', icon: 'fa-solid fa-clipboard-list',       iconOpacity: 0.4, message: 'No audit events found',        subMessage: 'Try adjusting your search or filters.' },
+        error:   { idiom: 'row-component', icon: 'fa-solid fa-triangle-exclamation', iconOpacity: 0.6, message: 'Could not load the audit trail', subMessage: 'Please try again.' }
+    },
+    server: {
+        pageSize: 50,
+        fetch: async function () {
+            const tableF   = (qs('#auditTableFilter') && qs('#auditTableFilter').value) || '';
+            const dateFrom = (qs('#auditDateFrom')   && qs('#auditDateFrom').value)   || '';
+            const dateTo   = (qs('#auditDateTo')     && qs('#auditDateTo').value)     || '';
+            const params = new URLSearchParams({ page: auditState.page, limit: auditState.limit, sort: auditState.sort, order: auditState.order });
+            if (auditState.search) params.set('search', auditState.search);
+            if (tableF)   params.set('table', tableF);
+            if (dateFrom) params.set('date_from', dateFrom);
+            if (dateTo)   params.set('date_to', dateTo);
+            const response = await fetch('/api/admin/audit_log?' + params.toString(), { credentials: 'include' });
+            if (response.status === 401) return DataTable.ABORT;    // original: bare `return` (loading row stays)
+            let res;
+            try { res = await response.json(); } catch (e) { updateAuditSortIcons(); throw e; }
+            updateAuditSortIcons();                                 // mirrors line 159 — runs before the success gate
+            if (res && res.success && res.logs) {
+                return { rows: res.logs, total: parseInt(res.total) || 0, totalPages: parseInt(res.totalPages) || 0 };
+            }
+            return DataTable.ABORT;                                 // res exists but not success — original rendered nothing
+        }
+    },
+    renderRow: function (log) {
+        const date = new Date(log.change_timestamp || log.timestamp).toLocaleString();
+        const actionColor = log.action === 'UPDATE' ? 'var(--atl-orange)' : (log.action === 'INSERT' ? 'var(--atl-sage)' : 'var(--atl-clay)');
+        const actorName = log.actor_full_name || log.actor_username || log.changed_by || '—';
+        const actorRole = log.actor_role ? (log.actor_role.charAt(0).toUpperCase() + log.actor_role.slice(1)) : '—';
+        const cells = `
+                    <td style="padding:12px; font-weight:bold; color: var(--atl-amber);">${escHtml(log.table_name)} <span style="font-size:10px; opacity:0.5; font-weight:normal;">#${log.record_id}</span></td>
+                    <td style="padding:12px; font-size:12px;">${escHtml(auditSectionLabel(log.table_name))}</td>
+                    <td style="padding:12px;"><span style="color:${actionColor}; font-weight:bold; font-size:11px;">${escHtml(log.action)}</span></td>
+                    <td style="padding:12px; font-size:12px;">${escHtml(actorName)}</td>
+                    <td style="padding:12px; font-size:11px; opacity:0.75;">${escHtml(actorRole)}</td>
+                    <td style="padding:12px; font-size:11px; opacity:0.6; font-family:'JetBrains Mono',monospace;">${escHtml(log.ip_address || '—')}</td>
+                    <td style="padding:12px; font-size:11px; opacity:0.6;">${date}</td>
+                `;
+        return '<tr>' + cells + '</tr>';
+    },
+    rowDecorate: function (tr) { tr.style.borderBottom = '1px solid rgba(255,255,255,0.02)'; },
+    onRender:   function () { updateAuditSortIcons(); },            // also covers the empty path (line 159 ran on it too)
+    pagination: function (info) { renderAuditPagination(info.totalPages); }
+});
+
+window.loadAuditLogs = function () { return auditLogsTable.setPage(auditState.page); };
+```
+
+**Accepted micro-deltas** (same three shapes as #9 — confirm on the live load): stats page number
+is the synced `_page` not `res.page`; `renderAuditPagination` gets a computed `≥1` instead of `0`
+when the API omits `totalPages` (it returns it today); `notificationService.showError` fires before
+the error row is written instead of after. Plus: `updateAuditSortIcons()` now runs twice on a normal
+render (once in the wrapper, once via `onRender`) — it is idempotent (re-sets the same classes), so
+no visible effect, just a documented redundancy the migration session can collapse if it wants.
+
+**Live-load checklist for #3**: rows + the amber table/#id cell, all seven `#auditsort-*` headers
+incl. `aria-sort`, the table/date-from/date-to filters, search debounce, pagination
+prev/next/numbers/ellipsis, the empty state, a forced 401 (loading row must stay), the error state,
+and the three `window.loadChangeHistoryCard` callers (Bookings Deal View, Events, Users) which share
+`buildAuditDiffHtml` but not `loadAuditLogs` — should be untouched, verify anyway.
+
+**v4 config for #4 `loadPopiaRequests` (drop-in).** Replace only
+`js/admin/security-audit.js:292–322` (the `window.loadPopiaRequests = async function () {…}` body).
+`popiaState` (+ `window.popiaState`), `popiaSearchTimer`, `POPIA_REASON_LABELS`,
+`POPIA_STATUS_BADGE`, `popiaFetch`, `popiaQueryParams`, `renderPopiaRow`, `renderPopiaPagination`,
+`debouncePopiaSearch`, `updatePopiaPendingBadge`, and the drawer functions all stay
+**byte-identical**. #4 has **no sort** (`popiaState` has no `sort`/`order`; there is no
+`updatePopiaSortIcons`) and its error path has **no** `notificationService.showError` (unlike #3).
+`renderRow` delegates to the untouched `renderPopiaRow` via `.outerHTML` — one throwaway detached
+`<tr>` per row, no correctness effect; `rowDecorate` is unnecessary because `renderPopiaRow` already
+sets `tr.style.borderBottom` on that element.
+
+```js
+const popiaRequestsTable = new DataTable({
+    body:  '#popiaRequestsBody',
+    table: null,
+    colspan: 7,
+    stats: { el: '#popiaStats', format: 'X-Y', noun: 'entries' },   // NO emptyText — #4 has no empty-path early return; it falls through to "Showing 0-0 of 0 entries", which format:'X-Y' already produces
+    states: {
+        loading: { idiom: 'row-html', html: '<tr><td colspan="7" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Loading requests...</td></tr>' },
+        empty:   { idiom: 'row-component', icon: 'fa-solid fa-user-slash',           iconOpacity: 0.4, message: 'No erasure requests found',   subMessage: 'Try adjusting your search or filters.' },
+        error:   { idiom: 'row-component', icon: 'fa-solid fa-triangle-exclamation', iconOpacity: 0.6, message: 'Could not load erasure requests', subMessage: 'Please try again.' }
+    },
+    server: {
+        pageSize: 20,
+        fetch: async function () {
+            popiaState.status   = (qs('#popiaStatusFilter') || {}).value || '';
+            popiaState.source   = (qs('#popiaSourceFilter') || {}).value || '';
+            popiaState.dateFrom = (qs('#popiaDateFrom') || {}).value || '';
+            popiaState.dateTo   = (qs('#popiaDateTo') || {}).value || '';
+            const response = await fetch('/api/admin/popia/requests?' + popiaQueryParams().toString(), { credentials: 'include' });
+            if (response.status === 401) return DataTable.ABORT;   // original: bare return (loading row stays)
+            const res = await response.json();
+            if (res && res.success) {
+                return { rows: res.requests || [], total: parseInt(res.total) || 0, totalPages: parseInt(res.totalPages) || 0 };
+            }
+            return DataTable.ABORT;
+        }
+    },
+    renderRow:  function (r)   { return renderPopiaRow(r).outerHTML; },
+    onRender:   function ()    { updatePopiaPendingBadge(); },      // ran on both empty+rows paths inside `if (res.success)`, not on !success
+    pagination: function (info){ renderPopiaPagination(info.totalPages); }
+});
+
+window.loadPopiaRequests = function () { return popiaRequestsTable.setPage(popiaState.page); };
+```
+
+**Accepted micro-deltas for #4**: same synced-`_page`-vs-`res.page` and computed-`totalPages`-vs-`0`
+shapes as #3/#9. `renderPopiaRow(r).outerHTML` serialises `tr.style.borderBottom` to an inline
+`style="border-bottom: …"` string where the original set it as a live style property — same computed
+result. **Live-load checklist for #4**: the reference-number/email/reason/source/status-badge/date
+columns, the per-row `popia-view`/`approve`/`process` action buttons still fire their delegated
+handlers, all four filters + search debounce, pagination, empty + error states, a forced 401, and
+`#popiaPendingBadge` still updates after each load.
+
 ---
 
 ## Phase 6 — `admin.html` decomposition

@@ -132,12 +132,16 @@
 
         var cs = this._colspan(kind);
         if (idiom === 'row-component') {
-            // <tr><td colspan=N> wrapping the .atl-empty-state component (icon / display / sub)
+            // <tr><td colspan=N> wrapping the .atl-empty-state component (icon / display / sub).
+            // Icon opacity varies per instance (audit empty 0.4, audit/popia error 0.6, default
+            // 0.5) — the ONLY difference between the two tables that use this idiom (#3, #4), so
+            // it's a `states.<kind>.iconOpacity` knob, not a reason to fall back to raw `html`.
             var clr = kind === 'error' ? 'var(--atl-clay)' : 'var(--atl-muted)';
+            var op = (st.iconOpacity != null) ? st.iconOpacity : 0.5;
             this.bodyEl.innerHTML =
                 '<tr><td colspan="' + cs + '" style="border:none;">' +
                     '<div class="atl-empty-state">' +
-                        '<i class="' + escHtml(icon) + '" style="font-size:32px; color:' + clr + '; opacity:0.5;"></i>' +
+                        '<i class="' + escHtml(icon) + '" style="font-size:32px; color:' + clr + '; opacity:' + op + ';"></i>' +
                         '<p class="atl-empty-display">' + escHtml(msg) + '</p>' +
                         (sub ? '<p class="atl-empty-sub">' + escHtml(sub) + '</p>' : '') +
                     '</div>' +
