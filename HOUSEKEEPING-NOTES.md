@@ -29,10 +29,10 @@ Bookings' pipeline/archive tables still in `admin.html` (part of the deferred Bo
 | 2 | `renderLogsTable` (Login Activity panel) | `js/admin/user-management.js:1106–1160` | `renderLogPagination` (1161) |
 | 3 | `loadAuditLogs` (render body ≈160–195) | `js/admin/security-audit.js:142–202` | `renderAuditPagination` (203) |
 | 4 | `loadPopiaRequests` render + `renderPopiaRow` | `js/admin/security-audit.js:292–347` | `renderPopiaPagination` (348) |
-| 5 | `renderTransactions` | `js/admin/financials.js:182–256` | — |
-| 6 | `renderInvoices` (+ filter logic to ≈330) | `js/admin/financials.js:257–≈330` | — |
-| 7 | `loadRemindersLog` render | `js/admin/financials.js:262–≈300` | — |
-| 8 | Finance Analytics overdue list | `js/admin/financials.js:≈528–615` (in `loadFinAnalytics`) | — |
+| 5 | `renderTransactions` (called from `filterTransactions` 235–254 which does the client filter) | `js/admin/financials.js:182–232` | — |
+| 6 | `applyInvoiceFilter` — the real invoice table renderer; `renderInvoices` (257–260) is a 4-line wrapper that sets `allInvoicesCache` and calls it | `js/admin/financials.js:301–354` | — |
+| 7 | `loadRemindersLog` render | `js/admin/financials.js:262–299` | — |
+| 8 | Finance Analytics overdue-invoice list (`#finAnalyticsOverdueListBody`) — rendered inline inside `loadFinAnalytics` | `js/admin/financials.js:529–≈656` (render block ≈531–615) | — |
 | 9 | `loadEmailLogs` render | `js/admin/email-logs.js:19–101` | `renderLogPagination` (102) |
 | 10 | `renderSubscribersList` + `injectSubscribers` | `js/admin/newsletter.js:31–86` + `150–≈208` | `renderSubscribersPaginationNumbered` (88) |
 | 11 | `loadCampaigns` render | `js/admin/newsletter.js:1157–1208` | `renderCampaignsPaginationNumbered` (1209) |
