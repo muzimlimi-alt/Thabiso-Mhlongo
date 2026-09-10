@@ -1234,28 +1234,39 @@ module-local in `services.js`. Moving those three into `drawer.js` means exposin
 can still reach them. **That is the one `window.X = X` addition** the extraction needs (same pattern
 as every Phase 6 section).
 
-### Proposed step-2 (extraction, not a rewrite)
+### Step-2 — DONE (`c...` this session): `js/admin/components/drawer.js` created (byte-identical relocation)
 
-New `js/admin/components/drawer.js`, loaded **before** every section `<script src>` (it's called from
-all of them). Move into it, **byte-identical**:
-- from `services.js`: the `atlDrawerStack` / `atlDrawerPush` / `atlDrawerPop` / `atlDrawerFocusEntry`
-  block, `window.openAtlDrawer`, `window.closeAtlDrawer`, the `keydown.atlDrawer` handler — and add
-  `window.atlDrawerPush = atlDrawerPush` (+ `Pop`/`FocusEntry`) for the siblings left behind.
-- from `events.js`: `window.atlActivateDrawerTab` + its `click.atldrawertab` delegated binding.
+Extracted verbatim via `scratchpad/extract_drawer.js` (boundary-asserting, CRLF-preserving):
+- **from `services.js` lines 195–258** (64 lines): the `atlDrawerZ`/`atlDrawerStack` +
+  `atlDrawerPush`/`atlDrawerPop`/`atlDrawerFocusEntry` block, `window.openAtlDrawer`,
+  `window.closeAtlDrawer`, the `keydown.atlDrawer` Esc handler. `services.js` 435 → 370 lines.
+- **from `events.js` lines 495–509** (15 lines): `window.atlActivateDrawerTab` + its
+  `click.atldrawertab` delegated binding. `events.js` 835 → 819 lines.
+- `admin.html`: one line added — `<script src="js/admin/components/drawer.js"></script>` **before**
+  `js/admin/home-slider.js` (the first `js/admin/*.js` script, line 12318). So the helpers are now
+  defined ~10k source-lines **earlier** than before (`services.js` loads at line 22065) — the
+  pre-existing ordering fragility (why the inline `onclick="if(window.openAtlDrawer)…"` guards
+  exist) is *reduced*, not introduced.
 
-`services.js` keeps `svcDrawer*` + `openQuoteDrawer`/`closeQuoteDrawer` (now calling
-`window.atlDrawerPush` etc.); `events.js` keeps its event logic. **No call site changes** — every
-`window.openAtlDrawer(...)` / `atlActivateDrawerTab(...)` across the 15 modules is untouched.
+**No `window.X = X` was needed** — `atlDrawerPush`/`atlDrawerPop`/`atlDrawerFocusEntry` are plain
+`function` declarations, already globals in a classic script, so `services.js`'s retained
+`svcDrawerOpen` / `openQuoteDrawer` / `cancelServiceForm` still reach them by bare identifier.
+`atlDrawerZ`/`atlDrawerStack` (`let`) are read only from inside the moved block. **Zero call-site
+changes** across the 15 modules.
 
-**Not consolidating** (housekeeping, not improvement): the ~10 per-section
-`$(document).on('click', '#xxxDrawerClose, #xxxDrawerBackdrop', …)` close handlers — they name
-section-specific IDs and some do extra teardown. A single delegated `.atl-drawer__close` /
-`.atl-drawer__backdrop` handler in `drawer.js` *could* replace them, but that's a behavioural change
-needing markup-class verification — flag for a human, don't do it under Phase 7.
+Verified: `node --check` (drawer.js / services.js / events.js) clean; both moved blocks
+**byte-identical** to `HEAD` (only a 1-line blank separator added between them); `check_script_blocks.js`
+admin.html 25/25; `git diff --stat` reconciles (−65 svc, −16 evt, +1 html). **Known gap** (same as
+every Phase 6 extraction): live open/close/tab-switch of a drawer in each of the 15 sections not run
+in-sandbox.
 
-**Verification**: static (`node --check`, byte-identity of the moved block, `check_script_blocks.js`,
-tag balance) + a live open/close/tab-switch of one drawer in **each** of the 15 sections (the
-sandbox gap). Same terms as every Phase 6 extraction.
+**Not consolidated** (housekeeping, not improvement): the ~10 per-section
+`$(document).on('click', '#xxxDrawerClose, #xxxDrawerBackdrop', …)` close handlers — section-specific
+IDs, some with extra teardown. A single delegated handler in `drawer.js` could replace them but
+that's a behavioural change — flag for a human. `openQuoteDrawer`/`closeQuoteDrawer` (`.qb-drawer`,
+bookings-adjacent) and `svcDrawerOpen`/`svcDrawerClose` (`.svc-drawer`) stay in `services.js` as
+specialised consumers of the now-shared stack. `uploadFileToServer` (admin.html) untouched — its
+own concern.
 
 ## Component 5 — FilterBar: step-1 assessment — thin; the real win is a shared `debounce()`
 
@@ -1286,7 +1297,7 @@ keystroke test per section. The filter-*apply* functions (`applyLogFilters`, `fi
 | 1 | DataTable | **Built + frozen (v7, 371 ln, inert).** 8 tables spec'd with drop-in configs. |
 | 2 | Pagination | **Built (152 ln, inert).** 10 impls → `numbered`/`prevnext` configs. |
 | 3 | Modal | **No-op.** `notificationService` + Bootstrap `.modal()` + `.atl-modal-*` CSS already shared. |
-| 4 | Drawer | **Inventoried.** Phase-6-style relocation of `atlDrawer*` (from `services.js`) + `atlActivateDrawerTab` (from `events.js`) into `js/admin/components/drawer.js`; 1 `window.X=X` needed; ~92 call sites untouched. |
+| 4 | Drawer | **Extracted (step-2 DONE).** `js/admin/components/drawer.js` created — byte-identical relocation of `atlDrawer*` (from `services.js` −65) + `atlActivateDrawerTab` (from `events.js` −16); loaded before all section scripts; 0 `window.X=X`, 0 call-site changes. Live per-section click-through is the known gap. |
 | 5 | FilterBar | **Thin.** Promote `lcDebounce` → shared `debounce()`, rewrite 6 copies. Filter-apply fns stay per-section. |
 
 **Everything above is inert / analysis only. Zero runtime behaviour has changed in Phase 7.** The

@@ -492,22 +492,6 @@ function applyEventToEditor(item) {
     if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('evtChangeHistoryList', 'events', item.event_id);
 }
 
-// Generic Edit/Change History tab switcher, shared by every drawer that uses this two-tab
-// .dv-tabs/.dv-panel toggle (Events, Banner-style Gallery/Career/Home Slider/Testimonials/
-// Footprint) — one implementation instead of a per-section copy. Not the full Deal View
-// dv-tab system (no lazy panel loading, no arrow-key roving tabindex) since these are always
-// exactly two static panels.
-window.atlActivateDrawerTab = function(drawerId, tabId) {
-    $('#' + drawerId + ' .dv-tab').attr({ 'aria-selected': 'false', 'tabindex': '-1' });
-    var $tab = $('#' + tabId).attr({ 'aria-selected': 'true', 'tabindex': '0' });
-    $('#' + drawerId + ' .dv-panel').attr('hidden', true);
-    $('#' + $tab.attr('aria-controls')).removeAttr('hidden');
-};
-$(document).off('click.atldrawertab').on('click.atldrawertab', '.atl-drawer .dv-tab', function() {
-    var drawerId = $(this).closest('.atl-drawer').attr('id');
-    window.atlActivateDrawerTab(drawerId, this.id);
-});
-
 // Blank slate shared by "New Event" and the pre-populate step of "Edit Event" — mirrors
 // resetBnrForm() in the Banner Library above.
 function resetEventForm() {
