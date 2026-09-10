@@ -1300,13 +1300,38 @@ keystroke test per section. The filter-*apply* functions (`applyLogFilters`, `fi
 | 4 | Drawer | **Extracted (step-2 DONE).** `js/admin/components/drawer.js` created — byte-identical relocation of `atlDrawer*` (from `services.js` −65) + `atlActivateDrawerTab` (from `events.js` −16); loaded before all section scripts; 0 `window.X=X`, 0 call-site changes. Live per-section click-through is the known gap. |
 | 5 | FilterBar | **Thin.** Promote `lcDebounce` → shared `debounce()`, rewrite 6 copies. Filter-apply fns stay per-section. |
 
-**Everything above is inert / analysis only. Zero runtime behaviour has changed in Phase 7.** The
-remaining work is all live-verification-gated:
+**Only the Drawer extraction changed runtime code** — and that is a byte-identical relocation
+(Phase-6 class), verified accordingly. DataTable + Pagination are still fully inert (referenced
+nowhere). Remaining work, all live-verification-gated:
 1. DataTable migrations #9 → #3 → #4 → #2 → #11 → #1 → #10 → #7 (browser: load each tab).
 2. Pagination migrations (interleave with #1 — same 8 sections).
-3. Drawer extraction into `drawer.js` (browser: open/close a drawer per section, ×15).
-4. FilterBar: `debounce()` promotion (browser: keystroke test per section).
+3. Drawer: live open/close/tab-switch of one drawer in each of the 15 sections (verify the
+   already-committed relocation — no code left to write).
+4. FilterBar: `debounce()` promotion — 6 fn rewrites + a keystroke test per section (a rewrite,
+   not a relocation — do it live, not blind).
 Then Phase 8 (dead-code removal) — explicitly last.
+
+### Phase 7 — naming convention (plan deliverable: "propose one, apply only to files created here")
+
+The convention that emerged across Phases 5–7, now stated explicitly. **All lowercase,
+hyphen-separated (kebab-case), `.js` / `.css`. No camelCase, no `_`.**
+
+| Kind | Path | Examples |
+|---|---|---|
+| Shared admin UI component | `js/admin/components/<name>.js` — one component/concern per file; exposes `window.<PascalName>` for instantiable components (`DataTable`, `Pagination`) or `window.<camelName>` helpers for singletons (`openAtlDrawer`) | `data-table.js`, `pagination.js`, `drawer.js` |
+| Admin section module (Phase 6) | `js/admin/<section>.js` — one admin tab per file | `email-logs.js`, `user-management.js`, `security-audit.js`, `system-settings.js`, `legal-compliance.js` |
+| Admin section stylesheet (Phase 6) | `css/admin/<section>.css`; `-2` suffix for a deliberately-separate second block; `-<subconcern>` for a carve-out | `email-logs.css` + `email-logs-2.css`, `dashboard.css` + `dashboard-widget.css` |
+| Admin route module (Phase 5) | `routes/admin/<area>.js` — one endpoint area per file | `users.js`, `auth.js`, `site-content.js`, `newsletter-campaigns.js`, `abandoned-bookings.js` |
+
+**Audit (this session):** every housekeeping-created file already complies — 3 components, 22
+`js/admin/*.js`, 10 `css/admin/*.css`, 33 `routes/admin/*.js`. The only deviating names in those
+dirs — `bookings-DESKTOP-HM7U97M.js`, `home-social-DESKTOP-HM7U97M.js` — are **OneDrive
+conflict-copy artifacts, not housekeeping output** (user to delete; see the git-recovery note).
+
+**Not renaming anything pre-existing** (plan rule, restated): renames break DB-stored paths, cached
+URLs, and bookmarks, and muddy `git blame`. `admin.html`, `app.js`, `database.js`,
+`notificationService.js`, `myscript.js`, the existing `css/*.css` etc. keep their names. Any such
+rename is its own later change, one file at a time, with a redirect where it's served.
 
 ---
 
