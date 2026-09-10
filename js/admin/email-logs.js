@@ -92,45 +92,21 @@ const emailLogsTable = new DataTable({
 
 window.loadEmailLogs = function () { return emailLogsTable.setPage(logState.page); };
 
-function renderLogPagination(totalPages) {
-    const container = qs('#logPagination');
-    if (!container) return;
-    container.innerHTML = '';
-
-    if (totalPages <= 1) return;
-
-    // Prev
-    const prevBtn = document.createElement('button');
-    prevBtn.className = `um-btn um-btn--ghost ${logState.page === 1 ? 'disabled' : ''}`;
-    prevBtn.innerHTML = '<i class="fa fa-chevron-left"></i>';
-    prevBtn.onclick = () => { if (logState.page > 1) { logState.page--; window.loadEmailLogs(); } };
-    container.appendChild(prevBtn);
-
-    // Simple page numbers
-    for (let i = 1; i <= totalPages; i++) {
-        if (i > 5 && i < totalPages) { // Simple ellipsis logic
-            if (i === 6) {
-                const span = document.createElement('span');
-                span.textContent = '...';
-                span.style.color = '#555';
-                container.appendChild(span);
-            }
-            continue;
-        }
-        const btn = document.createElement('button');
-        btn.className = `um-btn ${logState.page === i ? 'um-btn--primary' : 'um-btn--ghost'}`;
-        btn.textContent = i;
-        btn.onclick = () => { logState.page = i; window.loadEmailLogs(); };
-        container.appendChild(btn);
-    }
-
-    // Next
-    const nextBtn = document.createElement('button');
-    nextBtn.className = `um-btn um-btn--ghost ${logState.page === totalPages ? 'disabled' : ''}`;
-    nextBtn.innerHTML = '<i class="fa fa-chevron-right"></i>';
-    nextBtn.onclick = () => { if (logState.page < totalPages) { logState.page++; window.loadEmailLogs(); } };
-    container.appendChild(nextBtn);
-}
+/* Phase 7 Component 2 (HOUSEKEEPING-NOTES.md "A1"): renderLogPagination is now a Pagination
+   instance. A1 is the copy-paste outlier — '...' glyph, #555 colour, no `>7` ellipsis guard,
+   no `um-btn--sm` — all reproduced via config. window.Pagination comes from
+   js/admin/components/pagination.js (loaded before this file). */
+var logPager = new Pagination({
+    mode: 'numbered',
+    container: '#logPagination',
+    getPage: function () { return logState.page; },
+    onGoto: function (n) { logState.page = n; window.loadEmailLogs(); },
+    ellipsis: 'gt6',            // A1: `i > 5 && i < totalPages` with no `totalPages > 7` guard
+    ellipsisGlyph: '...',
+    ellipsisColor: '#555',
+    ellipsisPadding: ''
+});
+function renderLogPagination(totalPages) { return logPager.render(totalPages); }
 
 window.toggleLogSort = function(col) {
     if (logState.sort === col) {
