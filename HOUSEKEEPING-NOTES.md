@@ -1196,10 +1196,66 @@ divergent), **the admin modal layer is already consolidated**, in two mechanisms
 **Recommendation: Component 3 is effectively a no-op.** There is no hand-rolled modal system to
 consolidate. The only thing that *could* be built is a cosmetic `AtlModal.show(id)/hide(id)` wrapper
 over the six Bootstrap one-liners — near-zero value, adds an indirection — so **skip it** unless you
-want the naming consistency. The real remaining Phase 7 components are **#4 Drawer** (substantial —
-`openAtlDrawer`/`closeAtlDrawer`/`atlActivateDrawerTab` + `uploadFileToServer`, woven through ~10
-Phase 6 sections, flagged as "Shared candidate" in nearly every section entry below) and **#5
-FilterBar**. Those are the ones worth a session each.
+want the naming consistency.
+
+## Component 4 — Drawer: step-1 inventory — a real consolidation (relocation, not rewrite)
+
+Unlike Modal, this one *is* worth doing — but it's a **Phase-6-style extraction of a cross-cutting
+helper**, not a new build. The shared drawer infrastructure got carried into whichever section file
+was extracted first that touched it, and `window.`-exposed; it now sits in the wrong files.
+
+### Where the shared code lives now
+
+| Piece | Current location | What it is |
+|---|---|---|
+| `atlDrawerStack` (`let`), `atlDrawerPush(id, closeFn)` → `{backdropZ, drawerZ}`, `atlDrawerPop(id)`, `atlDrawerFocusEntry(entry)` | **`js/admin/services.js` ~195–237** (module-local) | drawer **stacking** model — z-index bookkeeping + `document.body.style.overflow` scroll-lock + focus-into-topmost. Shared by **4 drawer types**: `.atl-drawer`, `.qb-drawer` (Quote Builder), `.svc-drawer` (Services form), the Booking-Recovery drawer. |
+| `window.openAtlDrawer(id)` / `window.closeAtlDrawer(id)` | **`js/admin/services.js` 239–254** | public API for the `.atl-drawer` type: fade `#{id}Backdrop`, toggle `.atl-drawer--open`, `.atl-drawer__body` scrollTop 0, dispatch `atl:drawerOpened` / `atl:drawerClosed` CustomEvents, focus. |
+| `$(document).on('keydown.atlDrawer', …)` — Esc closes the top of the stack | **`js/admin/services.js` 255–258** | global |
+| `window.atlActivateDrawerTab(drawerId, tabId)` + `$(document).on('click.atldrawertab', '.atl-drawer .dv-tab', …)` | **`js/admin/events.js` 500–511** | 2-tab (Edit / Change-History) `.dv-tab`/`.dv-panel` switcher, shared by Events + Gallery/Career/Home-Slider/Testimonials/Footprint. |
+| `uploadFileToServer(file, section)` | **`admin.html` 12296** (still in the anonymous mega-closure) | file-upload helper used by drawer forms — *separate concern*, not drawer mechanics. Leave for its own extraction; note only. |
+
+### Consumers
+
+**15 admin modules, ~92 references**: about (12), events (10), security-audit (8), gallery (7),
+home-slider (7), testimonials (7), career (6), footprint (6), social (6), inquiries (4), services (3),
+newsletter (2), user-management (2), contact (1), email-logs (1) — plus the deferred Bookings
+`dealViewDrawer` / `quoteDrawer` / Booking-Recovery drawer in `admin.html`.
+
+### Specialised siblings that REUSE the stack but keep their own open/close
+
+- `openQuoteDrawer` / `closeQuoteDrawer` — `js/admin/services.js` 260+, `.qb-drawer--open` /
+  `#qbDrawerBackdrop`. Bookings-adjacent (Quote Builder).
+- `svcDrawerOpen` / `svcDrawerClose` — `js/admin/services.js` 148–191, `.svc-drawer--open`.
+- Booking-Recovery drawer — `admin.html`, deferred.
+
+These **call** `atlDrawerPush`/`atlDrawerPop`/`atlDrawerFocusEntry`, which are currently
+module-local in `services.js`. Moving those three into `drawer.js` means exposing them
+(`window.atlDrawerPush` etc.) so `openQuoteDrawer`/`svcDrawerOpen` — which stay in `services.js` —
+can still reach them. **That is the one `window.X = X` addition** the extraction needs (same pattern
+as every Phase 6 section).
+
+### Proposed step-2 (extraction, not a rewrite)
+
+New `js/admin/components/drawer.js`, loaded **before** every section `<script src>` (it's called from
+all of them). Move into it, **byte-identical**:
+- from `services.js`: the `atlDrawerStack` / `atlDrawerPush` / `atlDrawerPop` / `atlDrawerFocusEntry`
+  block, `window.openAtlDrawer`, `window.closeAtlDrawer`, the `keydown.atlDrawer` handler — and add
+  `window.atlDrawerPush = atlDrawerPush` (+ `Pop`/`FocusEntry`) for the siblings left behind.
+- from `events.js`: `window.atlActivateDrawerTab` + its `click.atldrawertab` delegated binding.
+
+`services.js` keeps `svcDrawer*` + `openQuoteDrawer`/`closeQuoteDrawer` (now calling
+`window.atlDrawerPush` etc.); `events.js` keeps its event logic. **No call site changes** — every
+`window.openAtlDrawer(...)` / `atlActivateDrawerTab(...)` across the 15 modules is untouched.
+
+**Not consolidating** (housekeeping, not improvement): the ~10 per-section
+`$(document).on('click', '#xxxDrawerClose, #xxxDrawerBackdrop', …)` close handlers — they name
+section-specific IDs and some do extra teardown. A single delegated `.atl-drawer__close` /
+`.atl-drawer__backdrop` handler in `drawer.js` *could* replace them, but that's a behavioural change
+needing markup-class verification — flag for a human, don't do it under Phase 7.
+
+**Verification**: static (`node --check`, byte-identity of the moved block, `check_script_blocks.js`,
+tag balance) + a live open/close/tab-switch of one drawer in **each** of the 15 sections (the
+sandbox gap). Same terms as every Phase 6 extraction.
 
 ---
 
