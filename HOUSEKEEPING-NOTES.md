@@ -66,12 +66,126 @@ Bookings' pipeline/archive tables still in `admin.html` (part of the deferred Bo
 calls its own `renderX*Pagination` companion, and those also vary (numbered page buttons vs
 prev/next-only; `<button>` DOM-built vs string template).
 
-**Next session picks up at step 2**: propose the shared `DataTable` shape (suggested:
-`js/admin/components/data-table.js`, one new file; decide vanilla-core vs jQuery-core given the 5/7
-split), get confirmation, build it to satisfy every row of the table above through config, then
-migrate call sites one at a time (suggested order: start with the simplest server-side no-bulk one —
-#9 `loadEmailLogs` or #3 `loadAuditLogs` — commit, verify, repeat), leaving each original in place
-until its call site is migrated, then quarantining it.
+### Component 1 — DataTable: step-2 shape PROPOSAL (drafted, NOT confirmed, NOT built)
+
+This is a proposed config surface only — nothing written, no call site touched. It needs the user's
+sign-off (or revision) before `js/admin/components/data-table.js` is created. It is designed to
+reproduce every one of the 12 rows in the inventory table above through configuration, without
+standardising any difference away.
+
+**File / core**: one new file `js/admin/components/data-table.js`, exporting `window.DataTable`.
+**Vanilla core** (it only ever needs a tbody element + a plain rows array); jQuery call sites pass
+`$el[0]` or a selector string. Rationale: 5 of the table implementations are already vanilla, the
+component's own job (write rows into a tbody, toggle a few elements) needs nothing jQuery provides,
+and a vanilla core has no load-order dependency on `$`.
+
+**Shape** (`new DataTable(config)` → instance with `.reload()`, `.setSort(col)`, `.getSelectedIds()`,
+`.setSearch(str)`, `.setPage(n)`, `.destroy()`):
+
+```
+{
+  body:      Element | string,        // required — the <tbody> (or its selector)
+  table:     Element | string | null, // optional — the <table>, only for the "hide table while
+                                      //   loading, show after" idiom (#10). null = never touch it.
+  colspan:   number,                  // for the <tr><td colspan=N> empty/loading/error rows
+
+  // ---- data + paging: exactly one of `client` / `server` ----
+  client: {                           // #1 #2 #5 #6 — slice an in-memory array
+    rows:     () => Array,            //   returns the CURRENT full (already filtered/sorted) list
+    pageSize: number
+  },
+  server: {                           // #3 #4 #8 #9 #10 #11 — one fetch per render
+    fetch:    (params) => Promise<{ rows: Array, total: number, totalPages: number }>,
+    pageSize: number,
+    // `params` the component passes in: { page, limit, sort, order, search, ...extra }
+    extraParams: () => object | null  //   e.g. audit's table/date_from/date_to filters
+  },
+
+  // ---- columns ----
+  columns: [ {
+    key:      string,                 // used for sort param + icon target
+    sortable: boolean,                // default false
+    render:   (row, ctx) => string    // returns the <td>…</td>(s) for this column
+  } ],
+  // OR, escape hatch when a table builds the whole <tr> as one blob (#3 #4 #6 #11):
+  renderRow: (row, ctx) => string,    // returns the full "<tr …>…</tr>"; when set, `columns[].render`
+                                      //   is ignored but `columns[].key`/`sortable` still drive sort
+  rowAttrs:  (row) => object | null,  // { class, 'data-id', … } merged onto the auto-built <tr>
+
+  // ---- sort ----
+  sort: false | {
+    model:      'client' | 'server',
+    state:      { col: string, order: 'ASC'|'DESC' },   // the section's existing state object,
+                                                        //   mutated in place so existing code keeps working
+    iconTarget: (col) => string,      // element id for that column's sort icon — lets each table keep
+                                      //   its own convention (#subsort-*, #umlogsort-*, #sort-*, …)
+    clientCompare: (a, b, col, order) => number  // only for model:'client'
+  },
+
+  // ---- bulk-select ----
+  select: false | {
+    store: 'map' | 'live',            // 'map' (#1): component owns a {id:true} object, exposed via
+                                      //   .getSelectedIds(); 'live' (#10 #11): read :checked at call time
+    rowId:      (row) => string,
+    checkboxSelector: string,         // e.g. '.um-row-check'
+    onChange:   () => void            // section's updateBulkBar()/updateSelectAllState()
+  },
+
+  // ---- empty / loading / error — pick the idiom per table ----
+  states: {
+    idiom: 'row-text' | 'row-component' | 'sibling-el',
+    //   row-text      (#1 #2 #5–#7 #11): <tr><td colspan=N> + icon + message
+    //   row-component (#3 #4):           <tr><td colspan=N> wrapping .atl-empty-state (icon/display/sub)
+    //   sibling-el    (#10):             a separate element shown while `table` is hidden
+    siblingEl:  Element | string | null,  // required iff idiom === 'sibling-el'
+    empty:      { icon, message, altMessage },  // altMessage used when a search is active
+    loading:    { icon, message },
+    error:      { icon, message, subMessage }
+  },
+
+  // ---- misc ----
+  stats:     { el: Element|string, format: 'X to Y' | 'X-Y' } | null,  // "Showing … of … entries"
+  countEl:   Element | string | null,          // the "N users" / total badge, if separate
+  onRender:  (bodyEl, rows) => void,           // #1 — re-bind per-row addEventListener handlers here
+  pagination: (info) => void                   // called with { page, totalPages, total }; the section
+                                               //   keeps passing its own renderX*Pagination for now
+                                               //   (Pagination is Component 2, migrated separately)
+}
+```
+
+**How each inventory row maps** (spot-check that the shape covers them):
+- **#1 `renderUsersTable`**: `client` + `sort{model:'client', iconTarget: c => '#umsort-'+c}` +
+  `select{store:'map', …}` + `states.idiom:'row-text'` + `stats.format:'X to Y'` + `onRender` for the
+  edit/delete/checkbox rebinding + `renderRow` (its `<tr>` is one hand-built blob).
+- **#3 `loadAuditLogs`**: `server` (with `extraParams` for table/date filters) +
+  `sort{model:'server', iconTarget: audit's scheme}` + `select:false` + `states.idiom:'row-component'`
+  + `stats.format:'X-Y'` + `renderRow`.
+- **#9 `loadEmailLogs`**: `server` + `sort{model:'server'}` + `select:false` +
+  `states.idiom:'row-text'` + `renderRow` via `.map`. **Simplest — first migration target.**
+- **#10 `renderSubscribersList`**: `server` + `table` set + `select{store:'live'}` +
+  `states.idiom:'sibling-el', siblingEl:'#subscriberListEmpty'` + delegates row build to
+  `injectSubscribers` (pass that as `renderRow` operating on the whole page, or keep `injectSubscribers`
+  called from `onRender` — decide during migration).
+- **#5 `renderTransactions` / #6 `applyInvoiceFilter` / #7 `loadRemindersLog` / #8 overdue list /
+  #11 `loadCampaigns`**: `client` or `server` as noted, `sort:false`, `select:false` or `'live'`,
+  `states.idiom:'row-text'`, `renderRow` via `$tbody.append`-equivalent (component does the write).
+
+**Known frictions to resolve during the build, not now:**
+- The `iconTarget` conventions differ enough that Component 2 (Pagination) and the sort-icon updater
+  may want to merge into the DataTable rather than stay separate `updateSortIcons*` fns — revisit
+  when Component 2 is done.
+- #10 hides the whole `<table>` during load; every other table leaves it visible with a spinner row.
+  Both must stay supported (`table` config is opt-in) — do not standardise.
+- If any `render`/`renderRow` turns out to depend on a section-local helper (`fmtCurr`, `esc`,
+  `auditSectionLabel`, …), that helper stays in its section file and is closed over by the config —
+  the component never imports section logic.
+
+**Migration order (unchanged from the handoff note): #9 → #3 → #2 → #11 → #7 → #8 → #5 → #6 → #1 →
+#4 → #12**, roughly simplest-to-hardest, commit + parse-check + (where possible) live-check after
+each, original left in place until its call site is migrated then moved to `_quarantine/`.
+
+**Next session**: confirm or revise this shape, then create `js/admin/components/data-table.js` and
+begin at #9.
 
 ---
 
