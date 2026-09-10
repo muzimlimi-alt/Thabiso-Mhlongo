@@ -184,8 +184,36 @@ and a vanilla core has no load-order dependency on `$`.
 #4 → #12**, roughly simplest-to-hardest, commit + parse-check + (where possible) live-check after
 each, original left in place until its call site is migrated then moved to `_quarantine/`.
 
-**Next session**: confirm or revise this shape, then create `js/admin/components/data-table.js` and
-begin at #9.
+### Component 1 — DataTable: component file BUILT (no call site migrated)
+
+`js/admin/components/data-table.js` now exists — 339 lines, vanilla core, exposes `window.DataTable`,
+implements the proposed shape above. **It is referenced nowhere yet** — fully inert, changes zero
+runtime behaviour until a section's render function is rewritten to use it. `node --check` clean.
+
+Covered by the implementation: `client`/`server` paging paths (server returns a `Promise`),
+`renderRow` escape hatch + `columns[].render`, `rowAttrs`, all three `states.idiom` values
+(`row-text` / `row-component` / `sibling-el`, the last hiding `table` and driving `siblingEl`),
+bulk-select `store:'map'` (component-owned `{id:true}`, `getSelectedIds()`/`clearSelection()`) and
+`store:'live'` (reads `:checked` at call time), `setSort()` (toggles order, resets page, reloads) +
+`_updateSortIcons()` driven by `sort.iconTarget(key)` so each table keeps its own icon-id
+convention, `stats.format` `'X to Y'` vs `'X-Y'`, `countText`/`countEl`, `pagination(info)` callback
+(the section keeps calling its own `renderX*Pagination` for now — Pagination is Component 2), and
+`onRender(bodyEl, rows)` for the #1-style per-row `addEventListener` rebinding. `_wireSelection()`
+binds checkbox handlers after every paint.
+
+Not yet handled / decide during first migration: the "search is active" flag is currently only set
+via `setSearch()` — tables that read a search box directly (#1 `umTable.search`) will need to pass
+that through, likely by having `client.rows()` already reflect the filter and the section calling
+`setSearch()` on input. `_stateBody`'s `searchActive` plumbing is stubbed in the server path.
+
+**Next session**: migrate call site #9 (`js/admin/email-logs.js` `loadEmailLogs`, lines 19–101) —
+the simplest (server paging, server sort, no bulk-select, `row-text` states). Rewrite it as
+`new DataTable({...})`, load `<script src="js/admin/components/data-table.js">` in `admin.html`
+before `email-logs.js`, verify with the inline-script parse-checker + a live load of the Email Logs
+tab, commit, then move the old `renderLogPagination`/`updateSortIcons` only once Pagination
+(Component 2) is done — for now keep them, passed via the `pagination` callback. Then #3, #2, #11,
+#7, #8, #5, #6, #1, #4, #12 in that order, one commit each, originals to `_quarantine/` as their
+call sites migrate.
 
 ---
 
