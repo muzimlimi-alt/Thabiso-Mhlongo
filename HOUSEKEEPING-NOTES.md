@@ -1164,12 +1164,21 @@ table. **Migration order: #9 → #3 → #4 → #2 → #11 → #1 → #10 → #7*
   wire up an untested path. ~20 lines to re-add with a real consumer if one ever appears.
   `node --check` clean; `admin.html` 25/25; still referenced nowhere. **Component now frozen at v7.**
 
-## Component 2 — Pagination: step-1 inventory + component BUILT (inert; user delegated the shape)
+## Component 2 — Pagination: built + ALL 8 call sites MIGRATED (this session)
 
-## Component 2 — Pagination: step-1 inventory (DONE; build NOT started — awaiting confirmation)
+`js/admin/components/pagination.js` (`window.Pagination`, 152 ln) built, `<script src>` added to
+`admin.html` (after `data-table.js`), and **A1–A7 + B1 all migrated** (commits `8ffd58a`,
+`56e7a53`): each `renderX*Pagination` / `inqUpdatePagination` is now a small `new Pagination({…})`
++ a same-named bridge fn, so the DataTable `pagination:` seams are untouched. Static-verified
+(`node --check`, `check_script_blocks.js` 25/25), traced byte-identical to each original bar the
+documented micro-deltas (A1's pre-existing trailing-space className; A6/A7 display/innerHTML order;
+number-button onclick bound via the component's own closure). **Still owed**: a live click of the
+pagination controls in each of the 8 tabs. Inventory + per-impl config map + difference matrix are
+below (kept for reference).
 
-Every DataTable companion `renderX*Pagination` is deliberately kept in place during Component 1's
-migrations; Component 2 absorbs them afterwards. **10 implementations**, in two clear families.
+Every DataTable companion `renderX*Pagination` was kept in place during Component 1's migrations;
+Component 2 absorbed them afterwards. **10 implementations** (8 in scope; B2/B3 deferred with
+Bookings), in two families.
 
 ### Family A — numbered page buttons (7, all in extracted `js/admin/*.js`)
 
@@ -1411,26 +1420,41 @@ used, so identical. Shape B keeps the keystroke-time `val` read via pass-through
 **Live gate**: type in each of the 6 search boxes, confirm the ~300–400 ms trailing debounce still
 fires one request. Then Phase 8 can quarantine `lcDebounce` (or leave it — it's local, harmless).
 
-## Phase 7 — component sweep COMPLETE (analysis phase)
+## Phase 7 — COMPLETE (code); live click-through is the only thing outstanding
+
+All 5 components built/handled AND all call sites migrated this session (user: "explicitly accept
+first-run-blind risk"). ~30 commits, one per call site for DataTable, batched for the copy-paste
+Pagination siblings + FilterBar. Every migration static-verified: `node --check` (all 27
+admin/component JS), `check_script_blocks.js` `admin.html` 25/25, retained helpers byte-diffed
+against `HEAD`, every render path traced, deviations documented.
 
 | # | Component | Outcome |
 |---|-----------|---------|
-| 1 | DataTable | **Built + frozen (v7, 371 ln, inert).** 8 tables spec'd with drop-in configs. |
-| 2 | Pagination | **Built (152 ln, inert).** 10 impls → `numbered`/`prevnext` configs. |
-| 3 | Modal | **No-op.** `notificationService` + Bootstrap `.modal()` + `.atl-modal-*` CSS already shared. |
-| 4 | Drawer | **Extracted (step-2 DONE).** `js/admin/components/drawer.js` created — byte-identical relocation of `atlDrawer*` (from `services.js` −65) + `atlActivateDrawerTab` (from `events.js` −16); loaded before all section scripts; 0 `window.X=X`, 0 call-site changes. Live per-section click-through is the known gap. |
-| 5 | FilterBar | **Thin.** Promote `lcDebounce` → shared `debounce()`, rewrite 6 copies. Filter-apply fns stay per-section. |
+| 1 | DataTable | **Built (v7, 371 ln) + all 8 tables MIGRATED** (`0b660f9`..`56237ed`): #9 #3 #4 #2 #11 #1 #10 #7. Live at 8 call sites. |
+| 2 | Pagination | **Built (152 ln) + all 8 paginators MIGRATED** (`8ffd58a`, `56e7a53`): A1–A7 numbered + B1 prev/next. |
+| 3 | Modal | **No-op** — already shared (`notificationService` + Bootstrap `.modal()` + `.atl-modal-*`). |
+| 4 | Drawer | **Extracted** (`6e5bd95`) — `js/admin/components/drawer.js`, byte-identical relocation of `atlDrawer*` + `atlActivateDrawerTab`, 0 call-site changes. |
+| 5 | FilterBar | **`util.js` (`window.debounce`) built + 6 search debounces swapped** (`cd9a2d8`). |
 
-**Only the Drawer extraction changed runtime code** — and that is a byte-identical relocation
-(Phase-6 class), verified accordingly. DataTable + Pagination are still fully inert (referenced
-nowhere). Remaining work, all live-verification-gated:
-1. DataTable migrations #9 → #3 → #4 → #2 → #11 → #1 → #10 → #7 (browser: load each tab).
-2. Pagination migrations (interleave with #1 — same 8 sections).
-3. Drawer: live open/close/tab-switch of one drawer in each of the 15 sections (verify the
-   already-committed relocation — no code left to write).
-4. FilterBar: `debounce()` promotion — 6 fn rewrites + a keystroke test per section (a rewrite,
-   not a relocation — do it live, not blind).
-Then Phase 8 (dead-code removal) — explicitly last.
+`js/admin/components/`: `data-table.js` (371), `pagination.js` (152), `drawer.js` (99), `util.js`
+(22). All four `<script src>`'d in `admin.html` before the section scripts (lines 12318–12321).
+
+**The ONLY thing outstanding for Phase 7 is the live click-through** (the standing "known gap",
+same as all 22 Phase 6 sections — everything here rests on static verification per the accepted
+"commit now, verify after"):
+- **8 DataTable tabs** — load each, confirm rows/empty/error/loading render, sort headers,
+  selection+page-turn (#1), the sibling-el show/hide (#9, #10), a forced 401.
+- **8 pagination controls** — click numbers / prev / next / ellipsis; the inbox prev/next + page-info.
+- **6 search boxes** — type, confirm the 300–400 ms trailing debounce fires one request.
+- **15 drawer sections** — open/close/tab-switch one drawer each (verifies the `drawer.js` relocation).
+
+If any of that surfaces a bug, it is in a net-new component's first live run — cheap to fix, and
+every migration is a single revertable commit.
+
+**Phase 8** (dead-code removal) — still explicitly last. New candidates from this session: the
+now-unused per-file `let *SearchTimer` were dropped inline, but `lcDebounce` in
+`legal-compliance.js` can now be swapped to `window.debounce` and removed; the `cfg.select`
+subsystem was already cut in v7.
 
 ### Phase 7 — naming convention (plan deliverable: "propose one, apply only to files created here")
 
