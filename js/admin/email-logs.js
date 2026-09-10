@@ -14,12 +14,11 @@ let logState = {
     sort: 'sent_at',
     order: 'DESC'
 };
-let logSearchTimer;
 
 /* Phase 7 Component 1 (HOUSEKEEPING-NOTES.md "#9"): loadEmailLogs is now a DataTable instance.
-   logState / logSearchTimer / renderLogPagination / toggleLogSort / updateSortIcons /
-   applyLogFilters / debounceLogSearch below are UNCHANGED (Pagination + sort-icons are later
-   Phase 7 components). window.DataTable comes from js/admin/components/data-table.js, loaded
+   logState / toggleLogSort / updateSortIcons / applyLogFilters below are UNCHANGED; renderLogPagination
+   is now a Pagination instance ("A1") and debounceLogSearch uses the shared debounce() ("FilterBar").
+   window.DataTable comes from js/admin/components/data-table.js, loaded
    before this file in admin.html. Accepted micro-deltas + the still-owed live-load checklist
    are in HOUSEKEEPING-NOTES.md's "#9" section. */
 const emailLogsTable = new DataTable({
@@ -138,11 +137,8 @@ window.applyLogFilters = function() {
     loadEmailLogs();
 }
 
-window.debounceLogSearch = function() {
-    clearTimeout(logSearchTimer);
-    logSearchTimer = setTimeout(() => {
-        logState.search = qs('#logSearch').value;
-        logState.page = 1;
-        loadEmailLogs();
-    }, 400);
-}
+window.debounceLogSearch = debounce(function () {
+    logState.search = qs('#logSearch').value;
+    logState.page = 1;
+    loadEmailLogs();
+}, 400);

@@ -28,7 +28,6 @@ let currentInqFilter = 'all';
 let currentInqId = null;
 let inqPage = 1;
 let inqCounts = { all: 0, unread: 0, read: 0, replied: 0, archived: 0, mine: 0 };
-let inqSearchDebounce = null;
 let inqAssignableAdmins = null; // cached list of {id, full_name, username, role}
 
 // Fetches (once per page load) the active-admin roster for the "Assigned to" select.
@@ -1000,10 +999,7 @@ $(document).on('click', '.inq-folder', function(e) {
 });
 
 // Search (debounced) + Sort — both re-fetch server-side from page 1
-$('#inqSearchInput').on('input', function() {
-    clearTimeout(inqSearchDebounce);
-    inqSearchDebounce = setTimeout(function() { loadInquiries(true); }, 300);
-});
+$('#inqSearchInput').on('input', debounce(function () { loadInquiries(true); }, 300));
 $('#inqSortSelect').on('change', function() { loadInquiries(true); });
 
 // Pagination

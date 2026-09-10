@@ -27,7 +27,6 @@
 // --- Audit Log Logic ---
 let auditState = { page: 1, limit: 50, search: '', sort: 'change_timestamp', order: 'DESC' };
 window.auditState = auditState;
-let auditSearchTimer;
 
 // Friendly Section labels for audit_log.table_name. Previously this was a broken 3-bucket guess
 // (bookings -> "Bookings", users -> "Security" — but the actual table is "admins", so that branch
@@ -140,8 +139,9 @@ window.loadChangeHistoryCard = async function(containerId, tableName, recordId) 
 };
 
 /* Phase 7 Component 1 (HOUSEKEEPING-NOTES.md "#3"): loadAuditLogs is now a DataTable instance.
-   auditState (+ window.auditState) / auditSearchTimer / renderAuditPagination / toggleAuditSort /
-   updateAuditSortIcons / debounceAuditSearch and every audit helper above are UNCHANGED.
+   auditState (+ window.auditState) / toggleAuditSort / updateAuditSortIcons and every audit helper
+   above are UNCHANGED; renderAuditPagination is now a Pagination instance ("A2"), debounceAuditSearch
+   uses the shared debounce() ("FilterBar").
    window.DataTable comes from js/admin/components/data-table.js (loaded before this file). */
 const auditLogsTable = new DataTable({
     body:  '#auditLogsBody',
@@ -232,15 +232,11 @@ function updateAuditSortIcons() {
     }
 }
 
-window.debounceAuditSearch = function() {
-    clearTimeout(auditSearchTimer);
-    auditSearchTimer = setTimeout(() => { auditState.search = (qs('#auditSearch') || {}).value || ''; auditState.page = 1; loadAuditLogs(); }, 400);
-};
+window.debounceAuditSearch = debounce(function () { auditState.search = (qs('#auditSearch') || {}).value || ''; auditState.page = 1; loadAuditLogs(); }, 400);
 
 // --- POPIA Data Erasure Request Management ---
 let popiaState = { page: 1, limit: 20, search: '', status: '', source: '', dateFrom: '', dateTo: '' };
 window.popiaState = popiaState;
-let popiaSearchTimer;
 
 const POPIA_REASON_LABELS = {
     no_longer_a_client: 'No longer a client',
@@ -275,9 +271,10 @@ function popiaQueryParams() {
 }
 
 /* Phase 7 Component 1 (HOUSEKEEPING-NOTES.md "#4"): loadPopiaRequests is now a DataTable instance.
-   popiaState (+ window.popiaState) / popiaSearchTimer / popiaQueryParams / renderPopiaRow /
-   renderPopiaPagination / debouncePopiaSearch / updatePopiaPendingBadge and the drawer fns are
-   UNCHANGED. window.DataTable comes from js/admin/components/data-table.js (loaded before this file). */
+   popiaState (+ window.popiaState) / popiaQueryParams / renderPopiaRow / updatePopiaPendingBadge and
+   the drawer fns are UNCHANGED; renderPopiaPagination is now a Pagination instance ("A3"),
+   debouncePopiaSearch uses the shared debounce() ("FilterBar").
+   window.DataTable comes from js/admin/components/data-table.js (loaded before this file). */
 const popiaRequestsTable = new DataTable({
     body:  '#popiaRequestsBody',
     table: null,
@@ -350,10 +347,7 @@ var popiaPager = new Pagination({
 });
 function renderPopiaPagination(totalPages) { return popiaPager.render(totalPages); }
 
-window.debouncePopiaSearch = function() {
-    clearTimeout(popiaSearchTimer);
-    popiaSearchTimer = setTimeout(function() { popiaState.search = (qs('#popiaSearch') || {}).value || ''; popiaState.page = 1; loadPopiaRequests(); }, 400);
-};
+window.debouncePopiaSearch = debounce(function () { popiaState.search = (qs('#popiaSearch') || {}).value || ''; popiaState.page = 1; loadPopiaRequests(); }, 400);
 
 async function updatePopiaPendingBadge() {
     try {

@@ -192,15 +192,8 @@ function injectSubscribers(dataArray) {
 }
 
 // Subscriber Search — server-side (matches email or first name), debounced
-let subscriberSearchDebounce = null;
-$('#subscriberSearch').on('input', function() {
-    var val = $(this).val().trim();
-    clearTimeout(subscriberSearchDebounce);
-    subscriberSearchDebounce = setTimeout(function() {
-        subscribersSearchTerm = val;
-        renderSubscribersList(true);
-    }, 300);
-});
+var _subSearch = debounce(function (val) { subscribersSearchTerm = val; renderSubscribersList(true); }, 300);
+$('#subscriberSearch').on('input', function () { _subSearch($(this).val().trim()); });
 
 // Toggle select all
 $('#selectAllSubscribers').on('change', function() {
@@ -1218,15 +1211,8 @@ function renderCampaignsPaginationNumbered(totalPages) { return campaignsPager.r
 
 // Search is server-side (matches the backend's `search` param on the unified endpoint),
 // debounced — previously this only filtered rows already on the current page.
-let campaignsSearchDebounce = null;
-$('#campaignsSearchInput').on('input', function() {
-    var val = $(this).val().trim();
-    clearTimeout(campaignsSearchDebounce);
-    campaignsSearchDebounce = setTimeout(function() {
-        campaignsSearch = val;
-        loadCampaigns(true);
-    }, 300);
-});
+var _campSearch = debounce(function (val) { campaignsSearch = val; loadCampaigns(true); }, 300);
+$('#campaignsSearchInput').on('input', function () { _campSearch($(this).val().trim()); });
 $('#campaignsSortSelect').on('change', function() {
     campaignsSort = $(this).val();
     loadCampaigns(true);
