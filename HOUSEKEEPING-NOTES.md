@@ -809,6 +809,18 @@ clicks).
 
 ### Component 1 — DataTable: #1 `renderUsersTable` dry run (the big one — client-paged, client-sort, persistent selection, per-row rebind) → v5
 
+**MIGRATED (this session, `<commit>`).** `js/admin/user-management.js` — `renderUsersTable` (inside
+the IIFE) is now `var usersTable = new DataTable({…})` + `function renderUsersTable() { <clamp
+umTable.page> return usersTable.setPage(umTable.page); }`. `renderRow` body = original map-callback
+lines 622–683 **spliced verbatim** (same 12-space indent). `onRender(bodyEl)` = original lines
+689–758 re-indented +4 with the six `qsa('.um-…', body)` → `qsa('.um-…', bodyEl)`. Lines 1–594 and
+`renderUserPagination`→EOF **byte-identical to HEAD** (verified). `node --check` + `admin.html` 25/25.
+Selection persistence unchanged: `renderRow` reads `umTable.selected` directly, `.um-row-check`
+handler (in `onRender`) mutates it — no component selection subsystem. Bridge clamps `umTable.page`
+before `setPage` (reproduces original lines 606–607) so `renderUserPagination` sees the clamp.
+First-run-blind accepted. Still owed: live load of the Manage Users panel (8-col sort, search,
+select+page-turn persistence, inline role/status writes, resend spinner, edit/delete drawers).
+
 Read `js/admin/user-management.js:563–815`. This is the widest table (8 cols, 6 sets of per-row
 handlers, a selection map that persists across client page turns) and the acid test. It fits — with
 **v5** (three small additive changes, all committed inert):

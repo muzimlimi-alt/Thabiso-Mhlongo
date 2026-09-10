@@ -593,32 +593,30 @@
         return rows;
     }
 
-    function renderUsersTable() {
-        var body    = qs('#umUsersTableBody');
-        var countEl = qs('#umUserCount');
-        var statsEl = qs('#umUserStats');
-        if (!body) return;
-
-        var view  = getUsersView();
-        var total = view.length;
-        if (countEl) countEl.textContent = allUsersCache.length + ' user' + (allUsersCache.length === 1 ? '' : 's');
-
-        var totalPages = Math.max(1, Math.ceil(total / umTable.limit));
-        if (umTable.page > totalPages) umTable.page = totalPages;
-        var start    = (umTable.page - 1) * umTable.limit;
-        var pageRows = view.slice(start, start + umTable.limit);
-
-        if (!total) {
-            body.innerHTML = '<tr><td colspan="8" class="text-center" style="padding:48px; border:none; color:var(--atl-muted);"><i class="fa-solid fa-users-slash" style="font-size:28px; opacity:0.4; display:block; margin-bottom:10px;"></i>' + (umTable.search ? 'No users match your search.' : 'No admin accounts found.') + '</td></tr>';
-            if (statsEl) statsEl.textContent = 'Showing 0 to 0 of 0 entries';
-            renderUserPagination(1);
-            updateSortIconsUsers();
-            updateSelectAllState();
-            updateBulkBar();
-            return;
-        }
-
-        body.innerHTML = pageRows.map(function(u) {
+    /* Phase 7 Component 1 (HOUSEKEEPING-NOTES.md "#1"): renderUsersTable is now a DataTable
+       instance. umTable / getUsersView / allUsersCache / renderUserPagination / toggleUserSort /
+       updateSortIconsUsers / updateSelectAllState / updateBulkBar and the row helpers are
+       UNCHANGED. Selection stays in umTable.selected (a closure map that must survive client page
+       turns): renderRow reads it directly, the .um-row-check change handler (in onRender) mutates
+       it — the component has no selection subsystem. window.DataTable comes from
+       js/admin/components/data-table.js (loaded before this file). */
+    var usersTable = new DataTable({
+        body:    '#umUsersTableBody',
+        table:   null,
+        countEl: '#umUserCount',
+        countText: function () { return allUsersCache.length + ' user' + (allUsersCache.length === 1 ? '' : 's'); },
+        stats: { el: '#umUserStats', format: ' to ' },
+        colspan: 8,
+        states: {
+            searchActive: function () { return !!umTable.search; },
+            empty: { idiom: 'row-text', icon: 'fa-solid fa-users-slash', padding: '48px', iconFontSize: '28px', iconOpacity: 0.4,
+                     message: 'No admin accounts found.', altMessage: 'No users match your search.' }
+        },
+        client: {
+            pageSize: 10,
+            rows: function () { return getUsersView(); }
+        },
+        renderRow: function (u) {
             var isSelf      = (currentUserId && parseInt(u.id) === parseInt(currentUserId));
             var role        = u.role || 'manager';
             var roleLabel   = role.charAt(0).toUpperCase() + role.slice(1);
@@ -681,81 +679,88 @@
                     ) +
                 '</td>' +
             '</tr>';
-        }).join('');
+        },
+        onRender: function (bodyEl) {
+            updateSortIconsUsers();
+            updateSelectAllState();
+            updateBulkBar();
 
-        if (statsEl) statsEl.textContent = 'Showing ' + (start + 1) + ' to ' + (start + pageRows.length) + ' of ' + total + ' entries';
+            /* Row edit */
+            qsa('.um-edit-btn', bodyEl).forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var id = parseInt(this.dataset.id, 10);
+                    var user = allUsersCache.filter(function(x) { return parseInt(x.id, 10) === id; })[0];
+                    if (user) umOpenDrawer(user);
+                });
+            });
+            /* Row delete */
+            qsa('.um-del-btn', bodyEl).forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var id = this.dataset.id;
+                    var name = this.dataset.name || ('user #' + id);
+                    deleteUsers([id], 'Delete ' + name + '? This cannot be undone.');
+                });
+            });
+            /* Row checkboxes */
+            qsa('.um-row-check', bodyEl).forEach(function(cb) {
+                cb.addEventListener('change', function() {
+                    if (this.checked) umTable.selected[this.dataset.id] = true;
+                    else delete umTable.selected[this.dataset.id];
+                    updateSelectAllState();
+                    updateBulkBar();
+                });
+            });
+            /* Inline role change */
+            qsa('.um-role-change', bodyEl).forEach(function(sel) {
+                sel.addEventListener('change', function() {
+                    umUpdateUser(this.dataset.id, { role: this.value }, 'Role updated.');
+                });
+            });
+            /* Inline status toggle (activate / deactivate) */
+            qsa('.um-status-toggle', bodyEl).forEach(function(tg) {
+                tg.addEventListener('change', function() {
+                    var active = this.checked;
+                    umUpdateUser(this.dataset.id, { is_active: active ? 1 : 0 }, active ? 'User activated.' : 'User deactivated.');
+                });
+            });
+            /* Resend invitation (pending users) */
+            qsa('.um-resend-btn', bodyEl).forEach(function(btn) {
+                btn.addEventListener('click', function() {
+                    var id = this.dataset.id;
+                    var name = this.dataset.name || ('user #' + id);
+                    var icon = this.querySelector('i');
+                    var self = this;
+                    self.disabled = true;
+                    if (icon) icon.className = 'fa-solid fa-circle-notch fa-spin';
+                    apiCall('/api/admin/users/' + id + '/resend-invite', 'POST', {})
+                        .then(function(data) {
+                            if (data && data.success && data.email_sent) {
+                                if (window.notificationService) window.notificationService.showSuccess('Invitation re-sent', 'A new set-password link was emailed to ' + name + '.');
+                            } else {
+                                if (window.notificationService) window.notificationService.showInfo('Could not send', 'The invitation email could not be sent. Please try again.');
+                            }
+                        })
+                        .catch(function(err) {
+                            if (!err || err.message !== 'Session expired. Please log in.') {
+                                if (window.notificationService) window.notificationService.showError('Failed to resend the invitation. Please try again.');
+                            }
+                        })
+                        .finally(function() {
+                            self.disabled = false;
+                            if (icon) icon.className = 'fa-solid fa-paper-plane';
+                        });
+                });
+            });
+        },
+        pagination: function (info) { renderUserPagination(info.totalPages); }
+    });
 
-        renderUserPagination(totalPages);
-        updateSortIconsUsers();
-        updateSelectAllState();
-        updateBulkBar();
-
-        /* Row edit */
-        qsa('.um-edit-btn', body).forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var id = parseInt(this.dataset.id, 10);
-                var user = allUsersCache.filter(function(x) { return parseInt(x.id, 10) === id; })[0];
-                if (user) umOpenDrawer(user);
-            });
-        });
-        /* Row delete */
-        qsa('.um-del-btn', body).forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var id = this.dataset.id;
-                var name = this.dataset.name || ('user #' + id);
-                deleteUsers([id], 'Delete ' + name + '? This cannot be undone.');
-            });
-        });
-        /* Row checkboxes */
-        qsa('.um-row-check', body).forEach(function(cb) {
-            cb.addEventListener('change', function() {
-                if (this.checked) umTable.selected[this.dataset.id] = true;
-                else delete umTable.selected[this.dataset.id];
-                updateSelectAllState();
-                updateBulkBar();
-            });
-        });
-        /* Inline role change */
-        qsa('.um-role-change', body).forEach(function(sel) {
-            sel.addEventListener('change', function() {
-                umUpdateUser(this.dataset.id, { role: this.value }, 'Role updated.');
-            });
-        });
-        /* Inline status toggle (activate / deactivate) */
-        qsa('.um-status-toggle', body).forEach(function(tg) {
-            tg.addEventListener('change', function() {
-                var active = this.checked;
-                umUpdateUser(this.dataset.id, { is_active: active ? 1 : 0 }, active ? 'User activated.' : 'User deactivated.');
-            });
-        });
-        /* Resend invitation (pending users) */
-        qsa('.um-resend-btn', body).forEach(function(btn) {
-            btn.addEventListener('click', function() {
-                var id = this.dataset.id;
-                var name = this.dataset.name || ('user #' + id);
-                var icon = this.querySelector('i');
-                var self = this;
-                self.disabled = true;
-                if (icon) icon.className = 'fa-solid fa-circle-notch fa-spin';
-                apiCall('/api/admin/users/' + id + '/resend-invite', 'POST', {})
-                    .then(function(data) {
-                        if (data && data.success && data.email_sent) {
-                            if (window.notificationService) window.notificationService.showSuccess('Invitation re-sent', 'A new set-password link was emailed to ' + name + '.');
-                        } else {
-                            if (window.notificationService) window.notificationService.showInfo('Could not send', 'The invitation email could not be sent. Please try again.');
-                        }
-                    })
-                    .catch(function(err) {
-                        if (!err || err.message !== 'Session expired. Please log in.') {
-                            if (window.notificationService) window.notificationService.showError('Failed to resend the invitation. Please try again.');
-                        }
-                    })
-                    .finally(function() {
-                        self.disabled = false;
-                        if (icon) icon.className = 'fa-solid fa-paper-plane';
-                    });
-            });
-        });
+    function renderUsersTable() {
+        // clamp umTable.page from the current view first (was renderUsersTable's own lines
+        // 606-607) so renderUserPagination, which reads umTable.page directly, sees the clamp.
+        var _tp = Math.max(1, Math.ceil(getUsersView().length / umTable.limit));
+        if (umTable.page > _tp) umTable.page = _tp;
+        return usersTable.setPage(umTable.page);
     }
 
     function renderUserPagination(totalPages) {
