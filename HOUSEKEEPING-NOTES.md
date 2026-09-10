@@ -6,6 +6,75 @@ optional reading before starting a new phase.
 
 ---
 
+## Phase 7 — Shared components & naming
+
+**Status: not started. Only the DataTable step-1 inventory below has been done — no shared component
+has been written, no call site migrated.** Phase 6 is complete except for the deferred Bookings
+section (see the Phase 6 section's "Section 21: Bookings — DEFERRED" entry). Phase 7's plan text
+(`housekeeping-agent-prompts.md`) says to do the five components — DataTable, Pagination, Modal,
+Drawer, FilterBar — one per session, and for each: (1) inventory every implementation with file/line
+ranges and differences, **wait for confirmation**, (2) build a shared version that reproduces every
+variant through configuration (do not standardise differences away; a difference that looks like a
+bug is kept and noted under "Deferred fixes"), (3) migrate call sites one at a time, committing after
+each, (4) quarantine the old implementation once every call site is migrated.
+
+### Component 1 — DataTable: step-1 inventory (DONE; build NOT started)
+
+**12 table-rendering implementations across 7 of the extracted `js/admin/*.js` files**, plus
+Bookings' pipeline/archive tables still in `admin.html` (part of the deferred Bookings section).
+
+| # | Implementation | Exact range | Companion pagination fn |
+|---|---|---|---|
+| 1 | `renderUsersTable` | `js/admin/user-management.js:596–760` | `renderUserPagination` (761) |
+| 2 | `renderLogsTable` (Login Activity panel) | `js/admin/user-management.js:1106–1160` | `renderLogPagination` (1161) |
+| 3 | `loadAuditLogs` (render body ≈160–195) | `js/admin/security-audit.js:142–202` | `renderAuditPagination` (203) |
+| 4 | `loadPopiaRequests` render + `renderPopiaRow` | `js/admin/security-audit.js:292–347` | `renderPopiaPagination` (348) |
+| 5 | `renderTransactions` | `js/admin/financials.js:182–256` | — |
+| 6 | `renderInvoices` (+ filter logic to ≈330) | `js/admin/financials.js:257–≈330` | — |
+| 7 | `loadRemindersLog` render | `js/admin/financials.js:262–≈300` | — |
+| 8 | Finance Analytics overdue list | `js/admin/financials.js:≈528–615` (in `loadFinAnalytics`) | — |
+| 9 | `loadEmailLogs` render | `js/admin/email-logs.js:19–101` | `renderLogPagination` (102) |
+| 10 | `renderSubscribersList` + `injectSubscribers` | `js/admin/newsletter.js:31–86` + `150–≈208` | `renderSubscribersPaginationNumbered` (88) |
+| 11 | `loadCampaigns` render | `js/admin/newsletter.js:1157–1208` | `renderCampaignsPaginationNumbered` (1209) |
+| 12 | `renderDirectEmailsList` | `js/admin/inquiries.js:180–226` | `inqUpdatePagination` (227) |
+| — | `renderInqList` (`js/admin/inquiries.js:240+`), `renderEventsList` (`js/admin/events.js:38+`) | list-item / card-grid, **not `<table>`** — out of DataTable scope; belong with a future card/list component |
+
+**Axes a shared `DataTable` must be configurable across (do NOT standardise these away):**
+- **Paging model**: client (slice a full in-memory cache — #1, #2, #5, #6, and #12 partly) vs
+  server (a fresh `URLSearchParams` fetch per render — #3, #4, #8, #9, #10, #11). Roughly even split.
+- **Sort model**: client-sort (#1, #2) vs server-sort (#3, #4, #9, #10) vs none (#5–#8, #11, #12).
+  Each sort-capable table has its own `updateSortIcons*` companion keyed to a *different* element-ID
+  convention (`#subsort-*`, `#umlogsort-*`, `#sort-*`, and audit's own scheme).
+- **Bulk-select**: present in 4 (users, subscribers, campaigns, and events which is out of scope
+  anyway), absent in the rest — and the 4 differ: selection held as a `{id: true}` map (users) vs
+  read live from `:checked` at action time (subscribers/campaigns).
+- **DOM idiom**: vanilla (`qs` + `body.innerHTML` / `createElement`) in #1–#4, #9; jQuery
+  (`$body.html/append`, `$table.hide()/show()`) in #5–#8, #10, #11; #12 mixed.
+- **Empty / loading / error rendering** — three distinct idioms: (a) a plain-text
+  `<tr><td colspan=N>` with an icon (#1, #2, #5–#7, #11); (b) a `<tr><td colspan=N>` wrapping the
+  `.atl-empty-state` component with icon + display line + sub line (#3, #4); (c) a **separate
+  sibling element** (`#subscriberListEmpty`) shown while the `<table>` itself is `.hide()`n (#10),
+  fed by a `subscribersEmptyState(iconClass, msg)` helper.
+- **Row build**: `.map().join('')` string concat (#1, #2, #9) vs `forEach` + `createElement('tr')` +
+  `tr.innerHTML` (#3) vs a dedicated `renderXRow(r)` helper (#4) vs `$tbody.append(\`<tr>…\`)` per
+  row (#6, #11) vs delegated to a separate `injectSubscribers()` (#10).
+- **Post-render**: some re-bind per-row `addEventListener` handlers after every render (#1 — edit/
+  delete/checkbox); others rely on `$(document).on(...)` delegation set up once.
+- **Stats line**: `"Showing X to Y of Z entries"` (#1) vs `"Showing X-Y of Z entries"` (#3) vs none.
+
+**Pagination is deliberately Phase 7's Component 2, separate from DataTable** — each table above
+calls its own `renderX*Pagination` companion, and those also vary (numbered page buttons vs
+prev/next-only; `<button>` DOM-built vs string template).
+
+**Next session picks up at step 2**: propose the shared `DataTable` shape (suggested:
+`js/admin/components/data-table.js`, one new file; decide vanilla-core vs jQuery-core given the 5/7
+split), get confirmation, build it to satisfy every row of the table above through config, then
+migrate call sites one at a time (suggested order: start with the simplest server-side no-bulk one —
+#9 `loadEmailLogs` or #3 `loadAuditLogs` — commit, verify, repeat), leaving each original in place
+until its call site is migrated, then quarantining it.
+
+---
+
 ## Phase 6 — `admin.html` decomposition
 
 In progress. One section per session, per the plan. `docs-internal/admin-html-map.md` (generated
