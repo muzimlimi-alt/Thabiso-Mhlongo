@@ -2614,12 +2614,56 @@ subscribers, import/export a CSV, save Birthday Automation settings and send a t
 campaign with a merge field and an attachment, save a draft, schedule a send, and view a delivery
 log.
 
-### Section 21: Bookings (`bookingsAdmin`) — DEFERRED, treated as its own dedicated future session
+### Section 21: Bookings (`bookingsAdmin`) — IN PROGRESS (sub-batched; user re-authorised, first-run-blind)
 
-Reconnaissance only this pass — **no extraction attempted, nothing in `admin.html` touched for this
-section**. Presented to the user mid-investigation once the true scale became clear; the user
-explicitly chose to defer this to its own dedicated session rather than attempt it now. Recording
-the findings here so that future session doesn't have to rediscover them from scratch.
+**Sub-batch 1 — Contract Management: DONE (`<commit>`).** `admin.html` big Bookings inline `<script>`
+lines **15865–16101** (237 lines — the `// ─── Contract Management ───` labelled sub-block:
+`renderContractStatus` status-card renderer + the send / remind / open-drawer / upload / mark-signed /
+download handlers, all `$(document).off().on()` / `$('#id').off().on()` idempotent bindings, plus two
+IIFEs for drag&drop and a reset-on-close `MutationObserver`) → **`js/admin/bookings-contracts.js`**,
+byte-identical. `<script src>` inserted right after the big Bookings `<script>` closes (before
+`newsletter.js`).
+
+- **The big Bookings `<script>` (admin.html 13193–17726) is NOT IIFE-wrapped** — a classic inline
+  script with top-level declarations (like `email-logs.js` / `financials.js` were). So **no
+  reunite-and-relocate needed** — the block was removed cleanly and the surrounding statements
+  (`});` of the venue-edit handler → `// EXPENSE TRACKING` header) join fine. `check_script_blocks.js`
+  confirms the shortened block still parses (25/25).
+- **`renderContractStatus`** stays a bare `function` declaration (implicit global). Its **only**
+  external caller is `admin.html:~11515` (deal-view "Send Quote" success path, `typeof
+  renderContractStatus === 'function'` guarded, inside an `async` handler after `await`) — reached
+  fine since `bookings-contracts.js` loads well before any handler fires. No `window.X = X` needed.
+- **No cross-reference to core Bookings** (pipeline / deal-view / payment / calendar-sync / finance):
+  the block only touches `#contract*` DOM, `fetch('/api/admin/bookings/:id/contract…')`,
+  `openAtlDrawer`, `notificationService`, and `window.loadContractForBooking` (which is defined
+  **nowhere** — the `typeof` guard always fails and the inline fallback always runs; pre-existing,
+  moved verbatim). This confirmed the recon's guess that Contract Management is the most
+  self-contained sub-block.
+- **Deferred fixes (pre-existing, preserved not fixed)**: the two IIFEs
+  (`(function(){ const zone = document.getElementById('contractDropZone'); if (!zone) return; … })()`
+  and the reset-on-close `MutationObserver` one) run at load time, which is **before** the
+  `#contractDrawer` / `#contractDropZone` markup (admin.html ~19481) is parsed — so both hit their
+  `if (!el) return` guard and **the drawer's drag&drop upload and reset-on-close are dead code**.
+  The `<script src>` was placed *before* that markup on purpose so this stays true; moving it after
+  the markup would activate both (a behaviour change, not housekeeping). Also: the block's opening
+  comment header is duplicated on one line (`// ─── Contract Management ───    // ─── Contract Management ───`)
+  — copy-paste artifact, moved verbatim.
+- **NOT in this sub-batch** (Contract-adjacent, live elsewhere): `renderInlineContractPanel` /
+  `buildContractEditorPanel` (admin.html ~11297–11515 — the deal-view *inline* contract panel, a
+  distinct piece); `bkContractFinalised` / `bkUnsignedContractNote` predicate helpers
+  (admin.html ~15341); the `#contractDrawer` markup itself (stays in `admin.html`).
+
+**Remaining Bookings sub-batches** (per the recon's suggested order): the
+Expense/Bank-Statement/Reconciliation module (`// ─── EXPENSE TRACKING ───` onward, ~admin.html
+15866+) → Quote Builder → core pipeline/archive/deal-view/Calendar-sync + the two satellite pieces
+(Manual Booking modal, Payment Milestone Schedules). Each its own sub-batch, verified fresh.
+
+---
+
+Reconnaissance from the earlier pass (kept — still the map for the remaining sub-batches):
+**no extraction was attempted then, nothing in `admin.html` was touched.** Presented to the user
+mid-investigation once the true scale became clear; the user chose to defer to a dedicated session,
+then (this session) re-authorised starting it sub-batched.
 
 **What was found**: Bookings' "main block" — `admin.html:13214-17780` as of this commit (~3,200 lines
 of actual content once Newsletter's already-extracted middle section is subtracted) — is far larger
