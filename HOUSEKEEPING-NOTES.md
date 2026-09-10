@@ -1065,6 +1065,72 @@ Still-open user decisions: (a) confirm dropping **#5 / #6 / #8** (I recommend ye
 paging/sort/stats); **#12** is an inventory correction, not really a choice (it's not a table);
 (c) keep or cut the unused `cfg.select` subsystem (~45 lines) — suggest **cut in Phase 8**.
 
+## Component 2 — Pagination: step-1 inventory (DONE; build NOT started — awaiting confirmation)
+
+Every DataTable companion `renderX*Pagination` is deliberately kept in place during Component 1's
+migrations; Component 2 absorbs them afterwards. **10 implementations**, in two clear families.
+
+### Family A — numbered page buttons (7, all in extracted `js/admin/*.js`)
+
+| # | Fn | Range | Container | page var → reload |
+|---|----|-------|-----------|-------------------|
+| A1 | `renderLogPagination` | `js/admin/email-logs.js:102–140` | `qs('#logPagination')` | `logState.page` → `window.loadEmailLogs()` |
+| A2 | `renderAuditPagination` | `js/admin/security-audit.js:203–229` | `qs('#auditPagination')` | `auditState.page` → `loadAuditLogs()` |
+| A3 | `renderPopiaPagination` | `js/admin/security-audit.js:348–374` | `qs('#popiaPagination')` | `popiaState.page` → `loadPopiaRequests()` |
+| A4 | `renderLogPagination` *(closure-local — distinct from A1, same name)* | `js/admin/user-management.js:1161–1188` | `qs('#umLogsPagination')` **‖ fallback** `qs('#umLogsFooter .um-pagination-btns')` | `logTableState.page` → `renderLogsTable()` |
+| A5 | `renderUserPagination` *(closure-local)* | `js/admin/user-management.js:761–790` | `qs('#umUserPagination')` | `umTable.page` → `renderUsersTable()` |
+| A6 | `renderCampaignsPaginationNumbered` | `js/admin/newsletter.js:1209–1239` | `getElementById('campaignsPagination')` | `campaignsPage` → `loadCampaigns()` |
+| A7 | `renderSubscribersPaginationNumbered` | `js/admin/newsletter.js:88–118` | `getElementById('subscribersPagination')` | `subscribersPage` → `renderSubscribersList()` |
+
+**Shared skeleton** (all 7 are visibly copy-paste siblings): `container` lookup → `if (!container) return`
+→ `container.innerHTML = ''` → `if (totalPages <= 1) return` → prev `<button>` → `for i in 1..totalPages`
+(ellipsis skip) numbered `<button>` → next `<button>`. Every button is `class="um-btn …"`; prev/next
+carry a **`disabled` *class*** (not the property) with an `if (page > 1)` / `if (page < totalPages)`
+guard in the handler; the active number is `um-btn--primary`, others `um-btn--ghost`.
+
+**Differences to preserve (do NOT standardise away):**
+
+| Axis | Variants |
+|---|---|
+| `um-btn--sm` size modifier | **absent**: A1, A2, A3 · **present**: A4, A5, A6, A7 |
+| `container.style.display` toggle before the `<=1` bail | **none**: A1–A5 · **`= totalPages > 1 ? 'flex' : 'none'`**: A6, A7 |
+| ellipsis trigger | **none at all**: A4 (renders every page number) · **`i > 5 && i < totalPages`** *(no `>7` guard)*: A1 · **`totalPages > 7 && i > 5 && i < totalPages`**: A2, A3, A5, A6, A7 |
+| ellipsis glyph + style | **`'...'`, `span.style.color = '#555'`**: A1 · **`'…'` (one char), `color: var(--atl-muted); padding: 0 4px`**: A2, A3, A5, A6, A7 |
+| numbered-button handler binding | **`for (let i …)` + direct capture**: A1 · **`for (var i …)` + IIFE `(function(p){…})(i)`**: A2–A7 |
+| container lookup | `qs()`: A1–A5 · `getElementById()`: A6, A7 · **`‖` fallback selector**: A4 only |
+| prev/next `um-btn--sm` placement | trailing on prev/next className in A4–A7; A1–A3 have no `--sm` anywhere |
+
+### Family B — prev/next buttons + a "from–to of total" label (3)
+
+| # | Fn / handler | Location | Notes |
+|---|----|----------|-------|
+| B1 | `inqUpdatePagination(total, pages)` | `js/admin/inquiries.js:227–235` | `#inqPageInfo` text `from–to of total` (`from=(inqPage-1)*50+1`, hard-coded page size **50**); `#inqPrevBtn`/`#inqNextBtn` `.prop('disabled', …)` (**real** disabled prop, on pre-existing markup buttons); `$('#inqPagination').hide()` / `.css('display','flex')` |
+| B2 | Abandoned-Bookings pager (inline in `loadAbandonedBookings`) | `admin.html:13014–13018` + handlers `:13123–13124` | **identical pattern to B1** — `#abPageInfo` `from–to of data.total`, `#abPrevBtn/#abNextBtn` `.prop('disabled')`, `$('#abPagination')` show/hide. Deferred (Bookings Recovery panel, `#abTableBody`). |
+| B3 | `bkPaginate(rows, page, barSel, prevSel, nextSel, indicatorSel)` | `admin.html:17109…` | already a **generic** helper — bookings pipeline + archive both call it. Deferred with Bookings. Prior art worth mirroring in Component 2's Family-B API. |
+
+### Proposed shape (sketch only — NOT built, needs sign-off)
+
+One file `js/admin/components/pagination.js`, `window.Pagination`. Two render modes:
+
+- **`mode: 'numbered'`** — config: `container` (el/selector), `getPage()`/`setPage(n)` (or a `state`
+  object + key), `onChange()` (the reload), `sizeSm` (bool), `displayToggle` (bool),
+  `ellipsis: 'none' | 'gt7' | 'always'`, `ellipsisGlyph` (`'...'` vs `'…'`) + `ellipsisStyle`. Covers A1–A7.
+- **`mode: 'prevnext'`** — config: `container`, `prevEl`, `nextEl`, `infoEl`, `pageSize`,
+  `getPage`/`onChange`, `disableProp` (bool: real `disabled` vs class). Covers B1–B3 (and slots
+  `bkPaginate`'s selector-arg style in as the degenerate case).
+
+DataTable's existing `pagination(info)` callback stays the seam: after Component 2 exists, each
+table's `pagination:` just calls its `Pagination` instance's `render(info.totalPages)`.
+
+**Deferred-fix candidate**: A1 (email-logs) is the lone odd one out on *three* axes at once
+(`'...'` vs `'…'`, `#555` vs `--atl-muted`, no `>7` ellipsis guard, `let`+direct bind). All look
+like pre-divergence copy-paste drift rather than intent — reproduce exactly via config, note here,
+leave the "should they converge?" question for a human.
+
+**Next**: confirm the two-mode shape (or revise), then build `pagination.js` reproducing all 10 via
+config (inert, referenced nowhere), then migrate each table's `pagination:` seam one at a time —
+same live-load gate as Component 1, since verifying page-button clicks needs a browser.
+
 ---
 
 ## Phase 6 — `admin.html` decomposition
