@@ -440,7 +440,18 @@ thing they needed drove the v4 component change.
 `js/admin/components/data-table.js` → 403 lines (v4). Additive only, `node --check` clean, still
 referenced nowhere. `admin.html` untouched (25/25 inline-script parse).
 
-**v4 config for #3 (drop-in).** Replace only `js/admin/security-audit.js:142–201` (the
+**MIGRATED (this session, `<commit>`).** `js/admin/security-audit.js` `loadAuditLogs` →
+`const auditLogsTable = new DataTable({…})` + thin `window.loadAuditLogs`. Everything from
+`renderAuditPagination` to EOF **byte-identical to HEAD** (verified). `node --check` + `admin.html`
+25/25 green. **Config deviation from the block below**: the `server.fetch` wrapper was reworked —
+`fetch` + `response.json()` wrapped in one `try/catch` that does `console.error("Audit Log Error:", e)`
++ `notificationService.showError(...)` + `throw` (→ component `.catch` → `states.error`), matching
+the original's catch. The block below (no `showError` in the wrapper) was the gap; `updateAuditSortIcons()`
+now runs only after a successful `json()` (not on parse failure), which matches the original (line 159
+was unreachable if `json()` threw). First-run-blind accepted. Still owed: live Email Logs-style
+check of the Audit Log tab.
+
+**v4 config for #3 (drop-in — see "config deviation" above; wrapper reworked at apply time).** Replace only `js/admin/security-audit.js:142–201` (the
 `window.loadAuditLogs = async function () {…}` body). `auditState` (+ `window.auditState`),
 `auditSearchTimer`, `renderAuditPagination`, `toggleAuditSort`, `updateAuditSortIcons`,
 `debounceAuditSearch`, and every audit helper above `loadAuditLogs` (`AUDIT_TABLE_LABELS`,

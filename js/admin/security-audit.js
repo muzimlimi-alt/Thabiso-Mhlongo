@@ -139,44 +139,54 @@ window.loadChangeHistoryCard = async function(containerId, tableName, recordId) 
     }
 };
 
-window.loadAuditLogs = async function() {
-    const body = qs('#auditLogsBody');
-    if (!body) return;
-    body.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Refreshing trail...</td></tr>';
-
-    try {
-        const tableF = (qs('#auditTableFilter') && qs('#auditTableFilter').value) || '';
-        const dateFrom = (qs('#auditDateFrom') && qs('#auditDateFrom').value) || '';
-        const dateTo = (qs('#auditDateTo') && qs('#auditDateTo').value) || '';
-        const params = new URLSearchParams({ page: auditState.page, limit: auditState.limit, sort: auditState.sort, order: auditState.order });
-        if (auditState.search) params.set('search', auditState.search);
-        if (tableF) params.set('table', tableF);
-        if (dateFrom) params.set('date_from', dateFrom);
-        if (dateTo) params.set('date_to', dateTo);
-        const response = await fetch('/api/admin/audit_log?' + params.toString(), { credentials: 'include' });
-        if (response.status === 401) return;
-        const res = await response.json();
-        updateAuditSortIcons();
-        if (res && res.success && res.logs) {
-            body.innerHTML = '';
-            if (res.logs.length === 0) {
-                body.innerHTML = '<tr><td colspan="7" style="border:none;"><div class="atl-empty-state"><i class="fa-solid fa-clipboard-list" style="font-size:32px; color:var(--atl-muted); opacity:0.4;"></i><p class="atl-empty-display">No audit events found</p><p class="atl-empty-sub">Try adjusting your search or filters.</p></div></td></tr>';
-                var _as0 = qs('#auditStats'); if (_as0) _as0.textContent = 'Showing 0 of 0 entries';
-                renderAuditPagination(0);
-                return;
+/* Phase 7 Component 1 (HOUSEKEEPING-NOTES.md "#3"): loadAuditLogs is now a DataTable instance.
+   auditState (+ window.auditState) / auditSearchTimer / renderAuditPagination / toggleAuditSort /
+   updateAuditSortIcons / debounceAuditSearch and every audit helper above are UNCHANGED.
+   window.DataTable comes from js/admin/components/data-table.js (loaded before this file). */
+const auditLogsTable = new DataTable({
+    body:  '#auditLogsBody',
+    table: null,
+    colspan: 7,
+    stats: { el: '#auditStats', format: 'X-Y', noun: 'entries', emptyText: 'Showing 0 of 0 entries' },
+    states: {
+        loading: { idiom: 'row-html', html: '<tr><td colspan="7" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Refreshing trail...</td></tr>' },
+        empty:   { idiom: 'row-component', icon: 'fa-solid fa-clipboard-list',       iconOpacity: 0.4, message: 'No audit events found',        subMessage: 'Try adjusting your search or filters.' },
+        error:   { idiom: 'row-component', icon: 'fa-solid fa-triangle-exclamation', iconOpacity: 0.6, message: 'Could not load the audit trail', subMessage: 'Please try again.' }
+    },
+    server: {
+        pageSize: 50,
+        fetch: async function () {
+            const tableF   = (qs('#auditTableFilter') && qs('#auditTableFilter').value) || '';
+            const dateFrom = (qs('#auditDateFrom')   && qs('#auditDateFrom').value)   || '';
+            const dateTo   = (qs('#auditDateTo')     && qs('#auditDateTo').value)     || '';
+            const params = new URLSearchParams({ page: auditState.page, limit: auditState.limit, sort: auditState.sort, order: auditState.order });
+            if (auditState.search) params.set('search', auditState.search);
+            if (tableF)   params.set('table', tableF);
+            if (dateFrom) params.set('date_from', dateFrom);
+            if (dateTo)   params.set('date_to', dateTo);
+            let res;
+            try {
+                const response = await fetch('/api/admin/audit_log?' + params.toString(), { credentials: 'include' });
+                if (response.status === 401) return DataTable.ABORT;   // original: bare `return` (loading row stays)
+                res = await response.json();
+            } catch (e) {
+                console.error("Audit Log Error:", e);
+                if (window.notificationService) window.notificationService.showError('Could not load the audit trail. Please try again.');
+                throw e;                                               // -> component .catch -> states.error
             }
-            res.logs.forEach(log => {
-                const tr = document.createElement('tr');
-                tr.style.borderBottom = '1px solid rgba(255,255,255,0.02)';
-                const date = new Date(log.change_timestamp || log.timestamp).toLocaleString();
-                const actionColor = log.action === 'UPDATE' ? 'var(--atl-orange)' : (log.action === 'INSERT' ? 'var(--atl-sage)' : 'var(--atl-clay)');
-                // actor_full_name/actor_username come from the LEFT JOIN admins the endpoint now
-                // does against numeric changed_by values; raw changed_by covers the pre-migration
-                // literals ('system'/'public'/an email) that join can never resolve.
-                const actorName = log.actor_full_name || log.actor_username || log.changed_by || '—';
-                const actorRole = log.actor_role ? (log.actor_role.charAt(0).toUpperCase() + log.actor_role.slice(1)) : '—';
-
-                tr.innerHTML = `
+            updateAuditSortIcons();                                    // mirrors original: ran right after response.json(), before the success gate
+            if (res && res.success && res.logs) {
+                return { rows: res.logs, total: parseInt(res.total) || 0, totalPages: parseInt(res.totalPages) || 0 };
+            }
+            return DataTable.ABORT;                                    // res exists but not success -> original left the loading row up
+        }
+    },
+    renderRow: function (log) {
+        const date = new Date(log.change_timestamp || log.timestamp).toLocaleString();
+        const actionColor = log.action === 'UPDATE' ? 'var(--atl-orange)' : (log.action === 'INSERT' ? 'var(--atl-sage)' : 'var(--atl-clay)');
+        const actorName = log.actor_full_name || log.actor_username || log.changed_by || '—';
+        const actorRole = log.actor_role ? (log.actor_role.charAt(0).toUpperCase() + log.actor_role.slice(1)) : '—';
+        const cells = `
                     <td style="padding:12px; font-weight:bold; color: var(--atl-amber);">${escHtml(log.table_name)} <span style="font-size:10px; opacity:0.5; font-weight:normal;">#${log.record_id}</span></td>
                     <td style="padding:12px; font-size:12px;">${escHtml(auditSectionLabel(log.table_name))}</td>
                     <td style="padding:12px;"><span style="color:${actionColor}; font-weight:bold; font-size:11px;">${escHtml(log.action)}</span></td>
@@ -185,20 +195,14 @@ window.loadAuditLogs = async function() {
                     <td style="padding:12px; font-size:11px; opacity:0.6; font-family:'JetBrains Mono',monospace;">${escHtml(log.ip_address || '—')}</td>
                     <td style="padding:12px; font-size:11px; opacity:0.6;">${date}</td>
                 `;
-                body.appendChild(tr);
-            });
-            const _total = parseInt(res.total) || 0;
-            const _start = _total === 0 ? 0 : (auditState.page - 1) * auditState.limit + 1;
-            const _end = Math.min(auditState.page * auditState.limit, _total);
-            var _as = qs('#auditStats'); if (_as) _as.textContent = 'Showing ' + _start + '-' + _end + ' of ' + _total + ' entries';
-            renderAuditPagination(parseInt(res.totalPages) || 0);
-        }
-    } catch (e) {
-        console.error("Audit Log Error:", e);
-        if (body) body.innerHTML = '<tr><td colspan="7" style="border:none;"><div class="atl-empty-state"><i class="fa-solid fa-triangle-exclamation" style="font-size:32px; color:var(--atl-clay); opacity:0.6;"></i><p class="atl-empty-display">Could not load the audit trail</p><p class="atl-empty-sub">Please try again.</p></div></td></tr>';
-        if (window.notificationService) window.notificationService.showError('Could not load the audit trail. Please try again.');
-    }
-};
+        return '<tr>' + cells + '</tr>';
+    },
+    rowDecorate: function (tr) { tr.style.borderBottom = '1px solid rgba(255,255,255,0.02)'; },
+    onRender:   function () { updateAuditSortIcons(); },
+    pagination: function (info) { renderAuditPagination(info.totalPages); }
+});
+
+window.loadAuditLogs = function () { return auditLogsTable.setPage(auditState.page); };
 
 function renderAuditPagination(totalPages) {
     const container = qs('#auditPagination');
