@@ -579,16 +579,18 @@ Findings — **none force a component change**; three are noted for a decision a
 - **Gap C — `row-text` bespoke styling.** #2's empty row is `padding:48px` + icon
   `font-size:28px; opacity:0.4` vs the component's `row-text` `padding:40px 20px` + icon
   `font-size:24px; opacity:0.6`. Same *shape* as Gap B (v4's `iconOpacity`) but for the `row-text`
-  idiom, and `row-text` is used by six tables (#1, #2, #5–#7, #11) that likely each differ slightly.
-  **Decision deferred to after #1/#5/#7/#11 dry-runs**: either knob-ify `row-text`
-  (`iconOpacity`/`iconFontSize`/`padding`) or let each pass `row-html`. #2's config below uses
-  `row-html` (function form).
+  idiom. **#1's dry run (below) confirmed #1 and #2 share the *exact* same variant**
+  (`48px` / `28px` / `0.4`), differing from `row-text`'s default only in those three values →
+  **v5 knob-ified it**: `states.<kind>.padding` / `iconFontSize` / `iconOpacity` (defaults
+  `40px 20px` / `24px` / `0.6`), and the icon's inline-style property order was set to match the
+  #1/#2 originals so both are byte-identical. #2's config below now uses `row-text` + those knobs,
+  not `row-html`.
 - **Gap D — search-active empty message, external search state.** #2 shows "No logs match your
   search." vs "No activity logs found." off `logTableState.search`, which the component never sees
-  (`searchActive` = `!!this._search`, only set by `setSearch()`; #2 doesn't call it). Handled for #2
-  by the `row-html` function closing over `logTableState`. General fix candidate: a
-  `states.searchActive: () => boolean` config the component consults for `altMessage`. **Decide with
-  #1** (also has a live search box).
+  (`searchActive` = `!!this._search`, only set by `setSearch()`; #2 doesn't call it). → **v5 added
+  `states.searchActive: () => boolean`** — a predicate the component consults (alongside its own
+  `_search`) to pick `altMessage`. #2 passes `() => !!logTableState.search`; #1 passes
+  `() => !!umTable.search`.
 - **Gap E — one-shot element resolution (deferred, nothing triggers it today).** The constructor
   resolves `statsEl`/`countEl`/`tableEl`/`siblingEl` once; `reload()` only re-resolves `body`. A
   table whose `new DataTable()` runs *before* its markup exists would keep stale `null`s. None of the
@@ -609,15 +611,10 @@ var umLogsTable = new DataTable({
     stats: { el: '#umLogStats', format: ' to ' },   // "Showing X to Y of Z entries"; zero-case "Showing 0 to 0 of 0 entries" is the default → no emptyText
     colspan: 6,
     states: {
-        empty: {
-            idiom: 'row-html',
-            html: function () {
-                return '<tr><td colspan="6" class="text-center" style="padding:48px; border:none; color:var(--atl-muted);"><i class="fa-solid fa-clock-rotate-left" style="font-size:28px; opacity:0.4; display:block; margin-bottom:10px;"></i>'
-                    + (logTableState.search ? 'No logs match your search.' : 'No activity logs found.')
-                    + '</td></tr>';
-            }
-        }
-        // no loading state — original never renders one for this client-paged table (getLogsView is sync)
+        searchActive: function () { return !!logTableState.search; },
+        empty: { idiom: 'row-text', icon: 'fa-solid fa-clock-rotate-left', padding: '48px', iconFontSize: '28px', iconOpacity: 0.4,
+                 message: 'No activity logs found.', altMessage: 'No logs match your search.' }
+        // no loading state — v5 skips the transient loading paint on the synchronous client path
         // no error state — client path has no fetch
     },
     client: {
@@ -755,6 +752,84 @@ filter, the debounced search (both empty messages), both pagination controls
 (`renderCampaignsPaginationNumbered` numbers **and** `#campaignsPrevBtn`/`#campaignsNextBtn`), the
 error state, and every `loadCampaigns()` caller (newsletter send at :1126, `loadScheduledList`, tab
 clicks).
+
+### Component 1 — DataTable: #1 `renderUsersTable` dry run (the big one — client-paged, client-sort, persistent selection, per-row rebind) → v5
+
+Read `js/admin/user-management.js:563–815`. This is the widest table (8 cols, 6 sets of per-row
+handlers, a selection map that persists across client page turns) and the acid test. It fits — with
+**v5** (three small additive changes, all committed inert):
+
+1. **`row-text` style knobs** — `states.<kind>.padding` / `iconFontSize` / `iconOpacity` (defaults
+   `40px 20px` / `24px` / `0.6`). #1's empty row and #2's are the *same* variant (`48px` / `28px` /
+   `0.4`); icon inline-style property order set to `font-size; opacity; display; margin-bottom` to
+   match both originals byte-for-byte.
+2. **`states.searchActive: () => boolean`** — predicate for the empty-state `altMessage` when the
+   search box isn't the component's own (`() => !!umTable.search`). Also retro-applied to #2.
+3. **Skip the transient loading paint on the synchronous `client` path** — `_stateBody('loading')`
+   moved into the server branch only. Client tables (#1, #2) now assign the tbody exactly once, like
+   their originals; the browser never painted the intermediate row anyway (same tick), so this is a
+   sequence tidy-up, not a behaviour change.
+
+**Selection stays in `umTable.selected`** — the `{id:true}` map that must survive client page turns.
+The component's own `cfg.select` subsystem is **not used**: `renderRow` reads `umTable.selected[u.id]`
+directly (closure) for the ` checked` attr, and the `.um-row-check` change handler (in `onRender`)
+mutates `umTable.selected` + calls `updateSelectAllState()`/`updateBulkBar()` — all verbatim from
+the original. Every other selection reader (`deleteUsers`, select-all, bulk bar) is untouched.
+→ **As of #1, no migrated table uses `cfg.select` (map or live).** #9/#3/#4 have no selection, #11
+keeps delegated jQuery, #1 keeps its closure map. Flag `cfg.select` + `_selected`/`_isSelected`/
+`getSelectedIds`/`clearSelection`/`_wireSelection` (~45 lines) as a **Phase 8 removal candidate**,
+pending #10 (subscribers) and #12 (direct emails) dry-runs — do NOT remove now.
+
+**Migration shape**: `var usersTable = new DataTable({…})` at `initUserManagement` IIFE top level;
+`function renderUsersTable() { return usersTable.setPage(umTable.page); }` keeps the name for its
+~8 callers. `getUsersView`, `umTable`, `allUsersCache`, `esc`, `umDisplayName`, `UM_ROLES`,
+`currentUserId`, `initial`, `fmtDate`, `renderUserPagination`, `toggleSortUsers`,
+`updateSortIconsUsers`, `updateSelectAllState`, `updateBulkBar`, `umOpenDrawer`, `deleteUsers`,
+`umUpdateUser`, `apiCall` — all **byte-identical**, closed over by the config.
+
+```js
+var usersTable = new DataTable({
+    body:    '#umUsersTableBody',
+    table:   null,
+    countEl: '#umUserCount',
+    countText: function () { return allUsersCache.length + ' user' + (allUsersCache.length === 1 ? '' : 's'); },
+    stats: { el: '#umUserStats', format: ' to ' },   // "Showing X to Y of Z entries"; zero-case is the default
+    colspan: 8,
+    states: {
+        searchActive: function () { return !!umTable.search; },
+        empty: { idiom: 'row-text', icon: 'fa-solid fa-users-slash', padding: '48px', iconFontSize: '28px', iconOpacity: 0.4,
+                 message: 'No admin accounts found.', altMessage: 'No users match your search.' }
+        // no loading / error state — synchronous client path
+    },
+    client: {
+        pageSize: 0 /* umTable.limit — put the real literal here */,
+        rows: function () { return getUsersView(); }
+    },
+    renderRow: function (u) {
+        // ==== lines 621–683 verbatim, as an expression returning the '<tr class="um-user-row" …>' string ====
+        // reads: umTable.selected, currentUserId, UM_ROLES, umDisplayName, esc, initial, fmtDate
+    },
+    onRender: function (bodyEl) {
+        renderUsersTable__afterPaint(bodyEl);   // ==== lines 689–758 verbatim ====
+        // i.e.  updateSortIconsUsers(); updateSelectAllState(); updateBulkBar();
+        //       then the 6 qsa(sel, bodyEl).forEach(addEventListener…) blocks:
+        //       .um-edit-btn / .um-del-btn / .um-row-check / .um-role-change / .um-status-toggle / .um-resend-btn
+    },
+    pagination: function (info) { renderUserPagination(info.totalPages); }   // empty: info.totalPages === 1 → matches literal renderUserPagination(1)
+});
+
+function renderUsersTable() { return usersTable.setPage(umTable.page); }
+```
+
+**Accepted micro-deltas for #1**: stats `end` is exact here (`startIdx + pageRows.length` ===
+original `start + pageRows.length`). `renderUserPagination(1)` on empty matches the original literal.
+`updateSortIconsUsers`/`updateSelectAllState`/`updateBulkBar` run inside `onRender` (after pagination)
+rather than inline before the rebind loops — all independent of row DOM, so order-neutral; they also
+now run on the empty path (original did too, lines 615–617). **Live-load checklist for #1**: sort all
+8 columns incl. the null-sorts-last on last-login/created; search by name/email/username/`#id`;
+select rows, turn pages, confirm selection persists and the bulk bar + select-all tri-state track it;
+inline role `<select>` and status toggle write through; resend-invite spinner; edit/delete drawers;
+`#umUserCount` unfiltered; the "You" row has no checkbox/actions.
 
 ---
 

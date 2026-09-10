@@ -86,7 +86,11 @@
         // (email-logs #9: empty → 'sibling-el', loading/error → 'row-html').
         var idiom = st.idiom || (this.cfg.states && this.cfg.states.idiom) || 'row-text';
         var msg = st.message || '';
-        if (kind === 'empty' && searchActive && st.altMessage) msg = st.altMessage;
+        // "search is active" for the empty-state altMessage: either the component knows it
+        // (setSearch → this._search), or the caller supplies a predicate for a search box the
+        // component doesn't own (users #1 / login-activity #2 read `umTable.search` / `logTableState.search`).
+        var searchOn = searchActive || !!(this.cfg.states && typeof this.cfg.states.searchActive === 'function' && this.cfg.states.searchActive());
+        if (kind === 'empty' && searchOn && st.altMessage) msg = st.altMessage;
         var icon = st.icon || '';
         var sub = st.subMessage || '';
 
@@ -149,11 +153,17 @@
             return;
         }
 
-        // 'row-text' (default): <tr><td colspan=N> with an icon and a line of text
+        // 'row-text' (default): <tr><td colspan=N> with an icon and a line of text.
+        // padding / icon size / icon opacity vary per instance (users #1 & login-activity #2:
+        // 48px / 28px / 0.4; default 40px 20px / 24px / 0.6) — knobs, same idea as row-component's
+        // iconOpacity. Property order matches the #1/#2 originals so those are byte-identical.
         var textClr = kind === 'error' ? 'var(--atl-clay)' : 'var(--atl-muted)';
+        var pad = st.padding || '40px 20px';
+        var iSize = st.iconFontSize || '24px';
+        var iOp = (st.iconOpacity != null) ? st.iconOpacity : 0.6;
         this.bodyEl.innerHTML =
-            '<tr><td colspan="' + cs + '" class="text-center" style="padding:40px 20px; border:none; color:' + textClr + ';">' +
-                (icon ? '<i class="' + escHtml(icon) + '" style="font-size:24px; display:block; margin-bottom:10px; opacity:0.6;"></i>' : '') +
+            '<tr><td colspan="' + cs + '" class="text-center" style="padding:' + pad + '; border:none; color:' + textClr + ';">' +
+                (icon ? '<i class="' + escHtml(icon) + '" style="font-size:' + iSize + '; opacity:' + iOp + '; display:block; margin-bottom:10px;"></i>' : '') +
                 escHtml(msg) +
             '</td></tr>';
     };
@@ -293,12 +303,11 @@
         var searchActive = !!this._search ||
             (cfg.sort && cfg.sort.state && false); // search-active is caller-driven via setSearch
 
-        this._stateBody('loading', searchActive);
-
         var sortState = (cfg.sort && cfg.sort.state) || {};
 
         if (cfg.client) {
-            // synchronous path
+            // synchronous path — NO transient loading row: the browser never paints between here
+            // and _paint (one tick), and the originals (#1, #2) assign the tbody exactly once.
             try {
                 var all = cfg.client.rows() || [];
                 var size = cfg.client.pageSize || all.length || 1;
@@ -322,6 +331,7 @@
         }
 
         // server path
+        this._stateBody('loading', searchActive);
         var params = {
             page: this._page,
             limit: cfg.server.pageSize,
