@@ -562,6 +562,100 @@ columns, the per-row `popia-view`/`approve`/`process` action buttons still fire 
 handlers, all four filters + search debounce, pagination, empty + error states, a forced 401, and
 `#popiaPendingBadge` still updates after each load.
 
+### Component 1 — DataTable: #2 `renderLogsTable` dry run (Login Activity panel — closure-bound, client-paged; no component change)
+
+Read `js/admin/user-management.js:975–1211` in full. #2 is the first **client-paged** table dry-run
+and the first whose render fn is **not `window`-attached** — it's a plain `function renderLogsTable()`
+inside the `initUserManagement` IIFE, called from ~6 places in that closure. Migration keeps the
+name: `var umLogsTable = new DataTable({…})` at IIFE top level (markup already parsed by the time
+`user-management.js` runs, so element resolution is fine), then `function renderLogsTable() { return
+umLogsTable.setPage(logTableState.page); }`. `getLogsView`, `logTableState`, `allLogsCache`, `esc`,
+`formatDuration`, `formatDateTimeLocal`, `formatUserAgent`, `renderLogPagination` (the closure-local
+one, **not** email-logs' top-level namesake), `toggleLogSort`, `updateSortIconsLogs` all stay
+**byte-identical** — the config object closes over them.
+
+Findings — **none force a component change**; three are noted for a decision after more dry-runs:
+
+- **Gap C — `row-text` bespoke styling.** #2's empty row is `padding:48px` + icon
+  `font-size:28px; opacity:0.4` vs the component's `row-text` `padding:40px 20px` + icon
+  `font-size:24px; opacity:0.6`. Same *shape* as Gap B (v4's `iconOpacity`) but for the `row-text`
+  idiom, and `row-text` is used by six tables (#1, #2, #5–#7, #11) that likely each differ slightly.
+  **Decision deferred to after #1/#5/#7/#11 dry-runs**: either knob-ify `row-text`
+  (`iconOpacity`/`iconFontSize`/`padding`) or let each pass `row-html`. #2's config below uses
+  `row-html` (function form).
+- **Gap D — search-active empty message, external search state.** #2 shows "No logs match your
+  search." vs "No activity logs found." off `logTableState.search`, which the component never sees
+  (`searchActive` = `!!this._search`, only set by `setSearch()`; #2 doesn't call it). Handled for #2
+  by the `row-html` function closing over `logTableState`. General fix candidate: a
+  `states.searchActive: () => boolean` config the component consults for `altMessage`. **Decide with
+  #1** (also has a live search box).
+- **Gap E — one-shot element resolution (deferred, nothing triggers it today).** The constructor
+  resolves `statsEl`/`countEl`/`tableEl`/`siblingEl` once; `reload()` only re-resolves `body`. A
+  table whose `new DataTable()` runs *before* its markup exists would keep stale `null`s. None of the
+  12 do — every instance is created from an end-of-body `<script src>` after the markup. Original
+  `renderLogsTable` re-`qs()`es `#umLogStats`/`#umLogCount` every call, so the component is
+  marginally *less* late-binding-robust than what it replaces; add lazy re-resolve to `_updateStats`
+  only if a later table needs it.
+- **`countText` ignores its arg.** `#umLogCount` shows `allLogsCache.length` (unfiltered), not the
+  filtered `total` the component passes — so `countText` closes over `allLogsCache` and ignores the
+  parameter. Fine; config is in-closure.
+
+```js
+var umLogsTable = new DataTable({
+    body:    '#umLogsTableBody',
+    table:   null,
+    countEl: '#umLogCount',
+    countText: function () { return allLogsCache.length + ' log' + (allLogsCache.length === 1 ? '' : 's'); },
+    stats: { el: '#umLogStats', format: ' to ' },   // "Showing X to Y of Z entries"; zero-case "Showing 0 to 0 of 0 entries" is the default → no emptyText
+    colspan: 6,
+    states: {
+        empty: {
+            idiom: 'row-html',
+            html: function () {
+                return '<tr><td colspan="6" class="text-center" style="padding:48px; border:none; color:var(--atl-muted);"><i class="fa-solid fa-clock-rotate-left" style="font-size:28px; opacity:0.4; display:block; margin-bottom:10px;"></i>'
+                    + (logTableState.search ? 'No logs match your search.' : 'No activity logs found.')
+                    + '</td></tr>';
+            }
+        }
+        // no loading state — original never renders one for this client-paged table (getLogsView is sync)
+        // no error state — client path has no fetch
+    },
+    client: {
+        pageSize: 10,                        // logTableState.limit
+        rows: function () { return getLogsView(); }
+    },
+    renderRow: function (l) {
+        var userName = l.full_name || l.username || l.email || 'Deleted User';
+        var userDetail = l.email ? '<span class="um-row-email" style="display:block; font-size:11px; opacity:0.7;">' + esc(l.email) + '</span>' : '';
+        var duration = formatDuration(l.duration_seconds);
+        var isSessionOngoing = (!l.logout_at && (Date.now() - new Date(l.last_activity_at).getTime() < 120000));
+        var statusBadge = isSessionOngoing
+            ? '<span style="display:inline-flex; align-items:center; gap:4px; font-size:11px; color:#10b981; font-weight:600;"><span class="atl-pulse-dot" style="width:6px; height:6px; background:#10b981; border-radius:50%; display:inline-block; animation: pulse-dot 1.5s infinite ease-in-out;"></span> Active Now</span>'
+            : '<span style="font-size:11px; opacity:0.7; color:var(--atl-muted);">Session ended</span>';
+        return '<tr class="um-row" style="background: var(--atl-surface2); border-radius: var(--atl-r-md); transition: background var(--atl-t-fast);">' +
+               '  <td style="border:none; padding:12px; font-weight:600; color:var(--atl-ink);">' + esc(userName) + userDetail + '</td>' +
+               '  <td style="border:none; padding:12px; font-family:\'JetBrains Mono\', monospace; font-size:12px;">' + formatDateTimeLocal(l.login_at) + '</td>' +
+               '  <td style="border:none; padding:12px; font-family:\'JetBrains Mono\', monospace; font-size:12px;">' + formatDateTimeLocal(l.last_activity_at) + '</td>' +
+               '  <td style="border:none; padding:12px; font-family:\'JetBrains Mono\', monospace; font-size:12px;">' + duration + ' ' + statusBadge + '</td>' +
+               '  <td style="border:none; padding:12px; font-family:\'JetBrains Mono\', monospace; font-size:12px;">' + esc(l.ip_address || '—') + '</td>' +
+               '  <td style="border:none; padding:12px; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;" title="' + esc(l.user_agent) + '">' + esc(formatUserAgent(l.user_agent)) + '</td>' +
+               '</tr>';
+    },
+    onRender:   function () { updateSortIconsLogs(); },
+    pagination: function (info) { renderLogPagination(info.totalPages); }   // empty path: info.totalPages === 1 → matches original's literal renderLogPagination(1)
+});
+
+function renderLogsTable() { return umLogsTable.setPage(logTableState.page); }
+```
+
+**Accepted micro-deltas for #2**: client-path `end` is `startIdx + pageRows.length` vs original
+`Math.min(start+limit, total)` — identical on full and last-partial pages, and both clamp an
+over-run page to the last page first. Stats/pagination otherwise byte-identical (client path, no
+server echo). **Live-load checklist for #2**: rows + "Active Now" pulse dot vs "Session ended",
+the six `#umlogsort-*` headers via `toggleLogSort`, the search box (both empty messages), page
+size 10 pagination, `#umLogCount` shows the unfiltered count, `#umLogStats` line, and the
+`initManageLogs` / tab-activation entry points.
+
 ---
 
 ## Phase 6 — `admin.html` decomposition
