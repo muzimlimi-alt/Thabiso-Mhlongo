@@ -293,37 +293,48 @@ function popiaQueryParams() {
     return p;
 }
 
-window.loadPopiaRequests = async function() {
-    const body = qs('#popiaRequestsBody');
-    if (!body) return;
-    body.innerHTML = '<tr><td colspan="7" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Loading requests...</td></tr>';
-    try {
-        popiaState.status = (qs('#popiaStatusFilter') || {}).value || '';
-        popiaState.source = (qs('#popiaSourceFilter') || {}).value || '';
-        popiaState.dateFrom = (qs('#popiaDateFrom') || {}).value || '';
-        popiaState.dateTo = (qs('#popiaDateTo') || {}).value || '';
-        const response = await fetch('/api/admin/popia/requests?' + popiaQueryParams().toString(), { credentials: 'include' });
-        if (response.status === 401) return;
-        const res = await response.json();
-        if (res && res.success) {
-            body.innerHTML = '';
-            if (!res.requests.length) {
-                body.innerHTML = '<tr><td colspan="7" style="border:none;"><div class="atl-empty-state"><i class="fa-solid fa-user-slash" style="font-size:32px; color:var(--atl-muted); opacity:0.4;"></i><p class="atl-empty-display">No erasure requests found</p><p class="atl-empty-sub">Try adjusting your search or filters.</p></div></td></tr>';
-            } else {
-                res.requests.forEach(function(reqRow) { body.appendChild(renderPopiaRow(reqRow)); });
+/* Phase 7 Component 1 (HOUSEKEEPING-NOTES.md "#4"): loadPopiaRequests is now a DataTable instance.
+   popiaState (+ window.popiaState) / popiaSearchTimer / popiaQueryParams / renderPopiaRow /
+   renderPopiaPagination / debouncePopiaSearch / updatePopiaPendingBadge and the drawer fns are
+   UNCHANGED. window.DataTable comes from js/admin/components/data-table.js (loaded before this file). */
+const popiaRequestsTable = new DataTable({
+    body:  '#popiaRequestsBody',
+    table: null,
+    colspan: 7,
+    stats: { el: '#popiaStats', format: 'X-Y', noun: 'entries' },   // no emptyText: 0-rows falls through to "Showing 0-0 of 0 entries"
+    states: {
+        loading: { idiom: 'row-html', html: '<tr><td colspan="7" class="text-center" style="padding: 30px; opacity: 0.5;"><i class="fa fa-spinner fa-spin"></i> Loading requests...</td></tr>' },
+        empty:   { idiom: 'row-component', icon: 'fa-solid fa-user-slash',           iconOpacity: 0.4, message: 'No erasure requests found',   subMessage: 'Try adjusting your search or filters.' },
+        error:   { idiom: 'row-component', icon: 'fa-solid fa-triangle-exclamation', iconOpacity: 0.6, message: 'Could not load erasure requests', subMessage: 'Please try again.' }
+    },
+    server: {
+        pageSize: 20,
+        fetch: async function () {
+            popiaState.status = (qs('#popiaStatusFilter') || {}).value || '';
+            popiaState.source = (qs('#popiaSourceFilter') || {}).value || '';
+            popiaState.dateFrom = (qs('#popiaDateFrom') || {}).value || '';
+            popiaState.dateTo = (qs('#popiaDateTo') || {}).value || '';
+            let res;
+            try {
+                const response = await fetch('/api/admin/popia/requests?' + popiaQueryParams().toString(), { credentials: 'include' });
+                if (response.status === 401) return DataTable.ABORT;   // original: bare `return` (loading row stays)
+                res = await response.json();
+            } catch (e) {
+                console.error('POPIA Requests Error:', e);
+                throw e;                                               // -> component .catch -> states.error (no showError, matching the original catch)
             }
-            const total = parseInt(res.total) || 0;
-            const start = total === 0 ? 0 : (popiaState.page - 1) * popiaState.limit + 1;
-            const end = Math.min(popiaState.page * popiaState.limit, total);
-            var stats = qs('#popiaStats'); if (stats) stats.textContent = 'Showing ' + start + '-' + end + ' of ' + total + ' entries';
-            renderPopiaPagination(parseInt(res.totalPages) || 0);
-            updatePopiaPendingBadge();
+            if (res && res.success) {
+                return { rows: res.requests || [], total: parseInt(res.total) || 0, totalPages: parseInt(res.totalPages) || 0 };
+            }
+            return DataTable.ABORT;                                    // res exists but not success -> original left the loading row up
         }
-    } catch (e) {
-        console.error('POPIA Requests Error:', e);
-        if (body) body.innerHTML = '<tr><td colspan="7" style="border:none;"><div class="atl-empty-state"><i class="fa-solid fa-triangle-exclamation" style="font-size:32px; color:var(--atl-clay); opacity:0.6;"></i><p class="atl-empty-display">Could not load erasure requests</p><p class="atl-empty-sub">Please try again.</p></div></td></tr>';
-    }
-};
+    },
+    renderRow:  function (r)    { return renderPopiaRow(r).outerHTML; },
+    onRender:   function ()     { updatePopiaPendingBadge(); },
+    pagination: function (info) { renderPopiaPagination(info.totalPages); }
+});
+
+window.loadPopiaRequests = function () { return popiaRequestsTable.setPage(popiaState.page); };
 
 function renderPopiaRow(r) {
     const tr = document.createElement('tr');

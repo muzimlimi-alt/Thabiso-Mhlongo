@@ -530,6 +530,16 @@ prev/next/numbers/ellipsis, the empty state, a forced 401 (loading row must stay
 and the three `window.loadChangeHistoryCard` callers (Bookings Deal View, Events, Users) which share
 `buildAuditDiffHtml` but not `loadAuditLogs` — should be untouched, verify anyway.
 
+**MIGRATED (this session, `<commit>`).** `js/admin/security-audit.js` `loadPopiaRequests` →
+`const popiaRequestsTable = new DataTable({…})` + thin `window.loadPopiaRequests`.
+`renderPopiaRow` → EOF **byte-identical to HEAD** (verified). `node --check` + `admin.html` 25/25
+green. Config deviation: `server.fetch` wrapper wraps `fetch`+`json()` in one `try/catch` doing
+`console.error('POPIA Requests Error:', e)` + `throw` (**no** `showError` — matches the original #4
+catch, unlike #3). Empty/error `.atl-empty-state` rows verified byte-identical to the originals'
+inline markup. Empty path (no early return in the original) still hits the shared
+`"Showing 0-0 of 0 entries"` stats line via `format:'X-Y'` zero-case (no `emptyText`). First-run-blind
+accepted. Still owed: live load of the POPIA Requests tab.
+
 **v4 config for #4 `loadPopiaRequests` (drop-in).** Replace only
 `js/admin/security-audit.js:292–322` (the `window.loadPopiaRequests = async function () {…}` body).
 `popiaState` (+ `window.popiaState`), `popiaSearchTimer`, `POPIA_REASON_LABELS`,
