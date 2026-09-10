@@ -1061,9 +1061,22 @@ which needs a live load of the Email Logs admin tab to verify, then the same for
 table. **Migration order: #9 → #3 → #4 → #2 → #11 → #1 → #10 → #7**, one commit each,
 `_quarantine/` the original only once its call site is live-verified.
 
-Still-open user decisions: (a) confirm dropping **#5 / #6 / #8** (I recommend yes — churn, no
-paging/sort/stats); **#12** is an inventory correction, not really a choice (it's not a table);
-(c) keep or cut the unused `cfg.select` subsystem (~45 lines) — suggest **cut in Phase 8**.
+### Component 1 — DataTable: scope + `cfg.select` DECIDED (user: "make the decisions")
+
+- **#5 / #6 / #8 dropped from DataTable scope.** #5/#6 are client-cache filters (`renderTransactions`,
+  `renderInvoices`/`applyInvoiceFilter`) with no paging/sort/stats — migrating changes their
+  `(list)` contracts for no gain. #8 is a `<tbody>` fragment inside `loadFinAnalytics` sharing its
+  fetch. #12 was an inventory error (not a table). **Final set = 8: #9 #3 #4 #2 #11 #1 #10 #7.**
+- **`cfg.select` cut now — DataTable v7 (418 → 371 lines).** Removed `_selCfg`, `_isSelected`,
+  `getSelectedIds`, `clearSelection`, `_wireSelection`, `this._selected`, the `_wireSelection()`
+  call in `_paint`, `ctx.selected`, and the `destroy` line. Reason: it was speculative scaffolding
+  from the step-2 shape proposal, never shipped, and the dry-run sweep proved **no table uses it**
+  (#1 keeps its `umTable.selected` closure map, #11 keeps delegated jQuery). Not "pre-existing dead
+  code" — my own just-added unused code in an inert file; leaving it invites a future migration to
+  wire up an untested path. ~20 lines to re-add with a real consumer if one ever appears.
+  `node --check` clean; `admin.html` 25/25; still referenced nowhere. **Component now frozen at v7.**
+
+## Component 2 — Pagination: step-1 inventory + component BUILT (inert; user delegated the shape)
 
 ## Component 2 — Pagination: step-1 inventory (DONE; build NOT started — awaiting confirmation)
 
@@ -1108,28 +1121,57 @@ guard in the handler; the active number is `um-btn--primary`, others `um-btn--gh
 | B2 | Abandoned-Bookings pager (inline in `loadAbandonedBookings`) | `admin.html:13014–13018` + handlers `:13123–13124` | **identical pattern to B1** — `#abPageInfo` `from–to of data.total`, `#abPrevBtn/#abNextBtn` `.prop('disabled')`, `$('#abPagination')` show/hide. Deferred (Bookings Recovery panel, `#abTableBody`). |
 | B3 | `bkPaginate(rows, page, barSel, prevSel, nextSel, indicatorSel)` | `admin.html:17109…` | already a **generic** helper — bookings pipeline + archive both call it. Deferred with Bookings. Prior art worth mirroring in Component 2's Family-B API. |
 
-### Proposed shape (sketch only — NOT built, needs sign-off)
+### Component BUILT — `js/admin/components/pagination.js`, `window.Pagination` (152 lines, inert)
 
-One file `js/admin/components/pagination.js`, `window.Pagination`. Two render modes:
+User delegated the shape ("make the decisions"). Vanilla core, IIFE, `node --check` clean,
+**referenced nowhere**. Two modes, one `.render()` entry point:
 
-- **`mode: 'numbered'`** — config: `container` (el/selector), `getPage()`/`setPage(n)` (or a `state`
-  object + key), `onChange()` (the reload), `sizeSm` (bool), `displayToggle` (bool),
-  `ellipsis: 'none' | 'gt7' | 'always'`, `ellipsisGlyph` (`'...'` vs `'…'`) + `ellipsisStyle`. Covers A1–A7.
-- **`mode: 'prevnext'`** — config: `container`, `prevEl`, `nextEl`, `infoEl`, `pageSize`,
-  `getPage`/`onChange`, `disableProp` (bool: real `disabled` vs class). Covers B1–B3 (and slots
-  `bkPaginate`'s selector-arg style in as the degenerate case).
+- **`mode: 'numbered'`** (A1–A7) — `render(totalPages)`. Config: `container` (el/selector) +
+  optional `containerFallback` (A4); `getPage()` → current page; `onGoto(n)` → set the section's
+  page var **and** reload; `sizeSm` (bool → `um-btn--sm`); `displayToggle` (bool → sets
+  `container.style.display = totalPages>1 ? 'flex':'none'` before the `<=1` bail); `ellipsis`
+  (`'none'` A4 / `'gt6'` A1 `i>5 && i<N` / `'gt7'` A2 A3 A5 A6 A7 `N>7 && i>5 && i<N`);
+  `ellipsisGlyph` (`'…'` default, `'...'` A1); `ellipsisColor` (`var(--atl-muted)` default, `'#555'`
+  A1); `ellipsisPadding` (`'0 4px'` default, `''` A1); `iconStyle` (`'fa'` default, `'fa-solid'` A4).
+- **`mode: 'prevnext'`** (B1–B3) — `render(total, pages)`. Config: `container`, `prevEl`, `nextEl`,
+  `infoEl`, `pageSize` (50), `getPage()`, `infoFormat(from,to,total)` (default `` `${from}–${to} of ${total}` ``),
+  `hideWhenEmpty` (default true — `total<=0` hides), `display` (`'flex'`). Sets `prevEl.disabled` /
+  `nextEl.disabled` (real prop) + the info text + visibility; does **not** bind the prev/next clicks
+  (B1/B2 bind those via delegated `$(document).on('click', '#inqPrevBtn'|'#abPrevBtn', …)` — left in
+  place).
 
-DataTable's existing `pagination(info)` callback stays the seam: after Component 2 exists, each
-table's `pagination:` just calls its `Pagination` instance's `render(info.totalPages)`.
+**Per-impl config mapping** (all `getPage`/`onGoto` close over the section's page var + reload fn):
 
-**Deferred-fix candidate**: A1 (email-logs) is the lone odd one out on *three* axes at once
-(`'...'` vs `'…'`, `#555` vs `--atl-muted`, no `>7` ellipsis guard, `let`+direct bind). All look
-like pre-divergence copy-paste drift rather than intent — reproduce exactly via config, note here,
-leave the "should they converge?" question for a human.
+| # | mode | key config |
+|---|------|-----------|
+| A1 `renderLogPagination` (email-logs) | numbered | `container:'#logPagination'`, `getPage:()=>logState.page`, `onGoto:n=>{logState.page=n;window.loadEmailLogs();}`, `ellipsis:'gt6'`, `ellipsisGlyph:'...'`, `ellipsisColor:'#555'`, `ellipsisPadding:''` |
+| A2 `renderAuditPagination` | numbered | `container:'#auditPagination'`, `auditState.page` / `loadAuditLogs()`, defaults (`ellipsis:'gt7'`) |
+| A3 `renderPopiaPagination` | numbered | `container:'#popiaPagination'`, `popiaState.page` / `loadPopiaRequests()`, defaults |
+| A4 `renderLogPagination` (user-mgmt) | numbered | `container:'#umLogsPagination'`, `containerFallback:'#umLogsFooter .um-pagination-btns'`, `logTableState.page` / `renderLogsTable()`, `sizeSm:true`, `ellipsis:'none'`, `iconStyle:'fa-solid'` |
+| A5 `renderUserPagination` | numbered | `container:'#umUserPagination'`, `umTable.page` / `renderUsersTable()`, `sizeSm:true` |
+| A6 `renderCampaignsPaginationNumbered` | numbered | `container:'#campaignsPagination'`, `campaignsPage` / `loadCampaigns()`, `sizeSm:true`, `displayToggle:true` |
+| A7 `renderSubscribersPaginationNumbered` | numbered | `container:'#subscribersPagination'`, `subscribersPage` / `renderSubscribersList()`, `sizeSm:true`, `displayToggle:true` |
+| B1 `inqUpdatePagination` | prevnext | `container:'#inqPagination'`, `prevEl:'#inqPrevBtn'`, `nextEl:'#inqNextBtn'`, `infoEl:'#inqPageInfo'`, `pageSize:50`, `getPage:()=>inqPage` |
+| B2 abandoned-bookings pager | prevnext | `#abPagination` / `#abPrevBtn` / `#abNextBtn` / `#abPageInfo`, `pageSize:50`, `getPage:()=>abState.page` — **deferred with Bookings** |
+| B3 `bkPaginate` | prevnext | selector-arg helper; **deferred with Bookings** — revisit its exact API when the Bookings session runs |
 
-**Next**: confirm the two-mode shape (or revise), then build `pagination.js` reproducing all 10 via
-config (inert, referenced nowhere), then migrate each table's `pagination:` seam one at a time —
-same live-load gate as Component 1, since verifying page-button clicks needs a browser.
+DataTable's `pagination(info)` seam is unchanged — each migrated table's `pagination:` becomes
+`(info) => pg.render(info.totalPages)` (numbered) or `(info) => pg.render(info.total, info.totalPages)` (prevnext).
+
+**Accepted micro-deltas** (all "no observable difference", confirm on live load): numbered buttons
+are bound with an internal `(function(p){…})(i)` IIFE regardless of the original's `let`/`var`/IIFE
+style — result identical. A1's non-disabled prev/next className had a cosmetic trailing space
+(`"um-btn um-btn--ghost "`); the component emits `"um-btn um-btn--ghost"` — `classList` ignores it.
+A1/A2 genuinely differ at exactly `N === 7` (A1 collapses page 6, A2 shows all 7) — preserved by
+`ellipsis:'gt6'` vs `'gt7'`.
+
+**Deferred-fix candidate** (unchanged): A1 (email-logs) is the odd one out on `…` glyph, colour,
+and the `>7` guard — looks like copy-paste drift; reproduced exactly via config, "should they
+converge?" left for a human.
+
+**Next (needs a browser)**: migrate each `renderX*Pagination` to its `Pagination` config one at a
+time — same live-load gate as DataTable (verifying page-button clicks needs a real page). Do this
+**interleaved with** or **after** the DataTable migrations, since both touch the same 8 sections.
 
 ---
 

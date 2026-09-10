@@ -13,9 +13,12 @@
  *   const dt = new DataTable(config);   // see the config shape in HOUSEKEEPING-NOTES.md
  *   dt.reload();                        // (re)render — the main entry point
  *   dt.setSort('email');               // toggle/set sort column, then reload
- *   dt.getSelectedIds();               // string[] of selected row ids (bulk-select tables)
  *   dt.setSearch('foo'); dt.setPage(2);
  *   dt.destroy();
+ *
+ * No bulk-select subsystem: the dry-run sweep (HOUSEKEEPING-NOTES.md) found every selection-capable
+ * table keeps its own selection store (a closure `{id:true}` map, or delegated jQuery handlers), so
+ * the section's own code owns it — the component just renders the checkbox markup via `renderRow`.
  */
 (function () {
     'use strict';
@@ -48,9 +51,6 @@
         // (email-logs #9: empty → sibling element, loading/error → tbody rows).
         this.siblingEl = (config.states && config.states.siblingEl)
             ? resolveEl(config.states.siblingEl) : null;
-
-        // Owned state for bulk-select store:'map'
-        this._selected = Object.create(null);
 
         // Owned paging state (server tables track page here; client tables read pageSize from cfg)
         this._page = 1;
@@ -177,7 +177,7 @@
 
     DataTable.prototype._rowHtml = function (row, idx) {
         var cfg = this.cfg;
-        var ctx = { index: idx, selected: this._isSelected(row), table: this };
+        var ctx = { index: idx, table: this };
 
         if (typeof cfg.renderRow === 'function') {
             return cfg.renderRow(row, ctx);
@@ -192,51 +192,6 @@
             return ' ' + k + '="' + escHtml(attrs[k]) + '"';
         }).join('');
         return '<tr' + attrStr + '>' + tds + '</tr>';
-    };
-
-    /* ---- bulk-select ---- */
-
-    DataTable.prototype._selCfg = function () { return this.cfg.select || null; };
-
-    DataTable.prototype._isSelected = function (row) {
-        var sc = this._selCfg();
-        if (!sc) return false;
-        if (sc.store === 'map') return !!this._selected[sc.rowId(row)];
-        return false; // 'live' — the checkbox's own state is the source of truth, read at action time
-    };
-
-    DataTable.prototype.getSelectedIds = function () {
-        var sc = this._selCfg();
-        if (!sc) return [];
-        if (sc.store === 'map') return Object.keys(this._selected);
-        // 'live': read the DOM
-        if (!this.bodyEl || !sc.checkboxSelector) return [];
-        return Array.prototype.slice.call(this.bodyEl.querySelectorAll(sc.checkboxSelector))
-            .filter(function (cb) { return cb.checked; })
-            .map(function (cb) { return cb.getAttribute('data-id'); });
-    };
-
-    DataTable.prototype.clearSelection = function () {
-        this._selected = Object.create(null);
-        var sc = this._selCfg();
-        if (sc && sc.store === 'live' && this.bodyEl && sc.checkboxSelector) {
-            this.bodyEl.querySelectorAll(sc.checkboxSelector).forEach(function (cb) { cb.checked = false; });
-        }
-    };
-
-    DataTable.prototype._wireSelection = function () {
-        var sc = this._selCfg();
-        if (!sc || !this.bodyEl || !sc.checkboxSelector) return;
-        var self = this;
-        this.bodyEl.querySelectorAll(sc.checkboxSelector).forEach(function (cb) {
-            cb.addEventListener('change', function () {
-                if (sc.store === 'map') {
-                    var id = this.getAttribute('data-id');
-                    if (this.checked) self._selected[id] = true; else delete self._selected[id];
-                }
-                if (typeof sc.onChange === 'function') sc.onChange();
-            });
-        });
     };
 
     /* ---- sort ---- */
@@ -399,7 +354,6 @@
 
         this._updateStats(info.start, info.end, info.total);
         this._updateSortIcons();
-        this._wireSelection();
         if (typeof this.cfg.pagination === 'function') {
             this.cfg.pagination({ page: this._page, totalPages: info.totalPages, total: info.total });
         }
@@ -408,7 +362,6 @@
 
     DataTable.prototype.destroy = function () {
         this._destroyed = true;
-        this._selected = Object.create(null);
     };
 
     // Sentinel a server.fetch wrapper returns to suppress the post-fetch paint (see reload()).
