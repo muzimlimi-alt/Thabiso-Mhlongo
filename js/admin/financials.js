@@ -259,17 +259,28 @@ function renderInvoices(list) {
     applyInvoiceFilter();
 }
 
-window.loadRemindersLog = async function() {
-    const $body = $('#finRemindersList');
-    if (!$body.length) return;
-    $body.html('<tr><td colspan="8" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</td></tr>');
-    try {
-        const r = await apiCall('/api/admin/reminders?limit=200');
-        if (!r || !r.success || !r.reminders || r.reminders.length === 0) {
-            $body.html('<tr><td colspan="8" class="text-center text-muted">No reminders sent yet.</td></tr>');
-            return;
+/* Phase 7 Component 1 (HOUSEKEEPING-NOTES.md "#7"): loadRemindersLog is now a DataTable instance
+   — server fetch, render-all, three row-html state rows, no paging/sort/stats. window.DataTable
+   comes from js/admin/components/data-table.js (loaded before this file). */
+const remindersTable = new DataTable({
+    body:  '#finRemindersList',
+    table: null,
+    colspan: 8,
+    states: {
+        loading: { idiom: 'row-html', html: '<tr><td colspan="8" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</td></tr>' },
+        empty:   { idiom: 'row-html', html: '<tr><td colspan="8" class="text-center text-muted">No reminders sent yet.</td></tr>' },
+        error:   { idiom: 'row-html', html: '<tr><td colspan="8" class="text-center text-muted">Failed to load reminders.</td></tr>' }
+    },
+    server: {
+        pageSize: 200,   // matches ?limit=200; unused (no pagination/stats configured)
+        fetch: async function () {
+            const r = await apiCall('/api/admin/reminders?limit=200');
+            // original folds null / !success / missing / empty all into the same "No reminders sent yet." row
+            var rows = (r && r.success && Array.isArray(r.reminders)) ? r.reminders : [];
+            return { rows: rows, total: rows.length, totalPages: 1 };
         }
-        $body.html(r.reminders.map(rem => {
+    },
+    renderRow: function (rem) {
             const sentAt = rem.sent_at ? new Date(rem.sent_at).toLocaleString('en-ZA') : '—';
             const sc = rem.status === 'sent' ? 'var(--atl-sage)' : 'var(--atl-clay)';
             let deliveryBadge;
@@ -292,11 +303,11 @@ window.loadRemindersLog = async function() {
                 <td><span style="color:${sc};font-size:11px;font-weight:700;text-transform:uppercase;">${rem.status}</span>${rem.error_message ? `<br><span style="font-size:10px;color: var(--atl-muted);" title="${rem.error_message}">⚠ ${rem.error_message.substring(0,40)}</span>` : ''}</td>
                 <td>${deliveryBadge}</td>
             </tr>`;
-        }).join(''));
-    } catch(e) {
-        $body.html('<tr><td colspan="8" class="text-center text-muted">Failed to load reminders.</td></tr>');
     }
-};
+    // no onRender / pagination / stats / sort / countEl — none exist in the original
+});
+
+window.loadRemindersLog = function () { return remindersTable.reload(); };   // no page state -> reload(), not setPage()
 
 window.applyInvoiceFilter = function() {
     const $body = $('#finInvoicesList');

@@ -916,6 +916,14 @@ for any of them** (every state row goes through `row-html` verbatim; no new knob
 optional); **skip #5 and #6** (net churn, contract changes, no paging/sort/stats to gain); **drop #8**
 from Phase 7 scope (documented above).
 
+**MIGRATED (this session, `<commit>`).** `js/admin/financials.js` `loadRemindersLog` →
+`const remindersTable = new DataTable({…})` + `window.loadRemindersLog = () => remindersTable.reload()`.
+`financials.js` 1–261 (bar a 3-line comment) and `applyInvoiceFilter`→EOF **byte-identical to HEAD**
+(verified). `renderRow` body = the original `map(rem => …)` callback spliced **verbatim** (template
+content unchanged; the fn is cosmetically over-indented, JS-neutral). All 3 state rows `row-html`
+byte-identical. `node --check` + `admin.html` 25/25. First-run-blind accepted. Still owed: live load
+of the finance → Reminders sub-tab.
+
 **User decision (this session): #7 IN.** Drop-in config below — no component change, no findings; it
 is the simplest of the set (fetch → rows / empty / error, all `row-html`, nothing else).
 
