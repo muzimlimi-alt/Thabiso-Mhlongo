@@ -204,33 +204,14 @@ const auditLogsTable = new DataTable({
 
 window.loadAuditLogs = function () { return auditLogsTable.setPage(auditState.page); };
 
-function renderAuditPagination(totalPages) {
-    const container = qs('#auditPagination');
-    if (!container) return;
-    container.innerHTML = '';
-    if (totalPages <= 1) return;
-    const prev = document.createElement('button');
-    prev.className = 'um-btn um-btn--ghost' + (auditState.page === 1 ? ' disabled' : '');
-    prev.innerHTML = '<i class="fa fa-chevron-left"></i>';
-    prev.onclick = () => { if (auditState.page > 1) { auditState.page--; loadAuditLogs(); } };
-    container.appendChild(prev);
-    for (let i = 1; i <= totalPages; i++) {
-        if (totalPages > 7 && i > 5 && i < totalPages) {
-            if (i === 6) { const sp = document.createElement('span'); sp.textContent = '…'; sp.style.color = 'var(--atl-muted)'; sp.style.padding = '0 4px'; container.appendChild(sp); }
-            continue;
-        }
-        const b = document.createElement('button');
-        b.className = 'um-btn ' + (auditState.page === i ? 'um-btn--primary' : 'um-btn--ghost');
-        b.textContent = i;
-        (function(p) { b.onclick = () => { auditState.page = p; loadAuditLogs(); }; })(i);
-        container.appendChild(b);
-    }
-    const next = document.createElement('button');
-    next.className = 'um-btn um-btn--ghost' + (auditState.page === totalPages ? ' disabled' : '');
-    next.innerHTML = '<i class="fa fa-chevron-right"></i>';
-    next.onclick = () => { if (auditState.page < totalPages) { auditState.page++; loadAuditLogs(); } };
-    container.appendChild(next);
-}
+/* Phase 7 Component 2 ("A2"): renderAuditPagination -> Pagination instance (standard variant). */
+var auditPager = new Pagination({
+    mode: 'numbered',
+    container: '#auditPagination',
+    getPage: function () { return auditState.page; },
+    onGoto: function (n) { auditState.page = n; loadAuditLogs(); }
+});
+function renderAuditPagination(totalPages) { return auditPager.render(totalPages); }
 
 window.toggleAuditSort = function(col) {
     if (auditState.sort === col) { auditState.order = auditState.order === 'ASC' ? 'DESC' : 'ASC'; }
@@ -360,33 +341,14 @@ function renderPopiaRow(r) {
     return tr;
 }
 
-function renderPopiaPagination(totalPages) {
-    const container = qs('#popiaPagination');
-    if (!container) return;
-    container.innerHTML = '';
-    if (totalPages <= 1) return;
-    const prev = document.createElement('button');
-    prev.className = 'um-btn um-btn--ghost' + (popiaState.page === 1 ? ' disabled' : '');
-    prev.innerHTML = '<i class="fa fa-chevron-left"></i>';
-    prev.onclick = function() { if (popiaState.page > 1) { popiaState.page--; loadPopiaRequests(); } };
-    container.appendChild(prev);
-    for (let i = 1; i <= totalPages; i++) {
-        if (totalPages > 7 && i > 5 && i < totalPages) {
-            if (i === 6) { const sp = document.createElement('span'); sp.textContent = '…'; sp.style.color = 'var(--atl-muted)'; sp.style.padding = '0 4px'; container.appendChild(sp); }
-            continue;
-        }
-        const b = document.createElement('button');
-        b.className = 'um-btn ' + (popiaState.page === i ? 'um-btn--primary' : 'um-btn--ghost');
-        b.textContent = i;
-        (function(p) { b.onclick = function() { popiaState.page = p; loadPopiaRequests(); }; })(i);
-        container.appendChild(b);
-    }
-    const next = document.createElement('button');
-    next.className = 'um-btn um-btn--ghost' + (popiaState.page === totalPages ? ' disabled' : '');
-    next.innerHTML = '<i class="fa fa-chevron-right"></i>';
-    next.onclick = function() { if (popiaState.page < totalPages) { popiaState.page++; loadPopiaRequests(); } };
-    container.appendChild(next);
-}
+/* Phase 7 Component 2 ("A3"): renderPopiaPagination -> Pagination instance (standard variant). */
+var popiaPager = new Pagination({
+    mode: 'numbered',
+    container: '#popiaPagination',
+    getPage: function () { return popiaState.page; },
+    onGoto: function (n) { popiaState.page = n; loadPopiaRequests(); }
+});
+function renderPopiaPagination(totalPages) { return popiaPager.render(totalPages); }
 
 window.debouncePopiaSearch = function() {
     clearTimeout(popiaSearchTimer);

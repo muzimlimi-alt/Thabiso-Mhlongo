@@ -224,15 +224,19 @@ function renderDirectEmailsList() {
 }
 
 // ---- Pagination control ----
-function inqUpdatePagination(total, pages) {
-    if (total <= 0) { $('#inqPagination').hide(); return; }
-    const from = (inqPage - 1) * 50 + 1;
-    const to = Math.min(inqPage * 50, total);
-    $('#inqPageInfo').text(from + '–' + to + ' of ' + total);
-    $('#inqPrevBtn').prop('disabled', inqPage <= 1);
-    $('#inqNextBtn').prop('disabled', inqPage >= pages);
-    $('#inqPagination').css('display', 'flex');
-}
+/* Phase 7 Component 2 ("B1"): inqUpdatePagination -> Pagination prevnext instance. It only sets
+   #inqPrevBtn/#inqNextBtn .disabled + the #inqPageInfo label + #inqPagination visibility; the
+   prev/next CLICKS stay bound by the delegated $(document).on('click', '#inqPrevBtn'|…) handlers. */
+var inqPager = new Pagination({
+    mode: 'prevnext',
+    container: '#inqPagination',
+    prevEl: '#inqPrevBtn',
+    nextEl: '#inqNextBtn',
+    infoEl: '#inqPageInfo',
+    pageSize: 50,
+    getPage: function () { return inqPage; }
+});
+function inqUpdatePagination(total, pages) { return inqPager.render(total, pages); }
 
 // ---- Render Message List ----
 // Server already applied folder/search/sort + pagination, so this is a pure renderer

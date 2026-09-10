@@ -92,37 +92,16 @@ function renderSubscribersList(resetPage) {
     return subscribersTable.setPage(subscribersPage);
 }
 
-function renderSubscribersPaginationNumbered(totalPages) {
-    var container = document.getElementById('subscribersPagination');
-    if (!container) return;
-    container.innerHTML = '';
-    container.style.display = totalPages > 1 ? 'flex' : 'none';
-    if (totalPages <= 1) return;
-
-    var prev = document.createElement('button');
-    prev.className = 'um-btn um-btn--ghost um-btn--sm' + (subscribersPage === 1 ? ' disabled' : '');
-    prev.innerHTML = '<i class="fa fa-chevron-left"></i>';
-    prev.onclick = function() { if (subscribersPage > 1) { subscribersPage--; renderSubscribersList(); } };
-    container.appendChild(prev);
-
-    for (var i = 1; i <= totalPages; i++) {
-        if (totalPages > 7 && i > 5 && i < totalPages) {
-            if (i === 6) { var sp = document.createElement('span'); sp.textContent = '…'; sp.style.color = 'var(--atl-muted)'; sp.style.padding = '0 4px'; container.appendChild(sp); }
-            continue;
-        }
-        var b = document.createElement('button');
-        b.className = 'um-btn um-btn--sm ' + (subscribersPage === i ? 'um-btn--primary' : 'um-btn--ghost');
-        b.textContent = i;
-        (function(p) { b.onclick = function() { subscribersPage = p; renderSubscribersList(); }; })(i);
-        container.appendChild(b);
-    }
-
-    var next = document.createElement('button');
-    next.className = 'um-btn um-btn--ghost um-btn--sm' + (subscribersPage === totalPages ? ' disabled' : '');
-    next.innerHTML = '<i class="fa fa-chevron-right"></i>';
-    next.onclick = function() { if (subscribersPage < totalPages) { subscribersPage++; renderSubscribersList(); } };
-    container.appendChild(next);
-}
+/* Phase 7 Component 2 ("A7"): renderSubscribersPaginationNumbered -> Pagination (um-btn--sm, displayToggle). */
+var subscribersPager = new Pagination({
+    mode: 'numbered',
+    container: '#subscribersPagination',
+    getPage: function () { return subscribersPage; },
+    onGoto: function (n) { subscribersPage = n; renderSubscribersList(); },
+    sizeSm: true,
+    displayToggle: true
+});
+function renderSubscribersPaginationNumbered(totalPages) { return subscribersPager.render(totalPages); }
 
 window.toggleSubscriberSort = function(col) {
     if (subscribersSortCol === col) {
@@ -1226,37 +1205,16 @@ function loadCampaigns(resetPage) {
     return campaignsTable.setPage(campaignsPage);
 }
 
-function renderCampaignsPaginationNumbered(totalPages) {
-    var container = document.getElementById('campaignsPagination');
-    if (!container) return;
-    container.innerHTML = '';
-    container.style.display = totalPages > 1 ? 'flex' : 'none';
-    if (totalPages <= 1) return;
-
-    var prev = document.createElement('button');
-    prev.className = 'um-btn um-btn--ghost um-btn--sm' + (campaignsPage === 1 ? ' disabled' : '');
-    prev.innerHTML = '<i class="fa fa-chevron-left"></i>';
-    prev.onclick = function() { if (campaignsPage > 1) { campaignsPage--; loadCampaigns(); } };
-    container.appendChild(prev);
-
-    for (var i = 1; i <= totalPages; i++) {
-        if (totalPages > 7 && i > 5 && i < totalPages) {
-            if (i === 6) { var sp = document.createElement('span'); sp.textContent = '…'; sp.style.color = 'var(--atl-muted)'; sp.style.padding = '0 4px'; container.appendChild(sp); }
-            continue;
-        }
-        var b = document.createElement('button');
-        b.className = 'um-btn um-btn--sm ' + (campaignsPage === i ? 'um-btn--primary' : 'um-btn--ghost');
-        b.textContent = i;
-        (function(p) { b.onclick = function() { campaignsPage = p; loadCampaigns(); }; })(i);
-        container.appendChild(b);
-    }
-
-    var next = document.createElement('button');
-    next.className = 'um-btn um-btn--ghost um-btn--sm' + (campaignsPage === totalPages ? ' disabled' : '');
-    next.innerHTML = '<i class="fa fa-chevron-right"></i>';
-    next.onclick = function() { if (campaignsPage < totalPages) { campaignsPage++; loadCampaigns(); } };
-    container.appendChild(next);
-}
+/* Phase 7 Component 2 ("A6"): renderCampaignsPaginationNumbered -> Pagination (um-btn--sm, displayToggle). */
+var campaignsPager = new Pagination({
+    mode: 'numbered',
+    container: '#campaignsPagination',
+    getPage: function () { return campaignsPage; },
+    onGoto: function (n) { campaignsPage = n; loadCampaigns(); },
+    sizeSm: true,
+    displayToggle: true
+});
+function renderCampaignsPaginationNumbered(totalPages) { return campaignsPager.render(totalPages); }
 
 // Search is server-side (matches the backend's `search` param on the unified endpoint),
 // debounced — previously this only filtered rows already on the current page.
