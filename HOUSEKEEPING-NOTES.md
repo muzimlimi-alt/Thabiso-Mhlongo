@@ -251,14 +251,35 @@ logState.status, trigger: logState.trigger})` or fold them into a params builder
 opacity) that `_updateSortIcons` already does close enough, no bulk-select, `renderRow` via the
 existing per-row template.
 
-**Next session**: (1) extend `data-table.js` to v2 covering gaps 1–5 above (all additive config,
-no breaking change to the shape); (2) migrate #9 for real — `<script src="js/admin/components/data-table.js">`
-into `admin.html` before `email-logs.js`, rewrite `loadEmailLogs` as `new DataTable({...})`, keep
-`renderLogPagination`/`updateSortIcons`/`toggleLogSort`/`applyLogFilters`/`debounceLogSearch` in
-place (Pagination is Component 2; sort-icons fold in later), verify with the parse-checker + a live
-load of the Email Logs tab, commit; (3) then #3, #2, #11, #7, #8, #5, #6, #1, #4, #12 — expect each
-to surface its own gaps the same way #9 did; fold them into the component as you go, one commit each,
-originals to `_quarantine/` only once their call site is migrated.
+### Component 1 — DataTable v2: gaps 1/2/3/5 now covered in the component (still inert)
+
+`js/admin/components/data-table.js` extended to 366 lines — all additive config, no shape change,
+`node --check` clean, still referenced nowhere.
+
+- **Gap 1 (stats noun)** — `stats.noun` added (default `'entries'`; #9 passes `'logs'`). Used in
+  `_updateStats` for both the zero and non-zero lines.
+- **Gap 2 (empty sibling with authored markup)** — `states.siblingMode: 'render' | 'toggle-only'`
+  added. `'toggle-only'` shows/hides `siblingEl` without ever writing to it. Whether the `<table>` is
+  also hidden stays opt-in via `table` being set (`null` = leave it visible with an empty tbody,
+  which is #9's behaviour). Optional `states.<kind>.hideOnLoading` too.
+- **Gap 3 (per-row imperative work)** — `rowDecorate: (trEl, row, i) => void` added, called per
+  `<tr>` in row order after paint (uses `:scope > tr` so nested tables aren't touched). #9 uses it
+  for the `tr.onmouseover`/`onmouseout` background swap.
+- **Gap 5 (colspan asymmetry)** — `colspan` now accepts a number OR `{ loading, empty, error }`.
+  `_colspan(kind)` resolves per state row, so #9 passes `{ loading: 5, empty: 5, error: 6 }` and the
+  pre-existing quirk is preserved, not normalised.
+- **Gap 4 (401 auto-reload)** — no component change; #9's own `fetch` wrapper keeps handling the
+  `response.status === 401` case (message + `setTimeout` reload) and resolves the DataTable's
+  `server.fetch` promise with `{ rows: [], total: 0, totalPages: 0 }` afterwards.
+
+**Next session**: migrate #9 for real — `<script src="js/admin/components/data-table.js">` into
+`admin.html` *before* `email-logs.js`, rewrite `loadEmailLogs` as `new DataTable({...})` using the
+v2 config above (keep `renderLogPagination`/`updateSortIcons`/`toggleLogSort`/`applyLogFilters`/
+`debounceLogSearch` in place — Pagination is Component 2, sort-icons fold in later), verify with the
+inline-script parse-checker + a live load of the Email Logs tab, commit. Then #3, #2, #11, #7, #8,
+#5, #6, #1, #4, #12 — expect each to surface its own gaps the way #9 did; fold them into the
+component as you go, one commit each, originals to `_quarantine/` only once their call site is
+migrated.
 
 ---
 

@@ -61,8 +61,16 @@
         }
     }
 
-    DataTable.prototype._colspan = function () {
-        if (this.cfg.colspan) return this.cfg.colspan;
+    // `colspan` may be a single number, or an object { loading, empty, error } so a table with a
+    // pre-existing colspan asymmetry between its state rows (e.g. email-logs' loading=5 / error=6
+    // copy-paste quirk) is preserved exactly rather than normalised. Falls back to column count.
+    DataTable.prototype._colspan = function (kind) {
+        var c = this.cfg.colspan;
+        if (c && typeof c === 'object') {
+            if (kind && c[kind] != null) return c[kind];
+            return c.empty != null ? c.empty : (c.loading != null ? c.loading : 1);
+        }
+        if (c != null) return c;
         if (Array.isArray(this.cfg.columns)) return this.cfg.columns.length;
         return 1;
     };
@@ -79,15 +87,23 @@
         var sub = st.subMessage || '';
 
         if (idiom === 'sibling-el') {
-            // The <table> is hidden; a separate element carries the state.
+            // A separate element carries the state. Two sub-modes:
+            //  - 'render' (default): the component writes icon+text into siblingEl.
+            //  - 'toggle-only': the element already contains authored markup — the component only
+            //    shows/hides it, never overwriting (email-logs' #emailLogsEmpty works this way).
+            // Whether to also hide the <table> is opt-in via `table` being set (newsletter #10 hides
+            // it; email-logs #9 leaves it visible with an empty tbody).
+            var siblingMode = (this.cfg.states && this.cfg.states.siblingMode) || 'render';
             if (this.tableEl) this.tableEl.style.display = 'none';
             if (this.bodyEl) this.bodyEl.innerHTML = '';
             if (this.siblingEl) {
-                this.siblingEl.innerHTML =
-                    '<i class="' + escHtml(icon) + '" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>' +
-                    '<p style="color:var(--atl-muted);margin:0;">' + escHtml(msg) + '</p>' +
-                    (sub ? '<p style="color:var(--atl-muted-dim);font-size:12px;margin:4px 0 0;">' + escHtml(sub) + '</p>' : '');
-                this.siblingEl.style.display = '';
+                if (siblingMode !== 'toggle-only') {
+                    this.siblingEl.innerHTML =
+                        '<i class="' + escHtml(icon) + '" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>' +
+                        '<p style="color:var(--atl-muted);margin:0;">' + escHtml(msg) + '</p>' +
+                        (sub ? '<p style="color:var(--atl-muted-dim);font-size:12px;margin:4px 0 0;">' + escHtml(sub) + '</p>' : '');
+                }
+                this.siblingEl.style.display = (kind === 'loading' && st.hideOnLoading) ? 'none' : 'block';
             }
             return;
         }
@@ -96,7 +112,7 @@
         if (this.tableEl) this.tableEl.style.display = '';
         if (!this.bodyEl) return;
 
-        var cs = this._colspan();
+        var cs = this._colspan(kind);
         if (idiom === 'row-component') {
             // <tr><td colspan=N> wrapping the .atl-empty-state component (icon / display / sub)
             var clr = kind === 'error' ? 'var(--atl-clay)' : 'var(--atl-muted)';
@@ -227,9 +243,10 @@
         }
         if (!this.statsEl || !this.cfg.stats) return;
         var joiner = this.cfg.stats.format === 'X-Y' ? '-' : ' to ';
+        var noun = this.cfg.stats.noun || 'entries';  // email-logs uses "logs", not "entries"
         this.statsEl.textContent = total === 0
-            ? 'Showing 0' + (joiner === '-' ? '-0' : ' to 0') + ' of 0 entries'
-            : 'Showing ' + start + joiner + end + ' of ' + total + ' entries';
+            ? 'Showing 0' + (joiner === '-' ? '-0' : ' to 0') + ' of 0 ' + noun
+            : 'Showing ' + start + joiner + end + ' of ' + total + ' ' + noun;
     };
 
     /* ---- the main render ---- */
@@ -320,6 +337,16 @@
 
         var self = this;
         this.bodyEl.innerHTML = rows.map(function (row, i) { return self._rowHtml(row, i); }).join('');
+
+        // Per-row decorate hook — for imperative per-<tr> work that markup attributes can't express
+        // (e.g. email-logs sets tr.onmouseover/onmouseout inline per row). Fires in row order.
+        // `onRender` is for whole-table rebinding; `rowDecorate` is per row.
+        if (typeof this.cfg.rowDecorate === 'function') {
+            var trs = this.bodyEl.querySelectorAll(':scope > tr');
+            for (var i = 0; i < trs.length && i < rows.length; i++) {
+                this.cfg.rowDecorate(trs[i], rows[i], i);
+            }
+        }
 
         this._updateStats(info.start, info.end, info.total);
         this._updateSortIcons();
