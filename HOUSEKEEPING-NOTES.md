@@ -656,6 +656,106 @@ the six `#umlogsort-*` headers via `toggleLogSort`, the search box (both empty m
 size 10 pagination, `#umLogCount` shows the unfiltered count, `#umLogStats` line, and the
 `initManageLogs` / tab-activation entry points.
 
+### Component 1 — DataTable: #11 `loadCampaigns` dry run (jQuery + server-paged; no component change)
+
+Read `js/admin/newsletter.js:1140–1360`. **First jQuery table dry-run** — and it confirms the
+vanilla component absorbs a jQuery call site with no component work: `body: '#campaignsTableBody'`
+(selector string), `renderRow` returns the same `<tr>…</tr>` template the code `$tbody.append()`ed
+row-by-row, and `bodyEl.innerHTML = rows.map(renderRow).join('')` lands the identical DOM. All
+selection stays where it is — `$(document).on('change', '.campaign-checkbox' | '#selectAllCampaigns', …)`
+(newsletter.js:1319/1323) is delegated and survives re-renders, so **no `select` config**; the
+checkboxes are plain markup in `renderRow` and `onRender` re-runs `updateCampaignsBulkBar()` after
+each paint (matches the original's calls at 1171/1202). No stats line, no count, no per-column sort
+(a single `#campaignsSortSelect` token `campaignsSort`), so no `stats`/`countEl`/`sort` config.
+`apiCall` is a global admin-shell helper (like `qs`), callable straight from the wrapper.
+
+- **Gap F — error path also hides pagination.** #11's `catch` does `$('#campaignsPagination').hide()`
+  on top of the error row; the component's `_stateBody('error')` never calls `cfg.pagination`.
+  Handled in the wrapper's own `catch` (`$('#campaignsPagination').hide()` then rethrow) — no
+  component change. On the *empty* path this is automatic: `renderCampaignsPaginationNumbered(1)`
+  already sets `display:none` + early-returns, matching the original's `.hide()`.
+- **`.um-empty-state` idiom** (not `.atl-empty-state`): #11's loading/empty/error rows use a
+  `<div class="um-empty-state">` with a bare text node, no `<p>`s — unlike #3/#4. All three go
+  through `row-html` verbatim. #11 is the only `.um-empty-state` table, so no renderer is added for
+  it.
+- **`data.pages`, not `data.totalPages`** — the wrapper maps it.
+- **Search-active empty message** (`campaignsSearch ? … : …`) — same Gap D shape as #2, handled by
+  the `row-html` function closing over `campaignsSearch`.
+
+```js
+const campaignsTable = new DataTable({
+    body:  '#campaignsTableBody',
+    table: null,
+    colspan: 5,
+    states: {
+        loading: { idiom: 'row-html', html: '<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>Loading campaigns…</div></td></tr>' },
+        empty:   { idiom: 'row-html', html: function () {
+            var msg = campaignsSearch ? 'No campaigns match your search.' : 'No campaigns found.';
+            return '<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-inbox" style="font-size:22px;color:var(--atl-muted-dim);display:block;margin-bottom:8px;"></i>' + msg + '</div></td></tr>';
+        } },
+        error:   { idiom: 'row-html', html: '<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-triangle-exclamation" style="font-size:22px;color:var(--atl-clay);display:block;margin-bottom:8px;"></i>Could not load campaigns.</div></td></tr>' }
+    },
+    server: {
+        pageSize: 0,   // server owns page size; component only needs it for stats math, and #11 has no stats
+        fetch: async function () {
+            try {
+                const data = await apiCall(`/api/admin/campaigns/unified?page=${campaignsPage}&status=${campaignsStatus}&sort=${campaignsSort}&search=${encodeURIComponent(campaignsSearch)}`, 'GET');
+                campaignsData = data.campaigns || [];                 // kept — other code reads this module var
+                return { rows: campaignsData, total: data.total || 0, totalPages: data.pages || 1 };
+            } catch (e) {
+                $('#campaignsPagination').hide();                     // Gap F
+                throw e;
+            }
+        }
+    },
+    renderRow: function (c) {
+        const statusColors = { sent:'var(--atl-green)', scheduled:'var(--atl-orange)', failed:'var(--atl-clay)', cancelled:'var(--atl-muted)' };
+        const raw = c.date || '';
+        const d = raw ? new Date(raw.includes('T') ? raw : raw.replace(' ','T')+'Z') : null;
+        const dateStr = d && !isNaN(d) ? d.toLocaleString() : '—';
+        const sc = statusColors[c.display_status] || 'var(--atl-muted)';
+        const label = c.display_status.charAt(0).toUpperCase() + c.display_status.slice(1);
+        const isPending = c.display_status === 'scheduled';
+        const subj = $('<span>').text(c.subject || '(No subject)').html();
+        return `<tr class="campaign-row" data-subject="${subj.toLowerCase()}" style="border-bottom:1px solid var(--atl-line);">
+                <td style="padding:10px 8px;width:36px;vertical-align:middle;border:none;">
+                    <input type="checkbox" class="campaign-checkbox" data-id="${c.id}" data-source="${c.source}" style="accent-color: var(--atl-amber);cursor:pointer;">
+                </td>
+                <td style="padding:10px 8px;vertical-align:middle;border:none;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:var(--atl-ink-dim);" title="${subj}">${subj}</td>
+                <td style="padding:10px 8px;vertical-align:middle;border:none;white-space:nowrap;">
+                    <span style="display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:600;background:${sc}22;color:${sc};border:1px solid ${sc}44;">${label}</span>
+                </td>
+                <td style="padding:10px 8px;vertical-align:middle;border:none;font-size:11px;color: var(--atl-muted);white-space:nowrap;">${dateStr}</td>
+                <td style="padding:10px 8px;vertical-align:middle;border:none;text-align:right;white-space:nowrap;">
+                    ${isPending ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-edit-btn" data-id="${c.id}" style="margin-right:4px;" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>` : ''}
+                    ${isPending ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-cancel-btn" data-id="${c.id}" style="margin-right:4px;color:var(--atl-orange);border-color:rgba(255,152,0,0.4);" title="Cancel scheduled send"><i class="fa-solid fa-ban"></i> Cancel</button>` : ''}
+                    ${c.display_status === 'sent' ? `<button class="um-btn um-btn--ghost um-btn--sm campaign-delivery-log-btn" data-subject="${subj}" data-source="${c.source}" style="margin-right:4px;" title="View delivery log"><i class="fa-solid fa-list-check"></i></button>` : ''}
+                    <button class="um-btn um-btn--primary um-btn--sm campaign-reuse-btn" data-id="${c.id}" data-source="${c.source}" style="margin-right:4px;" title="Load into composer"><i class="fa-solid fa-rotate-left"></i> Reuse</button>
+                    <button class="um-btn um-btn--ghost um-btn--sm campaign-delete-btn" data-id="${c.id}" data-source="${c.source}" style="color:var(--atl-clay);" title="Delete"><i class="fa-solid fa-trash"></i></button>
+                </td>
+            </tr>`;
+    },
+    onRender:   function () { updateCampaignsBulkBar(); },
+    pagination: function (info) { renderCampaignsPaginationNumbered(info.totalPages); }
+});
+
+function loadCampaigns(resetPage) {
+    if (resetPage) campaignsPage = 1;
+    return campaignsTable.setPage(campaignsPage);
+}
+```
+
+**Note on `pageSize: 0`** — the component's server path uses `cfg.server.pageSize` only for the
+`start`/`end`/`totalPages` fallback stats math. #11 has no stats line and the server returns
+`data.pages`, so the value is inert; `0` documents "not ours to know". If a later reviewer prefers,
+pass the real backend page size. **Live-load checklist for #11**: rows + status pills + conditional
+edit/cancel/delivery-log/reuse/delete buttons still bound (delegated), the checkbox column +
+`#selectAllCampaigns` indeterminate state + `#campaignsBulkBar`, `#campaignsSortSelect`, the status
+filter, the debounced search (both empty messages), both pagination controls
+(`renderCampaignsPaginationNumbered` numbers **and** `#campaignsPrevBtn`/`#campaignsNextBtn`), the
+error state, and every `loadCampaigns()` caller (newsletter send at :1126, `loadScheduledList`, tab
+clicks).
+
 ---
 
 ## Phase 6 — `admin.html` decomposition
