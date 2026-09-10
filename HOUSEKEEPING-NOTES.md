@@ -850,6 +850,66 @@ for any of them** (every state row goes through `row-html` verbatim; no new knob
 optional); **skip #5 and #6** (net churn, contract changes, no paging/sort/stats to gain); **drop #8**
 from Phase 7 scope (documented above).
 
+**User decision (this session): #7 IN.** Drop-in config below — no component change, no findings; it
+is the simplest of the set (fetch → rows / empty / error, all `row-html`, nothing else).
+
+```js
+const remindersTable = new DataTable({
+    body:  '#finRemindersList',
+    table: null,
+    colspan: 8,
+    states: {
+        loading: { idiom: 'row-html', html: '<tr><td colspan="8" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</td></tr>' },
+        empty:   { idiom: 'row-html', html: '<tr><td colspan="8" class="text-center text-muted">No reminders sent yet.</td></tr>' },
+        error:   { idiom: 'row-html', html: '<tr><td colspan="8" class="text-center text-muted">Failed to load reminders.</td></tr>' }
+    },
+    server: {
+        pageSize: 200,   // matches ?limit=200; unused (no pagination/stats configured)
+        fetch: async function () {
+            const r = await apiCall('/api/admin/reminders?limit=200');
+            // original folds null / !success / missing / empty all into the same "No reminders sent yet." row
+            var rows = (r && r.success && Array.isArray(r.reminders)) ? r.reminders : [];
+            return { rows: rows, total: rows.length, totalPages: 1 };
+        }
+        // a thrown apiCall error propagates to the component .catch → states.error (matches the original catch)
+    },
+    renderRow: function (rem) {
+        const sentAt = rem.sent_at ? new Date(rem.sent_at).toLocaleString('en-ZA') : '—';
+        const sc = rem.status === 'sent' ? 'var(--atl-sage)' : 'var(--atl-clay)';
+        let deliveryBadge;
+        if (rem.bounce_reason) {
+            deliveryBadge = `<span style="font-size:10px;background:rgba(248,113,113,0.12);color:var(--atl-clay);border:1px solid rgba(248,113,113,0.3);padding:2px 7px;border-radius:20px;font-weight:700;" title="${rem.bounce_reason}">Bounced</span>`;
+        } else if (rem.delivered_at) {
+            deliveryBadge = `<span style="font-size:10px;background:rgba(74,222,128,0.1);color:var(--atl-sage);border:1px solid rgba(74,222,128,0.2);padding:2px 7px;border-radius:20px;font-weight:700;" title="Delivered ${new Date(rem.delivered_at).toLocaleString('en-ZA')}">Delivered</span>`;
+        } else if (rem.status === 'sent') {
+            deliveryBadge = `<span style="font-size:10px;background:rgba(212,175,55,0.1);color:var(--atl-amber);border:1px solid rgba(212,175,55,0.2);padding:2px 7px;border-radius:20px;font-weight:700;">Pending</span>`;
+        } else {
+            deliveryBadge = `<span style="font-size:10px;color:var(--atl-muted);">—</span>`;
+        }
+        return `<tr>
+                <td style="font-size:12px;color:#aaa;">${sentAt}</td>
+                <td>${rem.client_name || rem.recipient_email}</td>
+                <td><a href="#" class="bk-nav-link" style="color: var(--atl-amber);" data-id="${rem.booking_id}">#${rem.booking_id}</a></td>
+                <td>${rem.due_date || '—'}</td>
+                <td style="text-align:center;">${rem.days_before}d</td>
+                <td style="font-weight:700;color: var(--atl-ink);">${rem.amount_due != null ? fmtCurr(rem.amount_due) : '—'}</td>
+                <td><span style="color:${sc};font-size:11px;font-weight:700;text-transform:uppercase;">${rem.status}</span>${rem.error_message ? `<br><span style="font-size:10px;color: var(--atl-muted);" title="${rem.error_message}">⚠ ${rem.error_message.substring(0,40)}</span>` : ''}</td>
+                <td>${deliveryBadge}</td>
+            </tr>`;
+    }
+    // no onRender / pagination / stats / sort / countEl — none exist in the original
+});
+
+window.loadRemindersLog = function () { return remindersTable.reload(); };   // no page state → reload(), not setPage()
+```
+
+**Accepted micro-deltas for #7**: none of substance — `total`/`totalPages` are computed but never
+displayed (no `stats`/`pagination`). The `?limit=200` cap and the `.bk-nav-link` delegated handlers
+are unchanged. **Live-load checklist for #7**: the finance → Reminders sub-tab
+(`case 'finReminders'` at admin.html:16426) and the manual Refresh button (admin.html:6769); rows
+with the Bounced/Delivered/Pending/— delivery badges and the `⚠ error_message` sub-line; the
+`#<booking_id>` nav links; empty state (no reminders) and a forced fetch failure.
+
 ### Component 1 — DataTable: #12 `renderDirectEmailsList` — INVENTORY CORRECTION: not a table, drop from scope
 
 Read `js/admin/inquiries.js:180–224`. The step-1 inventory listed #12 as a DataTable table
@@ -862,28 +922,27 @@ inventory **already excluded** as "list-item / card-grid, not `<table>` — out 
 → **#12 is dropped from the DataTable set** and belongs with the future list/card component alongside
 `renderInqList` / `renderEventsList`.
 
-### Component 1 — DataTable: corrected call-site list
+### Component 1 — DataTable: corrected call-site list (FINAL — 8 tables)
 
-After the six full dry-runs + the financials/inquiries reads, the real DataTable ( `<table>` +
-paged/sorted/stats ) set is:
+After all dry-runs + the financials/inquiries reads + the user's "#7 IN" call:
 
-| Migrate | Table | Status |
+| Order | Table | Status |
 |---|---|---|
-| **1** | #9 `loadEmailLogs` | config ready (v3), first up — needs a live Email Logs tab load |
+| **1** | #9 `loadEmailLogs` | config ready (v3) — first up, needs a live Email Logs tab load |
 | **2** | #3 `loadAuditLogs` | config ready (v4) |
 | **3** | #4 `loadPopiaRequests` | config ready (v4) |
 | **4** | #2 `renderLogsTable` | config ready (v5) |
 | **5** | #11 `loadCampaigns` | config ready (v5) |
 | **6** | #1 `renderUsersTable` | config ready (v5) |
-| **7** | #10 `renderSubscribersList` | **not yet dry-run** — the one remaining genuine table (has `$table.hide()/show()` + `#subscriberListEmpty`) |
-| optional | #7 `loadRemindersLog` | server-fetch render-all; clean but no paging/sort/stats |
-| **dropped** | #5, #6 | client-cache filters, no paging/sort/stats — net churn |
-| **dropped** | #8 | inline fragment of `loadFinAnalytics`, shares its fetch |
-| **dropped** | #12 | not a table (div list) — goes with `renderInqList` |
+| **7** | #10 `renderSubscribersList` | config ready (v6) |
+| **8** | #7 `loadRemindersLog` | config ready (no component change) — **user: IN** |
+| **dropped** | #5, #6 | client-cache filters, no paging/sort/stats — net churn *(user decision pending)* |
+| **dropped** | #8 | inline fragment of `loadFinAnalytics`, shares its fetch *(user decision pending)* |
+| **dropped** | #12 | not a table (div list) — goes with `renderInqList` *(inventory correction)* |
 
-**Component is stable at v5 (413 lines).** Six dry-runs drove: v2 (4 knobs), v3 (4), v4 (1), v5 (3);
-#2/#11/#1 each needed 0 new knobs beyond that. `cfg.select` remains unused by every migrated table —
-Phase 8 removal candidate pending #10.
+**Component frozen at v6 (418 lines).** Seven dry-runs drove: v2 (4 knobs), v3 (4), v4 (1), v5 (3),
+v6 (1); #2/#11/#1/#7 each needed 0 new knobs. `cfg.select` is unused by all 8 migrated tables —
+Phase 8 removal candidate *(user decision pending)*.
 
 ### Component 1 — DataTable: #10 `renderSubscribersList` dry run — v6 (one knob), the `sibling-el` path validated
 
@@ -992,17 +1051,19 @@ force a non-success response and a thrown error (distinct messages); `#subscribe
 
 ### Component 1 — DataTable: dry-run sweep COMPLETE — awaiting go/no-go
 
-All seven genuine tables dry-run (#9 #3 #4 #2 #11 #1 #10); #5/#6/#7/#8/#12 assessed (see the two
-sections above — recommend migrating only #7, dropping the rest). **Component frozen at v6, 418
-lines, referenced nowhere, `node --check` clean, admin.html 25/25.** Every table has a drop-in
-config + accepted-micro-deltas list + a live-load checklist in the sections above.
+**8 tables spec'd, each with a drop-in config + accepted-micro-deltas list + live-load checklist**
+in the sections above: #9 #3 #4 #2 #11 #1 #10 #7 (#7 IN per the user). #5/#6/#8/#12 assessed and
+recommended dropped. **Component frozen at v6, 418 lines, referenced nowhere, `node --check` clean,
+admin.html 25/25.** v2 (4 knobs) → v3 (4) → v4 (1) → v5 (3) → v6 (1); #2/#11/#1/#7 needed none.
 
 **Nothing else is safe to do in this sandbox** — the next step is the first real migration (#9),
 which needs a live load of the Email Logs admin tab to verify, then the same for each subsequent
-table. Recommended order: **#9 → #3 → #4 → #2 → #11 → #1 → #10** (→ optional #7), one commit each,
-`_quarantine/` the original only once its call site is live-verified. Open decisions for the user:
-(a) confirm dropping #5/#6/#8/#12 from DataTable scope; (b) #7 in or out; (c) whether to keep
-`cfg.select` (unused by all 7) or cut it in Phase 8.
+table. **Migration order: #9 → #3 → #4 → #2 → #11 → #1 → #10 → #7**, one commit each,
+`_quarantine/` the original only once its call site is live-verified.
+
+Still-open user decisions: (a) confirm dropping **#5 / #6 / #8** (I recommend yes — churn, no
+paging/sort/stats); **#12** is an inventory correction, not really a choice (it's not a table);
+(c) keep or cut the unused `cfg.select` subsystem (~45 lines) — suggest **cut in Phase 8**.
 
 ---
 
