@@ -831,6 +831,179 @@ select rows, turn pages, confirm selection persists and the bulk bar + select-al
 inline role `<select>` and status toggle write through; resend-invite spinner; edit/delete drawers;
 `#umUserCount` unfiltered; the "You" row has no checkbox/actions.
 
+### Component 1 — DataTable: #5 / #6 / #7 / #8 financials cluster dry run — LOW VALUE, recommend trimming scope
+
+Read `js/admin/financials.js:160–436` and `520–636`. **All four are "render-all, no-paging"
+views** — none has pagination, per-column sort, a "Showing X–Y of Z" stats line, or a count element.
+The DataTable component was shaped around the paged/sorted tables (#1–#4, #9–#11); for this cluster it
+collapses to `renderRow` + `states.empty` and buys almost nothing. **No component change is needed
+for any of them** (every state row goes through `row-html` verbatim; no new knob). Detail:
+
+| # | Fn | Shape | DataTable fit |
+|---|----|-------|---------------|
+| 5 | `renderTransactions(list)` | client-cache filter (`filterTransactions` filters `_allTransactionsCache`, passes the list in); also called once from a load path (`:165`). Empty row clears `#txGrandTotal`/`#txCountBadge`; a bespoke "Showing N transaction(s) · Net: …" aggregate, not a range. | thin — needs `renderTransactions`'s `(list)` contract changed (either a `_txRenderList` shim or move the filter into `client.rows()` and repoint both callers). `onRender` computes the grand-total/count-badge. Net LOC ≈ break-even, adds indirection. |
+| 6 | `applyInvoiceFilter()` | client-cache filter over `allInvoicesCache` with 3 filter branches (DUE_SOON/UNSENT/status). `renderInvoices(list)` (`:257`) is a 4-line wrapper (`allInvoicesCache = list; applyInvoiceFilter()`), called from 3 load paths. No stats, no count, no loading, no error, no sort. | thinnest of all — `client.rows: () => <the 3-branch filter>`, `renderRow`, `states.empty`. Pure churn; **recommend leaving as-is.** |
+| 7 | `loadRemindersLog()` | server fetch (`apiCall('/api/admin/reminders?limit=200')`), render-all, 3 `row-html` state rows (loading / "No reminders sent yet." / "Failed to load reminders."). No paging/sort/stats/count. | genuine `server` fit but degenerate (no page controls). `server.fetch` → `{rows: r.reminders, total: r.reminders.length}`; `states` all `row-html`; no `pagination`/`stats`. Clean but low value. |
+| 8 | Overdue-invoice `<tbody>` inside `loadFinAnalytics` | **not a function** — ~15 lines (`:611–627`) inside a ~100-line async that also renders 3 ApexCharts, a top-clients ranking, and 4 aging counters, all off one `/api/admin/financials/analytics` call. Loading row set at `:531`; empty row `:613`; no table-specific error path (the catch only toasts). | **poor candidate — recommend DROPPING from the DataTable set.** Its data arrives mid-function shared with the charts; a `DataTable` would need `client: { rows: () => _lastAnalyticsRes.overdueInvoices }` + stashing the response + `overdueTable.reload()`, i.e. restructuring a finance-critical multi-widget function for a 5-column static list. Revisit only if `loadFinAnalytics` is itself refactored for another reason. |
+
+**Recommendation**: migrate **#7** if you want the reminders log on the shared renderer (clean, but
+optional); **skip #5 and #6** (net churn, contract changes, no paging/sort/stats to gain); **drop #8**
+from Phase 7 scope (documented above).
+
+### Component 1 — DataTable: #12 `renderDirectEmailsList` — INVENTORY CORRECTION: not a table, drop from scope
+
+Read `js/admin/inquiries.js:180–224`. The step-1 inventory listed #12 as a DataTable table
+(companion `inqUpdatePagination`). **It isn't a `<table>`.** It renders into
+`#inqListBody` — `<div class="inq-list-body" role="list">` (admin.html:5433) — by `$body.append()`ing
+**`<div class="inq-row">`** elements, and its empty state is `<div class="inq-empty-state">`, not a
+`<tr><td colspan>`. It is structurally identical to `renderInqList` (`inquiries.js:240+`), which the
+inventory **already excluded** as "list-item / card-grid, not `<table>` — out of DataTable scope."
+`inqUpdatePagination` is shared by both and is a Pagination-component (Component 2) concern.
+→ **#12 is dropped from the DataTable set** and belongs with the future list/card component alongside
+`renderInqList` / `renderEventsList`.
+
+### Component 1 — DataTable: corrected call-site list
+
+After the six full dry-runs + the financials/inquiries reads, the real DataTable ( `<table>` +
+paged/sorted/stats ) set is:
+
+| Migrate | Table | Status |
+|---|---|---|
+| **1** | #9 `loadEmailLogs` | config ready (v3), first up — needs a live Email Logs tab load |
+| **2** | #3 `loadAuditLogs` | config ready (v4) |
+| **3** | #4 `loadPopiaRequests` | config ready (v4) |
+| **4** | #2 `renderLogsTable` | config ready (v5) |
+| **5** | #11 `loadCampaigns` | config ready (v5) |
+| **6** | #1 `renderUsersTable` | config ready (v5) |
+| **7** | #10 `renderSubscribersList` | **not yet dry-run** — the one remaining genuine table (has `$table.hide()/show()` + `#subscriberListEmpty`) |
+| optional | #7 `loadRemindersLog` | server-fetch render-all; clean but no paging/sort/stats |
+| **dropped** | #5, #6 | client-cache filters, no paging/sort/stats — net churn |
+| **dropped** | #8 | inline fragment of `loadFinAnalytics`, shares its fetch |
+| **dropped** | #12 | not a table (div list) — goes with `renderInqList` |
+
+**Component is stable at v5 (413 lines).** Six dry-runs drove: v2 (4 knobs), v3 (4), v4 (1), v5 (3);
+#2/#11/#1 each needed 0 new knobs beyond that. `cfg.select` remains unused by every migrated table —
+Phase 8 removal candidate pending #10.
+
+### Component 1 — DataTable: #10 `renderSubscribersList` dry run — v6 (one knob), the `sibling-el` path validated
+
+Read `js/admin/newsletter.js:20–208`. #10 is the seventh and **last** genuine table, and the only
+one on the **`sibling-el` idiom in `render` mode with the `<table>` hidden** (#9 is sibling-el but
+`toggle-only`). It validates that v1/v2 design. Server-paged/sorted/searched, jQuery,
+`$table = $tbody.closest('table')` resolved dynamically, a `subscribersEmptyState(iconClass, msg)`
+helper used for loading / empty / both error rows.
+
+- **Gap H — `sibling-el` render markup was hardcoded** (`22px` / `--atl-amber` / `8px`) and does not
+  match `subscribersEmptyState` (`28px` / `--atl-muted-dim` / `10px`). #10 is the only render-mode
+  `sibling-el` table. → **v6**: `states.siblingRender(ctx)` — a full override of the sibling
+  element's inner HTML (`ctx = { kind, icon, message, subMessage, searchActive }`). #10 passes
+  `({ icon, message }) => subscribersEmptyState(icon, message)`, so its helper stays **byte-identical**
+  and untouched. `data-table.js` → 418 lines; `node --check` clean; admin.html 25/25; referenced
+  nowhere.
+- **Gap I — two error messages** (`!data.success` → "Could not load subscribers."; thrown → "An
+  error occurred. Please refresh."). Both handled entirely in the `server.fetch` wrapper (writes its
+  own sibling via `subscribersEmptyState`, `$('#subscriberCount').text('0')`, `showError`, returns
+  `DataTable.ABORT`). `states.error` is **not** configured — the component never renders an error
+  state for #10. Mirrors #9's wrapper owning its 401.
+- **Page-underflow recursion** (`data.subscribers.length === 0 && subscribersPage > 1 && total > 0`
+  → `subscribersPage--; return renderSubscribersList()`): the wrapper does
+  `subscribersPage--; renderSubscribersList(); return DataTable.ABORT;` — fires the re-fetch, aborts
+  the current paint. Brief two-in-flight overlap, same as the original's recursion.
+- **`injectSubscribers` kept whole** — it is a `$tbody.empty()` + `.forEach($tbody.append(...))`
+  whole-tbody op (~60 lines), not per-row. `renderRow: () => ''` + `onRender` calls
+  `injectSubscribers(rows)`. One extra DOM write (`bodyEl.innerHTML = ''` then inject). *Alternative
+  for the migration session*: lift `injectSubscribers`'s `forEach` body into a per-row function and
+  use it as `renderRow` — more faithful, ~60 lines of churn. Recommend the `onRender` route.
+- `$table.show()` / `$empty.hide()` on the row path are automatic — `_paint`'s non-empty branch
+  already does `tableEl.style.display=''` + `siblingEl.style.display='none'` (v1). Pass
+  `table: $('#subscriberListBody').closest('table')` (jQuery obj — `resolveEl` unwraps `.jquery`).
+- **count**: `#subscriberCount` + `#subscriberCountLabel` set in the wrapper (needs `data.total` and
+  the search-term label), not via `countEl`. No "Showing X–Y" stats line → no `stats`.
+
+```js
+const subscribersTable = new DataTable({
+    body:  '#subscriberListBody',
+    table: $('#subscriberListBody').closest('table'),      // jQuery obj; resolveEl unwraps it
+    colspan: 6,
+    states: {
+        idiom: 'sibling-el',
+        siblingEl: '#subscriberListEmpty',
+        siblingMode: 'render',
+        searchActive: function () { return !!subscribersSearchTerm; },
+        siblingRender: function (ctx) { return subscribersEmptyState(ctx.icon, ctx.message); },
+        loading: { icon: 'fa-solid fa-circle-notch fa-spin', message: 'Loading subscribers…' },
+        empty:   { icon: 'fa-solid fa-inbox', message: 'No subscribers found.', altMessage: 'No subscribers match your search.' }
+        // no `error` — the wrapper owns both error messages
+    },
+    server: {
+        pageSize: 50,
+        fetch: async function () {
+            $('#subscribersPagination').hide();                // mirrors line 40 (loading also hides pagination)
+            const params = new URLSearchParams({ page: subscribersPage, limit: 50, sort: subscribersSortCol, order: subscribersSortOrder });
+            if (subscribersSearchTerm) params.set('search', subscribersSearchTerm);
+            let data;
+            try {
+                data = await apiCall('/api/admin/newsletter/subscribers?' + params.toString());
+            } catch (err) {
+                $('#subscriberCount').text('0');
+                window.notificationService.showError('Unexpected error loading subscribers.');
+                $('#subscriberListEmpty').html(subscribersEmptyState('fa-solid fa-triangle-exclamation', 'An error occurred. Please refresh.')).show();
+                return DataTable.ABORT;
+            }
+            if (!data || !data.success || !Array.isArray(data.subscribers)) {
+                $('#subscriberCount').text('0');
+                window.notificationService.showError('Could not load subscribers — please refresh and try again.');
+                $('#subscriberListEmpty').html(subscribersEmptyState('fa-solid fa-triangle-exclamation', 'Could not load subscribers.')).show();
+                subscribersData = [];
+                return DataTable.ABORT;
+            }
+            if (data.subscribers.length === 0 && subscribersPage > 1 && (data.total || 0) > 0) {
+                subscribersPage--; renderSubscribersList(); return DataTable.ABORT;
+            }
+            subscribersData = data.subscribers;
+            window.subscribersData = data.subscribers;
+            $('#subscriberCount').text(data.total);
+            $('#subscriberCountLabel').text(subscribersSearchTerm ? 'Matching Subscribers' : 'Total Subscribers');
+            subscribersTotalPages = data.pages || 1;
+            return { rows: data.subscribers, total: data.total || 0, totalPages: data.pages || 1 };
+        }
+    },
+    renderRow:  function () { return ''; },                 // injectSubscribers fills the tbody in onRender
+    onRender:   function (bodyEl, rows) { injectSubscribers(rows); updateSortIconsSubscribers(); },
+    pagination: function (info) { renderSubscribersPaginationNumbered(info.totalPages); }
+});
+
+function renderSubscribersList(resetPage) {
+    if (resetPage) subscribersPage = 1;
+    return subscribersTable.setPage(subscribersPage);
+}
+```
+
+`toggleSubscriberSort`, `updateSortIconsSubscribers`, `renderSubscribersPaginationNumbered`,
+`subscribersEmptyState`, `injectSubscribers`, `loadSubscriberStats` all stay **byte-identical**.
+**Accepted micro-deltas for #10**: `data.total===0` path — original returns before `$table.show()`,
+so the table stays hidden and `#subscriberListEmpty` shows the `fa-inbox` sibling; component's
+`_paint` empty branch calls `_stateBody('empty')` → same (table hidden, sibling rendered). Sort/
+pagination otherwise as the other server tables. **Live-load checklist for #10**: the loading
+spinner sibling → rows with the table shown; the four `#subsort-*` headers; search (both empty
+messages + the count label swap); pagination; delete the last row on page > 1 (underflow step-back);
+force a non-success response and a thrown error (distinct messages); `#subscriberCount` +
+`#subKpi*` stats.
+
+### Component 1 — DataTable: dry-run sweep COMPLETE — awaiting go/no-go
+
+All seven genuine tables dry-run (#9 #3 #4 #2 #11 #1 #10); #5/#6/#7/#8/#12 assessed (see the two
+sections above — recommend migrating only #7, dropping the rest). **Component frozen at v6, 418
+lines, referenced nowhere, `node --check` clean, admin.html 25/25.** Every table has a drop-in
+config + accepted-micro-deltas list + a live-load checklist in the sections above.
+
+**Nothing else is safe to do in this sandbox** — the next step is the first real migration (#9),
+which needs a live load of the Email Logs admin tab to verify, then the same for each subsequent
+table. Recommended order: **#9 → #3 → #4 → #2 → #11 → #1 → #10** (→ optional #7), one commit each,
+`_quarantine/` the original only once its call site is live-verified. Open decisions for the user:
+(a) confirm dropping #5/#6/#8/#12 from DataTable scope; (b) #7 in or out; (c) whether to keep
+`cfg.select` (unused by all 7) or cut it in Phase 8.
+
 ---
 
 ## Phase 6 — `admin.html` decomposition

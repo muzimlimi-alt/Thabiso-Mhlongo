@@ -115,15 +115,20 @@
             //    shows/hides it, never overwriting (email-logs' #emailLogsEmpty works this way).
             // Whether to also hide the <table> is opt-in via `table` being set (newsletter #10 hides
             // it; email-logs #9 leaves it visible with an empty tbody).
+            //  - siblingRender(ctx): optional full override of the sibling's inner HTML, so a table
+            //    with its own state-markup helper keeps it verbatim (#10's subscribersEmptyState —
+            //    28px / muted-dim / 10px, vs the default's 22px / amber / 8px).
             var siblingMode = (this.cfg.states && this.cfg.states.siblingMode) || 'render';
+            var siblingRender = this.cfg.states && this.cfg.states.siblingRender;
             if (this.tableEl) this.tableEl.style.display = 'none';
             if (this.bodyEl) this.bodyEl.innerHTML = '';
             if (this.siblingEl) {
                 if (siblingMode !== 'toggle-only') {
-                    this.siblingEl.innerHTML =
-                        '<i class="' + escHtml(icon) + '" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>' +
-                        '<p style="color:var(--atl-muted);margin:0;">' + escHtml(msg) + '</p>' +
-                        (sub ? '<p style="color:var(--atl-muted-dim);font-size:12px;margin:4px 0 0;">' + escHtml(sub) + '</p>' : '');
+                    this.siblingEl.innerHTML = (typeof siblingRender === 'function')
+                        ? siblingRender({ kind: kind, icon: icon, message: msg, subMessage: sub, searchActive: searchOn })
+                        : '<i class="' + escHtml(icon) + '" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>' +
+                          '<p style="color:var(--atl-muted);margin:0;">' + escHtml(msg) + '</p>' +
+                          (sub ? '<p style="color:var(--atl-muted-dim);font-size:12px;margin:4px 0 0;">' + escHtml(sub) + '</p>' : '');
                 }
                 this.siblingEl.style.display = (kind === 'loading' && st.hideOnLoading) ? 'none' : 'block';
             }
