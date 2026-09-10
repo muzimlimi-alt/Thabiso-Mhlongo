@@ -1257,6 +1257,46 @@ needing markup-class verification — flag for a human, don't do it under Phase 
 tag balance) + a live open/close/tab-switch of one drawer in **each** of the 15 sections (the
 sandbox gap). Same terms as every Phase 6 extraction.
 
+## Component 5 — FilterBar: step-1 assessment — thin; the real win is a shared `debounce()`
+
+Read every `debounce*Search` / `*Filter` helper. The "filter bar" above each table is **hand-laid-out
+per-section markup** (different controls, IDs, layout) with **bespoke apply logic** (5–10 lines:
+read these inputs → set these state fields → reset page → reload). There is no shared markup or
+config surface worth a `FilterBar` component. What *is* duplicated:
+
+- **Debounced search** — 6 near-identical hand-rolled timer dances:
+  `debounceLogSearch` (email-logs, 400 ms) · `debounceAuditSearch` / `debouncePopiaSearch`
+  (security-audit, 400 ms) · `inqSearchDebounce` (inquiries, 300 ms) · `subscriberSearchDebounce` /
+  `campaignsSearchDebounce` (newsletter). Each is `clearTimeout(t); t = setTimeout(() => { state.search
+  = input.value; state.page = 1; reload(); }, ms)`.
+- **`lcDebounce(fn, ms)`** (`js/admin/legal-compliance.js:38`) is *already* the generic factory —
+  `function lcDebounce(fn, ms){ var t; return function(){ var a=arguments,c=this; clearTimeout(t);
+  t=setTimeout(function(){ fn.apply(c,a); }, ms); }; }`.
+
+**Recommendation**: Component 5 reduces to **promoting `lcDebounce` to a shared `debounce(fn, ms)`**
+(in a `js/admin/components/util.js` or alongside the Drawer helpers), then rewriting the 6
+hand-rolled ones as `const debouncedX = debounce(fn, ms)`. Small, real, low-risk; still needs a live
+keystroke test per section. The filter-*apply* functions (`applyLogFilters`, `filterTransactions`,
+`applyInvoiceFilter`, …) stay per-section — not enough commonality to abstract without churn.
+
+## Phase 7 — component sweep COMPLETE (analysis phase)
+
+| # | Component | Outcome |
+|---|-----------|---------|
+| 1 | DataTable | **Built + frozen (v7, 371 ln, inert).** 8 tables spec'd with drop-in configs. |
+| 2 | Pagination | **Built (152 ln, inert).** 10 impls → `numbered`/`prevnext` configs. |
+| 3 | Modal | **No-op.** `notificationService` + Bootstrap `.modal()` + `.atl-modal-*` CSS already shared. |
+| 4 | Drawer | **Inventoried.** Phase-6-style relocation of `atlDrawer*` (from `services.js`) + `atlActivateDrawerTab` (from `events.js`) into `js/admin/components/drawer.js`; 1 `window.X=X` needed; ~92 call sites untouched. |
+| 5 | FilterBar | **Thin.** Promote `lcDebounce` → shared `debounce()`, rewrite 6 copies. Filter-apply fns stay per-section. |
+
+**Everything above is inert / analysis only. Zero runtime behaviour has changed in Phase 7.** The
+remaining work is all live-verification-gated:
+1. DataTable migrations #9 → #3 → #4 → #2 → #11 → #1 → #10 → #7 (browser: load each tab).
+2. Pagination migrations (interleave with #1 — same 8 sections).
+3. Drawer extraction into `drawer.js` (browser: open/close a drawer per section, ×15).
+4. FilterBar: `debounce()` promotion (browser: keystroke test per section).
+Then Phase 8 (dead-code removal) — explicitly last.
+
 ---
 
 ## Phase 6 — `admin.html` decomposition
