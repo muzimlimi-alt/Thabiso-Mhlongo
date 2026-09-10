@@ -1284,11 +1284,44 @@ config surface worth a `FilterBar` component. What *is* duplicated:
   `function lcDebounce(fn, ms){ var t; return function(){ var a=arguments,c=this; clearTimeout(t);
   t=setTimeout(function(){ fn.apply(c,a); }, ms); }; }`.
 
-**Recommendation**: Component 5 reduces to **promoting `lcDebounce` to a shared `debounce(fn, ms)`**
-(in a `js/admin/components/util.js` or alongside the Drawer helpers), then rewriting the 6
-hand-rolled ones as `const debouncedX = debounce(fn, ms)`. Small, real, low-risk; still needs a live
-keystroke test per section. The filter-*apply* functions (`applyLogFilters`, `filterTransactions`,
-`applyInvoiceFilter`, …) stay per-section — not enough commonality to abstract without churn.
+**Recommendation**: Component 5 reduces to **promoting `lcDebounce` to a shared `debounce(fn, ms)`**,
+then rewriting the 6 hand-rolled ones. The filter-*apply* functions (`applyLogFilters`,
+`filterTransactions`, `applyInvoiceFilter`, …) stay per-section — not enough commonality to abstract
+without churn.
+
+### Step-2 prep — DONE this session: `js/admin/components/util.js` created (inert)
+
+`window.debounce = function (fn, ms)` — `lcDebounce`'s body verbatim (trailing, forwards
+`this`+`arguments`). **Referenced nowhere.** `node --check` clean. The live session that does the 6
+swaps adds the `<script src="js/admin/components/util.js">` to `admin.html` (before the section
+scripts) in the same commit.
+
+**Analysis for the 6 rewrites** (grepped): no body uses `this` or `arguments`; every timer var
+(`logSearchTimer` / `auditSearchTimer` / `popiaSearchTimer` / `inqSearchDebounce` /
+`subscriberSearchDebounce` / `campaignsSearchDebounce`) is private to its own debounce (the one
+`user-management.js:960` hit is a *comment*). All 6 are safe to swap. Two shapes:
+
+**Shape A — `window.debounceXSearch` fns** (called from inline `oninput=` in markup — keep the name):
+
+| File | Rewrite |
+|---|---|
+| `email-logs.js` `debounceLogSearch` (400) + drop `let logSearchTimer` | `window.debounceLogSearch = debounce(function () { logState.search = qs('#logSearch').value; logState.page = 1; loadEmailLogs(); }, 400);` |
+| `security-audit.js` `debounceAuditSearch` (400) + drop `let auditSearchTimer` | `window.debounceAuditSearch = debounce(function () { auditState.search = (qs('#auditSearch') || {}).value || ''; auditState.page = 1; loadAuditLogs(); }, 400);` |
+| `security-audit.js` `debouncePopiaSearch` (400) + drop `let popiaSearchTimer` | `window.debouncePopiaSearch = debounce(function () { popiaState.search = (qs('#popiaSearch') || {}).value || ''; popiaState.page = 1; loadPopiaRequests(); }, 400);` |
+
+**Shape B — inline `$('#x').on('input', …)`** (the `var val` is read at keystroke time — preserve
+that exactly by capturing it in the outer handler and passing it through; `debounce` forwards args):
+
+| File | Rewrite |
+|---|---|
+| `inquiries.js` `#inqSearchInput` (300) + drop `let inqSearchDebounce` | `var _inqSearch = debounce(function () { loadInquiries(true); }, 300); $('#inqSearchInput').on('input', _inqSearch);` (body reads nothing — no capture needed) |
+| `newsletter.js` `#subscriberSearch` (300) + drop `let subscriberSearchDebounce` | `var _subSearch = debounce(function (val) { subscribersSearchTerm = val; renderSubscribersList(true); }, 300); $('#subscriberSearch').on('input', function () { _subSearch($(this).val().trim()); });` |
+| `newsletter.js` `#campaignsSearchInput` (300) + drop `let campaignsSearchDebounce` | `var _campSearch = debounce(function (val) { campaignsSearch = val; loadCampaigns(true); }, 300); $('#campaignsSearchInput').on('input', function () { _campSearch($(this).val().trim()); });` |
+
+**Accepted micro-delta**: Shape A's inner arrow `() => {…}` becomes `function () {…}` — no `this`/args
+used, so identical. Shape B keeps the keystroke-time `val` read via pass-through, so identical.
+**Live gate**: type in each of the 6 search boxes, confirm the ~300–400 ms trailing debounce still
+fires one request. Then Phase 8 can quarantine `lcDebounce` (or leave it — it's local, harmless).
 
 ## Phase 7 — component sweep COMPLETE (analysis phase)
 
