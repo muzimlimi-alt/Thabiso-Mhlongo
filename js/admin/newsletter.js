@@ -1154,33 +1154,45 @@ function updateCampaignsBulkBar() {
     $all.prop('checked', total > 0 && checked === total);
 }
 
-async function loadCampaigns(resetPage) {
-    if (resetPage) campaignsPage = 1;
-    const $tbody = $('#campaignsTableBody');
-    $tbody.html('<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>Loading campaigns…</div></td></tr>');
-    try {
-        const data = await apiCall(`/api/admin/campaigns/unified?page=${campaignsPage}&status=${campaignsStatus}&sort=${campaignsSort}&search=${encodeURIComponent(campaignsSearch)}`, 'GET');
-        campaignsData = data.campaigns || [];
-        const total = data.total || 0;
-        const pages = data.pages || 1;
-        $tbody.empty();
-        if (!campaignsData.length) {
-            const msg = campaignsSearch ? 'No campaigns match your search.' : 'No campaigns found.';
-            $tbody.html(`<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-inbox" style="font-size:22px;color:var(--atl-muted-dim);display:block;margin-bottom:8px;"></i>${msg}</div></td></tr>`);
-            $('#campaignsPagination').hide();
-            updateCampaignsBulkBar();
-            return;
+/* Phase 7 Component 1 (HOUSEKEEPING-NOTES.md "#11"): loadCampaigns is now a DataTable instance.
+   campaignsPage/Status/Sort/Search/Data, renderCampaignsPaginationNumbered, updateCampaignsBulkBar,
+   the delegated .campaign-checkbox / #selectAllCampaigns handlers and everything else are UNCHANGED.
+   window.DataTable comes from js/admin/components/data-table.js (loaded before this file). */
+const campaignsTable = new DataTable({
+    body:  '#campaignsTableBody',
+    table: null,
+    colspan: 5,
+    states: {
+        loading: { idiom: 'row-html', html: '<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:22px;color:var(--atl-amber);display:block;margin-bottom:8px;"></i>Loading campaigns…</div></td></tr>' },
+        empty:   { idiom: 'row-html', html: function () {
+            var msg = campaignsSearch ? 'No campaigns match your search.' : 'No campaigns found.';
+            return '<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-inbox" style="font-size:22px;color:var(--atl-muted-dim);display:block;margin-bottom:8px;"></i>' + msg + '</div></td></tr>';
+        } },
+        error:   { idiom: 'row-html', html: '<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-triangle-exclamation" style="font-size:22px;color:var(--atl-clay);display:block;margin-bottom:8px;"></i>Could not load campaigns.</div></td></tr>' }
+    },
+    server: {
+        pageSize: 0,   // server owns page size; unused here (#11 has no stats; wrapper returns data.pages)
+        fetch: async function () {
+            try {
+                const data = await apiCall(`/api/admin/campaigns/unified?page=${campaignsPage}&status=${campaignsStatus}&sort=${campaignsSort}&search=${encodeURIComponent(campaignsSearch)}`, 'GET');
+                campaignsData = data.campaigns || [];
+                return { rows: campaignsData, total: data.total || 0, totalPages: data.pages || 1 };
+            } catch (e) {
+                $('#campaignsPagination').hide();                     // original catch also hides it (Gap F)
+                throw e;                                              // -> component .catch -> states.error
+            }
         }
+    },
+    renderRow: function (c) {
         const statusColors = { sent:'var(--atl-green)', scheduled:'var(--atl-orange)', failed:'var(--atl-clay)', cancelled:'var(--atl-muted)' };
-        campaignsData.forEach(c => {
-            const raw = c.date || '';
-            const d = raw ? new Date(raw.includes('T') ? raw : raw.replace(' ','T')+'Z') : null;
-            const dateStr = d && !isNaN(d) ? d.toLocaleString() : '—';
-            const sc = statusColors[c.display_status] || 'var(--atl-muted)';
-            const label = c.display_status.charAt(0).toUpperCase() + c.display_status.slice(1);
-            const isPending = c.display_status === 'scheduled';
-            const subj = $('<span>').text(c.subject || '(No subject)').html();
-            $tbody.append(`<tr class="campaign-row" data-subject="${subj.toLowerCase()}" style="border-bottom:1px solid var(--atl-line);">
+        const raw = c.date || '';
+        const d = raw ? new Date(raw.includes('T') ? raw : raw.replace(' ','T')+'Z') : null;
+        const dateStr = d && !isNaN(d) ? d.toLocaleString() : '—';
+        const sc = statusColors[c.display_status] || 'var(--atl-muted)';
+        const label = c.display_status.charAt(0).toUpperCase() + c.display_status.slice(1);
+        const isPending = c.display_status === 'scheduled';
+        const subj = $('<span>').text(c.subject || '(No subject)').html();
+        return `<tr class="campaign-row" data-subject="${subj.toLowerCase()}" style="border-bottom:1px solid var(--atl-line);">
                 <td style="padding:10px 8px;width:36px;vertical-align:middle;border:none;">
                     <input type="checkbox" class="campaign-checkbox" data-id="${c.id}" data-source="${c.source}" style="accent-color: var(--atl-amber);cursor:pointer;">
                 </td>
@@ -1196,14 +1208,15 @@ async function loadCampaigns(resetPage) {
                     <button class="um-btn um-btn--primary um-btn--sm campaign-reuse-btn" data-id="${c.id}" data-source="${c.source}" style="margin-right:4px;" title="Load into composer"><i class="fa-solid fa-rotate-left"></i> Reuse</button>
                     <button class="um-btn um-btn--ghost um-btn--sm campaign-delete-btn" data-id="${c.id}" data-source="${c.source}" style="color:var(--atl-clay);" title="Delete"><i class="fa-solid fa-trash"></i></button>
                 </td>
-            </tr>`);
-        });
-        renderCampaignsPaginationNumbered(pages);
-        updateCampaignsBulkBar();
-    } catch(e) {
-        $tbody.html('<tr><td colspan="5"><div class="um-empty-state" style="padding:30px 20px;"><i class="fa-solid fa-triangle-exclamation" style="font-size:22px;color:var(--atl-clay);display:block;margin-bottom:8px;"></i>Could not load campaigns.</div></td></tr>');
-        $('#campaignsPagination').hide();
-    }
+            </tr>`;
+    },
+    onRender:   function ()     { updateCampaignsBulkBar(); },   // original called it on both empty (1171) and rows (1202)
+    pagination: function (info) { renderCampaignsPaginationNumbered(info.totalPages); }
+});
+
+function loadCampaigns(resetPage) {
+    if (resetPage) campaignsPage = 1;
+    return campaignsTable.setPage(campaignsPage);
 }
 
 function renderCampaignsPaginationNumbered(totalPages) {

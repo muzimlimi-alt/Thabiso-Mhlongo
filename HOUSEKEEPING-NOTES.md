@@ -699,6 +699,16 @@ size 10 pagination, `#umLogCount` shows the unfiltered count, `#umLogStats` line
 
 ### Component 1 — DataTable: #11 `loadCampaigns` dry run (jQuery + server-paged; no component change)
 
+**MIGRATED (this session, `<commit>`).** `js/admin/newsletter.js` `loadCampaigns` →
+`const campaignsTable = new DataTable({…})` + `function loadCampaigns(resetPage) { if (resetPage)
+campaignsPage = 1; return campaignsTable.setPage(campaignsPage); }`. Lines 1–1155 and
+`renderCampaignsPaginationNumbered`→EOF **byte-identical to HEAD** (verified). `node --check` +
+`admin.html` 25/25 green. `renderRow` = the original `forEach` body's template **verbatim** (spliced
+from the source lines, only `$tbody.append(\`` → `return \`` and `\`);` → `\`;`). Gap F handled in
+the wrapper's `catch` (`$('#campaignsPagination').hide()` + rethrow). No `select` config (delegated
+`.campaign-checkbox` handlers untouched); `onRender` → `updateCampaignsBulkBar()`. First-run-blind
+accepted. Still owed: live load of the Campaigns tab.
+
 Read `js/admin/newsletter.js:1140–1360`. **First jQuery table dry-run** — and it confirms the
 vanilla component absorbs a jQuery call site with no component work: `body: '#campaignsTableBody'`
 (selector string), `renderRow` returns the same `<tr>…</tr>` template the code `$tbody.append()`ed
