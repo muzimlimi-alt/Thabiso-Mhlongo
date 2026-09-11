@@ -2713,13 +2713,43 @@ out from between payment/refund/cancellation handlers left untouched in place �
 different, higher-risk operation than the two clean single-block cuts done so far (relocating a
 whole line-range vs. surgically excising interleaved fragments next to protected-surface code), on
 exactly the two surfaces (booking workflow, payment) the plan names as needing the most care.
-**Recommendation, not yet acted on**: either (a) do this as a deliberately slower multi-fragment
-extraction in a session built for it — map every fragment's exact line range first, extract each as
-its own tiny cut with its own full whole-file reconciliation, one commit per fragment, or (b) leave
-Quote Builder where it is and move to the **core pipeline/archive/deal-view/Calendar-sync** sub-batch
-instead — though that is adjacent to this same interleaved stretch and should be expected to have
-the same problem until proven otherwise (verify fresh, don't assume Contract-Management-style luck).
-Awaiting a decision before proceeding further into Bookings.
+**Correction — the "tangle" was a false alarm from too-coarse a scan. Sub-batch 3 DONE (`<commit>`).**
+User explicitly accepted the risk and asked to continue; re-investigated with a full line-by-line
+read instead of the earlier grep-across-the-whole-span. **Quote Builder is a single clean, contiguous
+block after all — admin.html lines 14666–15335** (670 lines): auto-save & recovery, the open-drawer
+handler (fresh `apiCall` fetch, client/event info, payment-milestone terms text, draft recovery), the
+Terms Source Switcher, the service-catalogue selector, `addQuoteItem`/`calcQuoteTotal`, and the Send
+Quote handler — ending cleanly at the `});` that closes `click.bkq_send`. → **`js/admin/bookings-quote.js`**,
+byte-identical. `<script src>` inserted right after `bookings-finance.js`.
+
+What the original coarse scan got wrong: it searched every `$(document).on(...)` selector across
+14666–15581 (through the *next* labelled header, "Resend Quote") and found `.bk-action-status` /
+`.bk-action-refund` / `.bk-action-record-payment` / `#cancelConfirmBtn` / `bkContractFinalised` mixed
+in with the `.qb*` handlers — true, but those all sit in an **unrelated cluster that starts right
+after Quote Builder ends** (admin.html ~15337, `// Status action buttons` onward), not interleaved
+*within* it. A careful read pinpointed the exact boundary (the `});` at line 15335) and confirmed,
+by grep, that **zero** of the ten names Quote Builder defines (`qbAutoSaveTimeout`,
+`qbHasUnsavedChanges`, `qbAutoSaveFailed`, `saveQuoteDraft`, `triggerAutoSave`, `formatDuration`,
+`_applyQbTermsSource`, `fetchServicesForQuote`, `addQuoteItem`, `calcQuoteTotal`) are referenced
+anywhere outside 14666–15335, and the block itself never reads `allBookingsCache` / `dealView*` /
+`currentDealId`. `window.saveQuoteDraft`/`triggerAutoSave`/`addQuoteItem` were already window-attached
+— no new attachments needed. **Lesson for future sub-batches**: a wide grep across "until the next
+header" over-estimates a block's extent when unrelated content shares the file with no comment
+boundary of its own — always find the *exact* end anchor by reading forward line-by-line, not by
+grepping to the next labelled section.
+
+Verified: `node --check`, `check_script_blocks.js` 25/25, **full whole-file reconciliation — 0
+diffs** (clean on the first attempt this time), block byte-identity confirmed directly too.
+First-run-blind accepted. Still owed: live open of the Quote Builder drawer (draft
+save/recover/auto-save, terms switcher, add/remove items, totals, send).
+
+**The unrelated cluster right after it** (`bkContractFinalised`/`bkUnsignedContractNote` +
+`.bk-action-status`/`.bk-action-disposition`/`.bk-action-complete`/`.bk-action-refund`/
+`.bk-stat-pill`/`#clearFilters`/`.bk-action-record-payment`/`#cancelConfirmBtn`, admin.html ~15337
+onward through "Resend Quote") is genuine **core Bookings pipeline + payment content** — left exactly
+where it is, correctly out of scope for this sub-batch, and belongs with the eventual core
+pipeline/deal-view sub-batch (verify that one fresh too — same rule: don't assume, read it line by
+line first).
 
 ---
 
