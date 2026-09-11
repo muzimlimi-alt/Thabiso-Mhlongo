@@ -2653,10 +2653,42 @@ byte-identical. `<script src>` inserted right after the big Bookings `<script>` 
   distinct piece); `bkContractFinalised` / `bkUnsignedContractNote` predicate helpers
   (admin.html ~15341); the `#contractDrawer` markup itself (stays in `admin.html`).
 
-**Remaining Bookings sub-batches** (per the recon's suggested order): the
-Expense/Bank-Statement/Reconciliation module (`// ─── EXPENSE TRACKING ───` onward, ~admin.html
-15866+) → Quote Builder → core pipeline/archive/deal-view/Calendar-sync + the two satellite pieces
-(Manual Booking modal, Payment Milestone Schedules). Each its own sub-batch, verified fresh.
+**Sub-batch 2 — Expense/Bank-Statement/Reconciliation: DONE (`<commit>`).** `admin.html` lines
+**15865–16633** (769 lines — `// ─── EXPENSE TRACKING ───`, `// ─── MANUAL TRANSACTION / LOG
+ADJUSTMENT ───`, `// ─── BANK STATEMENT IMPORT & MATCHING ───`, `// ─── RECONCILIATION ───`, the
+second, previously-undiscovered Finance module coded inside Bookings' own script range — confirmed
+**not** part of `initFinanceManagement`, no shared state) → **`js/admin/bookings-finance.js`**,
+byte-identical. `<script src>` inserted right after `bookings-contracts.js`.
+
+- **Cross-file dependency found and handled**: `const R_FMT` (currency formatter), defined inside
+  this block's Reconciliation section, is consumed by **`js/admin/financials.js`** as a bare global
+  at **9 call sites** (chart tooltips, aging values, invoice list, donut/cash-flow charts) — a
+  top-level `const` in a classic script joins the shared global lexical environment, so
+  `bookings-finance.js` must keep loading *before* `financials.js`. It does (right after
+  `bookings-contracts.js`; `financials.js` is far later in the load order) — confirmed by grep, not
+  assumed. The reverse call (`loadFinancialStats()`, window-attached in `financials.js`) fires from
+  inside a `setTimeout` in a click handler — deferred, so load order doesn't matter for it.
+- **No cross-reference to core Bookings** (pipeline/deal-view/payment/calendar-sync) — grepped for
+  `allBookingsCache`/`loadBookings`/`dealView*` inside the block: zero hits. `hexToRgb` /
+  `EXPENSE_CATEGORY_LABELS` / `EXPENSE_CATEGORY_COLORS` / `calcMileageAmount` / `calcPerDiemAmount`
+  and the module-local caches (`_expensesCache`, `_expenseEditMode`, `_bankUnmatchedOnly`) are used
+  only within the block. All 13 `window.X = …` markup-reachable attachments were already there — no
+  new ones needed.
+- **Self-caught splice-boundary mistake (mid-extraction, caught before commit)**: the automated cut
+  removed the block plus **2** trailing lines (copying the previous sub-batch's "two blank lines
+  before the next header" shape) — but here there is only **one** blank line before the next section,
+  so the second line removed was the `// ─── Promote toggle ───` header itself (core-Bookings
+  content, untouched otherwise). Caught by running a **full whole-file reconciliation** (every one
+  of admin.html's 22,589 post-extraction lines diffed against "HEAD minus the exact block minus one
+  blank plus the one `<script src>` line" — 0 diffs required) rather than only spot-checking the
+  moved block and its immediate neighbours. Fixed by restoring the one-line header; re-ran the full
+  reconciliation to confirm 0 diffs. **This whole-file reconciliation is now the standard check for
+  every remaining Bookings sub-batch** — spot-checking neighbours is not enough at this size.
+
+**Remaining Bookings sub-batches** (per the recon's suggested order): Quote Builder → core
+pipeline/archive/deal-view/Calendar-sync + the two satellite pieces (Manual Booking modal, Payment
+Milestone Schedules). Each its own sub-batch, verified fresh, with the full whole-file
+reconciliation.
 
 ---
 
