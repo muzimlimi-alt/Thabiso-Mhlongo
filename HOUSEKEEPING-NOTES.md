@@ -2685,10 +2685,41 @@ byte-identical. `<script src>` inserted right after `bookings-contracts.js`.
   reconciliation to confirm 0 diffs. **This whole-file reconciliation is now the standard check for
   every remaining Bookings sub-batch** — spot-checking neighbours is not enough at this size.
 
-**Remaining Bookings sub-batches** (per the recon's suggested order): Quote Builder → core
-pipeline/archive/deal-view/Calendar-sync + the two satellite pieces (Manual Booking modal, Payment
-Milestone Schedules). Each its own sub-batch, verified fresh, with the full whole-file
-reconciliation.
+**Sub-batch 3 — Quote Builder: ATTEMPTED, STOPPED before touching any file — genuinely tangled,
+not a clean cut.** Contract Management and the Finance module both turned out to be contiguous,
+cleanly-bounded runs (lucky, not typical — they were evidently appended as separate modules at
+specific points). Quote Builder is not: mapping every `$(document).on(...)` selector and `function`
+name between `// ─── Quote Builder Auto-Save & Recovery ───` (admin.html ~14666) and
+`// ─── Resend Quote ───` (~15581, the next labelled header) shows the ~915-line span in between is
+a genuine **interleaving** of:
+
+- **Quote Builder** (`.qbas`/`.qbTermsRadio`/`.qb_svc`/`.qb_add`/`.bkq_*` namespaced handlers,
+  `calcQuoteTotal`, `addQuoteItem`, `formatDuration` — confirmed Quote-Builder-local, used only at
+  ~15089/15153 inside this same span) — auto-save, item add/remove, service selector, the Terms
+  Source Switcher, total calc, open-drawer, send.
+- **Core Bookings pipeline actions, physically inline in the same run**: `.bk-action-status`,
+  `.bk-action-disposition`, `.bk-action-complete`, `.bk-action-refund` (**payment-adjacent**),
+  `.bk-stat-pill` / `#clearFilters` (pipeline filtering), `.bk-action-record-payment` (**payment**),
+  `#cancelConfirmBtn` (cancellation confirm) — none of these are Quote Builder, all are core booking
+  workflow / payment, i.e. two of the plan's named protected surfaces, sitting inside the same
+  unlabelled stretch.
+- **`bkContractFinalised(bk)` / `bkUnsignedContractNote(bk)`** (~15341) — confirmed-used by the
+  `.bk-action-complete` (~15432) and another pipeline action (~15359), i.e. core-Bookings helpers
+  that happen to live inside this stretch, not Contract Management (correctly left out of sub-batch 1).
+
+**No file was touched for this finding** — it surfaced while mapping boundaries, before any splice
+script ran. Extracting "Quote Builder" here would mean pulling several **non-contiguous** fragments
+out from between payment/refund/cancellation handlers left untouched in place — a materially
+different, higher-risk operation than the two clean single-block cuts done so far (relocating a
+whole line-range vs. surgically excising interleaved fragments next to protected-surface code), on
+exactly the two surfaces (booking workflow, payment) the plan names as needing the most care.
+**Recommendation, not yet acted on**: either (a) do this as a deliberately slower multi-fragment
+extraction in a session built for it — map every fragment's exact line range first, extract each as
+its own tiny cut with its own full whole-file reconciliation, one commit per fragment, or (b) leave
+Quote Builder where it is and move to the **core pipeline/archive/deal-view/Calendar-sync** sub-batch
+instead — though that is adjacent to this same interleaved stretch and should be expected to have
+the same problem until proven otherwise (verify fresh, don't assume Contract-Management-style luck).
+Awaiting a decision before proceeding further into Bookings.
 
 ---
 
