@@ -2751,6 +2751,41 @@ where it is, correctly out of scope for this sub-batch, and belongs with the eve
 pipeline/deal-view sub-batch (verify that one fresh too — same rule: don't assume, read it line by
 line first).
 
+**Sub-batch 4 — Booking Detail Actions: DONE (`<commit>`).** That "unrelated cluster" turned out to be
+exactly the kind of self-contained action-handler content sub-batches 1–3 were — user explicitly
+accepted the risk and asked to continue, and a careful line-by-line read from where Quote Builder
+ended through to the start of the Pipeline/Archive table-filter code found one more clean, contiguous
+run. **admin.html lines 14666–15365** (700 lines): per-booking action handlers — status change,
+disposition (soft-decline), mark-complete, record refund, stat-pill filter click, clear-filters, open
+Record-Payment drawer, cancel-confirm, resend quote, resend confirmation, **Gap 11 Sync-to-Google-
+Calendar**, Gap 9 view-by-client, refresh email-comms history, the Timeline's notes thread
+(load/add/delete), review request, reopen expired, book-again-from-cancelled, per-booking buffer
+save, venue edit (S5-2), promote-to-public-event toggle, ticket-link save, venue link+unlink → **`js/admin/bookings-actions.js`**, byte-identical. `<script src>` inserted right after `bookings-quote.js`.
+
+- **Two deferred cross-script-block dependencies found and handled, same shape as `R_FMT`**:
+  `renderCommsThread` / `renderNotesThread` are each called exactly once from
+  `loadDealViewTimelineData` (admin.html ~11598/11610 — a *different, earlier* inline `<script>`
+  block that renders the Deal View Timeline tab), both inside a `fetch(...).then(...)` callback —
+  fires only after the whole page has already loaded, so the cross-script-block reference is safe
+  regardless of load order. `window.toggleBookingDetail` (defined ~11865, same earlier block) is
+  read the same way — deferred, `typeof`-guarded. None of this block's own functions
+  (`bkContractFinalised`/`bkUnsignedContractNote`/`renderCommsThread`/`renderNotesThread`/
+  `updatePromotePanel`) are referenced from the Pipeline/Archive code that remains — confirmed by
+  grep. `allBookingsCache`/`loadBookings` (still in admin.html, defined earlier in the same script)
+  and `openAtlDrawer` (`components/drawer.js`) are used, not moved.
+- Verified: `node --check`, `check_script_blocks.js` 25/25, **full whole-file reconciliation — 0
+  diffs on the first attempt**. First-run-blind accepted. Still owed: live exercise of each action
+  (status/disposition/complete/refund, resend quote/confirmation, the Calendar-sync button, notes
+  thread, venue edit/link/unlink, promote toggle).
+
+**Remaining**: the Pipeline/Archive table (sort/filter/pagination/render, starting at
+`bookingNeedsAction` right after this sub-batch) + the Deal View itself + Google-Calendar-sync's
+*other* half (whatever lives in the earlier 10946–12317 script block alongside
+`loadDealViewTimelineData`/`toggleBookingDetail`) + the two satellites (Manual Booking modal, Payment
+Milestone Schedules). This is likely to fan out across **more than one** more sub-batch — the deal
+view and pipeline table are probably the largest, most state-coupled pieces left. Map fresh, same
+rule as always.
+
 ---
 
 Reconnaissance from the earlier pass (kept — still the map for the remaining sub-batches):
