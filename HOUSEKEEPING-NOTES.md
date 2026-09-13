@@ -2614,7 +2614,7 @@ subscribers, import/export a CSV, save Birthday Automation settings and send a t
 campaign with a merge field and an attachment, save a draft, schedule a send, and view a delivery
 log.
 
-### Section 21: Bookings (`bookingsAdmin`) — IN PROGRESS (sub-batched; user re-authorised, first-run-blind)
+### Section 21: Bookings (`bookingsAdmin`) — DONE (sub-batched across 7 sub-batches; user re-authorised, first-run-blind)
 
 **Sub-batch 1 — Contract Management: DONE (`<commit>`).** `admin.html` big Bookings inline `<script>`
 lines **15865–16101** (237 lines — the `// ─── Contract Management ───` labelled sub-block:
@@ -2878,12 +2878,44 @@ on the first attempt**, on the largest extraction of the session. First-run-blin
 owed: live exercise of the Pipeline list, Archive tab, sort/filter/pagination, bulk select/export/
 cancel, and every Deal View tab's rendered content (Overview/Offer/Invoices/Timeline/Files/Advancing).
 
-**Bookings sub-batches 1–6 now cover the entire big Bookings inline `<script>` and the Deal-View
-portion of the foundational script.** What remains for Bookings: whatever (if anything) is left in
-the foundational script's now-two pieces (10946–11290 and 12286–12317 in the pre-sub-batch-5
-numbering — expected to be confirmed-foundational, not worth another pass unless something new turns
-up), and the two satellites — Manual Booking modal (Calendar's mega-closure) and Payment Milestone
-Schedules (`initFinanceManagement`).
+**Sub-batch 7 — Record Payment Modal Save handler (stray fragment): DONE (`<commit>`).** One more
+loose thread surfaced right after sub-batch 6: a **standalone** `<script>…</script>` tag sitting
+immediately after `<script src="js/admin/newsletter.js">` — not part of the big Bookings script any
+sub-batch above came from, and not discovered until the newsletter.js neighbourhood was re-checked.
+**admin.html lines 12213–12248** (36 lines — the *entire* contents of that one `<script>` tag, nothing
+else in it): `$(document).off('click.rpsave').on('click.rpsave', '#rpSaveBtn', async function() {…})`,
+the Record Payment drawer's Save handler (calls `PUT /api/admin/bookings/:id/manual-payment`, then
+`closeAtlDrawer('recordPaymentDrawer')` / `loadBookings()` / `window.toggleBookingDetail(id, true)` on
+success). Appended verbatim to the end of **`js/admin/bookings-actions.js`** (sub-batch 4) — no new
+`<script src>` needed, since that file already loads. Confirmed via grep that the paired "open modal"
+handler (`.bk-action-record-payment`, at line 227 of that file) was already sitting in the same file
+from sub-batch 4, so this reunites the drawer's open/save pair.
+
+- Unlike every other extraction this session, this one **deletes a whole `<script>` tag** rather than
+  splicing content out of a larger one — confirmed by reading the exact lines before (`<script src=
+  "…newsletter.js">` then `<script>`) and after (`</script>` then a new, unrelated `<script>` starting
+  "Apply saved branding") the block, so there was no reunite-and-relocate question: the tag's open and
+  close both go, cleanly.
+- All cross-references inside the handler were already-established-safe by this point in the session:
+  `apiCall`/`window.notificationService` (globals), `closeAtlDrawer` (`components/drawer.js`,
+  Phase 7), `loadBookings` (`bookings-pipeline.js`, sub-batch 6), `window.toggleBookingDetail`
+  (`bookings-dealview.js`, sub-batch 5, already `typeof`-guarded in the handler itself). No new risk.
+- `check_script_blocks.js` dropped from **25/25 to 24/24** — expected and confirmed, the first time
+  this session a whole tag (not just its content) was removed, so the total block count was expected
+  to (and did) decrease by exactly one.
+- Verified: `node --check` on `bookings-actions.js`, `check_script_blocks.js` 24/24, **full whole-file
+  reconciliation — 0 diffs** (this time as a pure removal with no `<script src>` insertion to account
+  for).
+
+**Bookings sub-batches 1–7 now cover the entire former big Bookings inline `<script>`, the Deal-View
+portion of the foundational script, and this stray Record Payment fragment.** Checked the foundational
+script's two now-separated pieces (admin.html 10947–11290 and 11291–11322 in current numbering) for
+anything else Bookings-related: confirmed foundational-only (`// --- Admin Panel Global Helpers ---`,
+the meta-footer registry, `statusColors`/`updatePills`/`initThemeToggleUI`, and `uploadFileToServer` —
+a documented Phase 7 "shared candidate", not Bookings-specific) — nothing further to extract there.
+What remains for Bookings: only the two satellites — Manual Booking modal (Calendar's mega-closure)
+and Payment Milestone Schedules (`initFinanceManagement`) — both already documented as deliberately
+left in place in their respective sections (17, 16) and not part of this Bookings pass's scope.
 
 ---
 

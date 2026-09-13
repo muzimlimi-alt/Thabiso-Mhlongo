@@ -722,3 +722,40 @@
             $btn.prop('disabled', false).html(origHtml);
         }
     });
+
+/* Phase 6 (HOUSEKEEPING-NOTES.md "Section 21 / Bookings — stray fragment"): relocated VERBATIM
+ * from a standalone admin.html <script> block that sat right after newsletter.js’s <script src>
+ * (its own tag, not part of the big Bookings script sub-batches 1–6 came from). Completes the
+ * .bk-action-record-payment “open modal” handler above with the drawer’s Save handler. */
+
+        // ── Record Payment Modal — Save handler ──
+        $(document).off('click.rpsave').on('click.rpsave', '#rpSaveBtn', async function() {
+            const id             = $('#rpBookingId').val();
+            const amount_paid    = parseFloat($('#rpAmountPaid').val());
+            const payment_status = $('#rpPaymentStatus').val();
+            const $btn           = $(this);
+
+            if (!id || isNaN(amount_paid) || amount_paid < 0) {
+                window.notificationService.showError('Please enter a valid payment amount.');
+                return;
+            }
+
+            $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin"></i> Saving...');
+
+            try {
+                const r = await apiCall(`/api/admin/bookings/${id}/manual-payment`, 'PUT', { payment_status, amount_paid });
+                if (r && r.success) {
+                    window.notificationService.showSuccess('Payment recorded successfully.');
+                    setTimeout(async () => {
+                        closeAtlDrawer('recordPaymentDrawer');
+                        await loadBookings();
+                        if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(id, true);
+                    }, 800);
+                } else {
+                    window.notificationService.showError((r && r.message) || 'Failed to record payment.');
+                }
+            } catch(e) {
+                window.notificationService.showError('Network error. Please try again.');
+            }
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Payment');
+        });
