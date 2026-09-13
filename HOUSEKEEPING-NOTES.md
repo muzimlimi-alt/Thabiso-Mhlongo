@@ -2786,6 +2786,66 @@ Milestone Schedules). This is likely to fan out across **more than one** more su
 view and pipeline table are probably the largest, most state-coupled pieces left. Map fresh, same
 rule as always.
 
+**Discovery before sub-batch 5: the "earlier script block" is not a Bookings script at all — it's
+admin.html's foundational script.** Mapping it (10946–12317, no IIFE wrapper) found `window.qs` /
+`window.qsa` / `window.escHtml` (the DOM-query helpers **every** extracted `js/admin/*.js` file this
+session depends on), the shared "Last Updated By" meta-footer registry
+(`renderMetaFooterHtml`/`showMetaFooter`/`_metaFooterOverrides`/`applyLastUpdatedMeta`, used across
+many drawers/modals/panels, not just Bookings), `statusColors`/`updatePills`/`initThemeToggleUI`
+("Atelier Redesign Helpers" — `updatePills` is Bookings-pipeline-specific but grouped here), and
+`uploadFileToServer` (the shared upload helper used by about.js/career.js/gallery.js/testimonials.js)
+— **interleaved with** the genuinely Bookings-specific Deal View rendering code. This is the single
+most load-bearing script in the file; presented to the user before touching anything (`AskUserQuestion`)
+— chose to carefully extract just the Deal-View-specific functions, foundational helpers left exactly
+in place.
+
+**Sub-batch 5 — Deal View: DONE (`<commit>`).** **admin.html lines 11291–12284** (994 lines, from
+the *middle* of the foundational script, sandwiched between the "Atelier Redesign Helpers" group
+before it and `uploadFileToServer`/"Admin Panel Logic" after it): the inline Contract panel
+(`renderInlineContractPanel`/`ctbField`/`ctbCollectClauses`/`buildContractEditorPanel`), the inline
+Cancellation panel, the Timeline & Notes tab data loader (`loadDealViewTimelineData` +
+`renderCommsThread`/`renderNotesThread`'s caller — those two functions themselves are in
+`bookings-actions.js`, sub-batch 4), the Advancing-pack panel (`advReloadPanel`/`advCollectFields`),
+Deal View's own richer tab system (`dvActivateTab` — lazy panel loading + arrow-key roving tabindex,
+unlike the generic `atlActivateDrawerTab`), `window.toggleBookingDetail` (open/populate the drawer
+from a cached row), `dvRenderFromRow`, `window.refreshDealView`, and the Google-Places venue
+autocomplete → **`js/admin/bookings-dealview.js`**, byte-identical. `<script src>` inserted right
+after the foundational script's (reunited) `</script>` closes, before `components/drawer.js`.
+
+- **The foundational script is confirmed untouched and reunited cleanly** — no IIFE wrapper (verified:
+  `<script>` opens directly with `// --- Admin Panel Global Helpers ---`, no `(function(){` or
+  `$(document).ready(`), so removing the middle and rejoining the two remaining halves is the same
+  safe "classic script" shape as every other Phase 6 extraction — no reunite-and-relocate needed.
+  Grepped, not assumed: none of `qs`/`qsa`/`escHtml`/`renderMetaFooterHtml`/`showMetaFooter`/
+  `_metaFooterOverrides`/`applyLastUpdatedMeta`/`statusColors`/`updatePills`/`initThemeToggleUI`/
+  `uploadFileToServer` are redefined inside the moved block.
+- **Cross-references, all confirmed safe by the same "deferred call" reasoning as `R_FMT`**:
+  `dealViewLoadedIds`/`dealViewTimelineLoaded`/`dealViewAdvancingLoaded` (module `let`s inside the
+  moved block) are reset by `loadBookings()` (admin.html's big Bookings script, ~13218–13220) via a
+  `typeof x !== 'undefined'` guard — `loadBookings()` only runs on-demand, never at script-eval time.
+  `window.toggleBookingDetail` is called from a `jQuery.fn.collapse` override further up in the SAME
+  foundational script (~11181/11183, kept in place, itself only fires when something later calls
+  `.collapse('show'|'hide')`), from `bookings-actions.js`, and from a `setTimeout` elsewhere — all
+  deferred. `window._metaFooterOverrides['dealViewDrawer'] = function(meta) {…}` is a synchronous,
+  immediate statement inside the moved block, but it only needs the *registry object* to already
+  exist — it does (`window._metaFooterOverrides = window._metaFooterOverrides || {}` runs earlier in
+  the same, now-reunited script, before this file's `<script src>` is ever reached).
+- Three other apparent hits (`advReloadPanel`/`advCollectFields`/`dvActivateTab` "used" outside the
+  range) turned out to be comments mentioning the function by name, not real calls — checked each one
+  individually rather than trusting the grep count.
+
+Verified: `node --check`, `check_script_blocks.js` 25/25, **full whole-file reconciliation — 0 diffs
+on the first attempt** (the largest and highest-stakes extraction this session, clean on the first
+try). First-run-blind accepted. Still owed: live exercise of the Deal View drawer (every tab —
+Overview, Offer & Contract, Timeline & Notes, Advancing, Files — open/close, tab switching, the
+inline contract/cancellation panels, venue autocomplete, refresh).
+
+**Remaining Bookings**: the Pipeline/Archive table (`bookingNeedsAction` onward in the big Bookings
+script), whatever else is left in the foundational script's now-two remaining pieces (unlikely to be
+Bookings-specific — mostly confirmed foundational/shared), and the two satellites (Manual Booking
+modal — in Calendar's mega-closure per the Unified Calendar section note — and Payment Milestone
+Schedules — in `initFinanceManagement`).
+
 ---
 
 Reconnaissance from the earlier pass (kept — still the map for the remaining sub-batches):
