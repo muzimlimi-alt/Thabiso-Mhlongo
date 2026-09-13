@@ -2846,6 +2846,45 @@ Bookings-specific — mostly confirmed foundational/shared), and the two satelli
 modal — in Calendar's mega-closure per the Unified Calendar section note — and Payment Milestone
 Schedules — in `initFinanceManagement`).
 
+**Sub-batch 6 — Core Pipeline + Deal View content: DONE (`<commit>`).** Mapping what remained of the
+big Bookings script (after sub-batches 1–4 had already been carved out of it) found it was **all one
+piece** — `allBookingsCache`/`loadBookings`, EVERY Deal View tab's content builder, and the
+pipeline/archive table logic all call into each other tightly enough that splitting them further
+would have been artificial. **admin.html lines 12201–14345 — the entire remaining content of that
+script** (2,145 lines, the largest extraction this session) → **`js/admin/bookings-pipeline.js`**,
+byte-identical: `allBookingsCache` + `loadBookings()`, quote/invoice detail formatters, the "next
+step"/progress-checklist computations, every Deal View tab's builder
+(`buildOverviewPanel`/`buildOfferPanel`/`buildInvoicesPanel`/`buildTimelinePanel`/`buildFilesPanel`/
+`buildAdvancingPanel`), `renderBookingsTable` (renders both Pipeline and Archive via a
+`containerSelector` param), `bookingNeedsAction`, the shared sort+pagination, the Archive tab, and A3
+bulk pipeline actions (select mode / CSV export / bulk cancel). `<script src>` inserted right before
+`bookings-contracts.js` (i.e., first among the Bookings files, ahead of everything that depends on it).
+
+- **This is the single most depended-upon Bookings file** — `allBookingsCache`/`loadBookings`/
+  `renderBookingsTable` are referenced from every other `bookings-*.js` file (contracts/finance/
+  quote/actions/dealview) plus far-later, unrelated parts of admin.html (as far down as ~19558).
+  Grepped every one: all are deferred (event handlers, async functions, `setTimeout`, `.on('shown.bs.tab', …)`)
+  — never at script-eval time — so this file's position in the load order only needs to satisfy
+  "loads before any user interaction," which every synchronous `<script src>` here does.
+- **The reverse dependency (checked, not assumed)**: `buildOverviewPanel`/`buildOfferPanel`/
+  `buildInvoicesPanel`/`buildTimelinePanel`/`buildFilesPanel`/`buildAdvancingPanel`/`buildAdvancingStub`
+  are each called exactly once, from `dvRenderFromRow` in `js/admin/bookings-dealview.js` (sub-batch
+  5) — also deferred (fires only when a Deal View opens), so it doesn't matter which of these two
+  files loads first.
+- Confirmed by grep: nothing from sub-batches 1–5 is redefined in this file.
+
+Verified: `node --check`, `check_script_blocks.js` 25/25, **full whole-file reconciliation — 0 diffs
+on the first attempt**, on the largest extraction of the session. First-run-blind accepted. Still
+owed: live exercise of the Pipeline list, Archive tab, sort/filter/pagination, bulk select/export/
+cancel, and every Deal View tab's rendered content (Overview/Offer/Invoices/Timeline/Files/Advancing).
+
+**Bookings sub-batches 1–6 now cover the entire big Bookings inline `<script>` and the Deal-View
+portion of the foundational script.** What remains for Bookings: whatever (if anything) is left in
+the foundational script's now-two pieces (10946–11290 and 12286–12317 in the pre-sub-batch-5
+numbering — expected to be confirmed-foundational, not worth another pass unless something new turns
+up), and the two satellites — Manual Booking modal (Calendar's mega-closure) and Payment Milestone
+Schedules (`initFinanceManagement`).
+
 ---
 
 Reconnaissance from the earlier pass (kept — still the map for the remaining sub-batches):
