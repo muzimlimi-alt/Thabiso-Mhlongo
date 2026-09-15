@@ -7047,3 +7047,92 @@ same standing live-verification gap as everywhere else in this housekeeping pass
 
 Same residual-risk caveat as Batch 1 applies to the 4 quarantined files (static directory, URL
 reachable with no code reference) — unchanged reasoning, not repeated in full here.
+
+### Batch 3 — Candidate #3: unreached routes — REPORT ONLY, per the plan's own rule; one real bug fixed
+
+**This category is explicitly "report them; I decide" in `housekeeping-agent-prompts.md` — no route
+was quarantined by the agent.** Unlike assets, a route's "unreachable" status can't be settled by grep
+alone: an external system (a webhook, a saved bookmark, a crawler) can hit it with zero code reference
+anywhere in this repository, which is exactly the caution the plan itself calls for here.
+
+**Method:** parsed all 329 routes from `docs-internal/routes.md` (paths only — its line numbers are
+stale after Phase 4/5 restructuring, but paths are unchanged since Phase 5 was move-only). For each,
+searched every current `.js`/`.html`/`.ejs` file in the repo EXCEPT the route-definition files
+themselves (`routes/**`, `app.js`, `server.js`, `database.js` — searching those would trivially match
+a route against its own registration) for a call-site pattern generalizing `:param` segments to an
+arbitrary gap. **First pass used a gap pattern that excluded quote characters — a bug that produced
+74 false positives**, because front-end code overwhelmingly builds these URLs via string concatenation
+(`'/api/admin/bookings/' + id + '/details'`), which is built entirely *out of* quote characters. Fixed
+the gap pattern to allow any character; re-running immediately cut the candidate list to 16, several of
+which were spot-verified against real call sites (`bookings-dealview.js`'s `/details` and
+`/advancing/download` fetches) to confirm the fix, not just trust the smaller number.
+
+**The 16 survivors, individually investigated** (source grep, live DB dump, email-template check,
+sibling-endpoint comparison — not left as a bare "zero hits" list):
+
+- **Not real candidates (2):** `POST /api/payment/webhook/payfast` (PayFast's servers call this
+  directly — HMAC+IP auth, no session; a protected payment surface) and `GET /sitemap.xml` (crawled by
+  search engines, not our own front end). Zero front-end hits is expected and correct for both.
+- **Intentional one-off ops tools (2):** `POST /api/admin/migrate` and
+  `POST /api/admin/system/migrate-legacy-data` — both self-documented in `routes.md` as one-off
+  legacy-schema migration scripts. No UI caller by design.
+- **A pre-existing bug — FIXED this session, at explicit user request (1):**
+  `GET /api/bookings/:id/payment-logs` — see its own entry below.
+- **A coherent "Reviews" feature, backend-complete, front-end never wired up (3):**
+  `GET /api/admin/reviews`, `PATCH /api/admin/reviews/:id`, `POST /api/public/bookings/:id/review`.
+  Traced how the site actually asks for reviews today: `sendReviewRequestEmail()`
+  (`lib/booking-notifications.js:317-333`) sends a plain `mailto:info@thabisomhlongo.com` CTA link —
+  no web form, completely bypassing all three of these routes. No admin section moderates reviews
+  either (Testimonials is a separate table/feature with its own moderation flow, confirmed distinct by
+  reading `js/admin/testimonials.js`). All three routes are mutually consistent orphans.
+- **Superseded by a different feature (1):** `POST /api/admin/compose` — traced the Inquiries "New
+  Message" compose UI's actual submit call (`js/admin/inquiries.js`'s `sendOrScheduleComposedEmail`,
+  line 1342) to `/api/admin/direct-emails`, not this route.
+- **Real features with no discoverable UI entry point — no theory as confident as the above (6):**
+  `GET /api/admin/venues` (no dropdown calls it — bookings uses Google Places autocomplete instead),
+  `POST /api/admin/bookings/:id/unlink-client` (a venue-unlink sibling exists and IS used; no
+  client-unlink button found), `GET /api/admin/clients/duplicates` (no "Clients" admin section exists
+  among any of the 22 Phase 6 sections), `GET /api/admin/finance/pl` (no P&L tab/widget in Financials),
+  `POST /api/admin/publish-home-slider` (zero callers in `home-slider.js`), and
+  `GET /api/admin/analytics/top-referrers` (the *only* one of 8 sibling `analytics/*` endpoints
+  `dashboard.js` doesn't call — every other one, summary through todays-schedule, is called).
+- **Compliance-sensitive, flagged rather than assumed (1):** `POST /api/public/compliance/export-data`
+  — a POPIA/GDPR self-service data-export endpoint with zero references anywhere (no page, no email
+  link, no DB value). Given the protected-surface status of compliance/erasure code, presented to the
+  user rather than characterized as an ordinary dead-route finding.
+
+**Presented all 16 to the user. User response: confirmed some of the reported-as-unreached routes are
+in fact used (exact scope of "used" not itemized back per-route), and asked to fix whichever finding
+was an actual bug** rather than a usage gap — of the 16, only one is a bug rather than either a
+false-unreachability report or a genuine feature gap, so that's the one item this instruction applied
+to. **The other 15 remain untouched — no quarantine, per the plan's own rule for this category.**
+
+#### The fix: `GET /api/bookings/:id/payment-logs` — broken auth check, unreachable by every admin
+
+- **Where:** `routes/public/payment.js:485-493` (moved here, unchanged, during the Phase 5 route
+  split — originally `server.js:6034`).
+- **The bug, already caught by the Phase 1 recon** (`docs-internal/routes.md` lines 431-439, written
+  2026-08-27, well before this housekeeping pass reached this file): this route skips the shared
+  `requireAdmin` middleware and inlines its own check — but the check tested `req.session.admin`, a
+  session field that is **never set anywhere else in the codebase** (every other admin route sets/reads
+  `req.session.adminId`/`.username`/`.role`). The check therefore always evaluated false, 401-ing every
+  request regardless of login state — not "unused," genuinely unusable by any admin, ever.
+- **Why the fix is exactly this and nothing more:** its sibling `/upload` (routes.md's own comparison)
+  has the identical shape — an inline check instead of the `requireAdmin` array, because both routes
+  predate that middleware's definition in the original `server.js` — but `/upload` correctly checks
+  `req.session.adminId`. That sibling is the clearest possible evidence of what this route's check was
+  always meant to say. Changed `req.session.admin` → `req.session.adminId`, matching `/upload` exactly.
+  Did **not** upgrade it to the full `requireAdmin` middleware array (now easily importable from
+  `middleware/auth.js` post-Phase-5) — that would add rate-limiting, must-change-password lockout, and
+  an `is_active` re-check that were never part of this route's original design intent; that's a
+  separate hardening decision, not "fixing the typo."
+- **Verification:** `node --check routes/public/payment.js`, `npm run smoke` (329/329), full
+  `npm test` (663/664 — the one failure is `calendar.test.js` CP3, the extensively-documented
+  Deferred Fix #3 timing flake, unrelated to this change and already seen dozens of times across
+  every phase of this effort). No test in the suite references `payment-logs` at all (confirmed by
+  grep), so there was no existing characterisation test asserting the old broken behavior to update.
+- **Behaviour change, stated plainly:** before this fix, `GET /api/bookings/:id/payment-logs` 401'd
+  unconditionally. After, a logged-in admin (any role — this route has no `requireRole` layer, matching
+  `/upload`'s pattern) can fetch PayFast ITN audit logs for a booking, as the route was always written
+  to allow. This is a deliberate, user-requested exception to "housekeeping doesn't fix behaviour" —
+  the same category of exception already used once for Deferred Fix #4 (bank-statement import).

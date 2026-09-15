@@ -483,7 +483,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
 // ==========================================
 // Fetch ITN Audit Logs for Admin
 router.get('/api/bookings/:id/payment-logs', (req, res) => {
-    if (!req.session || !req.session.admin) {
+    if (!req.session || !req.session.adminId) {
         return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
     getPaymentLogsForBooking(req.params.id, (err, rows) => {
