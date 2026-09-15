@@ -6920,3 +6920,71 @@ its own change with its own testing.
   this asymmetry is *preserved* rather than silently normalised (per Phase 7's "a difference that
   looks like a bug is kept and noted"). If you'd rather just fix it, it's a one-character change
   (`6` → `5` on line 97).
+
+---
+
+## Phase 8 — Dead code removal
+
+> Started 2026-09-15, earlier than the plan's own "2 weeks of live production use on Phases 4-7"
+> recommendation — explicit user instruction ("Lets move on to Phase 8"), after the tradeoff was
+> raised and accepted. Quarantine only, per `AGENTS.md` §3 — nothing in `_quarantine/` is deleted by
+> an agent.
+
+### Batch 1 — 15 orphaned image assets (Phase 1's `NO-REFERENCE-FOUND` list) — DONE
+
+**Source list:** `docs-internal/asset-references.md` (generated 2026-08-27, before Phases 3-7 existed)
+marks 15 of the 79 files under `images/` as `NO-REFERENCE-FOUND` on all four original checks (source,
+DB, template, CSS). Per `AGENTS.md` §4 and the Phase 8 task text, a 3-week-old audit against a codebase
+that has since been entirely restructured (Phase 4 moved SQL out of `server.js`, Phase 5 split every
+route into `routes/`, Phase 6/7 moved most of `admin.html`'s JS into `js/admin/*.js`) is not sufficient
+evidence on its own — re-verified all four checks fresh, today, against the current tree and the live
+database, before touching anything:
+
+- **Source (re-run, not reused):** grepped every `.js`/`.html`/`.css`/`.ejs` file across the *entire
+  current tree* — including everything created since the original audit (`routes/`, `lib/`,
+  `js/admin/`, `database/repositories/`, `css/admin/`) — for each of the 15 exact filenames.
+  **Zero hits on all 15.**
+- **DB (re-run, not reused):** fresh full `sqlite3 database.sqlite .dump` (today's live data — 3
+  weeks of production activity since the original audit, not the Aug 27 snapshot) grepped for each
+  filename. **Zero hits on 14 of 15.** The 15th
+  (`images/events/909a465d7e9c4b33b893d7de567e34a5.jpg`) still surfaces the exact same false-positive
+  the original audit already caught and documented: `bookings` row 100000's `attachments` JSON has an
+  `original_name` field with this basename, but its actual stored file is a *different* path
+  (`docs/booking_attachments/booking-100000-1781354281064-909a465d....jpg`) — a coincidental basename
+  collision between two unrelated uploads, not a reference to this file. Re-confirmed by checking that
+  separate path still exists.
+- **Template check:** subsumed by the source grep above (covers `emailComponents.js`,
+  `emailTemplates.js`, `mergeFields.js`, `bannerRegistry.js`, `pdfService.js`, `emailAssets.js`
+  wherever Phase 4/5 relocated them to).
+- **Runtime check:** `npm run smoke` — 329/329 routes non-5xx, both immediately before and immediately
+  after the move (clean before-and-after baseline, not just a pre-check).
+
+**The 15 files**, `git mv`'d (history-preserving, reversible — not `rm`) into `_quarantine/images/...`,
+same relative paths:
+- `images/1784575625778-image6.JPG`
+- `images/1784903267686-1784575666128-1784119144424-image-slider-7.jpg`
+- `images/banners/1784466198897-cc4a3ca9.png`, `1784475409375-7e5f3fc3.png`,
+  `1784491390425-ccbd7596.png`, `1784528141936-1c040aae.png`, `1784567621501-490687d5.png`,
+  `1784569531152-992f4e0a.png`, `1784621611324-e16958e7.png`, `1784622172695-2b00a956.png`
+  (8 files — all one byte-identical duplicate group per the Phase 1 audit's hash group 8, entirely
+  orphaned as a set)
+- `images/branding/1782116078275-image-slider-1.jpg`, `1784904002334-image-slider-1.jpg`
+- `images/events/1784567888890-1001324529.png`
+- `images/events/909a465d7e9c4b33b893d7de567e34a5.jpg`
+- `images/images.lnk` — not an image at all, a stray Windows `.lnk` shortcut file; zero references on
+  any check, quarantined alongside the images for the same reason.
+
+**Known, accepted residual risk (stated plainly, not glossed over):** `images/` is served by Express
+as a static directory wholesale (`AGENTS.md` §4's own warning — "a file can be reachable by URL with
+no source reference at all"). None of these four checks can rule out an old email a customer received
+months ago containing an inline image link, a bookmarked direct URL, or a search-engine cache hit.
+Quarantining (moving out of the served directory) means such a hit would now 404 instead of loading.
+This is exactly why the plan quarantines rather than deletes, and why `_quarantine/` soaks for 2 weeks
+before a human deletes it — if a 404 report comes in against any of these 15 paths in that window, the
+file is still sitting in `_quarantine/images/...` at the same relative path and can be moved straight
+back.
+
+**None of the other 4 asset candidate categories in `docs-internal/asset-references.md` were touched
+this batch** — the 8-groups-not-9 duplicate-group discrepancy the audit itself flagged, and the
+`DB-ONLY` files (which the plan explicitly says are NOT candidates — they're live), are both left
+exactly as documented, untouched.
