@@ -6988,3 +6988,62 @@ back.
 this batch** — the 8-groups-not-9 duplicate-group discrepancy the audit itself flagged, and the
 `DB-ONLY` files (which the plan explicitly says are NOT candidates — they're live), are both left
 exactly as documented, untouched.
+
+### Batch 2 — 4 of 9 byte-identical duplicate image groups, DB rows repointed first — DONE
+
+**Different risk category from Batch 1**: this is the plan's candidate #2 ("byte-identical duplicate
+image groups: keep one canonical copy, but only after updating every database row that points at the
+copies you are quarantining. Update the rows first, verify the site renders, then quarantine.") — the
+first action this entire housekeeping effort has taken that **writes to the live production
+database**, not just moves files. Treated with corresponding care.
+
+**Scope decision (user confirmed):** of `docs-internal/asset-references.md`'s 9 duplicate groups, 3
+were already fully resolved by Batch 1 (group 3's and group 9's `NO-REFERENCE-FOUND` copies are gone;
+group 8 was entirely orphaned and fully quarantined). Of the remaining 7, 4 have an unambiguous
+canonical copy — one side is hardcoded in source (HTML/JS), so it can't be the one repointed without
+a separate code change out of Phase 8's scope; the DB-only side is trivially repointable by `UPDATE`.
+The other 3 (groups 1/5/6) have **no** source reference on either side — each is a `home_slider` row
+and a `gallery_images` row that independently happen to point at the same uploaded photo, two
+genuinely separate live admin features. Presented both options; user chose to do **only the 4
+unambiguous groups**, leaving the 3 ambiguous ones untouched rather than coupling two independent
+admin features to one shared file for minimal space savings.
+
+**Pre-flight:** fresh `sha256sum` on both files in all 7 remaining pairs (not reusing the Aug 27
+audit's hashes) — all still byte-identical today. Full `database.sqlite` backed up to
+`../thabiso-mhlongo-runtime-data/backups/database.pre-phase8-dedup-batch2.<timestamp>.sqlite` (the
+project's existing `BACKUPS_PATH` convention from `lib/runtime-paths.js`, sibling to the repo) before
+any `UPDATE` — `database.sqlite` is gitignored (Phase 3), so git provides no rollback for the DB's
+*content*; this file backup is the only rollback path for that half of the change.
+
+**The 4 groups actioned**, each an `UPDATE` scoped by **both the row id and its exact current value**
+(so the statement is a no-op rather than a wrong write if the row had already changed since the query
+that informed it), run together in one transaction, verified by a fresh `SELECT` immediately after:
+
+| Table.column (row id) | Old value (now quarantined) | New value (canonical, kept in place) |
+|---|---|---|
+| `settings.site_logo` (2291) | `images/branding/1785228150867-logo4.png` | `images/logo4.png` |
+| `gallery_images.image_path` (23) | `images/gallery/image-slider-1.jpg` | `images/image-slider-1.jpg` |
+| `settings.favicon` (2292) | `images/branding/1785228187010-logo5.png` | `images/icon/logo5.png` |
+| `settings.login_background` (2276) | `images/branding/1785410951796-thabiso_login_background_1920x1080.png` | `images/background/thabiso_login_background_1920x1080.png` |
+
+All 4 `UPDATE`s applied (verified via `SELECT` — every row now reads its new value) and committed in
+one transaction. `npm run smoke` run three times around this batch: once before any change (329/329,
+carried over from Batch 1's post-check), once after the DB updates but before touching any file
+(329/329), once after quarantining the 4 now-orphaned files below (329/329) — the smoke test boots
+against an isolated test DB per `test/smoke.js`, so it doesn't exercise the live rows directly; it
+confirms the app still boots and no route regressed, not that the new image paths render (that's the
+same standing live-verification gap as everywhere else in this housekeeping pass).
+
+**The 4 now-orphaned files**, `git mv`'d into `_quarantine/images/...`:
+- `images/branding/1785228150867-logo4.png`
+- `images/gallery/image-slider-1.jpg`
+- `images/branding/1785228187010-logo5.png`
+- `images/branding/1785410951796-thabiso_login_background_1920x1080.png`
+
+**Groups 1, 5, 6 — deliberately left untouched, not deferred by oversight:**
+- Group 1: `home_slider` id 9 vs `gallery_images` id 17 (`WhatsApp Image … 23.28.34 (1).jpeg`)
+- Group 5: `home_slider` id 7 vs `gallery_images` id 15 (`… 23.28.32.jpeg`)
+- Group 6: `home_slider` id 8 vs `gallery_images` id 16 (`… 23.28.33.jpeg`)
+
+Same residual-risk caveat as Batch 1 applies to the 4 quarantined files (static directory, URL
+reachable with no code reference) — unchanged reasoning, not repeated in full here.
