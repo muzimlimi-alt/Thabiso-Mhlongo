@@ -7202,7 +7202,46 @@ than adding logic to detect and remove now-empty wrappers, which would be a seco
 edit on top of the first).
 
 Verified: `npm run smoke` 329/329 before and after all four files. Committed together as one batch (47
-lines removed total, well under the plan's ~400-line-per-commit ceiling). The two large files
-(`css/style.css`, ~51 dead rules; `css/redesign.css`, ~216 dead rules, including the confirmed-
-superseded `.bkr-*` old bookings-pipeline stylesheet and old User-Management card-grid) are next,
-each its own commit given the size difference.
+lines removed total, well under the plan's ~400-line-per-commit ceiling).
+
+### Batch 4 — sub-batch 2 (`css/style.css`, 51 rules) — DONE; second parser bug found and fixed
+
+**A second real bug, found by reviewing the diff before committing rather than trusting the 0-diff
+reconciliation alone.** The reconciliation check (re-insert every removed span at its recorded offset,
+diff against the untouched original) is necessary but not sufficient — it proves no *content* was
+lost or duplicated, but says nothing about whether the *surrounding* text, on its own, still reads as
+a clean deletion. Reviewing the plain-English diff (not just the reconciliation's pass/fail) caught it.
+
+- **The bug:** for a dead rule nested inside an indented `@media` block, the parser's `blockStart` was
+  already correctly positioned at the selector's first non-whitespace character (bug #1's fix, applied
+  before this session's very first CSS extraction) — but that meant the rule's own *leading
+  indentation* was left behind as "kept" content, since it sits *before* the trimmed `blockStart`. When
+  a removed rule (e.g. `header .nav-center-custom`) was immediately followed by a *surviving* rule at
+  the same nesting depth (`header .navbar-nav > li`), the leftover indentation from the removed rule's
+  line concatenated with the surviving rule's own indentation: `"  " + "  header..."` → 4 spaces where
+  the original had 2. Functionally inert (CSS ignores extra whitespace) but not the byte-for-byte-except-
+  the-intended-change standard this session holds itself to.
+- **The fix:** extended `blockStart` backward over the rule's own leading spaces/tabs, stopping at (never
+  crossing) the preceding newline — so a removed rule's own indentation is now removed with it, without
+  ever touching a preceding surviving rule's line ending. Re-ran extraction; the diff's only remaining
+  non-pure-deletion hunk is the already-understood, already-accepted empty-`@media`-wrapper case (see
+  below) — confirmed by checking for any `c` (changed-line) diff hunks beyond that one expected case.
+  **The 4 files from sub-batch 1 were checked against this bug and found clean** — none of their dead
+  rules were both nested in a multi-line indented `@media` block *and* immediately adjacent to another
+  surviving rule at the same depth (the specific combination that triggers it); confirmed by re-reading
+  those diffs, which contained zero changed-line hunks, only pure deletions plus the one `evt-lists-row`
+  empty-wrapper case (a same-line, not multi-line-indented, occurrence — a different, harmless shape of
+  the same general "empty wrapper" tradeoff). No amendment needed there.
+- **51 rules removed** (bootstrap-template leftovers: an old `header .navbar-*` header — literally
+  referencing `../images/wisdompetloho.svg`, an unrelated stock/template logo filename, confirming this
+  predates the site's own branding — `.career-intro`, `.events-subheading`, `.list-group`,
+  `.btn-default`, `.panel-heading`/`.panel-title`, `#book-me`, `.about-content-row`; plus the confirmed-
+  superseded `.admin-dark-table`/`.gallery-item-admin`/`.item-actions`/`.item-details`/`.top-nav-col`/
+  `.btn-admin-header` cluster, each with its own `[data-theme="light"]` light-mode mirror rule, all
+  equally dead). One accepted empty-`@media` wrapper (`.top-nav-col`'s `@media (max-width: 768px)`
+  override), same tradeoff as sub-batch 1.
+- Verified: `npm run smoke` 329/329 before and after; diff reviewed line-by-line (265 lines removed, 1
+  line changed — the accepted empty wrapper — confirmed via `grep -c "^-"`/`"^+"` on the raw diff).
+
+The last file, `css/redesign.css` (~216 dead rules, including the confirmed-superseded `.bkr-*` old
+bookings-pipeline stylesheet and old User-Management card-grid), is next — its own commit given the size.
