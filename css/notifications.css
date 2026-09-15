@@ -458,7 +458,6 @@
     75%       { transform: translateX(6px); }
 }
 
-.tm-shake { animation: tm-shake 0.4s ease-in-out; }
 
 /* Mobile: slide from bottom instead of right */
 @media (max-width: 600px) {

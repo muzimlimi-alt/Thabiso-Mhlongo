@@ -1,0 +1,7 @@
+/* Phase 8 (HOUSEKEEPING-NOTES.md "Batch 4: dead CSS rules"): quarantined VERBATIM from
+ * css/notifications.css — 1 rule(s) confirmed to have zero matching class/id anywhere
+ * in the current codebase (source, live DB dump, email/PDF templates all checked), and NOT
+ * built via dynamic string/template-literal suffix (checked case-by-case against known BEM-
+ * modifier patterns elsewhere in this codebase before concluding "dead" rather than "assumed").
+ * Moved out, not deleted — soaks here 2 weeks per AGENTS.md §3 before a human deletes it. */
+.tm-shake { animation: tm-shake 0.4s ease-in-out; }

@@ -69,25 +69,6 @@
     border: 1px solid var(--atl-line) !important;
     border-radius: var(--atl-r-xl) !important;
 }
-.db-crm-label {
-    font-family: 'JetBrains Mono', monospace !important;
-    font-size: 10px !important;
-    color: var(--atl-muted) !important;
-}
-.db-crm-value {
-    font-family: 'Cormorant Garamond', Georgia, serif !important;
-    font-size: 28px !important;
-    font-weight: 600 !important;
-    color: var(--atl-ink-dim) !important;
-}
-.db-crm-progress-bar {
-    background: var(--atl-surface2) !important;
-    border-radius: var(--atl-r-pill) !important;
-}
-.db-crm-progress {
-    background: linear-gradient(to right, var(--atl-amber), var(--atl-amber-hover)) !important;
-    border-radius: var(--atl-r-pill) !important;
-}
 .db-schedule-item {
     border-bottom: 1px solid var(--atl-line) !important;
     background: transparent !important;

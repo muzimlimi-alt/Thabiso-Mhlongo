@@ -1,0 +1,36 @@
+/* Phase 8 (HOUSEKEEPING-NOTES.md "Batch 4: dead CSS rules"): quarantined VERBATIM from
+ * css/admin/events.css — 8 rule(s) confirmed to have zero matching class/id anywhere
+ * in the current codebase (source, live DB dump, email/PDF templates all checked), and NOT
+ * built via dynamic string/template-literal suffix (checked case-by-case against known BEM-
+ * modifier patterns elsewhere in this codebase before concluding "dead" rather than "assumed").
+ * Moved out, not deleted — soaks here 2 weeks per AGENTS.md §3 before a human deletes it. */
+.evt-lists-row { display:flex; gap:24px; align-items:flex-start; margin-top:24px; }
+
+.evt-lists-col { flex:1; min-width:0; }
+
+.evt-lists-row { flex-direction:column; }
+
+.evt-count-badge {
+    display:inline-flex; align-items:center; justify-content:center;
+    background:var(--atl-amber-dim); color:var(--atl-amber);
+    border:1px solid var(--atl-amber-border); border-radius:20px;
+    font-family:'Outfit',sans-serif; font-size:11px; font-weight:600;
+    padding:1px 8px; margin-left:8px; vertical-align:middle;
+    letter-spacing:0.02em;
+}
+
+.evt-list-header { margin-bottom:20px; }
+
+.evt-list-heading {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(20px, 3vw, 28px);
+    font-weight: 500;
+    color: var(--atl-ink-dim);
+    margin: 0;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+}
+
+.evt-list-heading i { color:var(--atl-amber); margin-right:8px; font-size:0.8em; }
+
+.evt-list-rule { margin-top:10px; margin-bottom:0; }

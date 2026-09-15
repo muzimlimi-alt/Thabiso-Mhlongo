@@ -1,0 +1,28 @@
+/* Phase 8 (HOUSEKEEPING-NOTES.md "Batch 4: dead CSS rules"): quarantined VERBATIM from
+ * css/admin/dashboard.css — 4 rule(s) confirmed to have zero matching class/id anywhere
+ * in the current codebase (source, live DB dump, email/PDF templates all checked), and NOT
+ * built via dynamic string/template-literal suffix (checked case-by-case against known BEM-
+ * modifier patterns elsewhere in this codebase before concluding "dead" rather than "assumed").
+ * Moved out, not deleted — soaks here 2 weeks per AGENTS.md §3 before a human deletes it. */
+.db-crm-label {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 10px !important;
+    color: var(--atl-muted) !important;
+}
+
+.db-crm-value {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: 28px !important;
+    font-weight: 600 !important;
+    color: var(--atl-ink-dim) !important;
+}
+
+.db-crm-progress-bar {
+    background: var(--atl-surface2) !important;
+    border-radius: var(--atl-r-pill) !important;
+}
+
+.db-crm-progress {
+    background: linear-gradient(to right, var(--atl-amber), var(--atl-amber-hover)) !important;
+    border-radius: var(--atl-r-pill) !important;
+}

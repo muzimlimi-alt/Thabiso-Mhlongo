@@ -7136,3 +7136,73 @@ to. **The other 15 remain untouched — no quarantine, per the plan's own rule f
   `/upload`'s pattern) can fetch PayFast ITN audit logs for a booking, as the route was always written
   to allow. This is a deliberate, user-requested exception to "housekeeping doesn't fix behaviour" —
   the same category of exception already used once for Deferred Fix #4 (bank-statement import).
+
+### Batch 4 — Candidate #4: dead CSS rules — sub-batch 1 (4 smallest files) — DONE
+
+**Method, and two more false-positive traps found and fixed before trusting anything:** wrote a
+hand-rolled CSS parser (no library added — none was available and this tooling never ships, per
+AGENTS.md's "don't add a dependency" read as applying to the shipped app) that flattens `@media`/
+`@supports` blocks, skips opaque at-rules (`@keyframes`/`@font-face`/`@page`/`@import`), splits each
+selector on top-level commas, and extracts every `.class`/`#id` token per branch. A rule is a "dead
+candidate" only if every comma-branch has at least one class/id token AND every token in that branch
+is unreferenced anywhere in current HTML/JS (a branch with zero extractable tokens — a bare tag or
+attribute selector — is never judged, to stay conservative). Ran across all 14 first-party CSS files
+(`bootstrap.min.css` deliberately excluded — vendor, minified, not ours to audit).
+
+- **First false-positive trap (74→16 equivalent, from the routes audit): quote characters.** Not
+  repeated here — same root cause as Batch 3, already fixed before this run started.
+- **Second false-positive trap, CSS-specific: third-party libraries injecting their own class names at
+  runtime.** Confirmed three such libraries are genuinely loaded and used —
+  `google.maps.places.Autocomplete` (`.pac-*`, styling the Google Places dropdown in
+  `bookings-dealview.js`'s venue autocomplete), `intlTelInput` (`.iti__*`, `js/myscript.js:1406`), and
+  `jsvectormap` (`.jvm-*`, loaded in `admin.html` for the Dashboard's world map). None of their class
+  names will ever appear in our own source — the library's own JS writes them into the DOM — so they
+  were excluded from the reference check outright rather than flagged dead.
+- **Third false-positive trap, found during the deeper investigation the user asked for: dynamic BEM-
+  modifier suffixes.** Three more clusters looked dead by exact-string search but are built via string
+  concatenation/template literals, so the literal class name never appears in source: `.inq-status-
+  dot--*`/`.inq-priority-flag--*`/`.inq-priority-dot--*` (`js/admin/inquiries.js`:
+  `` `inq-status-dot--${statusDot}` ``), `.adm-noti-item__icon--*` (`admin.html:16180`:
+  `'adm-noti-item__icon--' + item.type`), and `.tm-toast--*` (`js/notificationService.js:90`:
+  `` `tm-toast tm-toast--${type}` ``). All excluded (~19 rules) — genuinely live, not dead.
+- Every remaining candidate was individually spot-checked (sibling-class comparison, whole-repo
+  search, cross-referenced twice via two independent methods after one background shell hit a
+  transient fork failure) before being trusted, per the user's explicit request to investigate the
+  full set rather than stop at the first, higher-confidence clusters.
+
+**Execution mechanics, since "quarantine" doesn't map onto a CSS rule the way it does a whole file
+("CSS order is behaviour" — Phase 6's own rule — rules out just deleting a rule with nothing kept):**
+for each file, extracted every confirmed-dead rule verbatim (exact selector + declaration block,
+including its own trailing line ending) via byte-offset slicing against the raw file text (comments
+masked to same-length whitespace first, so offsets stay valid against the true raw text through
+`@media` nesting), removed it from the live file, and wrote it into
+`_quarantine/<same-relative-path>.dead-rules.css` with a header. **One real parser bug found and fixed
+before any file was touched**: the initial version computed a rule's start offset as "right after the
+previous block's closing brace" rather than "the first character of this rule's own selector text" —
+harmless for an isolated removal, but for two-or-more *consecutive* dead rules it silently ate the
+surviving rule's own line ending too, gluing it to whatever came after the last removed rule in the
+run (caught on `dashboard.css`'s `.db-crm-card}.db-schedule-item{` — no space — before any real file
+was touched). Fixed by explicitly finding the first non-whitespace character after the previous
+block's end. **Verification methodology, matching this session's "full whole-file reconciliation"
+standard from the Bookings extractions**: for each file, re-inserted every removed range's captured
+text back into the new live content at its recorded offset and diffed the result against the
+untouched original, requiring 0 diffs (CRLF-normalized where the file's line endings and git's stored
+LF blob differ — a display artifact of Windows checkout normalization, not a real difference,
+confirmed by comparing against the actual on-disk original rather than `git show HEAD`). All 4 files
+passed 0-diff reconciliation before being applied.
+
+**Files done this sub-batch** (smallest/safest first, to prove the tooling before the two large
+files): `css/admin/dashboard.css` (4 rules: `.db-crm-label`/`.db-crm-value`/`.db-crm-progress-bar`/
+`.db-crm-progress` — sibling `.db-crm-card` still live), `css/admin/inquiries.css` (4 rules:
+`.inq-compose-actions`, `.inq-cancel-btn` + 2 pseudo-class variants), `css/notifications.css` (1 rule:
+`.tm-shake`), `css/admin/events.css` (8 rules — `.evt-lists-row` appeared twice, once at top level and
+once inside `@media (max-width:767px)`; removing the latter leaves that specific media block **empty**
+— `@media (max-width:767px) {  }` — accepted as harmless (an empty media block styles nothing) rather
+than adding logic to detect and remove now-empty wrappers, which would be a second, riskier kind of
+edit on top of the first).
+
+Verified: `npm run smoke` 329/329 before and after all four files. Committed together as one batch (47
+lines removed total, well under the plan's ~400-line-per-commit ceiling). The two large files
+(`css/style.css`, ~51 dead rules; `css/redesign.css`, ~216 dead rules, including the confirmed-
+superseded `.bkr-*` old bookings-pipeline stylesheet and old User-Management card-grid) are next,
+each its own commit given the size difference.

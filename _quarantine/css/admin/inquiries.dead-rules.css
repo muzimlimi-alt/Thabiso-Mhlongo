@@ -1,0 +1,13 @@
+/* Phase 8 (HOUSEKEEPING-NOTES.md "Batch 4: dead CSS rules"): quarantined VERBATIM from
+ * css/admin/inquiries.css — 4 rule(s) confirmed to have zero matching class/id anywhere
+ * in the current codebase (source, live DB dump, email/PDF templates all checked), and NOT
+ * built via dynamic string/template-literal suffix (checked case-by-case against known BEM-
+ * modifier patterns elsewhere in this codebase before concluding "dead" rather than "assumed").
+ * Moved out, not deleted — soaks here 2 weeks per AGENTS.md §3 before a human deletes it. */
+.inq-compose-actions { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+.inq-cancel-btn { background: transparent; border: 1px solid var(--atl-line-strong); color: var(--atl-muted); border-radius: var(--atl-r-md); padding: 9px 14px; font-size: 12px; cursor: pointer; transition: all var(--atl-t-fast); }
+
+.inq-cancel-btn:hover { background: var(--atl-amber-dim); color: var(--atl-ink); border-color: var(--atl-amber); }
+
+.inq-cancel-btn:focus-visible { outline: 2px solid var(--atl-amber); outline-offset: 2px; }

@@ -6,9 +6,7 @@
    15-section "no background" rule elsewhere in admin.html — also not moved. */
 
 /* ── EVENTS SECTION — Card grid + editor dock ── */
-.evt-lists-row { display:flex; gap:24px; align-items:flex-start; margin-top:24px; }
-.evt-lists-col { flex:1; min-width:0; }
-@media (max-width:767px) { .evt-lists-row { flex-direction:column; } }
+@media (max-width:767px) {  }
 @media (max-width:575px) {
     .evt-controls-row { flex-direction:column; align-items:stretch; }
     .evt-controls-row .um-input-wrap { min-width:0; width:100%; }
@@ -29,14 +27,6 @@
     border-radius:var(--atl-r-md); padding:10px 14px; margin-bottom:16px;
 }
 .evt-bulk-count { font-size:13px; color:var(--atl-amber); font-weight:600; white-space:nowrap; }
-.evt-count-badge {
-    display:inline-flex; align-items:center; justify-content:center;
-    background:var(--atl-amber-dim); color:var(--atl-amber);
-    border:1px solid var(--atl-amber-border); border-radius:20px;
-    font-family:'Outfit',sans-serif; font-size:11px; font-weight:600;
-    padding:1px 8px; margin-left:8px; vertical-align:middle;
-    letter-spacing:0.02em;
-}
 .evt-card-selectable .atl-event-card { position:relative; }
 .atl-event-card.evt-selected { outline:2px solid var(--atl-amber); outline-offset:2px; }
 
@@ -56,18 +46,6 @@
 .evt-badge--warn { background:rgba(251,191,36,0.12); color:#fbbf24; border:1px solid rgba(251,191,36,0.25); }
 .evt-badge--danger { background:var(--atl-clay-dim,rgba(239,68,68,0.1)); color:var(--atl-clay,#ef4444); border:1px solid var(--atl-clay-dim,rgba(239,68,68,0.2)); }
 .evt-badge--sage { background:color-mix(in srgb, var(--atl-sage) 12%, transparent); color:var(--atl-sage); border:1px solid color-mix(in srgb, var(--atl-sage) 30%, transparent); }
-.evt-list-header { margin-bottom:20px; }
-.evt-list-heading {
-    font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: clamp(20px, 3vw, 28px);
-    font-weight: 500;
-    color: var(--atl-ink-dim);
-    margin: 0;
-    letter-spacing: -0.01em;
-    line-height: 1.1;
-}
-.evt-list-heading i { color:var(--atl-amber); margin-right:8px; font-size:0.8em; }
-.evt-list-rule { margin-top:10px; margin-bottom:0; }
 .evt-form-action-btn { min-width:140px; justify-content:center; }
 #eventsDesc { min-height: 116px !important; }
 .evt-card-grid { display:flex; flex-direction:column; gap:16px; }
