@@ -7243,5 +7243,54 @@ a clean deletion. Reviewing the plain-English diff (not just the reconciliation'
 - Verified: `npm run smoke` 329/329 before and after; diff reviewed line-by-line (265 lines removed, 1
   line changed — the accepted empty wrapper — confirmed via `grep -c "^-"`/`"^+"` on the raw diff).
 
-The last file, `css/redesign.css` (~216 dead rules, including the confirmed-superseded `.bkr-*` old
-bookings-pipeline stylesheet and old User-Management card-grid), is next — its own commit given the size.
+### Batch 4 — sub-batch 3 (`css/redesign.css`, 216 rules, final file) — DONE; third bug found and fixed
+
+**Largest single extraction of this batch — 27,401 chars / ~216 rules removed from a 200KB file — and a
+third artifact type caught the same way as the second: reviewing the plain diff, not just trusting a
+passing reconciliation.** The reconciliation (0 diffs both before and after this fix) proves no content
+was lost or duplicated either way; it does not catch a *live* file being left in a state that reads as
+"clean deletion" to a human reviewer.
+
+- **The bug:** a same-line trailing comment explaining a rule (`.bkr-card-main { flex: 1; min-width: 0;
+  } /* alias */`, `.bkr-card-avatar { display: none; } /* removed — was wasted space */`) is not
+  consumed by "extend the removed range to eat one trailing newline" — the comment sits *before* that
+  newline, on the same line as the rule's closing `}`. Removing just the rule left both comments
+  orphaned mid-file, floating alone on their own line with nothing before them, ironically including one
+  that already said "removed" about something else entirely (a property value, not the rule) — exactly
+  the kind of confusing leftover a careful human deletion wouldn't produce.
+- **The fix:** after parsing, check the raw text immediately following each rule's `blockEnd` (using
+  `raw`, not the comment-masked text used for parsing) for a same-line `/\* ... \*/` comment; if found,
+  extend `blockEnd` to swallow it, so it travels into the quarantine file with the rule it was
+  describing rather than being left behind. Applied uniformly to all parsed blocks (dead or not — a
+  no-op for survivors, since their `blockEnd` is never used for removal).
+- **The 5 already-committed files (sub-batches 1 and 2) were checked against this specific artifact
+  too** — grepped each for any standalone comment-only line; every one found was a pre-existing section
+  header (e.g. `/* ─── Toast Item ─── */` in `notifications.css`, `/*Navbar Toggle*/` in `style.css`),
+  never a newly-orphaned rule-trailing comment. None of their dead rules happened to carry a same-line
+  trailing comment. No amendment needed.
+- **216 rules removed**, confirming the `.bkr-*` old-bookings-pipeline-stylesheet theory from the
+  earlier investigation in full: `bkr-badge`/`bkr-card`/`bkr-btn`/`bkr-ledger`/`bkr-info`/`bkr-pill`/
+  `bkr-venue`/`bkr-search`/`bkr-quote`/`bkr-toolbar`/`bkr-pipeline`/`bkr-section`/`bkr-promote-row`
+  (the small fragment traced to the same superseded UI, distinct from the currently-used
+  `.bkr-promote-panel`/`.bkr-promote-live-badge` family that lives in `admin.html`'s own `<style>`
+  block) — plus the old User-Management card-grid (`um-users-grid`/`um-user-card__*`/`um-section-card`/
+  `um-page-title`/`um-btn--secondary`/`um-btn--danger-solid`/`um-drawer__inner`), the unused Bootstrap
+  `.custom-switch`/`.custom-control-*` override, `tm-form-summary*`/`tm-form-error`, `bk-trp-*`/
+  `bk-service-card-*` sub-elements, `bk-popia-banner`, and a scatter of smaller singles
+  (`.typing-container`, `.tm-about__sig`, `.tm-navbar__track`, `.tm-section--*`, `.btn-secondary`/
+  `.tm-btn--dark`, `.tm-mobile-admin-open`, `.tm-newsletter__inner`, `.tm-reveal--d4`, `.ms-option__badge`,
+  `.cal-blockout-*`, `.adm-dropdown__menu--wide`/`--right` — superseded by a confirmed `--unified`
+  variant still in active use — `.adm-dropdown__header-action`/`__footer*`, `.adm-badge--profile`).
+  2 accepted empty-`@media`-wrapper cases left behind (`.bkr-badge-xs-hide`, `.bkr-info-grid`'s two
+  breakpoint overrides), same harmless tradeoff as every prior file.
+- Verified: `npm run smoke` 329/329 before and after; full diff reviewed (892 diff-tool lines; only 2
+  non-pure-deletion hunks, both the already-understood empty-wrapper case, confirmed by grepping the
+  diff for `c` (changed-line) hunks specifically rather than eyeballing 900 lines by hand).
+
+**Phase 8 Batch 4 (dead CSS) is now complete**: ~284 rules quarantined across all 8 audited files
+(`bootstrap.min.css` never touched — vendor, not ours), 3 real extraction-tooling bugs found and fixed
+along the way (none of which affected the app's actual behaviour — every one was caught before a live
+file was touched, via diff review rather than trusting a single automated check), 3 false-positive
+categories identified and excluded (third-party runtime-injected classes, dynamic BEM-modifier
+suffixes, quote-excluding gap regex from the routes audit reused here). What remains for Phase 8:
+Candidate #5, root-level leftovers (`scratch_screenshot_inq.js`, `tracker.js`).
