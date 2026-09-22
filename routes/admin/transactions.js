@@ -40,6 +40,11 @@ router.post('/api/admin/transactions/manual', requireAdmin, requireRole(['admini
         return res.status(400).json({ success: false, message: 'Transaction type must be payment, refund, or adjustment.' });
     if (transaction_type === 'adjustment' && (!direction || !['credit', 'debit'].includes(direction)))
         return res.status(400).json({ success: false, message: 'Adjustment direction must be credit or debit.' });
+    // Deferred fix #5 (HOUSEKEEPING-NOTES.md): transactions.booking_id is NOT NULL in the schema, so
+    // a missing booking_id always threw a raw SQLite constraint error from insertManualTransaction
+    // below rather than the clean validation error this route otherwise gives. Reject it here instead.
+    if (!booking_id)
+        return res.status(400).json({ success: false, message: 'A booking is required to log a manual transaction.' });
 
     const amt = parseFloat(amount).toFixed(2);
     const txDate = transaction_date || new Date().toISOString().split('T')[0];

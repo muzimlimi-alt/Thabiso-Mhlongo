@@ -6929,7 +6929,7 @@ its own change with its own testing.
     already-documented `banner.test.js` `SQLITE_BUSY` crash — neither touches bank-statement/finance
     import code.
 
-### 5. `POST /api/admin/transactions/manual` 500s whenever no `booking_id` is supplied
+### 5. `POST /api/admin/transactions/manual` 500s whenever no `booking_id` is supplied — FIXED
 
 - **Where found:** `routes/admin/transactions.js` (moved verbatim from `app.js` in the small-admin-
   utilities route batch), while writing a manual fixture-verification script to cover this route
@@ -6948,18 +6948,30 @@ its own change with its own testing.
   UI's manual-transaction form actually exercises in practice supplies a `booking_id`, which is
   presumably why this has gone unnoticed; the code path for the no-booking case is dead in the sense
   that it can never successfully execute, not in the sense that nothing calls it.
-- **Not fixed** — housekeeping moves code, it does not repair behaviour (the one exception this
-  session, item 4 above, was fixed only at the user's explicit request given its severity; this is a
-  narrower, opt-in code path, not a broken core feature). Logged here per Phase 2's own rule for a
-  bug found rather than caused.
   - **Reproduced with:** `POST /api/admin/transactions/manual` with `{ amount: 50,
     transaction_type: 'payment', payment_method: 'cash' }` (no `booking_id` field at all) —
     confirmed via a throwaway fixture script, not by application code inspection alone.
-  - **Possible fix directions, not applied:** either make `transactions.booking_id` nullable (a
-    schema migration, out of scope for a housekeeping pass) or have the route reject a missing
-    `booking_id` with a clear `400` instead of letting the SQLite constraint surface a raw message —
-    the smaller of the two changes, but still a behaviour change requiring the user's decision on
-    which direction they actually want.
+- **Status: FIXED, at the user's explicit request**, choosing between the two directions originally
+  logged here: make `transactions.booking_id` nullable (a schema migration, enabling the no-booking
+  use case) vs. reject a missing `booking_id` with a clean `400` (no schema change, the no-booking
+  use case stays unsupported). **User chose the 400-rejection direction** — simpler, no migration.
+  - **The fix:** added a `booking_id` presence check to `routes/admin/transactions.js`'s existing
+    validation block (same style/position as the pre-existing amount/transaction_type/direction
+    checks), returning `400 { success: false, message: 'A booking is required to log a manual
+    transaction.' }` before ever reaching `insertManualTransaction`. Everything below that point in
+    the handler is unchanged.
+  - **The now-unreachable "no booking_id" success branch** (`} else { res.json({ success: true, ...
+    message: 'Transaction logged.' }); }`, bottom of the handler) is **left in place, not removed** —
+    genuinely dead now that `booking_id` is validated present earlier, but removing it is unrelated
+    cleanup beyond fixing this specific bug, same "quarantine don't improve" reasoning applied
+    throughout this effort (see Deferred fix #4's `prepareBankStatementLineInsert()` for the same
+    pattern).
+  - **New regression test:** `test/manual-transaction.test.js` (no test previously exercised this
+    route at all) — asserts the no-`booking_id` case now gets a clean `400` with the exact validation
+    message (not the old raw SQLite string), and that the normal with-`booking_id` path still returns
+    `200` and succeeds exactly as before the fix.
+  - **Verification:** `node --check` on both changed files; `npm test` clean (668/668, all 3 new
+    checks passing) on two separate completed runs; `npm run smoke` 329/329.
 
 ### 6. `js/admin/email-logs.js` — loading row is `colspan="5"`, error row is `colspan="6"`
 
