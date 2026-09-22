@@ -91,13 +91,17 @@ module.exports = async function ({ check }) {
 
     const txnsUnknown = await one('SELECT COUNT(*) c FROM transactions WHERE booking_id=?', [fakeBookingId]);
     check('unknown-reference ITN: no transaction row created', txnsUnknown.c === 0, `count=${txnsUnknown.c}`);
-    // payment_logs.booking_id has a FOREIGN KEY REFERENCES bookings(id) (database.js ~line 262).
-    // logPaymentEvent()'s own ITN_RECEIVED insert therefore fails its FK check for a booking id
-    // that doesn't exist — and the insert's error callback only console.errors, it never surfaces
-    // anywhere else. Net effect: an ITN for a bogus/garbled reference leaves NO durable trace at
-    // all, not even the generic "we received something" audit row. Flagged as a deferred fix in
-    // HOUSEKEEPING-NOTES.md; asserted here as the actual current behaviour, not the intended one.
+    // payment_logs.booking_id has a FOREIGN KEY REFERENCES bookings(id) (database.js ~line 262), so
+    // logPaymentEvent()'s own ITN_RECEIVED insert still fails its FK check for a booking id that
+    // doesn't exist — that part of the original finding (Deferred fix #2, HOUSEKEEPING-NOTES.md)
+    // still holds and isn't something to change (payment_logs is meant to be strictly booking-scoped).
     const receivedLog = await one(
         "SELECT COUNT(*) c FROM payment_logs WHERE booking_id=? AND event_type='ITN_RECEIVED'", [fakeBookingId]);
-    check('unknown-reference ITN: NO audit row is left behind (FK constraint silently drops the ITN_RECEIVED insert — see HOUSEKEEPING-NOTES.md)', receivedLog.c === 0, `count=${receivedLog.c}`);
+    check('unknown-reference ITN: still no payment_logs row (FK correctly blocks it there)', receivedLog.c === 0, `count=${receivedLog.c}`);
+    // FIXED: logPaymentEvent()'s error callback now falls back to audit_log (no FK on record_id) when
+    // the payment_logs insert fails, so a garbled/spoofed/replayed ITN referencing a bogus booking id
+    // no longer vanishes without a trace.
+    const fallbackAudit = await one(
+        "SELECT COUNT(*) c FROM audit_log WHERE table_name='payment_logs' AND record_id=? AND action='ITN_RECEIVED'", [fakeBookingId]);
+    check('unknown-reference ITN: fallback audit_log row now records the event', fallbackAudit.c === 1, `count=${fallbackAudit.c}`);
 };

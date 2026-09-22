@@ -6589,7 +6589,7 @@ Bugs found while establishing the safety net or moving code. Not fixed here
 — housekeeping moves code, it does not repair behaviour. Each entry needs
 its own change with its own testing.
 
-### 1. Lost write under concurrent independent booking submissions
+### 1. Lost write under concurrent independent booking submissions — RESOLVED (found already fixed)
 
 - **Where found:** `test/booking.test.js`, "Concurrency: independent
   bookings must all persist" block (line ~89-96).
@@ -6621,14 +6621,40 @@ its own change with its own testing.
   isn't a fix — it's evidence the underlying race genuinely depends on
   timing rather than failing every time. Still unresolved; still needs its
   own investigation.
+- **Update (post-Phase-8, attending to the deferred-fixes backlog at the user's request): found
+  already resolved, not by anything in this update.** `lib/db-transaction.js` (`withDbTransaction`,
+  the serialization queue built during route batch 21 to fix Deferred Fix #4's bank-statement bug)
+  carries its own header comment describing, in the past tense, *exactly* this bug: *"Concurrent
+  independent writes (e.g. simultaneous booking submissions) used to interleave their own
+  BEGIN/COMMIT/ROLLBACK with each other — the losing requests returned HTTP 500 and the lead was
+  dropped... the public booking intake was the first"* to migrate onto it. `routes/public/bookings.js`'s
+  `POST /api/public/bookings` handler now runs its entire save (availability re-check, calendar-conflict
+  re-check, duplicate re-check, and the insert itself) inside `withDbTransaction(async () => { ...
+  BEGIN IMMEDIATE ... COMMIT ... })`, which queues every guarded section behind a single shared
+  promise chain so concurrent submissions' transactions can never interleave.
+  - **No HOUSEKEEPING-NOTES.md entry ever announced this as resolving Deferred Fix #1** — the git
+    history around route batch 21 documents the migration as a natural extension of building
+    `withDbTransaction` for the bank-statement fix, not as a deliberate close-out of this specific
+    entry. Closing that documentation gap now, not writing a new fix.
+  - **Verified empirically before trusting the comment**: ran the exact regression test
+    (`test/booking.test.js`'s "Concurrency: independent bookings must all persist" block — 5 concurrent
+    `POST /api/public/bookings` with 5 distinct emails/dates) to **8 clean completions in a row**
+    (0 lost writes, 5/5 every time), filtering out an unrelated, already-documented pre-existing
+    `SQLITE_CORRUPT` test-infra flake that crashed roughly half of today's attempts before even
+    reaching this check (see "Known testing limitations" below — worth noting this flake's rate looked
+    unusually high today, possibly OneDrive's real-time sync scanning/locking the throwaway test
+    SQLite file mid-write, since this repo lives in a synced folder; not investigated further, out of
+    scope for this update, flagged here only as a lead for whoever picks up that limitation next).
+  - **Status: RESOLVED.** No code change made as part of this update — verification only.
 
-### 2. PayFast ITN for an unknown booking reference leaves no audit trail at all
+### 2. PayFast ITN for an unknown booking reference leaves no audit trail at all — FIXED
 
 - **Where found:** `test/payment-callback.test.js`, "unknown reference"
   block.
 - **What happens:** `payment_logs.booking_id` has `FOREIGN KEY REFERENCES
   bookings(id)` (`database.js` ~line 262). The ITN webhook handler
-  (`server.js` ~line 5508) logs an `ITN_RECEIVED` row to `payment_logs`
+  (now `routes/public/payment.js`, moved in Phase 5 — originally `server.js`
+  ~line 5508) logs an `ITN_RECEIVED` row to `payment_logs`
   *before* looking up the booking — but for a booking id that doesn't
   exist, that insert fails its FK check, and the insert's error callback
   only does `console.error(...)`; nothing else observes the failure.
@@ -6638,9 +6664,38 @@ its own change with its own testing.
 - **Impact if real:** a garbled, spoofed, or replay-attacked ITN referencing
   a bogus booking id is invisible to anyone reviewing `payment_logs` for
   suspicious payment activity — there's no record it was ever received.
-  This is payment-adjacent (Section A.1 protected surface) — not touched.
-- **Status:** left as-is. `test/payment-callback.test.js` asserts the
-  *actual* current behaviour (zero rows), not the presumably-intended one.
+  This is payment-adjacent (Section A.1 protected surface) — not touched
+  originally; fixed below at the user's explicit request post-Phase-8.
+- **Status: FIXED, at the user's explicit request** ("Please attend to the
+  Deferred Fixes issues"), the third such exception in this effort
+  alongside Deferred fix #1 (a housekeeping session's follow-up query,
+  not a new code change) and Deferred fix #4 (bank-statement import).
+  - **The fix:** `logPaymentEvent()` (`lib/payment-processing.js`) —
+    `insertPaymentLogEntry`'s error callback now falls back to inserting
+    into `audit_log` (`table_name='payment_logs'`, `record_id=bookingId`,
+    `action=eventType`, the raw payload in `new_values`, the original FK
+    error in `reason`) whenever the `payment_logs` insert itself fails.
+    `audit_log.record_id` is `NOT NULL` but carries **no foreign key** (it's
+    a generic cross-table audit trail by design), so it accepts a
+    bogus/nonexistent booking id without complaint — exactly the property
+    needed here. `payment_logs` itself is untouched and still correctly
+    rejects the insert; this only adds a fallback destination, it doesn't
+    weaken `payment_logs`'s own FK integrity.
+  - **Test updated, not just left to assert the old behaviour:**
+    `test/payment-callback.test.js`'s "unknown reference" block now asserts
+    BOTH that `payment_logs` still has zero rows for the bogus id (the FK
+    correctly still blocks it there — unchanged, and correctly so) AND that
+    `audit_log` now has exactly one fallback row for the event (the actual
+    fix). Previously the test asserted "no audit trail at all" as the
+    *documented-current-not-intended* behaviour per Phase 2's own
+    characterisation-testing rule; now that the behaviour is intentionally
+    different, the test was updated to match — not a stale-test question,
+    a deliberate behaviour change with test coverage to match it.
+  - **Verification:** `node --check` on both changed files; the new/updated
+    checks passed cleanly across every completed test run (`npm test`
+    665/665 clean on the first run after the fix, then 664/665 on a
+    follow-up run — the one failure being the already-documented, unrelated
+    `calendar.test.js` CP3 timing flake); `npm run smoke` 329/329.
 
 ### 3. Intermittent failure: `calendar.test.js` CP3 under a larger suite
 
