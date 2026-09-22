@@ -7503,3 +7503,92 @@ succeeded on the very first try, before any chaining was attempted.
 
 Verified again: `npm run smoke` 329/329 (clean on the first attempt this time), `git status` clean
 (confirming none of these 7 files were ever tracked).
+
+## `.gitignore` rewrite (user request, 2026-09-22)
+
+Full rewrite so a fresh clone tracks only functional source/assets, with runtime data, generated
+content, secrets, temp/dev artifacts, backups, logs/caches, and OS/editor files excluded — done in
+Plan Mode, with two Explore agents doing the recon and a full plan reviewed before any edit.
+
+**A significant, unrelated discovery surfaced during the recon, worth its own permanent record**:
+this project sits inside **two independent, nested git repositories** sharing the same GitHub remote
+(`github.com/muzimlimi-alt/Thabiso-Mhlongo.git`):
+- **Outer** (`...\Thabiso Mhlongo Official Website\.git`) — stale, HEAD hasn't moved since
+  2026-06-13 (47 commits total), no `.gitignore` of its own, its index still tracking ~3,500 files
+  under the inner subfolder at their old, pre-housekeeping content, diverged from `origin/main`.
+- **Inner** (`...\Thabiso Mhlongo Official Website\Thabiso Mhlongo Offcial Website\.git`, this
+  project's actual root, note the folder's own "Offcial" typo) — confirmed via `git fetch` that
+  `origin/main` on GitHub currently matches **this** repo's history (its tip was one of this
+  session's own earlier commits) — so the inner repo is the real, authoritative, remote-synced one;
+  the outer repo is an abandoned local artifact that happens to share the remote URL, not a second
+  live copy of the project. Not touched, not acted on — flagged for awareness only, since it's a
+  latent source of confusion (running git commands from the outer folder gives a completely
+  different, months-stale picture of "the repo") and was in fact the direct cause of a research
+  agent's initial (wrong) tracked-file inventory during this same task's own recon — see below.
+- **Practical lesson from this session**: an Explore agent tasked with inventorying tracked files
+  ran at least some of its `git ls-files`/`git status` commands from the wrong (outer) repo context
+  — an easy mistake given how similarly-named and deeply-nested the two folders are — and reported
+  "692 pending deletions," `node_modules/` and `.env` as tracked, and `routes/`/`lib/`/`middleware/`/
+  `_quarantine/` as 100% untracked, all of which turned out to be false when independently
+  re-verified directly in the correct (inner) repo. Its purely filesystem-based findings (directory
+  listings, content searches, `docs/` file counts) were unaffected and matched a second, direct
+  cross-check exactly. Lesson applied: any git-command-derived claim from a subagent gets
+  independently re-verified directly before being trusted, the same "trust but verify" discipline
+  already standard for this whole effort — this is just the first time it caught a subagent, rather
+  than the agent's own earlier work, being the source of a wrong claim.
+
+**Investigation (self-verified directly in the correct repo, not just via subagent report)**: 604
+files tracked excluding `node_modules/` (which has **zero** tracked files — contradicting the
+subagent's claim), `git status` clean. `.env`, `database.sqlite`, `sessions.sqlite` were already
+correctly untracked (not just gitignored-but-tracked, as the subagent wrongly reported). Traced
+`app.js`/`server.js`'s `require()` calls and every public HTML file's `<script>`/`<link>` tags to
+confirm what's genuinely load-bearing: `routes/`, `lib/`, `middleware/`, `database/repositories/`,
+`css/`+`css/admin/`, `js/`+`js/admin/`+`js/admin/components/`, `images/`, `fonts/`, root `tracker.js`,
+`robots.txt`, `database.js` (schema source, not data). Confirmed no build step exists (README states
+this explicitly).
+
+**Two categories needed real judgment, not just a checklist match:**
+- **`images/` (60 tracked files) is genuinely mixed** — curated/source-referenced assets
+  (`footprint/`, `icon/`, `background/`, `services/`, root `logo4.png`/`image-slider-1.jpg`, all
+  cited in `database.js` seeds or HTML) alongside legacy admin-uploaded content (`banners/`,
+  `events/`, `gallery/`, `testimonials/`, `carousel/`, `about/`) that has no source reference but
+  **is** referenced by live database rows (per this same effort's own Phase 8 asset audit). Since
+  Phase 3 already moved the live upload target to an external `UPLOADS_PATH`, nothing new lands here
+  going forward — no active risk left for `.gitignore` to close. Presented this reasoning to the user
+  via `AskUserQuestion` before finalizing the plan; **user confirmed: leave `images/` entirely
+  alone**, no new rules added under it.
+- **`email-previews/` (59 tracked files) is generated output**, not hand-authored as it might look —
+  confirmed produced by `js/generate-email-previews.js` via direct inspection. Added to
+  `.gitignore`. This is the **one** category where a new rule matches already-tracked files (checked
+  every one of the 604 tracked files against every new pattern individually) — per git's own
+  behaviour this has zero effect on those 59 files (a `.gitignore` rule never untracks an
+  already-tracked file, it only stops new ones from being staged); confirmed no other new pattern
+  matches anything currently tracked.
+
+**Deliberately left tracked, not reopened by the broader request:**
+- `_quarantine/` (25 tracked files) — this effort's own quarantine mechanism relies on dead
+  code/assets being moved here *and committed*, specifically for a tracked, revertible 2-week soak
+  record. Gitignoring it would silently defeat that methodology for every future quarantine batch.
+- `docs-internal/`, `HOUSEKEEPING-NOTES.md`, `housekeeping-agent-prompts.md` — reference/maintenance
+  documentation for this exact engagement, not disposable generated output.
+- `scripts/*.js`, `.agents/rules/global-guide.md`, `.claude/settings.json` — confirmed actually used
+  (an active `npm run backup`, two setup utilities documented in `README.md`, shared tool config).
+
+**The rewrite itself**: replaced the old mix of named `database.sqlite`/`sessions.sqlite`
+file-specific lines + partial wildcards with a clean blanket `*.sqlite`/`*.sqlite-shm`/
+`*.sqlite-wal`/`*.sqlite-journal` (also removes the need for `test/.test.sqlite` as its own line —
+subsumed by the blanket rule). Added: `db-backups/` (missing before, empty on disk but named like a
+backup-snapshot target), `email-previews/`, `.env.local`/`.env.*.local`, OS files (`.DS_Store`,
+`Thumbs.db`, `desktop.ini`), IDE config (`.vscode/`, `.idea/`), `.claude/settings.local.json` +
+`.claude/scheduled_tasks.lock` (personal/runtime Claude Code artifacts, distinct from the shared
+`.claude/settings.json` which stays tracked), and generic `*.tmp`/`*.bak`/`.cache/` safety nets. Kept
+every existing explanatory comment describing *why* a rule exists (matching this file's own
+established practice), added new ones for each new rule.
+
+Verified: `git status` before/after showed **only** `.gitignore` itself changed (zero files flipped
+tracked/untracked state, as expected — editing `.gitignore` alone never changes tracking). Spot-checked
+8 representative paths with `git check-ignore -v` across every new category, all matched as intended,
+including confirming `images/banners/new-upload.jpg` correctly does **NOT** match anything (the
+`images/`-untouched decision holding). Cross-checked all 604 tracked files against every new pattern
+individually — confirmed only the expected 59 `email-previews/*` files match, nothing else. `npm run
+smoke` 329/329.

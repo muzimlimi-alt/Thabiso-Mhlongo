@@ -1,23 +1,28 @@
-backups/
 node_modules/
+
+# Environment / secrets — .env.example is a template and stays tracked
 .env
+.env.local
+.env.*.local
 
-# Installed Claude Code skill packages (vendored, reference data - not project source)
-.claude/skills/
-.agents/skills/
-
-# Runtime databases / session stores (regenerated at runtime, not source)
-database.sqlite
-database.sqlite-shm
-database.sqlite-wal
-sessions.sqlite
+# Runtime databases / session stores (regenerated at runtime, not source) — blanket pattern
+# replaces the old mix of named files + partial wildcards, and also covers backups/, db-backups/,
+# and any future throwaway test DB without needing its own line
+*.sqlite
 *.sqlite-shm
 *.sqlite-wal
-sessions.sqlite-*
+*.sqlite-journal
 
 # Generated PDFs (invoices/quotes/contracts/attachments) — Phase 3 moved new writes to an
 # external DOCS_PATH, but this stays here too in case DOCS_PATH is ever pointed back in-repo.
 docs/
+
+# Backup output directories
+backups/
+db-backups/
+
+# Generated email preview HTML (js/generate-email-previews.js output, regenerable on demand)
+email-previews/
 
 # Local scratch / verification helpers and logs
 scratch/
@@ -25,14 +30,32 @@ scratch/
 puppeteer_verify.js
 verify_login_logs.js
 
-# integration test throwaway DB + docs/uploads (Phase 3 DOCS_PATH/UPLOADS_PATH overrides)
-test/.test.sqlite
-test/.test.sqlite-*
+# Installed Claude Code skill packages (vendored, reference data - not project source)
+.claude/skills/
+.agents/skills/
+# Claude Code local/runtime artifacts - not shared project config
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# integration test throwaway docs/uploads (Phase 3 DOCS_PATH/UPLOADS_PATH overrides)
+# (the throwaway test sqlite itself is now covered by the blanket *.sqlite rule above)
 test/test-docs/
 test/test-uploads/
 
 # Temporary and test files directory
 TBC/
 
-# IDE Workspcace
+# OS-generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE configuration (personal, not shared project config)
+.vscode/
+.idea/
 Thabiso Mhlongo Official Website.code-workspace
+
+# Misc temp/cache safety nets
+*.tmp
+*.bak
+.cache/
