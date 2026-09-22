@@ -7294,3 +7294,54 @@ file was touched, via diff review rather than trusting a single automated check)
 categories identified and excluded (third-party runtime-injected classes, dynamic BEM-modifier
 suffixes, quote-excluding gap regex from the routes audit reused here). What remains for Phase 8:
 Candidate #5, root-level leftovers (`scratch_screenshot_inq.js`, `tracker.js`).
+
+### Batch 5 — Candidate #5: root-level leftovers — one plan assumption corrected, one stop condition hit
+
+**`tracker.js` is NOT dead — the plan's own candidate list was wrong here.** Checked before touching
+anything: `index.html:3207` loads it (`<script src="/tracker.js" data-site="thabiso" async>`), and the
+`analytics_pageviews`/`analytics_sessions` tables it feeds hold real data (323 pageviews, 103 sessions
+at the time of checking) — this is the live public-site visitor tracker, not a leftover. Left
+completely untouched. Worth recording plainly: the plan text that seeded this whole Phase 8 pass isn't
+infallible, and the four-check rule exists precisely to catch a case like this before acting on it.
+
+**`scratch_screenshot_inq.js` tripped `AGENTS.md` §6's stop condition — credentials found in the
+working tree/history.** This was a Puppeteer screenshot script (Phase 6-era, verifying the Inquiries
+admin page's responsive layout) containing a hardcoded admin login:
+`{ email: 'muzi.mlimi@gmail.com', password: 'password123' }`. Per the standing rule, stopped
+immediately, touched nothing, and reported to the user rather than quarantining it as a routine find.
+
+- **User confirmed `password123` is the current, real password** on that admin account.
+- **Scope turned out much larger than one file**: grepping current HEAD (not just this one file's
+  history) for the same string found it hardcoded in 5 more files, all under `TBC/` (the pre-Phase-2
+  test/scratch directory, superseded when the official suite moved to `test/` — see Phase 2's own
+  entry above): `TBC/puppeteer_verify.js`, `TBC/verify_login_logs.js`,
+  `TBC/scratch/smoke_booking_recovery.js`, `TBC/scratch/test_phase1_gaps.js`,
+  `TBC/scratch/test_phase2_gaps.js` — all Puppeteer/API login-automation scripts from earlier phases of
+  this same housekeeping effort, all typing in the same real credential.
+- **Confirmed a real GitHub remote exists**: `github.com/muzimlimi-alt/Thabiso-Mhlongo.git` (both
+  `origin` and a second remote named `Thabiso-Mhlongo` point at it) — meaning this credential isn't
+  just sitting in a local working tree, it's in pushed history on a hosted remote.
+- **`scratch_screenshot_inq.js` deleted outright (not quarantined)** — the one deliberate exception to
+  the no-delete rule this entire session, because moving a credential-bearing file to `_quarantine/`
+  would leave the exact same exposure sitting at `HEAD` under a different path; that defeats the
+  purpose. This does **not** remove the credential from history — it was introduced in commit
+  `394680f` and is still fully recoverable there by anyone with repo access.
+- **History was explicitly NOT rewritten by the agent.** `housekeeping-agent-prompts.md`'s own Phase 0
+  text is unambiguous: *"History rewriting and force-pushing are irreversible operations on a
+  repository holding your only copy of some data; an agent should not run them, and no prompt should
+  tell it to... You lead this phase. The agent does not execute it."* With a real remote confirmed,
+  "cleaning history" necessarily means a force-push to GitHub — the highest-risk single operation this
+  entire housekeeping effort has come anywhere near. The user was given a `git filter-repo` walkthrough
+  to run themselves rather than have it executed here, along with the advice that rotating the password
+  is what actually neutralizes the exposure — history rewriting doesn't undo anything if the same
+  password stays valid, and does nothing at all for anyone who already has a copy of the old history.
+- **The 5 `TBC/` files were explicitly left untouched, per direct user instruction**: "The TBC/ folder
+  is not important. It stores all the temp or test files that will later be destroyed... do not waste
+  time on the /TBC folder." Flagged once, plainly, that the credential exposure in those 5 files exists
+  independent of whether the folder itself is disposable — the user's call to leave them stands, but
+  the fact of the exposure (and that they're currently tracked, `TBC/` is not `.gitignore`d) is recorded
+  here so it isn't silently lost.
+
+**This closes out Phase 8's five candidate categories** (orphaned assets, duplicate images, unreached
+routes, dead CSS, root-level leftovers). Outstanding beyond Phase 8's own scope: the credential
+rotation and any history cleanup are the user's own follow-up, not further agent work.
