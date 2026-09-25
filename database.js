@@ -197,58 +197,63 @@ function initializeDatabase() {
             completed_at DATETIME,
             cancelled_at DATETIME,
             policy_version TEXT
-        )`, () => {
-            // Failsafe schema updates in case the table was already created
-            db.run("ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'NEW'", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN company TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN event_name TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN event_start_time TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN performance_slot TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN performance_duration TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN event_location TEXT NOT NULL DEFAULT 'TBD'", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN venue_address TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN city TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN country TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN venue_type TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN audience_size TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN audience_demographic TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN budget_range TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN travel_accommodation BOOLEAN DEFAULT 0", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN quote_amount TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN quote_details TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN quote_expiry_date TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN payment_status TEXT DEFAULT 'UNPAID'", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN payment_date DATETIME", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN quoted_at DATETIME", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN accepted_at DATETIME", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN confirmed_at DATETIME", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN completed_at DATETIME", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN cancelled_at DATETIME", () => {});
-            // PayFast payment audit columns
-            db.run("ALTER TABLE bookings ADD COLUMN payment_amount TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN payment_reference TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN payment_signature TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN payment_raw_data TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN payment_method TEXT", () => {});
-            
-            // Decimal ledger migration
-            db.run("ALTER TABLE bookings ADD COLUMN total_amount REAL", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN amount_paid REAL DEFAULT 0", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN amount_outstanding REAL", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN last_payment_date DATETIME", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN popia_consent BOOLEAN DEFAULT 0", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN consent_timestamp DATETIME", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN is_public INTEGER DEFAULT 0", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN ticket_link TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN policy_version TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN source TEXT", () => {});
-            db.run("ALTER TABLE bookings ADD COLUMN referrer TEXT", () => {});
+        )`);
+        // Failsafe schema updates in case the table was already created. Added synchronously
+        // (not nested inside the CREATE TABLE's completion callback) and BEFORE any index/trigger
+        // that references these columns — same reasoning as the inquiries.assigned_to fix above:
+        // a column added only inside a nested async callback isn't guaranteed to exist yet when a
+        // same-tick, synchronously-queued statement elsewhere in this file needs it (this exact race
+        // crashed a fresh boot via the audit_bookings_update trigger's OLD.is_public/NEW.is_public
+        // reference, since is_public used to only exist by the time this callback got around to it).
+        db.run("ALTER TABLE bookings ADD COLUMN status TEXT DEFAULT 'NEW'", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN company TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN event_name TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN event_start_time TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN performance_slot TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN performance_duration TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN event_location TEXT NOT NULL DEFAULT 'TBD'", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN venue_address TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN city TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN country TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN venue_type TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN audience_size TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN audience_demographic TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN budget_range TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN travel_accommodation BOOLEAN DEFAULT 0", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN quote_amount TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN quote_details TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN quote_expiry_date TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN payment_status TEXT DEFAULT 'UNPAID'", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN payment_date DATETIME", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN quoted_at DATETIME", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN accepted_at DATETIME", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN confirmed_at DATETIME", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN completed_at DATETIME", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN cancelled_at DATETIME", () => {});
+        // PayFast payment audit columns
+        db.run("ALTER TABLE bookings ADD COLUMN payment_amount TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN payment_reference TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN payment_signature TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN payment_raw_data TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN payment_method TEXT", () => {});
 
-            db.run("CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(date)", () => {});
-            db.run("CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status)", () => {});
-            db.run("CREATE INDEX IF NOT EXISTS idx_bookings_date_status ON bookings(date, status)", () => {});
-        });
+        // Decimal ledger migration
+        db.run("ALTER TABLE bookings ADD COLUMN total_amount REAL", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN amount_paid REAL DEFAULT 0", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN amount_outstanding REAL", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN last_payment_date DATETIME", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN popia_consent BOOLEAN DEFAULT 0", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN consent_timestamp DATETIME", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN is_public INTEGER DEFAULT 0", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN ticket_link TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN policy_version TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN source TEXT", () => {});
+        db.run("ALTER TABLE bookings ADD COLUMN referrer TEXT", () => {});
+
+        db.run("CREATE INDEX IF NOT EXISTS idx_bookings_date ON bookings(date)", () => {});
+        db.run("CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status)", () => {});
+        db.run("CREATE INDEX IF NOT EXISTS idx_bookings_date_status ON bookings(date, status)", () => {});
 
         // 3.5 Payment Audit Logs Table
         db.run(`CREATE TABLE IF NOT EXISTS payment_logs (
@@ -519,6 +524,7 @@ function initializeDatabase() {
             modified_by INTEGER,
             ip_address TEXT,
             user_agent TEXT,
+            google_calendar_event_id TEXT,
             FOREIGN KEY (created_by) REFERENCES admins (id),
             FOREIGN KEY (modified_by) REFERENCES admins (id)
         )`, () => {
