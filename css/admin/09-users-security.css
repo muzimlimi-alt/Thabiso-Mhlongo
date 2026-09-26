@@ -1,0 +1,237 @@
+/* =====================================================================
+   ADMIN — USERS-SECURITY · user management section
+   Extracted verbatim from admin.html (inline <style> block 9 of 20,
+   was lines 2909-3135). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: users-security:86, bookings:19, components:5
+   ===================================================================== */
+
+
+/* ── USER MANAGEMENT SECTION ── */
+.um-tabs { border-bottom: 1px solid var(--atl-line); }
+.um-tab {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    color: var(--atl-muted) !important;
+    min-height: 44px;
+}
+.um-tab:hover { color: var(--atl-ink) !important; }
+.um-tab.active {
+    color: var(--atl-amber) !important;
+    border-bottom-color: var(--atl-amber) !important;
+}
+.um-drawer {
+    background: var(--atl-surface2) !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-xl) !important;
+}
+.um-drawer__header {
+    background: var(--atl-surface3) !important;
+    border-bottom: 1px solid var(--atl-line) !important;
+}
+.um-drawer__close {
+    background: transparent !important;
+    border: none !important;
+    color: var(--atl-muted) !important;
+}
+.um-drawer__close:hover { color: var(--atl-ink) !important; }
+.um-user-card {
+    background: var(--atl-card) !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-xl) !important;
+}
+.um-user-card:hover { border-color: var(--atl-amber-border) !important; }
+.um-user-name {
+    font-family: 'Outfit', sans-serif !important;
+    color: var(--atl-ink) !important;
+}
+.um-user-role {
+    font-family: 'JetBrains Mono', monospace !important;
+    color: var(--atl-muted) !important;
+}
+/* Role + status badges (Manage Users cards) — colours via --atl-* tokens, no !important needed */
+.um-role-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 3px 9px; border-radius: var(--atl-r-pill);
+    border: 1px solid transparent; flex-shrink: 0; white-space: nowrap;
+}
+.um-role-badge--administrator { color: var(--atl-amber); background: var(--atl-amber-dim); border-color: var(--atl-amber-border); }
+.um-role-badge--manager       { color: var(--atl-blue);  background: color-mix(in srgb, var(--atl-blue) 14%, transparent);  border-color: color-mix(in srgb, var(--atl-blue) 28%, transparent); }
+.um-role-badge--assistant     { color: var(--atl-muted); background: var(--atl-surface2); border-color: var(--atl-line); }
+.um-status-badge {
+    font-size: 10px; padding: 2px 8px; border-radius: var(--atl-r-pill); white-space: nowrap;
+}
+.um-status-badge--active    { color: var(--atl-sage); background: color-mix(in srgb, var(--atl-sage) 12%, transparent); }
+.um-status-badge--suspended { color: var(--atl-clay); background: color-mix(in srgb, var(--atl-clay) 12%, transparent); }
+.um-status-badge--archived  { color: var(--atl-muted); background: var(--atl-surface2); }
+.um-status-badge--pending   { color: var(--atl-amber); background: var(--atl-amber-dim); border: 1px solid var(--atl-amber-border); }
+/* Create-mode invitation notice in the Add User drawer */
+.um-invite-notice {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: var(--atl-amber-dim); border: 1px solid var(--atl-amber-border);
+    border-radius: var(--atl-r-md); padding: 12px 14px; margin-bottom: 14px;
+    font-size: 12.5px; color: var(--atl-ink-dim); line-height: 1.5;
+}
+.um-invite-notice > i { color: var(--atl-amber); margin-top: 2px; flex-shrink: 0; }
+/* Manage Users table */
+.um-users-table th.um-th-sort { cursor: pointer; user-select: none; white-space: nowrap; }
+.um-users-table th.um-th-sort:hover { color: var(--atl-ink) !important; }
+.um-users-table tbody tr.um-user-row { background: var(--atl-card); transition: background 0.15s, box-shadow 0.15s; }
+.um-users-table tbody tr.um-user-row:hover { background: var(--atl-surface2); }
+.um-users-table td { vertical-align: middle !important; }
+.um-lastlogin-cell { color: var(--atl-muted); }
+.um-check { width: 16px; height: 16px; accent-color: var(--atl-amber); cursor: pointer; vertical-align: middle; }
+.um-icon-btn {
+    background: transparent; border: 1px solid var(--atl-line); color: var(--atl-muted);
+    width: 30px; height: 30px; border-radius: var(--atl-r-md); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+    margin-left: 6px; transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.um-icon-btn:hover { color: var(--atl-amber); border-color: var(--atl-amber-border); background: var(--atl-amber-dim); }
+.um-icon-btn--danger:hover { color: var(--atl-clay); border-color: color-mix(in srgb, var(--atl-clay) 35%, transparent); background: color-mix(in srgb, var(--atl-clay) 12%, transparent); }
+.um-bulk-bar {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--atl-amber-dim); border: 1px solid var(--atl-amber-border);
+    border-radius: var(--atl-r-md); padding: 10px 16px; margin-bottom: 14px;
+}
+.um-bulk-bar__count { font-size: 13px; font-weight: 600; color: var(--atl-amber); margin-right: auto; }
+.um-feedback {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    border-radius: var(--atl-r-md) !important;
+}
+.um-feedback.success {
+    background: rgba(74,222,128,0.10) !important;
+    color: var(--atl-sage) !important;
+    border: 1px solid rgba(74,222,128,0.25) !important;
+}
+.um-feedback.error {
+    background: rgba(248,113,113,0.10) !important;
+    color: var(--atl-clay) !important;
+    border: 1px solid rgba(248,113,113,0.25) !important;
+}
+.um-user-count {
+    font-family: 'JetBrains Mono', monospace !important;
+    color: var(--atl-muted) !important;
+    background: var(--atl-surface2) !important;
+    border-radius: var(--atl-r-pill) !important;
+}
+/* Centred cell content (text, badges, controls) */
+.um-users-table thead th { text-align: left !important; }
+.um-users-table tbody td { text-align: left; }
+.um-users-table .um-user-cell { display: flex; align-items: center; gap: 10px; justify-content: flex-start; text-align: left; }
+/* Add New User side drawer: collapse the 2-col form grid to a single column inside the narrow drawer. */
+#umAddUserDrawer .um-form-grid { grid-template-columns: 1fr; }
+#umAddUserDrawer .um-input-wrap .iti.iti--separate-dial-code input.um-input { padding-left: 88px !important; }
+.um-req { color: var(--atl-clay); margin-left: 2px; font-weight: 600; }
+/* Shared layout helpers — previously used as class names with no CSS rule (standardization F1). */
+.um-search-wrap { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
+.um-search-wrap .um-input-wrap { flex: 1 1 260px; }
+.um-pagination-btns { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.um-pagination-info { font-size: 12px; color: var(--atl-muted-dim); white-space: nowrap; }
+.um-pagination-btns .um-page-btn:disabled,
+.um-pagination-btns .um-page-btn[aria-disabled="true"] { opacity: 0.4; cursor: not-allowed; }
+.um-empty-state { text-align: center; padding: 60px 20px; color: var(--atl-muted); }
+/* About & Roles panel */
+.um-roles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.um-role-info { background: var(--atl-surface2); border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); padding: 18px; }
+.um-role-info__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.um-role-info__tag { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--atl-muted); }
+.um-role-info__desc { font-size: 13px; color: var(--atl-ink-dim); margin: 0 0 12px; line-height: 1.5; }
+.um-role-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.um-role-list li { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; color: var(--atl-muted); line-height: 1.45; }
+.um-role-list li i { margin-top: 2px; flex-shrink: 0; font-size: 11px; }
+.um-role-list li.can i { color: var(--atl-sage); }
+.um-role-list li.cannot i { color: var(--atl-clay); }
+.um-feature-title { display: inline-flex; align-items: center; gap: 8px; color: var(--atl-ink); font-weight: 600; font-size: 14px; }
+
+/* Reusable Atelier callout — used across About panels */
+.um-note { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.6; color: var(--atl-muted); background: var(--atl-surface2); border: 1px solid var(--atl-line); border-left: 3px solid var(--atl-amber); border-radius: var(--atl-r-md); padding: 12px 14px; margin: 14px 0 0; }
+.um-note i { margin-top: 3px; flex-shrink: 0; font-size: 13px; }
+.um-note strong { color: var(--atl-ink); }
+.um-note code { font-family: 'JetBrains Mono', monospace; font-size: 0.9em; }
+.um-note--tip  { border-left-color: var(--atl-amber); }
+.um-note--tip i  { color: var(--atl-amber); }
+.um-note--warn { border-left-color: var(--atl-clay); background: color-mix(in srgb, var(--atl-clay) 7%, var(--atl-surface2)); }
+.um-note--warn i { color: var(--atl-clay); }
+.um-note--info { border-left-color: var(--atl-blue); }
+.um-note--info i { color: var(--atl-blue); }
+.um-role-info__desc code, .um-role-list code { font-family: 'JetBrains Mono', monospace; font-size: 0.88em; color: var(--atl-ink-dim); background: color-mix(in srgb, var(--atl-ink) 8%, transparent); padding: 1px 5px; border-radius: 4px; }
+
+/* Booking lifecycle — vertical timeline (Bookings About). Colour per node via --bk-c. */
+.bk-timeline { margin: 0 0 8px; }
+.bk-tl-phase { font-family: 'Outfit', sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--atl-muted-dim); margin: 16px 0 10px 28px; }
+.bk-tl-phase:first-child { margin-top: 0; }
+.bk-tl-item { position: relative; display: flex; gap: 14px; padding-bottom: 16px; }
+.bk-tl-item::before { content: ''; position: absolute; left: 6px; top: 16px; bottom: -2px; width: 2px; background: var(--atl-line); }
+.bk-tl-item:last-child::before { display: none; }
+.bk-tl-item--branch::before { background: repeating-linear-gradient(180deg, var(--atl-line) 0 4px, transparent 4px 8px); }
+.bk-tl-dot { position: relative; z-index: 1; flex-shrink: 0; width: 14px; height: 14px; border-radius: 50%; margin-top: 2px; background: var(--bk-c, var(--atl-amber)); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bk-c, var(--atl-amber)) 15%, transparent); }
+.bk-tl-body { min-width: 0; }
+.bk-tl-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+.bk-tl-name { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 14.5px; color: var(--bk-c, var(--atl-ink)); }
+.bk-tl-tag { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--atl-muted); border: 1px solid var(--atl-line); border-radius: 999px; padding: 1px 7px; }
+.bk-tl-meaning { font-size: 13px; color: var(--atl-ink-dim); line-height: 1.55; margin: 0 0 3px; }
+.bk-tl-next { font-size: 12.5px; color: var(--atl-muted); line-height: 1.55; margin: 0; }
+.bk-tl-next strong { color: var(--atl-ink); font-weight: 600; }
+.bk-tl-next .arrow { color: var(--bk-c, var(--atl-amber)); font-weight: 700; margin-right: 5px; }
+.bk-pay-strip { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.bk-pay-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: var(--atl-ink-dim); background: var(--atl-surface2); border: 1px solid var(--atl-line); border-radius: 999px; padding: 5px 13px 5px 11px; }
+.bk-pay-chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--bk-c, var(--atl-muted)); }
+
+/* System Settings — separate cards + save bar */
+.um-settings-card { margin-bottom: 18px; }
+.um-settings-save {
+    display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    background: var(--atl-surface2); border: 1px solid var(--atl-line);
+    border-radius: var(--atl-r-md); padding: 14px 18px; margin-top: 4px;
+}
+@media (max-width: 600px) {
+    .um-settings-save { flex-direction: column; align-items: stretch; }
+    .um-settings-save .atl-btn { width: 100%; justify-content: center; }
+}
+/* Save dock — settles into normal document flow at the bottom of section content without floating over page cards */
+.atl-save-dock {
+    position: static;
+    display: flex; align-items: center; justify-content: flex-end; gap: 14px; flex-wrap: wrap;
+    margin: 24px 0 4px; padding: 14px 18px;
+    background: var(--atl-surface2);
+    border: 1px solid var(--atl-line); border-radius: var(--atl-r-md);
+    box-shadow: none;
+}
+.atl-save-dock__hint { font-size: 12.5px; color: var(--atl-muted); margin-right: auto; }
+@media (max-width: 600px) {
+    .atl-save-dock {
+        justify-content: stretch;
+        position: static;
+        box-shadow: none;
+    }
+    .atl-save-dock__hint { display: none; }
+    .atl-save-dock .atl-btn { width: 100%; justify-content: center; }
+}
+/* Inline role selector: reuses the shared `select.atl-input` styling (themed bg + custom chevron) so it matches the securityAdmin dropdowns. */
+/* Per-row status toggle switch */
+.um-status-cell { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-start; }
+.um-status-cell__label { font-size: 11px; color: var(--atl-muted); min-width: 64px; text-align: left; }
+.um-toggle { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
+.um-toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
+.um-toggle__track {
+    width: 40px; height: 22px; border-radius: 22px;
+    background: var(--atl-surface3); border: 1px solid var(--atl-line-strong);
+    transition: background 0.18s, border-color 0.18s; position: relative; display: block;
+}
+.um-toggle__thumb {
+    position: absolute; top: 50%; left: 3px; transform: translateY(-50%);
+    width: 14px; height: 14px; border-radius: 50%; background: var(--atl-muted);
+    transition: left 0.18s, background 0.18s;
+}
+.um-toggle input:checked + .um-toggle__track { background: color-mix(in srgb, var(--atl-sage) 28%, transparent); border-color: var(--atl-sage); }
+.um-toggle input:checked + .um-toggle__track .um-toggle__thumb { left: 21px; background: var(--atl-sage); }
+.um-toggle input:focus-visible + .um-toggle__track { box-shadow: 0 0 0 3px var(--atl-amber-dim); }

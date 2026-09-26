@@ -1,0 +1,62 @@
+/* =====================================================================
+   ADMIN — MISC · global focus states accessibility
+   Extracted verbatim from admin.html (inline <style> block 12 of 20,
+   was lines 3229-3279). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: misc:8, components:6, shell:4
+   ===================================================================== */
+
+
+/* ── GLOBAL FOCUS STATES & ACCESSIBILITY ── */
+:focus-visible {
+    outline: 3px solid var(--atl-focus) !important;
+    outline-offset: 2px !important;
+    border-radius: var(--atl-r-sm) !important;
+}
+*:focus:not(:focus-visible) { outline: none !important; }
+a {
+    color: var(--atl-amber) !important;
+    transition: color var(--atl-t-fast) !important;
+}
+a:hover { color: var(--atl-amber-hover) !important; }
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+    background: var(--atl-line-strong);
+    border-radius: var(--atl-r-pill);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--atl-muted-dim); }
+/* Defect 18: Firefox scrollbar theming */
+.modal-body, .atl-scroll-container, .atl-modal-body {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.15) transparent;
+}
+.atl-page-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+
+/* ── THEME TOGGLE ── */
+.atl-toggle-sun  { display: none; }
+.atl-toggle-moon { display: block; }
+[data-theme="light"] .atl-toggle-sun  { display: block; color: var(--atl-amber); }
+[data-theme="light"] .atl-toggle-moon { display: none; }
+
+/* ── MOBILE-FIRST RESPONSIVE SYSTEM ── */
+@media (max-width: 767px) {
+    .tm-admin-sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+        position: fixed;
+        z-index: 200;
+    }
+    .tm-admin-sidebar.mobile-open { transform: translateX(0); }
+    .tm-admin-main { margin-left: 0 !important; width: 100% !important; }
+}
+@media (max-width: 599px) {
+    /* Single-row navbar: no wrapping, no re-ordering here — handled by redesign.css */
+    .adm-btn-label { display: none; }
+}

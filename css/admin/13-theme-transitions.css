@@ -1,0 +1,67 @@
+/* =====================================================================
+   ADMIN — MISC · 1 smooth theme transitions
+   Extracted verbatim from admin.html (inline <style> block 13 of 20,
+   was lines 3281-3337). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: misc:9, shell:3, users-security:1
+   ===================================================================== */
+
+
+@media (max-width: 599px) {
+    .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .table td, .table th { white-space: normal; min-width: 80px; }
+    .modal-dialog { margin: 10px; width: auto; }
+    .modal-content { border-radius: var(--atl-r-lg) !important; }
+    .modal-footer { flex-wrap: wrap; }
+    .modal-footer .btn { flex: 1; min-width: 120px; text-align: center; }
+    .nav-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .nav-tabs > li > a { white-space: nowrap; }
+}
+@media (max-width: 479px) {
+    .admin-section { padding: 16px 12px; }
+}
+
+
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL ADMIN THEME APPLICATION
+   All --atl-* tokens are on :root (declared above) so they apply
+   to the entire page — not just #bookingsAdmin.
+   This block wires the rest of the admin UI to the token system.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. Smooth theme transitions ── */
+html,
+body,
+.admin-section,
+.adm-header,
+.tm-admin-sidebar,
+.atl-card,
+.db-card, .db-social-card, .db-crm-card, .db-spark-card,
+.admin-card,
+.um-input,
+.modal-content,
+.modal-header,
+.modal-body,
+.modal-footer {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0.01ms !important; }
+}
+
+/* ── 2. Global body / page background ── */
+body.admin-body {
+    background: var(--atl-paper) !important;
+}
+
+/* ── 3. .adm-header Control Bar — global token wiring ── */
+[data-theme="light"] .adm-header {
+    background: rgba(247,244,238,0.94) !important;
+    border-bottom-color: rgba(154,118,17,0.20) !important;
+}

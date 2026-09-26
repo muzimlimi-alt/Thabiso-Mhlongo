@@ -1,0 +1,1120 @@
+{
+  "label": "phase5-components",
+  "capturedAt": "2026-09-23T12:04:19.719Z",
+  "shots": 135,
+  "imagesKept": 25,
+  "keepAll": false,
+  "manifest": {
+    "public_index_375": {
+      "sha": "3cabdc2b007d8e17",
+      "bytes": 485275,
+      "img": true,
+      "styleSha": "e6768540d738556a",
+      "probesFound": 34,
+      "tokens": 125
+    },
+    "public_index_768": {
+      "sha": "e44983a3397401e9",
+      "bytes": 693678,
+      "img": true,
+      "styleSha": "acb4791b5141c218",
+      "probesFound": 34,
+      "tokens": 125
+    },
+    "public_index_1440": {
+      "sha": "102d6355a6500743",
+      "bytes": 1051358,
+      "img": true,
+      "styleSha": "fcaee13557cbff8d",
+      "probesFound": 34,
+      "tokens": 125
+    },
+    "admin_dashboardAdmin_dark_375": {
+      "sha": "f3d6b23e80759349",
+      "bytes": 172659,
+      "img": false,
+      "styleSha": "de61b42e4f535ca4",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_bookingsAdmin_dark_375": {
+      "sha": "480195adf09f4c00",
+      "bytes": 74215,
+      "img": false,
+      "styleSha": "3e9b3b4d292caaed",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_inquiriesAdmin_dark_375": {
+      "sha": "a26e667ce874bfad",
+      "bytes": 55430,
+      "img": false,
+      "styleSha": "3e9b3b4d292caaed",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_financeAdmin_dark_375": {
+      "sha": "15bc81c771663504",
+      "bytes": 168360,
+      "img": false,
+      "styleSha": "3e9b3b4d292caaed",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_eventsAdmin_dark_375": {
+      "sha": "f69580b9e4e3dab9",
+      "bytes": 81072,
+      "img": false,
+      "styleSha": "3e9b3b4d292caaed",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_calendarAdmin_dark_375": {
+      "sha": "7ac8be25a07a6da8",
+      "bytes": 81335,
+      "img": false,
+      "styleSha": "96027fc8d70af49f",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_newsletterAdmin_dark_375": {
+      "sha": "f759df913ec3a3e2",
+      "bytes": 75621,
+      "img": false,
+      "styleSha": "96027fc8d70af49f",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_emailLogsAdmin_dark_375": {
+      "sha": "03fc9f1c345e508b",
+      "bytes": 85127,
+      "img": false,
+      "styleSha": "96027fc8d70af49f",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_usersAdmin_dark_375": {
+      "sha": "98a95f0cbd675407",
+      "bytes": 52743,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_securityAdmin_dark_375": {
+      "sha": "3bddc08994b7f73f",
+      "bytes": 42032,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_brandingAdmin_dark_375": {
+      "sha": "f07403900f35987e",
+      "bytes": 84311,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_preferencesAdmin_dark_375": {
+      "sha": "e39e8e9100b9ec49",
+      "bytes": 85271,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_policiesAdmin_dark_375": {
+      "sha": "1b7d1dad227c6067",
+      "bytes": 71716,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_servicesAdmin_dark_375": {
+      "sha": "61ea0d1fdc55ef13",
+      "bytes": 266164,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_galleryAdmin_dark_375": {
+      "sha": "30a45b2d6fc306ea",
+      "bytes": 314744,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_socialAdmin_dark_375": {
+      "sha": "32391b8fee1caa92",
+      "bytes": 85413,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_testimonialsAdmin_dark_375": {
+      "sha": "d2b1dab80f0e20d5",
+      "bytes": 92997,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_footprintAdmin_dark_375": {
+      "sha": "82f22d578f7ba245",
+      "bytes": 45320,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_careerAdmin_dark_375": {
+      "sha": "d3374a70733c2e01",
+      "bytes": 138352,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_contactAdmin_dark_375": {
+      "sha": "23066890ed48ed0a",
+      "bytes": 78527,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_aboutAdmin_dark_375": {
+      "sha": "a3847e83666e8e2b",
+      "bytes": 156287,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_homeAdmin_dark_375": {
+      "sha": "f8205c69479cb7fe",
+      "bytes": 98677,
+      "img": false,
+      "styleSha": "2e227f597640a22a",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_dashboardAdmin_dark_768": {
+      "sha": "4d5d378a93695bce",
+      "bytes": 218349,
+      "img": false,
+      "styleSha": "d5d73d0490da1d42",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_bookingsAdmin_dark_768": {
+      "sha": "c16b1623a2b43e11",
+      "bytes": 120273,
+      "img": false,
+      "styleSha": "93cba66b5452296e",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_inquiriesAdmin_dark_768": {
+      "sha": "8057ea991a840967",
+      "bytes": 78909,
+      "img": false,
+      "styleSha": "93cba66b5452296e",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_financeAdmin_dark_768": {
+      "sha": "30d6e6d3546bba9b",
+      "bytes": 290618,
+      "img": false,
+      "styleSha": "93cba66b5452296e",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_eventsAdmin_dark_768": {
+      "sha": "a907086cf809e69c",
+      "bytes": 87852,
+      "img": false,
+      "styleSha": "93cba66b5452296e",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_calendarAdmin_dark_768": {
+      "sha": "10335ec2807be187",
+      "bytes": 86689,
+      "img": false,
+      "styleSha": "a8673f7fa51ad593",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_newsletterAdmin_dark_768": {
+      "sha": "34696c6b9526d76b",
+      "bytes": 80519,
+      "img": false,
+      "styleSha": "a8673f7fa51ad593",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_emailLogsAdmin_dark_768": {
+      "sha": "620755fecd8d412f",
+      "bytes": 201221,
+      "img": false,
+      "styleSha": "a8673f7fa51ad593",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_usersAdmin_dark_768": {
+      "sha": "40f870767a5fc119",
+      "bytes": 57768,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_securityAdmin_dark_768": {
+      "sha": "1f72243a31f02c51",
+      "bytes": 46376,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_brandingAdmin_dark_768": {
+      "sha": "fc5531aca10d7f6b",
+      "bytes": 95876,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_preferencesAdmin_dark_768": {
+      "sha": "fdbd2438ac4949ca",
+      "bytes": 91968,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_policiesAdmin_dark_768": {
+      "sha": "ba8423e932fdc959",
+      "bytes": 69985,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_servicesAdmin_dark_768": {
+      "sha": "b842919dc38f9c79",
+      "bytes": 230200,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_galleryAdmin_dark_768": {
+      "sha": "2c4610ef8a390bce",
+      "bytes": 336148,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_socialAdmin_dark_768": {
+      "sha": "94774fb52a2e6405",
+      "bytes": 97310,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_testimonialsAdmin_dark_768": {
+      "sha": "680c46f9a9e7ff91",
+      "bytes": 112300,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_footprintAdmin_dark_768": {
+      "sha": "17e201d6954de4fa",
+      "bytes": 50547,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_careerAdmin_dark_768": {
+      "sha": "d8861263d46bd342",
+      "bytes": 157079,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_contactAdmin_dark_768": {
+      "sha": "7cfcda8a6fb7d96d",
+      "bytes": 84279,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_aboutAdmin_dark_768": {
+      "sha": "e7678caa687013bb",
+      "bytes": 388260,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_homeAdmin_dark_768": {
+      "sha": "1adfae009868bfa9",
+      "bytes": 103366,
+      "img": false,
+      "styleSha": "622a63cd44ace8d6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_dashboardAdmin_dark_1440": {
+      "sha": "2d5e3aef4231fff1",
+      "bytes": 247834,
+      "img": true,
+      "styleSha": "6a6664ad5238f04d",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_bookingsAdmin_dark_1440": {
+      "sha": "350fb8f669cf8ec2",
+      "bytes": 163675,
+      "img": true,
+      "styleSha": "d928acbdbd08ea8e",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_inquiriesAdmin_dark_1440": {
+      "sha": "b6f034b1cb7e7a7f",
+      "bytes": 104375,
+      "img": true,
+      "styleSha": "d928acbdbd08ea8e",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_financeAdmin_dark_1440": {
+      "sha": "9bd3d915ddd438e4",
+      "bytes": 343236,
+      "img": true,
+      "styleSha": "d928acbdbd08ea8e",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_eventsAdmin_dark_1440": {
+      "sha": "ed0afd773f5243e8",
+      "bytes": 110740,
+      "img": true,
+      "styleSha": "d928acbdbd08ea8e",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_calendarAdmin_dark_1440": {
+      "sha": "9c96675f4e43aa16",
+      "bytes": 116107,
+      "img": true,
+      "styleSha": "15e4252dd7a2a774",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_newsletterAdmin_dark_1440": {
+      "sha": "f2917e5c101e87db",
+      "bytes": 108896,
+      "img": true,
+      "styleSha": "15e4252dd7a2a774",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_emailLogsAdmin_dark_1440": {
+      "sha": "8c98ad4b69fb1e36",
+      "bytes": 210668,
+      "img": true,
+      "styleSha": "15e4252dd7a2a774",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_usersAdmin_dark_1440": {
+      "sha": "7b1225630482b42f",
+      "bytes": 78883,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_securityAdmin_dark_1440": {
+      "sha": "af0912da67bccbb1",
+      "bytes": 67695,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_brandingAdmin_dark_1440": {
+      "sha": "88d7b1b00615b377",
+      "bytes": 114001,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_preferencesAdmin_dark_1440": {
+      "sha": "9de85e769c97a4c3",
+      "bytes": 111965,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_policiesAdmin_dark_1440": {
+      "sha": "0e61b6b851d04535",
+      "bytes": 88953,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_servicesAdmin_dark_1440": {
+      "sha": "84280a000bb6b68b",
+      "bytes": 231587,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_galleryAdmin_dark_1440": {
+      "sha": "aef016ffa80f937f",
+      "bytes": 385023,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_socialAdmin_dark_1440": {
+      "sha": "c8466c41ed12efeb",
+      "bytes": 126900,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_testimonialsAdmin_dark_1440": {
+      "sha": "f69f3ccd7c5873e2",
+      "bytes": 135755,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_footprintAdmin_dark_1440": {
+      "sha": "013a2e20ada67dcc",
+      "bytes": 76357,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_careerAdmin_dark_1440": {
+      "sha": "9a3701788483d30b",
+      "bytes": 186497,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_contactAdmin_dark_1440": {
+      "sha": "1fcf733fb4fef4c9",
+      "bytes": 100823,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_aboutAdmin_dark_1440": {
+      "sha": "a0d074f4ff217b2a",
+      "bytes": 340565,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_homeAdmin_dark_1440": {
+      "sha": "25edd2c9c16990b6",
+      "bytes": 128991,
+      "img": true,
+      "styleSha": "7b0a20a145299b4a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_dashboardAdmin_light_375": {
+      "sha": "af4bb42098fbdcbb",
+      "bytes": 159327,
+      "img": false,
+      "styleSha": "3467ae23bc0c3eaa",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_bookingsAdmin_light_375": {
+      "sha": "16ded3db37937c93",
+      "bytes": 80095,
+      "img": false,
+      "styleSha": "6f80c2648f366dbc",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_inquiriesAdmin_light_375": {
+      "sha": "40756a2ad13419f9",
+      "bytes": 60207,
+      "img": false,
+      "styleSha": "6f80c2648f366dbc",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_financeAdmin_light_375": {
+      "sha": "fba4e98a4b9eaa4f",
+      "bytes": 187559,
+      "img": false,
+      "styleSha": "6f80c2648f366dbc",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_eventsAdmin_light_375": {
+      "sha": "07a0fbfb0525523c",
+      "bytes": 83868,
+      "img": false,
+      "styleSha": "6f80c2648f366dbc",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_calendarAdmin_light_375": {
+      "sha": "70923a2085f16063",
+      "bytes": 85335,
+      "img": false,
+      "styleSha": "0237c62613370e4c",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_newsletterAdmin_light_375": {
+      "sha": "9d19a946b1a98a4f",
+      "bytes": 83062,
+      "img": false,
+      "styleSha": "0237c62613370e4c",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_emailLogsAdmin_light_375": {
+      "sha": "be3b4110992330d3",
+      "bytes": 93810,
+      "img": false,
+      "styleSha": "0237c62613370e4c",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_usersAdmin_light_375": {
+      "sha": "b0e1b0f4cdd03494",
+      "bytes": 56799,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_securityAdmin_light_375": {
+      "sha": "4fa67bdbbc63ee4b",
+      "bytes": 44180,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_brandingAdmin_light_375": {
+      "sha": "90a68e517129e1cc",
+      "bytes": 90514,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_preferencesAdmin_light_375": {
+      "sha": "e5c88746903eb8d7",
+      "bytes": 95678,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_policiesAdmin_light_375": {
+      "sha": "c1b116799f9bab22",
+      "bytes": 79002,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_servicesAdmin_light_375": {
+      "sha": "ac468a526c13887c",
+      "bytes": 285283,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_galleryAdmin_light_375": {
+      "sha": "c614bfd1ca2c5de7",
+      "bytes": 325964,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_socialAdmin_light_375": {
+      "sha": "4e56e5abc93d7cae",
+      "bytes": 90017,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_testimonialsAdmin_light_375": {
+      "sha": "74751f2ced95a4f1",
+      "bytes": 96572,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_footprintAdmin_light_375": {
+      "sha": "7423dca95b4ce8a1",
+      "bytes": 47470,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_careerAdmin_light_375": {
+      "sha": "122e8fb63b34ac0c",
+      "bytes": 146580,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_contactAdmin_light_375": {
+      "sha": "9f342292d8b49edf",
+      "bytes": 85724,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_aboutAdmin_light_375": {
+      "sha": "5e9f3b94c9ce5ff8",
+      "bytes": 170094,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_homeAdmin_light_375": {
+      "sha": "dc80718079904ef8",
+      "bytes": 104983,
+      "img": false,
+      "styleSha": "7219725da8f4ff7d",
+      "probesFound": 61,
+      "tokens": 241
+    },
+    "admin_dashboardAdmin_light_768": {
+      "sha": "814999b98ff5cd3b",
+      "bytes": 201173,
+      "img": false,
+      "styleSha": "1ec1a829f7d00c34",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_bookingsAdmin_light_768": {
+      "sha": "2b78bed5d0ef1493",
+      "bytes": 130366,
+      "img": false,
+      "styleSha": "ca34804341f5fdec",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_inquiriesAdmin_light_768": {
+      "sha": "1e2bfde11c65c254",
+      "bytes": 85293,
+      "img": false,
+      "styleSha": "ca34804341f5fdec",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_financeAdmin_light_768": {
+      "sha": "57fc29553b1b6d96",
+      "bytes": 309280,
+      "img": false,
+      "styleSha": "ca34804341f5fdec",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_eventsAdmin_light_768": {
+      "sha": "a840ed3180a3167e",
+      "bytes": 91660,
+      "img": false,
+      "styleSha": "ca34804341f5fdec",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_calendarAdmin_light_768": {
+      "sha": "b2659db7a98868aa",
+      "bytes": 89890,
+      "img": false,
+      "styleSha": "a5c479b3a9b2e0b5",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_newsletterAdmin_light_768": {
+      "sha": "954195b7bf9cb630",
+      "bytes": 88004,
+      "img": false,
+      "styleSha": "a5c479b3a9b2e0b5",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_emailLogsAdmin_light_768": {
+      "sha": "891b30fd7c02c4e9",
+      "bytes": 222172,
+      "img": false,
+      "styleSha": "a5c479b3a9b2e0b5",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_usersAdmin_light_768": {
+      "sha": "bdde3574ab512471",
+      "bytes": 62220,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_securityAdmin_light_768": {
+      "sha": "8f742400bdf098d9",
+      "bytes": 49083,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_brandingAdmin_light_768": {
+      "sha": "ece8f35719f20757",
+      "bytes": 103620,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_preferencesAdmin_light_768": {
+      "sha": "8325d0a6a088f49d",
+      "bytes": 102537,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_policiesAdmin_light_768": {
+      "sha": "3ed5331810e52293",
+      "bytes": 78279,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_servicesAdmin_light_768": {
+      "sha": "aa37a01648a5e56b",
+      "bytes": 254054,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_galleryAdmin_light_768": {
+      "sha": "6d02197c48320b0b",
+      "bytes": 349041,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_socialAdmin_light_768": {
+      "sha": "8249fc085ee71e9a",
+      "bytes": 102224,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_testimonialsAdmin_light_768": {
+      "sha": "10bc0e1d06d7769b",
+      "bytes": 120013,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_footprintAdmin_light_768": {
+      "sha": "8f21297505da9d0b",
+      "bytes": 52939,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_careerAdmin_light_768": {
+      "sha": "64deafcbebc8e268",
+      "bytes": 171827,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_contactAdmin_light_768": {
+      "sha": "820ab99fdbff5445",
+      "bytes": 91475,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_aboutAdmin_light_768": {
+      "sha": "8b649a71e953c844",
+      "bytes": 400645,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_homeAdmin_light_768": {
+      "sha": "aea292d2a9bc15f7",
+      "bytes": 111621,
+      "img": false,
+      "styleSha": "c3adfd893d46802f",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_dashboardAdmin_light_1440": {
+      "sha": "6fa513486e71a964",
+      "bytes": 232825,
+      "img": false,
+      "styleSha": "09d1846bbd7991d3",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_bookingsAdmin_light_1440": {
+      "sha": "83faea78ad1e3a4d",
+      "bytes": 177448,
+      "img": false,
+      "styleSha": "8ad5bf2a44c419e2",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_inquiriesAdmin_light_1440": {
+      "sha": "c4e224fd008abea1",
+      "bytes": 113252,
+      "img": false,
+      "styleSha": "8ad5bf2a44c419e2",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_financeAdmin_light_1440": {
+      "sha": "ff816a8bb299e307",
+      "bytes": 363048,
+      "img": false,
+      "styleSha": "8ad5bf2a44c419e2",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_eventsAdmin_light_1440": {
+      "sha": "3b3f4760132db946",
+      "bytes": 117371,
+      "img": false,
+      "styleSha": "8ad5bf2a44c419e2",
+      "probesFound": 58,
+      "tokens": 241
+    },
+    "admin_calendarAdmin_light_1440": {
+      "sha": "3c3813a784a5d1fe",
+      "bytes": 120552,
+      "img": false,
+      "styleSha": "a08a08cd606b55e6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_newsletterAdmin_light_1440": {
+      "sha": "448db8ed2668037e",
+      "bytes": 118271,
+      "img": false,
+      "styleSha": "a08a08cd606b55e6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_emailLogsAdmin_light_1440": {
+      "sha": "5c8d07fffaa2c9b0",
+      "bytes": 237966,
+      "img": false,
+      "styleSha": "a08a08cd606b55e6",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_usersAdmin_light_1440": {
+      "sha": "078983f03314c34e",
+      "bytes": 84890,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_securityAdmin_light_1440": {
+      "sha": "fdb2a3dd44482ab3",
+      "bytes": 71899,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_brandingAdmin_light_1440": {
+      "sha": "3475ba89e4b8d560",
+      "bytes": 122291,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_preferencesAdmin_light_1440": {
+      "sha": "16fa0b1a3f8ebfd6",
+      "bytes": 123423,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_policiesAdmin_light_1440": {
+      "sha": "07c9235f4e10d44b",
+      "bytes": 99427,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_servicesAdmin_light_1440": {
+      "sha": "683697b9708e6d85",
+      "bytes": 255001,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_galleryAdmin_light_1440": {
+      "sha": "4e2e5384b8a12a98",
+      "bytes": 399153,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_socialAdmin_light_1440": {
+      "sha": "56b56c1c1e040114",
+      "bytes": 132889,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_testimonialsAdmin_light_1440": {
+      "sha": "b62cdf4180126efb",
+      "bytes": 143947,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_footprintAdmin_light_1440": {
+      "sha": "0957eeb35b7572e0",
+      "bytes": 80025,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_careerAdmin_light_1440": {
+      "sha": "c39b28c871909918",
+      "bytes": 202090,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_contactAdmin_light_1440": {
+      "sha": "873b18a8d8756cc2",
+      "bytes": 110939,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_aboutAdmin_light_1440": {
+      "sha": "398fff3819298d7c",
+      "bytes": 353482,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    },
+    "admin_homeAdmin_light_1440": {
+      "sha": "40c4ed1ffa53e860",
+      "bytes": 139530,
+      "img": false,
+      "styleSha": "17f8babb2d1ac20a",
+      "probesFound": 63,
+      "tokens": 241
+    }
+  },
+  "notes": [
+    "429 http://localhost:3000/api/public/booking-config?dow=4",
+    "429 http://localhost:3000/api/public/booking-config?dow=5",
+    "429 http://localhost:3000/api/public/booking-config?dow=6",
+    "429 http://localhost:3000/api/public/availability/month?year=2026&month=9",
+    "429 http://localhost:3000/api/public/booking-config?dow=0",
+    "429 http://localhost:3000/api/public/booking-config?dow=1",
+    "429 http://localhost:3000/api/public/booking-config?dow=2",
+    "429 http://localhost:3000/api/public/booking-config?dow=3",
+    "429 http://localhost:3000/api/public/booking-config?dow=4",
+    "429 http://localhost:3000/api/public/booking-config?dow=5",
+    "429 http://localhost:3000/api/public/booking-config?dow=6",
+    "429 http://localhost:3000/api/public/availability/month?year=2026&month=9",
+    "404 http://localhost:3000/images/480681105_1563104084637146_1105632398058673475_n.jpg",
+    "429 http://localhost:3000/api/public/booking-config?dow=0",
+    "429 http://localhost:3000/api/public/booking-config?dow=1",
+    "429 http://localhost:3000/api/public/booking-config?dow=3",
+    "429 http://localhost:3000/api/public/booking-config?dow=2",
+    "429 http://localhost:3000/api/public/booking-config?dow=4",
+    "429 http://localhost:3000/api/public/booking-config?dow=5",
+    "429 http://localhost:3000/api/public/booking-config?dow=6",
+    "429 http://localhost:3000/api/public/availability/month?year=2026&month=9",
+    "401 http://localhost:3000/api/admin/bookings",
+    "401 http://localhost:3000/api/admin/about-me",
+    "pageerror: Cannot read properties of undefined (reading 'showError')",
+    "pageerror: Cannot read properties of undefined (reading 'showError')",
+    "401 http://localhost:3000/api/admin/session",
+    "401 http://localhost:3000/api/admin/session",
+    "401 http://localhost:3000/api/admin/session",
+    "401 http://localhost:3000/api/admin/settings"
+  ]
+}

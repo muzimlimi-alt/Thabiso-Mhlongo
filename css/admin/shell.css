@@ -1,0 +1,799 @@
+/* =====================================================================
+   ADMIN SHELL — sidebar, top bar, account menu
+   A copy of the O'luhle/TOCA admin shell (Sidebar.jsx + DashboardLayout.jsx, as shipped in
+   its built bundle at localhost:3001/admin). Every size, colour, weight and spacing below
+   was MEASURED from the live TOCA admin with getComputedStyle, not read off the source —
+   the source has unresolved merge conflicts, so only the build is ground truth.
+
+   Three deliberate translations, none of which change what you see:
+   1. rem → px. TOCA runs on the browser's 16px root; this admin sets html{font-size:14px}
+      (css/admin/07-components.css), so a copied ".92rem" would render 12.5% small.
+      Every TOCA rem is written here as its px value at 16px (e.g. .92rem → 14.72px).
+   2. TOCA variable → --atl-* token, so the Finish / Accent axes (css/core/appearance.css)
+      still drive the shell. Values were made identical in core/tokens.css and themes.css:
+        --bg-page paper · --bg-section sidebar-bg · --bg-surface card · --bg-elevated surface2
+        --text-primary/secondary/muted ink/ink-dim/muted · --border-low/default/strong
+        line/line-strong/line-bold · --y-base/dark/light amber/amber-dark/amber-light
+        --y-rgb amber-rgb · --color-border-focus(= --y-glow) amber-border
+      TOCA hard-codes #fff for hover/current text; that is --atl-ink here, which is #fff on
+      Obsidian and correctly dark on Ivory (TOCA's own Ivory shows white-on-cream there).
+   3. Class prefix "sh-". TOCA's names collide with existing admin CSS (.top alone is used
+      100+ times, plus .side/.brand/.brand-name/.search), so each copied class is sh-*.
+
+   Selectors are anchored on the shell ids and use !important throughout: five older files
+   (redesign-admin.css, 07-components.css, 12-focus-accessibility.css, 13-theme-
+   transitions.css, 17-shell-forms.css) style these same elements with !important.
+
+   ONE BEHAVIOURAL DEPARTURE FROM TOCA, deliberately: the collapsed-rail flyout. TOCA
+   positions it absolute inside a nav with overflow-x:hidden, which clips it — verified in
+   the live TOCA admin: hovering a railed group shows only a 2px gold sliver and the links
+   are not clickable. Here the same-looking flyout is portalled to <body> by
+   js/admin/sidebar-nav.js so it actually works (see .sh-nav-sub.atl-nav-sub--portalled).
+   ===================================================================== */
+
+
+/* ═══════════════════════════════ LAYOUT ═══════════════════════════════ */
+
+/* TOCA widths: 270px expanded, 76px rail. The legacy layout reads these two variables. */
+:root {
+    --sidebar-width-expanded: var(--atl-nav-w);
+    --sidebar-width-collapsed: var(--atl-nav-w-rail);
+}
+
+@media (min-width: 769px) {
+    /* The sidebar is fixed; the main column sits flush against it (TOCA's grid has no gap). */
+    body.admin-body .tm-admin-main {
+        padding-left: var(--atl-nav-w) !important;
+        padding-right: 0 !important;
+        transition: padding-left var(--atl-t-slow) !important;
+    }
+    body.admin-body #tmAdminSidebar.collapsed ~ .tm-admin-main {
+        padding-left: var(--atl-nav-w-rail) !important;
+    }
+    /* TOCA has no hover-to-expand; the legacy layout widened a hovered rail to full width.
+       A railed sidebar stays a rail and reveals groups as flyouts instead. */
+    body.admin-body #tmAdminSidebar.collapsed,
+    body.admin-body #tmAdminSidebar.collapsed:hover {
+        width: var(--atl-nav-w-rail) !important;
+    }
+    body.admin-body #tmAdminSidebar.collapsed:hover ~ .tm-admin-main {
+        padding-left: var(--atl-nav-w-rail) !important;
+    }
+}
+
+/* TOCA's .vh — visually hidden, still read by screen readers (the search field's label). */
+.sh-vh {
+    position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important;
+    margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important; border: 0 !important;
+}
+
+/* TOCA's .page-container is 32px on every side. */
+body.admin-body .admin-section {
+    padding: 32px 32px 80px !important;
+}
+
+
+/* ═══════════════════════════════ SIDEBAR ══════════════════════════════ */
+
+body.admin-body #tmAdminSidebar {
+    width: var(--atl-nav-w) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    background: var(--atl-sidebar-bg) !important;
+    border-right: 1px solid var(--atl-line) !important;
+    box-shadow: none !important;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-size: 15.2px !important;
+    font-weight: 300 !important;
+    line-height: 1.6 !important;
+    color: var(--atl-ink) !important;
+    transition: width var(--atl-t-slow) !important;
+}
+
+/* ── Brand ── */
+#tmAdminSidebar .sh-brand {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    height: var(--atl-top-h) !important;
+    padding: 0 24px !important;
+    border-bottom: 1px solid var(--atl-line) !important;
+    flex: none !important;
+    overflow: hidden !important;
+}
+#tmAdminSidebar .sh-brand-mark {
+    flex: none !important;
+    width: 32px !important;
+    height: 32px !important;
+    display: grid !important;
+    place-items: center !important;
+    border: 1px solid var(--atl-amber-dark) !important;
+    border-radius: 0 !important;
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: 17.6px !important;
+    font-weight: 300 !important;
+    line-height: 1.6 !important;
+    color: var(--atl-amber) !important;
+}
+#tmAdminSidebar .sh-brand-txt {
+    display: flex !important;
+    flex-direction: column !important;
+    line-height: 1.2 !important;
+    overflow: hidden !important;
+}
+#tmAdminSidebar .sh-brand-name {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: 16.8px !important;
+    font-weight: 300 !important;
+    letter-spacing: .18em !important;
+    line-height: 1.2 !important;
+    color: var(--atl-ink) !important;
+    white-space: nowrap !important;
+}
+#tmAdminSidebar .sh-brand-sub {
+    font-size: 9.92px !important;
+    font-weight: 300 !important;
+    letter-spacing: .12em !important;
+    line-height: 1.2 !important;
+    text-transform: uppercase !important;
+    color: var(--atl-muted) !important;
+    white-space: nowrap !important;
+}
+
+/* ── Scroll area ── */
+#tmAdminSidebar .sh-nav {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    padding: 24px 12px 16px !important;
+    scrollbar-width: thin;
+}
+#tmAdminSidebar .sh-nav-list {
+    display: block !important;          /* css/style.css: .admin-sidebar{display:flex;flex-wrap:wrap;justify-content:center} */
+    list-style: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+#tmAdminSidebar .sh-nav-list > li {
+    display: block;
+    float: none !important;
+    background: none !important;
+}
+
+/* ── Section labels ──
+   TOCA wraps each section in its own <div>, so its ".nav-label:first-child
+   { margin-top: 0 }" matches EVERY label and none of them get the 24px top margin its
+   stylesheet otherwise gives them. The visible result is labels sitting close under the
+   previous row; copied as rendered, not as the stylesheet reads. */
+#tmAdminSidebar .sh-nav-label {
+    margin: 0 0 8px !important;
+    padding: 0 12px !important;
+    height: auto !important;
+    border: 0 !important;                /* redesign-admin.css draws a rule under each title */
+    overflow: visible !important;
+    pointer-events: none;
+}
+#tmAdminSidebar .sh-nav-label span {
+    display: block !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 9.6px !important;
+    font-weight: 300 !important;
+    letter-spacing: .26em !important;
+    line-height: 1.6 !important;
+    text-transform: uppercase !important;
+    color: var(--atl-muted) !important;
+    opacity: 1 !important;
+}
+
+/* ── Rows ── */
+#tmAdminSidebar .sh-nav-group {
+    position: relative !important;
+    margin: 0 0 2px !important;
+}
+/* One rule for links and group buttons, exactly as TOCA's .nav-item. The font-weight split
+   is TOCA's too: its group buttons don't inherit body's 300, so they render at the browser's
+   button default of 400 while plain links stay at 300 — visible as slightly heavier group
+   labels in its sidebar. */
+#tmAdminSidebar .sh-nav-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-height: var(--atl-tap) !important;
+    margin: 0 !important;
+    padding: 10px 12px !important;
+    text-align: left !important;
+    background: none !important;
+    border: none !important;
+    border-left: 2px solid transparent !important;
+    border-radius: var(--atl-r-sm) !important;
+    box-shadow: none !important;
+    color: var(--atl-ink-dim) !important;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-size: 15.2px !important;
+    font-weight: 300 !important;
+    letter-spacing: normal !important;
+    line-height: 1.6 !important;
+    text-decoration: none !important;
+    cursor: pointer !important;
+    transition: background var(--atl-t-fast), color var(--atl-t-fast), border-color var(--atl-t-fast) !important;
+}
+#tmAdminSidebar button.sh-nav-item { font-size: 13.3333px !important; font-weight: 400 !important; line-height: normal !important; }
+#tmAdminSidebar .sh-nav-item:hover {
+    background: var(--atl-surface2) !important;
+    color: var(--atl-ink) !important;
+    text-decoration: none !important;
+}
+#tmAdminSidebar .sh-nav-item .sh-ic {
+    width: 20px !important;
+    flex: none !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+    color: var(--atl-muted) !important;
+    transition: color var(--atl-t-fast) !important;
+}
+#tmAdminSidebar .sh-nav-item:hover .sh-ic { color: var(--atl-amber) !important; }
+#tmAdminSidebar .sh-nav-item .sh-lbl {
+    flex: 1 !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    font-size: 14.72px !important;
+    letter-spacing: .01em !important;
+    line-height: 1.6 !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    transform: none !important;
+    width: auto !important;
+    display: block !important;
+}
+#tmAdminSidebar .sh-nav-item .sh-chev {
+    display: inline-flex !important;
+    font-size: 9.92px !important;
+    line-height: normal !important;
+    color: var(--atl-muted) !important;
+    transition: transform var(--atl-t-slow) !important;
+}
+#tmAdminSidebar .sh-nav-item[aria-expanded="true"] .sh-chev { transform: rotate(90deg) !important; }
+
+/* Current: TOCA's gradient + gold rule. switchTab puts .active on the link's <li>; a group
+   owning the current section is marked by js/admin/sidebar-nav.js. */
+#tmAdminSidebar .sh-nav-group.active > .sh-nav-item,
+#tmAdminSidebar .sh-nav-group.atl-nav-group--current > .sh-nav-item {
+    background: linear-gradient(90deg, rgba(var(--atl-amber-rgb), .15), transparent 70%) !important;
+    color: var(--atl-ink) !important;
+    border-left-color: var(--atl-amber) !important;
+}
+#tmAdminSidebar .sh-nav-group.active > .sh-nav-item .sh-ic,
+#tmAdminSidebar .sh-nav-group.atl-nav-group--current > .sh-nav-item .sh-ic { color: var(--atl-amber) !important; }
+
+#tmAdminSidebar .sh-nav-item:focus-visible,
+#tmAdminSidebar .sh-nav-sub a:focus-visible {
+    outline: none !important;
+    box-shadow: inset 0 0 0 2px var(--atl-amber-border) !important;
+}
+
+/* ── Submenu ──
+   TOCA animates grid-template-rows 0fr→1fr on the <ul> and wraps its items in a single
+   <div> (invalid inside a <ul>). Here the group <li> is the two-row grid instead — same
+   animation, valid markup. TOCA's 2px 0 8px sub margin stays on even when the group is
+   closed, which is what puts the extra 10px under every closed group in its sidebar. */
+#tmAdminSidebar .sh-nav-group.atl-nav-group {
+    display: grid !important;
+    grid-template-rows: auto 0fr !important;
+    transition: grid-template-rows var(--atl-t-slow) !important;
+}
+#tmAdminSidebar .sh-nav-group.atl-nav-group.open { grid-template-rows: auto 1fr !important; }
+#tmAdminSidebar .sh-nav-sub {
+    list-style: none !important;
+    margin: 2px 0 8px !important;
+    padding: 0 0 0 24px !important;
+    overflow: hidden !important;
+    min-height: 0 !important;
+    visibility: hidden !important;
+    transition: visibility var(--atl-t-slow) !important;
+}
+#tmAdminSidebar .sh-nav-group.open > .sh-nav-sub { visibility: visible !important; }
+#tmAdminSidebar .sh-nav-sub > li { display: block !important; margin: 0 !important; background: none !important; }
+#tmAdminSidebar .sh-nav-sub a.tm-nav-link {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 8px !important;
+    min-height: 36px !important;
+    padding: 6px 12px !important;
+    margin: 0 !important;
+    color: var(--atl-muted) !important;
+    background: none !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13.76px !important;
+    font-weight: 300 !important;
+    line-height: 1.6 !important;
+    border: 0 !important;
+    border-left: 1px solid var(--atl-line) !important;
+    border-radius: 0 !important;
+    text-decoration: none !important;
+}
+#tmAdminSidebar .sh-nav-sub a.tm-nav-link .tm-nav-text {
+    display: inline !important; margin: 0 !important; opacity: 1 !important; visibility: visible !important;
+    font: inherit !important; color: inherit !important;
+}
+#tmAdminSidebar .sh-nav-sub a.tm-nav-link:hover {
+    color: var(--atl-ink) !important;
+    border-left-color: var(--atl-amber-dark) !important;
+    background: rgba(var(--atl-ink-rgb), .03) !important;
+}
+#tmAdminSidebar .sh-nav-sub > li.active > a.tm-nav-link {
+    color: var(--atl-amber) !important;
+    border-left-color: var(--atl-amber) !important;
+    background: none !important;
+}
+
+/* ── Footer: "Collapse menu" ── */
+#tmAdminSidebar .sh-side-foot {
+    flex: none !important;
+    border-top: 1px solid var(--atl-line) !important;
+    padding: 12px !important;
+}
+#tmAdminSidebar .sh-rail-toggle {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-height: var(--atl-tap) !important;
+    padding: 0 12px !important;
+    background: none !important;
+    border: none !important;
+    border-radius: var(--atl-r-sm) !important;
+    color: var(--atl-muted) !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13.3333px !important;
+    font-weight: 400 !important;
+    line-height: normal !important;
+    cursor: pointer !important;
+    position: static !important;
+    height: auto !important;
+    box-shadow: none !important;
+}
+#tmAdminSidebar .sh-rail-toggle:hover { background: var(--atl-surface2) !important; color: var(--atl-amber) !important; }
+#tmAdminSidebar .sh-rail-toggle .sh-ic {
+    width: 20px !important;
+    display: inline-flex !important;
+    justify-content: center !important;
+    transition: transform var(--atl-t-slow) !important;
+}
+#tmAdminSidebar .sh-rail-toggle .sh-lbl { font-size: 13.12px !important; line-height: normal !important; white-space: nowrap !important; }
+#tmAdminSidebar .sh-rail-toggle:focus-visible { outline: none !important; box-shadow: inset 0 0 0 2px var(--atl-amber-border) !important; }
+
+
+/* ═══════════════════════════ SIDEBAR — RAIL ═══════════════════════════ */
+
+@media (min-width: 769px) {
+    #tmAdminSidebar.collapsed .sh-brand { padding: 0 !important; justify-content: center !important; }
+    #tmAdminSidebar.collapsed .sh-brand-txt { display: none !important; }
+    #tmAdminSidebar.collapsed .sh-nav-label { opacity: 0 !important; height: 8px !important; margin: 16px 0 0 !important; overflow: hidden !important; }
+    #tmAdminSidebar.collapsed .sh-nav-list > .sh-nav-label:first-child { margin-top: 0 !important; }
+    #tmAdminSidebar.collapsed .sh-nav-item { justify-content: center !important; padding: 10px 0 !important; }
+    #tmAdminSidebar.collapsed .sh-nav-item .sh-lbl,
+    #tmAdminSidebar.collapsed .sh-nav-item .sh-chev { display: none !important; }
+    #tmAdminSidebar.collapsed .sh-rail-toggle { justify-content: center !important; padding: 0 !important; }
+    #tmAdminSidebar.collapsed .sh-rail-toggle .sh-lbl { display: none !important; }
+    #tmAdminSidebar.collapsed .sh-rail-toggle .sh-ic { transform: rotate(180deg) !important; }
+
+    /* In the rail the in-place submenu never shows — it is revealed only as the portalled
+       flyout below. Kept out of layout so it adds no height under the icon. */
+    #tmAdminSidebar.collapsed .sh-nav-group.atl-nav-group { grid-template-rows: auto 0fr !important; }
+    #tmAdminSidebar.collapsed .sh-nav-sub { visibility: hidden !important; margin: 0 !important; }
+}
+
+/* The rail flyout — TOCA's ".side.rail .nav-sub" styling, applied to the portalled node.
+   position:fixed (left/top written by sidebar-nav.js from the trigger's rect) is what lets
+   it escape the scroll area's overflow clip that breaks TOCA's own flyout. */
+.sh-nav-sub.atl-nav-sub--portalled {
+    position: fixed !important;
+    z-index: var(--atl-z-dropdown) !important;
+    width: 224px !important;
+    margin: 0 !important;
+    padding: 8px !important;
+    list-style: none !important;
+    overflow: visible !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: none !important;
+    background: var(--atl-surface2) !important;
+    border: 1px solid var(--atl-line-strong) !important;
+    border-left: 2px solid var(--atl-amber) !important;
+    border-radius: 0 !important;
+    box-shadow: var(--atl-shadow-modal) !important;
+    font-family: 'Outfit', sans-serif !important;
+    animation: sh-flyout-in var(--atl-t-slow) both;
+}
+@keyframes sh-flyout-in { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.sh-nav-sub.atl-nav-sub--portalled::before {
+    content: attr(data-title);
+    display: block;
+    padding: 8px 12px;
+    font-size: 9.6px;
+    font-weight: 300;
+    letter-spacing: .24em;
+    line-height: 1.6;
+    text-transform: uppercase;
+    color: var(--atl-amber);
+}
+.sh-nav-sub.atl-nav-sub--portalled > li { display: block !important; margin: 0 !important; }
+.sh-nav-sub.atl-nav-sub--portalled a.tm-nav-link {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    min-height: 36px !important;
+    padding: 6px 12px !important;
+    color: var(--atl-muted) !important;
+    background: none !important;
+    font-size: 13.76px !important;
+    font-weight: 300 !important;
+    line-height: 1.6 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    text-decoration: none !important;
+}
+/* redesign-admin.css sets a global .tm-nav-text{opacity:0} that only the sidebar re-enables, so
+   once the flyout is portalled out of the sidebar its labels would be invisible. */
+.sh-nav-sub.atl-nav-sub--portalled a.tm-nav-link .tm-nav-text {
+    font: inherit !important; color: inherit !important; margin: 0 !important; display: inline !important;
+    opacity: 1 !important; visibility: visible !important; transform: none !important; width: auto !important;
+}
+.sh-nav-sub.atl-nav-sub--portalled a.tm-nav-link:hover { color: var(--atl-ink) !important; background: rgba(var(--atl-ink-rgb), .03) !important; }
+.sh-nav-sub.atl-nav-sub--portalled > li.active > a.tm-nav-link { color: var(--atl-amber) !important; }
+
+
+/* ═══════════════════════════════ TOP BAR ══════════════════════════════ */
+
+body.admin-body #adminControlBar {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: var(--atl-z-sticky) !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
+    height: var(--atl-top-h) !important;
+    min-height: var(--atl-top-h) !important;
+    margin: 0 !important;
+    padding: 0 32px !important;
+    background: var(--atl-topbar-bg) !important;
+    border: 0 !important;
+    border-bottom: 1px solid var(--atl-line) !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;          /* a filter would trap the fixed Appearance panel */
+    -webkit-backdrop-filter: none !important;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-size: 15.2px !important;
+    font-weight: 300 !important;
+    line-height: 1.6 !important;
+    color: var(--atl-ink) !important;
+}
+
+/* Burger — mobile only, like TOCA's. */
+#adminControlBar .sh-burger {
+    display: none !important;
+    width: var(--atl-tap) !important;
+    height: var(--atl-tap) !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    padding: 0 !important;
+    background: none !important;
+    border: 1px solid var(--atl-line-strong) !important;
+    border-radius: var(--atl-r-sm) !important;
+    color: var(--atl-ink-dim) !important;
+    cursor: pointer !important;
+}
+#adminControlBar .sh-burger:hover { border-color: var(--atl-amber) !important; color: var(--atl-amber) !important; }
+
+/* Search */
+#adminControlBar .sh-search {
+    position: relative !important;
+    flex: 1 !important;
+    max-width: 440px !important;
+    margin: 0 !important;
+    display: block !important;
+}
+#adminControlBar .sh-search > svg.adm-search__icon {
+    position: absolute !important;
+    left: 14px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    color: var(--atl-muted) !important;
+    pointer-events: none !important;
+    z-index: 1;
+}
+#adminControlBar .sh-search .adm-search__input {
+    width: 100% !important;
+    height: var(--atl-tap) !important;
+    min-height: var(--atl-tap) !important;
+    padding: 0 16px 0 40px !important;
+    background: var(--atl-card) !important;
+    border: 1px solid var(--atl-line-strong) !important;
+    border-radius: var(--atl-r-sm) !important;
+    box-shadow: none !important;
+    color: var(--atl-ink) !important;
+    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-size: 14.4px !important;
+    font-weight: 300 !important;
+    line-height: normal !important;
+    transition: border-color var(--atl-t-fast) !important;
+}
+#adminControlBar .sh-search .adm-search__input::placeholder { color: var(--atl-muted) !important; opacity: 1; }
+#adminControlBar .sh-search .adm-search__input:hover { border-color: var(--atl-line-bold) !important; }
+#adminControlBar .sh-search .adm-search__input:focus,
+#adminControlBar .sh-search .adm-search__input:focus-visible {
+    border-color: var(--atl-amber) !important;
+    box-shadow: none !important;
+    outline: 2px solid var(--atl-focus);
+    outline-offset: 1px;
+}
+#adminControlBar .sh-search .adm-search__shortcut {
+    position: absolute !important;
+    right: 10px !important;
+    top: 50% !important;
+    transform: translateY(-50%) !important;
+    margin: 0 !important;
+    padding: 3px 6px !important;
+    background: none !important;
+    border: 1px solid var(--atl-line-strong) !important;
+    border-radius: var(--atl-r-sm) !important;
+    box-shadow: none !important;
+    color: var(--atl-muted) !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 9.92px !important;
+    font-weight: 300 !important;
+    line-height: 1.6 !important;
+    pointer-events: none !important;
+}
+#adminControlBar .sh-search .adm-search__results { border-radius: var(--atl-r-sm) !important; }
+
+/* Actions */
+#adminControlBar .sh-top-actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    margin-left: auto !important;
+}
+#adminControlBar .sh-icon-btn {
+    position: relative !important;
+    display: grid !important;
+    place-items: center !important;
+    width: var(--atl-tap) !important;
+    height: var(--atl-tap) !important;
+    padding: 8px !important;
+    line-height: 1.6 !important;
+    border: 1px solid transparent !important;
+    border-radius: var(--atl-r-sm) !important;
+    background: none !important;
+    box-shadow: none !important;
+    color: var(--atl-ink-dim) !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+    transition: all var(--atl-t-fast) !important;
+}
+#adminControlBar .sh-icon-btn:hover {
+    border-color: var(--atl-amber-dark) !important;
+    color: var(--atl-amber) !important;
+    background: var(--atl-card) !important;
+}
+#adminControlBar .sh-icon-btn.adm-mobile-search-btn { display: none !important; }
+
+/* Account button */
+#adminControlBar .sh-acct-wrap { position: relative !important; margin-left: 8px !important; }
+#adminControlBar .sh-acct {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    min-height: var(--atl-tap) !important;
+    height: auto !important;
+    padding: 0 12px 0 8px !important;
+    border: none !important;
+    border-left: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-sm) !important;
+    background: none !important;
+    box-shadow: none !important;
+    color: var(--atl-ink-dim) !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13.3333px !important;
+    font-weight: 400 !important;
+    line-height: normal !important;
+    cursor: pointer !important;
+}
+#adminControlBar .sh-acct:hover { color: var(--atl-ink) !important; background: none !important; }
+#adminControlBar .sh-acct .sh-acct-chev { color: var(--atl-muted) !important; flex-shrink: 0 !important; transition: transform var(--atl-t-fast) !important; }
+#adminControlBar .sh-acct[aria-expanded="true"] .sh-acct-chev { transform: rotate(180deg) !important; color: var(--atl-amber) !important; }
+#adminControlBar .sh-acct-meta { display: flex !important; flex-direction: column !important; text-align: left !important; line-height: 1.25 !important; }
+#adminControlBar .sh-acct-name {
+    display: block !important;
+    font-size: 13.76px !important;
+    font-weight: 400 !important;
+    line-height: 1.25 !important;
+    color: var(--atl-ink) !important;
+    white-space: nowrap !important;
+    max-width: none !important;
+}
+#adminControlBar .sh-acct-role {
+    display: block !important;
+    font-size: 10.56px !important;
+    font-weight: 400 !important;
+    letter-spacing: .1em !important;
+    line-height: 1.25 !important;
+    text-transform: uppercase !important;
+    color: var(--atl-muted) !important;
+}
+
+/* Avatar — square, gold rule, serif initials (header button and menu head). */
+#adminControlBar .sh-avatar,
+#admProfileMenu .sh-avatar {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+    flex: none !important;
+    display: grid !important;
+    place-items: center !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 1px solid var(--atl-amber-dark) !important;
+    border-radius: 0 !important;
+    background: linear-gradient(150deg, rgba(var(--atl-amber-rgb), .22), rgba(var(--atl-amber-rgb), .03)) !important;
+    box-shadow: none !important;
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: 14.4px !important;
+    font-weight: 400 !important;
+    line-height: normal !important;
+    color: var(--atl-amber-light) !important;
+}
+
+
+/* ════════════════════════════ ACCOUNT MENU ════════════════════════════ */
+
+/* The dropdown manager moves #admProfileMenu to <body> and positions it (fixed) under the
+   button; .open shows it. Desktop only — ≤768px keeps the existing bottom sheet. */
+@media (min-width: 769px) {
+    body.admin-body #admProfileMenu.sh-menu {
+        width: 284px !important;
+        min-width: 284px !important;
+        max-width: 284px !important;
+        padding: 8px !important;
+        background: var(--atl-surface2) !important;
+        border: 1px solid var(--atl-line-strong) !important;
+        border-top: 2px solid var(--atl-amber) !important;
+        border-radius: var(--atl-r-sm) !important;
+        box-shadow: var(--atl-shadow-modal) !important;
+        z-index: var(--atl-z-profile-menu) !important;
+        overflow: visible !important;
+        animation: none !important;
+        font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        font-size: 15.2px !important;
+        font-weight: 300 !important;
+        line-height: 1.6 !important;
+        color: var(--atl-ink) !important;
+    }
+}
+#admProfileMenu .sh-menu-head {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    padding: 12px !important;
+    margin: 0 0 8px !important;
+    border-bottom: 1px solid var(--atl-line) !important;
+    background: none !important;
+}
+#admProfileMenu .sh-menu-id { display: flex !important; flex-direction: column !important; min-width: 0 !important; line-height: 1.35 !important; }
+#admProfileMenu .sh-menu-id b {
+    font-weight: 400 !important;
+    font-size: 14.08px !important;
+    color: var(--atl-ink) !important;
+}
+#admProfileMenu .sh-menu-id span {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 10.88px !important;
+    font-weight: 300 !important;
+    color: var(--atl-muted) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+#admProfileMenu .sh-menu-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-height: var(--atl-tap) !important;
+    margin: 0 !important;
+    padding: 0 12px !important;
+    text-align: left !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 14.08px !important;
+    font-weight: 300 !important;
+    line-height: normal !important;
+    color: var(--atl-ink-dim) !important;
+    background: none !important;
+    border: none !important;
+    border-radius: var(--atl-r-sm) !important;
+    box-shadow: none !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+    transition: background var(--atl-t-fast), color var(--atl-t-fast) !important;
+}
+#admProfileMenu button.sh-menu-item { font-weight: 400 !important; }   /* same button/link split as the sidebar */
+#admProfileMenu .sh-menu-item:hover,
+#admProfileMenu .sh-menu-item:focus-visible {
+    background: var(--atl-card) !important;
+    color: var(--atl-ink) !important;
+    text-decoration: none !important;
+    outline: none !important;
+}
+#admProfileMenu .sh-menu-item > svg { width: 18px !important; flex: none !important; color: var(--atl-muted) !important; transition: color var(--atl-t-fast); }
+#admProfileMenu .sh-menu-item:hover > svg { color: var(--atl-amber) !important; }
+#admProfileMenu .sh-menu-hint {
+    margin-left: auto !important;
+    font-size: 10.88px !important;
+    font-weight: 400 !important;
+    letter-spacing: .08em !important;
+    text-transform: uppercase !important;
+    color: var(--atl-amber) !important;
+    white-space: nowrap !important;
+}
+#admProfileMenu .sh-menu-sep {
+    display: block !important;
+    height: 1px !important;
+    margin: 8px 12px !important;
+    background: var(--atl-line) !important;
+}
+
+
+/* ═════════════════════ APPEARANCE PANEL (from the menu) ═════════════════════ */
+
+/* TOCA opens Appearance from its account menu into a side panel; here it opens as a
+   fixed panel under the top bar, styled like the account menu. */
+#atlAppearancePop.atl-appearance-pop {
+    position: fixed !important;
+    top: calc(var(--atl-top-h) - 2px) !important;
+    right: 32px !important;
+    width: 340px !important;
+    max-width: calc(100vw - 32px) !important;
+    max-height: calc(100vh - var(--atl-top-h) - 16px) !important;
+    overflow-y: auto !important;
+    padding: 20px !important;
+    background: var(--atl-surface2) !important;
+    border: 1px solid var(--atl-line-strong) !important;
+    border-top: 2px solid var(--atl-amber) !important;
+    border-radius: var(--atl-r-sm) !important;
+    box-shadow: var(--atl-shadow-modal) !important;
+    z-index: var(--atl-z-profile-menu) !important;
+}
+#atlAppearancePop[hidden] { display: none !important; }
+
+
+/* ═══════════════════════════════ MOBILE ═══════════════════════════════ */
+
+@media (max-width: 768px) {
+    body.admin-body .tm-admin-main { padding-left: 0 !important; }
+    /* TOCA's off-canvas drawer: full labelled sidebar at 270px, no rail, no footer toggle. */
+    body.admin-body #tmAdminSidebar.mobile-open { width: var(--atl-nav-w) !important; display: flex !important; }
+    #tmAdminSidebar .sh-side-foot { display: none !important; }
+    body.admin-body #adminControlBar { padding: 0 16px !important; gap: 8px !important; }
+    #adminControlBar .sh-burger { display: flex !important; }
+    #adminControlBar .sh-search { display: none !important; }
+    #adminControlBar .sh-icon-btn.adm-mobile-search-btn { display: grid !important; }
+    #adminControlBar .sh-acct-meta { display: none !important; }
+    body.admin-body .admin-section { padding: 20px 16px 80px !important; }
+}
+
+
+/* ═════════════════════════════ MOTION ═════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+    #tmAdminSidebar, #tmAdminSidebar *,
+    #adminControlBar *, #admProfileMenu *,
+    .sh-nav-sub.atl-nav-sub--portalled { transition: none !important; animation: none !important; }
+}

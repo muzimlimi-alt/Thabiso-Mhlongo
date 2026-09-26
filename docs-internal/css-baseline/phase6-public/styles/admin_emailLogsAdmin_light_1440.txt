@@ -1,0 +1,327 @@
+TOKEN --accent-blue = #60a5fa
+TOKEN --accent-gold = #c9a96e
+TOKEN --accent-green = #4ade80
+TOKEN --accent-red = #f87171
+TOKEN --announce-h = 36px
+TOKEN --atl-amber = #9a7611
+TOKEN --atl-amber-border = rgba(154,118,17,0.30)
+TOKEN --atl-amber-dim = rgba(154,118,17,0.10)
+TOKEN --atl-amber-hover = #7e6109
+TOKEN --atl-amber-light = #c79a2a
+TOKEN --atl-blue = #1d4ed8
+TOKEN --atl-card = #ffffff
+TOKEN --atl-clay = #c0362c
+TOKEN --atl-focus = #9a7611
+TOKEN --atl-grain-opacity = 0.025
+TOKEN --atl-green = #0f7a45
+TOKEN --atl-ink = #1c1a16
+TOKEN --atl-ink-dim = #2a2723
+TOKEN --atl-input-bg = #fbf9f4
+TOKEN --atl-line = rgba(28,26,22,0.12)
+TOKEN --atl-line-strong = rgba(28,26,22,0.22)
+TOKEN --atl-muted = #6b6457
+TOKEN --atl-muted-dim = #9b9384
+TOKEN --atl-on-amber = #ffffff
+TOKEN --atl-orange = #c2410c
+TOKEN --atl-overlay = rgba(40,36,28,0.45)
+TOKEN --atl-paper = #f7f4ee
+TOKEN --atl-placeholder = #9b9384
+TOKEN --atl-purple = #7e22ce
+TOKEN --atl-r-lg = 14px
+TOKEN --atl-r-md = 10px
+TOKEN --atl-r-pill = 999px
+TOKEN --atl-r-sm = 6px
+TOKEN --atl-r-xl = 18px
+TOKEN --atl-required = #9a7611
+TOKEN --atl-sage = #1f9254
+TOKEN --atl-scrim = rgba(0,0,0,0.55)
+TOKEN --atl-selection-bg = rgba(154,118,17,0.20)
+TOKEN --atl-shadow-card = 0 8px 28px rgba(40,36,28,0.12)
+TOKEN --atl-shadow-modal = 0 24px 70px rgba(40,36,28,0.22), 0 0 0 1px rgba(154,118,17,0.18)
+TOKEN --atl-shadow-sm = 0 2px 8px rgba(40,36,28,0.10)
+TOKEN --atl-shadow-top = 0 2px 10px rgba(40,36,28,0.10)
+TOKEN --atl-sidebar-bg = #ffffff
+TOKEN --atl-sp-2xl = 48px
+TOKEN --atl-sp-lg = 24px
+TOKEN --atl-sp-md = 16px
+TOKEN --atl-sp-sm = 8px
+TOKEN --atl-sp-xl = 32px
+TOKEN --atl-sp-xs = 4px
+TOKEN --atl-surface2 = #f1ece1
+TOKEN --atl-surface3 = #e8e2d6
+TOKEN --atl-t-base = 0.2s ease
+TOKEN --atl-t-fast = 0.15s ease
+TOKEN --atl-t-slow = 0.35s ease
+TOKEN --atl-topbar-bg = #ffffff
+TOKEN --bg = #0a0a0a
+TOKEN --bg-alt = #111111
+TOKEN --bg-elevated = #242424
+TOKEN --bg-glass = rgba(20, 20, 20, 0.7)
+TOKEN --bg-page = #0a0a0a
+TOKEN --bg-section = #111111
+TOKEN --bg-surface = #1a1a1a
+TOKEN --bg-warm = #1a1a1a
+TOKEN --bk-accepted = #4ade80
+TOKEN --bk-accepted-tint = rgba(74,222,128,0.12)
+TOKEN --bk-cancelled = #f87171
+TOKEN --bk-cancelled-tint = rgba(248,113,113,0.12)
+TOKEN --bk-completed = #818cf8
+TOKEN --bk-completed-tint = rgba(129,140,248,0.12)
+TOKEN --bk-confirmed = #2dd4bf
+TOKEN --bk-confirmed-tint = rgba(45,212,191,0.12)
+TOKEN --bk-expired = #fb923c
+TOKEN --bk-expired-tint = rgba(251,146,60,0.12)
+TOKEN --bk-new = #60a5fa
+TOKEN --bk-new-tint = rgba(96,165,250,0.12)
+TOKEN --bk-pending = #f59e0b
+TOKEN --bk-pending-tint = rgba(245,158,11,0.12)
+TOKEN --bk-quoted = #D4AF37
+TOKEN --bk-quoted-tint = rgba(212,175,55,0.12)
+TOKEN --bk-rejected = #ef4444
+TOKEN --bk-rejected-tint = rgba(239,68,68,0.12)
+TOKEN --border = rgba(255, 255, 255, 0.15)
+TOKEN --border-default = rgba(255, 255, 255, 0.15)
+TOKEN --border-low = rgba(255, 255, 255, 0.08)
+TOKEN --border-strong = rgba(255, 255, 255, 0.3)
+TOKEN --brand-gold = #D4AF37
+TOKEN --container = 1280px
+TOKEN --container-narrow = 960px
+TOKEN --danger = #ef4444
+TOKEN --display = clamp(2.8rem, 2rem + 4.5vw, 5.5rem)
+TOKEN --ease = cubic-bezier(0.25, 0.46, 0.45, 0.94)
+TOKEN --ease-out = cubic-bezier(0.16, 1, 0.3, 1)
+TOKEN --error = #ef4444
+TOKEN --f-body = 'Outfit', -apple-system, sans-serif
+TOKEN --f-display = 'Cormorant Garamond', Georgia, serif
+TOKEN --f-mono = 'JetBrains Mono', monospace
+TOKEN --fa-font-brands = normal 400 1em/1 "Font Awesome 6 Brands"
+TOKEN --fa-font-regular = normal 400 1em/1 "Font Awesome 6 Free"
+TOKEN --fa-font-solid = normal 900 1em/1 "Font Awesome 6 Free"
+TOKEN --fa-style-family-brands = "Font Awesome 6 Brands"
+TOKEN --fa-style-family-classic = "Font Awesome 6 Free"
+TOKEN --fc-bg-event-color = #8fdf82
+TOKEN --fc-bg-event-opacity = 0.3
+TOKEN --fc-border-color = #ddd
+TOKEN --fc-button-active-bg-color = #1a252f
+TOKEN --fc-button-active-border-color = #151e27
+TOKEN --fc-button-bg-color = #2c3e50
+TOKEN --fc-button-border-color = #2c3e50
+TOKEN --fc-button-hover-bg-color = #1e2b37
+TOKEN --fc-button-hover-border-color = #1a252f
+TOKEN --fc-button-text-color = #fff
+TOKEN --fc-daygrid-event-dot-width = 8px
+TOKEN --fc-event-bg-color = #3788d8
+TOKEN --fc-event-border-color = #3788d8
+TOKEN --fc-event-resizer-dot-border-width = 1px
+TOKEN --fc-event-resizer-dot-total-width = 8px
+TOKEN --fc-event-resizer-thickness = 8px
+TOKEN --fc-event-selected-overlay-color = rgba(0,0,0,.25)
+TOKEN --fc-event-text-color = #fff
+TOKEN --fc-highlight-color = rgba(188,232,241,.3)
+TOKEN --fc-list-event-dot-width = 10px
+TOKEN --fc-list-event-hover-bg-color = #f5f5f5
+TOKEN --fc-more-link-bg-color = #d0d0d0
+TOKEN --fc-more-link-text-color = 
+TOKEN --fc-neutral-bg-color = hsla(0,0%,82%,.3)
+TOKEN --fc-neutral-text-color = grey
+TOKEN --fc-non-business-color = hsla(0,0%,84%,.3)
+TOKEN --fc-now-indicator-color = red
+TOKEN --fc-page-bg-color = #fff
+TOKEN --fc-small-font-size = .85em
+TOKEN --fc-today-bg-color = rgba(255,220,40,.15)
+TOKEN --fs-base = clamp(0.95rem, 0.92rem + 0.15vw, 1rem)
+TOKEN --fs-lg = clamp(1.05rem, 1rem + 0.25vw, 1.15rem)
+TOKEN --fs-sm = 0.82rem
+TOKEN --fs-xl = clamp(1.25rem, 1.15rem + 0.5vw, 1.5rem)
+TOKEN --fs-xs = 0.7rem
+TOKEN --gold-300 = #F4E4B5
+TOKEN --gold-500 = #D4AF37
+TOKEN --gold-600 = #9A7B2C
+TOKEN --gutter = clamp(20px, 4vw, 32px)
+TOKEN --h1 = clamp(2.4rem, 1.8rem + 3.2vw, 4.2rem)
+TOKEN --h2 = clamp(1.9rem, 1.4rem + 2vw, 3rem)
+TOKEN --h3 = clamp(1.4rem, 1.2rem + 1vw, 2rem)
+TOKEN --h4 = clamp(1.1rem, 1rem + 0.6vw, 1.4rem)
+TOKEN --header-h = 72px
+TOKEN --info = #3b82f6
+TOKEN --ink = #ffffff
+TOKEN --jvm-border-color = #E5E6E7
+TOKEN --jvm-box-shadow = 0 1px 2px 0 rgba(0, 0, 0, 0.05)
+TOKEN --jvm-legend-bg-color = #FFF
+TOKEN --jvm-legend-margin-left = 0.75rem
+TOKEN --jvm-legend-padding = 0.6rem
+TOKEN --jvm-legend-radius = 0.15rem
+TOKEN --jvm-legend-tick-margin-top = 0.575rem
+TOKEN --jvm-legend-tick-sample-height = 12px
+TOKEN --jvm-legend-tick-sample-radius = 0
+TOKEN --jvm-legend-tick-sample-width = 30px
+TOKEN --jvm-legend-tick-text-font-size = 12px
+TOKEN --jvm-legend-tick-text-margin-top = 3px
+TOKEN --jvm-legend-title-margin-bottom = 0.575rem
+TOKEN --jvm-legend-title-padding-bottom = 0.5rem
+TOKEN --jvm-series-container-right = 15px
+TOKEN --jvm-tooltip-bg-color = #337FFA
+TOKEN --jvm-tooltip-color = #FFF
+TOKEN --jvm-tooltip-font-size = 0.9rem
+TOKEN --jvm-tooltip-padding = 3px 5px
+TOKEN --jvm-tooltip-radius = 3px
+TOKEN --jvm-tooltip-shadow = 0 1px 2px 0 rgba(0, 0, 0, 0.05)
+TOKEN --jvm-zoom-btn-bg-color = #292929
+TOKEN --jvm-zoom-btn-color = #FFF
+TOKEN --jvm-zoom-btn-radius = 3px
+TOKEN --jvm-zoom-btn-size = 15px
+TOKEN --noti-bg = #ffffff
+TOKEN --noti-bg-deep = #f1ece1
+TOKEN --noti-border = rgba(28,26,22,0.12)
+TOKEN --noti-ease = cubic-bezier(0.16, 1, 0.3, 1)
+TOKEN --noti-ease-out = cubic-bezier(0.4, 0, 0.2, 1)
+TOKEN --noti-error = #ef4444
+TOKEN --noti-gold = #9a7611
+TOKEN --noti-gold-light = #7e6109
+TOKEN --noti-info = #60a5fa
+TOKEN --noti-radius = 4px
+TOKEN --noti-shadow = 0 12px 40px rgba(40,36,28,0.14), 0 4px 12px rgba(40,36,28,0.08)
+TOKEN --noti-success = #22c55e
+TOKEN --noti-text = #1c1a16
+TOKEN --noti-text-muted = #6b6457
+TOKEN --noti-warning = #f59e0b
+TOKEN --noti-z = 10000
+TOKEN --primary = #D4AF37
+TOKEN --primary-ink = #0a0a0a
+TOKEN --r = 2px
+TOKEN --r-lg = 8px
+TOKEN --r-md = 4px
+TOKEN --r-pill = 999px
+TOKEN --sh-lg = 0 8px 40px rgba(26,22,18,.12)
+TOKEN --sh-md = 0 4px 20px rgba(26,22,18,.08)
+TOKEN --sh-sm = 0 1px 3px rgba(26,22,18,.06)
+TOKEN --sh-xl = 0 20px 60px rgba(26,22,18,.18)
+TOKEN --sh-xs = 0 1px 2px rgba(26,22,18,.04)
+TOKEN --sidebar-active-bg = rgba(212, 175, 55, 0.15)
+TOKEN --sidebar-active-border = #D4AF37
+TOKEN --sidebar-bg = #111
+TOKEN --sidebar-border = #2a2a2a
+TOKEN --sidebar-hover = #222
+TOKEN --sidebar-width-collapsed = 72px
+TOKEN --sidebar-width-expanded = 260px
+TOKEN --success = #10b981
+TOKEN --success-dim = rgba(16, 185, 129, .15)
+TOKEN --success-glow = rgba(16, 185, 129, .3)
+TOKEN --surface = #1a1a1a
+TOKEN --surface-2 = #242424
+TOKEN --t = 0.35s
+TOKEN --t-slow = 0.6s
+TOKEN --text = #ffffff
+TOKEN --text-dim = #707070
+TOKEN --text-inverse = #0a0a0a
+TOKEN --text-mute = #707070
+TOKEN --text-muted = #707070
+TOKEN --text-primary = #ffffff
+TOKEN --text-secondary = #b0b0b0
+TOKEN --text-soft = #b0b0b0
+TOKEN --theme-font = "Open Sans", sans-serif
+TOKEN --tm-black = #f7f4ee
+TOKEN --tm-cream = #2a2723
+TOKEN --tm-cream-dim = #6b6457
+TOKEN --tm-danger = #c0362c
+TOKEN --tm-deep = #ffffff
+TOKEN --tm-duration = 5000ms
+TOKEN --tm-glass = rgba(40,36,28,0.45)
+TOKEN --tm-glass-border = rgba(28,26,22,0.12)
+TOKEN --tm-gold = #9a7611
+TOKEN --tm-gold-dim = rgba(154,118,17,0.30)
+TOKEN --tm-gold-glow = rgba(154,118,17,0.10)
+TOKEN --tm-mute = #9b9384
+TOKEN --warning = #f59e0b
+TOKEN --y-base = #D4AF37
+TOKEN --y-dark = #9A7B2C
+TOKEN --y-glow = rgba(212, 175, 55, 0.3)
+TOKEN --y-hover = #E8C14B
+TOKEN --y-light = #F4E4B5
+TOKEN --y-muted = rgba(212, 175, 55, 0.15)
+TOKEN count = 241
+html | block | static | auto | border-box | visible | 0px | 0px | 0px none rgb(28, 26, 22) | 0px | rgb(28, 26, 22) | rgb(247, 244, 238) | none | none | 1 | Outfit, system-ui, sans-serif | 14px | 400 | 21px | normal | start | none | none | row | normal | normal | normal | none
+body | block | relative | auto | border-box | hidden auto | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgb(247, 244, 238) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+h1 | block | static | auto | border-box | visible | 0px 0px 8px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | "Cormorant Garamond", Georgia, serif | 58.8px | 400 | 67.62px | -0.294px | left | none | none | row | normal | normal | normal | none
+h2 | block | static | auto | border-box | visible | 0px 0px 4px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | "Cormorant Garamond", Georgia, serif | 42px | 400 | 48.3px | -0.21px | left | none | none | row | normal | normal | normal | none
+h3 | block | static | auto | border-box | visible | 0px 0px 16.8px | 0px | 0px none rgb(42, 39, 35) | 0px | rgb(42, 39, 35) | rgba(0, 0, 0, 0) | none | none | 1 | "Cormorant Garamond", Georgia, serif | 28px | 500 | 30.8px | -0.28px | start | none | none | row | normal | normal | normal | none
+h4 | block | static | auto | border-box | visible | 0px 0px 6px | 0px | 0px none rgb(28, 26, 22) | 0px | rgb(28, 26, 22) | rgba(0, 0, 0, 0) | none | none | 1 | "Open Sans", sans-serif | 19.6px | 400 | 22.54px | -0.098px | start | none | none | row | normal | normal | normal | none
+p | block | static | auto | border-box | visible | 16px 0px 10px | 0px | 0px none rgb(176, 176, 176) | 0px | rgb(176, 176, 176) | rgba(0, 0, 0, 0) | none | none | 1 | "Open Sans", sans-serif | 10px | 300 | 17px | 4px | left | uppercase | none | row | normal | normal | normal | none
+a | block | static | auto | border-box | visible | 0px | 0px | 0px none rgb(154, 118, 17) | 0px | rgb(154, 118, 17) | rgba(0, 0, 0, 0) | none | none | 1 | "JetBrains Mono", monospace | 10px | 300 | 17px | 1.5px | start | uppercase | none | row | normal | normal | normal | none
+button | block | absolute | auto | border-box | visible | 0px | 4px | 0px none rgb(155, 147, 132) | 0px | rgb(155, 147, 132) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, system-ui, sans-serif | 14px | 300 | 23.8px | normal | center | none | none | row | normal | normal | normal | none
+input | inline-block | static | auto | border-box | clip | 0px | 9px 12px | 1px solid rgba(28, 26, 22, 0.12) | 10px | rgb(28, 26, 22) | rgb(251, 249, 244) | none | none | 1 | Outfit, sans-serif | 13px | 300 | 22.1px | 0.26px | start | none | none | row | normal | normal | normal | none
+select | block | static | auto | border-box | clip | 0px | 9px 12px | 1px solid rgba(28, 26, 22, 0.12) | 10px | rgb(28, 26, 22) | rgb(251, 249, 244) | none | none | 1 | Outfit, sans-serif | 13px | 300 | normal | normal | start | none | none | row | normal | center | normal | none
+textarea | block | static | auto | border-box | auto | 0px | 9px 12px | 1px solid rgba(28, 26, 22, 0.12) | 10px | rgb(28, 26, 22) | rgb(251, 249, 244) | none | none | 1 | Outfit, sans-serif | 13px | 400 | 19.5px | normal | start | none | none | row | normal | normal | normal | none
+table | table | static | auto | border-box | visible | 0px 0px 20px | 0px | 0px none rgb(28, 26, 22) | 0px | rgb(28, 26, 22) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, sans-serif | 13px | 300 | 22.1px | normal | start | none | none | row | normal | normal | normal | none
+td | table-cell | static | auto | border-box | visible | 0px | 40px | 0px none rgb(28, 26, 22) | 0px | rgb(28, 26, 22) | rgba(0, 0, 0, 0) | none | none | 0.5 | Outfit, sans-serif | 13px | 300 | 18.5714px | normal | left | none | none | row | normal | normal | normal | none
+th | table-cell | static | auto | border-box | visible | 0px | 12px |  | 0px | rgb(107, 100, 87) | rgb(241, 236, 225) | none | none | 1 | "JetBrains Mono", monospace | 10px | 500 | 14.2857px | 1.2px | left | uppercase | none | row | normal | normal | normal | none
+.tm-admin-wrapper | flex | relative | 1 | border-box | hidden | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgb(247, 244, 238) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.tm-admin-sidebar | flex | fixed | 1040 | border-box | hidden auto | 0px | 0px |  | 0px | rgb(255, 255, 255) | rgb(255, 255, 255) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | column | normal | normal | normal | none
+.tm-admin-main | block | static | auto | border-box | hidden auto | 0px | 0px 20px 100px 92px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.tm-admin-sidebar-header | flex | relative | auto | border-box | visible | 0px | 0px |  | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | center | center | normal | none
+.tm-nav-link | flex | relative | auto | border-box | visible | 2px | 10px 0px | 1px solid rgba(0, 0, 0, 0) | 6px | rgb(107, 100, 87) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, sans-serif | 13px | 400 | 22.1px | 0.5px | start | none | none | row | center | center | 8px | none
+.admin-sidebar | flex | static | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | column | center | normal | 10px | none
+.admin-sidebar li.active | block | relative | auto | border-box | visible | 0px 0px 2px | 0px 10px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.admin-section | none | relative | 1 | border-box | visible | 0px | 24px 8px 80px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.adm-header | block | sticky | 1040 | border-box | visible | 0px 0px 22px | 0px |  | 12px | rgb(255, 255, 255) | rgba(247, 244, 238, 0.94) | none | rgba(40, 36, 28, 0.1) 0px 2px 10px 0px | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.adm-header__inner | flex | static | auto | border-box | visible | 0px | 10px 18px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | center | 12px | none
+.adm-breadcrumb | flex | static | auto | border-box | visible | 0px | 0px | 0px none rgb(136, 136, 136) | 0px | rgb(136, 136, 136) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 13px | 300 | 22.1px | normal | start | none | none | row | normal | center | 6px | none
+.adm-search | block | relative | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.adm-search__input | inline-block | static | auto | border-box | clip | 0px | 9px 40px 9px 38px | 1px solid rgba(28, 26, 22, 0.12) | 2px | rgb(28, 26, 22) | rgb(251, 249, 244) | none | none | 1 | "Open Sans", sans-serif | 16px | 400 | 24px | normal | start | none | none | row | normal | normal | normal | none
+.adm-dropdown | block | relative | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.adm-dropdown__menu | none | absolute | 2000 | border-box | hidden auto | 0px | 0px | 1px solid rgba(28, 26, 22, 0.22) | 14px | rgb(255, 255, 255) | rgb(255, 255, 255) | none | rgba(40, 36, 28, 0.12) 0px 8px 28px 0px | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.adm-icon-btn | flex | relative | auto | border-box | visible | 0px | 0px | 1px solid rgba(28, 26, 22, 0.12) | 10px | rgb(107, 100, 87) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 15px | 300 | 25.5px | normal | center | none | none | row | center | center | normal | none
+.adm-profile-btn | flex | relative | auto | border-box | visible | 0px | 5px 10px 5px 6px | 1px solid rgba(28, 26, 22, 0.12) | 10px | rgb(107, 100, 87) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | center | none | none | row | normal | center | 8px | none
+.atl-card | block | static | auto | border-box | hidden | 0px | 0px | 1px solid rgba(28, 26, 22, 0.12) | 18px | rgb(255, 255, 255) | rgb(255, 255, 255) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.atl-tab-bar | flex | static | auto | border-box | visible | 0px 0px 20px | 0px |  | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | 4px | none
+.atl-tab-btn | block | static | auto | border-box | visible | 0px | 8px 16px |  | 0px | rgb(154, 118, 17) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, sans-serif | 13px | 500 | 22.1px | normal | center | none | none | row | normal | normal | normal | none
+.um-panel | block | static | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.um-panel.active | block | static | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.atl-drawer | flex | fixed | 1050 | border-box | visible | 0px | 0px |  | 0px | rgb(255, 255, 255) | rgb(255, 255, 255) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | column | normal | normal | normal | none
+.atl-badge | none | static | auto | border-box | visible | 0px | 3px 10px | 0px none rgb(138, 106, 13) | 999px | rgb(138, 106, 13) | rgba(212, 175, 55, 0.14) | none | none | 1 | Outfit, sans-serif | 11px | 600 | 18.7px | normal | start | none | none | row | normal | center | 5px | none
+.atl-pill-count | block | static | auto | border-box | visible | 0px | 2px 6px | 0px none rgb(107, 100, 87) | 5px | rgb(107, 100, 87) | rgba(0, 0, 0, 0.06) | none | none | 1 | Outfit, sans-serif | 11px | 600 | 18.7px | normal | center | none | none | row | normal | normal | normal | none
+.atl-grain | ABSENT
+.atl-theme-toggle | ABSENT
+.btn | ABSENT
+.btn-primary | ABSENT
+.form-control | block | static | auto | border-box | clip | 0px | 9px 12px 9px 38px | 1px solid rgba(28, 26, 22, 0.12) | 10px | rgb(28, 26, 22) | rgb(251, 249, 244) | none | none | 0.6 | Outfit, sans-serif | 13px | 300 | 19.5px | normal | start | none | none | row | center | normal | normal | none
+.panel | ABSENT
+.modal-content | block | relative | auto | border-box | visible | 0px | 0px | 1px solid rgba(28, 26, 22, 0.12) | 18px | rgb(28, 26, 22) | rgb(255, 255, 255) | none | rgba(40, 36, 28, 0.22) 0px 24px 70px 0px, rgba(154, 118, 17, 0.18) 0px 0px 0px 1px | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.nav | flex | static | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | column | center | normal | 10px | none
+.container | ABSENT
+.tm-toast | ABSENT
+.tm-modal | ABSENT
+#tm-toast-container | ABSENT
+.tm-navbar | ABSENT
+.tm-section | ABSENT
+.tm-container | ABSENT
+.tm-eyebrow | ABSENT
+.tm-footer | ABSENT
+.tm-btn | ABSENT
+.ms-row | ABSENT
+.fp-grid | ABSENT
+#back-to-top | ABSENT
+.trk-btn | ABSENT
+#trackingModal | ABSENT
+.db-stat-card | flex | static | auto | border-box | visible | 0px | 18px 20px | 1px solid rgba(28, 26, 22, 0.12) | 18px | rgb(255, 255, 255) | rgb(255, 255, 255) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | center | 14px | none
+.db-summary-grid | grid | static | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | 12px | repeat(6, 1fr)
+.db-social-grid | none | static | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | 12px | repeat(5, 1fr)
+.booking-card | ABSENT
+.deal-progress | ABSENT
+.ql-toolbar | block | static | auto | border-box | visible | 0px | 7px 10px |  | 0px | rgb(255, 255, 255) | rgb(241, 236, 225) | none | none | 1 | "Helvetica Neue", Helvetica, Arial, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.ql-container | block | relative | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgb(251, 249, 244) | none | none | 1 | Helvetica, Arial, sans-serif | 13px | 300 | 22.1px | normal | start | none | none | row | normal | normal | normal | none
+.ql-editor | block | static | auto | border-box | auto | 0px | 14px 16px | 0px none rgb(28, 26, 22) | 0px | rgb(28, 26, 22) | rgba(0, 0, 0, 0) | none | none | 1 | Helvetica, Arial, sans-serif | 14px | 300 | 19.88px | normal | left | none | none | row | normal | normal | normal | none
+.ql-snow | block | static | auto | border-box | visible | 0px | 7px 10px |  | 0px | rgb(255, 255, 255) | rgb(241, 236, 225) | none | none | 1 | "Helvetica Neue", Helvetica, Arial, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.flatpickr-input | inline-block | static | auto | border-box | clip | 0px | 9px 12px | 1px solid rgba(28, 26, 22, 0.12) | 10px | rgb(28, 26, 22) | rgb(251, 249, 244) | none | none | 0.6 | Outfit, sans-serif | 13px | 300 | 19.5px | normal | start | none | none | row | normal | normal | normal | none
+.flatpickr-calendar | none | absolute | auto | border-box | visible | 0px | 0px | 1px solid rgba(28, 26, 22, 0.12) | 10px | rgb(255, 255, 255) | rgb(255, 255, 255) | none | rgba(0, 0, 0, 0.1) 0px 4px 15px 0px | 0 | Outfit, sans-serif | 14px | 300 | 24px | normal | center | none | none | row | normal | normal | normal | none
+.flatpickr-day | block | relative | auto | border-box | visible | 0px | 0px | 1px solid rgba(0, 0, 0, 0) | 6px | rgb(155, 147, 132) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, sans-serif | 14px | 400 | 39px | normal | center | none | none | row | center | normal | normal | none
+.fc | flex | static | auto | border-box | visible | 0px | 10px | 1px solid rgba(28, 26, 22, 0.12) | 10px | rgb(28, 26, 22) | rgb(247, 244, 238) | none | none | 1 | Outfit, sans-serif | 14px | 300 | 23.8px | normal | left | none | none | column | normal | normal | normal | none
+.fc-toolbar | flex | static | auto | border-box | visible | 0px 0px 21px | 0px | 0px none rgb(28, 26, 22) | 0px | rgb(28, 26, 22) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, sans-serif | 14px | 300 | 23.8px | normal | left | none | none | row | space-between | center | normal | none
+.fc-daygrid-day | table-cell | static | auto | border-box | visible | 0px | 0px | 0px none rgba(28, 26, 22, 0.12) | 0px | rgb(28, 26, 22) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, sans-serif | 13px | 300 | 22.1px | normal | left | none | none | row | normal | normal | normal | none
+.fc-event | block | relative | 6 | border-box | visible | 1px 2px 0px | 2px 4px |  | 6px | rgb(42, 39, 35) | rgb(192, 54, 44) | none | none | 1 | Outfit, sans-serif | 11.05px | 300 | 18.785px | normal | left | none | none | row | normal | normal | normal | none
+.fc-col-header-cell | table-cell | static | auto | border-box | visible | 0px | 10px 0px | 1px solid rgba(28, 26, 22, 0.12) | 0px | rgb(107, 100, 87) | rgb(241, 236, 225) | none | none | 1 | "JetBrains Mono", monospace | 10px | 500 | 17px | 1.2px | center | uppercase | none | row | normal | normal | normal | none
+.iti | block | relative | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.iti__flag-container | block | absolute | 10 | border-box | visible | 0px | 1px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.iti__selected-flag | flex | relative | 1 | border-box | visible | 0px | 0px 6px 0px 8px | 0px none rgb(255, 255, 255) | 2px 0px 0px 2px | rgb(255, 255, 255) | rgba(255, 255, 255, 0.05) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | center | normal | none
+.apexcharts-canvas | block | relative | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none
+.jvm-container | block | relative | auto | border-box | visible | 0px | 0px | 0px none rgb(255, 255, 255) | 0px | rgb(255, 255, 255) | rgba(0, 0, 0, 0) | none | none | 1 | Outfit, -apple-system, sans-serif | 14px | 300 | 23.8px | normal | start | none | none | row | normal | normal | normal | none

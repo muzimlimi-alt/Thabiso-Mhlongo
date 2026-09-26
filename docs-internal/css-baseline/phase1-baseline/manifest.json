@@ -1,0 +1,695 @@
+{
+  "label": "phase1-baseline",
+  "capturedAt": "2026-09-23T10:21:35.119Z",
+  "shots": 135,
+  "imagesKept": 25,
+  "keepAll": false,
+  "manifest": {
+    "public_index_375": {
+      "sha": "be3b4fd5a43d3161",
+      "bytes": 484875,
+      "img": true
+    },
+    "public_index_768": {
+      "sha": "7d1a56d1b883fdf0",
+      "bytes": 686094,
+      "img": true
+    },
+    "public_index_1440": {
+      "sha": "8d030881b443acdb",
+      "bytes": 1029584,
+      "img": true
+    },
+    "admin_dashboardAdmin_dark_375": {
+      "sha": "0c19b19828cb67a8",
+      "bytes": 172210,
+      "img": false
+    },
+    "admin_bookingsAdmin_dark_375": {
+      "sha": "9f450ac178c1d6fc",
+      "bytes": 74205,
+      "img": false
+    },
+    "admin_inquiriesAdmin_dark_375": {
+      "sha": "a26e667ce874bfad",
+      "bytes": 55430,
+      "img": false
+    },
+    "admin_financeAdmin_dark_375": {
+      "sha": "4b7e2bdb9caec364",
+      "bytes": 168371,
+      "img": false
+    },
+    "admin_eventsAdmin_dark_375": {
+      "sha": "f69580b9e4e3dab9",
+      "bytes": 81072,
+      "img": false
+    },
+    "admin_calendarAdmin_dark_375": {
+      "sha": "ea430da28ec34bca",
+      "bytes": 81344,
+      "img": false
+    },
+    "admin_newsletterAdmin_dark_375": {
+      "sha": "fc9ab2dabe9cb2c7",
+      "bytes": 75621,
+      "img": false
+    },
+    "admin_emailLogsAdmin_dark_375": {
+      "sha": "bfdb6fa0993f665e",
+      "bytes": 84970,
+      "img": false
+    },
+    "admin_usersAdmin_dark_375": {
+      "sha": "e3329de16b35d1df",
+      "bytes": 52743,
+      "img": false
+    },
+    "admin_securityAdmin_dark_375": {
+      "sha": "bcd233b56afcc15d",
+      "bytes": 42106,
+      "img": false
+    },
+    "admin_brandingAdmin_dark_375": {
+      "sha": "c6f9ce1000bbe184",
+      "bytes": 84363,
+      "img": false
+    },
+    "admin_preferencesAdmin_dark_375": {
+      "sha": "d9368026c75a83e2",
+      "bytes": 85283,
+      "img": false
+    },
+    "admin_policiesAdmin_dark_375": {
+      "sha": "e33c36ff9034b8af",
+      "bytes": 71728,
+      "img": false
+    },
+    "admin_servicesAdmin_dark_375": {
+      "sha": "61ea0d1fdc55ef13",
+      "bytes": 266164,
+      "img": false
+    },
+    "admin_galleryAdmin_dark_375": {
+      "sha": "30a45b2d6fc306ea",
+      "bytes": 314744,
+      "img": false
+    },
+    "admin_socialAdmin_dark_375": {
+      "sha": "c207b08d352a146f",
+      "bytes": 85403,
+      "img": false
+    },
+    "admin_testimonialsAdmin_dark_375": {
+      "sha": "d2b1dab80f0e20d5",
+      "bytes": 92997,
+      "img": false
+    },
+    "admin_footprintAdmin_dark_375": {
+      "sha": "051d0dd172ac9056",
+      "bytes": 45331,
+      "img": false
+    },
+    "admin_careerAdmin_dark_375": {
+      "sha": "ee5f9555544088a8",
+      "bytes": 138362,
+      "img": false
+    },
+    "admin_contactAdmin_dark_375": {
+      "sha": "49b0f9bb847a43e7",
+      "bytes": 78516,
+      "img": false
+    },
+    "admin_aboutAdmin_dark_375": {
+      "sha": "7a4d1f9e32689be5",
+      "bytes": 156276,
+      "img": false
+    },
+    "admin_homeAdmin_dark_375": {
+      "sha": "1d3f22a0412427c4",
+      "bytes": 98677,
+      "img": false
+    },
+    "admin_dashboardAdmin_dark_768": {
+      "sha": "2df012e85e92e06c",
+      "bytes": 218000,
+      "img": false
+    },
+    "admin_bookingsAdmin_dark_768": {
+      "sha": "428ee8e2ff182333",
+      "bytes": 120202,
+      "img": false
+    },
+    "admin_inquiriesAdmin_dark_768": {
+      "sha": "e852c14ab92e3844",
+      "bytes": 78840,
+      "img": false
+    },
+    "admin_financeAdmin_dark_768": {
+      "sha": "30d6e6d3546bba9b",
+      "bytes": 290618,
+      "img": false
+    },
+    "admin_eventsAdmin_dark_768": {
+      "sha": "18e06d974752708f",
+      "bytes": 87780,
+      "img": false
+    },
+    "admin_calendarAdmin_dark_768": {
+      "sha": "10335ec2807be187",
+      "bytes": 86689,
+      "img": false
+    },
+    "admin_newsletterAdmin_dark_768": {
+      "sha": "34696c6b9526d76b",
+      "bytes": 80519,
+      "img": false
+    },
+    "admin_emailLogsAdmin_dark_768": {
+      "sha": "cb4d945c53a752e9",
+      "bytes": 200911,
+      "img": false
+    },
+    "admin_usersAdmin_dark_768": {
+      "sha": "40f870767a5fc119",
+      "bytes": 57768,
+      "img": false
+    },
+    "admin_securityAdmin_dark_768": {
+      "sha": "1f72243a31f02c51",
+      "bytes": 46376,
+      "img": false
+    },
+    "admin_brandingAdmin_dark_768": {
+      "sha": "fc5531aca10d7f6b",
+      "bytes": 95876,
+      "img": false
+    },
+    "admin_preferencesAdmin_dark_768": {
+      "sha": "fdbd2438ac4949ca",
+      "bytes": 91968,
+      "img": false
+    },
+    "admin_policiesAdmin_dark_768": {
+      "sha": "dd92a68bc9c305ec",
+      "bytes": 69986,
+      "img": false
+    },
+    "admin_servicesAdmin_dark_768": {
+      "sha": "b842919dc38f9c79",
+      "bytes": 230200,
+      "img": false
+    },
+    "admin_galleryAdmin_dark_768": {
+      "sha": "2c4610ef8a390bce",
+      "bytes": 336148,
+      "img": false
+    },
+    "admin_socialAdmin_dark_768": {
+      "sha": "94774fb52a2e6405",
+      "bytes": 97310,
+      "img": false
+    },
+    "admin_testimonialsAdmin_dark_768": {
+      "sha": "74f9f4da612bbf25",
+      "bytes": 112301,
+      "img": false
+    },
+    "admin_footprintAdmin_dark_768": {
+      "sha": "eb787589b6f1fad9",
+      "bytes": 50465,
+      "img": false
+    },
+    "admin_careerAdmin_dark_768": {
+      "sha": "d8861263d46bd342",
+      "bytes": 157079,
+      "img": false
+    },
+    "admin_contactAdmin_dark_768": {
+      "sha": "481b936ec09ee45b",
+      "bytes": 84354,
+      "img": false
+    },
+    "admin_aboutAdmin_dark_768": {
+      "sha": "e7678caa687013bb",
+      "bytes": 388260,
+      "img": false
+    },
+    "admin_homeAdmin_dark_768": {
+      "sha": "935dfbc7c77a95ce",
+      "bytes": 103429,
+      "img": false
+    },
+    "admin_dashboardAdmin_dark_1440": {
+      "sha": "1e04dec7c11bb350",
+      "bytes": 248249,
+      "img": true
+    },
+    "admin_bookingsAdmin_dark_1440": {
+      "sha": "5df49fda468b0872",
+      "bytes": 163620,
+      "img": true
+    },
+    "admin_inquiriesAdmin_dark_1440": {
+      "sha": "0e8c0327bfce9dbc",
+      "bytes": 104176,
+      "img": true
+    },
+    "admin_financeAdmin_dark_1440": {
+      "sha": "9bd3d915ddd438e4",
+      "bytes": 343236,
+      "img": true
+    },
+    "admin_eventsAdmin_dark_1440": {
+      "sha": "e388e7472210ca4d",
+      "bytes": 110725,
+      "img": true
+    },
+    "admin_calendarAdmin_dark_1440": {
+      "sha": "9c96675f4e43aa16",
+      "bytes": 116107,
+      "img": true
+    },
+    "admin_newsletterAdmin_dark_1440": {
+      "sha": "f2917e5c101e87db",
+      "bytes": 108896,
+      "img": true
+    },
+    "admin_emailLogsAdmin_dark_1440": {
+      "sha": "7b731e7678f87b78",
+      "bytes": 209208,
+      "img": true
+    },
+    "admin_usersAdmin_dark_1440": {
+      "sha": "6f27a6399c0eb40c",
+      "bytes": 78886,
+      "img": true
+    },
+    "admin_securityAdmin_dark_1440": {
+      "sha": "ac19675feb826487",
+      "bytes": 67540,
+      "img": true
+    },
+    "admin_brandingAdmin_dark_1440": {
+      "sha": "88d7b1b00615b377",
+      "bytes": 114001,
+      "img": true
+    },
+    "admin_preferencesAdmin_dark_1440": {
+      "sha": "9de85e769c97a4c3",
+      "bytes": 111965,
+      "img": true
+    },
+    "admin_policiesAdmin_dark_1440": {
+      "sha": "83643c7b6c4361cc",
+      "bytes": 89129,
+      "img": true
+    },
+    "admin_servicesAdmin_dark_1440": {
+      "sha": "84280a000bb6b68b",
+      "bytes": 231587,
+      "img": true
+    },
+    "admin_galleryAdmin_dark_1440": {
+      "sha": "aef016ffa80f937f",
+      "bytes": 385023,
+      "img": true
+    },
+    "admin_socialAdmin_dark_1440": {
+      "sha": "d7543b54205124cf",
+      "bytes": 126944,
+      "img": true
+    },
+    "admin_testimonialsAdmin_dark_1440": {
+      "sha": "24293a9106e61e33",
+      "bytes": 135548,
+      "img": true
+    },
+    "admin_footprintAdmin_dark_1440": {
+      "sha": "013a2e20ada67dcc",
+      "bytes": 76357,
+      "img": true
+    },
+    "admin_careerAdmin_dark_1440": {
+      "sha": "9a3701788483d30b",
+      "bytes": 186497,
+      "img": true
+    },
+    "admin_contactAdmin_dark_1440": {
+      "sha": "1fcf733fb4fef4c9",
+      "bytes": 100823,
+      "img": true
+    },
+    "admin_aboutAdmin_dark_1440": {
+      "sha": "a0d074f4ff217b2a",
+      "bytes": 340565,
+      "img": true
+    },
+    "admin_homeAdmin_dark_1440": {
+      "sha": "68016bfc32fa5080",
+      "bytes": 129200,
+      "img": true
+    },
+    "admin_dashboardAdmin_light_375": {
+      "sha": "f94e4eade2b8d6ba",
+      "bytes": 158854,
+      "img": false
+    },
+    "admin_bookingsAdmin_light_375": {
+      "sha": "16ded3db37937c93",
+      "bytes": 80095,
+      "img": false
+    },
+    "admin_inquiriesAdmin_light_375": {
+      "sha": "40756a2ad13419f9",
+      "bytes": 60207,
+      "img": false
+    },
+    "admin_financeAdmin_light_375": {
+      "sha": "5b8fdf6ca3ead1cb",
+      "bytes": 187519,
+      "img": false
+    },
+    "admin_eventsAdmin_light_375": {
+      "sha": "5727ff52df1bef1d",
+      "bytes": 83870,
+      "img": false
+    },
+    "admin_calendarAdmin_light_375": {
+      "sha": "f8f8786b2b302500",
+      "bytes": 85377,
+      "img": false
+    },
+    "admin_newsletterAdmin_light_375": {
+      "sha": "ffb2970abbd57e01",
+      "bytes": 83106,
+      "img": false
+    },
+    "admin_emailLogsAdmin_light_375": {
+      "sha": "9d5d225ce8d3bbeb",
+      "bytes": 93996,
+      "img": false
+    },
+    "admin_usersAdmin_light_375": {
+      "sha": "fb2074de6fe41286",
+      "bytes": 56842,
+      "img": false
+    },
+    "admin_securityAdmin_light_375": {
+      "sha": "4fa67bdbbc63ee4b",
+      "bytes": 44180,
+      "img": false
+    },
+    "admin_brandingAdmin_light_375": {
+      "sha": "c9f157effa4711e9",
+      "bytes": 90555,
+      "img": false
+    },
+    "admin_preferencesAdmin_light_375": {
+      "sha": "caa34aba411ba5b6",
+      "bytes": 95720,
+      "img": false
+    },
+    "admin_policiesAdmin_light_375": {
+      "sha": "f01d971f79b15f79",
+      "bytes": 79046,
+      "img": false
+    },
+    "admin_servicesAdmin_light_375": {
+      "sha": "ac468a526c13887c",
+      "bytes": 285283,
+      "img": false
+    },
+    "admin_galleryAdmin_light_375": {
+      "sha": "7b1240b709e20c7a",
+      "bytes": 325966,
+      "img": false
+    },
+    "admin_socialAdmin_light_375": {
+      "sha": "5399b4256bfc81ab",
+      "bytes": 90058,
+      "img": false
+    },
+    "admin_testimonialsAdmin_light_375": {
+      "sha": "74751f2ced95a4f1",
+      "bytes": 96572,
+      "img": false
+    },
+    "admin_footprintAdmin_light_375": {
+      "sha": "cae2b0294b92af64",
+      "bytes": 47513,
+      "img": false
+    },
+    "admin_careerAdmin_light_375": {
+      "sha": "122e8fb63b34ac0c",
+      "bytes": 146580,
+      "img": false
+    },
+    "admin_contactAdmin_light_375": {
+      "sha": "ce09524efcc19911",
+      "bytes": 85684,
+      "img": false
+    },
+    "admin_aboutAdmin_light_375": {
+      "sha": "6f9f8fee78bca94b",
+      "bytes": 170098,
+      "img": false
+    },
+    "admin_homeAdmin_light_375": {
+      "sha": "aa9ee7d6226c650e",
+      "bytes": 105031,
+      "img": false
+    },
+    "admin_dashboardAdmin_light_768": {
+      "sha": "605de32403354780",
+      "bytes": 201183,
+      "img": false
+    },
+    "admin_bookingsAdmin_light_768": {
+      "sha": "401edfad8db1c8b9",
+      "bytes": 130477,
+      "img": false
+    },
+    "admin_inquiriesAdmin_light_768": {
+      "sha": "bd062607bb2ab749",
+      "bytes": 85405,
+      "img": false
+    },
+    "admin_financeAdmin_light_768": {
+      "sha": "9175c085f200845a",
+      "bytes": 309176,
+      "img": false
+    },
+    "admin_eventsAdmin_light_768": {
+      "sha": "c36235f0da67b4ef",
+      "bytes": 91662,
+      "img": false
+    },
+    "admin_calendarAdmin_light_768": {
+      "sha": "04c73f413e37103a",
+      "bytes": 89995,
+      "img": false
+    },
+    "admin_newsletterAdmin_light_768": {
+      "sha": "5f13ff6387383628",
+      "bytes": 88117,
+      "img": false
+    },
+    "admin_emailLogsAdmin_light_768": {
+      "sha": "91a9939c11d2f7b1",
+      "bytes": 222508,
+      "img": false
+    },
+    "admin_usersAdmin_light_768": {
+      "sha": "bdde3574ab512471",
+      "bytes": 62220,
+      "img": false
+    },
+    "admin_securityAdmin_light_768": {
+      "sha": "f029ee1ee41921d1",
+      "bytes": 48979,
+      "img": false
+    },
+    "admin_brandingAdmin_light_768": {
+      "sha": "ece8f35719f20757",
+      "bytes": 103620,
+      "img": false
+    },
+    "admin_preferencesAdmin_light_768": {
+      "sha": "f1229592e0b50899",
+      "bytes": 102418,
+      "img": false
+    },
+    "admin_policiesAdmin_light_768": {
+      "sha": "3ed5331810e52293",
+      "bytes": 78279,
+      "img": false
+    },
+    "admin_servicesAdmin_light_768": {
+      "sha": "aa37a01648a5e56b",
+      "bytes": 254054,
+      "img": false
+    },
+    "admin_galleryAdmin_light_768": {
+      "sha": "6d02197c48320b0b",
+      "bytes": 349041,
+      "img": false
+    },
+    "admin_socialAdmin_light_768": {
+      "sha": "15159d0b115a42a4",
+      "bytes": 102103,
+      "img": false
+    },
+    "admin_testimonialsAdmin_light_768": {
+      "sha": "fe428786d2963306",
+      "bytes": 119897,
+      "img": false
+    },
+    "admin_footprintAdmin_light_768": {
+      "sha": "8f21297505da9d0b",
+      "bytes": 52939,
+      "img": false
+    },
+    "admin_careerAdmin_light_768": {
+      "sha": "e00020950d6c0678",
+      "bytes": 171718,
+      "img": false
+    },
+    "admin_contactAdmin_light_768": {
+      "sha": "6b433f14a56a6a86",
+      "bytes": 91355,
+      "img": false
+    },
+    "admin_aboutAdmin_light_768": {
+      "sha": "8b649a71e953c844",
+      "bytes": 400645,
+      "img": false
+    },
+    "admin_homeAdmin_light_768": {
+      "sha": "4284d884b0fcdf69",
+      "bytes": 111504,
+      "img": false
+    },
+    "admin_dashboardAdmin_light_1440": {
+      "sha": "642c72d6ee9c3b99",
+      "bytes": 233335,
+      "img": false
+    },
+    "admin_bookingsAdmin_light_1440": {
+      "sha": "68c8133489ac4d24",
+      "bytes": 177767,
+      "img": false
+    },
+    "admin_inquiriesAdmin_light_1440": {
+      "sha": "c4e224fd008abea1",
+      "bytes": 113252,
+      "img": false
+    },
+    "admin_financeAdmin_light_1440": {
+      "sha": "253381bec52d2f2e",
+      "bytes": 362988,
+      "img": false
+    },
+    "admin_eventsAdmin_light_1440": {
+      "sha": "d70715c3688865d3",
+      "bytes": 117200,
+      "img": false
+    },
+    "admin_calendarAdmin_light_1440": {
+      "sha": "3c3813a784a5d1fe",
+      "bytes": 120552,
+      "img": false
+    },
+    "admin_newsletterAdmin_light_1440": {
+      "sha": "448db8ed2668037e",
+      "bytes": 118271,
+      "img": false
+    },
+    "admin_emailLogsAdmin_light_1440": {
+      "sha": "bc5d1ddb7183e960",
+      "bytes": 237811,
+      "img": false
+    },
+    "admin_usersAdmin_light_1440": {
+      "sha": "415a8b7ef259d257",
+      "bytes": 85036,
+      "img": false
+    },
+    "admin_securityAdmin_light_1440": {
+      "sha": "ede687006975c9de",
+      "bytes": 71703,
+      "img": false
+    },
+    "admin_brandingAdmin_light_1440": {
+      "sha": "651f2f7c440eb216",
+      "bytes": 122425,
+      "img": false
+    },
+    "admin_preferencesAdmin_light_1440": {
+      "sha": "5969da72689216ea",
+      "bytes": 123428,
+      "img": false
+    },
+    "admin_policiesAdmin_light_1440": {
+      "sha": "f596114f4af476c6",
+      "bytes": 99319,
+      "img": false
+    },
+    "admin_servicesAdmin_light_1440": {
+      "sha": "683697b9708e6d85",
+      "bytes": 255001,
+      "img": false
+    },
+    "admin_galleryAdmin_light_1440": {
+      "sha": "4e2e5384b8a12a98",
+      "bytes": 399153,
+      "img": false
+    },
+    "admin_socialAdmin_light_1440": {
+      "sha": "216ce039e96dc4eb",
+      "bytes": 133160,
+      "img": false
+    },
+    "admin_testimonialsAdmin_light_1440": {
+      "sha": "4366d455a1bf5add",
+      "bytes": 143795,
+      "img": false
+    },
+    "admin_footprintAdmin_light_1440": {
+      "sha": "a175f4b2cc1f89a7",
+      "bytes": 79873,
+      "img": false
+    },
+    "admin_careerAdmin_light_1440": {
+      "sha": "b3dfbfe2f4505f55",
+      "bytes": 202483,
+      "img": false
+    },
+    "admin_contactAdmin_light_1440": {
+      "sha": "162d9a1e1a615fc0",
+      "bytes": 111250,
+      "img": false
+    },
+    "admin_aboutAdmin_light_1440": {
+      "sha": "75738140571e9f7b",
+      "bytes": 353611,
+      "img": false
+    },
+    "admin_homeAdmin_light_1440": {
+      "sha": "068fd6c0509d766b",
+      "bytes": 139788,
+      "img": false
+    }
+  },
+  "notes": [
+    "404 http://localhost:3000/images/480681105_1563104084637146_1105632398058673475_n.jpg",
+    "401 http://localhost:3000/api/admin/bookings",
+    "401 http://localhost:3000/api/admin/about-me",
+    "pageerror: Cannot read properties of undefined (reading 'showError')",
+    "pageerror: Cannot read properties of undefined (reading 'showError')",
+    "401 http://localhost:3000/api/admin/session",
+    "401 http://localhost:3000/api/admin/session",
+    "401 http://localhost:3000/api/admin/session",
+    "401 http://localhost:3000/api/admin/settings"
+  ]
+}

@@ -1,0 +1,223 @@
+/* =====================================================================
+   ATELIER OBSIDIAN — DESIGN TOKENS
+   Single source for --atl-*. Moved verbatim out of admin.html (was lines
+   723-801) by the CSS architecture refactor — see docs-internal/css-audit.md.
+
+   SCOPE — admin only, for now.
+   index.html does NOT load this file. Public CSS (style.css, redesign.css,
+   notifications.css) contains ~76 var(--atl-*) references that currently
+   resolve to nothing there, so public toasts render with no background.
+   That is a real defect, documented as finding F1. Defining these tokens on
+   the public page would fix it — and would therefore be a visual change,
+   which this refactor is not allowed to make. Gate G1 was signed off as
+   "stage it, admin-first": the public adoption is a separate, approved
+   change. Do not add this file to index.html without that sign-off.
+
+   RULES
+   - Every design value lives here. No hardcoded hex in project CSS where a
+     token exists.
+   - Token names are frozen: JS reads them directly (744 var(--atl-*)
+     references across js/) and 609 inline style="" attributes in admin.html
+     use --atl-ink / --atl-amber.
+   - To add a token: prove the value repeats in the audit, name it in the
+     existing --atl-* pattern, define it in BOTH this file and themes.css,
+     and log it in docs-internal/css-refactor-log.md.
+
+   CASCADE — themes.css MUST load immediately after this file.
+   The light overrides use [data-theme="light"] (specificity 0,1,0), which
+   ties with :root here. Source order is what breaks the tie. The third
+   selector below, :root:not([data-theme="light"]), is deliberately more
+   specific (0,2,0) so the dark values still win over a bare :root in light
+   mode without fighting the light block.
+
+   BREAKPOINTS — cannot be custom properties (unusable inside @media), so
+   they are recorded here as the reference values. The codebase currently
+   uses ~30 distinct widths, including near-duplicate pairs (479/480,
+   575/576, 599/600, 639/640, 767/768/769). Consolidating them is Phase 6/7
+   work, not a token change.
+       375 · 480 · 576 · 768 · 992 · 1024 · 1280
+
+   NOT ADDED YET — deliberately.
+   §7 also asks for a z-index scale. The stacking currently spans 31 ad-hoc
+   values (0 → 100000). Defining the scale here without applying it would
+   add tokens nothing reads, so it lands in the phase that actually applies
+   it. Same for the four tokens js/ references but nothing defines
+   (--atl-bg, --atl-border, --atl-mono, --atl-font-display): they survive on
+   fallbacks today, and defining them would bake a dark value into the light
+   theme. Both are open items in the refactor log.
+   ===================================================================== */
+
+/* The :not() chain excludes every NON-default Finish by name, so each one is
+   unambiguous. It originally read :root:not([data-theme="light"]), which is
+   (0,2,0) — high enough to beat a bare [data-theme="ember"] at (0,1,0), so
+   adding a third Finish without touching this would have made ember render as
+   obsidian with no error. Any future Finish must be added here as well as in
+   core/appearance.css. With no data-theme attribute at all, every arm still
+   matches and dark remains the default. */
+:root,
+[data-theme="dark"],
+:root:not([data-theme="light"]):not([data-theme="ember"]) {
+    color-scheme: dark;
+
+    /* ── Surfaces ── */
+    --atl-paper:      #0a0a0a;
+    --atl-card:       #1a1a1a;
+    --atl-surface2:   #242424;
+    --atl-surface3:   #2e2e2e;   /* tertiary elevation — e.g. nested items */
+    --atl-input-bg:   #0f0f0f;
+    --atl-sidebar-bg: #111111;   /* sidebar is slightly lighter than pure black */
+    --atl-topbar-bg:  #0a0a0a;   /* TOCA: .top uses --bg-page — was #141414 */
+
+    /* ── Text ── */
+    --atl-ink:         #ffffff;
+    --atl-ink-dim:     #b0b0b0;   /* TOCA: --text-secondary — was #e0ddd6 */
+    --atl-muted:       #8f8f8f;   /* TOCA: --text-muted — was #949494 */
+    --atl-muted-dim:   #666666;  /* very secondary text, footer labels */
+    --atl-placeholder: #555555;
+
+    /* ── Borders ── */
+    --atl-line:        rgba(255,255,255,0.08);   /* TOCA: --border-low — was rgba(255,255,255,0.10) */
+    --atl-line-strong: rgba(255,255,255,0.15);   /* TOCA: --border-default — was rgba(255,255,255,0.18) */
+    --atl-line-bold:   rgba(255,255,255,0.34);   /* TOCA: --border-strong */
+
+    /* ── Brand — Gold ── */
+    --atl-amber:       #D4AF37;
+    --atl-amber-hover: #E8C14B;
+    --atl-amber-light: #F4E4B5;
+    --atl-amber-dark:  #9A7B2C;   /* TOCA: --y-dark — brand-mark/avatar borders, nav-sub hover rule */
+    --atl-amber-dim:   rgba(212,175,55,0.15);   /* TOCA: --y-muted — was rgba(212,175,55,0.12) */
+    --atl-amber-border:rgba(212,175,55,0.30);
+    --atl-on-amber:    #0a0a0a;
+
+    /* ── Semantic ── */
+    --atl-sage:        #4ade80;
+    --atl-clay:        #f87171;
+    --atl-blue:        #60a5fa;
+    --atl-green:       #34d399;
+    --atl-orange:      #fb923c;
+    --atl-purple:      #c084fc;
+
+    /* ── Focus ── */
+    --atl-focus:       #D4AF37;   /* TOCA: --focus-ring = --y-base — was #E8C14B */
+    /* Form-field focus ring alpha, repeated as a hardcoded rgba(212,175,55,0.22) literal at
+       12 call sites across admin/*.css. Built from --atl-amber-rgb (not a fixed hex) so it
+       resolves correctly per theme via the same-element var() rule documented in
+       docs-internal/oluhle-admin-reference.md §2 — declaring it once here is enough, it does
+       not need restating in themes.css. Consolidated during the admin standardisation pass. */
+    --atl-focus-ring:  rgba(var(--atl-amber-rgb), 0.22);
+
+    /* ── Shadows ── */
+    --atl-shadow-sm:    0 1px 3px rgba(0,0,0,0.40);   /* TOCA: --sh-sm — was 0 2px 8px rgba(0,0,0,0.35) */
+    --atl-shadow-card:  0 4px 20px rgba(0,0,0,0.45);   /* TOCA: --sh-md — was 0 8px 32px rgba(0,0,0,0.45) */
+    --atl-shadow-modal: 0 24px 70px rgba(0,0,0,0.65);   /* TOCA: --sh-xl — was 0 24px 80px rgba(0,0,0,0.70), 0 0 0 1px rgba(212,175,55,0.15) */
+    --atl-shadow-top:   none;   /* TOCA: .top has a border, no shadow — was 0 2px 12px rgba(0,0,0,0.55) */
+
+    /* ── Overlays ── */
+    --atl-overlay:      rgba(0,0,0,0.72);
+    --atl-scrim:        rgba(0,0,0,0.55);  /* dark translucent scrim for labels over images — intentionally theme-independent */
+    --atl-selection-bg: rgba(212,175,55,0.28);
+    --atl-grain-opacity: 0.04;
+
+    /* ── Radius ── */
+    --atl-r-sm:  2px;   /* TOCA: --r — was 6px */
+    --atl-r-md:  4px;   /* TOCA: --r-md — was 10px */
+    --atl-r-lg:  8px;   /* TOCA: --r-lg — was 14px */
+    --atl-r-xl:  8px;   /* TOCA: no TOCA equivalent — capped at --r-lg — was 18px */
+    --atl-r-pill:999px;
+
+    /* ── Required field marker ── */
+    --atl-required: var(--atl-amber);
+
+    /* ── Transitions ── */
+    --atl-t-fast:   0.18s cubic-bezier(.25,.46,.45,.94);   /* TOCA: --t-fast + --ease — was 0.15s ease */
+    --atl-t-base:   0.35s cubic-bezier(.16,1,.3,1);   /* TOCA: --t + --ease-out — was 0.2s ease */
+    --atl-t-slow:   0.35s cubic-bezier(.16,1,.3,1);   /* TOCA: --t + --ease-out — was 0.35s ease */
+
+    /* ── Spacing scale ── */
+    --atl-sp-xs:  4px;
+    --atl-sp-sm:  8px;
+    --atl-sp-md:  16px;
+    --atl-sp-lg:  24px;
+    --atl-sp-xl:  32px;
+    --atl-sp-2xl: 48px;
+
+    /* ═══════════════════════════════════════════════════════════════════
+       ADMIN CONSOLIDATION — added from the O'luhle Scents reference.
+       See docs-internal/oluhle-admin-reference.md for the full comparison.
+       Everything below is ADDITIVE: no existing token changed value.
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /* ── Colour channels ──────────────────────────────────────────────
+       Bare "r, g, b" triples so any rule can mix its own alpha with
+       rgba(var(--atl-amber-rgb), .12) instead of hardcoding a parallel
+       translucent literal for every opacity. The codebase currently
+       repeats rgba(212,175,55,…) at ~30 different alphas.
+       These MUST be kept in sync with the hex tokens above, and are
+       re-stated per theme in themes.css. */
+    --atl-amber-rgb:  212, 175, 55;
+    --atl-sage-rgb:    74, 222, 128;
+    --atl-clay-rgb:   248, 113, 113;
+    --atl-blue-rgb:    96, 165, 250;
+    --atl-orange-rgb: 251, 146,  60;
+    --atl-ink-rgb:    255, 255, 255;
+
+    /* ── Layout dimensions ────────────────────────────────────────────
+       Previously hardcoded, or held in --sidebar-width-* over in
+       css/admin/redesign-admin.css (outside the token namespace).
+       Values below are the CURRENT measured ones — not the reference's. */
+    --atl-nav-w:       270px;   /* TOCA: --nav-w — was 260px */
+    --atl-nav-w-rail:   76px;   /* TOCA: --nav-w-rail — was 72px */
+    --atl-top-h:        68px;   /* admin header height */
+    --atl-tap:          44px;   /* WCAG 2.5.5 minimum touch target — NEW capability;
+                                   the admin has no minimum-target rule today */
+
+    /* ── Z-index scale ────────────────────────────────────────────────
+       The stacking order that ACTUALLY exists today, named. Values are
+       recorded as-found so that wiring a literal to its token is a no-op.
+       Neither this project nor the O'luhle reference had a scale; the
+       reference hardcodes z-index: 1000 in its Drawer and Modal.
+
+       KNOWN CONFLICTS in the current stacking — these are why the scale is
+       documented before anything is rewired, and each needs a decision:
+         .tm-admin-sidebar   declared at 200, 1040 AND 10000 in three files
+         .adm-header         declared at 300 and 1040
+         .adm-search__results declared at 2000 and 5000
+         .atl-modal-overlay (9000) sits BELOW #admProfileMenu (20000) and
+           .atl-actions-dropdown-panel (99999) — a profile or actions menu
+           will render OVER an open modal.
+       Fixing those changes rendering, so it is a separate, reviewed change. */
+    --atl-z-base:              1;
+    --atl-z-sticky:          300;   /* .adm-header, in-flow context */
+    --atl-z-sidebar:        1040;
+    --atl-z-drawer-backdrop:1040;
+    --atl-z-drawer:         1050;   /* .atl-drawer / .svc-drawer / .qb-drawer */
+    --atl-z-dropdown:       2000;   /* .adm-dropdown__menu */
+    --atl-z-search:         5000;   /* .adm-search__results */
+    --atl-z-modal:          9000;   /* .atl-modal-overlay */
+    --atl-z-scrim:          9999;   /* #tmSidebarOverlay */
+    --atl-z-toast:         10000;   /* matches --noti-z in components/notifications.css */
+    --atl-z-profile-menu:  20000;
+    --atl-z-action-menu:   99999;
+    --atl-z-login:        100000;
+
+    /* ── Typography role ──────────────────────────────────────────────
+       The small wide-tracked uppercase label used as a section eyebrow
+       throughout both projects, promoted from ad hoc values to tokens. */
+    --atl-eyebrow-size:     0.7rem;
+    --atl-eyebrow-tracking: 0.3em;
+
+    /* ── NOT imported from the reference, deliberately ────────────────
+       --success-text / --warning-text / --error-text / --info-text:
+       the reference needs a second set of status colours because its raw
+       semantic tokens fail AA as text. This project already solves that a
+       different and tighter way — --atl-sage/clay/blue/green/orange are
+       re-tuned per theme in themes.css (#4ade80 dark → #1f9254 light), so
+       one name stays correct on both surfaces. Adding a parallel -text set
+       would be redundant.
+
+       --color-* alias layer: the reference keeps ~35 legacy aliases for
+       backwards compatibility. Importing them would give this project a
+       FOURTH parallel token system. Not brought across.
+
+       #b89b6a "TOCA Gold": a different brand's accent. Not brought across. */
+}

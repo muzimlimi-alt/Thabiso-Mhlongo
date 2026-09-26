@@ -1,0 +1,15 @@
+/* =====================================================================
+   ADMIN — MISC · fin tile
+   Extracted verbatim from admin.html (inline <style> block 8 of 20,
+   was lines 2903-2907). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: none
+   ===================================================================== */
+
+
+/* .fin-tile / .fin-tile-* rules consolidated below under "Finance Stat Tiles" (D11 dedupe) */

@@ -1,0 +1,352 @@
+/* =====================================================================
+   ATELIER OBSIDIAN — APPEARANCE SYSTEM
+   Three independent axes, each an attribute on <html>, freely combinable.
+   Modelled on the TOCA/O'luhle admin's Appearance system — see
+   docs-internal/oluhle-admin-reference.md.
+
+       data-theme     Finish    obsidian (default) · ivory · ember
+       data-accent    Accent    gold (default) · vetiver · cassis · cuivre
+       data-presence  Presence  editorial (default) · boutique · operations
+
+   ADMIN ONLY. index.html does not load core/tokens.css (finding F1, gate G1),
+   so it cannot resolve --atl-* at all. Do not wire this into any public page.
+
+   ─── LOAD ORDER — this file must come LAST of the admin stylesheets ───
+   Two different jobs need two different things:
+     · The Finish and Accent axes are pure token overrides. They only need to
+       beat core/tokens.css and core/themes.css, and they do it on specificity
+       (see below), so their position is not critical.
+     · The Presence axis is the one axis that touches component selectors. Its
+       targets already carry !important — body.admin-body .atl-section-heading
+       exists specifically to beat css/style.css's
+       `body.admin-body h2 { font-family: var(--theme-font) !important }`.
+       Beating !important with !important comes down to specificity first and
+       source order second, so Presence rules below use a HIGHER specificity
+       than their targets AND this file loads last. Belt and braces: either
+       alone would do, but a future reorder shouldn't silently break density.
+
+   ─── WHY ATTRIBUTES GO ON <html>, NEVER <body> ───
+   A custom property's var() resolves against the cascade of the element where
+   the ALIAS is declared; the resolved literal then inherits as a plain value,
+   with no live re-evaluation per descendant. core/tokens.css declares its
+   aliases on :root, so an axis attribute on a descendant would leave every
+   alias frozen on the default. The reference shipped exactly this bug — the
+   symptom was a focus ring stuck gold under every accent.
+
+   ─── SPECIFICITY NOTE (the ember trap) ───
+   core/tokens.css expresses "dark" as
+       :root, [data-theme="dark"], :root:not([data-theme="light"])
+   That third arm is (0,2,0). A bare [data-theme="ember"] is (0,1,0) and would
+   LOSE to it — ember would silently render as obsidian. Two things prevent
+   that: tokens.css's :not() chain now also excludes ember, and the ember block
+   below is written :root[data-theme="ember"] (0,2,0). Ember still inherits the
+   dark values it does not override, which is intended — it only re-points
+   surfaces, text and borders.
+   ===================================================================== */
+
+
+/* ═══════════════════════════════ FINISH ═══════════════════════════════ */
+
+/* Every value below is TOCA/O'luhle's shipped value (its admin `.finish-*` /
+   `.accent-*` classes), translated onto the frozen --atl-* names:
+       --bg-page → paper · --bg-section → sidebar-bg · --bg-surface → card
+       --bg-elevated → surface2 · --text-primary/secondary/muted → ink/ink-dim/muted
+       --border-low/default/strong → line/line-strong/line-bold
+       --y-base/hover/light/dark/muted/glow → amber/-hover/-light/-dark/-dim/-border
+   Obsidian lives in core/tokens.css and Ivory in core/themes.css — both now carry
+   TOCA's values too, so no rule is needed here for either. */
+
+/* Ember — warm near-black, candlelit. Inherits everything else from dark. */
+:root[data-theme="ember"] {
+    color-scheme: dark;
+
+    --atl-paper:       #110c08;
+    --atl-card:        #221a11;
+    --atl-surface2:    #2e2318;
+    --atl-surface3:    #3a2d1f;   /* no TOCA equivalent — one step above surface2 */
+    --atl-sidebar-bg:  #191209;
+    --atl-topbar-bg:   #110c08;   /* TOCA's .top sits on --bg-page */
+    --atl-input-bg:    #160f0a;   /* no TOCA equivalent — one step below paper */
+
+    --atl-ink:         #fdf8f1;
+    --atl-ink-dim:     #c2b3a1;
+    --atl-muted:       #9a8b78;
+    --atl-muted-dim:   #7a6d5d;   /* no TOCA equivalent */
+    --atl-placeholder: #6b5f51;   /* no TOCA equivalent */
+    --atl-on-amber:    #110c08;   /* --text-inverse */
+
+    --atl-line:        rgba(253,248,241,0.08);
+    --atl-line-strong: rgba(253,248,241,0.15);
+    --atl-line-bold:   rgba(253,248,241,0.34);
+
+    --atl-ink-rgb:     253, 248, 241;
+}
+
+
+/* ═══════════════════════════════ ACCENT ═══════════════════════════════ */
+
+/* GOLD emits no rule — tokens.css (dark/ember) and themes.css (Ivory) already hold
+   TOCA's gold ramp, so the default accent needs nothing here.
+
+   Each accent overrides the full ramp. TOCA's focus ring is the accent BASE colour
+   (--focus-ring: var(--y-base)), so --atl-focus follows the base, not the hover. */
+
+/* ── Bright variants — Obsidian and Ember ── */
+:root[data-accent="vetiver"]:not([data-theme="light"]) {
+    --atl-amber:        #8CC084;
+    --atl-amber-hover:  #A3D49B;
+    --atl-amber-light:  #D9EDD4;
+    --atl-amber-dark:   #4E7A48;
+    --atl-amber-dim:    rgba(140,192,132,0.15);
+    --atl-amber-border: rgba(140,192,132,0.30);
+    --atl-amber-rgb:    140, 192, 132;
+    --atl-focus:        #8CC084;
+}
+
+:root[data-accent="cassis"]:not([data-theme="light"]) {
+    --atl-amber:        #DB8FA6;
+    --atl-amber-hover:  #EBA6BB;
+    --atl-amber-light:  #F6D9E2;
+    --atl-amber-dark:   #8E5468;
+    --atl-amber-dim:    rgba(219,143,166,0.15);
+    --atl-amber-border: rgba(219,143,166,0.30);
+    --atl-amber-rgb:    219, 143, 166;
+    --atl-focus:        #DB8FA6;
+}
+
+:root[data-accent="cuivre"]:not([data-theme="light"]) {
+    --atl-amber:        #E0A07A;
+    --atl-amber-hover:  #F0B692;
+    --atl-amber-light:  #F8DFCE;
+    --atl-amber-dark:   #99603F;
+    --atl-amber-dim:    rgba(224,160,122,0.15);
+    --atl-amber-border: rgba(224,160,122,0.30);
+    --atl-amber-rgb:    224, 160, 122;
+    --atl-focus:        #E0A07A;
+}
+
+/* ── Deep variants — Ivory ONLY (bright accents fail contrast on paper) ──
+   On Ivory TOCA inverts the ramp: --y-light is a DARK shade (text on tinted fills)
+   and --y-dark is a LIGHT one (borders). Copied as shipped. */
+:root[data-accent="vetiver"][data-theme="light"] {
+    --atl-amber:        #2F6B3A;
+    --atl-amber-hover:  #245430;
+    --atl-amber-light:  #16321D;
+    --atl-amber-dark:   #7FA886;
+    --atl-amber-dim:    rgba(47,107,58,0.13);
+    --atl-amber-border: rgba(47,107,58,0.26);
+    --atl-amber-rgb:    47, 107, 58;
+    --atl-focus:        #2F6B3A;
+}
+
+:root[data-accent="cassis"][data-theme="light"] {
+    --atl-amber:        #8E2F4E;
+    --atl-amber-hover:  #74253F;
+    --atl-amber-light:  #3D1424;
+    --atl-amber-dark:   #C98AA0;
+    --atl-amber-dim:    rgba(142,47,78,0.13);
+    --atl-amber-border: rgba(142,47,78,0.26);
+    --atl-amber-rgb:    142, 47, 78;
+    --atl-focus:        #8E2F4E;
+}
+
+:root[data-accent="cuivre"][data-theme="light"] {
+    --atl-amber:        #9A4F1E;
+    --atl-amber-hover:  #7E4018;
+    --atl-amber-light:  #45210C;
+    --atl-amber-dark:   #C99070;
+    --atl-amber-dim:    rgba(154,79,30,0.13);
+    --atl-amber-border: rgba(154,79,30,0.26);
+    --atl-amber-rgb:    154, 79, 30;
+    --atl-focus:        #9A4F1E;
+}
+
+/* ══════════════════════════════ PRESENCE ══════════════════════════════ */
+
+/* EDITORIAL is the house default and emits no rule — nothing changes.
+
+   The other two are the only axis that touches component selectors rather
+   than pure tokens. Every class below was taken from the SHIPPED markup, not
+   from a spec: .atl-section-heading (25 section <h2>s), .db-stat-value /
+   .db-stat-label (dashboard KPI figures), .fin-tile-value (finance tiles),
+   .atl-bk-table / .lc-table / .users-table (the three data tables that carry
+   their own cell padding). Date grids (.mini-calendar-table) and inline
+   detail tables (.atl-det-table) are deliberately excluded — they are not
+   reading surfaces and re-padding them breaks their alignment. */
+
+/* ── Boutique — gallery air ── */
+:root[data-presence="boutique"] {
+    --atl-sp-lg:  28px;
+    --atl-sp-xl:  40px;
+    --atl-sp-2xl: 64px;
+}
+:root[data-presence="boutique"] body.admin-body .atl-section-heading {
+    font-size: 3.1rem !important;
+    font-weight: 300 !important;
+}
+:root[data-presence="boutique"] body.admin-body .db-stat-value,
+:root[data-presence="boutique"] body.admin-body .fin-tile-value {
+    font-size: 3.1rem !important;
+    font-weight: 300 !important;
+}
+:root[data-presence="boutique"] body.admin-body .db-stat-label,
+:root[data-presence="boutique"] body.admin-body .fin-tile-label {
+    letter-spacing: 0.28em !important;
+}
+:root[data-presence="boutique"] body.admin-body .atl-bk-table td,
+:root[data-presence="boutique"] body.admin-body .lc-table td,
+:root[data-presence="boutique"] body.admin-body .lc-table th,
+:root[data-presence="boutique"] body.admin-body .users-table td,
+:root[data-presence="boutique"] body.admin-body .users-table th {
+    padding: 18px !important;
+}
+
+/* ── Operations — dense working tool ──
+   Headings drop to the body sans and KPI figures switch to the mono family,
+   both via the existing font tokens rather than new literals. */
+:root[data-presence="operations"] {
+    --atl-sp-lg:  16px;
+    --atl-sp-xl:  20px;
+    --atl-sp-2xl: 28px;
+}
+:root[data-presence="operations"] body.admin-body .atl-section-heading {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 1.6rem !important;
+    font-weight: 400 !important;
+}
+:root[data-presence="operations"] body.admin-body .db-stat-value,
+:root[data-presence="operations"] body.admin-body .fin-tile-value {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 1.55rem !important;
+}
+:root[data-presence="operations"] body.admin-body .atl-bk-table td,
+:root[data-presence="operations"] body.admin-body .lc-table td,
+:root[data-presence="operations"] body.admin-body .lc-table th,
+:root[data-presence="operations"] body.admin-body .users-table td,
+:root[data-presence="operations"] body.admin-body .users-table th {
+    padding: 9px !important;
+}
+
+
+/* ═════════════════════ APPEARANCE PANEL (the UI) ═════════════════════ */
+
+.atl-appearance { display: flex; flex-direction: column; gap: var(--atl-sp-lg); }
+
+.atl-appearance__group { border: 0; margin: 0; padding: 0; min-width: 0; }
+
+.atl-appearance__legend {
+    font-family: 'Outfit', sans-serif;
+    font-size: var(--atl-eyebrow-size);
+    letter-spacing: var(--atl-eyebrow-tracking);
+    text-transform: uppercase;
+    color: var(--atl-muted);
+    margin-bottom: var(--atl-sp-sm);
+    padding: 0;
+    border: 0;
+    width: auto;
+}
+
+.atl-appearance__options { display: flex; flex-wrap: wrap; gap: var(--atl-sp-sm); }
+
+/* Visually hidden but focusable — a real radio drives each option, so keyboard
+   and screen-reader behaviour comes from the platform rather than being
+   re-implemented with div+role. */
+.atl-appearance__input {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.atl-appearance__option {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--atl-sp-sm);
+    min-height: var(--atl-tap);
+    padding: 8px 14px;
+    border: 1px solid var(--atl-line);
+    border-radius: var(--atl-r-md);
+    background: var(--atl-card);
+    color: var(--atl-ink-dim);
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color var(--atl-t-fast), background var(--atl-t-fast), color var(--atl-t-fast);
+}
+.atl-appearance__option:hover { border-color: var(--atl-line-strong); }
+
+/* Selection is indicated by border WEIGHT and an explicit checkmark, not by
+   colour alone — colour-only selection fails WCAG 1.4.1. */
+.atl-appearance__input:checked + .atl-appearance__option {
+    border-color: var(--atl-amber);
+    border-width: 2px;
+    padding: 7px 13px;               /* compensate the extra border, so nothing shifts */
+    background: var(--atl-amber-dim);
+    color: var(--atl-ink);
+}
+.atl-appearance__input:focus-visible + .atl-appearance__option {
+    outline: 2px solid var(--atl-focus);
+    outline-offset: 2px;
+}
+
+.atl-appearance__check { opacity: 0; font-size: 11px; color: var(--atl-amber); }
+.atl-appearance__input:checked + .atl-appearance__option .atl-appearance__check { opacity: 1; }
+
+/* Accent swatch. The inline background is written by js/appearance.js so the
+   dot always previews the variant you will ACTUALLY get — the deep variant
+   while Ivory is active, the bright one otherwise. */
+.atl-appearance__swatch {
+    width: 14px; height: 14px;
+    border-radius: var(--atl-r-pill);
+    border: 1px solid var(--atl-line-strong);
+    flex: none;
+}
+
+.atl-appearance__reset {
+    align-self: flex-start;
+    min-height: var(--atl-tap);
+    padding: 8px 16px;
+    border: 1px solid var(--atl-line);
+    border-radius: var(--atl-r-md);
+    background: transparent;
+    color: var(--atl-muted);
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color var(--atl-t-fast), color var(--atl-t-fast);
+}
+.atl-appearance__reset:hover { border-color: var(--atl-amber); color: var(--atl-amber); }
+
+@media (max-width: 480px) {
+    .atl-appearance__options { flex-direction: column; }
+    .atl-appearance__option { width: 100%; }
+}
+
+/* Honour the OS reduced-motion preference for the transitions introduced
+   above; the rest of the admin is an open item. */
+@media (prefers-reduced-motion: reduce) {
+    .atl-appearance__option { transition: none; }
+}
+
+
+/* ═════════════════ ACCENT-COMPLIANCE PATCHES ═════════════════
+   Reported: "the glow around the [icon badges] is still orange/gold" after
+   switching House Accent away from Gold. Confirmed — css/admin/redesign-
+   admin.css:1127 hardcodes .um-icon-header__icon's background/border/colour
+   as literal rgba(212,175,55,…) / #D4AF37, never reading --atl-amber. That
+   file is kept byte-identical to the original single redesign.css (see its
+   own header) so the fix lives here instead, in the file whose entire job is
+   making the admin actually respond to the Accent axis, loaded after it.
+
+   .um-icon-header__icon is the small rounded square in front of every
+   settings-card heading (Appearance, PayFast, SMTP, Notifications, and the
+   Branding cards) — 44 occurrences on admin.html, the single most visible
+   accent-coloured element on the page this bug was reported from. */
+.um-icon-header__icon {
+    background: var(--atl-amber-dim);
+    border-color: var(--atl-amber-border);
+    color: var(--atl-amber);
+}

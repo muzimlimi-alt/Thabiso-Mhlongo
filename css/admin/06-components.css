@@ -1,0 +1,75 @@
+/* =====================================================================
+   ADMIN — COMPONENTS
+   Extracted verbatim from admin.html (inline <style> block 6 of 20,
+   was lines 1033-1097). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: components:17, users-security:2
+   ===================================================================== */
+
+
+/* ── Shared expand-to-edit card (mirrors .atl-event-card visuals; isolated from booking/event JS hooks) ── */
+.atl-edit-card {
+    border-radius: 16px;
+    border: 1px solid var(--atl-line);
+    background: var(--atl-card);
+    overflow: hidden;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.4s ease;
+    animation: atl-card-in 0.4s ease backwards;
+}
+.atl-edit-card:hover { border-color: rgba(212,175,55,0.35); box-shadow: var(--atl-shadow-card); }
+.atl-edit-card.is-expanded { border-color: rgba(212,175,55,0.45); }
+.atl-edit-card__header {
+    display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
+    cursor: pointer;
+}
+@media (max-width:639px) { .atl-edit-card__header { gap: 10px; } }
+.atl-edit-card__thumb {
+    position: relative; width: 72px; height: 100px; flex-shrink: 0;
+    background: var(--atl-paper); border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--atl-line);
+}
+.atl-edit-card__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.atl-edit-card__video-badge {
+    position: absolute; bottom: 4px; right: 4px; background: var(--atl-amber);
+    color: var(--atl-on-amber); font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: bold;
+}
+.atl-edit-card__title {
+    margin: 0 0 4px; font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(18px,2.5vw,24px); font-weight: 500; line-height: 1.15;
+    /* redesign.css h1-h6{color:var(--text-primary)!important} bleed - see
+       reference_redesign_css_heading_bleed. Widely shared card-title component
+       (Home/Career/Gallery/Branding/Testimonials/Footprint), was invisible in light theme. */
+    color: var(--atl-ink) !important;
+}
+.atl-edit-card__subtitle { color: var(--atl-amber); font-size: 13px; font-weight: 500; margin: 0 0 4px; }
+.atl-edit-card__desc {
+    color: var(--atl-muted); font-size: 13px; font-weight: 300; line-height: 1.5;
+    max-height: 42px; overflow: hidden;
+}
+.atl-edit-card .atl-expand-btn[aria-expanded="true"] i.fa-chevron-down { transform: rotate(180deg); }
+.atl-edit-card .atl-expand-btn i.fa-chevron-down { transition: transform 0.2s ease; }
+.atl-form-mount { padding: 0 20px 20px; }
+.atl-drag-handle {
+    display: inline-flex; align-items: center; justify-content: center;
+    flex-shrink: 0; align-self: center;
+    width: 28px; height: 40px; cursor: grab; color: var(--atl-muted-dim);
+    border-radius: 6px; transition: color 0.2s ease, background 0.2s ease;
+}
+.atl-drag-handle:hover { color: var(--atl-amber); background: rgba(255,255,255,0.04); }
+.atl-drag-handle:active { cursor: grabbing; }
+.um-upload-zone {
+    display:block;
+    border:2px dashed var(--atl-line);
+    border-radius:var(--atl-r-md);
+    background:var(--atl-input-bg);
+    padding:20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .2s;
+}
+.um-upload-zone:hover, .um-upload-zone:focus-within { border-color:var(--atl-amber); }

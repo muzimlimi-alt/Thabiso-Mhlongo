@@ -1,0 +1,397 @@
+/* =====================================================================
+   ADMIN — MISC · modern login refinement split screen design
+   Extracted verbatim from admin.html (inline <style> block 2 of 20,
+   was lines 56-441). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: misc:56, shell:1
+   ===================================================================== */
+
+/* Modern Login Refinement - Split Screen Design */
+:root {
+    --tm-black:        var(--atl-paper);
+    --tm-deep:         var(--atl-sidebar-bg);
+    --tm-cream:        var(--atl-ink-dim);
+    --tm-cream-dim:    var(--atl-muted);
+    --tm-gold:         var(--atl-amber);
+    --tm-gold-dim:     var(--atl-amber-border);
+    --tm-gold-glow:    var(--atl-amber-dim);
+    --tm-mute:         var(--atl-muted-dim);
+    --tm-danger:       var(--atl-clay);
+    --tm-glass:        var(--atl-overlay);
+    --tm-glass-border: var(--atl-line);
+}
+
+/* Shell layout override for login only */
+.login-state-active { overflow: hidden !important; height: 100vh !important; background: var(--tm-black) !important; }
+
+.login-shell {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-height: 100vh;
+    overflow: hidden;
+    font-family: 'Outfit', system-ui, sans-serif;
+    background: var(--tm-black);
+    color: var(--tm-cream);
+}
+
+.login-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+}
+
+.login-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: left center;
+    display: block;
+}
+
+.login-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg,
+            transparent 0%,
+            transparent 30%,
+            rgba(10,10,10,0.4) 50%,
+            rgba(10,10,10,0.75) 70%,
+            rgba(10,10,10,0.92) 100%),
+        linear-gradient(180deg,
+            transparent 60%,
+            rgba(10,10,10,0.5) 100%);
+    pointer-events: none;
+}
+
+.login-grain {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='150' height='150'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.07 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    opacity: 0.5;
+    pointer-events: none;
+    mix-blend-mode: screen;
+}
+
+.login-brand {
+    position: relative;
+    z-index: 2;
+    flex: 1 1 55%;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: clamp(32px, 5vw, 64px);
+    min-height: 100vh;
+}
+
+.login-brand-inner {
+    max-width: 480px;
+    opacity: 0;
+    animation: tmFadeUp 1s cubic-bezier(.4,0,.2,1) 0.3s forwards;
+    text-align: left;
+}
+
+.brand-name,
+body.admin-body h2.brand-name {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-weight: 400;
+    font-style: italic;
+    font-size: clamp(36px, 5vw, 56px);
+    line-height: 0.95;
+    letter-spacing: -0.01em;
+    color: var(--tm-cream);
+    margin-bottom: 4px;
+}
+.brand-name .surname {
+    display: block;
+    font-weight: 600;
+    font-style: normal;
+    color: var(--tm-gold);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.brand-tagline {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.4em;
+    text-transform: uppercase;
+    color: var(--tm-mute);
+    margin-top: 16px;
+}
+
+.login-panel {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 clamp(380px, 38vw, 520px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(32px, 5vw, 64px);
+    min-height: 100vh;
+    background: transparent;
+}
+
+.login-card-wrapped {
+    width: 100%;
+    max-width: 400px;
+    margin: 0 auto;
+    opacity: 0;
+    animation: tmFadeUp 1s cubic-bezier(.4,0,.2,1) 0.5s forwards;
+}
+
+.login-header {
+    margin-bottom: 32px;
+    text-align: left;
+}
+
+.login-header h1 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-weight: 400;
+    font-size: clamp(28px, 3.5vw, 36px);
+    letter-spacing: -0.01em;
+    color: var(--tm-cream);
+    margin-bottom: 8px;
+}
+
+.login-header p {
+    font-size: 14px;
+    font-weight: 300;
+    color: var(--tm-cream-dim);
+    line-height: 1.5;
+}
+
+.tm-form-group {
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.tm-form-label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--tm-mute);
+    margin-bottom: 10px;
+}
+
+.tm-form-input {
+    width: 100%;
+    padding: 14px 18px;
+    background: rgba(244,239,228,0.05) !important;
+    border: 1px solid var(--tm-glass-border) !important;
+    border-radius: 2px !important;
+    color: var(--tm-cream) !important;
+    font-family: 'Outfit', sans-serif;
+    font-size: 15px;
+    font-weight: 300;
+    letter-spacing: 0.02em;
+    outline: none;
+    transition: all 0.3s ease;
+    box-shadow: none !important;
+}
+
+.tm-form-input:focus {
+    border-color: var(--tm-gold) !important;
+    background: rgba(212,175,55,0.04) !important;
+    box-shadow: 0 0 0 3px var(--tm-gold-glow) !important;
+}
+
+.password-wrap {
+    position: relative;
+}
+.password-wrap .tm-form-input {
+    padding-right: 46px;
+}
+.password-toggle {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--tm-mute);
+    cursor: pointer;
+    padding: 4px;
+    font-size: 14px;
+    transition: color 0.2s;
+}
+.password-toggle:hover { color: var(--tm-cream); }
+
+.form-row-util {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+}
+
+.tm-checkbox-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+}
+
+/* Hide native checkbox — visuals handled by .cb-box span */
+.tm-checkbox-wrap input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+    pointer-events: none;
+}
+
+.tm-checkbox-wrap .cb-box {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    flex-shrink: 0;
+    border: 1.5px solid rgba(244,239,228,0.22);
+    border-radius: 3px;
+    background: rgba(244,239,228,0.04);
+    transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.tm-checkbox-wrap:hover .cb-box {
+    border-color: var(--tm-gold);
+    background: rgba(212,175,55,0.1);
+}
+
+.tm-checkbox-wrap input[type="checkbox"]:focus + .cb-box {
+    border-color: var(--tm-gold);
+    box-shadow: 0 0 0 3px rgba(212,175,55,0.2);
+}
+
+.tm-checkbox-wrap input[type="checkbox"]:checked + .cb-box {
+    background: var(--tm-gold);
+    border-color: var(--tm-gold);
+    box-shadow: 0 0 0 3px rgba(212,175,55,0.18);
+}
+
+/* Checkmark drawn on the span — works in all browsers unlike input::after */
+.tm-checkbox-wrap input[type="checkbox"]:checked + .cb-box::after {
+    content: "";
+    display: block;
+    width: 5px;
+    height: 9px;
+    border: solid #0a0a0a;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) translate(-1px, -1px);
+}
+
+.tm-checkbox-wrap .checkbox-label {
+    transition: color 0.18s ease;
+    user-select: none;
+}
+
+.tm-checkbox-wrap:hover .checkbox-label {
+    color: var(--tm-cream) !important;
+}
+
+.forgot-link {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--tm-gold);
+    text-decoration: none;
+    transition: color 0.2s;
+}
+.forgot-link:hover { color: var(--tm-cream); }
+
+.tm-login-btn {
+    width: 100%;
+    padding: 16px;
+    background: var(--tm-gold);
+    color: var(--tm-black);
+    border: none;
+    border-radius: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.35em;
+    text-transform: uppercase;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.tm-login-btn:hover {
+    background: #e0c04a;
+    transform: translateY(-1px);
+}
+
+.tm-login-btn::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.6s ease;
+}
+.tm-login-btn:hover::after { left: 120%; }
+
+.tm-login-error {
+    display: none;
+    padding: 12px 16px;
+    background: rgba(192,57,43,0.1);
+    border: 1px solid rgba(192,57,43,0.25);
+    border-radius: 2px;
+    font-size: 13px;
+    font-weight: 300;
+    color: #e8a0a0;
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.corner {
+    position: fixed;
+    width: 20px;
+    height: 20px;
+    border-color: rgba(212,175,55,0.2);
+    z-index: 3;
+    opacity: 0;
+    animation: tmFadeIn 1s ease 1s forwards;
+}
+.corner.tl { top: 20px;    left: 20px;    border-top: 1px solid; border-left: 1px solid; }
+.corner.tr { top: 20px;    right: 20px;   border-top: 1px solid; border-right: 1px solid; }
+.corner.bl { bottom: 20px; left: 20px;    border-bottom: 1px solid; border-left: 1px solid; }
+.corner.br { bottom: 20px; right: 20px;   border-bottom: 1px solid; border-right: 1px solid; }
+
+@keyframes tmFadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes tmFadeIn {
+    to { opacity: 1; }
+}
+
+@media (max-width: 860px) {
+    .login-shell { flex-direction: column; overflow-y: auto; }
+    .login-brand { flex: none; min-height: 35vh; justify-content: flex-end; padding: 32px 28px; }
+    .login-bg img { object-position: 20% center; }
+    .login-bg::after {
+        background:
+            linear-gradient(180deg, transparent 0%, transparent 20%, rgba(10,10,10,0.55) 45%, rgba(10,10,10,0.72) 70%, rgba(10,10,10,0.82) 100%),
+            linear-gradient(90deg, transparent 0%, rgba(10,10,10,0.25) 100%);
+    }
+    .login-panel { flex: none; min-height: auto; padding: 8px 28px 40px; background: transparent; }
+    .brand-name { font-size: 32px; }
+    .corner { display: none; }
+}

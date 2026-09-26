@@ -1,0 +1,69 @@
+/* =====================================================================
+   FULLCALENDAR 6.1.15 — PROJECT OVERRIDES
+   Moved verbatim from admin.html (was lines 14450-14498). Vendor CSS is
+   never edited (§2.4); FullCalendar is loaded from jsDelivr and themed here.
+
+   LOAD ORDER — the <link> replacing these rules sits at the same document
+   position they occupied inline, so the cascade is unchanged.
+
+   Two rules in here are not .fc-* selectors and that is deliberate:
+     #cal-main-card:hover  stops the card-level hover glow washing over the
+                           whole calendar
+     #calendar             sets --fc-highlight-color, a FullCalendar variable
+   Both exist only to control FullCalendar's rendering, and both sit between
+   .fc-* rules in the original source. Splitting them out would separate them
+   from the rules they coordinate with and would reorder the cascade.
+
+   The .fc-cal--hide-* classes at the foot are toggled on #calendar by
+   js/admin/calendar.js for event-type filtering — frozen, JS-bound.
+   ===================================================================== */
+
+/* FullCalendar Obsidian & Gold Overrides */
+.fc { background: var(--atl-paper); border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); padding: 10px; font-family: inherit; }
+.fc .fc-toolbar-title { color: var(--atl-ink-dim); font-size: 1.5rem; font-weight: bold; }
+.fc .fc-button-primary { background: var(--atl-card); border: 1px solid var(--atl-line); color: var(--atl-amber); text-transform: capitalize; }
+.fc .fc-button-primary:hover { background: var(--atl-amber); border-color: var(--atl-amber-hover); color: var(--atl-on-amber); }
+.fc .fc-button-primary:disabled { background: var(--atl-paper); color: var(--atl-muted-dim); border-color: var(--atl-line); }
+.fc .fc-button-primary:not(:disabled).fc-button-active { background: var(--atl-amber); border-color: var(--atl-amber-hover); color: var(--atl-on-amber); }
+/* Prevent card-level hover glow from washing over the whole calendar */
+#cal-main-card:hover { border-color: var(--atl-line) !important; box-shadow: none !important; }
+/* Per-cell hover: subtle amber tint on the hovered day/time slot only */
+#calendar { --fc-highlight-color: rgba(212, 175, 55, 0.10); }
+.fc .fc-daygrid-day:hover .fc-daygrid-day-frame { background: rgba(212, 175, 55, 0.06); }
+.fc .fc-timegrid-col:hover .fc-timegrid-col-bg { background: rgba(212, 175, 55, 0.06); }
+/* Keep FC anchor links in the neutral ink palette — not the global amber anchor colour */
+.fc a { color: var(--atl-ink-dim) !important; }
+.fc a:hover { color: var(--atl-ink) !important; }
+/* FC nav-link day numbers retain muted style */
+.fc .fc-daygrid-day-number,
+.fc .fc-col-header-cell-cushion { color: var(--atl-muted) !important; }
+.fc .fc-button .fc-icon {
+    font-family: "Font Awesome 6 Free" !important;
+    font-weight: 900 !important;
+    vertical-align: middle;
+    font-size: 0.9rem;
+}
+.fc .fc-icon-chevron-left::before { content: "\f053" !important; }
+.fc .fc-icon-chevron-right::before { content: "\f054" !important; }
+.fc th { background: var(--atl-card); color: var(--atl-muted-dim); padding: 10px 0 !important; border-color: var(--atl-line) !important; }
+.fc td { border-color: var(--atl-line) !important; }
+.fc-day-today { background: var(--atl-amber-dim) !important; }
+.fc-event { border: none; border-radius: var(--atl-r-sm); padding: 2px 4px; border-left: 3px solid var(--atl-amber); }
+.fc-event-title { font-size: 0.85em; font-weight: 600; }
+/* Dark text override — applied via JS class; !important beats any FullCalendar inline color */
+.fc-event--dark-text,
+.fc-event--dark-text * { color: #0a0a0a !important; }
+.fc-daygrid-more-link { color: var(--atl-amber); }
+.fc-v-event { background-color: var(--atl-card); }
+.fc-non-business {
+    background: rgba(0, 0, 0, 0.32) !important;
+}
+[data-theme="light"] .fc-non-business {
+    background: rgba(0, 0, 0, 0.055) !important;
+}
+/* Event-type filter visibility — toggled via CSS classes on #calendar */
+.fc-cal--hide-bookings   .fc-event--type-booking                            { display: none !important; }
+.fc-cal--hide-holds      .fc-event--type-hold                               { display: none !important; }
+.fc-cal--hide-events     .fc-event--type-event,
+.fc-cal--hide-events     .fc-event--type-public_event                       { display: none !important; }
+.fc-cal--hide-milestones .fc-event--type-milestone                          { display: none !important; }

@@ -1,0 +1,1793 @@
+/* =====================================================================
+   ADMIN — COMPONENTS · defect 12 calendar touch targets
+   Extracted verbatim from admin.html (inline <style> block 7 of 20,
+   was lines 1099-2901). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: components:198, misc:64, shell:48, users-security:19, bookings:17, settings:5, calendar:2
+   ===================================================================== */
+
+
+/* Defect 12 — Calendar touch targets */
+.cal-sidebar-tab { min-height: 44px; }
+.cal-filter-btn  { min-height: 44px; padding: 8px 12px; }
+
+/* Defect 13 — Calendar legend 2-column grid on mobile */
+.calendar-legend > div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 16px;
+}
+@media (min-width: 1024px) {
+    .calendar-legend > div {
+        display: flex;
+        flex-wrap: wrap;
+    }
+}
+
+/* Defect 15 — Quote builder table responsive */
+@media (max-width: 599px) {
+    #qbItemsTable thead { display: none; }
+    #qbItemsTable .qb-item-row {
+        display: block;
+        background: var(--atl-surface2);
+        border: 1px solid var(--atl-line);
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+    }
+    #qbItemsTable .qb-item-row td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border: none;
+        padding: 4px 0;
+        font-size: 12px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    #qbItemsTable .qb-item-row td:first-child { display: block; }
+}
+/* Generic line-item utility */
+.atl-line-item {
+    border: 1px solid var(--atl-line);
+    border-radius: var(--atl-r-sm);
+    padding: 12px;
+    margin-bottom: 8px;
+}
+
+/* Defect 16 — Responsive 3-column grid */
+.atl-col3-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+@media (min-width: 600px) {
+    .atl-col3-grid { grid-template-columns: 1fr 1fr 1fr; }
+}
+
+/* Toggle switch */
+.atl-switch {
+    position: relative; width: 52px; height: 28px;
+    border-radius: 999px;
+    background: var(--atl-line);
+    border: 1px solid var(--atl-line);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s ease;
+    outline: none;
+}
+.atl-switch[aria-checked="true"] { background: var(--atl-sage); }
+.atl-switch::after {
+    content: "";
+    position: absolute; top: 2px; left: 2px;
+    width: 22px; height: 22px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    transition: transform 0.2s ease;
+}
+.atl-switch[aria-checked="true"]::after { transform: translateX(24px); }
+
+/* Action Buttons */
+.atl-btn {
+    padding: 6px 12px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+    outline: none;
+}
+.atl-btn:hover { transform: translateY(-1px); }
+
+.atl-btn--primary {
+    background: var(--atl-amber);
+    color: var(--atl-on-amber);
+    border: 1px solid var(--atl-amber);
+}
+.atl-btn--primary:hover { background: var(--atl-amber-hover); }
+
+.atl-btn--ghost {
+    background: transparent;
+    color: var(--atl-ink);
+    border: 1px solid var(--atl-line);
+}
+.atl-btn--ghost:hover { border-color: var(--atl-amber); }
+
+.atl-btn--danger {
+    background: transparent;
+    color: var(--atl-clay);
+    border: 1px solid var(--atl-clay);
+}
+.atl-btn--danger:hover { background: rgba(248,113,113,0.08); }
+
+.atl-actions-dropdown-btn {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--atl-line);
+    color: var(--atl-muted);
+    border-radius: 8px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.atl-actions-dropdown-btn:hover {
+    color: var(--atl-ink);
+    border-color: var(--atl-amber);
+}
+
+.atl-actions-dropdown-panel {
+    position: fixed;
+    z-index: 99999;
+    background: var(--atl-card);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+    padding: 6px 0;
+    min-width: 200px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7);
+}
+.atl-actions-dropdown-item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%; background: none; border: none;
+    color: var(--atl-ink);
+    padding: 9px 16px;
+    font-size: 13px; font-family: 'Outfit', sans-serif;
+    cursor: pointer; text-align: left;
+    transition: background 0.15s ease;
+}
+.atl-actions-dropdown-item:hover { background: rgba(255,255,255,0.06); }
+.atl-actions-dropdown-item--danger { color: var(--atl-clay); }
+.atl-actions-dropdown-sep { height: 1px; background: var(--atl-line); margin: 4px 0; }
+
+/* Modal System styles */
+.atl-modal-overlay {
+    position: fixed; inset: 0; z-index: 9000;
+    background: var(--atl-overlay);
+    backdrop-filter: blur(4px);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 5vh 16px; overflow-y: auto;
+}
+.atl-modal-panel {
+    width: 100%; max-width: 680px;
+    border-radius: 16px;
+    background: var(--atl-card);
+    box-shadow: var(--atl-shadow-modal);
+    animation: atl-modal-in 0.25s cubic-bezier(0.2,0.8,0.2,1);
+    color: var(--atl-ink);
+}
+@keyframes atl-modal-in {
+    from { opacity: 0; transform: translateY(16px) scale(0.98); }
+    to   { opacity: 1; transform: none; }
+}
+.atl-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--atl-line);
+    padding: 20px;
+    border-top-left-radius:  var(--atl-r-xl);
+    border-top-right-radius: var(--atl-r-xl);
+}
+.atl-modal-title {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 24px;
+    font-weight: 600;
+    margin: 0;
+}
+.atl-modal-close {
+    padding: 8px; border-radius: 8px;
+    background: transparent; border: none;
+    color: var(--atl-ink); cursor: pointer;
+    transition: background 0.15s ease;
+}
+.atl-modal-close:hover { background: rgba(255,255,255,0.08); }
+
+.atl-modal-body {
+    padding: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+    scroll-padding-top: 16px;
+}
+.atl-modal-footer {
+    display: flex; justify-content: flex-end; gap: 12px;
+    border-top: 1px solid var(--atl-line);
+    padding: 20px;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    border-bottom-left-radius:  var(--atl-r-xl);
+    border-bottom-right-radius: var(--atl-r-xl);
+}
+
+/* Neutralize Bootstrap's fixed positioning and fade when hosted inside Atelier overlay */
+.atl-modal-overlay .modal {
+    position: static;
+    overflow: visible;
+    height: auto;
+    width: 100%;
+    max-width: 680px;
+}
+.atl-modal-overlay .modal.fade {
+    opacity: 1;
+}
+
+.atl-modal-label {
+    display: block;
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--atl-muted);
+    margin-bottom: 4px;
+}
+.atl-field-error {
+    font-family: 'Outfit', sans-serif;
+    font-size: 12px; font-weight: 500;
+    color: var(--atl-clay);
+    margin-top: 4px;
+}
+
+/* Inputs (Cards & Modals) */
+.atl-input,
+.atl-select,
+.atl-textarea,
+.atl-modal-body input,
+.atl-modal-body select,
+.atl-modal-body textarea {
+    background: var(--atl-input-bg) !important;
+    color: var(--atl-ink) !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    box-sizing: border-box;
+    width: 100%;
+    outline: none !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+/* Internal notes textarea — flex:1 inside flex row */
+.bk-note-input {
+    flex: 1 1 0;
+    width: auto !important;
+    min-height: 80px;
+    resize: vertical;
+}
+.atl-input:focus,
+.atl-select:focus,
+.atl-textarea:focus,
+.atl-modal-body input:focus,
+.atl-modal-body select:focus,
+.atl-modal-body textarea:focus {
+    border-color: var(--atl-amber) !important;
+    box-shadow: 0 0 0 2px var(--atl-focus-ring) !important;
+    outline: none !important;
+}
+.atl-input::placeholder,
+.atl-textarea::placeholder,
+.atl-modal-body input::placeholder,
+.atl-modal-body textarea::placeholder {
+    color: var(--atl-placeholder) !important;
+}
+
+/* Global tab bar */
+/* Inline code — Atelier styling (overrides Bootstrap's pink default) */
+code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    color: var(--atl-amber);
+    background: color-mix(in srgb, var(--atl-amber) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--atl-amber) 24%, transparent);
+    border-radius: 5px;
+    padding: 1px 6px;
+}
+
+.atl-tab-bar {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--atl-line);
+    margin-bottom: 20px;
+}
+.atl-tab-btn {
+    font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
+    padding: 8px 16px; border: none; background: transparent;
+    color: var(--atl-muted); cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+}
+.atl-tab-btn:hover { color: var(--atl-ink); }
+.atl-tab-btn.active { color: var(--atl-amber); border-bottom-color: var(--atl-amber); }
+.atl-tab-btn:focus-visible { outline: 3px solid var(--atl-focus); outline-offset: 2px; }
+
+/* Banner Management Centre's inner Library/Preview/About toggle (Prompt 6) — visually cloned
+   from .atl-tab-bar/.atl-tab-btn under distinct class names on purpose: initTabs() sweeps ALL
+   descendant .um-panel elements on any .atl-tab-btn click (not scoped to direct children), so
+   reusing those classes here would let the outer "Banners" tab click blank these inner views. */
+.bnr-view-bar { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--atl-line); margin-bottom: 20px; }
+.bnr-view-btn {
+    font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 500;
+    padding: 8px 16px; border: none; background: transparent;
+    color: var(--atl-muted); cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+}
+.bnr-view-btn:hover { color: var(--atl-ink); }
+.bnr-view-btn.active { color: var(--atl-amber); border-bottom-color: var(--atl-amber); }
+.bnr-view-btn:focus-visible { outline: 3px solid var(--atl-focus); outline-offset: 2px; }
+
+/* Empty/Loading states */
+.atl-empty-state { text-align: center; padding: 80px 40px; }
+.atl-spinner {
+    width: 22px; height: 22px;
+    border: 3px solid var(--atl-line);
+    border-top-color: var(--atl-amber);
+    border-radius: 50%;
+    animation: atl-spin 0.7s linear infinite;
+    margin: 0 auto;
+}
+@keyframes atl-spin { to { transform: rotate(360deg); } }
+.atl-empty-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--atl-muted); margin-top: 16px;
+}
+.atl-empty-display {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 24px; font-style: italic;
+    color: var(--atl-muted);
+}
+.atl-empty-sub { font-size: 13px; color: var(--atl-muted); margin-top: 8px; }
+
+/* Focus rings */
+#bookingsAdmin a:focus-visible,
+#bookingsAdmin button:focus-visible,
+#bookingsAdmin select:focus-visible,
+#bookingsAdmin input:focus-visible,
+#bookingsAdmin textarea:focus-visible,
+#bookingsAdmin [role="switch"]:focus-visible {
+    outline: 3px solid var(--atl-focus) !important;
+    outline-offset: 2px !important;
+    border-radius: 4px !important;
+}
+
+/* Text selection */
+#bookingsAdmin ::selection { background: var(--atl-selection-bg); color: var(--atl-ink); }
+
+/* Screen-reader utility */
+.atl-sr-only {
+    position: absolute; width: 1px; height: 1px;
+    padding: 0; margin: -1px; overflow: hidden;
+    clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+    #bookingsAdmin *, #bookingsAdmin *::before, #bookingsAdmin *::after {
+        animation-duration: 0.01ms !important;
+        animation-delay: 0s !important;
+        transition-duration: 0.3s !important;
+    }
+}
+
+/* Tables styling */
+#bookingsAdmin table { border-collapse: collapse; width: 100%; }
+
+/* Theme Toggle Button Markup */
+.atl-theme-toggle {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 6px 8px 6px 14px;
+    border: 1px solid var(--atl-line);
+    border-radius: 999px;
+    background: var(--atl-card);
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.4s ease;
+    outline: none;
+}
+.atl-theme-toggle:hover { border-color: var(--atl-amber); }
+.atl-theme-toggle__label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--atl-muted); user-select: none;
+}
+.atl-theme-toggle__track {
+    position: relative; width: 54px; height: 28px;
+    border-radius: 999px;
+    background: var(--atl-surface2);
+    border: 1px solid var(--atl-line);
+    overflow: hidden;
+}
+.atl-toggle-sun, .atl-toggle-moon {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    transition: opacity 0.3s ease;
+}
+.atl-toggle-sun  { left: 6px;  color: var(--atl-amber); opacity: 0; }
+.atl-toggle-moon { right: 6px; color: var(--atl-muted); opacity: 1; }
+[data-theme="light"] .atl-toggle-sun  { opacity: 1; }
+[data-theme="light"] .atl-toggle-moon { opacity: 0; }
+.atl-theme-toggle__knob {
+    position: absolute; top: 2px; left: 2px;
+    width: 22px; height: 22px; border-radius: 999px;
+    background: var(--atl-amber);
+    box-shadow: 0 1px 3px rgba(0,0,0,.3);
+    transition: transform 0.28s cubic-bezier(0.34,1.4,0.5,1);
+    z-index: 1;
+}
+[data-theme="dark"]  .atl-theme-toggle__knob { transform: translateX(26px); }
+[data-theme="light"] .atl-theme-toggle__knob { transform: translateX(0); }
+
+/* Single-icon theme toggle (moon/sun) — smooth swap + playful hover nudge. */
+.adm-theme-icon { transition: transform var(--atl-t-base), color var(--atl-t-base); }
+#atlThemeToggle:hover .adm-theme-icon { transform: rotate(-18deg) scale(1.08); }
+
+/* ── ATELIER EXPANDED PANEL LAYOUTS ── */
+/* Panel container */
+.atl-det-card {
+  background: var(--atl-surface2);
+  border-radius: 12px;
+  padding: 14px;
+  transition: background-color 0.4s ease;
+}
+@media (min-width: 480px) { .atl-det-card { padding: 15px; } }
+@media (min-width: 768px) { .atl-det-card { padding: 16px; } }
+
+/* Panel title — small uppercase eyebrow label with an optional leading icon */
+.atl-det-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  /* !important: css/redesign.css (loaded for public-site component reuse) carries a blanket
+     h1-h6{color:var(--text-primary)!important} that otherwise wins and renders every card
+     title white regardless of theme — invisible on light theme's cream card background. */
+  color: var(--atl-muted) !important;
+  margin-top: 0;
+  margin-bottom: 11px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.atl-det-title i { color: var(--atl-amber); font-size: 11px; }
+
+/* Lead / sub text pairing — a card's primary line + a muted secondary line,
+   used in place of ad-hoc inline font-size/color styling on card content. */
+.atl-lead {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--atl-ink);
+  margin-bottom: 3px;
+}
+.atl-lead .co { font-weight: 400; color: var(--atl-muted); }
+.atl-sub { font-size: 12.5px; color: var(--atl-muted); }
+
+/* Informational hint box */
+.atl-callout {
+  font-size: 11.5px;
+  color: var(--atl-muted);
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  background: var(--atl-surface2);
+  border: 1px solid var(--atl-line);
+  border-radius: var(--atl-r-sm, 6px);
+  padding: 10px 12px;
+  margin-top: 12px;
+}
+.atl-callout i { color: var(--atl-amber); font-size: 11px; margin-top: 1px; }
+
+/* Inline success/checkmark text (e.g. "Signed by client", "Paid 6 Nov") */
+.atl-pill-ok { color: var(--atl-sage); font-size: 12px; font-weight: 600; }
+.atl-pill-ok::before { content: "\2713"; margin-right: 4px; }
+
+/* Activity timeline (Timeline & Notes tab) */
+.atl-timeline { position: relative; padding-left: 22px; margin-top: 4px; }
+.atl-timeline::before {
+  content: ""; position: absolute; left: 5px; top: 4px; bottom: 4px; width: 2px;
+  background: var(--atl-line);
+}
+.atl-tl-item { position: relative; padding-bottom: 16px; }
+.atl-tl-item:last-child { padding-bottom: 0; }
+.atl-tl-item::before {
+  content: ""; position: absolute; left: -21px; top: 3px; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--atl-card); border: 2px solid var(--atl-amber);
+}
+.atl-tl-when { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--atl-muted-dim); margin-bottom: 2px; }
+.atl-tl-what { font-size: 13px; color: var(--atl-ink-dim); font-weight: 500; }
+.atl-tl-meta { font-size: 11.5px; color: var(--atl-muted); margin-top: 1px; }
+
+/* Progress tab — lifecycle checklist (Overdue/Pending/Completed groups) */
+.dv-progress-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.dv-progress-item { display: flex; align-items: flex-start; gap: 10px; }
+.dv-progress-item i { font-size: 13px; margin-top: 2px; flex-shrink: 0; }
+.dv-progress-item > div { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.dv-progress-item__label { font-size: 13px; font-weight: 600; color: var(--atl-ink); }
+.dv-progress-item__detail { font-size: 11.5px; color: var(--atl-muted); }
+.dv-progress-item--done i { color: var(--atl-sage); }
+.dv-progress-item--pending i { color: var(--atl-muted-dim); font-size: 7px; margin-top: 6px; }
+.dv-progress-item--overdue i { color: var(--atl-clay); }
+.dv-progress-count {
+  font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700;
+  background: var(--atl-surface2); border: 1px solid var(--atl-line); border-radius: 999px;
+  padding: 1px 7px; margin-left: auto; color: var(--atl-muted) !important;
+}
+.dv-progress-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* Advancing Pack editor (Advancing tab) */
+.atl-adv-ros-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--atl-line); }
+.atl-adv-ros-row:last-child { border-bottom: none; }
+.atl-adv-ros-row .atl-btn { padding: 6px 8px; min-height: 30px; }
+.atl-adv-contact { padding: 8px 0; border-bottom: 1px solid var(--atl-line); }
+.atl-adv-contact:last-child { border-bottom: none; }
+.atl-adv-contacts-auto { margin-bottom: 4px; }
+
+/* Two-column grid — full responsive breakpoint range */
+/* Base: single column for all phone widths */
+.atl-det-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  padding: 16px;
+  border-top: 1px solid var(--atl-line);
+}
+
+/* Small tablet (480px) */
+@media (min-width: 480px) {
+  .atl-det-grid { padding: 20px; gap: 14px; }
+}
+
+/* Large tablet (640px): two-column layout */
+@media (min-width: 640px) {
+  .atl-det-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+}
+
+/* Laptop (1024px) */
+@media (min-width: 1024px) {
+  .atl-det-grid { padding: 24px; gap: 18px; }
+}
+
+/* Desktop (1280px) */
+@media (min-width: 1280px) {
+  .atl-det-grid { gap: 20px; padding: 28px; }
+}
+
+/* Ultra-wide (1536px): cap content width */
+@media (min-width: 1536px) {
+  .atl-det-grid {
+    max-width: 1440px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+
+/* Column */
+.atl-det-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+@media (min-width: 640px) { .atl-det-col { gap: 14px; } }
+@media (min-width: 1024px) { .atl-det-col { gap: 16px; } }
+
+/* Inline links */
+.atl-det-link {
+  color: var(--atl-amber);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-size: 13px;
+  transition: color 0.15s ease;
+}
+.atl-det-link:hover { color: var(--atl-amber-hover); }
+.atl-det-link:active { opacity: 0.7; }
+
+/* Document action row — Download + Send/Resend side by side */
+.atl-doc-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.atl-doc-send-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--atl-r-md, 6px);
+  white-space: nowrap;
+}
+.atl-doc-send-btn:focus-visible { outline: 2px solid var(--atl-focus, #60a5fa); outline-offset: 2px; }
+@media (max-width: 479px) {
+  .atl-doc-actions-row { justify-content: flex-start; }
+  .atl-doc-send-btn { width: 100%; justify-content: center; }
+}
+
+/* Key-value list */
+.atl-det-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 16px;
+  row-gap: 4px;
+  font-size: clamp(12px, 3.2vw, 13px);
+}
+.atl-det-dl dt {
+  color: var(--atl-muted);
+  font-family: 'Outfit', sans-serif;
+  font-weight: 400;
+}
+.atl-det-dl dd {
+  color: var(--atl-ink);
+  font-family: 'Outfit', sans-serif;
+  text-align: right;
+  font-weight: 400;
+  margin: 0;
+}
+.atl-det-dl dd.atl-det-positive { color: var(--atl-sage); font-weight: 700; }
+.atl-det-dl dd.atl-det-negative { color: var(--atl-clay); font-weight: 700; }
+.atl-det-dl dd.atl-det-gold     { color: var(--atl-amber); font-weight: 700; }
+
+@media (max-width: 359px) {
+  .atl-det-dl {
+    grid-template-columns: 1fr;
+    row-gap: 0;
+  }
+  .atl-det-dl dd {
+    text-align: left;
+    padding-bottom: 6px;
+    font-weight: 600;
+  }
+}
+
+/* Table base */
+.atl-det-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(11px, 2.8vw, 12px);
+  color: var(--atl-ink);
+}
+.atl-det-table caption { display: none; }
+.atl-det-table thead tr { border-bottom: 2px solid var(--atl-ink); }
+.atl-det-table th {
+  padding: 6px 8px;
+  font-weight: 700;
+  color: var(--atl-ink);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.atl-det-table th:first-child, .atl-det-table td:first-child { padding-left: 0; }
+.atl-det-table th:last-child, .atl-det-table td:last-child { padding-right: 0; }
+.atl-det-table th.right, .atl-det-table td.right { text-align: right; }
+.atl-det-table tbody tr { border-bottom: 1px solid var(--atl-line); }
+.atl-det-table td { padding: 6px 8px; font-size: clamp(11px, 2.8vw, 12px); color: var(--atl-ink); }
+.atl-det-table tfoot tr:first-child td,
+.atl-det-table tfoot tr:first-child th { padding-top: 8px; color: var(--atl-muted); }
+.atl-det-table tfoot tr:last-child td,
+.atl-det-table tfoot tr:last-child th { font-weight: 700; font-size: 13px; padding-bottom: 4px; }
+.atl-det-table tr.atl-det-active-row { background: rgba(212,175,55,0.04); }
+.atl-det-tabular { font-variant-numeric: tabular-nums; }
+
+@media (min-width: 600px) {
+  .atl-det-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Loading */
+.atl-det-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 0;
+  color: var(--atl-muted);
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+}
+
+/* Empty state */
+.atl-det-empty {
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(12px, 3vw, 13px);
+  color: var(--atl-muted);
+  font-style: italic;
+  padding: 4px 0;
+}
+
+/* ── MOBILE TABLE TRANSFORMATION (<=599px) ── */
+@media (max-width: 599px) {
+  .atl-det-table-responsive thead { display: none; }
+  .atl-det-table-responsive tbody tr {
+    display: block;
+    background: var(--atl-paper);
+    border: 1px solid var(--atl-line);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+  }
+  .atl-det-table-responsive tbody tr:last-child { margin-bottom: 0; }
+  .atl-det-table-responsive tbody tr.atl-det-active-row {
+    background: rgba(212,175,55,0.06);
+    border-color: rgba(212,175,55,0.20);
+  }
+  .atl-det-table-responsive tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 4px 0;
+    border: none;
+    font-size: 12px;
+    line-height: 1.4;
+    text-align: right;
+  }
+  .atl-det-table-responsive tbody td::before {
+    content: attr(data-label);
+    color: var(--atl-muted);
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    flex-shrink: 0;
+    white-space: nowrap;
+    min-width: 72px;
+    text-align: left;
+    padding-top: 1px;
+  }
+  .atl-det-table-responsive tfoot {
+    display: block;
+    border-top: 1px solid var(--atl-line);
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+  .atl-det-table-responsive tfoot tr {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 12px;
+    color: var(--atl-muted);
+  }
+  .atl-det-table-responsive tfoot td[colspan] {
+    flex: 1;
+    font-size: 11px;
+    text-align: left;
+  }
+  .atl-det-table-responsive tfoot td:not([colspan]) {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  .atl-det-table-responsive tfoot tr:last-child {
+    border-top: 1px solid var(--atl-line);
+    margin-top: 6px;
+    padding-top: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--atl-ink);
+  }
+  .atl-det-table-responsive tfoot td.atl-tfoot-terms {
+    display: block;
+    font-size: 11px;
+    color: var(--atl-muted);
+    padding-top: 8px;
+    border-top: 1px solid var(--atl-line);
+    margin-top: 6px;
+  }
+}
+
+@media (min-width: 600px) and (max-width: 767px) {
+  .atl-det-table-responsive th,
+  .atl-det-table-responsive td { padding: 6px 4px; }
+  .atl-det-table-responsive { font-size: 12px; }
+}
+
+/* ── TOUCH TARGET MINIMUMS ── */
+#bookingsAdmin .atl-btn,
+#bookingsAdmin .atl-new-btn,
+#bookingsAdmin .atl-clear-btn,
+#bookingsAdmin .atl-filter-select,
+#bookingsAdmin .bk-notes-load-btn,
+#bookingsAdmin .bk-add-note-btn {
+  min-height: 44px;
+}
+#bookingsAdmin .atl-switch {
+  position: relative;
+}
+#bookingsAdmin .atl-switch::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+}
+#bookingsAdmin .atl-venue-input,
+#bookingsAdmin .bk-link-venue-select,
+#bookingsAdmin .bkr-venue-select {
+  min-height: 44px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+#bookingsAdmin .bk-notes-load-btn,
+#bookingsAdmin .bk-add-note-btn {
+  padding: 10px 16px;
+}
+@media (max-width: 479px) {
+  #bookingsAdmin .bkr-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  #bookingsAdmin .bkr-actions .atl-btn {
+    flex: 1;
+    min-width: 100px;
+    justify-content: center;
+    text-align: center;
+  }
+  #bookingsAdmin .bkr-more-dropdown {
+    min-width: calc(100vw - 32px) !important;
+    left: 16px !important;
+    right: auto !important;
+  }
+  #bookingsAdmin .bkr-more-item {
+    padding: 12px 16px !important;
+    font-size: 13px !important;
+  }
+}
+#bookingsAdmin .atl-btn:active,
+#bookingsAdmin .atl-new-btn:active,
+#bookingsAdmin .atl-clear-btn:active  { opacity: 0.80; }
+#bookingsAdmin .atl-det-link:active   { opacity: 0.70; }
+#bookingsAdmin .atl-switch:active     { opacity: 0.85; }
+
+/* ── Cancellation Card Styling ── */
+.atl-det-card--cancel {
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.30);
+  border-left: 3px solid var(--atl-clay);
+}
+.atl-det-card--cancel .atl-det-title { color: var(--atl-clay); }
+
+/* ── Public Promotion Inner Styling ── */
+.atl-promote-live-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px;
+  background: rgba(74,222,128,0.15); color: var(--atl-sage);
+  border: 1px solid rgba(74,222,128,0.3);
+  margin-left: 8px; vertical-align: middle;
+}
+.atl-promote-live-badge--off {
+  background: var(--atl-surface2); color: var(--atl-muted); border-color: var(--atl-line);
+}
+.atl-promote-warn {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.25);
+  border-radius: 8px; padding: 10px 12px; margin-top: 12px;
+  font-size: 12px; color: var(--atl-orange);
+}
+[data-theme="light"] .atl-promote-warn {
+  background: rgba(194,65,12,0.06);
+  border-color: rgba(194,65,12,0.2);
+}
+.atl-promote-warn-item {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  color: var(--atl-ink);
+}
+.atl-promote-preview {
+  margin-top: 12px; background: var(--atl-paper);
+  border: 1px solid var(--atl-line); border-radius: 10px; padding: 12px; font-size: 12px;
+}
+.atl-promote-preview--hidden { display: none; }
+.atl-promote-preview__eyebrow {
+  font-family: 'JetBrains Mono', monospace; font-size: 9px;
+  text-transform: uppercase; letter-spacing: 0.2em; color: var(--atl-muted); margin-bottom: 8px;
+}
+.atl-promote-preview__name {
+  font-family: 'Cormorant Garamond', serif; font-size: clamp(14px,4vw,16px);
+  font-weight: 600; color: var(--atl-ink); margin-bottom: 6px;
+}
+.atl-promote-preview__meta {
+  display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--atl-muted);
+}
+.atl-promote-ticket-save {
+  background: rgba(212,175,55,0.12) !important;
+  border: 1px solid rgba(212,175,55,0.35) !important;
+  color: var(--atl-amber) !important;
+  border-radius: 8px !important;
+  padding: 10px 14px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.atl-promote-ticket-save:hover {
+  background: rgba(212,175,55,0.22) !important;
+  border-color: var(--atl-amber) !important;
+}
+.atl-promote-ticket-save:focus-visible {
+  outline: 3px solid var(--atl-focus) !important;
+  outline-offset: 2px !important;
+}
+
+.atl-venue-input {
+  width: 100%;
+  background: var(--atl-input-bg) !important;
+  border: 1px solid var(--atl-line) !important;
+  color: var(--atl-ink) !important;
+  border-radius: 8px !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  font-family: 'Outfit', sans-serif;
+  margin-bottom: 6px;
+  min-height: 44px;
+  outline: none !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.atl-venue-input::placeholder { color: var(--atl-placeholder) !important; }
+.atl-venue-input:focus {
+  border-color: var(--atl-amber) !important;
+  box-shadow: 0 0 0 2px var(--atl-focus-ring) !important;
+  outline: none !important;
+}
+
+/* ── MODAL CLOSE TOUCH TARGET MINIMUMS ── */
+.close {
+  min-width: 44px !important;
+  min-height: 44px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 10px !important;
+}
+
+/* ================================================================
+   ATELIER OBSIDIAN — TYPOGRAPHY, LAYOUT & OVERRIDES
+   ================================================================ */
+
+/* ── TYPOGRAPHY & RESET ── */
+html, body {
+    font-family: 'Outfit', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--atl-ink);
+    background-color: var(--atl-paper);
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6,
+.admin-section > h2,
+.admin-section-title,
+.section-heading,
+.db-card-header h3 {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-weight: 500;
+    color: var(--atl-ink-dim);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+}
+/* Dashboard widget card headers (.atl-card-header h3 — the real, rendered class; .db-card-header
+   h3 above is dead/unused in markup) lose the rule above to css/style.css's
+   `body.admin-body h3 {font-family:var(--theme-font)!important}` — same root cause as
+   .dv-title/.atl-section-heading (see reference_admin_heading_font_bleed memory note).
+   Scoped + !important here to beat that selector's specificity. */
+body.admin-body .atl-card-header h3,
+body.admin-body .db-card-header h3 {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-weight: 500 !important;
+    color: var(--atl-ink-dim) !important;
+    line-height: 1.1 !important;
+    letter-spacing: -0.01em !important;
+}
+
+.atl-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+}
+
+/* ── PAGE BODY & FILM GRAIN ── */
+body.admin-body {
+    background-color: var(--atl-paper) !important;
+    background-image:
+        radial-gradient(ellipse 80% 40% at 20% 0%,   rgba(212,175,55,0.06), transparent 55%),
+        radial-gradient(ellipse 60% 30% at 85% 100%,  rgba(212,175,55,0.04), transparent 50%) !important;
+    background-attachment: fixed !important;
+    min-height: 100vh;
+}
+
+body.admin-body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: var(--atl-grain-opacity);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#loginSection { display: none; position: fixed; inset: 0; z-index: 100000; }
+#dashboardSection,
+.admin-section { display: none; position: relative; z-index: 1; }
+
+.admin-section {
+    background: none !important;
+    background-image: none !important;
+    background-color: transparent !important;
+}
+
+/* ============================================================
+   ADMIN SECTION HEADERS — Unified Atelier system (mobile-first)
+   Single source of truth for every #…Admin section header.
+   Canonical markup:
+     <div class="atl-section-hd">
+       <div>                           ← title block
+         <p class="atl-section-eyebrow">…</p>
+         <h2 class="atl-section-heading"><i></i> …</h2>
+         <p class="atl-section-sub">…</p>
+       </div>
+       <div>… optional action buttons …</div>
+     </div>
+     <div class="atl-section-rule"></div>
+   Base styles target small screens; the ≥600px query promotes
+   the title + actions onto one shared baseline-aligned row.
+   ============================================================ */
+.atl-section-hd {
+    display: flex;
+    flex-direction: column;        /* mobile-first: title stacks above actions */
+    align-items: stretch;
+    gap: 14px;
+    width: 100%;
+    margin-bottom: 8px;
+}
+.atl-section-hd > div { min-width: 0; }             /* allow long text to wrap */
+.atl-section-hd > div:nth-child(2) {                /* action cluster */
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.atl-section-eyebrow {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.22em !important;
+    text-transform: uppercase !important;
+    color: var(--atl-amber) !important;
+    margin: 0 0 6px !important;
+}
+/* body.admin-body prefix matches (and beats) css/style.css's own
+   `body.admin-body h2 {font-family:var(--theme-font)!important}` — every one of these 25
+   section headings is an <h2>, so a bare `.atl-section-heading{!important}` alone loses on
+   specificity even with !important on both sides. Same root cause as .dv-title — see
+   reference_admin_heading_font_bleed memory note. */
+body.admin-body .atl-section-heading {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: clamp(26px, 5vw, 40px) !important;   /* scales down cleanly on phones */
+    font-weight: 500 !important;
+    letter-spacing: -0.01em !important;
+    line-height: 1.1 !important;
+    color: var(--atl-ink) !important;
+    margin: 0 !important;
+}
+.atl-section-heading i {
+    margin-right: 10px !important;
+    font-size: 0.78em !important;
+    color: var(--atl-amber) !important;
+}
+.atl-section-sub {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    line-height: 1.5 !important;
+    color: var(--atl-muted) !important;
+    margin: 8px 0 0 !important;
+    max-width: 64ch;
+}
+.atl-section-rule {
+    height: 1px !important;
+    margin: 18px 0 24px !important;
+    background: linear-gradient(to right, var(--atl-amber), rgba(212,175,55,0.18) 42%, transparent 78%) !important;
+    border: none !important;
+}
+/* ≥600px — title and action cluster share one baseline-aligned row */
+@media (min-width: 600px) {
+    .atl-section-hd {
+        flex-direction: row;
+        align-items: flex-end;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 16px;
+    }
+    .atl-section-hd > div:nth-child(2) { margin-left: auto; }
+}
+
+/* ── SIDEBAR NAVIGATION ── */
+.tm-admin-wrapper { background: var(--atl-paper) !important; }
+.tm-admin-sidebar {
+    background: var(--atl-sidebar-bg) !important;
+    border-right: 1px solid var(--atl-line) !important;
+}
+.tm-admin-sidebar-brand {
+    color: var(--atl-ink-dim) !important;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: 20px;
+    font-weight: 500;
+}
+.tm-sidebar-group-title span {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 9px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0.25em !important;
+    text-transform: uppercase !important;
+    /* Each <span> carries an inline style="color:var(--atl-amber)" (the intended design -
+       amber section labels), which this !important always silently defeated in both themes.
+       --atl-muted-dim only reaches ~3.1:1 against the new white light-theme sidebar (fails
+       WCAG AA); --atl-amber-hover restores the amber accent at ~5.2:1 in light theme and
+       remains a valid bright gold against the unchanged dark sidebar. */
+    color: var(--atl-amber-hover) !important;
+}
+.tm-admin-sidebar .nav.admin-sidebar > li > a {
+    color: var(--atl-muted) !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    transition: color var(--atl-t-base), background var(--atl-t-base) !important;
+    border-radius: var(--atl-r-sm) !important;
+}
+.tm-admin-sidebar .nav.admin-sidebar > li > a > i {
+    color: var(--atl-muted-dim) !important;
+    transition: color var(--atl-t-base) !important;
+}
+.tm-admin-sidebar .nav.admin-sidebar > li > a:hover {
+    color: var(--atl-ink) !important;
+    /* was a hardcoded dark-theme-amber rgba() literal, identical in both themes - light
+       theme's amber is a different, more muted gold, so this looked mismatched against a
+       light sidebar. color-mix reads the theme's own --atl-amber at all times. */
+    background: color-mix(in srgb, var(--atl-amber) 7%, transparent) !important;
+}
+.tm-admin-sidebar .nav.admin-sidebar > li > a:hover > i { color: var(--atl-amber) !important; }
+.tm-admin-sidebar .nav.admin-sidebar > li.active > a {
+    color: var(--atl-amber) !important;
+    background: var(--atl-amber-dim) !important;
+    border-left: 2px solid var(--atl-amber) !important;
+}
+.tm-admin-sidebar .nav.admin-sidebar > li.active > a > i { color: var(--atl-amber) !important; }
+.tm-admin-sidebar-toggle {
+    color: var(--atl-muted) !important;
+    background: transparent !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-sm) !important;
+}
+.tm-admin-sidebar-toggle:hover {
+    color: var(--atl-amber) !important;
+    border-color: var(--atl-amber-border) !important;
+}
+.logout-action { color: var(--atl-muted) !important; }
+.logout-action:hover { color: var(--atl-clay) !important; background: rgba(248,113,113,0.08) !important; }
+
+/* ── CONTROL BAR (TOP NAV) ── */
+.adm-header {
+    background: var(--atl-topbar-bg) !important;
+    border-bottom: 1px solid var(--atl-line) !important;
+    box-shadow: var(--atl-shadow-top) !important;
+}
+.adm-search__input {
+    background: var(--atl-input-bg) !important;
+    border: 1px solid var(--atl-line) !important;
+    color: var(--atl-ink) !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    border-radius: var(--atl-r-md) !important;
+    /* 36px left clears the magnifying-glass icon at left:12px */
+    padding: 9px 40px 9px 36px !important;
+    min-height: 40px !important;
+    transition: border-color var(--atl-t-base), box-shadow var(--atl-t-base) !important;
+}
+.adm-search__input::placeholder { color: var(--atl-placeholder) !important; }
+.adm-search__input:focus {
+    border-color: var(--atl-amber) !important;
+    box-shadow: 0 0 0 2px var(--atl-focus-ring) !important;
+    background: var(--atl-input-bg) !important;
+}
+.adm-search__shortcut {
+    background: var(--atl-surface2) !important;
+    border: 1px solid var(--atl-line) !important;
+    color: var(--atl-muted-dim) !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 9px !important;
+}
+.adm-search__results {
+    background: var(--atl-card) !important;
+    border: 1px solid var(--atl-line-strong) !important;
+    box-shadow: var(--atl-shadow-card) !important;
+    border-radius: var(--atl-r-lg) !important;
+}
+.adm-icon-btn, .adm-create-btn, .adm-profile-btn {
+    background: transparent !important;
+    border: 1px solid var(--atl-line) !important;
+    color: var(--atl-muted) !important;
+    border-radius: var(--atl-r-md) !important;
+    transition: all var(--atl-t-base) !important;
+    min-height: 36px;
+}
+.adm-icon-btn:hover, .adm-create-btn:hover, .adm-profile-btn:hover {
+    border-color: var(--atl-amber-border) !important;
+    color: var(--atl-amber) !important;
+    background: var(--atl-amber-dim) !important;
+}
+.adm-badge {
+    background: var(--atl-clay) !important;
+    color: var(--atl-ink) !important;
+    border: 2px solid var(--atl-topbar-bg) !important;
+}
+.adm-avatar {
+    background: var(--atl-amber-dim) !important;
+    border: 1px solid var(--atl-amber-border) !important;
+    color: var(--atl-amber) !important;
+    border-radius: var(--atl-r-pill) !important;
+}
+.adm-profile-name {
+    font-family: 'Outfit', sans-serif !important;
+    color: var(--atl-muted) !important;
+}
+.adm-dropdown__menu {
+    background: var(--atl-card) !important;
+    border: 1px solid var(--atl-line-strong) !important;
+    box-shadow: var(--atl-shadow-card) !important;
+    border-radius: var(--atl-r-lg) !important;
+}
+.adm-dropdown__header {
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 9px !important;
+    color: var(--atl-muted-dim) !important;
+    border-bottom: 1px solid var(--atl-line) !important;
+}
+.adm-dropdown__item {
+    color: var(--atl-muted) !important;
+    border-radius: var(--atl-r-sm) !important;
+}
+.adm-dropdown__item:hover, .adm-dropdown__item:focus {
+    background: var(--atl-amber-dim) !important;
+    color: var(--atl-ink) !important;
+}
+.adm-dropdown__item--danger:hover {
+    background: rgba(248,113,113,0.08) !important;
+    color: var(--atl-clay) !important;
+}
+.adm-profile-card {
+    background: var(--atl-surface2) !important;
+    border-radius: var(--atl-r-md) !important;
+}
+
+/* ── UNIVERSAL CARD COMPONENT ── */
+.atl-card, .db-card, .cms-card {
+    background: var(--atl-card) !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-xl) !important;
+    padding: 24px;
+    transition: border-color var(--atl-t-base), box-shadow var(--atl-t-base), background-color 0.4s ease !important;
+}
+.atl-card:hover, .db-card:hover, .cms-card:hover {
+    border-color: var(--atl-amber-border) !important;
+    box-shadow: var(--atl-shadow-card) !important;
+}
+.atl-card--flush { padding: 0 !important; overflow: hidden; }
+@media (max-width: 480px) { .atl-card:not(.atl-card--flush) { padding: 18px 15px; } }
+.atl-card-header, .db-card-header {
+    padding: 16px 20px 12px !important;
+    border-bottom: 1px solid var(--atl-line) !important;
+}
+.atl-card-body, .db-card-body { padding: 16px 20px !important; }
+.atl-surface {
+    background: var(--atl-surface2) !important;
+    border-radius: var(--atl-r-lg) !important;
+    padding: 16px;
+}
+
+/* ── UNIVERSAL BUTTON SYSTEM ── */
+.atl-btn,
+.btn-admin-primary,
+.btn-admin-secondary,
+.um-btn,
+[class*="um-btn--"] {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    border-radius: var(--atl-r-md) !important;
+    padding: 8px 16px !important;
+    min-height: 40px !important;
+    border: 1px solid transparent !important;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all var(--atl-t-base) !important;
+    white-space: nowrap;
+}
+.atl-btn:hover, [class*="um-btn--"]:hover { transform: translateY(-1px); }
+
+.atl-btn--primary,
+.btn-admin-primary,
+.um-btn--primary {
+    background: var(--atl-amber) !important;
+    color: var(--atl-on-amber) !important;
+    border-color: var(--atl-amber) !important;
+}
+.atl-btn--primary:hover,
+.btn-admin-primary:hover,
+.um-btn--primary:hover {
+    background: var(--atl-amber-hover) !important;
+    border-color: var(--atl-amber-hover) !important;
+    box-shadow: 0 4px 14px rgba(212,175,55,0.28) !important;
+}
+
+.atl-btn--ghost,
+.btn-admin-secondary,
+.um-btn--ghost {
+    background: transparent !important;
+    color: var(--atl-ink) !important;
+    border-color: var(--atl-line-strong) !important;
+}
+.atl-btn--ghost:hover,
+.btn-admin-secondary:hover,
+.um-btn--ghost:hover {
+    border-color: var(--atl-amber-border) !important;
+    color: var(--atl-amber) !important;
+    background: var(--atl-amber-dim) !important;
+}
+
+.atl-btn--danger,
+.btn-admin-danger,
+.um-btn--danger {
+    background: transparent !important;
+    color: var(--atl-clay) !important;
+    border-color: rgba(248,113,113,0.35) !important;
+}
+.atl-btn--danger:hover,
+.btn-admin-danger:hover,
+.um-btn--danger:hover { background: rgba(248,113,113,0.08) !important; }
+.btn-admin-success {
+    background: var(--atl-sage) !important;
+    color: #fff !important;
+    border-color: var(--atl-sage) !important;
+}
+.btn-admin-warning {
+    background: var(--atl-clay) !important;
+    color: #fff !important;
+    border-color: var(--atl-clay) !important;
+}
+.atl-btn.btn-block { display: flex !important; width: 100% !important; }
+
+.btn {
+    font-family: 'Outfit', sans-serif !important;
+    border-radius: var(--atl-r-md) !important;
+    font-weight: 600 !important;
+    transition: all var(--atl-t-base) !important;
+}
+
+/* ── UNIVERSAL FORM CONTROLS ──
+   .adm-search__input is excluded here because it has an embedded left-side icon that
+   requires extra padding-left — its full styles (including correct padding) live in its
+   own dedicated block. Every other search box on the site (list-filter search bars) uses
+   the shared .um-input-wrap/.um-input-icon/.um-input pattern instead of a bespoke class. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.adm-search__input),
+select,
+textarea,
+.form-control,
+.um-input,
+.tm-form-input {
+    background: var(--atl-input-bg) !important;
+    color: var(--atl-ink) !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-md) !important;
+    font-family: 'Outfit', sans-serif !important;
+}
+/* css/public/redesign.css has ".admin-body input, .admin-body textarea, .admin-body select"
+   (search for that selector — the old "redesign.css:4058" citation was already wrong before the
+   CSS refactor: line 4058 of the original file was a sidebar-toggle rule, not this one)
+   {background:var(--bg-page)!important; color:var(--text-primary)!important; height:45px!important}"
+   - --bg-page/--text-primary are that stylesheet's OWN single-theme (always-dark) tokens with
+   no light variant, and its specificity (0,1,1) actually beats the bare-tag branches of the
+   rule just above ((0,0,1) for select/textarea). In dark theme --atl-input-bg happens to be a
+   near-identical near-black, hiding the bug completely; in light theme every plain select/
+   textarea/input rendered with a hardcoded dark background and white text regardless of theme.
+   body.admin-body-prefixing gives (0,1,2)/(0,2,1), beating it outright regardless of source order -
+   same technique already used for body.admin-body textarea's font-family below. */
+body.admin-body input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.adm-search__input),
+body.admin-body select,
+body.admin-body textarea,
+body.admin-body .form-control,
+body.admin-body .um-input,
+body.admin-body .tm-form-input {
+    background: var(--atl-input-bg) !important;
+    color: var(--atl-ink) !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-md) !important;
+    font-family: 'Outfit', sans-serif !important;
+    height: auto !important;
+    font-size: 13px !important;
+    padding: 9px 12px !important;
+    min-height: 40px !important;
+    transition: border-color var(--atl-t-base), box-shadow var(--atl-t-base) !important;
+    color-scheme: inherit;
+}
+/* [type="file"] is excluded above (some are hidden behind a .um-upload-zone label and get
+   their own sizing there) but redesign.css's .admin-body input still matches it - visible
+   file inputs (e.g. #brandLogoFile, #newsletterAttachments) had the same dark-bg/white-text
+   leak via their own non-!important inline color:var(--atl-ink) losing to it. Background/
+   color only - deliberately not touching padding/height so hidden-upload-zone inputs are unaffected. */
+body.admin-body input[type="file"] {
+    background: var(--atl-input-bg) !important;
+    color: var(--atl-ink) !important;
+}
+/* Icon-bearing .um-input-wrap inputs need extra left padding so the text clears the leading icon.
+   The broad input:not(…) rule above would otherwise beat a plain selector here on source order
+   and collapse padding-left back to 12px (text overlaps the icon). Prefixing with body.admin-body
+   adds specificity so these rules win the padding-left cascade regardless. */
+body.admin-body .um-input-wrap > input.um-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+body.admin-body .um-input-wrap > select.um-input {
+    padding-left: 38px !important;
+}
+/* Normalise <select> appearance so it matches text inputs exactly.
+   Font, font-size, and border-radius must be re-declared here because
+   browsers ignore those properties on <select> until appearance is stripped. */
+select.um-input,
+select.atl-input,
+.atl-filter-select,
+.modal select,
+.atl-modal-body select {
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 1.4 !important;
+    color-scheme: inherit !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%239ca3af' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+    padding-right: 32px !important;
+    cursor: pointer !important;
+}
+select.um-input,
+select.atl-input,
+select.atl-filter-select,
+.modal select,
+.atl-modal-body select { border-radius: var(--atl-r-md) !important; }
+/* intl-tel-input phone fields: ITI inserts .iti>.iti--separate-dial-code around the input,
+   so the direct-child > selector above no longer matches. Target via descendant combinator,
+   using .iti twice to reach specificity (0,6,1) and beat the broad rule on source order. */
+.um-input-wrap .iti.iti--separate-dial-code input.um-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+    padding-left: 72px !important;
+}
+/* Shared leading-icon padding classes — apply to any input/select that has a leading icon
+   and does not use the .um-input-wrap wrapper pattern. */
+.has-leading-icon { padding-left: 36px !important; }
+.has-flag         { padding-left: 56px !important; }
+/* Shared icon-padding utilities (for future use and any unlisted fields) */
+.has-leading-icon input, input.has-leading-icon { padding-left: 38px; }
+.has-flag-input input, input.has-flag-input, .iti input { padding-left: 58px; }
+/* Defect 2: Input wells — recessed background distinct from card surface */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+select,
+textarea {
+    background: var(--atl-input-bg);
+}
+/* Textarea baseline — browsers don't inherit font or respect border-radius
+   without explicit declarations. This block ensures every textarea on the
+   page matches text input styling before any class-level rules run. */
+textarea {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 1.5 !important;
+    min-height: 80px !important;
+    resize: vertical !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: 8px !important;
+    padding: 9px 12px !important;
+    color: var(--atl-ink) !important;
+    background: var(--atl-input-bg) !important;
+    box-sizing: border-box !important;
+    transition: border-color var(--atl-t-base), box-shadow var(--atl-t-base) !important;
+}
+/* style.css leaks two rules into admin that must be beaten with higher specificity:
+   • body.admin-body textarea { font-family:"Open Sans" }  — (0,1,2)
+   • .admin-layout textarea   { font-size:16px }           — (0,1,1)
+   Using body.admin-body textarea here gives (0,1,2) which wins on both,
+   and this inline style block loads after style.css so source-order wins on ties. */
+body.admin-body textarea {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    border-radius: 8px !important;
+}
+/* um-input uses 10px radius — must be at (0,2,2) to beat body.admin-body textarea (0,1,2) */
+body.admin-body textarea.um-input { border-radius: var(--atl-r-md) !important; }
+/* scroll-margin-top — prevents autofocus from scrolling a label out of view in modal bodies */
+input, select, textarea, .atl-input, .um-input {
+    scroll-margin-top: 48px;
+}
+
+input::placeholder, textarea::placeholder, .form-control::placeholder {
+    color: var(--atl-placeholder) !important;
+}
+input:focus, select:focus, textarea:focus, .form-control:focus, .um-input:focus {
+    outline: none !important;
+    border-color: var(--atl-amber) !important;
+    box-shadow: 0 0 0 2px var(--atl-focus-ring) !important;
+}
+/* redesign.css's .admin-body input:focus/etc (specificity 0,2,1) beats the rule just above
+   (0,1,1) - its border-color/box-shadow hardcode --y-base/--y-muted (dark-theme-only gold,
+   #D4AF37), so every focused field got that instead of the theme's own --atl-amber. Also
+   replaces the box-shadow's own hardcoded dark-amber rgba() literal with color-mix so the
+   ring itself is theme-aware, not just a fixed win over redesign.css. */
+body.admin-body input:focus, body.admin-body select:focus, body.admin-body textarea:focus,
+body.admin-body .form-control:focus, body.admin-body .um-input:focus {
+    outline: none !important;
+    border-color: var(--atl-amber) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--atl-amber) 22%, transparent) !important;
+}
+select option { background: var(--atl-card) !important; color: var(--atl-ink) !important; }
+/* Newsletter's select.tm-nl-input (redesign.css) hardcodes its <option> list to
+   background-color:#0c0c0c/color:#fff regardless of theme - specificity (0,1,2) beats the
+   rule just above (0,0,2). */
+body.admin-body select option { background: var(--atl-card) !important; color: var(--atl-ink) !important; }
+/* Disabled state - the universal rules above force full-opacity background/color on every
+   input/select/textarea unconditionally (no :not(:disabled) exclusion), so a disabled field
+   would otherwise look identical to an editable one. Matches the existing .inq-crm-select:disabled
+   convention (opacity 0.6 + not-allowed cursor). */
+input:disabled, select:disabled, textarea:disabled, .form-control:disabled, .um-input:disabled,
+input[readonly], textarea[readonly] {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+}
+label, .um-label, .tm-form-label {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.08em !important;
+    color: var(--atl-muted) !important;
+}
+label .req, label .required, label .atl-req { color: var(--atl-required) !important; font-weight: 600 !important; }
+input[type="checkbox"], input[type="radio"] {
+    accent-color: var(--atl-amber) !important;
+    width: 16px;
+    height: 16px;
+}
+
+/* ── UNIVERSAL TABLE STYLES ── */
+.table-responsive {
+    border-radius: var(--atl-r-lg) !important;
+    border: 1px solid var(--atl-line) !important;
+    overflow: hidden;
+}
+.table, table {
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    color: var(--atl-ink) !important;
+}
+.table thead th, table thead th {
+    background: var(--atl-surface2) !important;
+    color: var(--atl-muted) !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 10px !important;
+    font-weight: 500 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.12em !important;
+    border-bottom: 1px solid var(--atl-line-strong) !important;
+}
+.table tbody tr, table tbody tr {
+    border-bottom: 1px solid var(--atl-line) !important;
+    transition: background var(--atl-t-fast) !important;
+}
+.table tbody tr:hover, table tbody tr:hover { background: rgba(212,175,55,0.03) !important; }
+.table td, table td { border: none !important; color: var(--atl-ink) !important; }
+
+/* ── UNIVERSAL MODAL SYSTEM ── */
+.modal.fade .modal-dialog {
+    transform: none !important;
+    -webkit-transform: none !important;
+    transition: opacity 0.15s linear !important;
+}
+.modal-backdrop {
+    background-color: var(--atl-paper) !important;
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+}
+.modal-backdrop.in {
+    opacity: 0.72 !important;
+}
+.modal-content {
+    background: var(--atl-card) !important;
+    border: 1px solid var(--atl-amber-border) !important;
+    border-radius: var(--atl-r-xl) !important;
+    box-shadow: var(--atl-shadow-modal) !important;
+    color: var(--atl-ink) !important;
+}
+.modal-header {
+    background: var(--atl-surface2) !important;
+    border-bottom: 1px solid var(--atl-line) !important;
+    padding: 18px 22px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+}
+.modal-header .modal-title, .modal-header h4 {
+    font-family: 'Cormorant Garamond', Georgia, serif !important;
+    font-size: 22px !important;
+    font-weight: 600 !important;
+    color: var(--atl-amber) !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+}
+.modal-header .close {
+    color: var(--atl-muted) !important;
+    opacity: 1 !important;
+    background: transparent !important;
+    border: none !important;
+    float: none !important;
+    margin: 0 0 0 12px !important;
+    padding: 8px !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex-shrink: 0 !important;
+    line-height: 1 !important;
+    text-shadow: none !important;
+    font-weight: normal !important;
+    transition: background 0.15s ease !important;
+}
+.modal-header .close:hover {
+    color: var(--atl-ink) !important;
+    background: rgba(255,255,255,0.08) !important;
+}
+.modal-body {
+    background: var(--atl-card) !important;
+    color: var(--atl-ink) !important;
+    padding: 22px !important;
+}
+/* Increase contrast for form labels and fields inside modals */
+.modal label, .modal .form-group label {
+    color: var(--atl-ink-dim) !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.5px !important;
+}
+.modal .form-control, .modal input, .modal select, .modal textarea {
+    background-color: var(--atl-surface2) !important;
+    border: 1px solid var(--atl-line-strong) !important;
+    color: var(--atl-ink) !important;
+}
+/* Generate-Invoice booking dropdown — id-scoped so it beats the universal `select { background:… }`
+   shorthand that otherwise forces a flat input-bg and strips the dropdown chevron. */
+#giBookingSelect {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    background-color: var(--atl-surface2) !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M6 9l6 6 6-6' stroke='%239ca3af' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 12px center !important;
+    padding-right: 34px !important;
+    color: var(--atl-ink) !important;
+}
+#giBookingSelect option { background-color: var(--atl-card) !important; color: var(--atl-ink) !important; }
+.modal .form-control:focus, .modal input:focus, .modal select:focus, .modal textarea:focus {
+    border-color: var(--atl-amber) !important;
+    box-shadow: 0 0 0 2px var(--atl-focus-ring) !important;
+    outline: none !important;
+}
+.modal-footer {
+    background: var(--atl-surface2) !important;
+    border-top: 1px solid var(--atl-line) !important;
+    padding: 14px 22px !important;
+}
+
+/* .nav-tabs (Bootstrap tabs) quarantined to _quarantine/css/admin/07-components.dead-rules.css
+   — admin.html:2353's own comment confirms the one caller already migrated to .atl-tab-bar,
+   which is the platform's single live tab system. See admin-consolidation-log.md Step 6. */
+
+/* ── STATUS BADGES ── */
+.atl-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: var(--atl-r-pill);
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+}
+.atl-badge--pending   { background: rgba(212,175,55,0.14); color: var(--atl-amber); }
+.atl-badge--quoted    { background: rgba(232,193,75,0.14);  color: #E8C14B; }
+.atl-badge--accepted  { background: rgba(96,165,250,0.16);  color: #60a5fa; }
+.atl-badge--confirmed { background: rgba(52,211,153,0.16);  color: #34d399; }
+.atl-badge--completed { background: rgba(74,222,128,0.16);  color: #4ade80; }
+.atl-badge--cancelled { background: rgba(248,113,113,0.16); color: #f87171; }
+.atl-badge--paid      { background: rgba(74,222,128,0.14);  color: #4ade80; }
+.atl-badge--unpaid    { background: rgba(255,255,255,0.06); color: var(--atl-muted); border: 1px solid var(--atl-line); }
+.atl-badge--overdue   { background: rgba(248,113,113,0.14); color: #f87171; }
+.atl-badge--new       { background: rgba(96,165,250,0.14);  color: #60a5fa; }
+.atl-badge--info      { background: rgba(212,175,55,0.10);  color: var(--atl-amber); }
+.atl-badge--warning   { background: rgba(251,146,60,0.14);  color: var(--atl-orange); }
+
+[data-theme="light"] .atl-badge--pending   { color: #8a6a0d; }
+[data-theme="light"] .atl-badge--completed { color: #15803d; }
+[data-theme="light"] .atl-badge--confirmed { color: #0f7a45; }
+[data-theme="light"] .atl-badge--accepted  { color: #1d4ed8; }
+[data-theme="light"] .atl-badge--cancelled { color: #b91c1c; }
+[data-theme="light"] .atl-badge--paid      { color: #15803d; }
+
+/* ── NOTIFICATIONS PANEL ── */
+.adm-noti-list { max-height: 320px; overflow-y: auto; }
+.adm-noti-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--atl-line);
+    transition: background var(--atl-t-fast);
+    cursor: pointer;
+}
+.adm-noti-item:hover { background: var(--atl-amber-dim); }
+.adm-noti-icon {
+    width: 32px; height: 32px;
+    border-radius: var(--atl-r-md);
+    background: var(--atl-amber-dim);
+    color: var(--atl-amber);
+    display: inline-flex; align-items: center; justify-content: center;
+}
+.adm-noti-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    color: var(--atl-ink);
+    font-weight: 600;
+}
+.adm-noti-sub {
+    font-size: 11px;
+    color: var(--atl-muted);
+}
+.adm-noti-item.unread { background: rgba(212,175,55,0.03); }
+.adm-noti-item.unread .adm-noti-title::before {
+    content: '● ';
+    color: var(--atl-amber);
+    font-size: 8px;
+}
