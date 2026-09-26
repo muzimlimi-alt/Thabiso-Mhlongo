@@ -1,5 +1,0 @@
-# Golden test fixtures are compared byte-for-byte against runtime-generated output (always LF,
-# from JS template literals). Without this, Windows checkouts with core.autocrlf=true silently
-# rewrite these to CRLF on checkout, making every golden-snapshot test fail for a reason that has
-# nothing to do with the code under test.
-test/golden/** text eol=lf
