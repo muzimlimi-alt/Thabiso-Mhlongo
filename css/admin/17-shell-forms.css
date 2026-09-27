@@ -1,0 +1,111 @@
+/* =====================================================================
+   ADMIN — SHELL · neutralise the compound rule s height 42px
+   Extracted verbatim from admin.html (inline <style> block 17 of 20,
+   was lines 3766-3865). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: shell:7, bookings:4, users-security:3, misc:1, components:1
+   ===================================================================== */
+
+
+/* Textareas — a comfortable default writing area everywhere. The compact inline
+   note field (.bk-note-input) keeps its own smaller height. */
+.atl-textarea:not(.bk-note-input),
+textarea.um-input:not(.bk-note-input),
+textarea.atl-input:not(.bk-note-input),
+.atl-modal-body textarea:not(.bk-note-input) {
+    min-height: 120px;
+    line-height: 1.5;
+    resize: vertical;
+}
+
+@media (max-width: 767px) {
+    /* 16px inputs stop iOS Safari auto-zooming the page on focus (a11y + no reflow). */
+    .atl-input, .atl-textarea, .um-input, .tm-form-input,
+    .atl-filter-select, select.um-input, select.atl-input,
+    .atl-modal-body input, .atl-modal-body select, .atl-modal-body textarea,
+    input.form-control, textarea.form-control {
+        font-size: 16px !important;
+    }
+    /* Keep leading icons optically centred against the taller inputs. */
+    .um-input-icon { top: 50%; transform: translateY(-50%); line-height: 1; }
+
+    /* Touch targets for the secondary button system; no button overruns its row. */
+    .um-btn { min-height: 44px; }
+    .atl-btn, .um-btn, .bk-btn { max-width: 100%; }
+
+    /* Bulk-action bars: buttons share the row and wrap instead of overflowing. */
+    .bk-bulk-bar .atl-btn { flex: 1 1 auto; justify-content: center; }
+
+    /* Wide tables scroll inside their card rather than pushing the page sideways. */
+    .table-responsive,
+    .lc-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+@media (max-width: 479px) {
+    /* Bulk-bar buttons pair up two-per-row on the smallest screens. */
+    .bk-bulk-bar .atl-btn { flex-basis: calc(50% - 4px); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   UNIFIED SEARCH BOXES — the #eventsAdmin search box is the single standard:
+   a .um-input inside a .um-input-wrap with a leading .um-input-icon.
+   #bookingsAdmin, #servicesAdmin and #inquiriesAdmin now use those exact
+   classes (see their markup), so they inherit the identical component.
+   The Global navbar search keeps its own structure (results dropdown + "/"
+   shortcut) but is styled here to match .um-input pixel-for-pixel. Styling only.
+   ═══════════════════════════════════════════════════════════════════════ */
+/* Both selectors are listed so the (0,2,0) mobile-panel rule
+   `.adm-mobile-search-inner .adm-search__input` (redesign.css) can't diverge —
+   every box property is pinned to the .um-input values. The "/" hint + × clear
+   button stay, so the right padding keeps room for them. */
+.adm-search__input,
+.adm-mobile-search-inner .adm-search__input {
+    background: var(--atl-input-bg) !important;
+    border: 1px solid var(--atl-line) !important;
+    border-radius: var(--atl-r-md) !important;
+    color: var(--atl-ink) !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    line-height: 1.4 !important;
+    height: auto !important;          /* neutralise the compound rule's height:42px */
+    min-height: 40px !important;      /* → ~40px, same as .um-input */
+    width: 100% !important;
+    padding: 9px 40px 9px 38px !important;  /* left clears icon; right clears "/" + × */
+    box-sizing: border-box !important;
+    box-shadow: none !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    transition: border-color 0.18s, box-shadow 0.18s !important;
+}
+.adm-search__input::placeholder,
+.adm-mobile-search-inner .adm-search__input::placeholder { color: var(--atl-placeholder) !important; }
+.adm-search__input:focus,
+.adm-mobile-search-inner .adm-search__input:focus {
+    border-color: var(--atl-amber) !important;
+    box-shadow: 0 0 0 2px var(--atl-focus-ring) !important;
+    background: var(--atl-input-bg) !important;
+}
+.adm-search__icon { left: 13px !important; top: 50% !important; transform: translateY(-50%) !important; color: var(--atl-muted) !important; font-size: 13px !important; }
+/* The mobile panel wrapper adds 12px side padding, and the icon is positioned
+   against that wrapper — so add 12px to keep it the same 13px inside the input
+   (aligned with the text) as on desktop and the events search. */
+.adm-mobile-search-inner .adm-search__icon { left: 25px !important; }
+.adm-search:focus-within .adm-search__icon { color: var(--atl-amber) !important; }
+/* redesign.css's .admin-body input (specificity 0,1,1) still beats .adm-search__input alone
+   (0,1,0) despite the dedicated block above - same root cause as every other form control
+   fixed earlier in this pass (see body.admin-body input/select/textarea nearby), just missed
+   here because this box was assumed to be fully covered by its own "dedicated" rule. */
+body.admin-body .adm-search__input,
+body.admin-body .adm-mobile-search-inner .adm-search__input {
+    background: var(--atl-input-bg) !important;
+    color: var(--atl-ink) !important;
+    border: 1px solid var(--atl-line) !important;
+}
+/* Filter selects share the 40px search height for tidy, aligned toolbar rows. */
+.atl-filter-select { min-height: 40px !important; }

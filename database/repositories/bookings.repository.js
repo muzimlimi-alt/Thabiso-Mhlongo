@@ -673,6 +673,18 @@ function deleteBookingNote(noteId, bookingId, callback) {
 // POST /api/payment/webhook/payfast — the atomic ledger-credit UPDATE inside withDbTransaction().
 // Column refs read the pre-update row (documented at the call site), so this is one statement,
 // not decomposable into smaller pieces without changing its atomicity guarantee.
+// payment_status's middle CASE branch derives DEPOSIT_PAID from schedule-row coverage (does the
+// new cumulative amount_paid cover the FIRST live row, by sequence/due_date/id — deliberately not
+// excluding 'paid' rows, so the threshold stays pinned to the deposit's amount even after
+// alignMilestonePayments has since flipped that row to 'paid') rather than the paymentType string.
+// For a 2-way plan the deposit row IS 50% of total by construction, so this is a pure
+// generalization — zero behavior change for existing/in-flight bookings. For a client-selected
+// 3-way plan, cumulative coverage from installment 1 through the second-to-last installment all
+// reads DEPOSIT_PAID (reuses the existing label — every consumer of that string, badges/emails,
+// keeps working unchanged); only the final installment flips it to PAID. Deliberately not a new
+// third intermediate label — same shape a 2-way plan already has (DEPOSIT_PAID covers the whole
+// 50%-99% range there too). The `? = 'DEPOSIT'` fallback below is only reachable when there is no
+// live schedule row at all (pre-existing edge case, unchanged).
 function applyPayfastPaymentToBooking(itnAmount, currentTotal, paymentType, pfPaymentId, receivedSignature, rawPayloadJson, paymentMethod, bookingId) {
     return promised(
         `UPDATE bookings SET
@@ -681,6 +693,11 @@ function applyPayfastPaymentToBooking(itnAmount, currentTotal, paymentType, pfPa
             amount_outstanding = MAX(0, ? - (COALESCE(amount_paid,0) + ?)),
             payment_status = CASE
                 WHEN (COALESCE(amount_paid,0) + ?) >= ? THEN 'PAID'
+                WHEN (COALESCE(amount_paid,0) + ?) >= COALESCE((
+                    SELECT expected_amount FROM payment_schedules
+                    WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')
+                    ORDER BY sequence ASC, due_date ASC, id ASC LIMIT 1
+                ), 999999999) THEN 'DEPOSIT_PAID'
                 WHEN ? = 'DEPOSIT' THEN 'DEPOSIT_PAID'
                 ELSE 'PARTIALLY_PAID' END,
             status = CASE WHEN status IN ('ACCEPTED','CONFIRMED') THEN 'CONFIRMED' ELSE status END,
@@ -688,7 +705,8 @@ function applyPayfastPaymentToBooking(itnAmount, currentTotal, paymentType, pfPa
             confirmed_at = CURRENT_TIMESTAMP, last_payment_date = CURRENT_TIMESTAMP, payment_date = CURRENT_TIMESTAMP
         WHERE id = ? AND (COALESCE(amount_paid,0) + ?) <= ? + 1.0`,
         [
-            itnAmount, currentTotal, currentTotal, itnAmount, itnAmount, currentTotal, paymentType,
+            itnAmount, currentTotal, currentTotal, itnAmount, itnAmount, currentTotal,
+            itnAmount, bookingId, paymentType,
             pfPaymentId, receivedSignature, rawPayloadJson, paymentMethod,
             bookingId, itnAmount, currentTotal
         ]);

@@ -337,6 +337,13 @@ app.use('/images', express.static(UPLOADS_PATH));
 // auth-gated download route) — same external-first, legacy-fallback pattern as /images above.
 app.use('/uploads', express.static(UPLOADS_PATH));
 
+// Bootstrap 3's Glyphicons. bootstrap.min.css requests them at "../fonts/…" relative to itself;
+// that resolved to /fonts/ while it sat at css/bootstrap.min.css, but the CSS refactor moved it to
+// css/vendor/bootstrap.min.css, so the same relative URL now resolves to /css/fonts/. The font files
+// can't simply move there — js/pdfService.js reads this same folder from disk by path — and the
+// vendor CSS is never edited (css-audit.md §2.4), so the URL is aliased back to the real folder.
+app.use('/css/fonts', express.static(path.join(__dirname, 'fonts')));
+
 // Enforce UTF-8 charset on all text-based static files + Cache Optimization
 app.use(express.static(path.join(__dirname, '/'), {
     setHeaders(res, filePath) {
@@ -402,6 +409,7 @@ app.use(require('./routes/admin/auth'));
 app.use(require('./routes/admin/settings'));
 app.use(require('./routes/admin/site-content'));
 app.use(require('./routes/admin/content'));
+app.use(require('./routes/admin/team'));
 app.use(require('./routes/admin/home-social'));
 app.use(require('./routes/admin/newsletter-subscribers'));
 app.use(require('./routes/admin/newsletter-campaigns'));

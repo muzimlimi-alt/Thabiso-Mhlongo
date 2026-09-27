@@ -37,7 +37,7 @@
 }
 
 /* Unified event card badges (replaces all hardcoded inline badge styles) */
-.evt-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:999px; font-family:'Outfit',sans-serif; font-size:10px; font-weight:700; line-height:1.4; white-space:nowrap; }
+.evt-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:var(--atl-r-pill); font-family:'Outfit',sans-serif; font-size:10px; font-weight:700; line-height:1.4; white-space:nowrap; }
 .evt-badge--amber { background:var(--atl-amber-dim); color:var(--atl-amber); border:1px solid var(--atl-amber-border); }
 .evt-badge--amber-dim { background:var(--atl-amber-dim); color:var(--atl-amber); border:1px solid var(--atl-amber-border); }
 .evt-badge--muted { background:var(--atl-surface2); color:var(--atl-muted); border:1px solid var(--atl-line); }

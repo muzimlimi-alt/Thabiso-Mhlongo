@@ -1,0 +1,59 @@
+/* =====================================================================
+   ADMIN — COMPONENTS · pipeline
+   Extracted verbatim from admin.html (inline <style> block 18 of 20,
+   was lines 5291-5338). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: components:22, bookings:12
+   ===================================================================== */
+
+.bk-select-box { display:none; position:absolute; top:12px; left:12px; z-index:6; margin:0; }
+.bk-select-box input { width:18px; height:18px; accent-color:var(--atl-amber); cursor:pointer; }
+#bookingsListContainer.bk-select-mode .atl-booking-card { position:relative; }
+#bookingsListContainer.bk-select-mode .bk-select-box { display:block; }
+#bookingsListContainer.bk-select-mode .atl-card-inner { padding-left:44px; }
+.bk-bulk-bar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; background:var(--atl-surface2); border:1px solid var(--atl-line); border-radius:var(--atl-r-md); padding:10px 14px; margin:10px 0 4px; }
+.bk-bulk-count { font-size:13px; font-weight:600; color:var(--atl-amber); }
+.bk-bulk-selectall { font-size:12.5px; color:var(--atl-muted); display:inline-flex; align-items:center; gap:6px; cursor:pointer; margin:0; }
+.bk-bulk-selectall input { accent-color:var(--atl-amber); cursor:pointer; }
+.bk-bulk-actions { display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
+
+/* ── Bookings list — compact table (Pipeline + Archive), mirrors the
+   atelier-deal-view-mockup.html reference table ── */
+.atl-bk-table-wrap { overflow-x:auto; border:1px solid var(--atl-line); border-radius:var(--atl-r-lg); background:var(--atl-card); -webkit-overflow-scrolling:touch; }
+.atl-bk-table { width:100%; border-collapse:collapse; }
+.atl-bk-table thead th {
+  text-align:left; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--atl-muted-dim);
+  font-weight:600; padding:13px 16px; border-bottom:1px solid var(--atl-line); background:var(--atl-surface2);
+  white-space:nowrap;
+}
+.atl-bk-table thead th.r { text-align:right; }
+.atl-bk-table tbody tr { cursor:pointer; transition:background var(--atl-t-fast); border-bottom:1px solid var(--atl-line); }
+.atl-bk-table tbody tr:last-child { border-bottom:none; }
+.atl-bk-table tbody tr:hover { background:var(--atl-surface2); }
+.atl-bk-table tbody tr:focus-visible { outline:2px solid var(--atl-focus); outline-offset:-2px; }
+.atl-bk-table td { padding:14px 16px; font-size:13px; color:var(--atl-ink-dim); vertical-align:top; }
+.atl-bk-ref { font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--atl-muted); white-space:nowrap; }
+.atl-bk-ev { font-weight:600; color:var(--atl-ink); font-size:13.5px; margin-bottom:4px; }
+.atl-bk-client { white-space:nowrap; }
+.atl-bk-date { white-space:nowrap; font-size:12.5px; }
+.atl-bk-status { white-space:nowrap; }
+.atl-bk-status .atl-payment-badge { margin-left:6px; }
+.atl-bk-fee { font-family:'JetBrains Mono', monospace; font-size:12.5px; text-align:right; white-space:nowrap; }
+.atl-bk-select-cell, .atl-bk-select-th { width:36px; padding-left:16px; padding-right:0; display:none; }
+#bookingsListContainer.bk-select-mode .atl-bk-select-cell,
+#bookingsListContainer.bk-select-mode .atl-bk-select-th { display:table-cell; }
+.atl-bk-select-cell .bk-select-box, .atl-bk-select-th .bk-select-box { position:static; display:block; }
+@media (max-width:900px) {
+  .atl-bk-th-ref, .atl-bk-ref, .atl-bk-th-date, .atl-bk-date { display:none; }
+}
+
+/* Pipeline/Archive pagination bar */
+.atl-pagination-bar { display:flex; align-items:center; justify-content:center; gap:14px; margin-top:16px; }
+.atl-pagination-indicator { font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--atl-muted); white-space:nowrap; }
+.atl-pagination-bar .atl-btn { padding:8px 12px; }
+.atl-btn:disabled { opacity:.4; cursor:not-allowed; pointer-events:none; }

@@ -3,11 +3,16 @@
    Comprehensive: period selector, KPI cards, CRM cards, chart grids, schedule list, sparklines,
    ranked lists, country map, social cards, trend indicators, KPI config cards.
 
-   IMPORTANT — pre-existing duplication, NOT resolved here: several classes here
-   (.db-summary-grid, .db-stat-card, .db-schedule-item, .db-social-grid) are ALSO defined in the
-   main stylesheet (now css/admin/dashboard.css) with DIFFERENT breakpoint values. Kept as a
-   fully separate file, linked at this exact original position, to preserve the pre-existing
-   cascade order rather than merging the two. Flagged for Phase 8. */
+   DUPLICATION — PARTLY RESOLVED by the CSS architecture refactor (finding F5).
+     - .db-summary-grid / .db-social-grid: this file is now the SOLE definition. The competing
+       copies in css/admin/dashboard.css have been removed; they were already fully overridden
+       at runtime, because this file is linked later and its base rule sets display,
+       grid-template-columns AND gap (media queries add no specificity, so even their breakpoint
+       variants lost). Removal was verified as a no-op by scripts/css-parity.js.
+     - .db-stat-card / .db-schedule-item: STILL duplicated with css/admin/dashboard.css, and that
+       file wins for them even though it loads first — its declarations carry !important and
+       these do not. Resolving that changes rendering, so it is a visual decision. Open item.
+   This file stays separate and linked at its exact original position, preserving cascade order. */
 
     /* ── Dashboard local brand colours ──────────────────────────────── */
     #dashboardAdmin {

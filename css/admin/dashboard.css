@@ -3,13 +3,20 @@
    grids) concatenated in original document order and linked from both original positions (the
    same multi-link-one-file approach used for Unified Calendar's three clusters).
 
-   IMPORTANT — pre-existing duplication, NOT resolved here: Dashboard's own markup also embeds a
-   full second <style> block (~440 lines, now css/admin/dashboard-widget.css) that redefines
-   several of the SAME classes (.db-summary-grid, .db-stat-card, .db-schedule-item,
-   .db-social-grid) with DIFFERENT breakpoint values — the same class of bug as Email Logs'
-   duplicate .log-row rules. Both files are kept separate, each linked at its own original
-   position, to preserve the exact pre-existing cascade order rather than merging them. Flagged
-   for Phase 8. */
+   DUPLICATION — PARTLY RESOLVED by the CSS architecture refactor (finding F5).
+   Dashboard's markup also embeds a second block (~440 lines, css/admin/dashboard-widget.css)
+   which redefines several of the same classes with DIFFERENT breakpoint values. It is linked
+   later, so it won at runtime.
+     - .db-summary-grid / .db-social-grid: the losing copies have been REMOVED from this file.
+       dashboard-widget.css is now the sole definition. The removed rules are kept in
+       _quarantine/css/admin/dashboard.db-grids.removed.css. Do not re-add them here.
+     - .db-stat-card / .db-schedule-item: STILL duplicated, and deliberately left alone. Unlike
+       the grids, THIS file wins for them despite loading first, because its declarations carry
+       !important and dashboard-widget.css's do not. The two also set overlapping-but-different
+       property sets (here: background/border/border-radius/transition; there: display/flex
+       layout). Removing either copy changes rendering, so it is a visual decision, not a move.
+       Open item.
+   Both files stay separate, each linked at its own original position, preserving cascade order. */
 
 /* ── DASHBOARD SECTION ── */
 .db-stat-card {
@@ -91,20 +98,8 @@
     color: var(--atl-muted) !important;
 }
 
-.db-summary-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-}
-@media (min-width: 480px)  { .db-summary-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
-@media (min-width: 768px)  { .db-summary-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; } }
-@media (min-width: 1024px) { .db-summary-grid { grid-template-columns: repeat(6, 1fr); } }
-
-.db-social-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
-}
-@media (min-width: 480px)  { .db-social-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 640px)  { .db-social-grid { grid-template-columns: repeat(3, 1fr); } }
-@media (min-width: 1024px) { .db-social-grid { grid-template-columns: repeat(5, 1fr); } }
+/* .db-summary-grid / .db-social-grid were defined here with different breakpoints to the ones in
+   dashboard-widget.css, which is linked later and won at runtime. Removed in the CSS refactor
+   (finding F5) so one component has one definition; the removed rules are kept in
+   _quarantine/css/admin/dashboard.db-grids.removed.css. dashboard-widget.css is now the only
+   definition - do not re-add them here. */

@@ -17,6 +17,20 @@ const db = new sqlite3.Database(dbPath, (err) => {
     }
 });
 
+// Safety net: a db.run/get/all/each call made without an error callback (there are many, across
+// this file and the route/lib layers) still creates a Statement that emits 'error' on failure -
+// e.g. a SQLITE_BUSY lock timeout, or a migration ALTER hitting an unexpected schema. With zero
+// listeners, Node's EventEmitter treats that as fatal and kills the whole process (confirmed
+// live: a single lock contention during a background job crashed the entire server, taking down
+// every in-flight request, not just the one that hit the lock). node-sqlite3 re-emits a
+// Statement's unhandled error on its parent Database, so this one listener is a global catch-all
+// for every such site without having to audit each call individually. It does not fix whatever
+// underlying issue that caused the error - it converts an outage into a logged, non-fatal failure of
+// just that one operation, which is what should have happened in the first place.
+db.on('error', (err) => {
+    console.error('[db] Unhandled SQLite error on a callback-less statement (process kept alive):', err && err.message);
+});
+
 function initializeDatabase() {
     db.serialize(() => {
         // Enforce UTF-8 encoding and enable foreign keys
@@ -460,6 +474,34 @@ function initializeDatabase() {
                 if (!colNames.includes('display_order')) db.run("ALTER TABLE gallery_images ADD COLUMN display_order INTEGER DEFAULT 0", () => {});
             });
         });
+
+        // 7b. Management Team Table — Management Team feature. New table (no ALTER-guard dance
+        // needed, unlike gallery_images above, since every column ships in the initial CREATE).
+        // Social links are flat columns (not a JSON blob) to match the explicit field list the
+        // feature was specced against; adding another platform later is the same guarded-ALTER
+        // idiom used everywhere else in this file, not a restructuring.
+        db.run(`CREATE TABLE IF NOT EXISTS team_members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            role TEXT,
+            biography TEXT,
+            image_path TEXT,
+            email TEXT,
+            phone TEXT,
+            website TEXT,
+            twitter TEXT,
+            linkedin TEXT,
+            instagram TEXT,
+            behance TEXT,
+            display_order INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'active',
+            featured INTEGER DEFAULT 0,
+            created_by INTEGER REFERENCES admins(id),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_by INTEGER REFERENCES admins(id),
+            updated_at DATETIME
+        )`, () => {});
+
          // 8. Manager Details Table
         db.run(`CREATE TABLE IF NOT EXISTS manager_details (
             manager_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1155,11 +1197,38 @@ function initializeDatabase() {
             due_date DATE NOT NULL,
             expected_amount DECIMAL(10,2) NOT NULL,
             status TEXT DEFAULT 'pending',
+            sequence INTEGER,
+            source TEXT DEFAULT 'auto',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (booking_id) REFERENCES bookings(id),
             FOREIGN KEY (invoice_id) REFERENCES invoices(id)
         )`);
+        // Migration 101 (client-selectable installment plans): sequence = 1-based position within
+        // its live batch ("Installment 2 of 3"), independent of due_date ordering; source =
+        // 'auto' (system default / admin-triggered ACCEPTED transition) | 'client' (client picked
+        // 2 or 3 at accept-quote) | 'admin' (built via the Setup Milestones editor). Added
+        // synchronously here, immediately after the CREATE TABLE and BEFORE any later
+        // synchronously-queued statement that might reference these columns — a column added only
+        // inside a nested async callback isn't guaranteed to exist yet when a same-tick statement
+        // elsewhere in this file needs it (the exact race that broke a fresh boot twice already
+        // this cycle, via events.google_calendar_event_id and bookings.is_public).
+        db.run("ALTER TABLE payment_schedules ADD COLUMN sequence INTEGER", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: payment_schedules.sequence already exists or error: " + err.message); });
+        db.run("ALTER TABLE payment_schedules ADD COLUMN source TEXT DEFAULT 'auto'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: payment_schedules.source already exists or error: " + err.message); });
+        // Backfill sequence for existing LIVE rows only (same "live" scope as getLivePaymentScheduleCount:
+        // excludes superseded/cancelled), ordered by due_date then id. source needs no backfill —
+        // the ALTER's own DEFAULT 'auto' already wrote it into every pre-existing row.
+        db.run(`UPDATE payment_schedules
+                SET sequence = (
+                    SELECT COUNT(*) FROM payment_schedules p2
+                    WHERE p2.booking_id = payment_schedules.booking_id
+                      AND LOWER(COALESCE(p2.status,'pending')) NOT IN ('superseded','cancelled')
+                      AND (p2.due_date < payment_schedules.due_date
+                           OR (p2.due_date = payment_schedules.due_date AND p2.id <= payment_schedules.id))
+                )
+                WHERE sequence IS NULL
+                  AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')`,
+            (err) => { if (err) console.error('[migration] payment_schedules.sequence backfill failed:', err.message); });
 
         // S5-4: Threaded booking notes (replaces the single admin_notes text blob)
         db.run(`CREATE TABLE IF NOT EXISTS booking_notes (
@@ -1622,6 +1691,7 @@ function initializeDatabase() {
         statusGuard('invoices', 'status', ['DRAFT', 'SENT', 'OVERDUE', 'PAID', 'VOID']);
         statusGuard('contracts', 'status', ['draft', 'sent', 'signed']);
         statusGuard('payment_schedules', 'status', ['pending', 'paid', 'overdue', 'superseded', 'cancelled']);
+        statusGuard('payment_schedules', 'source', ['auto', 'client', 'admin']);
         statusGuard('quotations', 'status', ['draft', 'sent', 'accepted', 'void', 'archived']);
         // Mirrors VALID_EVENT_STATUSES in server.js — events.event_status had no DB-level guard at all
         // (unlike invoices/contracts/payment_schedules/quotations above), so a bad literal from any of
@@ -2622,6 +2692,7 @@ function initializeDatabase() {
         db.run("UPDATE transactions SET status = LOWER(status) WHERE status IS NOT NULL");
 
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (100, 'abandoned_booking_recovery_system')");
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (101, 'payment_schedules_sequence_and_source')");
 
         console.log('Database tables initialized successfully.');
     });

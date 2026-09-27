@@ -1,0 +1,70 @@
+/* =====================================================================
+   ADMIN — BOOKINGS · role based gating overrides
+   Extracted verbatim from admin.html (inline <style> block 19 of 20,
+   was lines 14396-14453). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: bookings:2
+   ===================================================================== */
+
+/* Role-based Gating Overrides */
+body.role-manager .delete-btn,
+body.role-manager .campaign-delete-btn,
+body.role-manager #campaignsBulkDeleteBtn,
+body.role-manager #bulkDeleteBtn,
+body.role-manager .delete-subscriber-btn,
+body.role-manager #btnPopiaAnonymizeNow,
+body.role-manager .popia-approve-btn,
+body.role-manager .popia-process-btn,
+body.role-manager #popiaApproveBtn,
+body.role-manager #popiaRejectBtn,
+body.role-manager #popiaProcessBtn,
+body.role-manager #popiaCompleteBtn,
+body.role-manager #inqReadDeleteBtn,
+body.role-manager #evtBulkDelete,
+body.role-manager .remove-events-action,
+body.role-manager .team-delete-btn,
+body.role-manager .bk-delete-note-btn,
+body.role-manager .btn-svc-delete,
+body.role-manager .btn-void-invoice,
+body.role-manager button[data-um-tab="umPanelUsers"] {
+    display: none !important;
+}
+
+body.role-assistant .delete-btn,
+body.role-assistant .campaign-delete-btn,
+body.role-assistant #campaignsBulkDeleteBtn,
+body.role-assistant #bulkDeleteBtn,
+body.role-assistant .delete-subscriber-btn,
+body.role-assistant #btnPopiaAnonymizeNow,
+body.role-assistant .popia-approve-btn,
+body.role-assistant .popia-process-btn,
+body.role-assistant #popiaApproveBtn,
+body.role-assistant #popiaRejectBtn,
+body.role-assistant #popiaProcessBtn,
+body.role-assistant #popiaCompleteBtn,
+body.role-assistant #inqReadDeleteBtn,
+body.role-assistant #evtBulkDelete,
+body.role-assistant .remove-events-action,
+body.role-assistant .team-delete-btn,
+body.role-assistant .bk-delete-note-btn,
+body.role-assistant .btn-svc-delete,
+body.role-assistant .btn-void-invoice,
+body.role-assistant button[data-um-tab="umPanelUsers"],
+body.role-assistant .bk-action-financials,
+body.role-assistant .bk-action-gen-invoice,
+body.role-assistant .bk-action-send-invoice,
+body.role-assistant .bk-action-record-payment,
+body.role-assistant .bk-action-refund,
+body.role-assistant .adv-send-btn,
+body.role-assistant #inqReadReplyBtn,
+body.role-assistant #inqReadArchiveBtn,
+body.role-assistant #inqReadToggleReadBtn,
+body.role-assistant #inqBulkBar,
+body.role-assistant #inqComposeBtn {
+    display: none !important;
+}

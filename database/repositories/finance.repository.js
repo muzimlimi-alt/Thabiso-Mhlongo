@@ -40,11 +40,11 @@ function getPaidPaymentScheduleSum(bookingId) {
         "SELECT COALESCE(SUM(expected_amount),0) AS paidSum FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) = 'paid'",
         [bookingId]);
 }
-// Called twice in a row (deposit + balance) with the exact same SQL — one function, two calls,
-// same as the original.
-function insertPaymentScheduleMilestone(bookingId, description, dueDate, amount) {
-    return promised("INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount) VALUES (?, ?, ?, ?)",
-        [bookingId, description, dueDate, amount]);
+// Called 2-3 times in a row (one per installment) with the exact same SQL. sequence/source
+// (client-selectable installment plans) default to null/'auto' for every pre-existing caller.
+function insertPaymentScheduleMilestone(bookingId, description, dueDate, amount, sequence = null, source = 'auto') {
+    return promised("INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount, sequence, source) VALUES (?, ?, ?, ?, ?, ?)",
+        [bookingId, description, dueDate, amount, sequence, source]);
 }
 
 // Shared by generateInvoice(), sendInvoiceEmail(), sendQuoteAcceptedEmail(), and
@@ -101,9 +101,11 @@ function deletePaymentSchedulesForBooking(bookingId, callback) {
     db.run('DELETE FROM payment_schedules WHERE booking_id = ?', [bookingId], callback);
 }
 // The route's own db.prepare()/forEach/finalize dance stays in server.js unchanged — only the
-// prepared statement's SQL text is relocated here.
+// prepared statement's SQL text is relocated here. Admin-authored via the Setup Milestones
+// editor, so every row this inserts is hardcoded source='admin'; the route computes each row's
+// 1-based `sequence` from the submitted rows' due_date order before binding it here.
 function prepareInsertPaymentSchedule() {
-    return db.prepare(`INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount, status) VALUES (?, ?, ?, ?, 'pending')`);
+    return db.prepare(`INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount, sequence, source, status) VALUES (?, ?, ?, ?, ?, 'admin', 'pending')`);
 }
 // POST .../payment-schedules/rebalance — same "relocate the prepare() call only" treatment.
 function prepareUpdatePaymentScheduleAmount() {
@@ -127,14 +129,27 @@ function supersedePaymentSchedulesForRequote(bookingId) {
     return promised("UPDATE payment_schedules SET status = 'superseded' WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) != 'paid'", [bookingId]);
 }
 // POST /api/public/bookings/:id/track — client-facing schedule view. Distinct column list
-// (adds status/updated_at) from getPaymentSchedulesForDocument above.
+// (adds status/updated_at) from getPaymentSchedulesForDocument above. `id`/`sequence` added for
+// client-selectable installment plans — the tracker needs the row id to POST /pay {schedule_id},
+// and sequence to label "Installment X of Y" independent of due_date ordering.
 function getPaymentSchedulesForTracking(bookingId, callback) {
-    db.all("SELECT description, due_date, expected_amount, status, updated_at FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC", [bookingId], callback);
+    db.all("SELECT id, description, due_date, expected_amount, status, updated_at, sequence FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC", [bookingId], callback);
 }
 // PayFast payment-initiation route — distinct column list/WHERE from getPaymentSchedulesForDocument.
 function getPaymentSchedulesForPayfastInit(bookingId, callback) {
     db.all(
         "SELECT description, expected_amount FROM payment_schedules WHERE booking_id = ? AND status != 'paid' AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC",
+        [bookingId], callback);
+}
+// POST /api/public/bookings/:id/pay — client-selectable installment plans. The authoritative
+// "what should /pay charge right now" lookup: the next payable row, in strict due order. A
+// schedule_id that doesn't match this row's id is rejected by the route as "not yet payable" —
+// deliberately no arbitrary-order payment (see routes/public/bookings.js's /pay handler).
+function getNextPayableScheduleRow(bookingId, callback) {
+    db.get(
+        `SELECT id, description, expected_amount, sequence FROM payment_schedules
+         WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled','paid')
+         ORDER BY sequence ASC, due_date ASC, id ASC LIMIT 1`,
         [bookingId], callback);
 }
 
@@ -514,6 +529,7 @@ module.exports = {
     prepareInsertPaymentSchedule, prepareUpdatePaymentScheduleAmount,
     cancelPendingPaymentSchedules, cancelPendingPaymentSchedulesAsync,
     supersedePaymentSchedulesForRequote, getPaymentSchedulesForPayfastInit, getPaymentSchedulesForTracking,
+    getNextPayableScheduleRow,
 
     getPayfastTransactionByReference, insertPayfastTransaction,
     insertPaymentLogEntry, insertLoggedPaymentTransaction, getPaymentLogsForBooking,

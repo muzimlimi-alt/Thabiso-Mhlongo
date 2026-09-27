@@ -1,0 +1,446 @@
+/* =====================================================================
+   ADMIN — COMPONENTS · background radial gold glow
+   Extracted verbatim from admin.html (inline <style> block 4 of 20,
+   was lines 591-1027). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: components:59, bookings:4, misc:4, users-security:2, settings:1
+   ===================================================================== */
+
+/* Background & Radial Gold Glow */
+#bookingsAdmin,
+#calendarAdmin,
+#eventsAdmin,
+#financeAdmin,
+#dashboardAdmin,
+#usersAdmin,
+#inquiriesAdmin,
+#servicesAdmin,
+#policiesAdmin,
+#homeAdmin,
+#aboutAdmin,
+#careerAdmin,
+#galleryAdmin,
+#socialAdmin,
+#contactAdmin,
+#newsletterAdmin,
+#preferencesAdmin,
+#brandingAdmin,
+#emailLogsAdmin,
+#securityAdmin {
+    background: none !important;
+    background-image: none !important;
+    background-color: transparent !important;
+}
+
+#bookingsAdmin {
+    transition: background-color 0.4s ease;
+    position: relative;
+    z-index: 1;
+    color: var(--atl-ink) !important;
+    font-family: 'Outfit', sans-serif !important;
+}
+
+/* Remove backgrounds/borders on the Finance section settings-panel wrapper */
+/* (D1) #financeAdmin .settings-panel/.settings-panel-header overrides removed with the wrapper */
+
+/* Film grain overlay */
+.atl-grain {
+    pointer-events: none;
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    opacity: var(--atl-grain-opacity);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    transition: opacity 0.4s ease;
+}
+
+/* Header gold line */
+.atl-header-rule {
+    height: 1px;
+    margin-top: 24px;
+    margin-bottom: 24px;
+    background: linear-gradient(to right, var(--atl-amber), rgba(212,175,55,0.15) 40%, transparent);
+}
+
+/* Header typography */
+.atl-overline {
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--atl-amber);
+    margin-bottom: 8px;
+}
+
+.atl-heading {
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    font-size: clamp(40px, 6vw, 56px);
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    line-height: 1.0;
+    color: var(--atl-ink);
+    margin: 0;
+}
+
+.atl-subtitle {
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    color: var(--atl-muted);
+    margin: 4px 0 0 0;
+}
+
+/* New Enquiry Button */
+.atl-new-btn {
+    padding: 10px 20px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 8px;
+    border: none;
+    background: var(--atl-amber);
+    color: var(--atl-on-amber);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: background 0.2s ease, transform 0.15s ease;
+}
+.atl-new-btn:hover {
+    background: var(--atl-amber-hover);
+    transform: translateY(-1px);
+}
+
+/* Stats bar pills */
+.atl-pipeline {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 8px;
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    scroll-snap-type: x mandatory;
+    -webkit-mask-image: linear-gradient(to right, black 88%, transparent 100%);
+            mask-image: linear-gradient(to right, black 88%, transparent 100%);
+}
+.atl-pipeline::-webkit-scrollbar { display: none; }
+@media (min-width: 600px) {
+    .atl-pipeline {
+        flex-wrap: wrap;
+        overflow-x: visible;
+        scroll-snap-type: none;
+        scrollbar-width: thin;
+        -webkit-mask-image: none;
+                mask-image: none;
+    }
+}
+
+.atl-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    scroll-snap-align: start;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid var(--atl-line);
+    background: var(--atl-card);
+    color: var(--atl-ink);
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+    transition: border-color 0.2s ease, background 0.2s ease, transform 0.15s ease, color 0.2s ease;
+}
+.atl-pill:hover { transform: translateY(-1px); }
+
+.atl-pill-dot {
+    width: 9px; height: 9px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+.atl-pill-count {
+    padding: 2px 6px;
+    border-radius: 5px;
+    font-size: 11px;
+    background: rgba(0,0,0,0.35);
+    color: var(--atl-muted);
+    transition: color 0.2s ease;
+}
+[data-theme="light"] .atl-pill-count {
+    background: rgba(0,0,0,0.06);
+}
+
+/* Toolbar Filter Controls */
+.atl-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.atl-filter-select {
+    background: var(--atl-input-bg) !important;
+    border: 1px solid var(--atl-line) !important;
+    padding: 8px 32px 8px 12px !important;
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    color: var(--atl-ink) !important;
+    color-scheme: inherit;
+    cursor: pointer;
+    min-width: 140px;
+    height: 44px;
+    box-sizing: border-box;
+    outline: none !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.atl-filter-select:focus {
+    border-color: var(--atl-amber) !important;
+    box-shadow: 0 0 0 2px var(--atl-focus-ring) !important;
+}
+.atl-filter-select option { background: var(--atl-input-bg); color: var(--atl-ink); }
+
+.atl-clear-btn {
+    padding: 8px 16px;
+    border: 1px solid var(--atl-line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--atl-ink);
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    height: 44px;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, transform 0.15s ease;
+}
+.atl-clear-btn:hover { border-color: var(--atl-amber); transform: translateY(-1px); }
+
+/* Booking Card collapsed state */
+.atl-booking-card {
+    border-radius: 16px;
+    border: 1px solid var(--atl-line) !important;
+    background: var(--atl-card) !important;
+    overflow: hidden;
+    margin-bottom: 16px;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.4s ease;
+    animation: atl-card-in 0.4s ease backwards;
+}
+.atl-booking-card:hover {
+    border-color: rgba(212,175,55,0.35) !important;
+    box-shadow: var(--atl-shadow-card) !important;
+}
+@keyframes atl-card-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.atl-booking-id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 5px;
+    background: var(--atl-surface2);
+    color: var(--atl-muted);
+}
+
+.atl-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--atl-r-pill);
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.atl-payment-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: var(--atl-r-pill);
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--atl-line);
+    color: var(--atl-muted);
+}
+
+.atl-tag-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: var(--atl-r-pill);
+    font-size: 11px;
+    font-weight: 600;
+    background: var(--atl-amber);
+    color: var(--atl-on-amber);
+}
+.atl-tag-badge--invoice-sent {
+    background: rgba(96,165,250,0.12);
+    color: var(--atl-blue, #60a5fa);
+    border: 1px solid rgba(96,165,250,0.3);
+}
+.atl-tag-badge--overdue {
+    background: rgba(239,68,68,0.12);
+    color: var(--atl-clay, #ef4444);
+    border: 1px solid rgba(239,68,68,0.35);
+    animation: atl-pulse-overdue 2s infinite;
+}
+.atl-tag-badge--rebooked {
+    background: rgba(129,140,248,0.12);
+    color: var(--atl-blue, #818cf8);
+    border: 1px solid rgba(129,140,248,0.3);
+}
+.atl-tag-badge--contract-unsigned {
+    background: rgba(212,175,55,0.12);
+    color: var(--atl-amber, #d4af37);
+    border: 1px solid rgba(212,175,55,0.35);
+}
+.atl-tag-badge--triaged {
+    background: rgba(148,148,148,0.12);
+    color: var(--atl-muted, #949494);
+    border: 1px solid rgba(148,148,148,0.3);
+}
+@keyframes atl-pulse-overdue {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.65; }
+}
+/* .um-section-label (h3/h4/h5, used across Calendar/Financial/Events/etc. section panels) had
+   no base color rule of its own, so it fell through to the redesign.css h1-h6!important
+   bleed (see reference_redesign_css_heading_bleed) - e.g. every heading in the Events "About"
+   tab ("About Events Management", "How it works", "Common tasks") was pure white-on-white
+   in light theme.
+   :not([style*="color"]) excludes the couple of instances that set an intentional inline
+   color (e.g. the clay-red POPIA erasure heading) - this only fixes the un-styled default case. */
+.um-section-label:not([style*="color"]) { color: var(--atl-ink) !important; }
+
+/* .um-profile-hero__name (Users admin profile card) had no dedicated style rule at all -
+   fully at the mercy of the redesign.css h1-h6 bleed, invisible in light theme. */
+.um-profile-hero__name { color: var(--atl-ink) !important; }
+
+/* Policies section's rendered legal-document headings (Privacy Policy/Terms/Cookie tab
+   previews - "1. Introduction", "2. Information We Collect", etc.) are plain, unstyled <h5>
+   tags with no class - fully at the mercy of the redesign.css h1-h6 bleed. */
+#policiesAdmin h5:not([style*="color"]) { color: var(--atl-ink) !important; }
+
+.atl-expand-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid var(--atl-line);
+    border-radius: 8px;
+    background: transparent;
+    color: var(--atl-ink);
+    font-family: 'Outfit', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.atl-expand-btn:hover {
+    border-color: var(--atl-amber);
+}
+.atl-expand-btn .atl-chevron { transition: transform 0.3s ease; }
+.atl-expand-btn[aria-expanded="true"] .atl-chevron { transform: rotate(180deg); }
+
+/* Booking card expanded state */
+.atl-detail-region {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.35s cubic-bezier(0.4,0,0.2,1);
+}
+.atl-detail-region.open { max-height: 4000px; }
+
+.atl-detail-inner {
+    padding: 24px;
+    border-top: 1px solid var(--atl-line);
+}
+
+.atl-panel-label {
+    font-family: 'Outfit', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--atl-muted);
+    margin-bottom: 10px;
+}
+
+.atl-sub-panel {
+    background: var(--atl-surface2);
+    border-radius: 12px;
+    padding: 16px;
+    transition: background-color 0.4s ease;
+}
+
+/* ── MOBILE-FIRST RESPONSIVE BREAKPOINTS ── */
+
+/* Card inner padding */
+.atl-card-inner { padding: 14px; }
+@media (min-width: 480px) { .atl-card-inner { padding: 18px; } }
+@media (min-width: 768px) { .atl-card-inner { padding: 24px; } }
+
+/* Actions bar */
+.atl-card-actions-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--atl-line);
+}
+@media (max-width: 479px) {
+    .atl-card-actions-bar { justify-content: stretch; flex-direction: column; gap: 6px; }
+    .atl-card-actions-bar .atl-btn,
+    .atl-card-actions-bar .bkr-more-menu { width: 100%; }
+    .atl-card-actions-bar .atl-btn { justify-content: center; text-align: center; }
+    .atl-card-actions-bar .bkr-more-menu .atl-btn { width: 100%; }
+}
+
+/* Touch targets */
+@media (max-width: 767px) {
+    .atl-btn { min-height: 44px; display: inline-flex; align-items: center; }
+    .atl-expand-btn { min-height: 44px; }
+    .atl-pill { min-height: 40px; }
+    .atl-clear-btn { min-height: 44px; }
+}
+
+/* Toolbar overflow prevention on XS */
+@media (max-width: 479px) {
+    .atl-filter-select { min-width: 0; width: 100%; }
+    .atl-toolbar { gap: 8px; }
+}
+
+/* Modal — bottom sheet on XS */
+@media (max-width: 479px) {
+    .atl-modal-overlay { padding: 0; align-items: flex-end; }
+    .atl-modal-panel { border-radius: 16px 16px 0 0; max-height: 90vh; display: flex; flex-direction: column; }
+    .atl-modal-body { flex: 1; overflow-y: auto; }
+}
+
+/* Defect 9 — Primary CTA order: always first, full-width on mobile only */
+.atl-card-actions-bar .atl-primary-cta {
+    order: -1;
+    flex: 0 0 auto;   /* do NOT grow on desktop — size to content */
+    min-width: 160px;
+}
+/* On mobile (≤479px) the column layout already makes all buttons full-width via the rule above.
+   On desktop the bar is a flex row — CTA stays auto-sized, secondary buttons sit beside it. */
+@media (min-width: 480px) {
+    .atl-card-actions-bar { flex-wrap: nowrap; align-items: center; justify-content: flex-end; }
+    .atl-card-actions-bar .atl-primary-cta { flex: 0 0 auto; }
+}

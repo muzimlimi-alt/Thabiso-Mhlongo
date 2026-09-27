@@ -1,0 +1,156 @@
+/* =====================================================================
+   ADMIN — BOOKINGS · panel wrapper
+   Extracted verbatim from admin.html (inline <style> block 3 of 20,
+   was lines 444-588). Content unchanged; only this header is new.
+
+   LOAD ORDER — the <link> replacing this block sits at the exact document
+   position the block occupied. Several rules in admin.html win only on source
+   order, so this file must not be moved, merged or reordered without
+   re-running scripts/css-parity.js. See docs-internal/css-refactor-log.md.
+
+   Rule mix: bookings:16, misc:16
+   ===================================================================== */
+
+/* Panel wrapper */
+.bkr-promote-panel {
+    background: rgba(212,175,55,0.04);
+    border: 1px solid rgba(212,175,55,0.18);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 12px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* Header row */
+.bkr-promote-panel__hd {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.bkr-promote-panel__title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--atl-ink-dim);
+}
+
+/* Live / Not Promoted badge */
+.bkr-promote-live-badge {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(76,175,80,0.15);
+    color: var(--atl-green);
+    border: 1px solid rgba(76,175,80,0.4);
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    transition: background .25s, color .25s, border-color .25s;
+}
+.bkr-promote-live-badge--off {
+    background: rgba(120,120,120,0.10);
+    color: #666;
+    border-color: rgba(120,120,120,0.25);
+}
+
+/* Missing field warning strip */
+.bkr-promote-warn {
+    background: rgba(255,167,38,0.10);
+    border: 1px solid rgba(255,167,38,0.3);
+    border-radius: 6px;
+    color: #FFA726;
+    font-size: 11px;
+    padding: 6px 10px;
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+}
+.bkr-promote-warn-item {
+    display: inline-block;
+    background: rgba(255,167,38,0.18);
+    padding: 1px 7px;
+    border-radius: 20px;
+    font-weight: 700;
+    margin-left: 4px;
+}
+
+/* Live preview card */
+.bkr-promote-preview {
+    background: rgba(212,175,55,0.06);
+    border: 1px dashed rgba(212,175,55,0.25);
+    border-radius: 6px;
+    padding: 10px 12px;
+    transition: opacity .25s, max-height .3s;
+}
+.bkr-promote-preview--hidden {
+    opacity: .35;
+    pointer-events: none;
+}
+.bkr-promote-preview__eyebrow {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: #555;
+    margin-bottom: 7px;
+}
+.bkr-promote-preview__name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #eee;
+    margin-bottom: 6px;
+}
+.bkr-promote-preview__meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--atl-muted);
+}
+.bkr-promote-preview__meta span {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid #222;
+    padding: 2px 8px;
+    border-radius: 20px;
+}
+.bkr-promote-preview__ticket {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(212,175,55,0.12);
+    font-size: 11px;
+}
+
+/* Ticket URL area */
+.bkr-promote-ticket {
+    border-top: 1px solid rgba(255,255,255,0.05);
+    padding-top: 10px;
+}
+.bkr-promote-ticket-input:focus {
+    border-color: rgba(212,175,55,0.5) !important;
+    box-shadow: 0 0 0 2px rgba(212,175,55,0.12);
+}
+
+/* ── Booking modal helpers ── */
+.bkm-header { display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); }
+.bkm-header i { font-size:18px; }
+.bkm-header--info       { border-left:3px solid #64B5F6; }
+.bkm-header--financial  { border-left:3px solid #D4AF37; }
+.bkm-header--email      { border-left:3px solid #4ade80; }
+.bkm-title { font-size:15px; font-weight:700; color: var(--atl-ink); }
+.bkm-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+@media(max-width:640px){ .bkm-grid { grid-template-columns:1fr; } }
+.bkm-section { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; padding:14px; }
+.bkm-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#555; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.06); }
+.bkm-row { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; font-size:12px; padding:3px 0; }
+.bkm-key { color:#666; flex-shrink:0; }
+.bkm-val { color: var(--atl-ink-dim); text-align:right; word-break:break-word; }
+.bkm-val--gold { color: var(--atl-amber); font-weight:700; }
+.bkm-val--green { color:#4ade80; font-weight:700; }
+.bkm-val--orange { color:#fb923c; font-weight:700; }
