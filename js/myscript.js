@@ -237,6 +237,44 @@ $(function() {
         $('.reveal').addClass('active');
     }
 
+    // Reveals `htmls` into $grid 8 at a time, with a "View More" button underneath for the rest —
+    // shared by Gallery and Past Shows (the two public grids whose count is unbounded admin content;
+    // Upcoming Shows is deliberately never paginated — hiding a time-sensitive show behind a click
+    // is the wrong tradeoff there). Each click reveals the next 8 and the button removes itself once
+    // everything is shown. Idempotent: clears any button left over from a previous call on the same
+    // $grid, so a section that gets re-rendered later doesn't end up with two.
+    function tmPaginateGrid($grid, htmls, opts) {
+        opts = opts || {};
+        var pageSize = opts.pageSize || 8;
+        $grid.nextAll('.tm-view-more-wrap').first().remove();
+        var shown = 0;
+        var $btn = $('<button type="button" class="btn btn-outline tm-view-more"></button>')
+            .text(opts.label || 'View More')
+            .attr('aria-label', opts.ariaLabel || opts.label || 'View more');
+        function revealNext() {
+            var slice = htmls.slice(shown, shown + pageSize);
+            slice.forEach(function (html) { $grid.append(html); });
+            shown += slice.length;
+            if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
+                $grid.children('.reveal:not(.active)').each(function () { revealObserver.observe(this); });
+            } else {
+                $grid.children('.reveal').addClass('active');
+            }
+            if (shown >= htmls.length) {
+                var hadFocus = document.activeElement === $btn[0];
+                $btn.closest('.tm-view-more-wrap').remove();
+                // Focus would otherwise vanish (fall back to <body>) right as the visitor clicked —
+                // land it on the grid itself instead, since there's no next control to hand it to.
+                if (hadFocus) $grid.attr('tabindex', '-1').trigger('focus');
+            }
+        }
+        revealNext();
+        if (shown < htmls.length) {
+            $grid.after($('<div class="tm-view-more-wrap"></div>').append($btn));
+            $btn.on('click', revealNext);
+        }
+    }
+
     // 5. Dynamic Gallery Rendering (Instagram Style)
     async function renderGallery() {
         var $grid = $('#dynamicGalleryGrid');
@@ -254,16 +292,17 @@ $(function() {
         }
 
         $grid.empty();
-        
+        $grid.nextAll('.tm-view-more-wrap').first().remove();
+
         if (galleryItems.length === 0) {
             $grid.append('<p class="text-center" style="width: 100%; color: #999;">The gallery is currently empty.</p>');
             return;
         }
 
-        galleryItems.forEach(function(item) {
+        var htmls = galleryItems.map(function(item) {
             var isVideo = false;
             var urlLower = item.image_path ? item.image_path.toLowerCase() : '';
-            
+
             // Check if it's a Base64 video or has a video extension
             if (urlLower.startsWith('data:video') || urlLower.match(/\.(mp4|webm|ogg)$/)) {
                 isVideo = true;
@@ -277,20 +316,15 @@ $(function() {
                 mediaHtml = `<img src="${item.image_path}" alt="${safeAlt}" data-desc="${safeAlt}" loading="lazy" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">`;
             }
 
-            var html = `
+            return `
                 <div class="insta-item reveal">
                     ${mediaHtml}
                 </div>
             `;
-            $grid.append(html);
         });
 
-        // Re-trigger IntersectionObserver for newly added elements
-        if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
-            $('.insta-item.reveal').each(function() {
-                revealObserver.observe(this);
-            });
-        }
+        // Shows the first 8 and adds a "View More" button for the rest (tmPaginateGrid, above).
+        tmPaginateGrid($grid, htmls, { label: 'View More Photos', ariaLabel: 'View more gallery photos' });
     }
 
     // Call it on page load
@@ -445,16 +479,19 @@ $(function() {
             return dateB - dateA;
         });
 
-        function populateGrid($grid, items, emptyMessage) {
+        // `opts.paginate` (used for Past Shows only — Upcoming Shows always shows everything,
+        // never hidden behind a click) shows the first 8 with a "View More" button for the rest.
+        function populateGrid($grid, items, emptyMessage, opts) {
             if ($grid.length === 0) return;
             $grid.empty();
-            
+            $grid.nextAll('.tm-view-more-wrap').first().remove();
+
             if (items.length === 0) {
                 $grid.append('<p class="text-center" style="width: 100%; color: #999;">' + emptyMessage + '</p>');
                 return;
             }
 
-            items.forEach(function(item) {
+            var htmls = items.map(function(item) {
                 var displayDate = item.event_datetime;
                 if (item.event_datetime) {
                     try {
@@ -473,7 +510,7 @@ $(function() {
 
                 var encodedPayload = encodeURIComponent(JSON.stringify(item));
 
-                var html = `
+                return `
                     <div class="ev-card live-event-card reveal" data-payload="${encodedPayload}">
                         <div class="ev-card__poster">${mediaHtml}</div>
                         <div class="ev-card__info">
@@ -493,19 +530,20 @@ $(function() {
                         </div>
                     </div>
                 `;
-                $grid.append(html);
             });
 
-            // Re-trigger IntersectionObserver for newly added elements
-            if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
-                $grid.find('.live-event-card.reveal').each(function() {
-                    revealObserver.observe(this);
-                });
+            if (opts && opts.paginate) {
+                tmPaginateGrid($grid, htmls, { label: opts.label, ariaLabel: opts.ariaLabel });
+            } else {
+                htmls.forEach(function(html) { $grid.append(html); });
+                if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
+                    $grid.find('.live-event-card.reveal').each(function() { revealObserver.observe(this); });
+                }
             }
         }
 
         populateGrid($upcomingGrid, upcomingEvents, "No upcoming events at the moment.");
-        populateGrid($pastGrid, pastEvents, "No past events at the moment.");
+        populateGrid($pastGrid, pastEvents, "No past events at the moment.", { paginate: true, label: 'View More Shows', ariaLabel: 'View more past shows' });
 
         // Re-trigger reveal observer for newly added event cards
         if (typeof revealObserver !== 'undefined') {

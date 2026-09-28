@@ -1096,9 +1096,15 @@ header .navbar {
 
 /* ---------- FOOTPRINT ---------- */
 .tm-footprint{ background:var(--bg-section); }
+/* auto-fit (not auto-fill) + justify-content:center: with fewer countries than fit one row,
+   auto-fill would still lay out enough 1fr tracks to span the full container (some just empty),
+   pinning the real cards to the left with dead space on the right. auto-fit collapses the empty
+   tracks instead, and the capped max (220px, vs the old bare 1fr) leaves real leftover width for
+   justify-content to center the actual row of cards in, rather than stretching them to fill it. */
 .fp-grid{
   display:grid;
-  grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));
+  grid-template-columns:repeat(auto-fit, minmax(180px, 220px));
+  justify-content:center;
   gap:20px;
 }
 .fp-card{
@@ -1143,7 +1149,11 @@ header .navbar {
    flex's default cross-axis "stretch" and leave its columns hugging the left edge. */
 .team-layout{ display:flex; flex-direction:column; align-items:center; gap:32px; max-width:960px; margin:0 auto; }
 @media (min-width:768px){
-  .team-layout{ flex-direction:row; align-items:flex-start; gap:40px; }
+  /* justify-content:center centers the photos+list PAIR as one block when there are few enough
+     members that it doesn't fill the row (team-list gives up flex:1 below, at the same breakpoint,
+     for exactly this reason — a flex:1 item claims all leftover space before justify-content gets
+     a say, which is what used to pin the photos left and stretch the list across the rest). */
+  .team-layout{ flex-direction:row; align-items:flex-start; justify-content:center; gap:40px; }
 }
 @media (min-width:1024px){ .team-layout{ gap:56px; } }
 
@@ -1204,7 +1214,11 @@ header .navbar {
 @media (min-width:640px) and (max-width:767px){
   .team-list{ display:grid; grid-template-columns:1fr 1fr; gap:20px 28px; }
 }
-@media (min-width:768px){ .team-list{ gap:20px; } }
+@media (min-width:768px){
+  /* Caps at a comfortable reading width instead of flex:1 (which used to stretch it across
+     whatever the photo cluster left over) — the pair centers as a compact block instead. */
+  .team-list{ flex:0 1 420px; width:auto; gap:20px; }
+}
 .team-row{ transition:opacity .3s var(--ease); }
 .team-row.is-dimmed{ opacity:.5; }
 .team-row__inner{ cursor:pointer; border-radius:var(--r); }
@@ -1254,6 +1268,11 @@ header .navbar {
 .team-row__star{ font-size:.7rem; color:var(--y-base); }
 .team-row--featured .team-row__dot{ background:var(--y-base); }
 .team-photo-card--featured{ box-shadow:0 0 0 1px var(--y-base); }
+
+/* ---------- VIEW MORE (Gallery photos / Past Shows — see tmPaginateGrid() in js/myscript.js) ----------
+   .btn is inline-flex (redesign.css ~line 556), so it doesn't stretch to center itself via margin:auto —
+   this wrapper is the plain block that text-align:center works on instead. */
+.tm-view-more-wrap{ text-align:center; margin-top:28px; }
 
 /* ---------- GALLERY ---------- */
 .tm-gallery{ background:var(--bg-page); }

@@ -96,10 +96,16 @@
     function render(members, $photos, $list, opts) {
         $photos.empty();
         $list.empty();
-        var cols = [$('<div>').addClass('team-photo-col'), $('<div>').addClass('team-photo-col'), $('<div>').addClass('team-photo-col')];
+        // Never more columns than members: an empty trailing .team-photo-col has no content to size
+        // it, but .team-photos' flex `gap` still counts it as a child, leaving a sliver of dead space
+        // after the real photos — and centering the whole cluster (redesign.css .team-layout) only
+        // looks right if the cluster is exactly as wide as what's actually in it.
+        var numCols = Math.max(1, Math.min(3, members.length));
+        var cols = [];
+        for (var i = 0; i < numCols; i++) cols.push($('<div>').addClass('team-photo-col'));
         cols.forEach(function (c) { $photos.append(c); });
         members.forEach(function (m, i) {
-            cols[i % 3].append(buildPhotoCard(m, opts));
+            cols[i % numCols].append(buildPhotoCard(m, opts));
             $list.append(buildRow(m, opts));
         });
     }
