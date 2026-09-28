@@ -1471,6 +1471,19 @@
 						<div id="acceptQuoteSection" style="display:none;">
 							<div class="trk-accept-section">
 								<p>You've received a quote! Review the details above and formally accept it to proceed.</p>
+								<div id="installmentChoiceSection" style="display:none;margin:12px 0;">
+									<label class="bk-label" style="font-size:11px;">How would you like to pay?</label>
+									<div style="display:flex;gap:10px;margin-top:6px;">
+										<label style="flex:1;display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 12px;background:#0d0d0d;border:1px solid #333;border-radius:4px;">
+											<input type="radio" name="installmentChoice" value="2" checked style="accent-color:#D4AF37;">
+											<span style="font-size:12px;color:#ccc;">2 payments <span style="color:#666;">(50/50)</span></span>
+										</label>
+										<label style="flex:1;display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 12px;background:#0d0d0d;border:1px solid #333;border-radius:4px;">
+											<input type="radio" name="installmentChoice" value="3" style="accent-color:#D4AF37;">
+											<span style="font-size:12px;color:#ccc;">3 payments <span style="color:#666;">(30/30/40)</span></span>
+										</label>
+									</div>
+								</div>
 								<div id="payPreviewPanel" style="background:#111;border:1px solid #333;border-radius:4px;padding:14px;margin:12px 0;">
 									<div style="font-size:11px;color:#D4AF37;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Payment Schedule</div>
 									<div style="display:flex;justify-content:space-between;margin-bottom:8px;">
@@ -2282,17 +2295,18 @@ $(document).ready(function() {
                     // Accept Quote button (when QUOTED)
                     if (bStatus === 'QUOTED') {
                         var rawQuotePreview = b.quote_amount ? parseFloat(b.quote_amount.replace(/[^0-9.]/g, '')) : 0;
-                        if (data.payment_schedule && data.payment_schedule.length > 0) {
+                        // Client-selectable installment plans: only offer the choice when nothing has
+                        // been decided yet (no admin-configured plan, no prior client choice on this cycle).
+                        var hasExistingSchedule = data.payment_schedule && data.payment_schedule.length > 0;
+                        $('#installmentChoiceSection').toggle(!hasExistingSchedule);
+                        if (hasExistingSchedule) {
                             var firstMs = data.payment_schedule.find(function(s) { return s.status !== 'paid'; });
                             var depositPreview = firstMs ? parseFloat(firstMs.expected_amount) : Math.round(rawQuotePreview * 0.5 * 100) / 100;
                             var balancePreview = rawQuotePreview - depositPreview;
                             $('#payPreviewDeposit').text('R ' + depositPreview.toFixed(2));
                             $('#payPreviewBalance').text('R ' + balancePreview.toFixed(2));
                         } else if (rawQuotePreview > 0) {
-                            var depositPreview = Math.round(rawQuotePreview * 0.5 * 100) / 100;
-                            var balancePreview = Math.round((rawQuotePreview - depositPreview) * 100) / 100;
-                            $('#payPreviewDeposit').text('R ' + depositPreview.toFixed(2));
-                            $('#payPreviewBalance').text('R ' + balancePreview.toFixed(2));
+                            window.updateInstallmentPreview(rawQuotePreview);
                         }
                         $('#chkTermsAgree').prop('checked', false);
                         $('#acceptQuoteBtn').prop('disabled', true).css({ opacity: '0.4', cursor: 'not-allowed' });
@@ -2475,22 +2489,38 @@ $(document).ready(function() {
                     $('#clientCancelSection').hide();
                 }
 
-                // Payment schedule
+                // Payment schedule — client-selectable installment plans: the earliest unpaid row
+                // gets its own "Pay Now" action (data-schedule-id), so each installment can be paid
+                // separately as it comes due rather than only ever DEPOSIT-then-everything-else.
+                // Later unpaid rows show no action — locked until their turn (strict due-order,
+                // matching /pay's own server-side enforcement).
                 var sched = data.payment_schedule || [];
+                var payableCanPay = ['ACCEPTED', 'CONFIRMED'].includes(bStatus);
+                var nextPayableFound = false;
                 if (sched.length > 0) {
                     var schedHtml = '<table style="width:100%;font-size:12px;color:#ccc;border-collapse:collapse;">';
                     sched.forEach(function(s) {
                         var sc = s.status === 'paid' ? 'var(--success)' : s.status === 'overdue' ? '#ef5350' : '#aaa';
+                        var actionCell = '';
+                        if (payableCanPay && s.status !== 'paid' && !nextPayableFound) {
+                            nextPayableFound = true;
+                            actionCell = '<button class="pay-btn" data-schedule-id="' + s.id + '" style="background:#D4AF37;color:#000;border:none;border-radius:3px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">Pay Now</button>';
+                        }
                         schedHtml += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">'
                             + '<td style="padding:6px 0;">' + (s.description || '—') + '</td>'
                             + '<td style="padding:6px 8px;white-space:nowrap;">' + (s.due_date || '—') + '</td>'
                             + '<td style="text-align:right;color:#D4AF37;font-weight:700;padding:6px 0;white-space:nowrap;">R ' + parseFloat(s.expected_amount||0).toFixed(2) + '</td>'
                             + '<td style="text-align:right;color:' + sc + ';font-size:11px;padding:6px 0 6px 8px;text-transform:uppercase;">' + (s.status || 'pending') + '</td>'
+                            + '<td style="text-align:right;padding:6px 0 6px 8px;">' + actionCell + '</td>'
                             + '</tr>';
                     });
                     schedHtml += '</table>';
                     $('#paymentScheduleBody').html(schedHtml);
                     $('#paymentScheduleSection').show();
+                    // A schedule exists — the static DEPOSIT/FULL buttons below are superseded by
+                    // the per-row "Pay Now" actions above; they stay as the fallback only for the
+                    // pre-existing edge case of a booking with no schedule rows at all.
+                    if (payableCanPay && amountPaid < totalScope) $('#paymentSection').hide();
                 }
 
                 $('#trackingDetails').hide().fadeIn(300);
@@ -2521,15 +2551,19 @@ $(document).ready(function() {
 
     $(document).on('click', '.pay-btn', async function() {
         var type = $(this).attr('data-type');
+        var scheduleId = $(this).attr('data-schedule-id');
         var $btn = $(this);
         var orig = $btn.html();
         $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Redirecting to Secure Gateway...');
 
         try {
+            var payBody = scheduleId
+                ? { schedule_id: scheduleId, access_token: currentAccessToken }
+                : { payment_type: type, access_token: currentAccessToken };
             var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/pay', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ payment_type: type, access_token: currentAccessToken })
+                body: JSON.stringify(payBody)
             });
             var data = await res.json();
             if (data.success && data.pfData) {
@@ -2555,6 +2589,28 @@ $(document).ready(function() {
             window.notificationService.showError('Connection Error', 'Gateway connection error.');
             $btn.prop('disabled', false).html(orig);
         }
+    });
+
+    // Client-selectable installment plans: recompute the "Next Milestone" / "Remaining Balance"
+    // preview for whichever plan is currently selected. Only used pre-acceptance, when no real
+    // schedule exists yet — matches the 30/30/40 split autoBuildDepositBalanceSchedule() will
+    // actually build server-side (lib/invoicing.js) so the preview never lies about what's coming.
+    window.updateInstallmentPreview = function(rawQuotePreview) {
+        var count = parseInt($('input[name="installmentChoice"]:checked').val(), 10) || 2;
+        var firstAmt, restAmt;
+        if (count === 3) {
+            firstAmt = Math.round(rawQuotePreview * 0.30 * 100) / 100;
+            restAmt = Math.round((rawQuotePreview - firstAmt) * 100) / 100;
+        } else {
+            firstAmt = Math.round(rawQuotePreview * 0.5 * 100) / 100;
+            restAmt = Math.round((rawQuotePreview - firstAmt) * 100) / 100;
+        }
+        $('#payPreviewDeposit').text('R ' + firstAmt.toFixed(2));
+        $('#payPreviewBalance').text('R ' + restAmt.toFixed(2));
+    };
+    $(document).on('change', 'input[name="installmentChoice"]', function() {
+        var rawQuotePreview = ($('#tdQuoteAmount').text() || '').replace(/[^0-9.]/g, '');
+        if (rawQuotePreview) window.updateInstallmentPreview(parseFloat(rawQuotePreview));
     });
 
     // S3-4: Terms checkbox enables/disables accept button
@@ -2586,10 +2642,14 @@ $(document).ready(function() {
 
         $btn.prop('disabled', true).css({ opacity: '0.7', cursor: 'not-allowed' }).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Accepting...');
         try {
+            var acceptBody = { access_token: currentAccessToken, terms_agreed: true, vat_number: $('#acceptVatNumber').val().trim() || null };
+            if ($('#installmentChoiceSection').is(':visible')) {
+                acceptBody.installment_count = parseInt($('input[name="installmentChoice"]:checked').val(), 10);
+            }
             var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/accept-quote', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ access_token: currentAccessToken, terms_agreed: true, vat_number: $('#acceptVatNumber').val().trim() || null })
+                body: JSON.stringify(acceptBody)
             });
             var data = await res.json();
             if (data.success) {
