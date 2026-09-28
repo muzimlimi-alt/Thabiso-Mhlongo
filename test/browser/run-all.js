@@ -1,11 +1,11 @@
-// Runs every booking-drawer browser test in sequence (each boots and stops its own isolated server).
+﻿// Runs every booking-drawer browser test in sequence (each boots and stops its own isolated server).
 // Usage: npm run test:browser
 const { spawnSync } = require('child_process');
 const path = require('path');
-const files = ['slots.js', 'calendar.js', 'form.js'];
+const files = ['slots.js', 'calendar.js', 'date-status.js', 'form.js'];
 let failed = 0;
 for (const f of files) {
-    console.log('\n══════ ' + f + ' ══════');
+    console.log('\nâ•â•â•â•â•â• ' + f + ' â•â•â•â•â•â•');
     const r = spawnSync(process.execPath, [path.join(__dirname, f)], { stdio: 'inherit' });
     if (r.status !== 0) failed++;
 }

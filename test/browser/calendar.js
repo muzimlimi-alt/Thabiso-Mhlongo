@@ -13,7 +13,12 @@ const rgbOf = s => (String(s).match(/rgba?\(([^)]+)\)/) || [])[1] || String(s);
     await d.support.start();
 
     // ── seed REAL availability data through the real admin/public APIs ──
-    const heldDate = future(12), fullDate = future(16), timedDate = future(21);
+    // Only on WORKING weekdays: a closed weekday outranks blocked / reserved in the calendar, so a seed that landed on one
+    // (it depends on the day the suite runs) would show as "not a working day" instead of its own state.
+    const cfg0 = await (await fetch(d.BASE + '/api/public/booking-config?dow=all')).json();
+    const closed0 = cfg0.days.filter(x => x.is_working_day === false).map(x => x.day_of_week);
+    const working = (n) => { for (let i = n; i < n + 7; i++) if (!closed0.includes(new Date(future(i) + 'T12:00:00').getDay())) return future(i); return future(n); };
+    const heldDate = working(12), fullDate = working(16), timedDate = working(21);
     const hold = await api('POST', '/api/admin/calendar/hold', { date: heldDate, reason: 'calendar state test' });
     ok(hold.status === 200 && hold.body.success, 'seed: blocked date created', JSON.stringify(hold.body));
     let n = 0;
@@ -68,20 +73,20 @@ const rgbOf = s => (String(s).match(/rgba?\(([^)]+)\)/) || [])[1] || String(s);
     // ── states follow the real data ──
     await showDate(heldDate);
     let c = await cell(heldDate);
-    ok(c && c.state === 'held' && /239, 68, 68/.test(c.border) && c.disabled === 'true', 'blocked date: red ring, disabled', JSON.stringify(c));
+    ok(c && c.state === 'held' && /239, 83, 80/.test(c.border) && c.disabled === 'true', 'blocked date: red ring, disabled', JSON.stringify(c));
     await showDate(timedDate);
     c = await cell(timedDate);
-    ok(c && c.state === 'booked' && !c.cls.includes('--full') && /245, 158, 11/.test(c.border) && !c.disabled, 'reserved (timed booking): orange ring, still selectable', JSON.stringify(c));
+    ok(c && c.state === 'booked' && !c.cls.includes('--full') && /255, 152, 0/.test(c.border) && !c.disabled, 'reserved (timed booking): orange ring, still selectable', JSON.stringify(c));
     await showDate(fullDate);
     c = await cell(fullDate);
-    ok(c && c.state === 'booked' && c.cls.includes('--full') && /245, 158, 11/.test(c.border) && c.disabled === 'true' && /whole day/.test(c.label), 'reserved (whole day taken): orange ring, NOT selectable, says why', JSON.stringify(c));
+    ok(c && c.state === 'booked' && c.cls.includes('--full') && /255, 152, 0/.test(c.border) && c.disabled === 'true' && /whole day/.test(c.label), 'reserved (whole day taken): orange ring, NOT selectable, says why', JSON.stringify(c));
     const freeDs = await p.evaluate(() => { const x = [...document.querySelectorAll('.tm-cal-cell--avail')][0]; return x && x.dataset.date; });
     c = await cell(freeDs);
-    ok(c && c.state === 'avail' && /16, 185, 129/.test(c.border), 'available business day: green ring', JSON.stringify(c));
+    ok(c && c.state === 'avail' && /76, 175, 80/.test(c.border), 'available business day: green ring', JSON.stringify(c));
     ok(closedDow.length > 0, 'test DB has a non-working weekday to check against', JSON.stringify(closedDow));
     const closedDs = await p.evaluate(dows => { const x = [...document.querySelectorAll('.tm-cal-cell--nonworking')][0]; return x && x.dataset.date; }, closedDow);
     c = await cell(closedDs);
-    ok(c && c.state === 'nonworking' && c.disabled === 'true' && /0, 0, 0, 0|transparent/.test(c.border), 'non-working day: muted, no ring, disabled', JSON.stringify(c));
+    ok(c && c.state === 'nonworking' && c.disabled === 'true' && /0, 0, 0, 0|transparent/.test(c.border), 'non-working day: muted, no ring, not bookable', JSON.stringify(c));
 
     // start from the current month for today/soon/past checks
     await p.evaluate(() => window.refreshAvailCalendar && 0);
@@ -119,24 +124,24 @@ const rgbOf = s => (String(s).match(/rgba?\(([^)]+)\)/) || [])[1] || String(s);
     await d.sleep(1200);
     c = await cell(timedDate);
     const selInfo = await p.evaluate(ds => { const e = document.querySelector(`.tm-cal-cell[data-date="${ds}"]`); return { pressed: e.getAttribute('aria-pressed'), tick: getComputedStyle(e, '::before').content, shadow: getComputedStyle(e).boxShadow }; }, timedDate);
-    ok(c.cls.includes('tm-cal-cell--selected') && /245, 158, 11/.test(c.border) && selInfo.pressed === 'true' && selInfo.tick !== 'none', 'selected reserved date keeps its ORANGE ring (not overridden), has a tick + aria-pressed', JSON.stringify({ c, selInfo }));
-    ok(/245, 158, 11/.test(selInfo.shadow), 'selected ring shadow uses the state colour', selInfo.shadow);
-    const disp = await p.$eval('#bookDateDisplay', e => e.textContent);
+    ok(c.cls.includes('tm-cal-cell--selected') && /255, 152, 0/.test(c.border) && selInfo.pressed === 'true' && selInfo.tick !== 'none', 'selected reserved date keeps its ORANGE ring (not overridden), has a tick + aria-pressed', JSON.stringify({ c, selInfo }));
+    ok(/255, 152, 0/.test(selInfo.shadow), 'selected ring shadow uses the state colour', selInfo.shadow);
+    const disp = await p.$eval('#bookDateText', e => e.textContent);
     ok(/^\w+day, \d{1,2} \w+ \d{4}$/.test(disp.trim()), 'selected date shown in a readable long format', disp);
     const status = await p.$eval('#hint-bookDate', e => e.textContent).catch(() => '');
-    ok(/available/i.test(status) && /blocked/i.test(status), 'server check allows the reserved-but-open date and notes the blocked window', status);
+    ok(/reserved/i.test(status) && /18:00/.test(status) && /open/i.test(status), 'server check allows the reserved-but-open date and names the taken window', status);
 
     // hover on an available date must not turn it into another state colour
     await showDate(freeDs);
     await p.hover(`.tm-cal-cell[data-date="${freeDs}"]`); await d.sleep(300);
     c = await cell(freeDs);
-    ok(/16, 185, 129/.test(c.border), 'hover keeps the green availability colour', JSON.stringify(c));
+    ok(/76, 175, 80/.test(c.border), 'hover keeps the green availability colour', JSON.stringify(c));
     // focus ring takes the state colour
     await showDate(freeDs);
     await p.focus(`.tm-cal-cell[data-date="${freeDs}"]`);
     await p.keyboard.press('ArrowRight'); await p.keyboard.press('ArrowLeft'); await d.sleep(200);   // real keyboard modality -> :focus-visible
     const outline = await p.evaluate(() => ({ ds: document.activeElement.dataset.date, st: document.activeElement.dataset.state, col: getComputedStyle(document.activeElement).outlineColor, w: getComputedStyle(document.activeElement).outlineWidth }));
-    ok(outline.ds === freeDs && /16, 185, 129/.test(outline.col) && outline.w !== '0px', 'keyboard focus ring uses the availability colour', JSON.stringify(outline));
+    ok(outline.ds === freeDs && /76, 175, 80/.test(outline.col) && outline.w !== '0px', 'keyboard focus ring uses the availability colour', JSON.stringify(outline));
 
     // ── keyboard ──
     const tabStops = await p.$$eval('#calDaysGrid [tabindex="0"]', n => n.length);
