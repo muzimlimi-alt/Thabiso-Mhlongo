@@ -80,10 +80,17 @@ module.exports = async function ({ check }) {
     await run("UPDATE bookings SET amount_outstanding = 0 WHERE id = ?", [cp3Id]);
     const completeRes = await api('PUT', `/api/admin/bookings/${cp3Id}/status`, { status: 'COMPLETED' });
     check('CP3: PUT /:id/status to COMPLETED -> 200', completeRes.status === 200, JSON.stringify(completeRes.body));
-    await sleep(150);
-    const cp3Event = await one('SELECT event_status FROM events WHERE event_id = ?', [cp3EventId]);
-    check('CP3: linked event advanced to completed via the generic status route (parity fix)', !!cp3Event && cp3Event.event_status === 'completed', JSON.stringify(cp3Event));
-
+    // The route responds first; the event advance runs after an awaited Google Calendar sync, which
+    // in this env retries/backs off against the deliberately invalid refresh token — so poll (bounded)
+    // instead of a fixed sleep that only passed when the sync happened to fail fast.
+    let cp3Event;
+    const cp3Started = Date.now();
+    for (let i = 0; i < 60; i++) {
+        cp3Event = await one('SELECT event_status FROM events WHERE event_id = ?', [cp3EventId]);
+        if (cp3Event && cp3Event.event_status === 'completed') break;
+        await sleep(250);
+    }
+    check('CP3: linked event advanced to completed via the generic status route (parity fix)', !!cp3Event && cp3Event.event_status === 'completed', `${JSON.stringify(cp3Event)} after ${Date.now() - cp3Started}ms`);
     // ── CP4: both cancellation paths now leave fully consistent, symmetric state ──
     const { id: cp4aId, eventId: cp4aEventId } = await makeConfirmed(550);
     await api('PUT', `/api/admin/bookings/${cp4aId}/status`, { status: 'CANCELLED' });
@@ -169,12 +176,18 @@ module.exports = async function ({ check }) {
     const cp17EventId = cp17Create.body.id;
     const cp17DateRes = await api('PATCH', `/api/admin/events/${cp17EventId}/date`, { date: future(681), time: '19:00' });
     check('CP17: drag-reschedule date PATCH -> 200', cp17DateRes.status === 200 && cp17DateRes.body.success, JSON.stringify(cp17DateRes.body));
-    await sleep(300);
-    const cp17Log = support.getChildLog();
     // syncEventToCalendar() logs one of these two lines for this exact event_id no matter which way
     // the real Google API call resolves — the bogus test-mode refresh token means the error line is
     // the expected outcome, but either proves the function was actually invoked (not silently skipped).
-    const cp17SyncAttempted = cp17Log.includes(`Error syncing event #${cp17EventId} to GCal`) || cp17Log.includes(`GCal Event for Event #${cp17EventId}`);
+    // The line only appears once that call (a real round-trip to Google's OAuth endpoint) has
+    // resolved, so poll (bounded) rather than sleeping a fixed 300ms.
+    const cp17Seen = () => {
+        const log = support.getChildLog();
+        return log.includes(`Error syncing event #${cp17EventId} to GCal`) || log.includes(`GCal Event for Event #${cp17EventId}`);
+    };
+    for (let i = 0; i < 60 && !cp17Seen(); i++) await sleep(250);
+    const cp17Log = support.getChildLog();
+    const cp17SyncAttempted = cp17Seen();
     check('CP17: syncEventToCalendar was actually invoked after the drag (not silently skipped)', cp17SyncAttempted, cp17Log.slice(-800));
 
     // ── CP18: standalone events are now checked against EACH OTHER for scheduling conflicts ──
