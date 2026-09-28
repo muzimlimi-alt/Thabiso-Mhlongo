@@ -396,22 +396,21 @@ header .navbar {
   }
 }
 
-/* Footprint + Testimonials widened the link list past what the original 7-link nav fit —
-   managed by hiding the lowest-priority links first, in progressively wider bands, rather
-   than shrinking text to the point of being hard to read. nth-child(4) was Gallery when the
-   original single-tier version of this rule was written; inserting Footprint at position 4
-   silently shifted Gallery to position 5, so it kept hiding Footprint instead. Fixed to the
-   current Home/About/Career/Footprint/Gallery/Social/Events/Testimonials/Contact order.
+/* The link list is wider than the header can fit, so the lowest-priority links are hidden first,
+   in progressively wider bands, rather than shrinking text to the point of being hard to read.
+   The links to hide are marked with a class in index.html (tm-nav-low: Career, Team, Gallery;
+   tm-nav-lower: Social) instead of by position. These rules used to be nth-child(n) and were
+   broken twice by inserting a link (Footprint, then Team): every later link shifted one place,
+   so the rule hid the wrong ones and the nav collided with the logo.
    !important is required here: applySectionVisibility() (js/myscript.js) runs jQuery
    .toggle(true) on every nav <li> for every visible CMS section on every page load, which
    sets an inline style="display:list-item" — inline styles beat any stylesheet rule regardless
    of specificity, so a plain display:none here would silently never apply. */
-@media (min-width: 992px) and (max-width: 1700px) {
-  .tm-navlinks li:nth-child(3),
-  .tm-navlinks li:nth-child(5) { display: none !important; } /* Hide Career and Gallery */
+@media (min-width: 992px) and (max-width: 1899px) {
+  .tm-navlinks li.tm-nav-low { display: none !important; }
 }
-@media (min-width: 992px) and (max-width: 1330px) {
-  .tm-navlinks li:nth-child(6) { display: none !important; } /* Also hide Social */
+@media (min-width: 992px) and (max-width: 1399px) {
+  .tm-navlinks li.tm-nav-lower { display: none !important; }
 }
 
 .tm-navbar__logo{
@@ -475,6 +474,12 @@ header .navbar {
 /* The narrowest band right before the hamburger menu takes over at 991px. */
 @media (min-width: 992px) and (max-width: 1040px) {
   .tm-navlinks{ gap:2px; }
+}
+/* Even with the gap at 2px the six remaining links touched the logo at 992px, and just past 1040px
+   (gap back to 10px) they overlapped it. Slightly tighter tracking through ~1120px, where the
+   natural spacing has enough room again, avoids both without dropping another link. */
+@media (min-width: 992px) and (max-width: 1119px) {
+  .tm-navlinks a{ letter-spacing:.1em; }
 }
 
 .tm-navbar__cta{ display:flex; align-items:center; gap:14px; }
