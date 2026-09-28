@@ -884,10 +884,10 @@ header .navbar {
   background-position:center;
   transition:transform var(--t-slow) var(--ease);
 }
-.tm-service__bg--1{ background-image: url('../images/services/services-01.jpg'); }
-.tm-service__bg--2{ background-image: url('../images/services/services-02.jpg'); }
-.tm-service__bg--3{ background-image: url('../images/services/services-03.jpg'); }
-.tm-service__bg--4{ background-image: url('../images/services/services-04.jpg'); }
+.tm-service__bg--1{ background-image: url('../../images/services/services-01.jpg'); }
+.tm-service__bg--2{ background-image: url('../../images/services/services-02.jpg'); }
+.tm-service__bg--3{ background-image: url('../../images/services/services-03.jpg'); }
+.tm-service__bg--4{ background-image: url('../../images/services/services-04.jpg'); }
 .tm-service:hover .tm-service__bg{ transform:scale(1.06); }
 .tm-service__overlay{
   position:absolute; inset:0;
