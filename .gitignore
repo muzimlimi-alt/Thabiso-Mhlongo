@@ -31,6 +31,11 @@ db-backups/
 # kept out of git — this repo is public. Moved inside the project folder on 2026-09-28.
 thabiso-mhlongo-runtime-data/
 
+# Admin-uploaded images now live in images/ alongside the site's own images (UPLOADS_PATH default). Those are
+# public site content and may be committed with the database that references them; expense receipts are
+# financial documents and must never enter this public repo.
+images/receipts/
+
 # Claude Code agent worktrees (full repo copies) - tooling artifacts, not project source
 .claude/worktrees/
 

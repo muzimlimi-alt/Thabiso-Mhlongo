@@ -327,15 +327,14 @@ app.use((req, res, next) => {
     next();
 });
 
-// Serves newly-uploaded images from the external UPLOADS_PATH (Phase 3, HOUSEKEEPING-NOTES.md).
-// Mounted before the blanket repo-root static server below so a request for e.g.
-// /images/gallery/x.jpg is tried against the new external location first; express.static calls
-// next() on a miss, which falls through to the blanket mount and serves it from the legacy
-// in-repo images/ folder if that's where the file actually is. Nothing here changes which URL an
-// image is served at — only where the bytes are read from.
-app.use('/images', express.static(UPLOADS_PATH));
-// Receipts were previously served from the in-repo uploads/ folder the same way (no dedicated
-// auth-gated download route) — same external-first, legacy-fallback pattern as /images above.
+// Uploaded images are written under UPLOADS_PATH, which by default IS the project's images/ folder, so
+// the blanket repo-root static server below already serves /images/<section>/<file> (with the long
+// image cache headers) and no extra mount is needed. Only when UPLOADS_PATH is overridden to somewhere
+// else (a different deployment layout, the test suite) is it mounted at /images ahead of that server;
+// express.static calls next() on a miss, so files still in the repo's images/ fall through to it.
+if (path.resolve(UPLOADS_PATH) !== path.join(__dirname, 'images')) app.use('/images', express.static(UPLOADS_PATH));
+// Expense receipts are stored at UPLOADS_PATH/receipts and handed out as /uploads/receipts/<file>
+// (no dedicated auth-gated download route), so /uploads maps onto the same folder.
 app.use('/uploads', express.static(UPLOADS_PATH));
 
 // Bootstrap 3's Glyphicons. bootstrap.min.css requests them at "../fonts/…" relative to itself;
