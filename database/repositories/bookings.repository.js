@@ -429,6 +429,16 @@ function getBookingsOnDateForAvailability(excludeClause, bookingParams, callback
          FROM bookings WHERE date = ? AND status NOT IN ('CANCELLED', 'EXPIRED')${excludeClause}`,
         bookingParams, callback);
 }
+// Month-view twin of the untimed-booking branch of checkDateAvailability() (lib/calendar-sync.js):
+// a booking with no recorded start time (e.g. "All Day / Custom Hours") occupies its whole date.
+// Same status filter as getBookingsOnDateForAvailability() above — keep the two in step.
+function getFullDayBookingDatesForMonth(likePrefix, callback) {
+    db.all(
+        `SELECT DISTINCT date FROM bookings
+         WHERE date LIKE ? AND status NOT IN ('CANCELLED', 'EXPIRED')
+           AND (event_start_time IS NULL OR event_start_time = '')`,
+        [likePrefix], callback);
+}
 // findHoldDateConflict() — the date_holds half stays in server.js.
 function getBookingsOnDateForHoldConflict(date, callback) {
     db.all("SELECT id, event_start_time, performance_end_time, performance_duration, event_type, buffer_minutes FROM bookings WHERE date = ? AND status NOT IN ('CANCELLED', 'EXPIRED')", [date], callback);
@@ -866,7 +876,7 @@ module.exports = {
     insertBookingLineItem, insertBookingService, getBookingStatus, getBookingForContractRemind,
     getBookingIdStatusAsync,
     getBookingsOnDateForCalendarConflict, setBookingGoogleEventId, getBookingsWithGoogleEventIdAsync,
-    getBookingsOnDateForAvailability, getBookingsOnDateForHoldConflict, getBookingsOnDateForEventConflict,
+    getBookingsOnDateForAvailability, getFullDayBookingDatesForMonth, getBookingsOnDateForHoldConflict, getBookingsOnDateForEventConflict,
     updateBookingVenueUnlink, updateBookingVenueLinkLegacy, updateBookingVenueGoogle, getBookingEventId,
     updateBookingVenueFreeText, updateBookingDateAndTimeFields, getBookingByIdSafeAsync,
     setBookingPublicWithNewEvent, setBookingPublicTicketLink, clearBookingPublicWithEvent, clearBookingPublicTicketLink,

@@ -221,6 +221,11 @@ function insertAutoCreatedEvent(eventTitle, eventDatetime, venueName, venueId, b
 function getUpcomingStandaloneEventOnDate(dateStr, callback) {
     db.all("SELECT event_datetime FROM events WHERE date(event_datetime) = ? AND booking_id IS NULL", [dateStr], callback);
 }
+// Month-view twin of getUpcomingStandaloneEventOnDate() above: the datetimes of standalone events in
+// a month, so the caller can find the untimed ones (which occupy their whole date).
+function getStandaloneEventDatetimesForMonth(likePrefix, callback) {
+    db.all("SELECT event_datetime FROM events WHERE date(event_datetime) LIKE ? AND booking_id IS NULL", [likePrefix], callback);
+}
 function getOtherEventsOnDate(dateStr, excludeId, callback) {
     db.all(
         `SELECT event_id, event_datetime, event_end_time FROM events
@@ -402,7 +407,7 @@ module.exports = {
     clearEventGoogleCalendarId, clearEventGoogleCalendarIdAsync, getEventGoogleCalendarId,
     advanceAutoCompletedEventS6, getPastStandaloneEventsForAutoComplete, advanceStandaloneEventCompleted,
     advanceEventToCompleted, insertAutoCreatedEvent,
-    getUpcomingStandaloneEventOnDate, getOtherEventsOnDate,
+    getUpcomingStandaloneEventOnDate, getStandaloneEventDatetimesForMonth, getOtherEventsOnDate,
     getEventByBookingId, demoteEventForCancelledBooking, demoteEventForCancelledBookingAsync,
     demoteEventForCancelledBookingByBookingIdAsync,
     unlinkEventVenue, updateEventVenueLegacyLink, updateEventVenueGoogleLink, updateEventVenueFreeText,

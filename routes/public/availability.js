@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../../database');
 const { ipRateLimiter, trackRateLimiter } = require('../../middleware/rate-limiters');
 const { MIN_ADVANCE_HOURS } = require('../../lib/booking-policy');
-const { checkDateAvailability } = require('../../lib/calendar-sync');
+const { checkDateAvailability, getFullDayDatesForMonth } = require('../../lib/calendar-sync');
 const { getMinBookingGapSetting } = require('../../database/repositories/settings.repository');
 const { getActiveHoldDatesForMonth } = require('../../database/repositories/calendar.repository');
 const router = express.Router();
@@ -95,7 +95,11 @@ router.get('/api/public/booking-config', ipRateLimiter, (req, res) => {
                 });
                 res.json({
                     days,
-                    min_booking_gap_minutes: (!err2 && gapRow) ? parseInt(gapRow.setting_value) || 30 : 30
+                    min_booking_gap_minutes: (!err2 && gapRow) ? parseInt(gapRow.setting_value) || 30 : 30,
+                    // The same rule GET /api/public/availability enforces ("too_soon"). Exposed so the
+                    // calendar can grey out dates inside the notice window instead of showing them as
+                    // bookable and only rejecting them after the click.
+                    min_advance_hours: MIN_ADVANCE_HOURS
                 });
             });
         });
@@ -107,7 +111,8 @@ router.get('/api/public/booking-config', ipRateLimiter, (req, res) => {
                 working_hours_start:     (!err && wh) ? wh.start_time : '09:00',
                 working_hours_end:       (!err && wh) ? wh.end_time   : '22:00',
                 is_working_day:          (!err && wh) ? !!wh.is_working_day : true,
-                min_booking_gap_minutes: (!err2 && gapRow) ? parseInt(gapRow.setting_value) || 30 : 30
+                min_booking_gap_minutes: (!err2 && gapRow) ? parseInt(gapRow.setting_value) || 30 : 30,
+                min_advance_hours:       MIN_ADVANCE_HOURS
             });
         });
     });
@@ -133,7 +138,13 @@ router.get('/api/public/availability/month', ipRateLimiter, (req, res) => {
                 (err2, bks) => {
                     // Only return dates with confirmed/accepted bookings, no client info
                     const bookedDates = (bks || []).map(r => r.date).filter(d => !heldDates.includes(d));
-                    res.json({ held: heldDates, booked: bookedDates });
+                    // `full`: dates the per-date check (checkDateAvailability) rejects outright because an
+                    // untimed booking/event occupies the whole day. They stay "reserved" (orange) in the
+                    // calendar but are not selectable — otherwise the date looks bookable and is only refused
+                    // after the click. A failure here degrades to "no extra info", never to an error.
+                    getFullDayDatesForMonth(prefix + '%')
+                        .then(full => res.json({ held: heldDates, booked: bookedDates, full: full.filter(d => !heldDates.includes(d)) }))
+                        .catch(() => res.json({ held: heldDates, booked: bookedDates, full: [] }));
                 }
             );
         }
