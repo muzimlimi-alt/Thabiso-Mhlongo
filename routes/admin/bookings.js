@@ -2920,8 +2920,13 @@ router.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['adminis
         // Covers the first live schedule row, not a flat 50% of total — correct for a
         // client-selected 3-way plan too.
         const payment_status = await deriveManualPaymentStatus(bookingId, total, newPaid);
-        setBookingPaymentStatus(payment_status, bookingId,
-            (psErr) => { if (psErr) console.error('[Refund] payment_status re-derivation failed:', psErr.message); });
+        // Awaited so the response never goes out ahead of the write — a caller (or test) that reads
+        // the booking straight after this returns must see the re-derived status. A failed write is
+        // still only logged, as before; it never fails the refund.
+        await new Promise(resolve => setBookingPaymentStatus(payment_status, bookingId, (psErr) => {
+            if (psErr) console.error('[Refund] payment_status re-derivation failed:', psErr.message);
+            resolve();
+        }));
         // amount_paid dropped — re-run the milestone waterfall so covered rows
         // that are no longer covered fall back to pending.
         alignMilestonePayments(bookingId, newPaid, () => {});
