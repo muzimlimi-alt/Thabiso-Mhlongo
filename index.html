@@ -27,92 +27,24 @@
 	<link rel="icon" href="images/icon/logo5.png" type="image/gif" sizes="16x16" />
 	
 	<!-- Core Stylesheets -->
-	<link href="css/bootstrap.min.css" rel="stylesheet">
+	<link href="css/vendor/bootstrap.min.css" rel="stylesheet">
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
 	
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
-	<link rel="stylesheet" href="css/redesign.css?v=2">
-	<link rel="stylesheet" href="css/tracking.css">
-	<link rel="stylesheet" href="css/notifications.css">
+	<link rel="stylesheet" href="css/public/redesign.css?v=2">
+	<link rel="stylesheet" href="css/public/tracking-modal.css">
+	<link rel="stylesheet" href="css/components/notifications.css">
+	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
+	     reuses. Must load before booking-form.css (below), which documents its own need to
+	     stay last; nothing here needs to win a cascade tie against it. -->
+	<link rel="stylesheet" href="css/public/drawer.css?v=4">
 
 	<!-- Google Places Visibility Fix -->
-	<style>
-		.pac-container { z-index: 10000 !important; }
-
-		/* Dynamic Pricing Premium Styling */
-		.bk-sticky-total {
-			position: sticky;
-			bottom: 0;
-			background: linear-gradient(135deg, #1a1a1a 0%, #0d0d0d 100%);
-			border-top: 1px solid rgba(212, 175, 55, 0.3);
-			padding: 15px 20px;
-			margin: 20px -20px -20px -20px;
-			z-index: 10;
-			display: flex;
-			justify-content: flex-end;
-			box-shadow: 0 -10px 20px rgba(0,0,0,0.5);
-			border-bottom-left-radius: 8px;
-			border-bottom-right-radius: 8px;
-		}
-		.bk-sticky-total-info {
-			text-align: right;
-		}
-		.bk-sticky-total-info p {
-			margin: 0;
-			font-size: 11px;
-			color: #888;
-			text-transform: uppercase;
-			letter-spacing: 1px;
-		}
-		.bk-sticky-total-info .amount {
-			display: block;
-			font-size: 24px;
-			font-weight: 800;
-			color: #D4AF37;
-			margin: 2px 0;
-			text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-		}
-		.bk-sticky-total-note {
-			font-size: 9px;
-			color: #555;
-			max-width: 250px;
-			line-height: 1.3;
-		}
-		
-		.bk-dur-hint {
-			animation: fadeInSlideUp 0.3s ease-out;
-		}
-		
-		@keyframes fadeInSlideUp {
-			from { opacity: 0; transform: translateY(5px); }
-			to { opacity: 1; transform: translateY(0); }
-		}
-		
-		#bkServicesTable tr {
-			transition: all 0.3s ease;
-		}
-		#bkServicesTable tr:hover {
-			background: rgba(255,255,255,0.02);
-		}
-		
-		.book-review-row {
-			border-bottom: 1px solid rgba(255,255,255,0.05) !important;
-			padding: 12px 0 !important;
-		}
-		.book-review-row span:first-child {
-			color: #888 !important;
-			font-weight: 500 !important;
-			text-transform: uppercase !important;
-			font-size: 11px !important;
-			letter-spacing: 0.5px !important;
-		}
-		.book-review-row span:last-child {
-			color: #eee !important;
-			font-weight: 600 !important;
-		}
-	</style>
+	<!-- Booking wizard styles — extracted from the inline block that sat here. Must stay
+	     LAST of the project stylesheets: it relied on being after every <link>. -->
+	<link rel="stylesheet" href="css/public/booking-form.css">
 
 	<!-- No-FOUC section visibility: hide sections the admin turned off, from cache, before first paint.
 	     renderSiteContent() in myscript.js reconciles with the server and removes this style. -->
@@ -173,8 +105,8 @@
 
 		<div class="tm-navbar__right">
 			<div class="tm-navbar__cta">
-				<a href="#" class="btn btn-ghost btn-sm" data-toggle="modal" data-target="#trackingModal">Track Booking</a>
-				<a href="#" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#bookingModal" data-track="book_now" data-bk-source="header-cta">Book Me</a>
+				<a href="#" class="btn btn-ghost btn-sm" data-open-drawer="trackingDrawer">Track Booking</a>
+				<a href="#" class="btn btn-primary btn-sm" data-open-drawer="bookingDrawer" data-track="book_now" data-bk-source="header-cta">Book Me</a>
 			</div>
 		</div>
 	</nav>
@@ -192,8 +124,8 @@
 	<a href="#newsletter">Newsletter</a>
 	<a href="#testimonials">Testimonials</a>
 	<a href="#contact">Contact</a>
-	<a href="#" data-toggle="modal" data-target="#trackingModal">Track Booking</a>
-	<a href="#" data-toggle="modal" data-target="#bookingModal" data-track="book_now" data-bk-source="mobile-nav">Book Me</a>
+	<a href="#" data-open-drawer="trackingDrawer">Track Booking</a>
+	<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" data-bk-source="mobile-nav">Book Me</a>
 </div>
 
 <main id="main">
@@ -227,8 +159,8 @@
 			An award winning South African stand-up comedian, writer, actor, podcaster and TV presenter from Barberton — bringing a decade of stage-craft, razor-sharp wit and premium entertainment to South Africa's biggest rooms.
 		</p>
 		<div class="tm-hero__cta">
-			<a href="#" data-toggle="modal" data-target="#bookingModal" data-track="book_now" class="btn btn-primary btn-lg" data-bk-source="hero-cta">Make Booking</a>
-			<a href="#" data-toggle="modal" data-target="#trackingModal" class="btn btn-outline btn-lg">Track Booking</a>
+			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="btn btn-primary btn-lg" data-bk-source="hero-cta">Make Booking</a>
+			<a href="#" data-open-drawer="trackingDrawer" class="btn btn-outline btn-lg">Track Booking</a>
 			<!-- <a href="#about" class="btn btn-outline btn-lg">My Story</a> -->
 		</div>
 	</div>
@@ -285,7 +217,7 @@
 		</div>
 
 		<div class="tm-services__grid">
-			<a href="#" data-toggle="modal" data-target="#bookingModal" data-track="book_now" class="tm-service tm-reveal" data-bk-source="service-standup">
+			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal" data-bk-source="service-standup">
 				<div class="tm-service__bg tm-service__bg--1"></div>
 				<div class="tm-service__overlay"></div>
 				<div class="tm-service__icon">
@@ -298,7 +230,7 @@
 				</div>
 			</a>
 
-			<a href="#" data-toggle="modal" data-target="#bookingModal" data-track="book_now" class="tm-service tm-reveal tm-reveal--d1" data-bk-source="service-mc-host">
+			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal tm-reveal--d1" data-bk-source="service-mc-host">
 				<div class="tm-service__bg tm-service__bg--2"></div>
 				<div class="tm-service__overlay"></div>
 				<div class="tm-service__icon">
@@ -311,7 +243,7 @@
 				</div>
 			</a>
 
-			<a href="#" data-toggle="modal" data-target="#bookingModal" data-track="book_now" class="tm-service tm-reveal tm-reveal--d2" data-bk-source="service-tv-film">
+			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal tm-reveal--d2" data-bk-source="service-tv-film">
 				<div class="tm-service__bg tm-service__bg--3"></div>
 				<div class="tm-service__overlay"></div>
 				<div class="tm-service__icon">
@@ -324,7 +256,7 @@
 				</div>
 			</a>
 
-			<a href="#" data-toggle="modal" data-target="#bookingModal" data-track="book_now" class="tm-service tm-reveal tm-reveal--d3" data-bk-source="service-voiceover">
+			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal tm-reveal--d3" data-bk-source="service-voiceover">
 				<div class="tm-service__bg tm-service__bg--4"></div>
 				<div class="tm-service__overlay"></div>
 				<div class="tm-service__icon">
@@ -693,8 +625,8 @@
 				<ul>
 					<li><a href="#contact">Contact</a></li>
 					<li><a href="#newsletter">Newsletter</a></li>
-					<li><a href="#" data-toggle="modal" data-target="#bookingModal" data-track="book_now" data-bk-source="footer">Book Me</a></li>
-					<li><a href="#" data-toggle="modal" data-target="#trackingModal">Track Booking</a></li>
+					<li><a href="#" data-open-drawer="bookingDrawer" data-track="book_now" data-bk-source="footer">Book Me</a></li>
+					<li><a href="#" data-open-drawer="trackingDrawer">Track Booking</a></li>
 				</ul>
 			</div>
 			<div class="tm-footer__col">
@@ -727,15 +659,17 @@
         </div>
     </div>
 
-	<!-- Dedicated Booking Modal -->
-	<div class="modal fade" id="bookingModal" tabindex="-1" role="dialog" aria-labelledby="bookingModalLabel">
-		<div class="modal-dialog modal-lg" role="document">
-			<div class="modal-content">
-				<div class="modal-header">
-					<h3 class="modal-title" id="bookingModalLabel">Book Thabiso Mhlongo</h3>
-					<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+	<!-- Booking Drawer — converted from a Bootstrap modal to the project's existing right-side
+	     drawer system (js/admin/components/drawer.js, extended to the public site; see
+	     css/public/drawer.css for the visual translation). role="dialog" + aria-modal + the
+	     labelledby wiring are unchanged from the modal; only the container behaviour is new. -->
+	<div class="atl-drawer-backdrop" id="bookingDrawerBackdrop" onclick="closeAtlDrawer('bookingDrawer')"></div>
+	<div class="atl-drawer" id="bookingDrawer" role="dialog" aria-modal="true" data-atl-modal data-atl-return-focus=".tm-burger" inert aria-labelledby="bookingModalLabel">
+			<div class="atl-drawer__header">
+					<h3 class="atl-drawer__title" id="bookingModalLabel">Book Thabiso Mhlongo</h3>
+					<button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('bookingDrawer')" aria-label="Close"><span aria-hidden="true">&times;</span></button>
 				</div>
-				<div class="modal-body">
+				<div class="atl-drawer__body">
 
 					<!-- Wizard Step Bar -->
 					<div id="bookingStepBar" class="bk-wz-bar">
@@ -1229,7 +1163,7 @@
 							<p class="bk-success__next">Our team will review your request and send you a personalised quote via email &mdash; usually within 2 business days.</p>
 							<div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px;">
 								<button type="button" id="goToTrackBtn" class="btn-bk-nav btn-bk-next"><i class="fa-solid fa-ticket" style="margin-right:6px;"></i>Track this booking</button>
-								<button type="button" class="btn-bk-nav btn-bk-back" data-dismiss="modal">Close</button>
+								<button type="button" class="btn-bk-nav btn-bk-back" onclick="closeAtlDrawer('bookingDrawer')">Close</button>
 							</div>
 						</div>
 
@@ -1238,24 +1172,22 @@
 						<span id="bkDraftStatus" style="display:none;font-size:11px;color:#666;"><i class="fa-solid fa-floppy-disk" style="margin-right:4px;"></i>Progress saved</span>
 						<a href="#" id="bkClearDraftBtn" style="display:none;font-size:11px;color:#888;text-decoration:underline;cursor:pointer;"><i class="fa-solid fa-trash-can" style="margin-right:4px;"></i>Clear saved progress</a>
 					</div>
-				</div>
 			</div>
-		</div>
 	</div>
 
-	<!-- Track Booking Modal -->
-	<div class="modal fade tm-modal" id="trackingModal" tabindex="-1" role="dialog" aria-labelledby="trackingModalLabel">
-		<div class="modal-dialog modal-lg" role="document">
-			<div class="modal-content">
+	<!-- Track Booking Drawer — same conversion as the Booking Drawer above; same component
+	     family (identical BEM classes, identical open/close mechanism). -->
+	<div class="atl-drawer-backdrop" id="trackingDrawerBackdrop" onclick="closeAtlDrawer('trackingDrawer')"></div>
+	<div class="atl-drawer" id="trackingDrawer" role="dialog" aria-modal="true" data-atl-modal data-atl-return-focus=".tm-burger" inert aria-labelledby="trackingModalLabel">
 
-				<div class="modal-header">
-					<h4 class="modal-title" id="trackingModalLabel">
+				<div class="atl-drawer__header">
+					<h4 class="atl-drawer__title" id="trackingModalLabel">
 						<i class="fa-solid fa-ticket"></i>Track Your Booking
 					</h4>
-					<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+					<button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('trackingDrawer')" aria-label="Close"><span aria-hidden="true">&times;</span></button>
 				</div>
 
-				<div class="modal-body">
+				<div class="atl-drawer__body">
 
 					<!-- Auth Screen -->
 					<div id="trackingAuth">
@@ -1573,9 +1505,7 @@
 						</div>
 
 					</div>
-				</div>
 			</div>
-		</div>
 	</div>
 
 <!-- ============================
@@ -1960,8 +1890,14 @@
     <script src="js/jquery-2.1.1.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
-	<script src="js/myscript.js?v=1.3.0"></script>
-	<script src="js/notificationService.js"></script>
+	<script src="js/myscript.js?v=1.4.1"></script>
+	<script src="js/overlay-stack.js?v=2"></script>
+	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
+	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather
+	     than a second, public-only implementation. See css/public/drawer.css for the public
+	     skin (same BEM classes, public design tokens instead of admin's --atl-* ones). -->
+	<script src="js/admin/components/drawer.js?v=3"></script>
+	<script src="js/notificationService.js?v=2.0.2"></script>
 </body>
 <!-- UI Dependencies -->
 <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
@@ -2805,7 +2741,24 @@ $(document).ready(function() {
         pendingEmail = null;
     }
 
-    $('#trackingModal').on('hidden.bs.modal', resetTracker);
+    // atl:drawerClosed fires from closeAtlDrawer() regardless of which control triggered the
+    // close (X button, backdrop click, Escape) — one listener covers every path Bootstrap's
+    // 'hidden.bs.modal' used to.
+    // The reset waits for the slide-out to finish (--t: .35s) so the panel doesn't visibly blank
+    // mid-animation, and is skipped if the drawer was reopened in the meantime.
+    document.addEventListener('atl:drawerClosed', function(e) {
+        if (!e.detail || e.detail.id !== 'trackingDrawer') return;
+        setTimeout(function() { if (!$('#trackingDrawer').hasClass('atl-drawer--open')) resetTracker(); }, 400);
+    });
+
+    // Every "Book Me" / "Track Booking" entry point on the page (header, mobile nav, hero,
+    // service cards, footer) carries data-open-drawer="bookingDrawer|trackingDrawer" — this one
+    // delegated handler replaces Bootstrap's data-toggle="modal" wiring for all of them.
+    $(document).on('click', '[data-open-drawer]', function(e) {
+        e.preventDefault();
+        var id = $(this).attr('data-open-drawer');
+        if (window.openAtlDrawer) openAtlDrawer(id);
+    });
 
     // Auto-open if ?track=ID in URL
     var urlParams = new URLSearchParams(window.location.search);
@@ -2815,7 +2768,7 @@ $(document).ready(function() {
         if (cachedEmail) {
             $('#trackEmail').val(cachedEmail);
         }
-        $('#trackingModal').modal('show');
+        if (window.openAtlDrawer) openAtlDrawer('trackingDrawer');
         
         // Auto-fetch if returning from payment gateway
         if (urlParams.get('payment') && cachedEmail) {

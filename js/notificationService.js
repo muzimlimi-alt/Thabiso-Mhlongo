@@ -199,7 +199,14 @@ class NotificationService {
             `;
 
             this.modalRoot.classList.add('is-active');
-            document.body.style.overflow = 'hidden';
+            // Admin consolidation: register with the shared overlay stack (js/overlay-stack.js)
+            // instead of driving body scroll directly. A confirm dialog is frequently opened from
+            // inside an already-open drawer; the stack is what keeps scroll locked until the LAST
+            // overlay closes, and what tells this modal whether it owns the topmost layer.
+            const overlayId = 'tm-modal-' + (++NotificationService._overlaySeq);
+            const overlays = window.atlOverlayStack;
+            if (overlays) overlays.push(overlayId, () => closeModal(isPrompt ? null : false));
+            else document.body.style.overflow = 'hidden';   // stack not loaded — previous behaviour
 
             const container  = this.modalRoot.querySelector('.tm-modal-container');
             const cancelBtn  = this.modalRoot.querySelector('#tm-modal-cancel');
@@ -219,11 +226,17 @@ class NotificationService {
             };
             document.addEventListener('keydown', trapFocus);
 
+            let closed = false;
             const closeModal = (result) => {
+                if (closed) return;              // Escape + a click can both land in one frame
+                closed = true;
                 document.removeEventListener('keydown', trapFocus);
                 document.removeEventListener('keydown', handleKey);
                 this.modalRoot.classList.remove('is-active');
-                document.body.style.overflow = '';
+                // Scroll-unlock is the stack's decision, not this modal's — a drawer underneath
+                // may still be open, in which case scroll must STAY locked.
+                if (overlays) overlays.pop(overlayId);
+                else document.body.style.overflow = '';
                 try { if (this._previousFocus) this._previousFocus.focus(); } catch (_) {}
                 this._previousFocus = null;
                 resolve(result);
@@ -238,8 +251,13 @@ class NotificationService {
             });
 
             const handleKey = (e) => {
-                if (e.key === 'Escape' && !isDestructive) { e.preventDefault(); closeModal(isPrompt ? null : false); }
-                if (e.key === 'Enter' && !isPrompt && !isAlert) { e.preventDefault(); closeModal(true); }
+                // Only respond while this dialog owns the topmost layer. Without the guard, a
+                // dialog opened over a drawer let Escape reach the drawer's handler as well and
+                // closed both. stopPropagation() keeps it from reaching other document handlers
+                // bound on the same phase.
+                if (overlays && !overlays.isTop(overlayId)) return;
+                if (e.key === 'Escape' && !isDestructive) { e.preventDefault(); e.stopPropagation(); closeModal(isPrompt ? null : false); }
+                if (e.key === 'Enter' && !isPrompt && !isAlert) { e.preventDefault(); e.stopPropagation(); closeModal(true); }
             };
             document.addEventListener('keydown', handleKey);
         });
@@ -547,6 +565,10 @@ class NotificationService {
 }
 
 // ─── Global singleton ─────────────────────────────────────────────────────────
+// Monotonic id source for overlay-stack registration (see _showModal). Static rather than an
+// instance field so it stays unique even if a second service is ever constructed.
+NotificationService._overlaySeq = 0;
+
 window.notificationService = new NotificationService();
 window.notificationService.setupGlobalInterceptors();
 

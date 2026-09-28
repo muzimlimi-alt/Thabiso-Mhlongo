@@ -2358,7 +2358,7 @@ document.addEventListener("DOMContentLoaded", function() {
         }
 
         // Resume a saved draft from an email link (?resume=token): rebuild the
-        // localStorage draft in the existing format, then let the show.bs.modal
+        // localStorage draft in the existing format, then let the atl:drawerOpened
         // restore path rehydrate fields + services before jumping to the saved step.
         function initBkResume() {
             var params = new URLSearchParams(window.location.search || '');
@@ -2401,7 +2401,7 @@ document.addEventListener("DOMContentLoaded", function() {
                             localStorage.setItem('bkDraft', JSON.stringify({ step: target, fields: fields, services: services, savedAt: Date.now() }));
                             if (d.draft_token) localStorage.setItem('bkDraftToken', d.draft_token);
                         } catch (e) {}
-                        $('#bookingModal').modal('show');
+                        if (window.openAtlDrawer) openAtlDrawer('bookingDrawer');
                         setTimeout(function () { if (typeof updateProgress === 'function') updateProgress(target); }, 700);
                         try {
                             if (history.replaceState) {
@@ -2746,11 +2746,11 @@ document.addEventListener("DOMContentLoaded", function() {
                     .show();
                 $('#trackDuplicateBtn2').off('click').on('click', function(e) {
                     e.preventDefault();
-                    $('#bookingModal').modal('hide');
+                    if (window.closeAtlDrawer) closeAtlDrawer('bookingDrawer');
                     setTimeout(function() {
                         $('#trackId').val(clash.id);
                         $('#trackEmail').val(email);
-                        $('#trackingModal').modal('show');
+                        if (window.openAtlDrawer) openAtlDrawer('trackingDrawer');
                     }, 400);
                 });
                 return;
@@ -2840,11 +2840,11 @@ $bookingForm.on('blur', '#bookName', function() {
                         
                         $('#trackDuplicateBtn').off('click').on('click', function(e) {
                             e.preventDefault();
-                            $('#bookingModal').modal('hide');
+                            if (window.closeAtlDrawer) closeAtlDrawer('bookingDrawer');
                             setTimeout(function() {
                                 $('#trackId').val(clash.id);
                                 $('#trackEmail').val(v);
-                                $('#trackingModal').modal('show');
+                                if (window.openAtlDrawer) openAtlDrawer('trackingDrawer');
                             }, 400);
                         });
                     }
@@ -3005,11 +3005,11 @@ $bookingForm.on('blur', '#bookName', function() {
 
                     // Wire up "Track this booking" button
                     $('#goToTrackBtn').off('click').on('click', function() {
-                        $('#bookingModal').modal('hide');
+                        if (window.closeAtlDrawer) closeAtlDrawer('bookingDrawer');
                         setTimeout(function() {
                             $('#trackId').val(result.booking_id);
                             $('#trackEmail').val(submitData.email);
-                            $('#trackingModal').modal('show');
+                            if (window.openAtlDrawer) openAtlDrawer('trackingDrawer');
                         }, 400);
                     });
 
@@ -3043,11 +3043,11 @@ $bookingForm.on('blur', '#bookName', function() {
                     ).show();
                     $('#trackDuplicateBtn').off('click').on('click', function(e) {
                         e.preventDefault();
-                        $('#bookingModal').modal('hide');
+                        if (window.closeAtlDrawer) closeAtlDrawer('bookingDrawer');
                         setTimeout(function() {
                             $('#trackId').val(existingId);
                             $('#trackEmail').val($('#bookEmail').val().trim());
-                            $('#trackingModal').modal('show');
+                            if (window.openAtlDrawer) openAtlDrawer('trackingDrawer');
                         }, 400);
                     });
                     isSubmitting = false;
@@ -3155,9 +3155,9 @@ $bookingForm.on('blur', '#bookName', function() {
             }
         });
 
-        // Track which entry point opened the booking modal (Gap 12: source attribution)
+        // Track which entry point opened the booking drawer (Gap 12: source attribution)
         window._bkSource = 'direct';
-        $('[data-toggle="modal"][data-target="#bookingModal"]').on('click', function() {
+        $('[data-open-drawer="bookingDrawer"]').on('click', function() {
             window._bkSource = $(this).data('bk-source') || 'direct';
         });
 
@@ -3221,8 +3221,11 @@ $bookingForm.on('blur', '#bookName', function() {
             $('#bkPrefillNote').remove();
         });
 
-        // Refresh calendar each time the modal opens; restore any in-progress draft
-        $('#bookingModal').on('show.bs.modal', function() {
+        // Refresh calendar each time the drawer opens; restore any in-progress draft.
+        // atl:drawerOpened fires synchronously from openAtlDrawer(), right as the slide-in
+        // starts — same timing 'show.bs.modal' gave this handler.
+        document.addEventListener('atl:drawerOpened', function(e) {
+            if (!e.detail || e.detail.id !== 'bookingDrawer') return;
             if (window.refreshAvailCalendar) window.refreshAvailCalendar();
             try {
                 var raw = localStorage.getItem('bkDraft');
@@ -3302,8 +3305,20 @@ $bookingForm.on('blur', '#bookName', function() {
             updateProgress(1);
         });
 
-        // Reset wizard when modal closes (draft intentionally preserved for reopen)
-        $('#bookingModal').on('hidden.bs.modal', function() {
+        // Reset wizard when the drawer closes (draft intentionally preserved for reopen).
+        // atl:drawerClosed fires from closeAtlDrawer() on every close path alike (X button,
+        // backdrop, Escape, or a programmatic close from the success/duplicate-clash flows
+        // above) — one listener covers what 'hide.bs.modal' (flushBkDraft, run first, same
+        // order Bootstrap fired them in) and 'hidden.bs.modal' (this reset) did separately.
+        document.addEventListener('atl:drawerClosed', function(e) {
+            if (!e.detail || e.detail.id !== 'bookingDrawer') return;
+            flushBkDraft();
+            // Reset only once the slide-out has finished (--t: .35s in css/public/redesign.css).
+            // Resetting straight away would visibly blank the wizard while the drawer is still on
+            // screen (the old modal reset on 'hidden.bs.modal', i.e. after its fade). Skipped if the
+            // drawer was reopened in the meantime.
+            setTimeout(function () {
+            if ($('#bookingDrawer').hasClass('atl-drawer--open')) return;
             _venueInited = false; // allow fresh init + event rebind next open
             isSubmitting = false;
             $bookingForm[0].reset();
@@ -3327,6 +3342,7 @@ $bookingForm.on('blur', '#bookName', function() {
             $('#bkClearDraftBtn').hide();
             $('#bkDraftBanner').remove();
             $('#bkPrefillNote').remove();
+            }, 400);
         });
 
         function _clearBookingDraft() {
@@ -3369,8 +3385,9 @@ $bookingForm.on('blur', '#bookName', function() {
         // ---- Booking Recovery wiring ----
         // Live background sync as the user types (debounced + email-gated inside serverSyncBkDraft).
         $bookingForm.on('input change', 'input, textarea, select', serverSyncBkDraft);
-        // Capture latest progress when the visitor leaves before submitting.
-        $('#bookingModal').on('hide.bs.modal', flushBkDraft);
+        // Capture latest progress when the visitor leaves before submitting. The drawer-close
+        // case is now handled inside the atl:drawerClosed listener above (flushBkDraft runs
+        // first there, same order Bootstrap's hide.bs.modal/hidden.bs.modal fired in).
         $(window).on('beforeunload', flushBkDraft);
         document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flushBkDraft(); });
         // Resume-from-email-link support (?resume=token).
@@ -3412,36 +3429,33 @@ $bookingForm.on('blur', '#bookName', function() {
     // back to the default background sandwiched between the real login image and its correct value.
 
     // ==========================================
-    // ADMIN DASHBOARD SIDEBAR LOGIC
+    // ADMIN DASHBOARD SIDEBAR LOGIC — removed 2026-09-24, see below.
     // ==========================================
-    var $tmSidebar = $('#tmAdminSidebar');
-    var $tmSidebarToggle = $('#tmSidebarToggle');
-    var $tmMobileToggle = $('#tmMobileAdminOpen');
-    var $tmSidebarOverlay = $('#tmSidebarOverlay');
-    var $adminSidebarTabs = $('.admin-sidebar li[role="presentation"] a');
-
-    if ($tmSidebar.length) {
-        $tmSidebarToggle.on('click', function() {
-            $tmSidebar.toggleClass('collapsed');
-        });
-
-        $tmMobileToggle.on('click', function() {
-            $tmSidebar.addClass('mobile-open');
-            $tmSidebarOverlay.addClass('show');
-        });
-
-        $tmSidebarOverlay.on('click', function() {
-            $tmSidebar.removeClass('mobile-open');
-            $tmSidebarOverlay.removeClass('show');
-        });
-
-        $adminSidebarTabs.on('click', function() {
-            if ($(window).width() <= 768) {
-                $tmSidebar.removeClass('mobile-open');
-                $tmSidebarOverlay.removeClass('show');
-            }
-        });
-    }
+    // This block targeted #tmAdminSidebar / #tmSidebarToggle, which exist only on
+    // admin.html — the `if ($tmSidebar.length)` guard already made it a no-op on the
+    // public page this file otherwise serves, so removing it changes nothing there.
+    //
+    // On admin.html it was a SECOND, independent click handler on the same toggle
+    // button admin.html's own script (near the end of <body>) also binds — a
+    // '.toggleClass(\'collapsed\')' one-liner with no awareness of the multilevel
+    // sidebar, padding-left, FullCalendar re-measure, or sessionStorage persistence
+    // that admin.html's handler owns. Because this file loads first (line ~6909, well
+    // before admin.html's own sidebar script near the bottom of <body>), it always
+    // fired FIRST on every click. Traced with a MutationObserver on .className:
+    //
+    //     +0.0ms   class -> "tm-admin-sidebar collapsed"   (THIS handler toggled it)
+    //     +11.7ms  class -> "tm-admin-sidebar"              (admin.html's handler ran
+    //                                                         next, read the class THIS
+    //                                                         handler had just changed,
+    //                                                         and — correctly, for what
+    //                                                         it could see — toggled it
+    //                                                         right back)
+    //
+    // Net effect: the FIRST click on the toggle was a no-op (reported as "sections
+    // don't work"/sidebar stuck), and the mobile open/close + tab-close-on-mobile
+    // duplicated here matched admin.html's own openMobileSidebar/closeMobileSidebar
+    // exactly, so they added a second no-op collision there too, not a mobile-only bug.
+    // admin.html's implementation is a strict superset; nothing here needs to survive.
 
     /* ── Mobile Search Panel Toggle ── */
     (function() {
@@ -3697,7 +3711,7 @@ window.onbeforeunload = function() {
         if (trackEmail) $('#trackEmail').val(trackEmail);
 
         // Show the modal
-        $('#trackingModal').modal('show');
+        if (window.openAtlDrawer) openAtlDrawer('trackingDrawer');
 
         // Trigger search automatically if both are present
         if (trackEmail) {

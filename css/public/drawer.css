@@ -1,0 +1,226 @@
+/* =====================================================================
+   PUBLIC SLIDE-OUT DRAWERS — Booking & Track Booking
+   Right-side drawer conversion of what used to be #bookingModal / #trackingModal
+   (Bootstrap 3 modals). Structure and behaviour are the project's EXISTING drawer
+   system (js/admin/components/drawer.js — window.openAtlDrawer/closeAtlDrawer,
+   z-index stacking via js/overlay-stack.js), loaded here unmodified so public and
+   admin share one implementation. This file is only the SKIN: the same BEM class
+   names admin uses (.atl-drawer, .atl-drawer__header, etc.), repainted with this
+   page's own design tokens (--bg-*, --y-*, --text-*, --r, --sh-* — defined in
+   css/public/redesign.css) instead of admin's --atl-* tokens, which aren't loaded
+   here. Every value below is carried over from the modal chrome it replaces
+   (css/public/redesign.css's old #bookingModal / .tm-modal rules — see that
+   file's "SHARED MODAL SYSTEM" comment) so the visual language is unchanged,
+   only the container behaviour is.
+
+   LOAD ORDER — after tracking-modal.css, before booking-form.css. The latter's
+   own header documents that it must stay the LAST stylesheet on this page (it
+   used to be an inline <style> block and wins cascade ties on that position);
+   this file must not be placed after it.
+
+   Reduced motion: no bespoke handling needed here. css/public/redesign.css
+   already carries a blanket `*,*::before,*::after { transition-duration:.001ms
+   !important }` under @media (prefers-reduced-motion: reduce), which covers the
+   transform/opacity transitions below automatically.
+   ===================================================================== */
+
+.atl-drawer-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .8);   /* matches the old .modal-backdrop.in opacity:.8 */
+    z-index: 1052;
+    display: none;
+}
+.atl-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    height: 100dvh;                  /* respects mobile browser chrome (address bar etc.) */
+    width: 760px;                    /* matches the old #bookingModal / .tm-modal max-width */
+    max-width: 100vw;
+    background: var(--bg-surface);
+    border-left: 1px solid var(--border-low);
+    box-shadow: none;
+    z-index: 1053;
+    display: flex;
+    flex-direction: column;
+    color: var(--text-primary);
+    transform: translateX(100%);
+    /* A closed drawer must be unreachable: visibility:hidden removes the off-canvas panel from
+       the tab order and the accessibility tree. The delay keeps it painted for the slide-out. */
+    visibility: hidden;
+    transition: transform var(--t) var(--ease-out), box-shadow var(--t) var(--ease), visibility 0s linear var(--t);
+}
+.atl-drawer--open {
+    transform: translateX(0);
+    visibility: visible;
+    box-shadow: var(--sh-xl);
+    transition-delay: 0s;
+}
+
+/* ── Header — Cormorant title, gold accent rule, 44×44 close target ── */
+.atl-drawer__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 22px 30px 20px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-low);
+    position: relative;
+    flex-shrink: 0;
+}
+.atl-drawer__header::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 30px;
+    width: 42px; height: 2px;
+    background: var(--y-base);
+    border-radius: 1px;
+}
+.atl-drawer__title {
+    margin: 0;
+    color: var(--text-primary);
+    font-family: var(--f-display);
+    font-weight: 400;
+    font-size: 1.55rem;
+    letter-spacing: .03em;
+}
+.atl-drawer__title i { color: var(--y-base); margin-right: 10px; font-size: 1.1rem; }
+.atl-drawer__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    flex-shrink: 0;
+    color: var(--text-primary);
+    opacity: .55;
+    font-size: 28px;
+    line-height: 1;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    /* Explicit properties, NOT `all`: `all` also animates the *inherited* visibility, which kept
+       this button un-focusable for ~150ms after the drawer opened (so the open-time focus failed). */
+    transition: opacity var(--t) var(--ease), color var(--t) var(--ease), transform var(--t) var(--ease);
+}
+.atl-drawer__close:hover,
+.atl-drawer__close:focus-visible {
+    opacity: 1;
+    color: var(--y-base);
+    transform: rotate(90deg);
+}
+.atl-drawer__close:focus-visible { outline: 2px solid var(--y-base); outline-offset: 2px; }
+
+/* ── Body — independently scrollable ── */
+.atl-drawer__body {
+    flex: 1;
+    min-height: 0;                   /* lets the flex child shrink so it scrolls instead of growing the drawer */
+    overflow-y: auto;
+    overscroll-behavior: contain;    /* scrolling to the end doesn't chain to the page underneath */
+    -webkit-overflow-scrolling: touch;
+    /* Padding lives in variables so the sticky action row (below) can extend through it. */
+    --atl-pad-t: 30px; --atl-pad-r: 30px; --atl-pad-b: 30px; --atl-pad-l: 30px;
+    padding: var(--atl-pad-t) var(--atl-pad-r) var(--atl-pad-b) var(--atl-pad-l);
+    background: var(--bg-surface);
+}
+
+/* ── Footer (used where a drawer has one persistent action row) ── */
+.atl-drawer__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 16px 30px;
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    background: var(--bg-elevated);
+    border-top: 1px solid var(--border-low);
+    flex-shrink: 0;
+}
+
+/* ── Booking wizard's own per-step Back/Next/Submit row, made sticky ──
+   The wizard already renders exactly one action row per step, in the right place
+   in the DOM (end of each .book-step-panel) — turning it into a REAL fixed footer
+   would mean duplicating it four times or rewiring the step-switching JS to move
+   it between steps. `position: sticky` gets the same "always reachable, never
+   buried" result the task asks for with a one-rule CSS change and zero JS risk:
+   it behaves exactly like a footer while the step content scrolls under it, and
+   like a normal in-flow row on any step short enough not to need it.
+   Sticks within .atl-drawer__body's padding box, so its bottom edge lands 30px
+   above the drawer's true bottom edge (the body's own padding-bottom) rather
+   than flush against it — same background colour either side, so that gap
+   reads as intentional breathing room, not an error. */
+#bookingDrawer .bk-nav-row {
+    position: sticky;
+    bottom: calc(-1 * var(--atl-pad-b));       /* flush with the drawer's bottom edge, not floating above it */
+    z-index: 1;                                /* sit above step content scrolling underneath */
+    background: var(--bg-surface);
+    /* Extend through the body's padding to the drawer's edges, so it reads as a footer bar and no
+       scrolling content shows beside or beneath the buttons. The padding below puts the buttons
+       back where they were relative to the edge (plus any device safe-area). */
+    margin-left: calc(-1 * var(--atl-pad-l));
+    margin-right: calc(-1 * var(--atl-pad-r));
+    margin-bottom: calc(-1 * var(--atl-pad-b));
+    padding-left: var(--atl-pad-l);
+    padding-right: var(--atl-pad-r);
+    padding-bottom: calc(var(--atl-pad-b) + env(safe-area-inset-bottom));
+}
+
+/* ── Size variants, matching admin's own naming (unused here today, kept for
+   parity with the shared component family in case a narrower drawer is wanted
+   later — e.g. a future simpler enquiry form). ── */
+.atl-drawer--480 { width: 480px; }
+.atl-drawer--600 { width: 600px; }
+.atl-drawer--760 { width: 760px; }
+
+/* ── Nested Bootstrap modal (Privacy Policy / Terms, opened from inside a
+   drawer via the POPIA / terms checkboxes) must stack ABOVE the drawer it was
+   opened from. js/admin/components/drawer.js's z-index counter only grows
+   across a session (never resets), and Bootstrap's own .modal/.modal-backdrop
+   ship at a fixed 1050/1040 — already below a drawer's z-index on the very
+   first open. A fixed, generous margin here (well under --noti-z: 10000, so a
+   toast notification still shows above everything) covers any realistic
+   session without needing to track the counter's current value. ── */
+.modal { z-index: 5000; }
+.modal-backdrop { z-index: 4990; }
+
+/* ── Floating "back to top" arrow (#back-to-top, css/style.css) sits bottom-
+   right — exactly where a right-side drawer's edge lands. Rather than a
+   z-index contest, it simply has nothing to do while a drawer is open: body
+   scroll is locked for the same duration (js/overlay-stack.js), so there is
+   nothing to scroll "to the top" of. Hidden via the shared .atl-overlay-open
+   body class that overlay-stack.js's lock/unlock already toggles. ── */
+body.atl-overlay-open #back-to-top {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
+/* Phones AND portrait tablets (768/810/820px iPads) get the full-width sheet — a 760px panel on
+   a 768px screen would leave an 8px sliver of page, which reads as a bug rather than a drawer.
+   Insets keep content clear of notches/rounded corners on devices that report them. */
+@media (max-width: 820px) {
+    .atl-drawer { width: 100vw; }
+    .atl-drawer__header {
+        padding: max(18px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 16px max(20px, env(safe-area-inset-left));
+    }
+    .atl-drawer__header::after { left: max(20px, env(safe-area-inset-left)); }
+    .atl-drawer__title { font-size: 1.25rem; }
+    .atl-drawer__body {
+        --atl-pad-t: 20px; --atl-pad-b: 20px;
+        --atl-pad-r: max(16px, env(safe-area-inset-right));
+        --atl-pad-l: max(16px, env(safe-area-inset-left));
+    }
+    .atl-drawer__footer { padding: 14px 16px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
+}
+
+/* Narrow phones — keep the close target and header comfortably tappable rather
+   than shrinking further; only trims the title so long labels don't wrap onto
+   the close button. */
+@media (max-width: 375px) {
+    .atl-drawer__title { font-size: 1.1rem; }
+}
