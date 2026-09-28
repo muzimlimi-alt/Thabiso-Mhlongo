@@ -9,6 +9,23 @@ const {
 } = require('../../database/repositories/settings.repository');
 const router = express.Router();
 
+// Google Maps JS API key for the admin's Places autocomplete / events map. It lives in .env
+// (GOOGLE_MAPS_BROWSER_KEY) and is handed only to a signed-in admin, so it is not written into
+// admin.html - a public static file, in a public repo. It is a BROWSER key: it still travels to Google
+// from the admin's browser, so restrict it by HTTP referrer + API in Google Cloud. Deliberately
+// separate from GOOGLE_MAPS_API_KEY, the server-side key behind the public venue search (server
+// requests carry no referrer, so the two need different restrictions).
+let warnedNoMapsKey = false;
+router.get('/api/admin/maps-config', requireAdmin, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    const key = (process.env.GOOGLE_MAPS_BROWSER_KEY || '').trim();
+    if (!key && !warnedNoMapsKey) {
+        warnedNoMapsKey = true;
+        console.warn('[maps-config] GOOGLE_MAPS_BROWSER_KEY is not set - the admin Google Maps / Places features are disabled.');
+    }
+    res.json({ success: true, key });
+});
+
 // Admin — read per-day working hours
 router.get('/api/admin/working-hours', requireAdmin, (req, res) => {
     db.all("SELECT day_of_week, start_time, end_time, is_working_day FROM working_hours ORDER BY day_of_week", [], (err, rows) => {

@@ -8261,6 +8261,7 @@
                     loadHighlights();
                     loadFootprint();
                     loadTeam();
+                    if (typeof window.loadGoogleMaps === 'function') window.loadGoogleMaps();
                     loadTestimonials();
                     loadGallery();
                     renderSubscribersList();
@@ -8392,6 +8393,7 @@
                     loadHighlights();
                     loadFootprint();
                     loadTeam();
+                    if (typeof window.loadGoogleMaps === 'function') window.loadGoogleMaps();
                     loadTestimonials();
                     loadGallery();
                     renderSubscribersList();
@@ -10674,7 +10676,29 @@
     </div>
 
     <!-- Google Places API for venue autocompletion -->
-    <script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD-abP7VjOF8d0Vsr2wJBKU8QeNTgC5osQ&libraries=places&callback=initEventsMap"></script>
+    <script>
+        // Google Maps JS API (venue autocomplete + events map). The BROWSER key is not written in this file: it
+        // lives in .env (GOOGLE_MAPS_BROWSER_KEY) and GET /api/admin/maps-config hands it to a signed-in admin.
+        // loadGoogleMaps() is called once the admin session is established (see the two "Trigger data loads"
+        // blocks); until then / without a key the Maps-dependent inputs simply stay plain text boxes, which
+        // every caller already tolerates (they check window.google before using it).
+        window.loadGoogleMaps = function () {
+            if (window.__gmapsState) return;                       // requested, loading or loaded
+            window.__gmapsState = 'requesting';
+            fetch('/api/admin/maps-config', { credentials: 'same-origin', bypassInterceptor: true })
+                .then(function (r) { return r.ok ? r.json() : null; })
+                .then(function (cfg) {
+                    if (!cfg || !cfg.key) { window.__gmapsState = null; if (cfg) console.warn('Google Maps disabled: GOOGLE_MAPS_BROWSER_KEY is not set on the server.'); return; }
+                    var s = document.createElement('script');
+                    s.async = true; s.defer = true;
+                    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(cfg.key) + '&libraries=places&callback=initEventsMap';
+                    s.onerror = function () { window.__gmapsState = null; };
+                    window.__gmapsState = 'loading';
+                    document.head.appendChild(s);
+                })
+                .catch(function () { window.__gmapsState = null; });  // e.g. not signed in yet - retried after login
+        };
+    </script>
 
 <!-- ==============================
      ADMIN — PRIVACY POLICY MODAL

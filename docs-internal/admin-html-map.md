@@ -60,7 +60,7 @@ Total inline script content: **1,249,410 chars** (baseline reported 1,228,396). 
 | 8 | 12113 | `js/myscript.js?v=6` |
 | 9 | 12115 | `https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js` |
 | 10 | 25971 | `https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js` |
-| 11 | 28005 | `https://maps.googleapis.com/maps/api/js?key=AIzaSyD-abP7VjOF8d0Vsr2wJBKU8QeNTgC5osQ&libraries=places&callback=initEventsMap` |
+| 11 | 28005 | `https://maps.googleapis.com/maps/api/js?key=<key removed - now GOOGLE_MAPS_BROWSER_KEY in .env, served by /api/admin/maps-config>&libraries=places&callback=initEventsMap` |
 | 12 | 34705 | `js/notificationService.js?v=2.0.2` |
 
 ---
