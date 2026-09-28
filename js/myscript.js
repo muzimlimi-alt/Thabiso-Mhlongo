@@ -1821,7 +1821,8 @@ document.addEventListener("DOMContentLoaded", function() {
                 const url = dow !== undefined
                     ? '/api/public/booking-config?dow=' + dow
                     : '/api/public/booking-config';
-                const r = await fetch(url);
+                const r = await fetch(url, { bypassInterceptor: true });
+                if (!r.ok) throw new Error('HTTP ' + r.status);   // rate-limited etc.: use the defaults below, don't cache an error body
                 _bkConfig[key] = await r.json();
             } catch (e) {
                 _bkConfig[key] = { working_hours_start: '09:00', working_hours_end: '22:00', is_working_day: true, min_booking_gap_minutes: 30 };
@@ -1874,7 +1875,10 @@ document.addEventListener("DOMContentLoaded", function() {
             setDateStatus('loading', 'Checking availability…');
 
             try {
-                const r = await fetch('/api/public/availability?date=' + encodeURIComponent(date));
+                const r = await fetch('/api/public/availability?date=' + encodeURIComponent(date), { bypassInterceptor: true });
+                // A rate-limited (429) or failing (5xx) answer says nothing about the DATE — it must not be
+                // reported as "this date is not available". Treat it like a network error (below).
+                if (r.status === 429 || r.status >= 500) throw new Error('availability check unavailable (' + r.status + ')');
                 const data = await r.json();
 
                 if (data.available) {
@@ -1898,10 +1902,11 @@ document.addEventListener("DOMContentLoaded", function() {
                 }
                 renderTimeSlots();
             } catch(e) {
-                // On network error, allow continuation
+                // Couldn't reach / trust the availability check: allow continuation (the server re-checks the
+                // date when the booking is submitted) — but SAY so, instead of silently clearing the status.
                 dateAvailable = true;
                 $('#bookNext1').prop('disabled', false);
-                setDateStatus('clear');
+                setDateStatus('warn', 'We couldn\'t confirm this date\'s availability just now. You can continue — we\'ll confirm it with you.');
                 renderTimeSlots();
             }
         });
@@ -2212,6 +2217,125 @@ document.addEventListener("DOMContentLoaded", function() {
         var _venueDebounce = null;
         var _venueInited = false;
 
+        // Venue search runs through the server's Places proxy (/api/public/places/*), unchanged. What this adds:
+        //  - combobox semantics (role=combobox/listbox/option, aria-expanded, aria-activedescendant);
+        //  - stale responses are discarded and in-flight searches aborted, so results never lag the text;
+        //  - a per-session cache: repeat searches don't spend the per-IP request budget that the availability
+        //    calendar (and everything else on the page) shares — searching now starts at 3 characters, 350ms debounce;
+        //  - loading / no-results / unavailable messages instead of a silent dropdown;
+        //  - editing the venue name after picking a place clears the place id AND the address fields that place
+        //    filled in (never anything the visitor typed themselves), so a stale address can't ride along;
+        //  - the chosen address is confirmed on screen, not hidden behind "Edit address details manually".
+        var _venueCache = {};      // lower-cased query -> predictions
+        var _venueReqSeq = 0;      // bumped on every keystroke; a response for an older seq is ignored
+        var _venueXhr = null;
+
+        function venueStatus(html, kind) {
+            var $s = $('#venueStatus');
+            if (!html) { $s.hide().empty(); return; }
+            $s.attr('class', 'bk-venue-status' + (kind ? ' bk-venue-status--' + kind : '')).html(html).show();
+        }
+        function venueClose() {
+            $('#venueDropdown').empty().hide();
+            $('#bookLocation').attr('aria-expanded', 'false').removeAttr('aria-activedescendant');
+        }
+        // Fields a place selection fills in are flagged, so a later change of venue clears exactly those.
+        function venueSetAuto(sel, val) { $(sel).val(val).data('bkAuto', true); }
+        function venueClearAuto() {
+            ['#bookAddress', '#bookCity', '#bookCountry'].forEach(function(s) {
+                var $e = $(s);
+                if ($e.data('bkAuto')) $e.val('').data('bkAuto', false);
+            });
+            $('#venuePlaceId').val('');
+            $('#venueSelected').hide().empty();
+        }
+        // Confirms the address that came from the selected place (also used when a draft is restored).
+        function bkRenderVenueSelected() {
+            var $box = $('#venueSelected');
+            var addr = ($('#bookAddress').val() || '').trim();
+            if (!$('#venuePlaceId').val() || !addr) { $box.hide().empty(); return; }
+            $box.html('<i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>' + bkEsc(addr) + '</span>').show();
+        }
+        $(document).on('input', '#bookAddress, #bookCity, #bookCountry', function() { $(this).data('bkAuto', false); });
+
+        function venueSetActive($items, idx) {
+            $items.removeClass('vdd-active').attr('aria-selected', 'false');
+            var $a = $items.eq(idx).addClass('vdd-active').attr('aria-selected', 'true');
+            $('#bookLocation').attr('aria-activedescendant', $a.attr('id'));
+            if ($a[0] && $a[0].scrollIntoView) $a[0].scrollIntoView({ block: 'nearest' });
+        }
+
+        function venueRenderPredictions(predictions) {
+            var $dd = $('#venueDropdown').empty();
+            if (!predictions.length) {
+                // No matches (or the Places API itself is unavailable) — don't leave the visitor stuck with a
+                // dead search box; offer manual entry instead.
+                $dd.hide();
+                $('#bookLocation').attr('aria-expanded', 'false');
+                venueStatus('No matching venues found — you can enter the address manually.', 'muted');
+                $('.manual-address-toggle-wrap').show();
+                return;
+            }
+            venueStatus('');
+            predictions.slice(0, 6).forEach(function(p, i) {
+                var main = p.main_text || p.description || '';
+                var sec  = p.secondary_text || '';
+                $('<div class="vdd-item" role="option" tabindex="-1" aria-selected="false">').attr('id', 'venueOpt-' + i).html(
+                    '<span class="vdd-main">' + bkEsc(main) + '</span>' +
+                    (sec ? '<span class="vdd-sec">' + bkEsc(sec) + '</span>' : '')
+                ).on('mousedown', function(e) {
+                    e.preventDefault();
+                    venueChoose(p, main);
+                }).appendTo($dd);
+            });
+            $dd.show();
+            $('#bookLocation').attr('aria-expanded', 'true');
+            // Keep the list clear of the sticky footer on small screens (see scroll-margin in booking-form.css).
+            if ($dd[0] && $dd[0].scrollIntoView) $dd[0].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+
+        function venueChoose(p, main) {
+            var $input = $('#bookLocation');
+            venueClose();
+            venueStatus('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Getting the address…');
+            $.ajax({
+                url: '/api/public/places/details',
+                bypassInterceptor: true,   // failures are shown inline (venueStatus), not as an extra toast
+                data: { place_id: p.place_id },
+                success: function(detailData) {
+                    venueStatus('');
+                    if (!detailData || !detailData.result) {
+                        $input.val(main);
+                        venueStatus('We couldn\'t fetch the full address — please check the details below.', 'warn');
+                        $('.manual-address-toggle-wrap').show();
+                        return;
+                    }
+                    var place = detailData.result;
+                    $input.val(place.name || main);
+                    $('#venuePlaceId').val(p.place_id || '');
+                    venueSetAuto('#bookAddress', place.formatted_address || '');
+                    var city = '', country = '', prov = '';
+                    (place.address_components || []).forEach(function(c) {
+                        if (c.types.includes('locality') || c.types.includes('sublocality_level_1')) city = c.long_name;
+                        else if (c.types.includes('administrative_area_level_1')) prov = c.long_name;
+                        else if (c.types.includes('country')) country = c.long_name;
+                    });
+                    if (city) venueSetAuto('#bookCity', city);
+                    else if (prov) venueSetAuto('#bookCity', prov);
+                    if (country) venueSetAuto('#bookCountry', country);
+                    $input.removeClass('bk-input--err');
+                    $('#err-bookLocation').hide();
+                    bkRenderVenueSelected();
+                    $('.manual-address-toggle-wrap').show();
+                },
+                error: function() {
+                    $input.val(main);
+                    venueStatus('We couldn\'t fetch the full address — please check the details below.', 'warn');
+                    $('.manual-address-toggle-wrap').show();
+                }
+            });
+        }
+
         function initAutocomplete() {
             if (_venueInited) return;
             _venueInited = true;
@@ -2222,97 +2346,59 @@ document.addEventListener("DOMContentLoaded", function() {
             $input.off('input.venueAC').on('input.venueAC', function() {
                 var q = $(this).val().trim();
                 clearTimeout(_venueDebounce);
-                $dd.empty().hide();
+                if (_venueXhr) { _venueXhr.abort(); _venueXhr = null; }
+                var seq = ++_venueReqSeq;
+                venueClose();
+                // Typing changes which venue this is: the previously selected place (and the address it filled in)
+                // no longer describes it.
+                if ($('#venuePlaceId').val()) venueClearAuto();
                 $('.manual-address-toggle-wrap').hide();
-                if (q.length < 2) return;
+                if (q.length < 3) { venueStatus(q.length ? 'Keep typing to search for venues…' : '', 'muted'); return; }
+
+                var cached = _venueCache[q.toLowerCase()];
+                if (cached) { venueRenderPredictions(cached); return; }
+
+                venueStatus('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Searching venues…');
                 _venueDebounce = setTimeout(function() {
-                    $.ajax({
+                    _venueXhr = $.ajax({
                         url: '/api/public/places/autocomplete',
+                        bypassInterceptor: true,   // failures are shown inline (venueStatus), not as an extra toast
                         data: { input: q },
                         success: function(data) {
-                            $dd.empty();
-                            var predictions = data.predictions || [];
-                            if (predictions.length === 0) {
-                                // No matches (or the Places API itself is unavailable) — don't leave
-                                // the user stuck with a dead search box; offer manual entry instead.
-                                $dd.hide();
-                                $('.manual-address-toggle-wrap').show();
-                                return;
-                            }
-                            predictions.slice(0, 6).forEach(function(p) {
-                                var main = p.main_text || p.description || '';
-                                var sec  = p.secondary_text || '';
-                                $('<div class="vdd-item">').html(
-                                    '<span class="vdd-main">' + $('<span>').text(main).html() + '</span>' +
-                                    (sec ? '<span class="vdd-sec">' + $('<span>').text(sec).html() + '</span>' : '')
-                                ).on('mousedown', function(e) {
-                                    e.preventDefault();
-                                    $.ajax({
-                                        url: '/api/public/places/details',
-                                        data: { place_id: p.place_id },
-                                        success: function(detailData) {
-                                            if (!detailData || !detailData.result) {
-                                                $input.val(main);
-                                                $dd.hide();
-                                                $('.manual-address-toggle-wrap').show();
-                                                return;
-                                            }
-                                            var place = detailData.result;
-                                            $input.val(place.name || main);
-                                            $('#venuePlaceId').val(p.place_id || '');
-                                            $('#bookAddress').val(place.formatted_address || '');
-                                            var city = '', country = '', prov = '';
-                                            (place.address_components || []).forEach(function(c) {
-                                                if (c.types.includes('locality') || c.types.includes('sublocality_level_1')) city = c.long_name;
-                                                else if (c.types.includes('administrative_area_level_1')) prov = c.long_name;
-                                                else if (c.types.includes('country')) country = c.long_name;
-                                            });
-                                            if (city) $('#bookCity').val(city);
-                                            else if (prov) $('#bookCity').val(prov);
-                                            if (country) $('#bookCountry').val(country);
-                                            $input.removeClass('bk-input--err');
-                                            $('#err-bookLocation').hide();
-                                            $dd.hide();
-                                            $('.manual-address-toggle-wrap').show();
-                                        },
-                                        error: function() {
-                                            $input.val(main);
-                                            $dd.hide();
-                                            $('.manual-address-toggle-wrap').show();
-                                        }
-                                    });
-                                }).appendTo($dd);
-                            });
-                            $dd.show();
+                            if (seq !== _venueReqSeq) return;          // the text has moved on
+                            var predictions = (data && data.predictions) || [];
+                            _venueCache[q.toLowerCase()] = predictions;
+                            venueRenderPredictions(predictions);
                         },
-                        error: function() {
-                            $dd.hide();
+                        error: function(xhr, status) {
+                            if (status === 'abort' || seq !== _venueReqSeq) return;
+                            venueClose();
+                            venueStatus(xhr && xhr.status === 429
+                                ? 'Too many searches just now — please enter the address manually or try again shortly.'
+                                : 'Venue search isn\'t available right now — you can enter the address manually.', 'warn');
                             $('.manual-address-toggle-wrap').show();
                         }
                     });
-                }, 250);
+                }, 350);
             });
 
             $input.off('keydown.venueAC').on('keydown.venueAC', function(e) {
-                if (e.key === 'Escape') { $dd.hide(); return; }
-                if (e.key === 'ArrowDown' && $dd.is(':visible')) {
+                var open = $dd.is(':visible');
+                var $items = $dd.find('.vdd-item');
+                var cur = $items.index($items.filter('.vdd-active'));
+                if (e.key === 'Escape') { if (open) { e.preventDefault(); e.stopPropagation(); venueClose(); } return; }
+                if (e.key === 'ArrowDown' && open) { e.preventDefault(); venueSetActive($items, cur < 0 ? 0 : Math.min(cur + 1, $items.length - 1)); }
+                else if (e.key === 'ArrowUp' && open) { e.preventDefault(); venueSetActive($items, cur <= 0 ? $items.length - 1 : cur - 1); }
+                else if (e.key === 'Enter') {
+                    // Enter must never submit the wizard from here; with the list open it picks the highlighted (else first) venue.
                     e.preventDefault();
-                    var $i = $dd.find('.vdd-item'), $c = $i.filter('.vdd-active');
-                    ($c.length ? $c.removeClass('vdd-active').next() : $i.first()).addClass('vdd-active');
-                }
-                if (e.key === 'ArrowUp' && $dd.is(':visible')) {
-                    e.preventDefault();
-                    var $i = $dd.find('.vdd-item'), $c = $i.filter('.vdd-active');
-                    ($c.length ? $c.removeClass('vdd-active').prev() : $i.last()).addClass('vdd-active');
-                }
-                if (e.key === 'Enter' && $dd.is(':visible')) {
-                    var $a = $dd.find('.vdd-active');
-                    ($a.length ? $a : $dd.find('.vdd-item:first')).trigger('mousedown');
+                    if (open) ($items.filter('.vdd-active').length ? $items.filter('.vdd-active') : $items.first()).trigger('mousedown');
                 }
             });
+            $input.off('blur.venueAC').on('blur.venueAC', function() { setTimeout(venueClose, 150); });
 
             $(document).off('click.venueAC').on('click.venueAC', function(ev) {
-                if (!$(ev.target).closest('#bookLocation, #venueDropdown').length) $dd.hide();
+                if (!$(ev.target).closest('#bookLocation, #venueDropdown').length) venueClose();
             });
         }
 
@@ -2385,10 +2471,32 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         }
 
+        // "How did you hear about us?" is a dropdown; "Other" reveals a text box. The value stored/submitted
+        // stays the same plain text the backend and admin already handle (free text, <=200 chars), so no
+        // schema or admin change is needed.
+        function bkHeardAboutValue() {
+            var sel = $('#bookHeardAbout').val() || '';
+            if (sel !== 'Other') return sel;
+            var other = ($('#bookHeardAboutOther').val() || '').trim();
+            return other ? 'Other: ' + other : 'Other';
+        }
+        function bkSyncHeardAbout() {
+            var isOther = $('#bookHeardAbout').val() === 'Other';
+            $('#bookHeardAboutOtherWrap').toggle(isOther);
+            if (!isOther) $('#bookHeardAboutOther').val('');
+        }
+        $(document).on('change', '#bookHeardAbout', function() {
+            bkSyncHeardAbout();
+            if ($(this).val() === 'Other') $('#bookHeardAboutOther').trigger('focus');
+        });
+        $('#dedicatedBookingForm').on('reset', function() { setTimeout(bkSyncHeardAbout, 0); });
+
         var _bkDraftFields = ['bookEventName','bookType','bookDate','bookName','bookEmail','bookCell',
             'bookCompany','bookLocation','bookAddress','bookCity',
             'bookCountry','bookAudience','bookDemographic','bookTravel','bookNotes',
-            'bookBudget','bookAltDates','bookContentNotes','bookHeardAbout'];
+            'bookBudget','bookAltDates','bookContentNotes','bookHeardAbout','bookHeardAboutOther',
+            // Venue type, the selected Places id and the chosen slot/duration used to be dropped on close/reopen.
+            'bookVenueType','venuePlaceId','bkSlotFrom','bkSlotTo','bkReadoutDurSelect'];
 
         // True once the visitor has entered something worth keeping. bookCountry / bookTravel are
         // deliberately ignored: they can hold a default value on an untouched form.
@@ -2402,7 +2510,7 @@ document.addEventListener("DOMContentLoaded", function() {
             }
             var prefillKey = { bookName: 'name', bookEmail: 'email', bookCell: 'cell', bookCompany: 'company' };
             return _bkDraftFields.some(function(id) {
-                if (id === 'bookCountry' || id === 'bookTravel') return false;
+                if (id === 'bookCountry' || id === 'bookTravel' || id === 'bkReadoutDurSelect') return false;   // defaults on an untouched form
                 var v = String($('#' + id).val() || '').trim();
                 if (v === '') return false;
                 return !(prefill && prefillKey[id] && String(prefill[prefillKey[id]] || '').trim() === v);
@@ -2805,7 +2913,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 ['Event Name',            $('#bookEventName').val()],
                 ['Event Type',            $('#bookType').val()],
                 ['Services Required',     srvHtml || '\u2014', true],   // true = already-escaped HTML
-                ['Event Date',            $('#bookDate').val()],
+                ['Event Date',            window.bkLongDate ? window.bkLongDate($('#bookDate').val()) : $('#bookDate').val()],
                 ['Performance Slot',      $('#bookSlot').val() || '\u2014'],
                 ['Venue / Location',      $('#bookLocation').val() || '\u2014'],
                 ['Venue Type',            $('#bookVenueType').val() || '\u2014'],
@@ -2815,7 +2923,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 ['Budget Range',          $('#bookBudget').val() || '\u2014'],
                 ['Alternative Dates',     $('#bookAltDates').val() || '\u2014'],
                 ['Content Suitability',   $('#bookContentNotes').val() || '\u2014'],
-                ['How You Heard About Us', $('#bookHeardAbout').val() || '\u2014'],
+                ['How You Heard About Us', bkHeardAboutValue() || '\u2014'],
                 ['Full Name',             $('#bookName').val()],
                 ['Company / Organization', $('#bookCompany').val() || '\u2014'],
                 ['Email',                 $('#bookEmail').val()],
@@ -3123,7 +3231,7 @@ $bookingForm.on('blur', '#bookName', function() {
                 budget_range: $('#bookBudget').val() || null,
                 alternative_dates: $('#bookAltDates').val().trim(),
                 content_notes: $('#bookContentNotes').val().trim(),
-                heard_about: $('#bookHeardAbout').val().trim(),
+                heard_about: bkHeardAboutValue(),
                 travel_accommodation: $('#bookTravel').val() || null,
                 message: $('#bookNotes').val().trim(),
                 services: srvItems,
@@ -3416,17 +3524,29 @@ $bookingForm.on('blur', '#bookName', function() {
                     if (draft && draft.fields) {
                         Object.keys(draft.fields).forEach(function(id) {
                             var val = draft.fields[id];
-                            if (val) $('#' + id).val(val);
+                            if (val) {
+                                $('#' + id).val(val);
+                                // A draft saved before this became a dropdown holds free text: keep it under "Other".
+                                if (id === 'bookHeardAbout' && $('#bookHeardAbout').val() !== val) {
+                                    $('#bookHeardAbout').val('Other');
+                                    $('#bookHeardAboutOther').val(String(val).replace(/^Other:\s*/i, ''));
+                                }
+                            }
                         });
 
                         // Trigger change to update UI for Virtual Event or other dynamically controlled fields
                         $('#bookType').trigger('change');
+                        bkSyncHeardAbout();
+                        bkRenderVenueSelected();
+                        // Rebuild the readout / hidden slot field from the restored start + end (the grid re-selects
+                        // the matching chip when the date's availability check re-renders it).
+                        if (draft.fields.bkSlotFrom) $('#bkSlotFrom').trigger('change');
 
                         // Re-run availability check so dateAvailable is restored after modal reopen
                         if (draft.fields.bookDate) {
                             var $disp = $('#bookDateDisplay');
                             if ($disp.length) {
-                                $disp.text(draft.fields.bookDate).addClass('bk-date-display--filled');
+                                $disp.text(window.bkLongDate ? window.bkLongDate(draft.fields.bookDate) : draft.fields.bookDate).addClass('bk-date-display--filled');
                             }
                             $('#bookDate').trigger('change');
                         }
@@ -3508,6 +3628,14 @@ $bookingForm.on('blur', '#bookName', function() {
             isSubmitting = false;
             $bookingForm[0].reset();
             $('.manual-address-toggle-wrap').hide();
+            // Leftovers of the previous session that form.reset() doesn't touch: venue feedback + the slot grid
+            // (its chips belonged to the old date) and the "select a slot" readout.
+            $('#venueStatus').hide().empty();
+            $('#venueSelected').hide().empty();
+            $('#venueDropdown').empty().hide();
+            $('#bookAddress, #bookCity, #bookCountry').data('bkAuto', false);
+            $('#bkTimeSlotsGrid').empty().removeAttr('aria-busy');
+            $('#bkSmartReadout').hide();
             $('#bkServicesTableBody').empty();
             $('#bkServicesTableWrap').hide();
             _bkDraftSuppressed = true;    // updateProgress saves a draft; the form was just reset
@@ -3694,13 +3822,28 @@ window.onbeforeunload = function() {
 (function() {
     var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-    var state = { year: 0, month: 0, held: [], booked: [], loading: false, nonWorkingDows: [] };
+    // state.seq numbers every month request so a slow, older response can never overwrite a newer one
+    // (rapid month navigation). state.error means the last request failed — the grid then says so instead
+    // of showing every date as if it were confirmed available.
+    var state = { year: 0, month: 0, held: [], booked: [], full: [], loading: false, error: false, nonWorkingDows: [], minAdvanceHours: 0, seq: 0, focusDate: null };
+    var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
     function toDateStr(d) {
         return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
     }
+    function fromDateStr(ds) {
+        var p = ds.split('-');
+        return new Date(+p[0], +p[1] - 1, +p[2]);
+    }
+    // "Monday, 5 October 2026" — for the selected-date display, aria-labels and the review step.
+    function longDate(ds) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ds || '')) return ds || '';
+        var d = fromDateStr(ds);
+        return DAYS[d.getDay()] + ', ' + d.getDate() + ' ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear();
+    }
+    window.bkLongDate = longDate;
 
     var _workingDaysFetched = false;
     // One request for all seven weekdays (each request counts against the per-IP budget, and this
@@ -3710,7 +3853,8 @@ window.onbeforeunload = function() {
     // does NOT fan out into more requests.
     function fetchWorkingDays(cb) {
         if (_workingDaysFetched) { cb(); return; }
-        fetch('/api/public/booking-config?dow=all')
+        // bypassInterceptor: failures here are handled inline by the calendar itself — no extra error toast.
+        fetch('/api/public/booking-config?dow=all', { bypassInterceptor: true })
             .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(function(cfg) {
                 if (!cfg || !Array.isArray(cfg.days)) { fetchWorkingDaysPerDay(cb); return; }
@@ -3718,6 +3862,8 @@ window.onbeforeunload = function() {
                 state.nonWorkingDows = cfg.days
                     .filter(function(d) { return d.is_working_day === false; })
                     .map(function(d) { return d.day_of_week; });
+                // The server's minimum-notice rule (GET /api/public/availability answers "too_soon" inside it).
+                state.minAdvanceHours = Number(cfg.min_advance_hours) || 0;
                 cb();
             })
             .catch(function() { _workingDaysFetched = true; cb(); });
@@ -3732,6 +3878,7 @@ window.onbeforeunload = function() {
             state.nonWorkingDows = [];
             configs.forEach(function(cfg, idx) {
                 if (cfg.is_working_day === false) state.nonWorkingDows.push(idx);
+                if (cfg.min_advance_hours) state.minAdvanceHours = Number(cfg.min_advance_hours) || state.minAdvanceHours;
             });
             cb();
         }).catch(function() {
@@ -3740,34 +3887,100 @@ window.onbeforeunload = function() {
         });
     }
 
-    function fetchAndRender() {
-        if (state.loading) return;
-        state.loading = true;
-        document.getElementById('calTitle').textContent = MONTHS[state.month - 1] + ' ' + state.year;
+    // Loading / error line under the month title (role=status, so it is announced).
+    function setCalStatus(kind) {
+        var el = document.getElementById('calStatus');
+        if (!el) return;
+        if (kind === 'loading') {
+            el.className = 'tm-cal-status tm-cal-status--loading';
+            el.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading availability…';
+        } else if (kind === 'error') {
+            el.className = 'tm-cal-status tm-cal-status--error';
+            el.innerHTML = '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> We couldn\'t load live availability, so these dates aren\'t confirmed. You can still pick a date and we\'ll check it. <button type="button" id="calRetry" class="tm-cal-retry">Try again</button>';
+        } else {
+            el.className = 'tm-cal-status';
+            el.textContent = '';
+        }
+    }
 
-        fetch('/api/public/availability/month?year=' + state.year + '&month=' + state.month)
-            .then(function(r) { return r.json(); })
+    // Previous-month button is disabled at the current month (it used to silently do nothing).
+    function updateCalNav() {
+        var prevBtn = document.getElementById('calPrev');
+        if (!prevBtn) return;
+        var now = new Date();
+        var atCurrent = state.year < now.getFullYear() || (state.year === now.getFullYear() && state.month <= now.getMonth() + 1);
+        prevBtn.disabled = atCurrent;
+        prevBtn.setAttribute('aria-disabled', atCurrent ? 'true' : 'false');
+    }
+
+    function fetchAndRender() {
+        var seq = ++state.seq;
+        state.loading = true;
+        state.error = false;
+        document.getElementById('calTitle').textContent = MONTHS[state.month - 1] + ' ' + state.year;
+        updateCalNav();
+        setCalStatus('loading');
+        var grid = document.getElementById('calDaysGrid');
+        if (grid) { grid.classList.add('tm-cal-days--loading'); grid.setAttribute('aria-busy', 'true'); }
+
+        fetch('/api/public/availability/month?year=' + state.year + '&month=' + state.month, { bypassInterceptor: true })
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(function(data) {
+                if (seq !== state.seq) return;          // a newer month request superseded this one
                 state.held   = data.held   || [];
                 state.booked = data.booked || [];
-                renderGrid();
+                state.full   = data.full   || [];       // reserved AND the whole day is taken (not selectable)
                 state.loading = false;
+                renderGrid();
             })
             .catch(function() {
-                state.held = []; state.booked = [];
-                renderGrid();
+                if (seq !== state.seq) return;
+                // Do NOT pretend the month is clear: keep the dates selectable (the server re-checks the
+                // chosen date), but mark them "not confirmed" and say so.
+                state.held = []; state.booked = []; state.full = [];
                 state.loading = false;
+                state.error = true;
+                renderGrid();
             });
+    }
+
+    function calState(date, ds, now, todayStart) {
+        // Precedence mirrors what can actually be booked: past / closed day / blocked win over reserved.
+        if (date < todayStart) return { key: 'past', tip: 'Past date', clickable: false };
+        if (state.nonWorkingDows.indexOf(date.getDay()) >= 0) return { key: 'nonworking', tip: 'Not a working day', clickable: false };
+        if (state.held.indexOf(ds) >= 0) return { key: 'held', tip: 'Blocked', clickable: false };
+        // An untimed booking/event occupies the whole day: the per-date check would refuse it, so it is
+        // shown as reserved (orange) but is not selectable.
+        if (state.full.indexOf(ds) >= 0) return { key: 'booked', extra: ' tm-cal-cell--full', tip: 'Reserved — the whole day is taken', clickable: false };
+        // Same rule the server applies to the chosen date (midnight of that day vs now).
+        if (state.minAdvanceHours > 0 && (date.getTime() - now.getTime()) < state.minAdvanceHours * 3600000) {
+            return { key: 'soon', tip: 'Too soon — bookings need at least ' + state.minAdvanceHours + ' hours\' notice', clickable: false };
+        }
+        if (state.error) return { key: 'unknown', tip: 'Availability not confirmed — select to check this date', clickable: true };
+        if (state.booked.indexOf(ds) >= 0) return { key: 'booked', tip: 'Reserved — other times may still be open', clickable: true };
+        return { key: 'avail', tip: 'Available', clickable: true };
+    }
+
+    function selectCell(grid, el) {
+        Array.prototype.forEach.call(grid.querySelectorAll('.tm-cal-cell--selected'), function(prev) {
+            prev.classList.remove('tm-cal-cell--selected');
+            prev.removeAttribute('aria-pressed');
+        });
+        el.classList.add('tm-cal-cell--selected');
+        el.setAttribute('aria-pressed', 'true');
+        openBookingWithDate(el.getAttribute('data-date'));
     }
 
     function renderGrid() {
         var grid = document.getElementById('calDaysGrid');
         if (!grid) return;
 
-        var today = new Date(); today.setHours(0,0,0,0);
-        var todayStr = toDateStr(today);
+        var now = new Date();
+        var todayStart = new Date(now); todayStart.setHours(0,0,0,0);
+        var todayStr = toDateStr(todayStart);
         var firstDow = new Date(state.year, state.month - 1, 1).getDay();
         var daysInMonth = new Date(state.year, state.month, 0).getDate();
+        var selectedDs = document.getElementById('bookDate') ? document.getElementById('bookDate').value : '';
         var cells = [];
 
         for (var blank = 0; blank < firstDow; blank++) {
@@ -3775,74 +3988,53 @@ window.onbeforeunload = function() {
         }
 
         for (var d = 1; d <= daysInMonth; d++) {
-            var ds    = state.year + '-' + pad(state.month) + '-' + pad(d);
-            var date  = new Date(state.year, state.month - 1, d);
-            var isPast      = date < today;
-            var isToday     = ds === todayStr;
-            var isHeld      = state.held.indexOf(ds) >= 0;
-            var isBooked    = state.booked.indexOf(ds) >= 0;
-            var isNonWorking = !isPast && state.nonWorkingDows.indexOf(date.getDay()) >= 0;
+            var ds   = state.year + '-' + pad(state.month) + '-' + pad(d);
+            var date = new Date(state.year, state.month - 1, d);
+            var st   = calState(date, ds, now, todayStart);
+            var isToday = ds === todayStr;
 
-            var cls = 'tm-cal-cell';
-            var tip = '';
-            var clickable = false;
+            var cls = 'tm-cal-cell tm-cal-cell--' + st.key + (st.extra || '');
+            if (st.clickable) cls += ' tm-cal-cell--clickable';
+            if (isToday)      cls += ' tm-cal-cell--today';
+            var isSel = st.clickable && ds === selectedDs;
+            if (isSel)        cls += ' tm-cal-cell--selected';
 
-            if (isPast) {
-                cls += ' tm-cal-cell--past';
-                tip = 'Past date';
-            } else if (isNonWorking) {
-                cls += ' tm-cal-cell--nonworking';
-                tip = 'Not a working day';
-            } else if (isHeld) {
-                cls += ' tm-cal-cell--held';
-                tip = 'Blocked';
-            } else if (isBooked) {
-                cls += ' tm-cal-cell--booked';
-                tip = 'Reserved — additional booking requests welcomed';
-                clickable = true;
-            } else {
-                cls += ' tm-cal-cell--avail';
-                tip = 'Available for booking';
-                clickable = true;
-            }
-            if (isToday)   cls += ' tm-cal-cell--today';
-            if (clickable) cls += ' tm-cal-cell--clickable';
-
-            var role   = clickable ? 'button' : 'presentation';
-            var tabIdx = clickable ? '0' : '-1';
+            var label = longDate(ds) + (isToday ? ' (today)' : '') + ' — ' + st.tip;
             cells.push(
-                '<div class="' + cls + '" data-date="' + ds + '" title="' + tip + '" role="' + role + '" tabindex="' + tabIdx + '" aria-label="' + ds + ': ' + tip + '">' + d + '</div>'
+                '<div class="' + cls + '" data-date="' + ds + '" data-state="' + st.key + '" title="' + st.tip.replace(/"/g, '&quot;') + '"' +
+                ' role="button" tabindex="-1" aria-label="' + label.replace(/"/g, '&quot;') + '"' +
+                (st.clickable ? '' : ' aria-disabled="true"') + (isSel ? ' aria-pressed="true"' : '') + (isToday ? ' aria-current="date"' : '') +
+                '>' + d + '</div>'
             );
         }
 
         grid.innerHTML = cells.join('');
+        grid.classList.remove('tm-cal-days--loading');
+        grid.removeAttribute('aria-busy');
+        setCalStatus(state.error ? 'error' : '');
 
-        // Bind click + keyboard on clickable cells
-        Array.prototype.forEach.call(grid.querySelectorAll('.tm-cal-cell--clickable'), function(el) {
-            el.addEventListener('click', function() {
-                // Highlight selected cell with green border
-                Array.prototype.forEach.call(grid.querySelectorAll('.tm-cal-cell--selected'), function(prev) {
-                    prev.classList.remove('tm-cal-cell--selected');
-                });
-                el.classList.add('tm-cal-cell--selected');
-                openBookingWithDate(el.getAttribute('data-date'));
-            });
-            el.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    Array.prototype.forEach.call(grid.querySelectorAll('.tm-cal-cell--selected'), function(prev) {
-                        prev.classList.remove('tm-cal-cell--selected');
-                    });
-                    el.classList.add('tm-cal-cell--selected');
-                    openBookingWithDate(el.getAttribute('data-date'));
-                }
-            });
-        });
-        // Re-apply selected class if date is already chosen (e.g. month navigation)
-        var _existingDate = document.getElementById('bookDate') ? document.getElementById('bookDate').value : null;
-        if (_existingDate) {
-            var _selCell = grid.querySelector('.tm-cal-cell--clickable[data-date="' + _existingDate + '"]');
-            if (_selCell) _selCell.classList.add('tm-cal-cell--selected');
+        // First load only: if nothing left in this month can be picked (late in the month, with the notice
+        // window, closed days…), land on the next month instead of a month of greyed-out dates.
+        if (state.autoAdvance) {
+            state.autoAdvance = false;
+            if (!grid.querySelector('.tm-cal-cell--clickable') && gotoMonth(state.year, state.month)) return;
+        }
+
+        // Roving tabindex: ONE Tab stop for the whole grid (selected date, else today, else first bookable).
+        var stop = grid.querySelector('.tm-cal-cell--selected')
+            || grid.querySelector('.tm-cal-cell--today.tm-cal-cell--clickable')
+            || grid.querySelector('.tm-cal-cell--clickable');
+        if (stop) stop.setAttribute('tabindex', '0');
+
+        // Arrow-key navigation crossed a month boundary: land on the intended day once it is rendered.
+        if (state.focusDate) {
+            var target = grid.querySelector('.tm-cal-cell[data-date="' + state.focusDate + '"]');
+            state.focusDate = null;
+            if (target) {
+                Array.prototype.forEach.call(grid.querySelectorAll('[tabindex="0"]'), function(x) { x.setAttribute('tabindex', '-1'); });
+                target.setAttribute('tabindex', '0');
+                target.focus();
+            }
         }
     }
 
@@ -3852,13 +4044,24 @@ window.onbeforeunload = function() {
             inp.value = ds;
             var disp = document.getElementById('bookDateDisplay');
             if (disp) {
-                disp.textContent = ds;
+                disp.textContent = longDate(ds);
                 disp.classList.add('bk-date-display--filled');
                 disp.classList.remove('bk-input--err');
             }
             // Fire jQuery change so the existing availability pre-check runs
             if (typeof $ !== 'undefined') $('#bookDate').trigger('change');
         }
+    }
+
+    function gotoMonth(year, month0, focusDate) {
+        var d = new Date(year, month0, 1);
+        var nowFloor = new Date(); nowFloor.setDate(1); nowFloor.setHours(0,0,0,0);
+        if (d < nowFloor) return false;                 // never navigate to past months
+        state.year  = d.getFullYear();
+        state.month = d.getMonth() + 1;
+        state.focusDate = focusDate || null;
+        fetchAndRender();
+        return true;
     }
 
     function init() {
@@ -3871,23 +4074,52 @@ window.onbeforeunload = function() {
 
         var prevBtn = document.getElementById('calPrev');
         var nextBtn = document.getElementById('calNext');
+        var grid    = document.getElementById('calDaysGrid');
 
-        prevBtn.addEventListener('click', function() {
-            var d = new Date(state.year, state.month - 2, 1);
-            var nowFloor = new Date(); nowFloor.setDate(1); nowFloor.setHours(0,0,0,0);
-            if (d < nowFloor) return; // don't navigate to past months
-            state.year  = d.getFullYear();
-            state.month = d.getMonth() + 1;
-            fetchAndRender();
+        prevBtn.addEventListener('click', function() { gotoMonth(state.year, state.month - 2); });
+        nextBtn.addEventListener('click', function() { gotoMonth(state.year, state.month); });
+        calEl.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'calRetry') fetchAndRender();
         });
 
-        nextBtn.addEventListener('click', function() {
-            var d = new Date(state.year, state.month, 1); // next month
-            state.year  = d.getFullYear();
-            state.month = d.getMonth() + 1;
-            fetchAndRender();
+        // Delegated: the grid is rebuilt on every month change.
+        grid.addEventListener('click', function(e) {
+            var el = e.target.closest ? e.target.closest('.tm-cal-cell--clickable') : null;
+            if (el && grid.contains(el)) selectCell(grid, el);
+        });
+        grid.addEventListener('keydown', function(e) {
+            var el = e.target.closest ? e.target.closest('.tm-cal-cell[data-date]') : null;
+            if (!el) return;
+            if (e.key === 'Enter' || e.key === ' ') {
+                if (el.classList.contains('tm-cal-cell--clickable')) { e.preventDefault(); selectCell(grid, el); }
+                else e.preventDefault();               // closed / blocked dates: nothing to select, but don't scroll the drawer
+                return;
+            }
+            var cur = fromDateStr(el.getAttribute('data-date'));
+            var target = null;
+            if (e.key === 'ArrowLeft')       target = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() - 1);
+            else if (e.key === 'ArrowRight') target = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1);
+            else if (e.key === 'ArrowUp')    target = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() - 7);
+            else if (e.key === 'ArrowDown')  target = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 7);
+            else if (e.key === 'Home')       target = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() - cur.getDay());
+            else if (e.key === 'End')        target = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + (6 - cur.getDay()));
+            else if (e.key === 'PageUp')     target = new Date(cur.getFullYear(), cur.getMonth() - 1, Math.min(cur.getDate(), new Date(cur.getFullYear(), cur.getMonth(), 0).getDate()));
+            else if (e.key === 'PageDown')   target = new Date(cur.getFullYear(), cur.getMonth() + 1, Math.min(cur.getDate(), new Date(cur.getFullYear(), cur.getMonth() + 2, 0).getDate()));
+            if (!target) return;
+            e.preventDefault();
+            var ts = toDateStr(target);
+            var inView = grid.querySelector('.tm-cal-cell[data-date="' + ts + '"]');
+            if (inView) {
+                Array.prototype.forEach.call(grid.querySelectorAll('[tabindex="0"]'), function(x) { x.setAttribute('tabindex', '-1'); });
+                inView.setAttribute('tabindex', '0');
+                inView.focus();
+            } else {
+                gotoMonth(target.getFullYear(), target.getMonth(), ts);
+            }
         });
 
+        updateCalNav();
+        state.autoAdvance = true;
         fetchWorkingDays(function() { fetchAndRender(); });
     }
 

@@ -157,7 +157,7 @@
 #bookingDrawer .bk-nav-row {
     position: sticky;
     bottom: calc(-1 * var(--atl-pad-b));       /* flush with the drawer's bottom edge, not floating above it */
-    z-index: 1;                                /* sit above step content scrolling underneath */
+    z-index: 10;                               /* above step content scrolling underneath - incl. the field icons (z-index:3) */
     background: var(--bg-surface);
     /* Extend through the body's padding to the drawer's edges, so it reads as a footer bar and no
        scrolling content shows beside or beneath the buttons. The padding below puts the buttons

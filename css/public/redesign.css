@@ -2953,7 +2953,20 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   letter-spacing:.05em;
   padding:4px 0;
 }
+/* ---------- AVAILABILITY CALENDAR (public booking drawer) ----------
+   Each date's ring is its availability, taken from real data (calState() in js/myscript.js: working
+   days, held/booked dates for the month, and the server's minimum-notice rule):
+     --avail  green  · bookable            --booked  orange · reserved, other times still open
+     --held   red    · blocked, not selectable
+     --nonworking / --past / --soon  muted · not selectable      --unknown  neutral · not confirmed (load failed)
+   The state colour lives in --cal-ring / --cal-solid, and hover, focus, today and selected all READ it
+   instead of setting their own colour — so no generic hover/focus/today style can override the signal. */
 .tm-cal-cell{
+  --cal-ring:transparent;
+  --cal-fill:transparent;
+  --cal-fill-strong:rgba(255,255,255,.08);
+  --cal-solid:#b0b0b0;
+  position:relative;
   aspect-ratio:1;
   display:flex;
   align-items:center;
@@ -2962,43 +2975,83 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   font-size:13px;
   font-weight:500;
   color:#666;
-  background:transparent;
-  border:1px solid transparent;
-  transition:all .15s;
+  background:var(--cal-fill);
+  border:1px solid var(--cal-ring);
+  transition:background .15s, border-color .15s, box-shadow .15s, color .15s;
 }
-.tm-cal-cell--past{ color:#5c5c5c; cursor:default; }
-.tm-cal-cell--held{ background:rgba(255,255,255,.03); color:#5c5c5c; cursor:not-allowed; }
+.tm-cal-cell--clickable{ cursor:pointer; color:#ddd; }
+.tm-cal-cell--avail{
+  --cal-ring:rgba(16,185,129,.55); --cal-fill:rgba(16,185,129,.07);
+  --cal-fill-strong:rgba(16,185,129,.28); --cal-solid:var(--success,#10b981);
+}
 .tm-cal-cell--booked{
-  background:rgba(212,175,55,.08);
-  color:var(--y-base);
-  border-color:rgba(212,175,55,.2);
-  cursor:pointer;
+  --cal-ring:rgba(245,158,11,.6); --cal-fill:rgba(245,158,11,.08);
+  --cal-fill-strong:rgba(245,158,11,.28); --cal-solid:var(--warning,#f59e0b);
 }
-.tm-cal-cell--booked:hover{ background:rgba(212,175,55,.18); border-color:var(--y-base); }
-.tm-cal-cell--avail{ color:#ccc; cursor:pointer; }
-.tm-cal-cell--avail:hover{
-  background:rgba(76,175,80,.12);
-  border-color:rgba(76,175,80,.4);
-  color:#4CAF50;
+.tm-cal-cell--held{
+  --cal-ring:rgba(239,68,68,.55); --cal-fill:rgba(239,68,68,.07);
+  --cal-fill-strong:rgba(239,68,68,.2); --cal-solid:var(--error,#ef4444);
+  color:#8a8a8a; cursor:not-allowed;
 }
-.tm-cal-cell--today{
-  border-color:var(--y-base)!important;
-  font-weight:700;
-  color:var(--y-base)!important;
+/* Reserved AND the whole day is taken (untimed booking/event): keeps the orange ring, not selectable. */
+.tm-cal-cell--full{ color:#8a8a8a; cursor:not-allowed; }
+.tm-cal-cell--unknown{
+  --cal-ring:rgba(255,255,255,.22); --cal-fill-strong:rgba(255,255,255,.14); --cal-solid:#cfcfcf;
 }
-.tm-cal-cell--clickable:focus{ outline:2px solid var(--y-base); outline-offset:1px; }
-.tm-cal-cell--selected{
-  background:rgba(212,175,55,.18) !important;
-  border-color:var(--y-base, #D4AF37) !important;
-  color:var(--y-base, #D4AF37) !important;
-  font-weight:700;
-}
+.tm-cal-cell--past,
+.tm-cal-cell--nonworking,
+.tm-cal-cell--soon{ color:#5c5c5c; background:rgba(255,255,255,.015); cursor:not-allowed; }
+.tm-cal-cell--past{ cursor:default; }
 .tm-cal-cell--empty{ cursor:default; }
+/* Hover only intensifies the date's OWN state colour (and only for dates that can be picked). */
+.tm-cal-cell--clickable:hover{ background:var(--cal-fill-strong); border-color:var(--cal-solid); color:#fff; }
+/* Keyboard focus ring takes the date's state colour too (neutral grey on muted dates). */
+.tm-cal-cell:focus{ outline:none; }
+/* The site-wide rule `:focus-visible{ outline:2px solid var(--y-base)!important }` (top of this file) would paint
+   every focused date gold and erase the availability colour. It is !important, so beat it on specificity with
+   another !important that reads the date's own state colour. */
+.tm-cal-days .tm-cal-cell:focus-visible{
+  outline:2px solid var(--cal-solid)!important;
+  outline-offset:2px!important;
+  border-radius:4px;
+}
+/* Selected: a filled, thicker ring in the same state colour, plus a tick (not colour alone). */
+.tm-cal-cell--selected{
+  background:var(--cal-fill-strong);
+  border-color:var(--cal-solid);
+  box-shadow:inset 0 0 0 1px var(--cal-solid);
+  color:#fff;
+  font-weight:700;
+}
+.tm-cal-cell--selected::before{
+  content:'\2713';
+  position:absolute; top:2px; right:4px;
+  font-size:9px; line-height:1;
+  color:var(--cal-solid);
+}
+/* Today: a small dot under the number — deliberately NOT a border/colour change. */
+.tm-cal-cell--today{ font-weight:700; }
+.tm-cal-cell--today::after{
+  content:'';
+  position:absolute; bottom:4px; left:50%;
+  width:4px; height:4px; margin-left:-2px;
+  border-radius:50%;
+  background:var(--y-base);
+}
+.tm-cal-days--loading{ opacity:.45; pointer-events:none; transition:opacity .15s; }
+.tm-cal-nav button:disabled{ opacity:.35; cursor:not-allowed; background:transparent; border-color:var(--border-default); }
+.tm-cal-status{ margin:0 0 10px; font-size:12px; line-height:1.5; color:var(--text-muted); text-align:center; }
+.tm-cal-status:empty{ display:none; }
+.tm-cal-status--error{ color:var(--warning); }
+.tm-cal-retry{
+  margin-left:6px; padding:0; border:0; background:none;
+  color:var(--y-base); font:inherit; text-decoration:underline; cursor:pointer;
+}
 .tm-cal-legend{
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:16px;
+  gap:10px 16px;
   margin-top:18px;
   font-family:var(--f-body);
   font-size:11px;
@@ -3006,17 +3059,18 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   flex-wrap:wrap;
 }
 .tm-cal-dot{
-  width:8px;height:8px;
+  width:10px;height:10px;
   border-radius:50%;
   display:inline-block;
-  margin-right:4px;
+  margin-right:6px;
   vertical-align:middle;
+  border:2px solid transparent;
 }
-.tm-cal-dot--avail{ background:#4CAF50; }
-.tm-cal-dot--booked{ background:var(--y-base); }
-.tm-cal-dot--held{ background:#333; border:1px solid #555; }
-.tm-cal-dot--nonworking{ background:#2a2a2a; border:1px solid #444; }
-.tm-cal-cell--nonworking{ color:#5c5c5c; cursor:not-allowed; background:rgba(255,255,255,0.01); }
+.tm-cal-dot--avail{ border-color:var(--success,#10b981); background:rgba(16,185,129,.18); }
+.tm-cal-dot--booked{ border-color:var(--warning,#f59e0b); background:rgba(245,158,11,.18); }
+.tm-cal-dot--held{ border-color:var(--error,#ef4444); background:rgba(239,68,68,.18); }
+.tm-cal-dot--nonworking{ border-color:#444; background:#1c1c1c; }
+.tm-cal-dot--selected{ border-color:#fff; background:#fff; }
 .book-step-dot .bk-step-num i{ font-size:.78rem; }
 
 /* ---------- BOOKING NAV ROW ---------- */

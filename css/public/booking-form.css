@@ -292,3 +292,33 @@
     display: block !important;
   }
 }
+
+/* ---------- VENUE SEARCH FEEDBACK + REQUIRED MARKER ---------- */
+/* Status under the venue field (searching / no results / unavailable) and the address that came from the
+   chosen place — see initAutocomplete() / venueChoose() in js/myscript.js. */
+.bk-venue-status {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.bk-venue-status--muted { color: var(--text-muted); }
+.bk-venue-status--warn  { color: var(--warning); }
+.bk-venue-selected {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(16, 185, 129, .4);
+  background: rgba(16, 185, 129, .07);
+  border-radius: var(--r);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+.bk-venue-selected i { color: var(--success); margin-top: 3px; }
+/* When the suggestions open near the bottom, scrollIntoView keeps them clear of the sticky footer bar. */
+.venue-dropdown { scroll-margin-bottom: 96px; }
+/* The red asterisk on required labels had no rule of its own. */
+.bk-required { color: var(--error); margin-left: 2px; }
