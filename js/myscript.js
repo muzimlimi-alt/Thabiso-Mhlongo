@@ -1970,28 +1970,67 @@ document.addEventListener("DOMContentLoaded", function() {
             $('#bkSlotTo').val(toTime).trigger('change');
         });
 
+        // ── Performance slot picker ─────────────────────────────────────────────────────────────
+        // Availability logic is unchanged: a start time is unavailable if its window (start + the chosen
+        // duration) overlaps a busy range (existing booking / hold / event on that date) or would run past
+        // working hours. What changed is how it is presented and operated:
+        //  - start times are grouped Morning / Afternoon / Evening so a long day is easy to scan;
+        //  - each chip shows the START and END time for the chosen duration ("09:00 to 10:00");
+        //  - every chip is a real <button> (keyboard + screen-reader operable) with arrow-key movement;
+        //  - unavailable chips say WHY (Blocked / After hours) instead of only being struck through;
+        //  - loading / "pick a date first" / "not available" states are explicit;
+        //  - the current selection survives a re-render (date or duration change) — or is cleared with
+        //    an explanation if it no longer fits — so the grid and the hidden slot fields never disagree.
+        var BK_SLOT_GROUPS = [
+            { key: 'morning',   label: 'Morning',   from: 0,    to: 720 },
+            { key: 'afternoon', label: 'Afternoon', from: 720,  to: 1020 },
+            { key: 'evening',   label: 'Evening',   from: 1020, to: 1440 }
+        ];
+        var _bkSlotRenderSeq = 0; // a newer render supersedes one still waiting on the booking config
+
+        function bkSlotMsg(html, cls) { return '<div class="bk-slot-msg' + (cls ? ' ' + cls : '') + '" role="status">' + html + '</div>'; }
+        function bkPad2(n) { return String(n).padStart(2, '0'); }
+        function bkClockStr(totalMins) { return bkPad2(Math.floor(totalMins / 60) % 24) + ':' + bkPad2(totalMins % 60); }
+        function bkSlotEndFor(time, durMins) {
+            var p = time.split(':').map(Number);
+            var endMins = p[0] * 60 + p[1] + durMins;
+            var h = Math.floor(endMins / 60), m = endMins % 60;
+            if (h >= 24) { h = 23; m = 59; } // same clamp the picker has always applied to the stored end time
+            return bkPad2(h) + ':' + bkPad2(m);
+        }
+        // The readout above the grid shows this until a slot is chosen.
+        function bkSlotHint() {
+            $('#bkReadoutText').html('<span style="color:#888;font-size:var(--fs-sm);font-style:italic;">Select a time slot below</span>');
+            $('#bkSmartReadout').css('display', 'flex');
+        }
+
         async function renderTimeSlots() {
             const $grid = $('#bkTimeSlotsGrid');
             if (!$grid.length) return;
+            const seq = ++_bkSlotRenderSeq;
 
-            $grid.empty();
+            $grid.empty().removeAttr('aria-busy');
 
-            // If no date selected yet, leave grid empty
             const selectedDate = $('#bookDate').val();
-            if (!selectedDate) return;
-
-            // If date is selected but unavailable, show message
-            if (!dateAvailable) {
-                $grid.append('<div style="color:var(--text-muted); font-size:var(--fs-sm);">This date is not available.</div>');
+            if (!selectedDate) {
+                $grid.append(bkSlotMsg('Choose an event date in Step 1 to see the available times.'));
                 return;
             }
+            if (!dateAvailable) {
+                $grid.append(bkSlotMsg('This date is not available. Please go back and choose another date.', 'bk-slot-msg--warn'));
+                return;
+            }
+
+            $grid.attr('aria-busy', 'true').append(bkSlotMsg('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading available times…'));
 
             // Fetch per-day working hours using the selected date's day-of-week
             const dow = new Date(selectedDate + 'T00:00:00').getDay(); // 0=Sun … 6=Sat
             const cfg = await getBkConfig(dow);
+            if (seq !== _bkSlotRenderSeq) return; // the date/duration changed while this loaded
+            $grid.empty().removeAttr('aria-busy');
 
             if (cfg.is_working_day === false) {
-                $grid.append('<div style="color:var(--text-muted); font-size:var(--fs-sm);">Not a working day — contact us for special arrangements.</div>');
+                $grid.append(bkSlotMsg('Not a working day — contact us for special arrangements.', 'bk-slot-msg--warn'));
                 return;
             }
 
@@ -2003,10 +2042,10 @@ document.addEventListener("DOMContentLoaded", function() {
 
             for (let h = startH; h < loopEndH; h++) {
                 if (h === startH && startM >= 30) {
-                    slots.push(`${String(h).padStart(2, '0')}:30`);
+                    slots.push(`${bkPad2(h)}:30`);
                 } else {
-                    slots.push(`${String(h).padStart(2, '0')}:00`);
-                    slots.push(`${String(h).padStart(2, '0')}:30`);
+                    slots.push(`${bkPad2(h)}:00`);
+                    slots.push(`${bkPad2(h)}:30`);
                 }
             }
 
@@ -2014,79 +2053,140 @@ document.addEventListener("DOMContentLoaded", function() {
             const durMins = parseInt($('#bkReadoutDurSelect').val()) || 60;
 
             if (durMins >= 1440) {
-                var $allDaySlot = $('<div class="bk-time-slot" data-time="All Day" style="width:100%; text-align:center; padding:12px; background:rgba(212,175,55,0.1); border-color:var(--y-base); color:var(--y-base); margin-top:8px;">' +
-                    '<i class="fa-solid fa-sun" style="margin-right:8px;"></i> Confirm Full Day / Custom Hours' +
-                '</div>');
-                
-                $allDaySlot.on('click', function() {
-                    $('.bk-time-slot').removeClass('selected');
-                    $(this).addClass('selected');
-                    $('#bkSlotFrom').val('All Day').trigger('change');
-                    $('#bkSlotTo').val('All Day').trigger('change');
-                    
-                    $('#err-bookSlot').hide();
-                    $('#bkTimeSlotsGrid').removeClass('bk-input--err').removeAttr('aria-invalid').removeAttr('aria-describedby');
-                });
-                
-                $grid.append($allDaySlot);
+                $grid.append(
+                    '<button type="button" class="bk-time-slot bk-time-slot--allday" data-time="All Day" aria-pressed="false">' +
+                    '<i class="fa-solid fa-sun" aria-hidden="true"></i> Confirm Full Day / Custom Hours</button>'
+                );
+                if ($('#bkSlotFrom').val() === 'All Day') $grid.find('.bk-time-slot').addClass('selected').attr('aria-pressed', 'true');
                 return;
             }
 
-            slots.forEach(time => {
-                const $slot = $('<div class="bk-time-slot"></div>').text(time).attr('data-time', time);
+            const currentFrom = $('#bkSlotFrom').val();
+            let selectedStillValid = false;
+            const groups = BK_SLOT_GROUPS.map(g => Object.assign({ chips: [], free: 0 }, g));
 
-                // Calculate the slot start and end times
+            slots.forEach(time => {
                 const [slotH, slotM] = time.split(':').map(Number);
                 const slotStartMins = slotH * 60 + slotM;
                 const slotEndMins = slotStartMins + durMins;
-                const slotEndStr = `${String(Math.floor(slotEndMins / 60) % 24).padStart(2, '0')}:${String(slotEndMins % 60).padStart(2, '0')}`;
+                const slotEndStr = bkClockStr(slotEndMins);
 
                 // Check if already busy (existing booking / hold)
-                let isBusy = false;
+                let reason = '';
                 if (currentBusyRanges && currentBusyRanges.length > 0) {
                     currentBusyRanges.forEach(r => {
                         // Check if the slot range overlaps with the busy range [r.start, r.end]
-                        if ((time < r.end) && (r.start < slotEndStr)) {
-                            isBusy = true;
-                        }
+                        if ((time < r.end) && (r.start < slotEndStr)) reason = 'blocked';
                     });
                 }
+                // Also unavailable if slot + duration would exceed working hours end
+                if (!reason && slotEndMins > endTotalMins) reason = 'hours';
 
-                // Also mark busy if slot + duration would exceed working hours end
-                if (!isBusy) {
-                    if (slotEndMins > endTotalMins) {
-                        isBusy = true;
-                        $slot.attr('title', `Requires ${durMins} min — exceeds working hours`);
-                    }
-                }
-
-                if (isBusy) {
-                    $slot.addClass('busy').attr({
-                        'aria-disabled': 'true',
-                        'aria-label': time + ' - Time Unavailable'
-                    });
+                const $chip = $('<button type="button" class="bk-time-slot"></button>').attr({ 'data-time': time, 'data-end': slotEndStr })
+                    .append($('<span class="bk-time-slot__start"></span>').text(time));
+                if (reason) {
+                    const why = reason === 'blocked' ? 'Blocked' : 'After hours';
+                    $chip.addClass('busy').prop('disabled', true).attr({
+                        'aria-label': time + ' — unavailable (' + (reason === 'blocked' ? 'already booked or blocked' : 'exceeds working hours for ' + durMins + ' minutes') + ')',
+                        title: reason === 'blocked' ? 'Already booked or blocked' : `Requires ${durMins} min — exceeds working hours`
+                    }).append($('<span class="bk-time-slot__end"></span>').text(why));
                 } else {
-                    $slot.on('click', function() {
-                        $('.bk-time-slot').removeClass('selected');
-                        $(this).addClass('selected');
-
-                        const parts = time.split(':');
-                        let totalMins = parseInt(parts[0]) * 60 + parseInt(parts[1]) + durMins;
-
-                        let h = Math.floor(totalMins / 60);
-                        let m = totalMins % 60;
-                        if (h >= 24) { h = 23; m = 59; }
-
-                        const toTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-
-                        $('#bkSlotFrom').val(time).trigger('change');
-                        $('#bkSlotTo').val(toTime).trigger('change');
-                    });
+                    $chip.attr({ 'aria-pressed': 'false', 'aria-label': time + ' to ' + slotEndStr })
+                        .append($('<span class="bk-time-slot__end"></span>').text('to ' + slotEndStr));
+                    if (currentFrom === time) { $chip.addClass('selected').attr('aria-pressed', 'true'); selectedStillValid = true; }
                 }
-
-                $grid.append($slot);
+                const grp = groups.find(g => slotStartMins >= g.from && slotStartMins < g.to) || groups[groups.length - 1];
+                grp.chips.push($chip);
+                if (!reason) grp.free++;
             });
+
+            groups.filter(g => g.chips.length).forEach(g => {
+                const headId = 'bkSlotGrp-' + g.key;
+                const $grp = $('<div class="bk-slot-group" role="group"></div>').attr('aria-labelledby', headId);
+                $grp.append(
+                    $('<div class="bk-slot-group__head"></div>').attr('id', headId)
+                        .append($('<span class="bk-slot-group__title"></span>').text(g.label))
+                        .append($('<span class="bk-slot-group__count"></span>').text(g.free + ' of ' + g.chips.length + ' available'))
+                );
+                const $row = $('<div class="bk-slot-group__grid"></div>');
+                g.chips.forEach($c => $row.append($c));
+                $grp.append($row);
+                $grid.append($grp);
+            });
+
+            $grid.append(
+                '<div class="bk-slot-legend" aria-hidden="true">' +
+                '<span><i class="bk-slot-dot bk-slot-dot--free"></i>Available</span>' +
+                '<span><i class="bk-slot-dot bk-slot-dot--sel"></i>Selected</span>' +
+                '<span><i class="bk-slot-dot bk-slot-dot--busy"></i>Unavailable</span></div>'
+            );
+
+            // Roving tabindex: one Tab stop for the whole picker (the selected chip, else the first free one);
+            // arrow keys move within it (see the keydown handler below).
+            const $free = $grid.find('.bk-time-slot:not(.busy)');
+            $free.attr('tabindex', '-1');
+            ($free.filter('.selected').first().length ? $free.filter('.selected').first() : $free.first()).attr('tabindex', '0');
+
+            // The earlier selection no longer fits (date or duration changed) — clear it and say so, so the
+            // grid and the hidden slot fields never disagree.
+            if (currentFrom && currentFrom !== 'All Day' && currentFrom !== 'Custom' && !selectedStillValid) {
+                $('#bkSlotFrom').val('');
+                $('#bkSlotTo').val('');
+                $('#bookSlot').val('');
+                bkSlotHint();
+                $grid.prepend(bkSlotMsg('Your earlier start time (' + currentFrom + ') doesn\'t fit this date or duration — please choose another.', 'bk-slot-msg--warn'));
+            }
         }
+
+        // Choose a start time (delegated: chips are rebuilt on every render).
+        $(document).on('click', '#bkTimeSlotsGrid .bk-time-slot:not(.busy)', function() {
+            const time = $(this).attr('data-time');
+            $('#bkTimeSlotsGrid .bk-time-slot').removeClass('selected').attr('aria-pressed', 'false').attr('tabindex', '-1');
+            $(this).addClass('selected').attr({ 'aria-pressed': 'true', tabindex: '0' });
+            $('#err-bookSlot').hide();
+            $('#bkTimeSlotsGrid').removeClass('bk-input--err').removeAttr('aria-invalid').removeAttr('aria-describedby');
+
+            if (time === 'All Day') {
+                $('#bkSlotFrom').val('All Day').trigger('change');
+                $('#bkSlotTo').val('All Day').trigger('change');
+                return;
+            }
+            const durMins = parseInt($('#bkReadoutDurSelect').val()) || 60;
+            $('#bkSlotFrom').val(time).trigger('change');
+            $('#bkSlotTo').val(bkSlotEndFor(time, durMins)).trigger('change');
+        });
+
+        // Arrow keys move between free start times (Left/Right = previous/next, Up/Down = same column in the
+        // adjacent row, Home/End = first/last); Enter/Space activate natively because the chips are buttons.
+        $(document).on('keydown', '#bkTimeSlotsGrid .bk-time-slot', function(e) {
+            const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+            if (keys.indexOf(e.key) < 0) return;
+            const $all = $('#bkTimeSlotsGrid .bk-time-slot:not(.busy)');
+            const i = $all.index(this);
+            let n = i;
+            if (e.key === 'ArrowLeft') n = i - 1;
+            else if (e.key === 'ArrowRight') n = i + 1;
+            else if (e.key === 'Home') n = 0;
+            else if (e.key === 'End') n = $all.length - 1;
+            else {
+                // Up/Down: pick the nearest free chip in the row above/below at (about) the same x position.
+                const r = this.getBoundingClientRect(), dir = e.key === 'ArrowDown' ? 1 : -1;
+                let best = null, bestScore = Infinity;
+                $all.each(function(j) {
+                    if (j === i) return;
+                    const b = this.getBoundingClientRect();
+                    const dy = (b.top - r.top) * dir;
+                    if (dy < 4) return;                       // not in a row below/above
+                    const score = dy * 1000 + Math.abs(b.left - r.left);
+                    if (score < bestScore) { bestScore = score; best = j; }
+                });
+                if (best !== null) n = best;
+            }
+            e.preventDefault();
+            if (n < 0 || n >= $all.length || n === i) return;
+            $all.attr('tabindex', '-1');
+            $all.eq(n).attr('tabindex', '0').trigger('focus');
+        });
 
         // Patch Next button on step 1 to also gate on date availability
         const _origNext1 = $('#bookNext1').off('click').click;

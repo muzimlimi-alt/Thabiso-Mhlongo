@@ -144,45 +144,135 @@
     text-overflow: ellipsis;
 }
 
-/* ---------- VISUAL TIME PICKER ---------- */
+/* ---------- VISUAL TIME PICKER ----------
+   Built by renderTimeSlots() in js/myscript.js: start times grouped Morning / Afternoon / Evening,
+   each chip a real <button> showing "start" over "to end" (or WHY it is unavailable). */
 .bk-time-slots-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-  gap: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   margin-top: 15px;
+}
+.bk-slot-group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.bk-slot-group__title {
+  font-family: var(--f-body);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+.bk-slot-group__count { font-size: 11px; color: var(--text-muted); }
+.bk-slot-group__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
 }
 
 .bk-time-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 52px;                 /* comfortable touch target */
+  padding: 8px 10px;
   background: var(--bg-surface);
   border: 1px solid var(--border-default);
   color: var(--text-primary);
-  padding: 8px 12px;
-  text-align: center;
   border-radius: var(--r);
   cursor: pointer;
   font-family: var(--f-body);
-  font-size: var(--fs-sm);
-  transition: all var(--t) var(--ease);
+  line-height: 1.15;
+  transition: background .2s var(--ease), border-color .2s var(--ease), color .2s var(--ease);
 }
-
-.bk-time-slot:hover:not(.busy) {
+.bk-time-slot__start {
+  font-size: .95rem;
+  font-weight: 600;
+  letter-spacing: .02em;
+  font-variant-numeric: tabular-nums;
+}
+.bk-time-slot__end {
+  font-size: 10px;
+  letter-spacing: .04em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+/* Hover must not undo the selected state (it used to out-rank it). */
+.bk-time-slot:hover:not(.busy):not(.selected) {
   background: var(--y-muted);
   border-color: var(--y-base);
   color: var(--y-hover);
 }
-
+.bk-time-slot:hover:not(.busy):not(.selected) .bk-time-slot__end { color: var(--y-hover); }
+.bk-time-slot:focus-visible { outline: 2px solid var(--y-hover); outline-offset: 2px; }
 .bk-time-slot.selected {
   background: var(--y-base);
-  color: var(--text-inverse);
   border-color: var(--y-base);
+  color: var(--text-inverse);
 }
-
+.bk-time-slot.selected .bk-time-slot__end { color: var(--text-inverse); opacity: .75; }
 .bk-time-slot.busy {
   background: #151515;
-  color: #a0a0a0; /* Improved contrast gray */
   border-color: #2e2e2e;
-  text-decoration: line-through;
+  color: #a0a0a0;                   /* keeps AA contrast on the dark chip */
   cursor: not-allowed;
+}
+.bk-time-slot.busy .bk-time-slot__start { text-decoration: line-through; }
+.bk-time-slot.busy .bk-time-slot__end {
+  color: #8f8f8f;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.bk-time-slot--allday {
+  flex-direction: row;
+  width: 100%;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px;
+  background: rgba(212, 175, 55, .1);
+  border-color: var(--y-base);
+  color: var(--y-base);
+}
+.bk-time-slot--allday.selected { background: var(--y-base); color: var(--text-inverse); }
+
+.bk-slot-msg {
+  padding: 12px 14px;
+  border: 1px dashed var(--border-default);
+  border-radius: var(--r);
+  color: var(--text-secondary);
+  font-size: var(--fs-sm);
+  line-height: 1.5;
+}
+.bk-slot-msg--warn { border-color: rgba(245, 158, 11, .55); color: var(--warning); }
+.bk-slot-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.bk-slot-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border-radius: 2px;
+  border: 1px solid var(--border-default);
+}
+.bk-slot-dot--free { background: var(--bg-surface); }
+.bk-slot-dot--sel  { background: var(--y-base); border-color: var(--y-base); }
+.bk-slot-dot--busy { background: #151515; border-color: #2e2e2e; }
+@media (max-width: 480px) {
+  .bk-slot-group__grid { grid-template-columns: repeat(3, 1fr); }
 }
 
 /* Mobile responsive file uploader styles */
