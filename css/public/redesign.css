@@ -1223,6 +1223,22 @@ header .navbar {
   font-size:.68rem; letter-spacing:.2em; text-transform:uppercase;
   color:var(--text-muted);
 }
+/* Biography — revealed with the social icons (hover / tap / Enter), same active state. It sits
+   beside the button (not inside it) in the DOM so assistive tech reads it. Height is capped for the
+   reveal animation only; the admin limits a bio to 600 characters (lib/team.js BIO_MAX), which fits. */
+.team-row__bio{
+  margin:0; padding-left:26px;
+  max-height:0; opacity:0; overflow:hidden;
+  font-family:var(--f-body); font-size:.88rem; line-height:1.6;
+  color:var(--text-secondary);
+  white-space:pre-line;
+  transition:max-height .35s var(--ease), opacity .25s var(--ease), margin-top .35s var(--ease);
+}
+.team-row.is-active .team-row__bio{ max-height:26em; opacity:1; margin-top:8px; }
+/* Featured — a star beside the name and an accent ring on the photo. */
+.team-row__star{ font-size:.7rem; color:var(--y-base); }
+.team-row--featured .team-row__dot{ background:var(--y-base); }
+.team-photo-card--featured{ box-shadow:0 0 0 1px var(--y-base); }
 
 /* ---------- GALLERY ---------- */
 .tm-gallery{ background:var(--bg-page); }

@@ -41,7 +41,8 @@
     <link href="css/style.css" rel="stylesheet">
     <!-- redesign.css was split by the CSS refactor. These two halves must stay adjacent and in
          this order — together they reproduce the original single file byte for byte. -->
-    <link href="css/public/redesign.css" rel="stylesheet">
+    <link href="css/public/redesign.css?v=8" rel="stylesheet">
+    <link href="css/admin/team.css" rel="stylesheet">
     <link href="css/admin/redesign-admin.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
     <link rel="stylesheet" href="css/components/notifications.css">
@@ -4238,7 +4239,8 @@
                     </div>
 
                     <div id="teamConfigPanel" class="um-panel active">
-                        <p class="um-section-desc" style="margin:0 0 14px;">Drag the <i class="fa-solid fa-grip-vertical"></i> handle to reorder members (saved instantly). Click the <i class="fa-solid fa-pen"></i> button to edit a member's details.</p>
+                        <p class="um-section-desc" style="margin:0 0 14px;">Drag the <i class="fa-solid fa-grip-vertical"></i> handle to reorder members (saved instantly). Click the <i class="fa-solid fa-pen"></i> button to edit a member's details. Each card shows the position that member holds on the website.</p>
+                        <div id="teamSectionNotice" class="team-notice" role="status" hidden></div>
                         <div id="adminTeamList" class="evt-card-grid">
                             <!-- Team member cards injected here by JS -->
                         </div>
@@ -4255,7 +4257,7 @@
                             </div>
                             <div class="um-divider"></div>
                             <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
-                                Each card is one <strong style="color:var(--atl-ink);">team member</strong> &mdash; a name, role, photo, optional bio, contact details and social links. Only <strong style="color:var(--atl-ink);">Active</strong> members appear on the public site; set a member to <strong style="color:var(--atl-ink);">Inactive</strong> to hide them without deleting their record.
+                                Each card is one <strong style="color:var(--atl-ink);">team member</strong>. The website shows a member's <strong style="color:var(--atl-ink);">photo, name, role, biography, website and social links</strong>, with a star on <strong style="color:var(--atl-ink);">Featured</strong> members, in exactly the order listed here. <strong style="color:var(--atl-ink);">Email and phone are internal</strong> and are never published. Only <strong style="color:var(--atl-ink);">Active</strong> members appear on the public site; set a member to <strong style="color:var(--atl-ink);">Inactive</strong> to hide them without deleting their record. Each card shows the position it holds on the website, and the preview in the editor is rendered by the same code as the public page.
                             </p>
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
                                 <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
@@ -7345,7 +7347,9 @@
         // "Shared candidates".
     </script>
     <script src="js/admin/gallery.js"></script>
-    <script src="js/admin/team.js"></script>
+    <!-- Same renderer the public site uses for team members (js/team-view.js) — drives the live preview. -->
+    <script src="js/team-view.js?v=1"></script>
+    <script src="js/admin/team.js?v=3"></script>
     <script>
 
         // ============================================================
@@ -9271,7 +9275,23 @@
         <div class="atl-drawer__body">
           <section class="dv-panel" role="tabpanel" id="team-panel-edit" aria-labelledby="team-tab-edit" tabindex="0">
             <form id="teamForm" class="um-form" autocomplete="off">
-                <h5 style="color:var(--atl-amber); margin:0 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-id-card"></i> Profile</h5>
+                <!-- Live preview: rendered by the SAME code the public site uses (js/team-view.js) from the
+                     fields the server publishes (lib/team.js PUBLIC_FIELDS), so what you see is what visitors get. -->
+                <div class="team-preview" id="teamPublicPreview">
+                    <div class="team-preview__hd">
+                        <span class="team-preview__title"><i class="fa-solid fa-eye"></i> Public preview</span>
+                        <span class="team-preview__state" id="teamPreviewState"></span>
+                    </div>
+                    <div class="team-preview__stage">
+                        <div class="team-layout" id="teamPreviewLayout">
+                            <div class="team-photos" id="teamPreviewPhotos" aria-hidden="true"></div>
+                            <div class="team-list" id="teamPreviewList" role="list" aria-label="Public preview of this team member"></div>
+                        </div>
+                    </div>
+                    <p class="team-preview__note" id="teamPreviewNote">This is how the member appears on the website. Email and phone are internal and are never published.</p>
+                </div>
+
+                <h5 style="color:var(--atl-amber); margin:0 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-id-card"></i> Profile <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--atl-muted);">&mdash; shown on the website</span></h5>
 
                 <div id="teamPreview" style="display:none; margin-bottom:16px; border-radius:var(--atl-r-md); overflow:hidden; position:relative; max-width:160px;">
                     <img id="teamPreviewImg" src="" alt="Current photo" style="display:block; width:100%; aspect-ratio:4/5; object-fit:cover; border-radius:var(--atl-r-md); border:1px solid var(--atl-line);">
@@ -9304,35 +9324,18 @@
                 </div>
                 <div class="um-field-group">
                     <label class="um-label" for="teamBio">Biography</label>
-                    <textarea class="um-input" id="teamBio" rows="3" placeholder="A short bio (optional)"></textarea>
+                    <textarea class="um-input" id="teamBio" rows="3" maxlength="600" placeholder="A short bio (optional)"></textarea>
+                    <small class="help-block">Shown on the website when a visitor selects the member. Up to 600 characters.</small>
                 </div>
 
-                <h5 style="color:var(--atl-amber); margin:20px 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-address-book"></i> Contact</h5>
+                <h5 style="color:var(--atl-amber); margin:20px 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-share-nodes"></i> Links <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--atl-muted);">&mdash; shown on the website</span></h5>
                 <div class="um-form-grid">
                     <div class="um-field-group">
-                        <label class="um-label" for="teamEmail">Email</label>
+                        <label class="um-label" for="teamWebsite"><i class="fa-solid fa-globe"></i> Website</label>
                         <div class="um-input-wrap">
-                            <i class="fa-regular fa-envelope um-input-icon"></i>
-                            <input type="email" class="um-input" id="teamEmail" placeholder="name@example.com">
-                        </div>
-                    </div>
-                    <div class="um-field-group">
-                        <label class="um-label" for="teamPhone">Phone</label>
-                        <div class="um-input-wrap">
-                            <input type="tel" class="um-input" id="teamPhone" placeholder="Phone number">
-                        </div>
-                    </div>
-                    <div class="um-field-group">
-                        <label class="um-label" for="teamWebsite">Website</label>
-                        <div class="um-input-wrap">
-                            <i class="fa-solid fa-link um-input-icon"></i>
                             <input type="url" class="um-input" id="teamWebsite" placeholder="https://...">
                         </div>
                     </div>
-                </div>
-
-                <h5 style="color:var(--atl-amber); margin:20px 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-share-nodes"></i> Social</h5>
-                <div class="um-form-grid">
                     <div class="um-field-group">
                         <label class="um-label" for="teamTwitter"><i class="fa-brands fa-x-twitter"></i> X / Twitter</label>
                         <div class="um-input-wrap">
@@ -9358,7 +9361,25 @@
                         </div>
                     </div>
                 </div>
-                <small class="help-block" style="display:block; margin:-6px 0 4px;">Only platforms with a link are shown on the public site — leave any of these blank to hide that icon.</small>
+                <small class="help-block" style="display:block; margin:-6px 0 4px;">Only links you fill in are shown on the website, as icons — leave any of these blank to hide that icon. Links must start with https:// or http://.</small>
+
+                <h5 style="color:var(--atl-amber); margin:20px 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-address-book"></i> Internal contact <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--atl-muted);">&mdash; never published</span></h5>
+                <div class="um-form-grid">
+                    <div class="um-field-group">
+                        <label class="um-label" for="teamEmail">Email</label>
+                        <div class="um-input-wrap">
+                            <i class="fa-regular fa-envelope um-input-icon"></i>
+                            <input type="email" class="um-input" id="teamEmail" placeholder="name@example.com">
+                        </div>
+                    </div>
+                    <div class="um-field-group">
+                        <label class="um-label" for="teamPhone">Phone</label>
+                        <div class="um-input-wrap">
+                            <input type="tel" class="um-input" id="teamPhone" placeholder="Phone number">
+                        </div>
+                    </div>
+                </div>
+                <small class="help-block" style="display:block; margin:-6px 0 4px;">For your records only. These are not sent to the public website.</small>
 
                 <h5 style="color:var(--atl-amber); margin:20px 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-sliders"></i> Display</h5>
                 <div class="um-field-group" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
@@ -9366,7 +9387,7 @@
                     <button type="button" class="atl-switch" role="switch" id="teamActiveSwitch" aria-checked="true" aria-label="Active on the public site"></button>
                 </div>
                 <div class="um-field-group" style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
-                    <label class="um-label" for="teamFeaturedSwitch" style="margin:0;">Featured</label>
+                    <label class="um-label" for="teamFeaturedSwitch" style="margin:0;">Featured <span style="font-weight:400; color:var(--atl-muted);">(marked with a star on the website)</span></label>
                     <button type="button" class="atl-switch" role="switch" id="teamFeaturedSwitch" aria-checked="false" aria-label="Featured team member"></button>
                 </div>
                 <div class="um-field-group">

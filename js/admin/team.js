@@ -10,18 +10,38 @@ window.tmThumbFallback = function (imgEl) {
     var div = document.createElement('div');
     div.style.cssText = 'width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--atl-amber); color:var(--atl-bg, #0a0a0a); font-family:var(--atl-font-display, serif); font-size:22px; font-weight:600;';
     div.textContent = initial;
-    if (imgEl.parentElement) {
-        imgEl.parentElement.innerHTML = '';
-        imgEl.parentElement.appendChild(div);
+    // Grab the parent first: clearing it detaches the <img>, after which imgEl.parentElement is null.
+    var parent = imgEl.parentElement;
+    if (parent) {
+        parent.innerHTML = '';
+        parent.appendChild(div);
     }
 };
+
+// The Website Sections switch (Settings) hides the whole Team section on the public site, whatever
+// its members' own status — say so here, or a fully populated list would sit next to an empty page.
+function renderTeamSectionNotice() {
+    var $n = $('#teamSectionNotice');
+    if (window.teamSectionVisible === false) {
+        $n.html('<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>The <strong>Team</strong> section is switched off in <strong>Settings &rarr; Website Sections</strong>, so nothing below is shown on the public site until it is switched back on.</span>').prop('hidden', false);
+    } else {
+        $n.prop('hidden', true).empty();
+    }
+}
 
 async function loadTeam() {
     var $list = $('#adminTeamList');
     try {
         const data = await apiCall('/api/admin/team');
+        // /api/admin/team is built by lib/team.js — the module the public API also uses — so the
+        // order here IS the website's order, and is_public / public_position say exactly what the
+        // website does with each member. Nothing below re-derives visibility or position.
+        var members = Array.isArray(data) ? data : ((data && data.members) || []);
+        window.teamSectionVisible = !(data && data.section_visible === false);
+        if (data && Array.isArray(data.public_fields)) window.teamPublicFields = data.public_fields;
+        renderTeamSectionNotice();
 
-        if (!Array.isArray(data) || data.length === 0) {
+        if (members.length === 0) {
             $list.html(`
                 <div class="atl-empty-state">
                     <i class="fa-solid fa-user-tie" style="font-size:32px; color:var(--atl-muted-dim); margin-bottom:14px; display:block;"></i>
@@ -36,28 +56,33 @@ async function loadTeam() {
 
         $list.empty();
 
-        data.forEach(function (item) {
+        members.forEach(function (item) {
             var safeName = $('<span>').text(item.name || '').html();
             var safeRole = $('<span>').text(item.role || '').html();
-            var isActive = item.status !== 'inactive';
+            var isPublic = item.is_public !== undefined ? !!item.is_public : item.status !== 'inactive';
             var updated = item.updated_at || item.created_at;
             var updatedStr = updated ? new Date(updated).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
             var encoded = encodeURIComponent(JSON.stringify(item));
-            var initial = (item.name || '?').trim().charAt(0).toUpperCase();
+            var initial = window.TeamView ? TeamView.initialOf(item) : ((item.name || '?').trim().charAt(0).toUpperCase() || '?');
             var thumb = item.image_path
                 ? `<img src="${item.image_path}" alt="${safeName}" onerror="window.tmThumbFallback(this)">`
                 : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--atl-amber); color:var(--atl-bg, #0a0a0a); font-family:var(--atl-font-display, serif); font-size:22px; font-weight:600;">${initial}</div>`;
 
-            var statusBadge = isActive
-                ? '<span class="atl-badge atl-badge--confirmed">Active</span>'
-                : '<span class="atl-badge atl-badge--unpaid">Inactive</span>';
+            var statusBadge;
+            if (!isPublic) {
+                statusBadge = '<span class="atl-badge atl-badge--unpaid" title="Inactive members are not shown on the website">Hidden &middot; Inactive</span>';
+            } else if (window.teamSectionVisible === false) {
+                statusBadge = '<span class="atl-badge atl-badge--info" title="Active, but the whole Team section is switched off in Settings">Active &middot; section off</span>';
+            } else {
+                statusBadge = '<span class="atl-badge atl-badge--confirmed" title="Shown on the website">Live on site</span>';
+            }
             var featuredBadge = (item.featured == 1)
                 ? '<span class="atl-badge atl-badge--info"><i class="fa-solid fa-star"></i> Featured</span>'
                 : '';
 
             var metaText = [];
             if (safeRole) metaText.push(safeRole);
-            metaText.push('Order ' + (item.display_order != null ? item.display_order : 0));
+            metaText.push(isPublic && item.public_position ? 'Site position ' + item.public_position : 'Not on site');
             if (updatedStr) metaText.push('Updated ' + updatedStr);
             var subtitle = metaText.length > 0 ? metaText.join(' &middot; ') : 'Team member';
 
@@ -126,6 +151,7 @@ function initDraggableTeam() {
                 body: JSON.stringify({ order: newOrder })
             });
             if (!res.ok) window.notificationService.showError('Reorder failed — please refresh and try again.');
+            else await loadTeam(); // re-read from the server so every card's "site position" is the real one
         } catch (e) {
             console.error("Reorder failed:", e);
             window.notificationService.showError('Reorder failed — please refresh and try again.');
@@ -153,6 +179,51 @@ function initDraggableTeam() {
 var teamEditId = null;
 var teamImageCleared = false;
 
+// ── Live "Public preview" ──
+// Built from the form, filtered to the fields the SERVER publishes (window.teamPublicFields, from
+// lib/team.js via GET /api/admin/team — so email/phone are dropped here exactly as they are there),
+// then rendered by js/team-view.js: the same code the public page uses.
+var TEAM_PUBLIC_FIELDS_FALLBACK = ['id', 'name', 'role', 'biography', 'image_path', 'website', 'twitter', 'linkedin', 'instagram', 'behance', 'featured'];
+
+function teamFormPublicMember() {
+    var hasImg = !teamImageCleared && $('#teamPreview').css('display') !== 'none' && $('#teamPreviewImg').attr('src');
+    var raw = {
+        id: teamEditId || 0,
+        name: $('#teamName').val().trim() || 'Full name',
+        role: $('#teamRole').val().trim(),
+        biography: $('#teamBio').val().trim(),
+        image_path: hasImg ? $('#teamPreviewImg').attr('src') : null,
+        website: $('#teamWebsite').val().trim(),
+        twitter: $('#teamTwitter').val().trim(),
+        linkedin: $('#teamLinkedin').val().trim(),
+        instagram: $('#teamInstagram').val().trim(),
+        behance: $('#teamBehance').val().trim(),
+        featured: $('#teamFeaturedSwitch').attr('aria-checked') === 'true' ? 1 : 0,
+        // Present in the form, but not in the published field list — dropped below like the server does.
+        email: $('#teamEmail').val().trim(),
+        phone: $('#teamPhone').val().trim()
+    };
+    var fields = (window.teamPublicFields && window.teamPublicFields.length) ? window.teamPublicFields : TEAM_PUBLIC_FIELDS_FALLBACK;
+    var out = {};
+    fields.forEach(function (k) { out[k] = raw[k] === undefined ? null : raw[k]; });
+    return out;
+}
+
+function refreshTeamPreview() {
+    if (!window.TeamView || !$('#teamPreviewList').length) return;
+    TeamView.render([teamFormPublicMember()], $('#teamPreviewPhotos'), $('#teamPreviewList'), { active: true });
+    var active = $('#teamActiveSwitch').attr('aria-checked') === 'true';
+    var sectionOn = window.teamSectionVisible !== false;
+    var text, cls;
+    if (!sectionOn) { text = 'Hidden — the Team section is switched off in Settings'; cls = 'is-hidden'; }
+    else if (!active) { text = 'Hidden — Inactive members are not shown'; cls = 'is-hidden'; }
+    else { text = teamEditId === null ? 'Will appear at the end of the list' : 'Shown on the website'; cls = 'is-live'; }
+    $('#teamPreviewState').text(text).removeClass('is-live is-hidden').addClass(cls);
+    $('#teamPublicPreview .team-preview__stage').toggleClass('is-hidden', cls === 'is-hidden');
+}
+window.refreshTeamPreview = refreshTeamPreview;
+$(document).on('input change', '#teamForm :input', refreshTeamPreview);
+
 function resetTeamForm() {
     $('#teamForm')[0].reset();
     $('#teamFile').val('');
@@ -168,6 +239,7 @@ function resetTeamForm() {
     window.atlActivateDrawerTab('teamDrawer', 'team-tab-edit');
     $('#teamDrawerTitle').html('<i class="fa-solid fa-user-tie"></i> Add Team Member');
     $('#teamSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Team Member').prop('disabled', false);
+    refreshTeamPreview();
 }
 window.resetTeamForm = resetTeamForm;
 
@@ -184,7 +256,9 @@ function applyTeamToEditor(item) {
     $('#teamInstagram').val(item.instagram || '');
     $('#teamBehance').val(item.behance || '');
     $('#teamDisplayOrder').val(item.display_order || 0);
-    $('#teamActiveSwitch').attr('aria-checked', item.status !== 'inactive' ? 'true' : 'false');
+    // Server-derived (lib/team.js) — never re-derive "is this member public?" from the raw status here.
+    var editorActive = item.is_public !== undefined ? !!item.is_public : item.status !== 'inactive';
+    $('#teamActiveSwitch').attr('aria-checked', editorActive ? 'true' : 'false');
     $('#teamFeaturedSwitch').attr('aria-checked', item.featured == 1 ? 'true' : 'false');
     $('#teamFile').val('');
     teamImageCleared = false;
@@ -196,6 +270,7 @@ function applyTeamToEditor(item) {
     $('#teamSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Team Member').prop('disabled', false);
     $('#team-tab-history').show();
     if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('teamChangeHistoryList', 'team_members', item.id);
+    refreshTeamPreview();
 }
 window.openTeamCreateDrawer = function () {
     resetTeamForm();
@@ -220,6 +295,7 @@ $(document).on('click', '#teamDrawerClose, #teamDrawerBackdrop, #teamCancelBtn',
 // Sections .sec-toggle switches in js/admin/system-settings.js).
 $(document).on('click', '#teamActiveSwitch, #teamFeaturedSwitch', function () {
     $(this).attr('aria-checked', $(this).attr('aria-checked') === 'true' ? 'false' : 'true');
+    refreshTeamPreview();
 });
 
 $(document).on('change', '#teamFile', function () {
@@ -232,6 +308,7 @@ $(document).on('change', '#teamFile', function () {
         reader.onload = function (ev) {
             $('#teamPreviewImg').attr('src', ev.target.result);
             $('#teamPreview').show();
+            refreshTeamPreview();
         };
         reader.readAsDataURL(file);
     }
@@ -244,6 +321,7 @@ $(document).on('click', '#btnTeamClearImage', function () {
     $('#teamPreviewImg').attr('src', '');
     var text = document.getElementById('teamUploadText');
     if (text) text.textContent = 'Drag & drop or select a photo';
+    refreshTeamPreview();
 });
 
 // Add / Edit submit (delegated — #teamForm lives in the drawer)
