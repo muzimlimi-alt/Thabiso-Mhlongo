@@ -38,7 +38,7 @@ const { deleteGoogleEvent } = require('../../lib/google-calendar');
 const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
 const { CURRENT_POLICY_VERSION } = require('../../lib/booking-policy');
 const {
-    processManualPayment, alignMilestonePayments, deriveBookingStatusAfterPayment, updateBookingMilestones
+    processManualPayment, alignMilestonePayments, deriveBookingStatusAfterPayment, deriveManualPaymentStatus, updateBookingMilestones
 } = require('../../lib/payment-processing');
 const { applyStatusChange } = require('../../lib/booking-status');
 const { generateInvoice } = require('../../lib/invoicing');
@@ -2298,26 +2298,16 @@ router.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(
             
             const txPaid = parseFloat(row.tx_paid) || 0;
             
-            getBookingById(bookingId, (bookErr, booking) => {
+            getBookingById(bookingId, async (bookErr, booking) => {
                 if (bookErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
                 
                 const total = parseFloat(booking.total_amount) || 0;
                 const outstanding = Math.max(0, total - txPaid);
                 
-                const isFullyPaid = total > 0 ? txPaid >= total : false;
-                let payment_status = booking.payment_status;
-                if (isFullyPaid) {
-                    payment_status = 'PAID';
-                } else if (total > 0) {
-                    const depositThreshold = total * 0.5;
-                    if (txPaid >= depositThreshold) {
-                        payment_status = 'DEPOSIT_PAID';
-                    } else if (txPaid > 0) {
-                        payment_status = 'PARTIALLY_PAID';
-                    } else {
-                        payment_status = 'UNPAID';
-                    }
-                }
+                // Covers the first live schedule row, not a flat 50% of total — correct for a
+                // client-selected 3-way plan too. total<=0 keeps the booking's existing status,
+                // same as the original threshold block being skipped entirely in that case.
+                const payment_status = total > 0 ? await deriveManualPaymentStatus(bookingId, total, txPaid) : booking.payment_status;
                 
                 // A deposit confirms, same as every other payment path.
                 const newStatus = deriveBookingStatusAfterPayment(booking.status, payment_status);
@@ -2416,6 +2406,19 @@ router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRo
             }
         }
 
+        // Client-selectable installment plans: don't silently overwrite a live schedule the
+        // client picked and may already be paying against. The admin UI confirms first and
+        // resubmits with acknowledge_override — this is the defense-in-depth backstop for any
+        // caller that skips that confirm.
+        getActivePaymentSchedules(bookingId, (existErr, existing) => {
+            if (!existErr && existing && existing.length > 0 && existing[0].source === 'client' && !req.body.acknowledge_override) {
+                return res.status(409).json({
+                    success: false,
+                    requires_override: true,
+                    message: `The client already selected and is paying against a ${existing.length}-payment plan. Resubmit with acknowledge_override to replace it.`
+                });
+            }
+
         db.serialize(() => {
             deletePaymentSchedulesForBooking(bookingId, (delErr) => {
                 if (delErr) return res.status(500).json({ success: false, message: delErr.message });
@@ -2426,9 +2429,10 @@ router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRo
 
                 const stmt = prepareInsertPaymentSchedule();
                 let insertError = null;
+                const sorted = schedules.slice().sort((a, b) => (a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0));
                 
-                schedules.forEach(item => {
-                    stmt.run([bookingId, item.description.trim(), item.due_date, parseFloat(item.expected_amount)], (runErr) => {
+                sorted.forEach((item, idx) => {
+                    stmt.run([bookingId, item.description.trim(), item.due_date, parseFloat(item.expected_amount), idx + 1], (runErr) => {
                         if (runErr) insertError = runErr;
                     });
                 });
@@ -2444,6 +2448,7 @@ router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRo
                     });
                 });
             });
+        });
         });
     });
 });
@@ -2912,11 +2917,9 @@ router.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['adminis
         }
         const total = parseFloat(bRow.total_amount) || 0;
         const newPaid = parseFloat(bRow.amount_paid) || 0;
-        let payment_status;
-        if (total > 0 && newPaid >= total)      payment_status = 'PAID';
-        else if (newPaid <= 0)                   payment_status = 'UNPAID';
-        else if (total > 0 && newPaid >= total * 0.5) payment_status = 'DEPOSIT_PAID';
-        else                                     payment_status = 'PARTIALLY_PAID';
+        // Covers the first live schedule row, not a flat 50% of total — correct for a
+        // client-selected 3-way plan too.
+        const payment_status = await deriveManualPaymentStatus(bookingId, total, newPaid);
         setBookingPaymentStatus(payment_status, bookingId,
             (psErr) => { if (psErr) console.error('[Refund] payment_status re-derivation failed:', psErr.message); });
         // amount_paid dropped — re-run the milestone waterfall so covered rows

@@ -5,7 +5,7 @@ const { requireRole } = require('../../middleware/rbac');
 const { syncBookingToCalendar } = require('../../lib/calendar-sync');
 const { generateInvoice } = require('../../lib/invoicing');
 const {
-    logPaymentEvent, alignMilestonePayments, deriveBookingStatusAfterPayment, updateBookingMilestones
+    logPaymentEvent, alignMilestonePayments, deriveBookingStatusAfterPayment, deriveManualPaymentStatus, updateBookingMilestones
 } = require('../../lib/payment-processing');
 const {
     sendPaymentReceivedEmail, sendAdminPaymentNotification, sendDepositBalanceDueEmail,
@@ -80,7 +80,7 @@ router.post('/api/admin/transactions/manual', requireAdmin, requireRole(['admini
             if (booking_id) {
                 if (transaction_type === 'payment') {
                     // Fetch booking row to compute new outstanding balance and run notifications/sync
-                    getBookingById(booking_id, (bookErr, row) => {
+                    getBookingById(booking_id, async (bookErr, row) => {
                         if (bookErr || !row) {
                             console.error(`[Manual Transaction] Booking #${booking_id} not found:`, bookErr?.message);
                             return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
@@ -92,17 +92,9 @@ router.post('/api/admin/transactions/manual', requireAdmin, requireRole(['admini
                         const paid = existingPaid + parseFloat(amt);
                         const outstanding = Math.max(0, total - paid);
 
-                        // Determine correct payment status
-                        const isFullyPaid = total > 0 ? paid >= total : false;
-                        let payment_status = 'PARTIALLY_PAID';
-                        if (isFullyPaid) {
-                            payment_status = 'PAID';
-                        } else {
-                            const depositThreshold = total * 0.5;
-                            if (paid >= depositThreshold) {
-                                payment_status = 'DEPOSIT_PAID';
-                            }
-                        }
+                        // Determine correct payment status (covers the first live schedule row,
+                        // not a flat 50% of total — correct for a client-selected 3-way plan too).
+                        const payment_status = await deriveManualPaymentStatus(booking_id, total, paid);
 
                         // A deposit confirms, same as every other payment path.
                         const newStatus = deriveBookingStatusAfterPayment(row.status, payment_status);
@@ -157,7 +149,7 @@ router.post('/api/admin/transactions/manual', requireAdmin, requireRole(['admini
                         );
                     });
                 } else if (transaction_type === 'refund') {
-                    getBookingById(booking_id, (bookErr, row) => {
+                    getBookingById(booking_id, async (bookErr, row) => {
                         if (bookErr || !row) {
                             return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking not found.' });
                         }
@@ -168,11 +160,9 @@ router.post('/api/admin/transactions/manual', requireAdmin, requireRole(['admini
                         const total = parseFloat(row.total_amount) || parseFloat((row.quote_amount || '0').replace(/[^0-9.]/g, '')) || 0;
                         const newPaid = Math.max(0, (parseFloat(row.amount_paid) || 0) - parseFloat(amt));
                         const outstanding = Math.max(0, total - newPaid);
-                        let payment_status;
-                        if (total > 0 && newPaid >= total)      payment_status = 'PAID';
-                        else if (newPaid <= 0)                   payment_status = 'UNPAID';
-                        else if (newPaid >= total * 0.5)         payment_status = 'DEPOSIT_PAID';
-                        else                                     payment_status = 'PARTIALLY_PAID';
+                        // Covers the first live schedule row, not a flat 50% of total — correct
+                        // for a client-selected 3-way plan too.
+                        const payment_status = await deriveManualPaymentStatus(booking_id, total, newPaid);
                         updateBookingLedgerAfterManualRefund(
                             newPaid, outstanding, payment_status, booking_id, (upErr) => {
                                 if (upErr) {

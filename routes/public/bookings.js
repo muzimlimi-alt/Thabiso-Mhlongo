@@ -49,7 +49,7 @@ const {
 const {
     getPaymentSchedulesForTracking, getCancellationSummaryForTracking,
     insertCancellationForPublicCancel, cancelPendingPaymentSchedulesAsync,
-    getPaymentSchedulesForPayfastInit
+    getPaymentSchedulesForPayfastInit, getNextPayableScheduleRow
 } = require('../../database/repositories/finance.repository');
 const { releaseDateHoldsForBookingAsync } = require('../../database/repositories/calendar.repository');
 const { getNotificationEmail } = require('../../database/repositories/settings.repository');
@@ -616,11 +616,61 @@ router.post('/api/public/bookings/:id/attachments',
 // booking id returned the client's full name, email address and exact quoted amount — an
 // unauthenticated PII leak — and produced a live, signed PayFast redirect for someone else's
 // booking. Now gated behind the same access_token every other tracking route requires.
-router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, requireBookingAccessToken, (req, res) => {
-    const { payment_type } = req.body; // Expects 'DEPOSIT' or 'FULL'
-    console.log(`[DEBUG] POST /api/public/bookings/${req.params.id}/pay - Type: ${payment_type}`);
+// Builds the signed PayFast redirect and sends the response — shared by both the legacy
+// DEPOSIT/FULL path and the schedule_id-targeted path below, so the base-URL/name-splitting/
+// signature logic lives in exactly one place.
+function buildAndSendPfData(row, amt, milestoneDesc, mPaymentId, req, res) {
+    try {
+        // Derive the public base URL so PayFast's ITN callback always reaches this server.
+        // Set BASE_URL in .env for production (e.g. https://thabisomhlongo.com).
+        // When tunnelling locally (ngrok / cloudflared) the forwarded host header is used automatically.
+        const proto = req.get('x-forwarded-proto') || req.protocol;
+        const host  = req.get('x-forwarded-host')  || req.get('host');
+        const baseUrl = (process.env.BASE_URL || `${proto}://${host}`).replace(/\/$/, '');
 
-    if (!payment_type || !['DEPOSIT', 'FULL'].includes(payment_type)) {
+        const isPortal = req.body.return_path === 'portal';
+        const clientName = row.name || 'Client';
+        const amount = parseFloat(amt);
+
+        const pfData = {
+            merchant_id: process.env.PAYFAST_MERCHANT_ID || '10000100',
+            merchant_key: process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a',
+            return_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success` : `${baseUrl}/?track=${row.id}&payment=success`,
+            cancel_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel`  : `${baseUrl}/?track=${row.id}&payment=cancel`,
+            notify_url: `${baseUrl}/api/payment/webhook/payfast`,
+            name_first: (clientName.split(' ')[0] || '').substring(0, 100),
+            name_last: (clientName.split(' ').slice(1).join(' ') || '').substring(0, 100),
+            email_address: row.email,
+            m_payment_id: mPaymentId,
+            amount: amount.toFixed(2),
+            item_name: `Booking ${row.id} - ${row.event_name || row.event_type || 'Event'} - ${milestoneDesc}`.substring(0, 100).replace(/[^a-zA-Z0-9.\- ]/g, '').replace(/\s+/g, ' ')
+        };
+
+        // Remove empty or null values to ensure signature matches submitted form data
+        Object.keys(pfData).forEach(key => {
+            if (pfData[key] === '' || pfData[key] === null || pfData[key] === undefined) {
+                delete pfData[key];
+            }
+        });
+
+        const passphrase = process.env.PAYFAST_PASSPHRASE || null;
+        pfData.signature = generatePayFastSignature(pfData, passphrase);
+
+        const pfHost = process.env.PAYFAST_URL || 'https://sandbox.payfast.co.za/eng/process';
+
+        console.log(`[PayFast] Payment initiated: Booking #${row.id}, m_payment_id: ${mPaymentId}, Amount: R${amount.toFixed(2)}`);
+        res.json({ success: true, pfData: pfData, pfHost: pfHost });
+    } catch (ex) {
+        console.error("Pay Route Error:", ex);
+        res.status(500).json({ success: false, message: 'Internal server error.' });
+    }
+}
+
+router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, requireBookingAccessToken, (req, res) => {
+    const { payment_type, schedule_id } = req.body; // legacy: 'DEPOSIT'/'FULL'. New: schedule_id.
+    console.log(`[DEBUG] POST /api/public/bookings/${req.params.id}/pay - Type: ${payment_type}, schedule_id: ${schedule_id}`);
+
+    if (!schedule_id && (!payment_type || !['DEPOSIT', 'FULL'].includes(payment_type))) {
         return res.status(400).json({ success: false, message: 'Invalid payment type. Must be DEPOSIT or FULL.' });
     }
 
@@ -641,6 +691,26 @@ router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, re
                 console.log(`[DEBUG] Pay failed: already paid`);
                 return res.status(400).json({ success: false, message: 'This booking has already been fully paid.' });
             }
+
+            // ── New path: pay a specific installment, whenever it's due ──
+            if (schedule_id) {
+                const schedId = parseInt(schedule_id, 10);
+                if (!Number.isInteger(schedId) || schedId <= 0) {
+                    return res.status(400).json({ success: false, message: 'Invalid schedule_id.' });
+                }
+                return getNextPayableScheduleRow(row.id, (nextErr, nextRow) => {
+                    if (nextErr || !nextRow) {
+                        return res.status(400).json({ success: false, message: 'Nothing outstanding to pay.' });
+                    }
+                    if (nextRow.id !== schedId) {
+                        return res.status(409).json({ success: false, message:
+                            `That installment isn't payable yet — please pay "${nextRow.description}" (R${parseFloat(nextRow.expected_amount).toFixed(2)}) first.` });
+                    }
+                    buildAndSendPfData(row, nextRow.expected_amount, nextRow.description, `${row.id}_SCHED${nextRow.id}`, req, res);
+                });
+            }
+
+            // ── Legacy path: DEPOSIT or FULL, unchanged ──
             // P2-14: Deposit can only be paid from UNPAID state. DEPOSIT_PAID, PARTIALLY_PAID etc.
             // should proceed to balance/full payment only — not re-pay the deposit.
             if (payment_type === 'DEPOSIT' && payStatus !== 'UNPAID') {
@@ -663,7 +733,6 @@ router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, re
             getPaymentSchedulesForPayfastInit(
                 row.id,
                 (schedErr, schedules) => {
-                try {
                     let amt = baseAmt;
                     let milestoneDesc = 'Full Payment';
 
@@ -680,49 +749,8 @@ router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, re
                         else if (payStatus === 'DEPOSIT_PAID') { amt = baseAmt / 2; milestoneDesc = 'Balance'; }
                     }
 
-                    // Derive the public base URL so PayFast's ITN callback always reaches this server.
-                    // Set BASE_URL in .env for production (e.g. https://thabisomhlongo.com).
-                    // When tunnelling locally (ngrok / cloudflared) the forwarded host header is used automatically.
-                    const proto = req.get('x-forwarded-proto') || req.protocol;
-                    const host  = req.get('x-forwarded-host')  || req.get('host');
-                    const baseUrl = (process.env.BASE_URL || `${proto}://${host}`).replace(/\/$/, '');
-
-                    const isPortal = req.body.return_path === 'portal';
-                    const clientName = row.name || 'Client';
-
-                    const pfData = {
-                        merchant_id: process.env.PAYFAST_MERCHANT_ID || '10000100',
-                        merchant_key: process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a',
-                        return_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success` : `${baseUrl}/?track=${row.id}&payment=success`,
-                        cancel_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel`  : `${baseUrl}/?track=${row.id}&payment=cancel`,
-                        notify_url: `${baseUrl}/api/payment/webhook/payfast`,
-                        name_first: (clientName.split(' ')[0] || '').substring(0, 100),
-                        name_last: (clientName.split(' ').slice(1).join(' ') || '').substring(0, 100),
-                        email_address: row.email,
-                        m_payment_id: `${row.id}_${payment_type}`,
-                        amount: amt.toFixed(2),
-                        item_name: `Booking ${row.id} - ${row.event_name || row.event_type || 'Event'} - ${milestoneDesc}`.substring(0, 100).replace(/[^a-zA-Z0-9.\- ]/g, '').replace(/\s+/g, ' ')
-                    };
-
-                    // Remove empty or null values to ensure signature matches submitted form data
-                    Object.keys(pfData).forEach(key => {
-                        if (pfData[key] === '' || pfData[key] === null || pfData[key] === undefined) {
-                            delete pfData[key];
-                        }
-                    });
-
-                    const passphrase = process.env.PAYFAST_PASSPHRASE || null;
-                    pfData.signature = generatePayFastSignature(pfData, passphrase);
-
-                    const pfHost = process.env.PAYFAST_URL || 'https://sandbox.payfast.co.za/eng/process';
-
-                    console.log(`[PayFast] Payment initiated: Booking #${row.id}, Type: ${payment_type}, Amount: R${amt.toFixed(2)}`);
-                    res.json({ success: true, pfData: pfData, pfHost: pfHost });
-                } catch (ex) {
-                    console.error("Pay Route Error:", ex);
-                    res.status(500).json({ success: false, message: 'Internal server error.' });
-                }
-            });
+                    buildAndSendPfData(row, amt, milestoneDesc, `${row.id}_${payment_type}`, req, res);
+                });
         } catch (ex) {
             console.error("Pay Route Error:", ex);
             res.status(500).json({ success: false, message: 'Internal server error.' });
@@ -928,6 +956,11 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
     const email = req.trackingEmail;
     if (!terms_agreed) return res.status(400).json({ success: false, message: 'You must agree to the terms and conditions to accept this quote.' });
 
+    // Client-selectable installment plans: defaults to 2 (today's behaviour) for any request that
+    // omits it, so a stale cached frontend that hasn't picked up the new selector still works.
+    let installmentCount = parseInt(req.body.installment_count, 10);
+    if (![2, 3].includes(installmentCount)) installmentCount = 2;
+
     // Client-supplied and written straight to bookings.vat_number, which the admin panel renders.
     // Same treatment as every other public free-text field: bounded and output-encoded.
     const vat_number = asBookingText(req.body.vat_number);
@@ -1014,7 +1047,7 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
                 // Invariant: SUM(expected_amount) over live (non-superseded, non-cancelled) rows == total_amount.
                 // Shared with the admin QUOTED→ACCEPTED path (applyStatusChange) so the two never diverge.
                 const totalAmount = quotedTotal || parseFloat(row.total_amount) || 0;
-                await autoBuildDepositBalanceSchedule(bookingId, totalAmount, row.date || row.event_date);
+                await autoBuildDepositBalanceSchedule(bookingId, totalAmount, row.date || row.event_date, installmentCount, { source: 'client' });
 
                 // Read back what the CASE above actually resolved to, so the response and the client
                 // email report the real status rather than assuming ACCEPTED.

@@ -112,7 +112,12 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
 
     const parts = (pfData.m_payment_id || '').split('_');
     const bookingId = parseInt(parts[0], 10);
-    const paymentType = parts[1] || 'FULL';
+    // Client-selectable installment plans: m_payment_id is `${bookingId}_SCHED${scheduleId}` for a
+    // specific-installment payment, vs the legacy `${bookingId}_DEPOSIT`/`${bookingId}_FULL`.
+    // applyPayfastPaymentToBooking no longer branches on this string (it derives payment_status
+    // from schedule-row coverage instead) — 'SCHED' only matters for logging/audit trails below.
+    const rawType = parts[1] || 'FULL';
+    const paymentType = rawType.startsWith('SCHED') ? 'SCHED' : rawType;
 
     if (isNaN(bookingId)) {
         console.error('[PayFast ITN] Invalid bookingId in m_payment_id:', pfData.m_payment_id);
