@@ -1806,7 +1806,7 @@ document.addEventListener("DOMContentLoaded", function() {
             // always clear competing err div and CSS classes before applying new state.
             let $hint = $('#hint-bookDate');
             if (!$hint.length) {
-                $('#err-bookDate').after('<div id="hint-bookDate" style="font-size:12px; margin-top:6px; line-height:1.5;"></div>');
+                $('#err-bookDate').after('<div id="hint-bookDate" role="status" style="font-size:12px; margin-top:6px; line-height:1.5;"></div>');
                 $hint = $('#hint-bookDate');
             }
             const $input = $('#bookDate');
@@ -2059,8 +2059,16 @@ document.addEventListener("DOMContentLoaded", function() {
         const _origNext1 = $('#bookNext1').off('click').click;
         $('#bookNext1').on('click', function() {
             if (!dateAvailable) {
-                const $hint = $('#hint-bookDate');
-                if ($hint.length && !$hint.is(':visible')) setDateStatus('warn', 'Please select an available date before continuing.');
+                // A date is chosen but isn't (yet) bookable: make sure the reason is on screen. The
+                // hint element is created lazily by setDateStatus, so it may not exist yet.
+                if ($('#bookDate').val()) {
+                    const $hint = $('#hint-bookDate');
+                    if (!$hint.length || !$hint.is(':visible')) setDateStatus('warn', 'Please select an available date before continuing.');
+                }
+                // validateStep(1) reports everything wrong on this step — the missing date (warning +
+                // aria-invalid) and any missing event name / type / service — instead of the click
+                // silently doing nothing on a fresh form.
+                validateStep(1);
                 return;
             }
             
@@ -2620,10 +2628,13 @@ document.addEventListener("DOMContentLoaded", function() {
             }
 
             if (!ok) {
-                var $firstErr = $('#bookStep' + step).find('.bk-input--err').first();
+                // First VISIBLE error: on step 1 the first .bk-input--err in DOM order is the hidden
+                // #bookDate input, which can be neither scrolled to nor focused.
+                var $firstErr = $('#bookStep' + step).find('.bk-input--err:visible').first();
                 if ($firstErr.length) {
                     $firstErr[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    if ($firstErr.is('#bkTimeSlotsGrid')) {
+                    // Non-input targets (time-slot grid, date display) need a tabindex to take focus.
+                    if (!$firstErr.is(':input, [tabindex]')) {
                         $firstErr.attr('tabindex', '-1');
                     }
                     $firstErr.focus();
