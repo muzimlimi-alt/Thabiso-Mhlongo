@@ -87,6 +87,12 @@ module.exports = async function ({ check, api, pub, one, future, getTrackingToke
     check('per-date check: the lapsed-hold date is available - agrees with the month view', aLapsed.available === true, JSON.stringify(aLapsed));
     check('per-date check: the live-hold date is refused - agrees with the month view', aLive.available === false && aLive.reason === 'held', JSON.stringify(aLive));
 
+    // ── comparing dates is what the calendar is FOR: the per-date check must not be throttled like a tracking lookup ──
+    // (it used to sit behind the 10-per-15-minutes tracking limiter, so the 11th date a visitor tried came back 429)
+    const statuses = [];
+    for (let i = 0; i < 25; i++) statuses.push((await pub('GET', `/api/public/availability?date=${future(200 + i)}`)).status);
+    check('25 per-date checks in a row are all answered (none throttled at 10 per 15 min)', statuses.every(s => s === 200), statuses.join(','));
+
     // ── robustness ──
     const badMonth = await pub('GET', '/api/public/availability/month?year=abc&month=13');
     check('month view rejects a malformed year/month (400, no crash)', badMonth.status === 400, String(badMonth.status));

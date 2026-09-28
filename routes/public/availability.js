@@ -1,6 +1,6 @@
 const express = require('express');
 const db = require('../../database');
-const { ipRateLimiter, trackRateLimiter } = require('../../middleware/rate-limiters');
+const { ipRateLimiter } = require('../../middleware/rate-limiters');
 const { MIN_ADVANCE_HOURS } = require('../../lib/booking-policy');
 const { checkDateAvailability, getFullDayDatesForMonth } = require('../../lib/calendar-sync');
 const { getMinBookingGapSetting } = require('../../database/repositories/settings.repository');
@@ -12,7 +12,11 @@ const router = express.Router();
 // hasCalendarConflict (its Google-Calendar-aware sibling) — see the require near the top of this
 // file for the re-import.
 
-router.get('/api/public/availability', ipRateLimiter, trackRateLimiter, (req, res) => {
+// Only the shared per-IP budget (100/hour) guards this. It used to ALSO sit behind trackRateLimiter (10 per 15 min, "too many
+// tracking lookups" - copied from the tracking routes), so a visitor comparing more than ten dates in a quarter hour got 429s
+// and the booking drawer could only say "couldn't confirm this date". The answer is public anyway (the month view lists the
+// same held / booked dates), so a per-date lookup is not the sensitive kind of request that limiter is for.
+router.get('/api/public/availability', ipRateLimiter, (req, res) => {
     const { date } = req.query;
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
         return res.status(400).json({ available: false, message: 'Date parameter (YYYY-MM-DD) required.' });
