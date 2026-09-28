@@ -1184,18 +1184,20 @@ header .navbar {
   flex-shrink:0;
   transition:opacity .4s var(--ease);
 }
-.team-photo-col:nth-child(1) .team-photo-card{ width:110px; height:120px; }
-.team-photo-col:nth-child(2) .team-photo-card{ width:122px; height:132px; }
-.team-photo-col:nth-child(3) .team-photo-card{ width:115px; height:125px; }
+/* ~15% larger than the reference component's original sizes at every breakpoint, same per-column
+   proportions (col 2 biggest, col 3 in between) that give the staggered collage its look. */
+.team-photo-col:nth-child(1) .team-photo-card{ width:125px; height:140px; }
+.team-photo-col:nth-child(2) .team-photo-card{ width:140px; height:150px; }
+.team-photo-col:nth-child(3) .team-photo-card{ width:130px; height:145px; }
 @media (min-width:640px){
-  .team-photo-col:nth-child(1) .team-photo-card{ width:130px; height:140px; }
-  .team-photo-col:nth-child(2) .team-photo-card{ width:145px; height:155px; }
-  .team-photo-col:nth-child(3) .team-photo-card{ width:136px; height:146px; }
+  .team-photo-col:nth-child(1) .team-photo-card{ width:150px; height:160px; }
+  .team-photo-col:nth-child(2) .team-photo-card{ width:165px; height:180px; }
+  .team-photo-col:nth-child(3) .team-photo-card{ width:155px; height:170px; }
 }
 @media (min-width:768px){
-  .team-photo-col:nth-child(1) .team-photo-card{ width:155px; height:165px; }
-  .team-photo-col:nth-child(2) .team-photo-card{ width:172px; height:182px; }
-  .team-photo-col:nth-child(3) .team-photo-card{ width:162px; height:172px; }
+  .team-photo-col:nth-child(1) .team-photo-card{ width:180px; height:190px; }
+  .team-photo-col:nth-child(2) .team-photo-card{ width:200px; height:210px; }
+  .team-photo-col:nth-child(3) .team-photo-card{ width:185px; height:200px; }
 }
 .team-photo-card img{
   width:100%; height:100%; object-fit:cover;
@@ -1269,10 +1271,19 @@ header .navbar {
 .team-row--featured .team-row__dot{ background:var(--y-base); }
 .team-photo-card--featured{ box-shadow:0 0 0 1px var(--y-base); }
 
-/* ---------- VIEW MORE (Gallery photos / Past Shows — see tmPaginateGrid() in js/myscript.js) ----------
+/* ---------- VIEW MORE / VIEW LESS (Gallery photos / Past Shows — see tmPaginateGrid() in js/myscript.js) ----------
    .btn is inline-flex (redesign.css ~line 556), so it doesn't stretch to center itself via margin:auto —
-   this wrapper is the plain block that text-align:center works on instead. */
+   this wrapper is the plain block that text-align:center works on instead; the two buttons sit as
+   inline-flex siblings and wrap onto their own centered line on narrow screens if both are showing. */
 .tm-view-more-wrap{ text-align:center; margin-top:28px; }
+.tm-view-more-wrap .btn{ margin:0 6px 10px; }
+.tm-view-less{ color:var(--text-secondary) !important; }
+/* jQuery's .toggle()/.hide()/.show() hide an element by setting a plain (non-!important) inline
+   display:none — which .btn's own display:inline-flex !important (redesign.css ~line 556) always
+   beats, since an !important AUTHOR rule outranks a non-!important inline style regardless of
+   specificity. The button stayed visibly on screen (just stopped doing anything once exhausted) —
+   toggleClass('tm-hidden', ...) instead, backed by an !important rule specific enough to win. */
+.tm-view-more-wrap .btn.tm-hidden{ display:none !important; }
 
 /* ---------- GALLERY ---------- */
 .tm-gallery{ background:var(--bg-page); }

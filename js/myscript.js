@@ -237,42 +237,72 @@ $(function() {
         $('.reveal').addClass('active');
     }
 
-    // Reveals `htmls` into $grid 8 at a time, with a "View More" button underneath for the rest —
+    // Reveals `htmls` into $grid 8 at a time, with "View More" / "View Less" buttons underneath —
     // shared by Gallery and Past Shows (the two public grids whose count is unbounded admin content;
     // Upcoming Shows is deliberately never paginated — hiding a time-sensitive show behind a click
-    // is the wrong tradeoff there). Each click reveals the next 8 and the button removes itself once
-    // everything is shown. Idempotent: clears any button left over from a previous call on the same
-    // $grid, so a section that gets re-rendered later doesn't end up with two.
+    // is the wrong tradeoff there). More reveals the next 8; Less collapses straight back to the
+    // first 8 (not back one page — "go back to 8 pictures", not a step-by-step undo). Each button
+    // hides itself when it would have nothing to do (More once everything is shown, Less at the
+    // first page) rather than the whole control disappearing — collapsing is always on offer once
+    // there's more than a page. Idempotent: clears any control left over from a previous call on the
+    // same $grid, so a section that gets re-rendered later doesn't end up with two.
     function tmPaginateGrid($grid, htmls, opts) {
         opts = opts || {};
         var pageSize = opts.pageSize || 8;
         $grid.nextAll('.tm-view-more-wrap').first().remove();
-        var shown = 0;
-        var $btn = $('<button type="button" class="btn btn-outline tm-view-more"></button>')
-            .text(opts.label || 'View More')
-            .attr('aria-label', opts.ariaLabel || opts.label || 'View more');
-        function revealNext() {
-            var slice = htmls.slice(shown, shown + pageSize);
-            slice.forEach(function (html) { $grid.append(html); });
-            shown += slice.length;
+        if (htmls.length <= pageSize) {
+            htmls.forEach(function (html) { $grid.append(html); });
             if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
-                $grid.children('.reveal:not(.active)').each(function () { revealObserver.observe(this); });
+                $grid.children('.reveal').each(function () { revealObserver.observe(this); });
             } else {
                 $grid.children('.reveal').addClass('active');
             }
-            if (shown >= htmls.length) {
-                var hadFocus = document.activeElement === $btn[0];
-                $btn.closest('.tm-view-more-wrap').remove();
-                // Focus would otherwise vanish (fall back to <body>) right as the visitor clicked —
-                // land it on the grid itself instead, since there's no next control to hand it to.
-                if (hadFocus) $grid.attr('tabindex', '-1').trigger('focus');
+            return;
+        }
+
+        var shown = pageSize;
+        var $more = $('<button type="button" class="btn btn-outline tm-view-more"></button>')
+            .text(opts.moreLabel || 'View More')
+            .attr('aria-label', opts.moreAriaLabel || opts.moreLabel || 'View more');
+        var $less = $('<button type="button" class="btn btn-outline tm-view-less"></button>')
+            .text(opts.lessLabel || 'View Less')
+            .attr('aria-label', opts.lessAriaLabel || opts.lessLabel || 'View less');
+        var $wrap = $('<div class="tm-view-more-wrap"></div>').append($more).append($less);
+
+        function render() {
+            $grid.empty();
+            htmls.slice(0, shown).forEach(function (html) { $grid.append(html); });
+            if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
+                $grid.children('.reveal').each(function () { revealObserver.observe(this); });
+            } else {
+                $grid.children('.reveal').addClass('active');
+            }
+            var moreVisible = shown < htmls.length;
+            // Only ever both false at once if this grid had <= pageSize items to begin with — the
+            // early return above means that case never reaches here, so this is belt-and-braces.
+            var lessVisible = shown > pageSize;
+            var focusStranded = (document.activeElement === $more[0] && !moreVisible) || (document.activeElement === $less[0] && !lessVisible);
+            // .toggleClass, not .toggle() — .btn forces display:inline-flex with !important, which
+            // beats the plain inline display:none .toggle() would set (see .tm-hidden in redesign.css).
+            $more.toggleClass('tm-hidden', !moreVisible);
+            $less.toggleClass('tm-hidden', !lessVisible);
+            if (focusStranded) {
+                // Land focus on whichever control is still there to receive it, rather than letting
+                // it fall back to <body> right as the visitor clicked.
+                if (moreVisible) $more.trigger('focus');
+                else if (lessVisible) $less.trigger('focus');
+                else $grid.attr('tabindex', '-1').trigger('focus');
             }
         }
-        revealNext();
-        if (shown < htmls.length) {
-            $grid.after($('<div class="tm-view-more-wrap"></div>').append($btn));
-            $btn.on('click', revealNext);
-        }
+        $more.on('click', function () { shown = Math.min(htmls.length, shown + pageSize); render(); });
+        $less.on('click', function () {
+            shown = pageSize;
+            render();
+            if ($wrap[0].scrollIntoView) $wrap[0].scrollIntoView({ block: 'nearest' });
+        });
+
+        render();
+        $grid.after($wrap);
     }
 
     // 5. Dynamic Gallery Rendering (Instagram Style)
@@ -323,8 +353,11 @@ $(function() {
             `;
         });
 
-        // Shows the first 8 and adds a "View More" button for the rest (tmPaginateGrid, above).
-        tmPaginateGrid($grid, htmls, { label: 'View More Photos', ariaLabel: 'View more gallery photos' });
+        // Shows the first 8, with View More / View Less for the rest (tmPaginateGrid, above).
+        tmPaginateGrid($grid, htmls, {
+            moreLabel: 'View More Photos', moreAriaLabel: 'View more gallery photos',
+            lessLabel: 'View Less Photos', lessAriaLabel: 'View less gallery photos, back to the first 8'
+        });
     }
 
     // Call it on page load
@@ -533,7 +566,7 @@ $(function() {
             });
 
             if (opts && opts.paginate) {
-                tmPaginateGrid($grid, htmls, { label: opts.label, ariaLabel: opts.ariaLabel });
+                tmPaginateGrid($grid, htmls, { moreLabel: opts.moreLabel, moreAriaLabel: opts.moreAriaLabel, lessLabel: opts.lessLabel, lessAriaLabel: opts.lessAriaLabel });
             } else {
                 htmls.forEach(function(html) { $grid.append(html); });
                 if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
@@ -543,7 +576,11 @@ $(function() {
         }
 
         populateGrid($upcomingGrid, upcomingEvents, "No upcoming events at the moment.");
-        populateGrid($pastGrid, pastEvents, "No past events at the moment.", { paginate: true, label: 'View More Shows', ariaLabel: 'View more past shows' });
+        populateGrid($pastGrid, pastEvents, "No past events at the moment.", {
+            paginate: true,
+            moreLabel: 'View More Shows', moreAriaLabel: 'View more past shows',
+            lessLabel: 'View Less Shows', lessAriaLabel: 'View less past shows, back to the first 8'
+        });
 
         // Re-trigger reveal observer for newly added event cards
         if (typeof revealObserver !== 'undefined') {
