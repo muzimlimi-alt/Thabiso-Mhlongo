@@ -3570,8 +3570,26 @@ window.onbeforeunload = function() {
     }
 
     var _workingDaysFetched = false;
+    // One request for all seven weekdays (each request counts against the per-IP budget, and this
+    // used to be seven of them on every page load). A server that doesn't know dow=all answers
+    // without a `days` array — only then fall back to one request per weekday. A failed request
+    // (e.g. rate-limited) fails open with every weekday treated as working, as it always has, and
+    // does NOT fan out into more requests.
     function fetchWorkingDays(cb) {
         if (_workingDaysFetched) { cb(); return; }
+        fetch('/api/public/booking-config?dow=all')
+            .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function(cfg) {
+                if (!cfg || !Array.isArray(cfg.days)) { fetchWorkingDaysPerDay(cb); return; }
+                _workingDaysFetched = true;
+                state.nonWorkingDows = cfg.days
+                    .filter(function(d) { return d.is_working_day === false; })
+                    .map(function(d) { return d.day_of_week; });
+                cb();
+            })
+            .catch(function() { _workingDaysFetched = true; cb(); });
+    }
+    function fetchWorkingDaysPerDay(cb) {
         Promise.all([0,1,2,3,4,5,6].map(function(d) {
             return fetch('/api/public/booking-config?dow=' + d)
                 .then(function(r) { return r.json(); })

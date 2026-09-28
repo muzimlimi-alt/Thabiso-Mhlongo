@@ -76,6 +76,30 @@ router.get('/api/public/availability', ipRateLimiter, trackRateLimiter, (req, re
 
 // Booking configuration — per-day working hours + gap for the frontend slot picker
 router.get('/api/public/booking-config', ipRateLimiter, (req, res) => {
+    // ?dow=all returns every weekday in one response. The public availability calendar needs all
+    // seven to grey out non-working days, and used to make seven separate requests on every page
+    // load — each counted against the per-IP request budget (see ipRateLimiter).
+    if (req.query.dow === 'all') {
+        return db.all("SELECT day_of_week, start_time, end_time, is_working_day FROM working_hours", [], (err, rows) => {
+            getMinBookingGapSetting((err2, gapRow) => {
+                const byDow = {};
+                (!err && rows ? rows : []).forEach(r => { byDow[r.day_of_week] = r; });
+                const days = [0, 1, 2, 3, 4, 5, 6].map(d => {
+                    const wh = byDow[d];
+                    return {
+                        day_of_week:         d,
+                        working_hours_start: wh ? wh.start_time : '09:00',
+                        working_hours_end:   wh ? wh.end_time   : '22:00',
+                        is_working_day:      wh ? !!wh.is_working_day : true
+                    };
+                });
+                res.json({
+                    days,
+                    min_booking_gap_minutes: (!err2 && gapRow) ? parseInt(gapRow.setting_value) || 30 : 30
+                });
+            });
+        });
+    }
     const dayOfWeek = req.query.dow !== undefined ? parseInt(req.query.dow) : new Date().getDay();
     db.get("SELECT start_time, end_time, is_working_day FROM working_hours WHERE day_of_week = ?", [dayOfWeek], (err, wh) => {
         getMinBookingGapSetting((err2, gapRow) => {
