@@ -27,6 +27,13 @@ docs/
 backups/
 db-backups/
 
+# Runtime-uploaded media, generated docs and DB backups (see lib/runtime-paths.js). Deliberately
+# kept out of git — this repo is public. Moved inside the project folder on 2026-09-28.
+thabiso-mhlongo-runtime-data/
+
+# Claude Code agent worktrees (full repo copies) - tooling artifacts, not project source
+.claude/worktrees/
+
 # Generated email preview HTML (js/generate-email-previews.js output, regenerable on demand)
 email-previews/
 

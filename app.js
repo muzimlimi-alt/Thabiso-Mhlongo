@@ -312,6 +312,7 @@ app.use((req, res, next) => {
         normalizedUrl.includes('/test/') ||
         normalizedUrl.includes('/scripts/') ||
         normalizedUrl.includes('/docs/') ||
+        normalizedUrl.includes('/thabiso-mhlongo-runtime-data/') ||
         normalizedUrl.endsWith('.sqlite') ||
         normalizedUrl.endsWith('.sqlite-shm') ||
         normalizedUrl.endsWith('.sqlite-wal') ||
