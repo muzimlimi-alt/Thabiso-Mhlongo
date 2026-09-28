@@ -50,6 +50,17 @@ function itnPayload({ bookingId, paymentType = 'FULL', amount, pfPaymentId }) {
     };
 }
 
+// Poll `fn` until it returns truthy or `timeoutMs` passes; returns whether it did. Callers assert on
+// the resulting state either way, so a timeout fails the check that follows with a clear message.
+async function waitFor(fn, timeoutMs = 20000) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+        if (await fn()) return true;
+        await sleep(250);
+    }
+    return false;
+}
+
 module.exports = async function ({ check }) {
     // ── 1. Normal ITN: credits the booking, records a transaction ──
     const id1 = await makeAcceptedBooking(830, 1000);
@@ -59,7 +70,9 @@ module.exports = async function ({ check }) {
     // The route makes a real outbound HTTPS call to sandbox.payfast.co.za to "confirm" the ITN
     // before crediting anything; give it room to time out if this environment has no outbound
     // network access (sandbox mode proceeds regardless of that call's outcome — see server.js).
-    await sleep(4000);
+    // How long that takes depends on the network, so poll (bounded) for the effect rather than
+    // sleeping a fixed 4s, which failed whenever the call was slow.
+    await waitFor(async () => (await one('SELECT COUNT(*) c FROM transactions WHERE booking_id=? AND reference=? AND source=?', [id1, ref1, 'payfast'])).c >= 1);
 
     const txns1 = await one('SELECT COUNT(*) c FROM transactions WHERE booking_id=? AND reference=? AND source=?', [id1, ref1, 'payfast']);
     check('ITN: exactly one transaction row recorded', txns1.c === 1, `count=${txns1.c}`);
@@ -70,7 +83,9 @@ module.exports = async function ({ check }) {
     // ── 2. Duplicate ITN: same pf_payment_id replayed — must not double-credit ──
     const itnRes2 = await pub('POST', '/api/payment/webhook/payfast', itnPayload({ bookingId: id1, amount: 1000, pfPaymentId: ref1 }));
     check('duplicate ITN: still answers 200 (no error surfaced to PayFast)', itnRes2.status === 200, `${itnRes2.status}`);
-    await sleep(4000);
+    // The replay is fully processed once its IGNORED_DUPLICATE log row exists — wait for that
+    // (bounded) instead of a fixed sleep, then assert nothing was double-credited.
+    await waitFor(async () => (await one("SELECT COUNT(*) c FROM payment_logs WHERE booking_id=? AND event_type='IGNORED_DUPLICATE'", [id1])).c >= 1);
 
     const txns1b = await one('SELECT COUNT(*) c FROM transactions WHERE booking_id=? AND reference=? AND source=?', [id1, ref1, 'payfast']);
     check('duplicate ITN: still exactly one transaction row (no duplicate credit)', txns1b.c === 1, `count=${txns1b.c}`);

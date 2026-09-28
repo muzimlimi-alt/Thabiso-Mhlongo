@@ -50,8 +50,27 @@ module.exports = async function ({ check }) {
     await pub('POST', `/api/public/bookings/${id}/accept-quote`, { access_token: token, terms_agreed: true });
 
     // ── 1. Confirm: full manual payment reaches CONFIRMED, which calls syncBookingToCalendar() ──
+    // Each sync ends with a log line written only after a real round-trip to Google's OAuth endpoint
+    // (which fails here — invalid test token), so its arrival time varies with network latency. Poll
+    // (bounded) for the evidence, and let the log go quiet before counting, instead of fixed sleeps.
+    const waitFor = async (fn, ms = 15000) => {
+        const t0 = Date.now();
+        while (Date.now() - t0 < ms) { if (await fn()) return true; await sleep(250); }
+        return false;
+    };
+    const settle = async (quietMs = 1000, maxMs = 15000) => {
+        let last = getChildLog().length, since = Date.now();
+        const t0 = Date.now();
+        while (Date.now() - t0 < maxMs) {
+            await sleep(200);
+            const n = getChildLog().length;
+            if (n !== last) { last = n; since = Date.now(); } else if (Date.now() - since >= quietMs) return;
+        }
+    };
+
     await api('PUT', `/api/admin/bookings/${id}/manual-payment`, { amount_paid: 1000, payment_status: 'PAID', force: true });
-    await sleep(300);
+    await waitFor(() => { const l = getChildLog(); return l.includes(`GCal Event for Booking #${id}`) || l.includes(`Error syncing booking #${id} to GCal`); });
+    await settle();
     let logAfterConfirm = getChildLog();
     const confirmSyncAttempted = logAfterConfirm.includes(`GCal Event for Booking #${id}`) || logAfterConfirm.includes(`Error syncing booking #${id} to GCal`);
     check('confirm: syncBookingToCalendar was invoked for this booking (not silently skipped)', confirmSyncAttempted, logAfterConfirm.slice(-600));
@@ -60,16 +79,17 @@ module.exports = async function ({ check }) {
     const newDate = future(901);
     const dateRes = await api('PATCH', `/api/admin/bookings/${id}/date`, { date: newDate, time: '19:00' });
     check('reschedule: date PATCH -> 200', dateRes.status === 200 && dateRes.body.success, JSON.stringify(dateRes.body));
-    await sleep(300);
     const rescheduledRow = await one('SELECT date FROM bookings WHERE id=?', [id]);
     check('reschedule: booking date actually changed', rescheduledRow.date === newDate, `${rescheduledRow.date} (expected ${newDate})`);
-    const logAfterReschedule = getChildLog();
     // The reschedule call is async (db.get callback -> syncBookingToCalendar), so distinguishing
     // "a second attempt happened" from "the first attempt's line is still there" requires counting
     // occurrences, not just checking presence.
     const countOccurrences = (hay, needle) => (hay.match(new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
-    const successOrFailureCountAfterConfirm = countOccurrences(logAfterConfirm, `Booking #${id}`) + countOccurrences(logAfterConfirm, `syncing booking #${id}`);
-    const successOrFailureCountAfterReschedule = countOccurrences(logAfterReschedule, `Booking #${id}`) + countOccurrences(logAfterReschedule, `syncing booking #${id}`);
+    const syncCount = (log) => countOccurrences(log, `Booking #${id}`) + countOccurrences(log, `syncing booking #${id}`);
+    const successOrFailureCountAfterConfirm = syncCount(logAfterConfirm);
+    await waitFor(() => syncCount(getChildLog()) > successOrFailureCountAfterConfirm);
+    const logAfterReschedule = getChildLog();
+    const successOrFailureCountAfterReschedule = syncCount(logAfterReschedule);
     check('reschedule: a SECOND sync attempt was logged for this booking (not just the confirm-time one)',
         successOrFailureCountAfterReschedule > successOrFailureCountAfterConfirm,
         `after confirm=${successOrFailureCountAfterConfirm}, after reschedule=${successOrFailureCountAfterReschedule}`);
@@ -87,7 +107,8 @@ module.exports = async function ({ check }) {
 
     const cancelRes = await api('POST', `/api/admin/bookings/${id}/cancel`, { reason: 'calendar-sync evidence test' });
     check('cancel: 200', cancelRes.status === 200, JSON.stringify(cancelRes.body));
-    await sleep(300);
+    await waitFor(() => { const l = getChildLog(); return l.includes(`GCal event ${fakeGCalId}`) || l.includes(`GCal Event: ${fakeGCalId}`); });
+    await settle(500); // the google_event_id null-out is written just after the delete's log line
     const afterCancel = await one('SELECT google_event_id FROM bookings WHERE id=?', [id]);
     check('cancel: google_event_id nulled (consistent with calendar.test.js CP2)', afterCancel.google_event_id === null, JSON.stringify(afterCancel));
     const logAfterCancel = getChildLog();
