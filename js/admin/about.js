@@ -47,7 +47,9 @@ async function loadAboutData() {
         updateAboutPreview();
     } catch(e) {
         console.error('Failed to load About Me data:', e);
-        window.notificationService.showError('Could not load About Me content — please refresh.');
+        // Runs at parse time, before notificationService.js (last script in admin.html) has loaded —
+        // a fast failure such as a 401 can land first.
+        if (window.notificationService) window.notificationService.showError('Could not load About Me content — please refresh.');
     }
 }
 window.loadAboutData = loadAboutData;

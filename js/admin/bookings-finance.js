@@ -176,7 +176,8 @@
             });
         } catch(e) {
             console.error('Failed to load bookings for expense association:', e);
-            window.notificationService.showError('Could not load bookings for expense association — the dropdown will be empty.');
+            // Runs at parse time, before notificationService.js (last script in admin.html) has loaded.
+            if (window.notificationService) window.notificationService.showError('Could not load bookings for expense association — the dropdown will be empty.');
         }
     }
     populateExpenseBookingList();
