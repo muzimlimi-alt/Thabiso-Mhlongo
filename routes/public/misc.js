@@ -94,6 +94,7 @@ router.post('/upload', (req, res, next) => {
     else if (section === 'branding') folderPath = 'images/branding/';
     else if (section === 'footprint') folderPath = 'images/footprint/';
     else if (section === 'testimonials') folderPath = 'images/testimonials/';
+    else if (section === 'team') folderPath = 'images/team/';
 
     const relativePath = folderPath + req.file.filename;
 

@@ -324,6 +324,7 @@ $(function() {
         about:      { sel: '#about',       nav: ['#about'] },
         career:     { sel: '#career',      nav: ['#career'] },
         footprint:  { sel: '#footprint',   nav: ['#footprint'] },
+        team:       { sel: '#team',        nav: ['#team'] },
         gallery:    { sel: '#gallery',     nav: ['#gallery'] },
         events:     { sel: '#events',      nav: ['#events'] },
         social:     { sel: '#social',      nav: ['#social'] },
@@ -833,6 +834,126 @@ $(function() {
         }
     }
     renderFootprint();
+
+    // 9b2. Dynamic Management Team Rendering — photo grid + member list, hover/tap highlight.
+    // The photo grid is decorative (aria-hidden); the list beside it is the accessible source of
+    // truth (name + role always visible, social links revealed on active — reachable by mouse,
+    // touch and keyboard alike, not hover-only).
+    async function renderTeam() {
+        var members = [];
+        try {
+            const response = await fetch('/api/public/team');
+            const data = await response.json();
+            if (Array.isArray(data)) members = data;
+        } catch (err) {
+            console.error("Failed to load team members from server:", err);
+        }
+
+        var $layout = $('#teamLayout');
+        if (!$layout.length) return;
+
+        if (!members.length) {
+            $layout.closest('.tm-section').hide();
+            return;
+        }
+
+        var $photos = $('#teamPhotoGrid');
+        var $list = $('#teamList');
+        $photos.empty();
+        $list.empty();
+
+        var cols = [$('<div>').addClass('team-photo-col'), $('<div>').addClass('team-photo-col'), $('<div>').addClass('team-photo-col')];
+        cols.forEach(function (c) { $photos.append(c); });
+
+        members.forEach(function (m, i) {
+            var initial = (m.name || '?').trim().charAt(0).toUpperCase() || '?';
+
+            // Photo card (decorative)
+            var $card = $('<div>').addClass('team-photo-card').attr('data-id', m.id);
+            if (m.image_path) {
+                $card.append($('<img>').attr({ src: m.image_path, alt: '', loading: 'lazy' }).on('error', function () {
+                    $card.addClass('team-photo-card--monogram').empty().text(initial);
+                }));
+            } else {
+                $card.addClass('team-photo-card--monogram').text(initial);
+            }
+            cols[i % 3].append($card);
+
+            // List row (accessible name/role/social)
+            var $row = $('<div>').addClass('team-row').attr({ 'data-id': m.id, role: 'listitem' });
+            var $inner = $('<div>').addClass('team-row__inner').attr({
+                role: 'button', tabindex: '0', 'aria-pressed': 'false',
+                'aria-label': (m.name || 'Team member') + (m.role ? (', ' + m.role) : '')
+            });
+            var $head = $('<div>').addClass('team-row__head');
+            $head.append($('<span>').addClass('team-row__dot').attr('aria-hidden', 'true'));
+            $head.append($('<span>').addClass('team-row__name').text(m.name || ''));
+
+            var socialLinks = [
+                { url: m.twitter, label: 'X / Twitter', icon: 'fa-brands fa-x-twitter' },
+                { url: m.linkedin, label: 'LinkedIn', icon: 'fa-brands fa-linkedin' },
+                { url: m.instagram, label: 'Instagram', icon: 'fa-brands fa-instagram' },
+                { url: m.behance, label: 'Behance', icon: 'fa-brands fa-behance' }
+            ].filter(function (s) { return s.url; });
+
+            if (socialLinks.length) {
+                var $social = $('<div>').addClass('team-row__social');
+                socialLinks.forEach(function (s) {
+                    $social.append(
+                        $('<a>').addClass('social-icon-wrapper').attr({
+                            href: s.url, target: '_blank', rel: 'noopener noreferrer',
+                            title: s.label, 'aria-label': s.label + ' (opens in a new tab)'
+                        }).on('click', function (e) { e.stopPropagation(); })
+                        .append($('<i>').addClass(s.icon).attr('aria-hidden', 'true'))
+                    );
+                });
+                $head.append($social);
+            }
+
+            $inner.append($head);
+            if (m.role) $inner.append($('<p>').addClass('team-row__role').text(m.role));
+            $row.append($inner);
+            $list.append($row);
+        });
+
+        $layout.show();
+
+        // Hover (pointer) highlights; click/Enter/Space toggles it (works for touch + keyboard,
+        // matching the reference component's active/dimmed relationship between grid and list).
+        function setActiveTeamMember(id) {
+            $('.team-photo-card, .team-row').each(function () {
+                var $el = $(this);
+                var isActive = id !== null && String($el.data('id')) === String(id);
+                $el.toggleClass('is-active', isActive);
+                $el.toggleClass('is-dimmed', id !== null && !isActive);
+            });
+            $('.team-row__inner').each(function () {
+                var rowId = $(this).closest('.team-row').data('id');
+                $(this).attr('aria-pressed', (id !== null && String(rowId) === String(id)) ? 'true' : 'false');
+            });
+        }
+        var activeTeamId = null;
+        $photos.add($list).on('mouseenter', '.team-photo-card, .team-row', function () {
+            activeTeamId = $(this).data('id');
+            setActiveTeamMember(activeTeamId);
+        });
+        $layout.on('mouseleave', function () {
+            activeTeamId = null;
+            setActiveTeamMember(null);
+        });
+        $photos.add($list).on('click', '.team-photo-card, .team-row__inner', function () {
+            var id = $(this).closest('[data-id]').data('id');
+            activeTeamId = (activeTeamId !== null && String(activeTeamId) === String(id)) ? null : id;
+            setActiveTeamMember(activeTeamId);
+        });
+        $list.on('keydown', '.team-row__inner', function (e) {
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+                $(this).trigger('click');
+            }
+        });
+    }
+    renderTeam();
 
     // 9c. Testimonials — vanilla-JS port of the "circular"/depth-stack carousel (no React/Babel
     // dependency added to this codebase), plus the public submission form.

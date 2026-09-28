@@ -29,6 +29,7 @@ var SECTION_REGISTRY = [
     { key: 'about',      label: 'About',             cat: 'Content',    desc: 'Your biography, portrait and story.' },
     { key: 'career',     label: 'Milestones',        cat: 'Content',    desc: 'The career-defining moments panel (data managed in the Career admin section).' },
     { key: 'footprint',  label: 'Footprint',         cat: 'Content',    desc: 'The flag grid of countries you\'ve performed in.' },
+    { key: 'team',       label: 'Management Team',   cat: 'Content',    desc: 'The team photo grid and member list (data managed in the Management Team admin section).' },
     { key: 'gallery',    label: 'Gallery',           cat: 'Engagement', desc: 'The photo grid of moments from road, stage & studio.' },
     { key: 'events',     label: 'Events',            cat: 'Engagement', desc: 'Upcoming and past public events.' },
     { key: 'social',     label: 'Social Media',      cat: 'Marketing',  desc: 'Social profile links and embedded posts.' },

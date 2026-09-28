@@ -52,7 +52,7 @@
 	(function () {
 		try {
 			var v = JSON.parse(localStorage.getItem('tm_sections') || '{}');
-			var MAP = { hero:'#hero', features:'.tm-features', services:'.tm-services', about:'#about', career:'#career', footprint:'#footprint', gallery:'#gallery', events:'#events', social:'#social', newsletter:'#newsletter', testimonials:'#testimonials', contact:'#contact', footer:'.tm-footer' };
+			var MAP = { hero:'#hero', features:'.tm-features', services:'.tm-services', about:'#about', career:'#career', footprint:'#footprint', team:'#team', gallery:'#gallery', events:'#events', social:'#social', newsletter:'#newsletter', testimonials:'#testimonials', contact:'#contact', footer:'.tm-footer' };
 			var sel = [];
 			Object.keys(MAP).forEach(function (k) { if (v[k] === false) sel.push(MAP[k]); });
 			if (sel.length) {
@@ -90,6 +90,7 @@
 				<li><a href="#about">About</a></li>
 				<li><a href="#career">Career</a></li>
 				<li><a href="#footprint">Footprint</a></li>
+				<li><a href="#team">Team</a></li>
 				<li><a href="#gallery">Gallery</a></li>
 				<li><a href="#social">Social</a></li>
 				<li><a href="#events">Events</a></li>
@@ -118,6 +119,7 @@
 	<a href="#about">About</a>
 	<a href="#career">Career</a>
 	<a href="#footprint">Footprint</a>
+	<a href="#team">Team</a>
 	<a href="#gallery">Gallery</a>
 	<a href="#social">Social</a>
 	<a href="#events">Events</a>
@@ -326,6 +328,25 @@
 		</div>
 		<div class="fp-grid" id="footprintGrid" role="list" aria-label="Countries performed in">
 			<!-- Populated dynamically from /api/public/footprint by renderFootprint() in js/myscript.js -->
+		</div>
+	</div>
+</section>
+
+<!-- ============== MANAGEMENT TEAM ============== -->
+<section class="tm-section tm-team" id="team" aria-labelledby="teamTitle">
+	<div class="tm-container">
+		<div class="tm-section__head text-center tm-reveal">
+			<p class="tm-eyebrow">The People Behind It</p>
+			<h2 id="teamTitle">The <em>Management</em> Team</h2>
+			<p class="tm-section__desc">The people who keep the shows booked, the brand sharp, and the calendar honest.</p>
+		</div>
+		<div class="team-layout tm-reveal" id="teamLayout" style="display:none;">
+			<div class="team-photos" id="teamPhotoGrid" aria-hidden="true">
+				<!-- Populated dynamically from /api/public/team by renderTeam() in js/myscript.js -->
+			</div>
+			<div class="team-list" id="teamList" role="list" aria-label="Management team members">
+				<!-- Populated dynamically from /api/public/team by renderTeam() in js/myscript.js -->
+			</div>
 		</div>
 	</div>
 </section>
@@ -1890,7 +1911,7 @@
     <script src="js/jquery-2.1.1.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
-	<script src="js/myscript.js?v=1.4.8"></script>
+	<script src="js/myscript.js?v=1.4.9"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather

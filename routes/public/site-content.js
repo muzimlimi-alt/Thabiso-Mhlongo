@@ -213,6 +213,14 @@ router.get('/api/public/gallery', (req, res) => { // Public route for index.html
     });
 });
 
+// --- Management Team (active members only) ---
+router.get('/api/public/team', (req, res) => { // Public route for index.html
+    db.all("SELECT * FROM team_members WHERE status = 'active' ORDER BY display_order ASC, id ASC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
 // Phase 5 (HOUSEKEEPING-NOTES.md): the email-templates admin routes (and SYSTEM_TRACK_TEMPLATE_KEYS)
 // moved to routes/admin/email-templates.js.
 
