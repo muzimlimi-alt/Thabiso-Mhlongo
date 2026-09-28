@@ -89,3 +89,116 @@
 	color: #eee !important;
 	font-weight: 600 !important;
 }
+
+/* =====================================================================
+   PUBLIC BOOKING WIZARD — rules moved here from css/admin/redesign-admin.css
+   The CSS split cut the old monolithic redesign.css by LINE NUMBER, and these three blocks
+   (used only by the public booking drawer: the custom venue-search dropdown, the performance
+   time-slot grid, and the mobile attachment zone) landed in the admin half — which index.html
+   never loads. The drawer's slot times therefore rendered as a bare unstyled list and the venue
+   suggestions were unstyled. Moved verbatim; nothing else uses these classes.
+   ===================================================================== */
+
+/* ---------- CUSTOM VENUE AUTOCOMPLETE DROPDOWN ---------- */
+.venue-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0 0 var(--r-md) var(--r-md);
+    box-shadow: var(--sh-lg);
+    max-height: 260px;
+    overflow-y: auto;
+    margin-top: 2px;
+}
+.vdd-item {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-top: 1px solid var(--border-low);
+    transition: background var(--t);
+}
+.vdd-item:first-child { border-top: none; }
+.vdd-item:hover,
+.vdd-item.vdd-active {
+    background: var(--bg-elevated);
+}
+.vdd-main {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.vdd-sec {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ---------- VISUAL TIME PICKER ---------- */
+.bk-time-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.bk-time-slot {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  text-align: center;
+  border-radius: var(--r);
+  cursor: pointer;
+  font-family: var(--f-body);
+  font-size: var(--fs-sm);
+  transition: all var(--t) var(--ease);
+}
+
+.bk-time-slot:hover:not(.busy) {
+  background: var(--y-muted);
+  border-color: var(--y-base);
+  color: var(--y-hover);
+}
+
+.bk-time-slot.selected {
+  background: var(--y-base);
+  color: var(--text-inverse);
+  border-color: var(--y-base);
+}
+
+.bk-time-slot.busy {
+  background: #151515;
+  color: #a0a0a0; /* Improved contrast gray */
+  border-color: #2e2e2e;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+/* Mobile responsive file uploader styles */
+@media (max-width: 768px) {
+  #bookAttachZone {
+    padding: 12px 15px !important;
+    border-style: solid !important;
+    border-width: 1px !important;
+  }
+  .bk-attach-icon {
+    display: none !important;
+  }
+  .bk-attach-text-desktop {
+    display: none !important;
+  }
+  .bk-attach-text-mobile {
+    display: block !important;
+  }
+}
