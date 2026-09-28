@@ -51,9 +51,11 @@ window.tsThumbFallback = function (imgEl) {
     var div = document.createElement('div');
     div.style.cssText = 'width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--atl-amber); color:var(--atl-bg, #0a0a0a); font-family:var(--atl-font-display, serif); font-size:22px; font-weight:600;';
     div.textContent = initial;
-    if (imgEl.parentElement) {
-        imgEl.parentElement.innerHTML = '';
-        imgEl.parentElement.appendChild(div);
+    // Grab the parent first: clearing it detaches the <img>, after which imgEl.parentElement is null.
+    var parent = imgEl.parentElement;
+    if (parent) {
+        parent.innerHTML = '';
+        parent.appendChild(div);
     }
 };
 
