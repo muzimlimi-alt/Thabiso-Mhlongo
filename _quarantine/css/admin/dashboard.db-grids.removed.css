@@ -1,0 +1,24 @@
+/* Removed from css/admin/dashboard.css by the CSS refactor, Phase 8 (finding F5).
+   These duplicated .db-summary-grid / .db-social-grid with DIFFERENT breakpoint values, and
+   were already fully overridden at runtime by css/admin/dashboard-widget.css, which is linked
+   later and whose base rule sets display, grid-template-columns AND gap. Media queries add no
+   specificity, so even these breakpoint variants lost to that base rule. Removal was a no-op,
+   confirmed by scripts/css-parity.js. Kept here rather than deleted. */
+
+.db-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+@media (min-width: 480px)  { .db-summary-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; } }
+@media (min-width: 768px)  { .db-summary-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; } }
+@media (min-width: 1024px) { .db-summary-grid { grid-template-columns: repeat(6, 1fr); } }
+
+.db-social-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+@media (min-width: 480px)  { .db-social-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 640px)  { .db-social-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 1024px) { .db-social-grid { grid-template-columns: repeat(5, 1fr); } }
