@@ -2644,21 +2644,34 @@ document.addEventListener("DOMContentLoaded", function() {
             return ok;
         }
 
+        // Escapes text for insertion via .html() — everything here is either typed by the visitor or
+        // comes from the service catalogue, so none of it should be interpreted as markup.
+        function bkEsc(s) { return $('<div>').text(String(s == null ? '' : s)).html(); }
+
         function buildReview() {
             var srvHtml = '';
             $('#bkServicesTableBody tr').each(function() {
-                var name = $(this).find('td:first').text().trim();
+                // The first cell holds the service name plus separate elements for its unit, duration,
+                // travel badge and notice/limit hints. Reading the whole cell's .text() ran them all
+                // together ("Full Dayunit~480 min performance...notice1 booking per day limit").
+                var $info = $(this).find('td:first > div > div').first().children();
+                var name = $info.first().text().trim() || $(this).find('td:first').text().trim();
+                var detailsHtml = $info.slice(1).map(function() {
+                    var t = $(this).text().trim();
+                    if (!t || t.toLowerCase() === 'unit') return '';   // "unit" is just the catalogue's placeholder label
+                    return '<div style="font-size:10px;color:#888;font-weight:400;margin-top:1px;">' + bkEsc(t) + '</div>';
+                }).get().join('');
                 var qty = parseInt($(this).find('.bk-svc-qty').val()) || 0;
                 var model = $(this).data('model');
                 var qtyDisp = model === 'per_minute' ? formatDuration(qty) : qty;
-                srvHtml += '<div style="margin-bottom:5px;font-size:12px;"><strong>' + name + '</strong> (' + qtyDisp + ')</div>';
+                srvHtml += '<div style="margin-bottom:5px;font-size:12px;"><strong>' + bkEsc(name) + '</strong> (' + bkEsc(qtyDisp) + ')' + detailsHtml + '</div>';
             });
             // P8: Include Venue Name and Company so the user can verify the
             // two most critical identifiers on the Review screen before submitting.
             var rows = [
                 ['Event Name',            $('#bookEventName').val()],
                 ['Event Type',            $('#bookType').val()],
-                ['Services Required',     srvHtml || '\u2014'],
+                ['Services Required',     srvHtml || '\u2014', true],   // true = already-escaped HTML
                 ['Event Date',            $('#bookDate').val()],
                 ['Performance Slot',      $('#bookSlot').val() || '\u2014'],
                 ['Venue / Location',      $('#bookLocation').val() || '\u2014'],
@@ -2678,7 +2691,8 @@ document.addEventListener("DOMContentLoaded", function() {
                 ['Travel & Accommodation', $('#bookTravel').val() || '\u2014']
             ];
             var html = rows.map(function(r) {
-                return '<div class="book-review-row"><span>' + r[0] + '</span><span>' + (r[1] || '\u2014') + '</span></div>';
+                var val = r[1] || '\u2014';
+                return '<div class="book-review-row"><span>' + r[0] + '</span><span>' + (r[2] ? val : bkEsc(val)) + '</span></div>';
             }).join('');
             $('#bookReviewContent').html(html);
         }
