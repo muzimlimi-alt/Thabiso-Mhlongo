@@ -3050,6 +3050,18 @@ document.addEventListener("DOMContentLoaded", function() {
             setTimeout(renderTimeSlots, 400);
         });
         $('#bookNext3').on('click', function() { if (validateStep(3)) { buildReview(); updateProgress(4); } });
+
+        // Enter in a single-line field means "Next" on steps 1-3. The form's only submit button is on the
+        // review step, so Enter used to fire a hidden submit that wrote an error into an element nobody could
+        // see and left the wizard where it was. (The venue field has its own Enter handling: it picks the
+        // highlighted suggestion.)
+        $('#dedicatedBookingForm').on('keydown', 'input:not([type=checkbox]):not([type=file]):not([type=hidden]):not(#bookLocation)', function(e) {
+            if (e.key !== 'Enter' || e.isComposing || e.originalEvent && e.originalEvent.isComposing) return;
+            if (currentStep >= 1 && currentStep <= 3) {
+                e.preventDefault();
+                $('#bookNext' + currentStep).trigger('click');
+            }
+        });
         $('#bookBack2').on('click', function() { updateProgress(1); });
         $('#bookBack3').on('click', function() { updateProgress(2); });
         $('#bookBack4').on('click', function() {
