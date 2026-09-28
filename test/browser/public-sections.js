@@ -24,6 +24,16 @@ async function openHome(browser, vp) {
     return p;
 }
 
+// The View More / View Less buttons stay in the DOM the whole time (tmPaginateGrid toggles a class,
+// not their presence) — so an existence check (page.$) can't tell "visible" from "hidden". This is
+// the one true visibility test: exists AND actually rendered (not display:none, whichever CSS put it
+// there). Puppeteer's own page.click() would otherwise happily "succeed" clicking a display:none
+// button (dispatches the event without ever needing a real, visible target), silently doing nothing
+// forever — this is what turned a real bug (below) into an infinite loop the first time around.
+async function visible(p, sel) {
+    return p.evaluate(sel => { const e = document.querySelector(sel); return !!e && !!e.offsetParent && getComputedStyle(e).display !== 'none'; }, sel);
+}
+
 // Horizontal centering, measured on the ACTUAL rendered content, not a wrapping element. A grid or
 // flex container that isn't full of content still reports its OWN box as spanning 100% of its parent
 // (1fr tracks / flex-basis:auto both do that by default) even when what's visibly inside it sits off
@@ -92,38 +102,71 @@ async function centering(p, itemsSel, withinSel) {
         await p.close();
     }
 
-    // ══════════ GALLERY: 8 at a time, "View More" for the rest ══════════
+    // Drives a paginated grid through: reveal everything (More, clicked while VISIBLE — the button
+    // stays in the DOM even once hidden, see `visible()` above, so every loop here bails on
+    // visibility, never mere existence, or it would click a display:none button forever and do
+    // nothing), collapse back to one page (Less), then reveal again. Shared by the Gallery and Past
+    // Shows blocks below so both get identical coverage. Returns the final total item count.
+    async function exhaustThenCollapse(p, sectionSel, countFn, label, pageSize) {
+        pageSize = pageSize || 8;
+        const moreSel = sectionSel + ' .tm-view-more', lessSel = sectionSel + ' .tm-view-less';
+
+        ok(!(await visible(p, lessSel)), label + ': no "View Less" yet at the first page', '');
+        var clicks = 0;
+        while (await visible(p, moreSel)) {
+            const before = await countFn();
+            await p.click(moreSel);
+            await sleep(300);
+            const after = await countFn();
+            ok(after > before && after - before <= pageSize, label + ': clicking More reveals up to ' + pageSize + ' more (' + before + ' -> ' + after + ')', String(after));
+            clicks++;
+            if (clicks > 10) { ok(false, label + ': View More did not exhaust after 10 clicks', ''); break; }
+        }
+        const total = await countFn();
+        ok(clicks >= 1, label + ': took at least one click to reach the end', String(clicks));
+        ok(await visible(p, lessSel), label + ': "View Less" is offered once more than one page is showing', '');
+        const lessText = await p.$eval(lessSel, e => e.textContent.trim()).catch(() => '');
+        ok(/view less/i.test(lessText), label + ': button says something like "View Less"', lessText);
+
+        await p.click(lessSel);
+        await sleep(300);
+        const collapsed = await countFn();
+        ok(collapsed === pageSize, label + ': "View Less" collapses straight back to ' + pageSize + ' (not one page back)', `${collapsed} (started from ${total})`);
+        ok(await visible(p, moreSel), label + ': "View More" is back once collapsed (there\'s more to reveal again)', '');
+        ok(!(await visible(p, lessSel)), label + ': "View Less" hides itself once back at the first page', '');
+
+        // Resume revealing — More must carry on from the collapsed page, not from wherever it left off.
+        await p.click(moreSel);
+        await sleep(300);
+        const resumed = await countFn();
+        ok(resumed === Math.min(total, pageSize * 2), label + ': clicking More after collapsing resumes the next page normally', `${resumed}`);
+
+        // Finish revealing everything again (bounded — see the comment on `visible()`), so callers can
+        // rely on "every item shown" afterwards.
+        for (let i = 0; i < 10 && (await visible(p, moreSel)); i++) { await p.click(moreSel); await sleep(300); }
+        ok(!(await visible(p, moreSel)), label + ': "View More" is gone once every item is shown', '');
+        ok(await countFn() === total, label + ': every item is shown once "View More" is gone', `${await countFn()} / ${total}`);
+
+        return total;
+    }
+
+    // ══════════ GALLERY: 8 at a time, View More / View Less ══════════
     {
         // Seed well past one page regardless of how many the checked-in DB already has.
         for (let i = 0; i < 12; i++) {
             const r = await api('POST', '/api/admin/gallery', { title: 'PS test photo ' + i, fallback_url: PIXEL });
             ok(r.status === 200 && r.body.success, 'seed: gallery photo ' + i, JSON.stringify(r.body));
         }
-        const total = (await pub('GET', '/api/public/gallery')).body.length;
 
         const p = await openHome(browser, { width: 1440, height: 1000 });
         await p.waitForSelector('#dynamicGalleryGrid .insta-item', { timeout: 15000 });
         const count = () => p.$$eval('#dynamicGalleryGrid .insta-item', els => els.length);
-        const btn = () => p.$('#gallery .tm-view-more-wrap .tm-view-more');
 
         ok(await count() === 8, 'Gallery: shows exactly 8 to start, however many photos exist', String(await count()));
-        let b = await btn();
-        ok(!!b, 'Gallery: a "View More" button appears below the grid', '');
         const btnText = await p.$eval('#gallery .tm-view-more', e => e.textContent.trim());
         ok(/view more/i.test(btnText), 'Gallery: button says something like "View More"', btnText);
 
-        var clicks = 0;
-        while (await btn()) {
-            const before = await count();
-            await p.click('#gallery .tm-view-more');
-            await sleep(300);
-            const after = await count();
-            ok(after > before && after - before <= 8, 'Gallery: clicking reveals up to 8 more (' + before + ' -> ' + after + ')', String(after));
-            clicks++;
-            if (clicks > 10) { ok(false, 'Gallery: View More did not exhaust after 10 clicks', ''); break; }
-        }
-        ok(await count() === total, 'Gallery: every photo is shown once the button is gone', `${await count()} / ${total}`);
-        ok(clicks >= 2, 'Gallery: took more than one click (seeded well past a single page)', String(clicks));
+        await exhaustThenCollapse(p, '#gallery', count, 'Gallery');
 
         // Lightbox re-scans the grid at click time — must see every revealed photo, not just the first 8.
         await p.click('#dynamicGalleryGrid .insta-item:last-child img');
@@ -135,7 +178,7 @@ async function centering(p, itemsSel, withinSel) {
         await p.close();
     }
 
-    // ══════════ PAST SHOWS: 8 at a time, "View More" for the rest; UPCOMING is never paginated ══════════
+    // ══════════ PAST SHOWS: 8 at a time, View More / View Less; UPCOMING is never paginated ══════════
     {
         for (let i = 1; i <= 12; i++) {
             const ds = '2015-02-' + String(i).padStart(2, '0');
@@ -159,40 +202,51 @@ async function centering(p, itemsSel, withinSel) {
 
         ok(await pastCount() === 8, 'Past Shows: shows exactly 8 to start', String(await pastCount()));
         ok(await upCount() === totalUpcoming, 'Upcoming Shows: shows ALL of them, never paginated', `${await upCount()} / ${totalUpcoming}`);
-        const upHasBtn = await p.evaluate(() => {
+        // populateGrid() only ever calls tmPaginateGrid (which creates the wrap) when opts.paginate is
+        // set — Upcoming's call site never sets it, so no wrap should exist here at all.
+        const upHasWrap = await p.evaluate(() => {
             const grid = document.getElementById('upcomingEventsGrid');
             return !!(grid.nextElementSibling && grid.nextElementSibling.classList.contains('tm-view-more-wrap'));
         });
-        ok(!upHasBtn, 'Upcoming Shows: no "View More" button, even with ' + totalUpcoming + ' events', String(upHasBtn));
+        ok(!upHasWrap, 'Upcoming Shows: no View More/Less controls, even with ' + totalUpcoming + ' events', String(upHasWrap));
 
-        var clicks = 0;
-        while (await p.$('#events .tm-view-more-wrap .tm-view-more').then(h => h !== null)) {
-            const before = await pastCount();
-            await p.click('#events .tm-view-more');
-            await sleep(300);
-            const after = await pastCount();
-            ok(after > before && after - before <= 8, 'Past Shows: clicking reveals up to 8 more (' + before + ' -> ' + after + ')', String(after));
-            clicks++;
-            if (clicks > 10) { ok(false, 'Past Shows: View More did not exhaust after 10 clicks', ''); break; }
-        }
-        ok(await pastCount() === totalPast, 'Past Shows: every past show is shown once the button is gone', `${await pastCount()} / ${totalPast}`);
-        ok(clicks >= 1, 'Past Shows: needed at least one click (seeded past a single page)', String(clicks));
+        const totalShownPast = await exhaustThenCollapse(p, '#events', pastCount, 'Past Shows');
+        ok(totalShownPast === totalPast, 'Past Shows: the total matches every past show, not just what was seeded here', `${totalShownPast} / ${totalPast}`);
         ok(p._errs.length === 0, 'Events: no page errors', p._errs.join(' | '));
         await p.close();
     }
 
-    // ══════════ focus after the button disappears (final click) lands somewhere sane, not lost ══════════
+    // ══════════ focus: neither button leaves it stranded when it hides itself ══════════
     {
-        // Fresh small seed: exactly one page's worth of overflow, so one click empties the queue.
-        for (let i = 0; i < 9; i++) await api('POST', '/api/admin/gallery', { title: 'Focus test ' + i, fallback_url: PIXEL });
+        // A fresh page open resets tmPaginateGrid's own `shown` counter to pageSize regardless of how
+        // much the gallery has grown across earlier blocks in this run — so however large the total
+        // now is, one click of "the button that's currently visible" always exercises exactly one
+        // hand-off; this loops (bounded) rather than assuming a specific number of clicks.
+        for (let i = 0; i < 3; i++) await api('POST', '/api/admin/gallery', { title: 'Focus test ' + i, fallback_url: PIXEL });
         const p = await openHome(browser, { width: 1440, height: 1000 });
         await p.waitForSelector('#gallery .tm-view-more', { timeout: 15000 });
+
+        // Click More (via keyboard) until it hides — checking after EACH click that focus never
+        // dangled on a now-hidden control along the way, not just at the very end.
         await p.focus('#gallery .tm-view-more');
-        // Click repeatedly (whatever the real remaining-page count is) until the button is gone.
-        for (let i = 0; i < 10 && (await p.$('#gallery .tm-view-more')); i++) { await p.keyboard.press('Enter'); await sleep(250); if (await p.$('#gallery .tm-view-more')) await p.focus('#gallery .tm-view-more'); }
-        const activeIsGrid = await p.evaluate(() => document.activeElement && document.activeElement.id === 'dynamicGalleryGrid');
-        ok(!(await p.$('#gallery .tm-view-more')), 'Focus test: the button is gone once everything is shown', '');
-        ok(activeIsGrid, 'Focus test: focus lands on the grid instead of vanishing when the button removes itself', String(activeIsGrid));
+        for (let i = 0; i < 10 && (await visible(p, '#gallery .tm-view-more')); i++) {
+            await p.keyboard.press('Enter');
+            await sleep(300);
+            const active = await p.evaluate(() => document.activeElement && document.activeElement.className);
+            const moreV = await visible(p, '#gallery .tm-view-more'), lessV = await visible(p, '#gallery .tm-view-less');
+            ok(moreV ? /tm-view-more/.test(active || '') : /tm-view-less/.test(active || ''),
+                'Focus test: focus is on whichever control is actually visible after a More click', JSON.stringify({ active, moreV, lessV }));
+        }
+        ok(!(await visible(p, '#gallery .tm-view-more')) && (await visible(p, '#gallery .tm-view-less')),
+            'Focus test: "View More" hides and "View Less" appears once everything is shown', '');
+
+        await p.keyboard.press('Enter'); // View Less is now focused — collapse back to the first page
+        await sleep(300);
+        const active = await p.evaluate(() => document.activeElement && document.activeElement.className);
+        ok(!(await visible(p, '#gallery .tm-view-less')) && (await visible(p, '#gallery .tm-view-more')),
+            'Focus test: "View Less" hides and "View More" reappears once collapsed', '');
+        ok(/tm-view-more/.test(active || ''), 'Focus test: focus hands off from Less to More (not lost) when Less hides', String(active));
+
         ok(p._errs.length === 0, 'Focus test: no page errors', p._errs.join(' | '));
         await p.close();
     }
