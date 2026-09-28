@@ -71,6 +71,22 @@ module.exports = async function ({ check, api, pub, one, future, getTrackingToke
     }
     check('invariant: every `full` date is refused and every open reserved date is offered by the per-date check', bad.length === 0, bad.join(' | '));
 
+    // ── a LAPSED hold (past its hold_expires_at) blocks nothing: month view and per-date check must both ignore it ──
+    // Seeded straight into the isolated test DB (the admin route always sets an expiry AFTER the held date).
+    const sqlite3 = require('sqlite3');
+    const rw = new sqlite3.Database(require('./support').TEST_DB);
+    const run = (sql, params = []) => new Promise((res, rej) => rw.run(sql, params, function (e) { e ? rej(e) : res(this); }));
+    const lapsedDate = future(978), liveDate = future(979);
+    await run("INSERT INTO date_holds (hold_date, notes, status, hold_expires_at) VALUES (?, 'lapsed hold', 'active', '2000-01-01 00:00:00')", [lapsedDate]);
+    await run("INSERT INTO date_holds (hold_date, notes, status, hold_expires_at) VALUES (?, 'live hold', 'active', datetime('now', '+30 days'))", [liveDate]);
+    rw.close();
+    const mLapsed = await monthData(lapsedDate);
+    check('month view: a lapsed hold does NOT make the date held', !(mLapsed.held || []).includes(lapsedDate), JSON.stringify(mLapsed.held));
+    check('month view: a hold that has not expired yet still counts as held', (mLapsed.held || []).includes(liveDate), JSON.stringify(mLapsed.held));
+    const aLapsed = await perDate(lapsedDate), aLive = await perDate(liveDate);
+    check('per-date check: the lapsed-hold date is available - agrees with the month view', aLapsed.available === true, JSON.stringify(aLapsed));
+    check('per-date check: the live-hold date is refused - agrees with the month view', aLive.available === false && aLive.reason === 'held', JSON.stringify(aLive));
+
     // ── robustness ──
     const badMonth = await pub('GET', '/api/public/availability/month?year=abc&month=13');
     check('month view rejects a malformed year/month (400, no crash)', badMonth.status === 400, String(badMonth.status));

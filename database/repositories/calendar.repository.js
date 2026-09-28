@@ -43,8 +43,11 @@ function getDateHoldTimesForDay(dateStr, callback) {
 function getDateHoldsForAvailabilityCheck(dateStr, callback) {
     db.all("SELECT start_time, end_time, block_type FROM date_holds WHERE hold_date = ? AND status = 'active' AND (hold_expires_at IS NULL OR hold_expires_at > datetime('now'))", [dateStr], callback);
 }
+// Month-view twin of getDateHoldsForAvailabilityCheck() above — same "still in force" test (a hold past its
+// hold_expires_at no longer blocks the date), so a lapsed hold can't show a date as blocked on the calendar
+// while the per-date check would happily accept it. Keep the two in step.
 function getActiveHoldDatesForMonth(likePrefix, callback) {
-    db.all("SELECT hold_date FROM date_holds WHERE hold_date LIKE ? AND status = 'active' AND start_time IS NULL", [likePrefix], callback);
+    db.all("SELECT hold_date FROM date_holds WHERE hold_date LIKE ? AND status = 'active' AND start_time IS NULL AND (hold_expires_at IS NULL OR hold_expires_at > datetime('now'))", [likePrefix], callback);
 }
 function getActiveDateHoldsForEventConflict(dateStr, excludeId, callback) {
     db.all(
