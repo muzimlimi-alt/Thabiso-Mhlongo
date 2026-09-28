@@ -33,7 +33,7 @@
 	
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
-	<link rel="stylesheet" href="css/public/redesign.css?v=12">
+	<link rel="stylesheet" href="css/public/redesign.css?v=13">
 	<link rel="stylesheet" href="css/public/tracking-modal.css">
 	<link rel="stylesheet" href="css/components/notifications.css">
 	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
@@ -44,7 +44,7 @@
 	<!-- Google Places Visibility Fix -->
 	<!-- Booking wizard styles — extracted from the inline block that sat here. Must stay
 	     LAST of the project stylesheets: it relied on being after every <link>. -->
-	<link rel="stylesheet" href="css/public/booking-form.css?v=6">
+	<link rel="stylesheet" href="css/public/booking-form.css?v=7">
 
 	<!-- No-FOUC section visibility: hide sections the admin turned off, from cache, before first paint.
 	     renderSiteContent() in myscript.js reconciles with the server and removes this style. -->
@@ -778,8 +778,6 @@
 								<div class="col-md-12 form-group">
 									<label class="bk-label">Event Date <span class="bk-required" aria-hidden="true">*</span></label>
 									<input type="hidden" id="bookDate">
-									<div id="bookDateDisplay" class="bk-date-display" role="status" aria-live="polite">No date selected — pick one from the calendar below.</div>
-									<div class="bk-step-err" id="err-bookDate"><i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i>Please select the event date before continuing.</div>
 								</div>
 							</div>
 							<div id="availabilityCalendar">
@@ -795,11 +793,23 @@
 										<span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
 									</div>
 									<div class="tm-cal-days" id="calDaysGrid" role="group" aria-label="Choose an event date — arrow keys move between days, Enter selects"></div>
+									<!-- The chosen date + what it means. Sits under the grid (where the eye is after a tap, and on phones where
+									     the top of the calendar has scrolled away) and is drawn from the SAME state as the calendar cell:
+									     data-state / icon / message are written by renderSelectedDate() in js/myscript.js and the colour comes
+									     from the shared --status-* tokens (css/public/redesign.css). #hint-bookDate carries the message. -->
+									<div id="bookDateDisplay" class="bk-date-status" data-state="none" role="status" aria-live="polite" aria-atomic="true">
+										<i class="bk-date-status__icon fa-regular fa-calendar" aria-hidden="true"></i>
+										<div class="bk-date-status__body">
+											<div class="bk-date-status__date" id="bookDateText">No date selected — pick one from the calendar above.</div>
+											<div class="bk-date-status__msg" id="hint-bookDate"></div>
+										</div>
+									</div>
+									<div class="bk-step-err" id="err-bookDate"><i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i>Please select the event date before continuing.</div>
 									<div class="tm-cal-legend" aria-hidden="true">
-										<span><span class="tm-cal-dot tm-cal-dot--avail"></span>Available</span>
-										<span><span class="tm-cal-dot tm-cal-dot--booked"></span>Reserved (other times open)</span>
-										<span><span class="tm-cal-dot tm-cal-dot--held"></span>Blocked</span>
-										<span><span class="tm-cal-dot tm-cal-dot--nonworking"></span>Not bookable (closed day, past or short notice)</span>
+										<span><span class="tm-cal-dot tm-cal-dot--avail" data-state="avail"></span>Available</span>
+										<span><span class="tm-cal-dot tm-cal-dot--booked" data-state="booked"></span>Reserved</span>
+										<span><span class="tm-cal-dot tm-cal-dot--held" data-state="held"></span>Blocked</span>
+										<span><span class="tm-cal-dot tm-cal-dot--nonworking" data-state="nonworking"></span>Not bookable (closed day, past or short notice)</span>
 										<span><span class="tm-cal-dot tm-cal-dot--selected"></span>Selected</span>
 									</div>
 								</div>
@@ -1950,7 +1960,7 @@
 <script src="js/bootstrap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
 	<script src="js/team-view.js?v=1"></script>
-	<script src="js/myscript.js?v=1.8.2"></script>
+	<script src="js/myscript.js?v=1.9.0"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather

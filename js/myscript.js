@@ -1835,33 +1835,19 @@ document.addEventListener("DOMContentLoaded", function() {
         let currentBusyRanges = []; // store busy ranges for the selected date
 
         function setDateStatus(type, html) {
-            // type: 'loading' | 'ok' | 'error' | 'warn' | 'clear'
-            // setDateStatus is the single authority for all date field feedback —
-            // always clear competing err div and CSS classes before applying new state.
-            let $hint = $('#hint-bookDate');
-            if (!$hint.length) {
-                $('#err-bookDate').after('<div id="hint-bookDate" role="status" style="font-size:12px; margin-top:6px; line-height:1.5;"></div>');
-                $hint = $('#hint-bookDate');
-            }
-            const $input = $('#bookDate');
-            $input.css('border-color', '').removeClass('bk-input--err bk-input--ok');
+            // type: 'loading' | 'ok' | 'error' | 'warn' | 'clear' (or false, for a server-side validation message)
+            // The date field's feedback is drawn by the selected-date bar under the calendar (#bookDateDisplay,
+            // renderSelectedDate() in the calendar script at the bottom of this file). This only supplies the MESSAGE:
+            // the bar's colour and icon come from the selected date's availability state - the very state that colours
+            // its calendar cell - never from `type`, so a message can't contradict the date it describes.
+            $('#bookDate').removeClass('bk-input--err bk-input--ok');
             $('#err-bookDate').hide();
-            if (type === 'loading') {
-                $input.css('border-color', '#555');
-                $hint.html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:5px; color:#888;"></i><span style="color:#aaa;">' + html + '</span>').show();
-            } else if (type === 'ok') {
-                $input.css('border-color', '#4CAF50');
-                $hint.html('<i class="fa-solid fa-circle-check" style="margin-right:5px; color:#4CAF50;"></i><span style="color:#4CAF50;">' + html + '</span>').show();
-            } else if (type === 'error') {
-                $input.css('border-color', '#ef5350');
-                $hint.html('<i class="fa-solid fa-circle-xmark" style="margin-right:5px; color:#ef5350;"></i><span style="color:#ef5350;">' + html + '</span>').show();
-            } else if (type === 'warn') {
-                $input.css('border-color', '#FF9800');
-                $hint.html('<i class="fa-solid fa-triangle-exclamation" style="margin-right:5px; color:#FF9800;"></i><span style="color:#FF9800;">' + html + '</span>').show();
-            } else {
-                $hint.text('').hide();
-                $input.css('border-color', '');
-            }
+            if (window.bkSetDateMessage) window.bkSetDateMessage(type === 'clear' ? '' : type === 'loading' ? 'loading' : 'text', html);
+        }
+
+        // "18:00–20:00" (first three windows) for the reserved-date message
+        function bkBusyText(ranges) {
+            return ranges.slice(0, 3).map(function (r) { return r.start + '–' + r.end; }).join(', ') + (ranges.length > 3 ? ' and more' : '');
         }
 
         $('#bookDate').on('change', async function() {
@@ -1874,48 +1860,61 @@ document.addEventListener("DOMContentLoaded", function() {
 
             setDateStatus('loading', 'Checking availability…');
 
+            // Whatever the server says about THIS date is handed to the calendar (bkNoteDateVerdict) so the date's cell
+            // and the selected-date bar are redrawn from one state - and it is only APPLIED here while the visitor is
+            // still on this date: a slow answer for an earlier pick must not overwrite a later one.
+            const stillCurrent = () => $('#bookDate').val() === date;
+            let data;
             try {
                 const r = await fetch('/api/public/availability?date=' + encodeURIComponent(date), { bypassInterceptor: true });
                 // A rate-limited (429) or failing (5xx) answer says nothing about the DATE — it must not be
                 // reported as "this date is not available". Treat it like a network error (below).
                 if (r.status === 429 || r.status >= 500) throw new Error('availability check unavailable (' + r.status + ')');
-                const data = await r.json();
-
-                if (data.available) {
-                    dateAvailable = true;
-                    currentBusyRanges = data.busy_ranges || [];
-                    $('#bookNext1').prop('disabled', false);
-                    
-                    let msg = data.message || 'This date is available!';
-                    if (currentBusyRanges.length > 0) {
-                        msg += ' (Note: Some specific times are blocked)';
-                    }
-                    setDateStatus('ok', msg);
-                } else {
-                    dateAvailable = false;
-                    let msg = data.message || 'This date is not available.';
-                    if (data.suggestion && data.suggestion_label) {
-                        msg += ` <a href="#" id="bk-use-suggestion" data-date="${data.suggestion}" style="color:#D4AF37; font-weight:600; text-decoration:underline;">Try ${data.suggestion_label} instead →</a>`;
-                    }
-                    const statusType = data.reason === 'too_soon' ? 'warn' : 'error';
-                    setDateStatus(statusType, msg);
-                }
-                renderTimeSlots();
+                data = await r.json();
             } catch(e) {
                 // Couldn't reach / trust the availability check: allow continuation (the server re-checks the
                 // date when the booking is submitted) — but SAY so, instead of silently clearing the status.
+                if (window.bkNoteDateVerdict) window.bkNoteDateVerdict(date, 'unknown');
+                if (!stillCurrent()) return;
                 dateAvailable = true;
                 $('#bookNext1').prop('disabled', false);
                 setDateStatus('warn', 'We couldn\'t confirm this date\'s availability just now. You can continue — we\'ll confirm it with you.');
                 renderTimeSlots();
+                return;
             }
+
+            const busy = data.available ? (data.busy_ranges || []) : [];
+            if (window.bkNoteDateVerdict) {
+                window.bkNoteDateVerdict(date, data.available ? (busy.length ? 'partial' : 'avail')
+                    : data.reason === 'held' ? 'held' : data.reason === 'too_soon' ? 'soon' : 'full');
+            }
+            if (!stillCurrent()) return;
+
+            if (data.available) {
+                dateAvailable = true;
+                currentBusyRanges = busy;
+                $('#bookNext1').prop('disabled', false);
+                setDateStatus('ok', busy.length
+                    ? 'Reserved: ' + bkBusyText(busy) + (busy.length === 1 ? ' is' : ' are') + ' taken, but the rest of the day is open.'
+                    : (data.message || 'This date is available!'));
+            } else {
+                dateAvailable = false;
+                let msg = data.message || 'This date is not available.';
+                if (data.suggestion && data.suggestion_label) {
+                    msg += ` <a href="#" id="bk-use-suggestion" class="bk-date-status__link" data-date="${data.suggestion}">Try ${data.suggestion_label} instead →</a>`;
+                }
+                setDateStatus(data.reason === 'too_soon' ? 'warn' : 'error', msg);
+            }
+            renderTimeSlots();
         });
 
         // Handle "use suggestion" click
         $(document).on('click', '#bk-use-suggestion', function(e) {
             e.preventDefault();
             const suggested = $(this).data('date');
-            $('#bookDate').val(suggested).trigger('change');
+            // Through the calendar, so it flips to that month and marks the date like any other pick.
+            if (window.bkPickDate) window.bkPickDate(suggested);
+            else $('#bookDate').val(suggested).trigger('change');
         });
 
         // --- PERFORMANCE SLOT TIME RANGE PICKER ---
@@ -2197,12 +2196,9 @@ document.addEventListener("DOMContentLoaded", function() {
         const _origNext1 = $('#bookNext1').off('click').click;
         $('#bookNext1').on('click', function() {
             if (!dateAvailable) {
-                // A date is chosen but isn't (yet) bookable: make sure the reason is on screen. The
-                // hint element is created lazily by setDateStatus, so it may not exist yet.
-                if ($('#bookDate').val()) {
-                    const $hint = $('#hint-bookDate');
-                    if (!$hint.length || !$hint.is(':visible')) setDateStatus('warn', 'Please select an available date before continuing.');
-                }
+                // A date is chosen but isn't (yet) bookable: make sure the reason is on screen (the selected-date
+                // bar normally already says why).
+                if ($('#bookDate').val() && !$.trim($('#hint-bookDate').text())) setDateStatus('warn', 'Please select an available date before continuing.');
                 // validateStep(1) reports everything wrong on this step — the missing date (warning +
                 // aria-invalid) and any missing event name / type / service — instead of the click
                 // silently doing nothing on a fresh form.
@@ -3555,13 +3551,8 @@ $bookingForm.on('blur', '#bookName', function() {
                         if (draft.fields.bkSlotFrom) $('#bkSlotFrom').trigger('change');
 
                         // Re-run availability check so dateAvailable is restored after modal reopen
-                        if (draft.fields.bookDate) {
-                            var $disp = $('#bookDateDisplay');
-                            if ($disp.length) {
-                                $disp.text(window.bkLongDate ? window.bkLongDate(draft.fields.bookDate) : draft.fields.bookDate).addClass('bk-date-display--filled');
-                            }
-                            $('#bookDate').trigger('change');
-                        }
+                        // (The change handler draws the date in the selected-date bar and marks its calendar cell.)
+                        if (draft.fields.bookDate) $('#bookDate').trigger('change');
 
                         // P5: Restore services table from draft so the user doesn't
                         // need to re-add services after closing and reopening the modal.
@@ -3665,7 +3656,7 @@ $bookingForm.on('blur', '#bookName', function() {
             dateAvailable = false;
             $('#bookNext1').prop('disabled', false); // allow typing; re-gate on date change
             setDateStatus('clear');
-            $('#bookDateDisplay').text('No date selected — pick one from the calendar below.').removeClass('bk-date-display--filled bk-input--err');
+            if (window.bkResetDateDisplay) window.bkResetDateDisplay();
             $('#bkClearDraftBtn').hide();
             $('#bkDraftBanner').remove();
             $('#bkPrefillNote').remove();
@@ -3683,6 +3674,7 @@ $bookingForm.on('blur', '#bookName', function() {
             dateAvailable = false;
             $('#bookNext1').prop('disabled', false);
             setDateStatus('clear');
+            if (window.bkResetDateDisplay) window.bkResetDateDisplay();
             $('.bk-service-card').removeClass('selected');
             $('#bkDraftStatus').hide();
             $('#bkClearDraftBtn').hide();
@@ -3837,7 +3829,12 @@ window.onbeforeunload = function() {
     // state.seq numbers every month request so a slow, older response can never overwrite a newer one
     // (rapid month navigation). state.error means the last request failed — the grid then says so instead
     // of showing every date as if it were confirmed available.
-    var state = { year: 0, month: 0, held: [], booked: [], full: [], loading: false, error: false, nonWorkingDows: [], minAdvanceHours: 0, seq: 0, focusDate: null };
+    // months: per-month availability views already loaded, keyed 'YYYY-MM' ({ held, booked, full, error }).
+    // verdicts: what the server's per-date check said about individual dates ('avail' | 'partial' | 'held' | 'soon' |
+    // 'full' | 'unknown'), reported by the booking wizard - fresher than the month view, so it wins for that date.
+    // inspect: a not-bookable date the visitor tapped to see why (nothing is booked). msg: the wizard's message for
+    // the currently chosen date (see renderSelectedDate).
+    var state = { year: 0, month: 0, months: {}, verdicts: {}, inspect: null, msg: null, loading: false, error: false, nonWorkingDows: [], minAdvanceHours: 0, seq: 0, focusDate: null };
     var DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 
     function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -3925,8 +3922,13 @@ window.onbeforeunload = function() {
         prevBtn.setAttribute('aria-disabled', atCurrent ? 'true' : 'false');
     }
 
+    function dropVerdicts(monthKey) {
+        Object.keys(state.verdicts).forEach(function(ds) { if (ds.slice(0, 7) === monthKey) delete state.verdicts[ds]; });
+    }
+
     function fetchAndRender() {
         var seq = ++state.seq;
+        var monthKey = state.year + '-' + pad(state.month);
         state.loading = true;
         state.error = false;
         document.getElementById('calTitle').textContent = MONTHS[state.month - 1] + ' ' + state.year;
@@ -3939,9 +3941,9 @@ window.onbeforeunload = function() {
             .then(function(r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(function(data) {
                 if (seq !== state.seq) return;          // a newer month request superseded this one
-                state.held   = data.held   || [];
-                state.booked = data.booked || [];
-                state.full   = data.full   || [];       // reserved AND the whole day is taken (not selectable)
+                // full = reserved AND the whole day is taken (not selectable)
+                state.months[monthKey] = { held: data.held || [], booked: data.booked || [], full: data.full || [], error: false };
+                dropVerdicts(monthKey);                 // this fresh month view supersedes earlier per-date answers
                 state.loading = false;
                 renderGrid();
             })
@@ -3949,38 +3951,113 @@ window.onbeforeunload = function() {
                 if (seq !== state.seq) return;
                 // Do NOT pretend the month is clear: keep the dates selectable (the server re-checks the
                 // chosen date), but mark them "not confirmed" and say so.
-                state.held = []; state.booked = []; state.full = [];
+                state.months[monthKey] = { held: [], booked: [], full: [], error: true };
+                dropVerdicts(monthKey);
                 state.loading = false;
                 state.error = true;
                 renderGrid();
             });
     }
 
-    function calState(date, ds, now, todayStart) {
-        // Precedence mirrors what can actually be booked: past / closed day / blocked win over reserved.
-        if (date < todayStart) return { key: 'past', tip: 'Past date', clickable: false };
-        if (state.nonWorkingDows.indexOf(date.getDay()) >= 0) return { key: 'nonworking', tip: 'Not a working day', clickable: false };
-        if (state.held.indexOf(ds) >= 0) return { key: 'held', tip: 'Blocked', clickable: false };
-        // An untimed booking/event occupies the whole day: the per-date check would refuse it, so it is
-        // shown as reserved (orange) but is not selectable.
-        if (state.full.indexOf(ds) >= 0) return { key: 'booked', extra: ' tm-cal-cell--full', tip: 'Reserved — the whole day is taken', clickable: false };
+    // ── ONE state per date ──────────────────────────────────────────────────────────────────────────
+    // dateState(ds) is the single place a date's availability is decided. The calendar cell (renderGrid) and the
+    // selected-date bar (renderSelectedDate) both call it and write its `key` as data-state; the state -> colour
+    // mapping exists once, in css/public/redesign.css. Inputs, in precedence order: past / closed weekday (known
+    // client-side) - the server's answer for THIS date (state.verdicts) - the month view (held / booked / full) -
+    // the minimum-notice rule. Mirrors what can actually be booked: past / closed / blocked win over reserved.
+    var STATE_ICON = {
+        none: 'fa-regular fa-calendar', avail: 'fa-solid fa-circle-check', booked: 'fa-solid fa-clock', held: 'fa-solid fa-circle-xmark',
+        nonworking: 'fa-solid fa-circle-minus', past: 'fa-solid fa-circle-minus', soon: 'fa-solid fa-circle-minus', unknown: 'fa-solid fa-circle-question'
+    };
+
+    function dateState(ds, now, todayStart) {
+        now = now || new Date();
+        if (!todayStart) { todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0); }
+        var date = fromDateStr(ds);
+        var notice = 'bookings need at least ' + state.minAdvanceHours + ' hours\' notice';
+        if (date < todayStart) return { key: 'past', tip: 'Past date', msg: 'This date has passed — pick a later one.', clickable: false };
+        if (state.nonWorkingDows.indexOf(date.getDay()) >= 0) return { key: 'nonworking', tip: 'Not a working day', msg: 'Not a working day — pick another date.', clickable: false };
+        var m = state.months[ds.slice(0, 7)];               // that month's view, once loaded
+        var v = state.verdicts[ds];                          // what the per-date check said about exactly this date
+        var held = v ? v === 'held' : !!m && m.held.indexOf(ds) >= 0;
+        var full = v ? v === 'full' : !!m && m.full.indexOf(ds) >= 0;
+        var partial = v ? v === 'partial' : !!m && m.booked.indexOf(ds) >= 0;
         // Same rule the server applies to the chosen date (midnight of that day vs now).
-        if (state.minAdvanceHours > 0 && (date.getTime() - now.getTime()) < state.minAdvanceHours * 3600000) {
-            return { key: 'soon', tip: 'Too soon — bookings need at least ' + state.minAdvanceHours + ' hours\' notice', clickable: false };
-        }
-        if (state.error) return { key: 'unknown', tip: 'Availability not confirmed — select to check this date', clickable: true };
-        if (state.booked.indexOf(ds) >= 0) return { key: 'booked', tip: 'Reserved — other times may still be open', clickable: true };
-        return { key: 'avail', tip: 'Available', clickable: true };
+        var soon = v === 'soon' || (state.minAdvanceHours > 0 && (date.getTime() - now.getTime()) < state.minAdvanceHours * 3600000);
+        var unconfirmed = v ? v === 'unknown' : (!m || m.error);
+        if (held) return { key: 'held', tip: 'Blocked', msg: 'This date is blocked.', clickable: false };
+        // An untimed booking/event occupies the whole day: the per-date check would refuse it, so it is shown as
+        // reserved (orange) but is not selectable.
+        if (full) return { key: 'booked', extra: ' tm-cal-cell--full', tip: 'Reserved — the whole day is taken', msg: 'Reserved — this whole day is taken. Please choose another date.', icon: 'fa-solid fa-calendar-xmark', clickable: false };
+        if (soon) return { key: 'soon', tip: 'Too soon — ' + notice, msg: 'Too soon — ' + notice + '.', clickable: false };
+        if (unconfirmed) return { key: 'unknown', tip: 'Availability not confirmed — select to check this date', msg: 'Availability not confirmed yet.', clickable: true };
+        if (partial) return { key: 'booked', tip: 'Reserved — other times may still be open', msg: 'Reserved — some times are taken, other times are still open.', clickable: true };
+        return { key: 'avail', tip: 'Available', msg: 'This date is available!', clickable: true };
     }
 
-    function selectCell(grid, el) {
-        Array.prototype.forEach.call(grid.querySelectorAll('.tm-cal-cell--selected'), function(prev) {
-            prev.classList.remove('tm-cal-cell--selected');
-            prev.removeAttribute('aria-pressed');
+    // Marks the selected cell: the chosen booking date, or a not-bookable date the visitor tapped to see why.
+    function markSelected() {
+        var grid = document.getElementById('calDaysGrid');
+        if (!grid) return;
+        var input = document.getElementById('bookDate');
+        var sel = (input && input.value) || state.inspect || '';
+        Array.prototype.forEach.call(grid.querySelectorAll('.tm-cal-cell[data-date]'), function(c) {
+            var on = c.getAttribute('data-date') === sel;
+            c.classList.toggle('tm-cal-cell--selected', on);
+            c.classList.toggle('tm-cal-cell--inspect', on && !c.classList.contains('tm-cal-cell--clickable'));
+            if (on) c.setAttribute('aria-pressed', 'true'); else c.removeAttribute('aria-pressed');
         });
-        el.classList.add('tm-cal-cell--selected');
-        el.setAttribute('aria-pressed', 'true');
-        openBookingWithDate(el.getAttribute('data-date'));
+    }
+
+    // The selected-date bar (#bookDateDisplay): the chosen date, its state (data-state -> colour, icon, wording) and
+    // the wizard's message for it. Always redrawn from dateState() - the same call that draws the cell - so the two
+    // agree by construction; it is a no-op when nothing it shows has changed (it is a live region).
+    function renderSelectedDate() {
+        var box = document.getElementById('bookDateDisplay');
+        if (!box) return;
+        var input = document.getElementById('bookDate');
+        var picked = input ? input.value : '';
+        var ds = picked || state.inspect || '';
+        var m = state.msg && state.msg.ds === picked ? state.msg : null;
+        var key, text, msg, icon;
+        if (!ds) {
+            key = 'none'; text = 'No date selected — pick one from the calendar above.'; icon = STATE_ICON.none;
+            msg = m && m.kind === 'text' ? m.html : '';
+        } else {
+            var st = dateState(ds);
+            key = st.key; text = longDate(ds); icon = st.icon || STATE_ICON[st.key];
+            if (m && m.kind === 'loading') { msg = m.html; icon = 'fa-solid fa-spinner fa-spin'; }
+            else msg = m && m.html ? m.html : st.msg;
+        }
+        var sig = [key, text, msg, icon].join('|');
+        if (box._sig === sig) return;
+        box._sig = sig;
+        box.setAttribute('data-state', key);
+        box.querySelector('.bk-date-status__date').textContent = text;
+        box.querySelector('.bk-date-status__msg').innerHTML = msg;      // server / static wording (+ our own suggestion link)
+        box.querySelector('.bk-date-status__icon').className = 'bk-date-status__icon ' + icon;
+    }
+
+    // A click / Enter on a date. Bookable -> it becomes the booking date (the wizard's change handler then runs the
+    // per-date check). Not bookable (closed, blocked, past, whole day taken) -> nothing is booked, but the date is
+    // still shown - ringed and explained in its state colour - so a phone visitor (no hover tooltips) learns why.
+    function pickDate(ds) {
+        var input = document.getElementById('bookDate');
+        if (!input) return;
+        var st = dateState(ds);
+        var disp = document.getElementById('bookDateDisplay');
+        if (disp) disp.classList.remove('bk-input--err');
+        state.msg = null;
+        if (st.clickable) { state.inspect = null; input.value = ds; }
+        else { state.inspect = ds; input.value = ''; }
+        // Fire jQuery change so the existing availability pre-check runs (with no date it clears the gate and Next).
+        if (typeof $ !== 'undefined') $('#bookDate').trigger('change');
+        markSelected();
+        renderSelectedDate();
+        // The answer is drawn just under the grid: if that spot is off-screen (or under the sticky Back/Next row, e.g. after
+        // tapping a date in the last week on a phone) bring it into view - scroll-margin-bottom on the bar keeps it clear of that row.
+        var bar = document.getElementById('bookDateDisplay');
+        if (bar && bar.scrollIntoView) bar.scrollIntoView({ block: 'nearest' });
     }
 
     function renderGrid() {
@@ -3992,7 +4069,8 @@ window.onbeforeunload = function() {
         var todayStr = toDateStr(todayStart);
         var firstDow = new Date(state.year, state.month - 1, 1).getDay();
         var daysInMonth = new Date(state.year, state.month, 0).getDate();
-        var selectedDs = document.getElementById('bookDate') ? document.getElementById('bookDate').value : '';
+        // Keyboard focus survives a redraw (e.g. when the server's answer for a date changes its state).
+        var focusedDs = grid.contains(document.activeElement) ? document.activeElement.getAttribute('data-date') : null;
         var cells = [];
 
         for (var blank = 0; blank < firstDow; blank++) {
@@ -4001,26 +4079,24 @@ window.onbeforeunload = function() {
 
         for (var d = 1; d <= daysInMonth; d++) {
             var ds   = state.year + '-' + pad(state.month) + '-' + pad(d);
-            var date = new Date(state.year, state.month - 1, d);
-            var st   = calState(date, ds, now, todayStart);
+            var st   = dateState(ds, now, todayStart);
             var isToday = ds === todayStr;
 
             var cls = 'tm-cal-cell tm-cal-cell--' + st.key + (st.extra || '');
             if (st.clickable) cls += ' tm-cal-cell--clickable';
             if (isToday)      cls += ' tm-cal-cell--today';
-            var isSel = st.clickable && ds === selectedDs;
-            if (isSel)        cls += ' tm-cal-cell--selected';
 
             var label = longDate(ds) + (isToday ? ' (today)' : '') + ' — ' + st.tip;
             cells.push(
                 '<div class="' + cls + '" data-date="' + ds + '" data-state="' + st.key + '" title="' + st.tip.replace(/"/g, '&quot;') + '"' +
                 ' role="button" tabindex="-1" aria-label="' + label.replace(/"/g, '&quot;') + '"' +
-                (st.clickable ? '' : ' aria-disabled="true"') + (isSel ? ' aria-pressed="true"' : '') + (isToday ? ' aria-current="date"' : '') +
+                (st.clickable ? '' : ' aria-disabled="true"') + (isToday ? ' aria-current="date"' : '') +
                 '>' + d + '</div>'
             );
         }
 
         grid.innerHTML = cells.join('');
+        markSelected();                                  // the chosen / inspected date, if it is in this month
         grid.classList.remove('tm-cal-days--loading');
         grid.removeAttribute('aria-busy');
         setCalStatus(state.error ? 'error' : '');
@@ -4039,31 +4115,52 @@ window.onbeforeunload = function() {
         if (stop) stop.setAttribute('tabindex', '0');
 
         // Arrow-key navigation crossed a month boundary: land on the intended day once it is rendered.
-        if (state.focusDate) {
-            var target = grid.querySelector('.tm-cal-cell[data-date="' + state.focusDate + '"]');
+        var refocus = state.focusDate || focusedDs;
+        if (refocus) {
+            var target = grid.querySelector('.tm-cal-cell[data-date="' + refocus + '"]');
             state.focusDate = null;
             if (target) {
                 Array.prototype.forEach.call(grid.querySelectorAll('[tabindex="0"]'), function(x) { x.setAttribute('tabindex', '-1'); });
                 target.setAttribute('tabindex', '0');
-                target.focus();
+                target.focus({ preventScroll: true });
             }
         }
+        renderSelectedDate();
     }
 
-    function openBookingWithDate(ds) {
-        var inp = document.getElementById('bookDate');
-        if (inp) {
-            inp.value = ds;
-            var disp = document.getElementById('bookDateDisplay');
-            if (disp) {
-                disp.textContent = longDate(ds);
-                disp.classList.add('bk-date-display--filled');
-                disp.classList.remove('bk-input--err');
-            }
-            // Fire jQuery change so the existing availability pre-check runs
-            if (typeof $ !== 'undefined') $('#bookDate').trigger('change');
-        }
-    }
+    // The booking wizard reports what the server's per-date check said about a date. It is recorded, and if that
+    // changes the date's state the cell is redrawn - together with the bar - so both show the fresher answer.
+    window.bkNoteDateVerdict = function(ds, v) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ds || '')) return;
+        var sig = function(s) { return s.key + (s.extra || '') + s.clickable; };
+        var before = sig(dateState(ds));
+        state.verdicts[ds] = v;
+        if (sig(dateState(ds)) !== before && !state.loading) renderGrid();   // (a month load in flight redraws when it lands)
+        else renderSelectedDate();
+    };
+    // The wizard's message for the chosen date ('' clears; 'loading' shows the spinner).
+    window.bkSetDateMessage = function(kind, html) {
+        var input = document.getElementById('bookDate');
+        state.msg = kind ? { ds: input ? input.value : '', kind: kind, html: html || '' } : null;
+        renderSelectedDate();
+    };
+    window.bkRefreshDateDisplay = function() { markSelected(); renderSelectedDate(); };
+    // Back to "no date selected" (wizard reset / cleared draft).
+    window.bkResetDateDisplay = function() {
+        var input = document.getElementById('bookDate');
+        if (input) input.value = '';
+        var disp = document.getElementById('bookDateDisplay');
+        if (disp) disp.classList.remove('bk-input--err');
+        state.inspect = null; state.msg = null;
+        markSelected();
+        renderSelectedDate();
+    };
+    // Select a date from outside the grid (the "Try <date> instead" suggestion): flips to its month first.
+    window.bkPickDate = function(ds) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(ds || '')) return;
+        if (ds.slice(0, 7) !== state.year + '-' + pad(state.month)) gotoMonth(+ds.slice(0, 4), +ds.slice(5, 7) - 1);
+        pickDate(ds);
+    };
 
     function gotoMonth(year, month0, focusDate) {
         var d = new Date(year, month0, 1);
@@ -4096,15 +4193,15 @@ window.onbeforeunload = function() {
 
         // Delegated: the grid is rebuilt on every month change.
         grid.addEventListener('click', function(e) {
-            var el = e.target.closest ? e.target.closest('.tm-cal-cell--clickable') : null;
-            if (el && grid.contains(el)) selectCell(grid, el);
+            var el = e.target.closest ? e.target.closest('.tm-cal-cell[data-date]') : null;
+            if (el && grid.contains(el)) pickDate(el.getAttribute('data-date'));
         });
         grid.addEventListener('keydown', function(e) {
             var el = e.target.closest ? e.target.closest('.tm-cal-cell[data-date]') : null;
             if (!el) return;
             if (e.key === 'Enter' || e.key === ' ') {
-                if (el.classList.contains('tm-cal-cell--clickable')) { e.preventDefault(); selectCell(grid, el); }
-                else e.preventDefault();               // closed / blocked dates: nothing to select, but don't scroll the drawer
+                e.preventDefault();                    // also stops Space scrolling the drawer
+                pickDate(el.getAttribute('data-date'));
                 return;
             }
             var cur = fromDateStr(el.getAttribute('data-date'));
@@ -4143,10 +4240,7 @@ window.onbeforeunload = function() {
 
     // Allow other scripts to force-refresh (e.g. after admin action)
     window.refreshAvailCalendar = function() {
-        if (typeof state !== 'undefined') {
-            state.held = []; state.booked = [];
-            fetchAndRender();
-        }
+        fetchAndRender();
     };
 
     // --- AUTO-FILL TRACKING MODAL FROM URL ---

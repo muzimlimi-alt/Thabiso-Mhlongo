@@ -76,6 +76,21 @@
   --warning: #f59e0b;
   --info:    #3b82f6;
 
+  /* -- Availability status (public booking drawer) --
+     ONE colour per date state. Each is an r,g,b triplet so the same token gives the solid colour
+     (rgb(var(--status-x-rgb)) / --status-x) AND its translucent rings and fills (rgba(var(--status-x-rgb), .1)).
+     Everything that shows a date's availability - calendar cells, legend dots, the selected-date bar, the
+     drawer's ok / error field borders - reads these through --st-rgb (see "AVAILABILITY STATE" below).
+     Change a colour HERE and nowhere else. */
+  --status-available-rgb: 76, 175, 80;     /* #4CAF50 - the green of "This date is available!" */
+  --status-reserved-rgb:  255, 152, 0;     /* #FF9800 */
+  --status-blocked-rgb:   239, 83, 80;     /* #EF5350 - the one red: blocked / unavailable / field errors */
+  --status-muted-rgb:     176, 176, 176;   /* #B0B0B0 - closed day, past, short notice, nothing chosen yet */
+  --status-available: rgb(var(--status-available-rgb));
+  --status-reserved:  rgb(var(--status-reserved-rgb));
+  --status-blocked:   rgb(var(--status-blocked-rgb));
+  --status-muted:     rgb(var(--status-muted-rgb));
+
   /* -- Borders and Dividers -- */
   --border-low:     rgba(255, 255, 255, 0.08);
   --border-default: rgba(255, 255, 255, 0.15);
@@ -2314,14 +2329,14 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   background:var(--bg-elevated)!important;
   box-shadow:0 0 0 3px var(--y-muted)!important;
 }
-.bk-step-err{ display:none; color:var(--danger); font-size:.78rem; margin-top:6px; }
+.bk-step-err{ display:none; color:var(--status-blocked); font-size:.78rem; margin-top:6px; }
 .bk-step-err.show{ display:block; }
 /* padding-bottom, not margin-bottom — as the last child of .form-group, a trailing margin here
    would collapse into the group's own margin-bottom instead of adding to it, leaving no real
    gap before the next field. Padding isn't subject to margin collapsing. */
 .bk-step-hint { display:block; font-size:11px; color:#888; margin-top:4px; padding:0 0 10px 2px; line-height:1.4; }
-.bk-input--err { border-color:#ef5350 !important; box-shadow:0 0 0 2px rgba(239,83,80,0.15) !important; }
-.bk-input--ok  { border-color:#4caf50 !important; }
+.bk-input--err { border-color:var(--status-blocked) !important; box-shadow:0 0 0 2px rgba(var(--status-blocked-rgb),.15) !important; }
+.bk-input--ok  { border-color:var(--status-available) !important; }
 .bk-input:disabled,
 .bk-input.bk-input--disabled,
 #bookingDrawer .form-control:disabled,
@@ -2376,9 +2391,9 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   color:var(--text-primary)!important;
 }
 #bookingFormError{
-  background:rgba(185,77,77,.08)!important;
-  border:1px solid rgba(185,77,77,.3)!important;
-  color:var(--error)!important;
+  background:rgba(var(--status-blocked-rgb),.08)!important;
+  border:1px solid rgba(var(--status-blocked-rgb),.3)!important;
+  color:var(--status-blocked)!important;
   border-radius:var(--r)!important;
 }
 
@@ -2614,25 +2629,40 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   pointer-events: none;
 }
 
-.bk-date-display {
-  padding: 10px 14px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.1);
+/* ---------- SELECTED-DATE BAR (under the calendar) ----------
+   Shows the date chosen in the calendar and what it means. It is drawn from the SAME state as that date's
+   calendar cell - dateState() in js/myscript.js sets data-state on both - and takes its colour through the
+   same --st-rgb, so the two cannot disagree. The icon and wording carry the state too (not colour alone). */
+.bk-date-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px 14px;
+  background: rgba(var(--st-rgb), .1);
+  border: 1px solid rgb(var(--st-rgb));
   border-radius: var(--r, 4px);
   font-family: var(--f-body);
-  font-size: var(--fs-base);
-  color: var(--text-secondary);          /* was #666 - measured 2.7:1 */
-  margin-bottom: 6px;
-  transition: border-color .2s, color .2s;
+  transition: border-color .2s, background-color .2s;
+  scroll-margin-bottom: 120px;             /* keeps it clear of the sticky Back/Next row when scrolled into view after a pick */
 }
-.bk-date-display.bk-date-display--filled {
-  color: var(--y-base, #D4AF37);
-  border-color: rgba(212,175,55,0.35);
+.bk-date-status[data-state="none"] {
+  background: rgba(255, 255, 255, .03);
+  border: 1px dashed var(--border-default);
 }
-.bk-date-display.bk-input--err {
-  border-color: var(--danger, #ef5350);
-  color: var(--danger, #ef5350);
-}
+.bk-date-status__icon { flex: 0 0 auto; margin-top: 2px; font-size: 16px; line-height: 1; color: rgb(var(--st-rgb)); }
+.bk-date-status__body { flex: 1 1 auto; min-width: 0; }
+.bk-date-status__date { font-size: var(--fs-base); font-weight: 600; line-height: 1.35; color: var(--text-primary); overflow-wrap: anywhere; }
+.bk-date-status[data-state="none"] .bk-date-status__date { font-weight: 400; color: var(--text-secondary); }
+.bk-date-status__msg { margin-top: 2px; font-size: 13px; line-height: 1.5; color: rgb(var(--st-rgb)); }
+.bk-date-status__msg:empty { display: none; }
+.bk-date-status__link { color: var(--y-base, #D4AF37); font-weight: 600; text-decoration: underline; white-space: nowrap; }
+/* Step validation ("choose a date first") marks the bar red - but once a date IS chosen the bar keeps that date's
+   own state colour, so a validation flag can never repaint an orange or muted date red. */
+.bk-date-status.bk-input--err[data-state="none"] { border-style: solid; }
+.bk-date-status.bk-input--err[data-state="none"] .bk-date-status__icon,
+.bk-date-status.bk-input--err[data-state="none"] .bk-date-status__msg { color: var(--status-blocked); }
+.bk-date-status.bk-input--err:not([data-state="none"]) { border-color: rgb(var(--st-rgb)) !important; box-shadow: none !important; }
 
 .bk-step-header{
   margin-bottom:24px;
@@ -2953,19 +2983,27 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   letter-spacing:.05em;
   padding:4px 0;
 }
+/* ---------- AVAILABILITY STATE -> COLOUR (the ONLY place a date state is given a colour) ----------
+   dateState() in js/myscript.js decides a date's state from real data (working days, the month's held / booked /
+   full-day dates, the server's per-date answer and its minimum-notice rule) and writes it as data-state on the
+   calendar cell and on the selected-date bar; nothing else decides it. This block maps state -> the shared
+   --status-* tokens (:root) through --st-rgb; cells, legend dots and the bar all read --st-rgb.
+     avail  green  · bookable            booked  orange · reserved (other times open, or the whole day taken)
+     held   red    · blocked             nonworking / past / soon / unknown / none  muted */
+#bookingDrawer [data-state]          { --st-rgb: var(--status-muted-rgb); }
+#bookingDrawer [data-state="avail"]  { --st-rgb: var(--status-available-rgb); }
+#bookingDrawer [data-state="booked"] { --st-rgb: var(--status-reserved-rgb); }
+#bookingDrawer [data-state="held"]   { --st-rgb: var(--status-blocked-rgb); }
+
 /* ---------- AVAILABILITY CALENDAR (public booking drawer) ----------
-   Each date's ring is its availability, taken from real data (calState() in js/myscript.js: working
-   days, held/booked dates for the month, and the server's minimum-notice rule):
-     --avail  green  · bookable            --booked  orange · reserved, other times still open
-     --held   red    · blocked, not selectable
-     --nonworking / --past / --soon  muted · not selectable      --unknown  neutral · not confirmed (load failed)
-   The state colour lives in --cal-ring / --cal-solid, and hover, focus, today and selected all READ it
-   instead of setting their own colour — so no generic hover/focus/today style can override the signal. */
+   The cell's ring / fill / solid colour all derive from --st-rgb (above); hover, focus, today and selected read
+   --cal-ring / --cal-solid instead of setting their own colour - so no generic hover/focus/today style can
+   override the signal. Classes (--avail, --booked, --held ...) and data-state are written from the same value. */
 .tm-cal-cell{
   --cal-ring:transparent;
   --cal-fill:transparent;
   --cal-fill-strong:rgba(255,255,255,.08);
-  --cal-solid:#b0b0b0;
+  --cal-solid:rgb(var(--st-rgb));
   position:relative;
   aspect-ratio:1;
   display:flex;
@@ -2980,28 +3018,19 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   transition:background .15s, border-color .15s, box-shadow .15s, color .15s;
 }
 .tm-cal-cell--clickable{ cursor:pointer; color:#ddd; }
-.tm-cal-cell--avail{
-  --cal-ring:rgba(16,185,129,.55); --cal-fill:rgba(16,185,129,.07);
-  --cal-fill-strong:rgba(16,185,129,.28); --cal-solid:var(--success,#10b981);
-}
-.tm-cal-cell--booked{
-  --cal-ring:rgba(245,158,11,.6); --cal-fill:rgba(245,158,11,.08);
-  --cal-fill-strong:rgba(245,158,11,.28); --cal-solid:var(--warning,#f59e0b);
-}
+.tm-cal-cell--avail,
+.tm-cal-cell--booked,
 .tm-cal-cell--held{
-  --cal-ring:rgba(239,68,68,.55); --cal-fill:rgba(239,68,68,.07);
-  --cal-fill-strong:rgba(239,68,68,.2); --cal-solid:var(--error,#ef4444);
-  color:#8a8a8a; cursor:not-allowed;
+  --cal-ring:rgba(var(--st-rgb),.55); --cal-fill:rgba(var(--st-rgb),.08); --cal-fill-strong:rgba(var(--st-rgb),.26);
 }
+.tm-cal-cell--held{ color:#8a8a8a; cursor:help; }
 /* Reserved AND the whole day is taken (untimed booking/event): keeps the orange ring, not selectable. */
-.tm-cal-cell--full{ color:#8a8a8a; cursor:not-allowed; }
-.tm-cal-cell--unknown{
-  --cal-ring:rgba(255,255,255,.22); --cal-fill-strong:rgba(255,255,255,.14); --cal-solid:#cfcfcf;
-}
+.tm-cal-cell--full{ color:#8a8a8a; cursor:help; }
+.tm-cal-cell--unknown{ --cal-ring:rgba(var(--st-rgb),.3); --cal-fill-strong:rgba(var(--st-rgb),.16); }
 .tm-cal-cell--past,
 .tm-cal-cell--nonworking,
-.tm-cal-cell--soon{ color:#5c5c5c; background:rgba(255,255,255,.015); cursor:not-allowed; }
-.tm-cal-cell--past{ cursor:default; }
+.tm-cal-cell--soon{ color:#5c5c5c; background:rgba(255,255,255,.015); cursor:help; }
+.tm-cal-cell--past{ cursor:help; }
 .tm-cal-cell--empty{ cursor:default; }
 /* Hover only intensifies the date's OWN state colour (and only for dates that can be picked). */
 .tm-cal-cell--clickable:hover{ background:var(--cal-fill-strong); border-color:var(--cal-solid); color:#fff; }
@@ -3029,6 +3058,10 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   font-size:9px; line-height:1;
   color:var(--cal-solid);
 }
+/* A date that can't be booked (closed day, blocked, past, whole day taken) can still be tapped to see WHY: it gets
+   the same state-coloured ring as a selected date, but no tick - the tick means "this is your booking date". */
+.tm-cal-cell--inspect::before{ content:none; }
+.tm-cal-cell--inspect{ color:#ddd; }
 /* Today: a small dot under the number — deliberately NOT a border/colour change. */
 .tm-cal-cell--today{ font-weight:700; }
 .tm-cal-cell--today::after{
@@ -3044,7 +3077,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
 .tm-cal-nav button:disabled{ opacity:.35; cursor:not-allowed; background:transparent; border-color:var(--border-default); }
 .tm-cal-status{ margin:0 0 10px; font-size:12px; line-height:1.5; color:var(--text-secondary); text-align:center; }
 .tm-cal-status:empty{ display:none; }
-.tm-cal-status--error{ color:var(--warning); }
+.tm-cal-status--error{ color:var(--status-reserved); }
 .tm-cal-retry{
   margin-left:6px; padding:0; border:0; background:none;
   color:var(--y-base); font:inherit; text-decoration:underline; cursor:pointer;
@@ -3054,7 +3087,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   align-items:center;
   justify-content:center;
   gap:10px 16px;
-  margin-top:18px;
+  margin-top:16px;
   font-family:var(--f-body);
   font-size:11px;
   color:var(--text-secondary);
@@ -3068,10 +3101,9 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   vertical-align:middle;
   border:2px solid transparent;
 }
-.tm-cal-dot--avail{ border-color:var(--success,#10b981); background:rgba(16,185,129,.18); }
-.tm-cal-dot--booked{ border-color:var(--warning,#f59e0b); background:rgba(245,158,11,.18); }
-.tm-cal-dot--held{ border-color:var(--error,#ef4444); background:rgba(239,68,68,.18); }
-.tm-cal-dot--nonworking{ border-color:#444; background:#1c1c1c; }
+/* Legend dots take their colour from the same data-state -> --st-rgb mapping as the cells they explain. */
+.tm-cal-dot[data-state]{ border-color:rgb(var(--st-rgb)); background:rgba(var(--st-rgb),.18); }
+.tm-cal-dot[data-state="nonworking"]{ border-color:rgba(var(--st-rgb),.45); background:rgba(var(--st-rgb),.08); }
 .tm-cal-dot--selected{ border-color:#fff; background:#fff; }
 .book-step-dot .bk-step-num i{ font-size:.78rem; }
 
@@ -3151,7 +3183,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
 }
 .bk-success__icon{
   font-size:52px;
-  color:var(--success);
+  color:var(--status-available);
   margin-bottom:16px;
   animation:tmFadeIn .5s var(--ease-out);
 }
@@ -3200,7 +3232,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   color:var(--text-secondary);
   margin:0;
 }
-.bk-success__status-value{ color:var(--success); }
+.bk-success__status-value{ color:var(--status-available); }
 .bk-success__hint{
   font-size:var(--fs-xs);
   color:var(--text-muted);
