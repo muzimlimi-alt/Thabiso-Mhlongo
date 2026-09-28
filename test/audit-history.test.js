@@ -3,7 +3,7 @@
 // inquiries, date_holds), actor_role correctly round-tripped through the scratch-column trigger
 // trick, every in-scope module's save response carries a well-formed last_updated object, and the
 // audit_log endpoint's new record_id filter + actor-name join.
-module.exports = async function ({ check, api, q, one }) {
+module.exports = async function ({ check, api, q, one, future }) {
     const hasLastUpdated = (obj) => !!(obj && obj.last_updated && obj.last_updated.name && obj.last_updated.at);
 
     // ── Gallery: no pre-existing trigger — logAudit() must write exactly one row ──
@@ -32,23 +32,23 @@ module.exports = async function ({ check, api, q, one }) {
 
     // ── Events: trigger-covered — the extended trigger must be the SOLE writer (no explicit
     // parallel insert added alongside it) ──
-    const ev = await api('POST', '/api/admin/events', { event_title: 'Audit Test Event', event_datetime: '2027-06-01T18:00', event_type: 'Corporate Event', venue_name: 'Test Venue', sync_to_gcal: false });
+    const ev = await api('POST', '/api/admin/events', { event_title: 'Audit Test Event', event_datetime: `${future(900)}T18:00`, event_type: 'Corporate Event', venue_name: 'Test Venue', sync_to_gcal: false });
     check('event create returns last_updated', ev.body && ev.body.success && hasLastUpdated(ev.body), JSON.stringify(ev.body));
 
-    const evUpd = await api('PUT', `/api/admin/events/${ev.body.id}`, { event_title: 'Audit Test Event Updated', event_datetime: '2027-06-02T18:00', event_type: 'Corporate Event', venue_name: 'Test Venue 2', sync_to_gcal: false });
+    const evUpd = await api('PUT', `/api/admin/events/${ev.body.id}`, { event_title: 'Audit Test Event Updated', event_datetime: `${future(901)}T18:00`, event_type: 'Corporate Event', venue_name: 'Test Venue 2', sync_to_gcal: false });
     check('event update returns last_updated', evUpd.body && evUpd.body.success && hasLastUpdated(evUpd.body), JSON.stringify(evUpd.body));
     rows = await q("SELECT * FROM audit_log WHERE table_name='events' AND record_id=? AND action='UPDATE'", [ev.body.id]);
     check('event update writes exactly one audit_log row (trigger is sole writer)', rows.length === 1, `rows=${rows.length}`);
     check('event update audit_log row has actor_role via trigger round-trip', !!(rows[0] && rows[0].actor_role), JSON.stringify(rows[0]));
 
     // ── Calendar (date_holds): trigger-covered, INSERT + UPDATE both now attributed ──
-    const hold = await api('POST', '/api/admin/calendar/hold', { date: '2027-07-01', reason: 'Audit test hold' });
+    const hold = await api('POST', '/api/admin/calendar/hold', { date: future(902), reason: 'Audit test hold' });
     check('calendar hold create returns last_updated', hold.body && hold.body.success && hasLastUpdated(hold.body), JSON.stringify(hold.body));
     const holdId = hold.body && hold.body.hold && hold.body.hold.id;
     rows = await q("SELECT * FROM audit_log WHERE table_name='date_holds' AND record_id=? AND action='INSERT'", [holdId]);
     check('date_holds create writes exactly one audit_log row with an attributed actor', rows.length === 1 && !!rows[0].changed_by, JSON.stringify(rows));
 
-    const holdMove = await api('PATCH', `/api/admin/calendar/hold/${holdId}/date`, { date: '2027-07-02' });
+    const holdMove = await api('PATCH', `/api/admin/calendar/hold/${holdId}/date`, { date: future(903) });
     check('calendar hold move returns last_updated', holdMove.body && holdMove.body.success && hasLastUpdated(holdMove.body), JSON.stringify(holdMove.body));
     rows = await q("SELECT * FROM audit_log WHERE table_name='date_holds' AND record_id=? AND action='UPDATE'", [holdId]);
     check('date_holds move writes exactly one audit_log row', rows.length === 1, `rows=${rows.length}`);

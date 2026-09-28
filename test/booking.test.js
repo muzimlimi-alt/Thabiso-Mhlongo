@@ -15,6 +15,7 @@ async function makeAccepted(check, amount, days, em) {
         services: [{ service_id: SVC }], status: 'NEW', override_working_hours: true,
     });
     const id = created.body && created.body.booking_id;
+    if (!id) throw new Error(`makeAccepted: booking creation failed (status ${created.status}): ${JSON.stringify(created.body)}`);
     await sleep(50);
     const bk = await one('SELECT date FROM bookings WHERE id=?', [id]);
     const expiry = new Date(Date.parse(bk.date) - 10 * 86400000).toISOString().slice(0, 10);
