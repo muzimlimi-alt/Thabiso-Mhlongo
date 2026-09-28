@@ -2577,7 +2577,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(212,175,55,0.6);
+  color: rgba(212,175,55,0.9);           /* was .6 - measured 3.8:1, below the 4.5:1 AA minimum for text this size */
   white-space: nowrap;
 }
 
@@ -2621,7 +2621,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   border-radius: var(--r, 4px);
   font-family: var(--f-body);
   font-size: var(--fs-base);
-  color: #666;
+  color: var(--text-secondary);          /* was #666 - measured 2.7:1 */
   margin-bottom: 6px;
   transition: border-color .2s, color .2s;
 }
@@ -2898,7 +2898,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
 .bk-disclaimer-text{
   font-family:var(--f-body);
   font-size:.67rem;
-  color:var(--text-muted);
+  color:var(--text-secondary);           /* was --text-muted: 3.3:1 */
   line-height:1.65;
   margin:0;
   letter-spacing:.01em;
@@ -2948,7 +2948,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
 .tm-cal-daynames span{
   text-align:center;
   font-size:10px;
-  color:var(--text-muted);
+  color:var(--text-secondary);           /* was --text-muted: 3.8:1 on the drawer surface */
   text-transform:uppercase;
   letter-spacing:.05em;
   padding:4px 0;
@@ -3039,8 +3039,10 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   background:var(--y-base);
 }
 .tm-cal-days--loading{ opacity:.45; pointer-events:none; transition:opacity .15s; }
+/* Comfortable touch size for the month arrows on phones (were 34px). */
+@media (max-width:575px){ .tm-cal-nav button{ width:44px; height:44px; } }
 .tm-cal-nav button:disabled{ opacity:.35; cursor:not-allowed; background:transparent; border-color:var(--border-default); }
-.tm-cal-status{ margin:0 0 10px; font-size:12px; line-height:1.5; color:var(--text-muted); text-align:center; }
+.tm-cal-status{ margin:0 0 10px; font-size:12px; line-height:1.5; color:var(--text-secondary); text-align:center; }
 .tm-cal-status:empty{ display:none; }
 .tm-cal-status--error{ color:var(--warning); }
 .tm-cal-retry{
@@ -3055,7 +3057,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   margin-top:18px;
   font-family:var(--f-body);
   font-size:11px;
-  color:var(--text-muted);
+  color:var(--text-secondary);
   flex-wrap:wrap;
 }
 .tm-cal-dot{

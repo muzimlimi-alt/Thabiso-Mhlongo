@@ -168,7 +168,7 @@
   text-transform: uppercase;
   color: var(--text-primary);
 }
-.bk-slot-group__count { font-size: 11px; color: var(--text-muted); }
+.bk-slot-group__count { font-size: 11px; color: var(--text-secondary); }   /* --text-muted measured 3.5:1 here */
 .bk-slot-group__grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
@@ -201,7 +201,7 @@
 .bk-time-slot__end {
   font-size: 10px;
   letter-spacing: .04em;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
 /* Hover must not undo the selected state (it used to out-rank it). */
@@ -257,7 +257,7 @@
   flex-wrap: wrap;
   gap: 14px;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 .bk-slot-dot {
   display: inline-block;
@@ -291,6 +291,13 @@
   .bk-attach-text-mobile {
     display: block !important;
   }
+}
+
+/* Comfortable touch size on phones for two controls that measured under 44px (39px / 36px). */
+@media (max-width: 575px) {
+  #bookingDrawer .bk-svc-add,
+  #bookingDrawer .bk-dur-select,
+  #bookingDrawer .btn-bk-nav { min-height: 44px; }
 }
 
 /* ---------- VENUE SEARCH FEEDBACK + REQUIRED MARKER ---------- */
