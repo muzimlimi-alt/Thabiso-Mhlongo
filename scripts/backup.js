@@ -1,14 +1,14 @@
 const fs = require('fs');
 const path = require('path');
 
-// BACKUPS_PATH defaults to the gitignored thabiso-mhlongo-runtime-data/backups (Phase 3, HOUSEKEEPING-NOTES.md), same
-// convention as DB_PATH in database.js. Existing backups already in the old in-repo backups/
-// folder are left where they are — this only changes where NEW backups are written.
+// BACKUPS_PATH (default: the gitignored repo-root backups/) comes from lib/runtime-paths.js — the
+// same single source of truth the app itself uses, so this script and a live server can never
+// disagree about where backups live. dotenv must run first so a BACKUPS_PATH override in .env is
+// picked up before runtime-paths.js reads process.env.BACKUPS_PATH.
 require('dotenv').config();
+const { BACKUPS_PATH } = require('../lib/runtime-paths');
 const DB_FILE = path.join(__dirname, '../database.sqlite');
-const BACKUP_DIR = process.env.BACKUPS_PATH
-    ? path.resolve(process.env.BACKUPS_PATH)
-    : path.resolve(__dirname, '..', 'thabiso-mhlongo-runtime-data', 'backups');
+const BACKUP_DIR = BACKUPS_PATH;
 
 if (!fs.existsSync(BACKUP_DIR)) {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });

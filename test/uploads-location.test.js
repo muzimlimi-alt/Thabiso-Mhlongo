@@ -19,11 +19,20 @@ module.exports = async function ({ check, api, upload, makeTestPng }) {
         { cwd: ROOT, env: Object.assign({}, process.env, { UPLOADS_PATH: '' }) }).toString();
     check('with no UPLOADS_PATH override, uploads go to the project images/ folder', path.resolve(printed) === path.join(ROOT, 'images'), printed);
 
+    // ── the default DOCS_PATH / BACKUPS_PATH locations (no thabiso-mhlongo-runtime-data/ wrapper) ──
+    const others = execFileSync(process.execPath, ['-e', "const p=require('./lib/runtime-paths'); process.stdout.write(JSON.stringify({docs:p.DOCS_PATH,backups:p.BACKUPS_PATH}))"],
+        { cwd: ROOT, env: Object.assign({}, process.env, { DOCS_PATH: '', BACKUPS_PATH: '' }) }).toString();
+    const { docs, backups } = JSON.parse(others);
+    check('with no DOCS_PATH override, generated PDFs go to the project docs/ folder', path.resolve(docs) === path.join(ROOT, 'docs'), docs);
+    check('with no BACKUPS_PATH override, DB snapshots go to the project backups/ folder (not a runtime-data wrapper)', path.resolve(backups) === path.join(ROOT, 'backups'), backups);
+
     // ── git: receipts (financial documents) never enter the public repo; other uploads are ordinary site content ──
-    const receipts = gitIgnored('images/receipts/receipt-1.pdf'), team = gitIgnored('images/team/1-photo.png'), runtime = gitIgnored('thabiso-mhlongo-runtime-data/backups/x.sqlite');
+    const receipts = gitIgnored('images/receipts/receipt-1.pdf'), team = gitIgnored('images/team/1-photo.png');
+    const docsIgnored = gitIgnored('docs/invoices/x.pdf'), backupsIgnored = gitIgnored('backups/x.sqlite');
     check('images/receipts/ is gitignored (expense receipts must not be committed)', receipts === null || receipts === true, String(receipts));
     check('images/team/ is not gitignored (team photos are public site content)', team === null || team === false, String(team));
-    check('runtime-data (generated docs, DB backups) stays gitignored', runtime === null || runtime === true, String(runtime));
+    check('docs/ (generated PDFs) stays gitignored', docsIgnored === null || docsIgnored === true, String(docsIgnored));
+    check('backups/ (DB snapshots) stays gitignored', backupsIgnored === null || backupsIgnored === true, String(backupsIgnored));
 
     // ── a team photo is stored under its section folder, referenced as images/team/<file>, and served at that URL ──
     const png = makeTestPng(20, 20);
