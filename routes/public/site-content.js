@@ -6,6 +6,7 @@ const { ipRateLimiter } = require('../../middleware/rate-limiters');
 const { uploadsWriteDir } = require('../../lib/runtime-paths');
 const { safeUploadFilename } = require('../../lib/uploads');
 const { unescapeHtml, SECTION_KEYS } = require('../../lib/html-sanitize');
+const { listPublicMembers } = require('../../lib/team');
 const { getSettingsByKeys } = require('../../database/repositories/settings.repository');
 const router = express.Router();
 
@@ -214,11 +215,16 @@ router.get('/api/public/gallery', (req, res) => { // Public route for index.html
 });
 
 // --- Management Team (active members only) ---
-router.get('/api/public/team', (req, res) => { // Public route for index.html
-    db.all("SELECT * FROM team_members WHERE status = 'active' ORDER BY display_order ASC, id ASC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
+// Visibility, ordering and the published field list all come from lib/team.js, the same module the
+// admin API uses — so the public site and the admin portal cannot disagree. Revalidated on every
+// request (ETag, no max-age) so an admin edit shows up on the next page load.
+router.get('/api/public/team', async (req, res) => { // Public route for index.html
+    try {
+        res.set('Cache-Control', 'no-cache');
+        res.json(await listPublicMembers());
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): the email-templates admin routes (and SYSTEM_TRACK_TEMPLATE_KEYS)

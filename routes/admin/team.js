@@ -7,14 +7,20 @@ const { requireRole } = require('../../middleware/rbac');
 const { upload } = require('../../lib/uploads');
 const { logAudit } = require('../../lib/audit-log');
 const { resolveActor } = require('../../lib/actor');
+const { getAdminTeamView, validateTeamInput, cleanText } = require('../../lib/team');
 const router = express.Router();
 
-// Admin: every status (active + inactive), so hidden members can still be managed.
-router.get('/api/admin/team', requireAdmin, (req, res) => {
-    db.all("SELECT * FROM team_members ORDER BY display_order ASC, id ASC", [], (err, rows) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
-    });
+// Admin: every status (active + inactive), so hidden members can still be managed — in the SAME
+// order the website uses, each annotated with what the website does with it (is_public,
+// public_position) plus whether the whole section is switched on. Built by lib/team.js, which the
+// public API also uses, so the two views cannot drift apart.
+router.get('/api/admin/team', requireAdmin, async (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-store');
+        res.json(await getAdminTeamView());
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 router.put('/api/admin/team/reorder', requireAdmin, (req, res) => {
@@ -33,12 +39,15 @@ router.put('/api/admin/team/reorder', requireAdmin, (req, res) => {
 
 router.post('/api/admin/team', requireAdmin, upload.single('file'), (req, res) => {
     const { name, role, biography, email, phone, website, twitter, linkedin, instagram, behance, fallback_url, status, featured } = req.body;
-    if (!name) return res.status(400).json({ success: false, message: 'Name is required.' });
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+    if (!cleanName) return res.status(400).json({ success: false, message: 'Name is required.' });
+    const invalid = validateTeamInput({ status: status || undefined, biography, website, twitter, linkedin, instagram, behance });
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
     const imagePath = req.file ? `images/team/${req.file.filename}` : (fallback_url || null);
     const newValues = {
-        name, role: role || null, biography: biography || null, image_path: imagePath,
-        email: email || null, phone: phone || null, website: website || null,
-        twitter: twitter || null, linkedin: linkedin || null, instagram: instagram || null, behance: behance || null,
+        name: cleanName, role: cleanText(role), biography: cleanText(biography), image_path: imagePath,
+        email: cleanText(email), phone: cleanText(phone), website: cleanText(website),
+        twitter: cleanText(twitter), linkedin: cleanText(linkedin), instagram: cleanText(instagram), behance: cleanText(behance),
         status: status || 'active', featured: (featured === true || featured === 'true') ? 1 : 0
     };
 
@@ -62,27 +71,32 @@ router.put('/api/admin/team/:id', requireAdmin, (req, res) => {
         if (selErr) return res.status(500).json({ error: selErr.message });
         if (!existing) return res.status(404).json({ success: false, message: 'Team member not found' });
 
-        const newName = name !== undefined ? name : existing.name;
+        const newName = name !== undefined ? (typeof name === 'string' ? name.trim() : '') : existing.name;
         if (!newName) return res.status(400).json({ success: false, message: 'Name is required.' });
+        const invalid = validateTeamInput({ status, biography, website, twitter, linkedin, instagram, behance });
+        if (invalid) return res.status(400).json({ success: false, message: invalid });
+        if (display_order !== undefined && !Number.isInteger(Number(display_order))) {
+            return res.status(400).json({ success: false, message: 'Display order must be a whole number.' });
+        }
         let newImagePath = existing.image_path;
         if (clear_image === true || clear_image === 'true') newImagePath = null;
         else if (fallback_url) newImagePath = fallback_url;
 
         const newValues = {
             name: newName,
-            role: role !== undefined ? (role || null) : existing.role,
-            biography: biography !== undefined ? (biography || null) : existing.biography,
+            role: role !== undefined ? cleanText(role) : existing.role,
+            biography: biography !== undefined ? cleanText(biography) : existing.biography,
             image_path: newImagePath,
-            email: email !== undefined ? (email || null) : existing.email,
-            phone: phone !== undefined ? (phone || null) : existing.phone,
-            website: website !== undefined ? (website || null) : existing.website,
-            twitter: twitter !== undefined ? (twitter || null) : existing.twitter,
-            linkedin: linkedin !== undefined ? (linkedin || null) : existing.linkedin,
-            instagram: instagram !== undefined ? (instagram || null) : existing.instagram,
-            behance: behance !== undefined ? (behance || null) : existing.behance,
+            email: email !== undefined ? cleanText(email) : existing.email,
+            phone: phone !== undefined ? cleanText(phone) : existing.phone,
+            website: website !== undefined ? cleanText(website) : existing.website,
+            twitter: twitter !== undefined ? cleanText(twitter) : existing.twitter,
+            linkedin: linkedin !== undefined ? cleanText(linkedin) : existing.linkedin,
+            instagram: instagram !== undefined ? cleanText(instagram) : existing.instagram,
+            behance: behance !== undefined ? cleanText(behance) : existing.behance,
             status: status !== undefined ? status : existing.status,
             featured: featured !== undefined ? ((featured === true || featured === 'true') ? 1 : 0) : existing.featured,
-            display_order: display_order !== undefined ? display_order : existing.display_order
+            display_order: display_order !== undefined ? Number(display_order) : existing.display_order
         };
 
         db.run(`UPDATE team_members SET name=?, role=?, biography=?, image_path=?, email=?, phone=?, website=?, twitter=?, linkedin=?, instagram=?, behance=?, status=?, featured=?, display_order=?, updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,
