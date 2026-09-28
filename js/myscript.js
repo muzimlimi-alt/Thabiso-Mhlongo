@@ -2249,7 +2249,30 @@ document.addEventListener("DOMContentLoaded", function() {
             'bookCountry','bookAudience','bookDemographic','bookTravel','bookNotes',
             'bookBudget','bookAltDates','bookContentNotes','bookHeardAbout'];
 
-        function saveBkDraft() {
+        // True once the visitor has entered something worth keeping. bookCountry / bookTravel are
+        // deliberately ignored: they can hold a default value on an untouched form.
+        // Contact details that bkPrefillClientInfo() filled in and the visitor hasn't changed don't
+        // count either — they didn't type them.
+        function bkHasDraftProgress() {
+            if ($('#bkServicesTableBody tr').length) return true;
+            var prefill = null;
+            if ($('#bkPrefillNote').length) {
+                try { prefill = JSON.parse(localStorage.getItem('bkClientInfo') || 'null'); } catch (e) {}
+            }
+            var prefillKey = { bookName: 'name', bookEmail: 'email', bookCell: 'cell', bookCompany: 'company' };
+            return _bkDraftFields.some(function(id) {
+                if (id === 'bookCountry' || id === 'bookTravel') return false;
+                var v = String($('#' + id).val() || '').trim();
+                if (v === '') return false;
+                return !(prefill && prefillKey[id] && String(prefill[prefillKey[id]] || '').trim() === v);
+            });
+        }
+        // Set while the close-time reset runs, so resetting the form can't save a blank draft over
+        // the real one (the reset calls updateProgress(1), which saves).
+        var _bkDraftSuppressed = false;
+
+        function saveBkDraft(localOnly) {
+            if (_bkDraftSuppressed || !bkHasDraftProgress()) return;
             try {
                 var draft = { step: currentStep, fields: {}, services: [], savedAt: Date.now() };
                 _bkDraftFields.forEach(function(id) { draft.fields[id] = $('#' + id).val() || ''; });
@@ -2278,6 +2301,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 });
 
                 localStorage.setItem('bkDraft', JSON.stringify(draft));
+                if (localOnly) return;   // close-time save: flushBkDraft's beacon already covers the server copy
                 $('#bkDraftStatus').stop(true).fadeIn(300).delay(2000).fadeOut(600);
                 $('#bkClearDraftBtn').show();
                 serverSyncBkDraft();
@@ -3313,6 +3337,9 @@ $bookingForm.on('blur', '#bookName', function() {
         document.addEventListener('atl:drawerClosed', function(e) {
             if (!e.detail || e.detail.id !== 'bookingDrawer') return;
             flushBkDraft();
+            // Keep what the visitor typed so reopening restores it ("draft preserved for reopen").
+            // Not after a successful submit — that draft was cleared on purpose.
+            if (!$('#bookSuccessScreen').is(':visible')) saveBkDraft(true);
             // Reset only once the slide-out has finished (--t: .35s in css/public/redesign.css).
             // Resetting straight away would visibly blank the wizard while the drawer is still on
             // screen (the old modal reset on 'hidden.bs.modal', i.e. after its fade). Skipped if the
@@ -3325,7 +3352,9 @@ $bookingForm.on('blur', '#bookName', function() {
             $('.manual-address-toggle-wrap').hide();
             $('#bkServicesTableBody').empty();
             $('#bkServicesTableWrap').hide();
+            _bkDraftSuppressed = true;    // updateProgress saves a draft; the form was just reset
             updateProgress(1);
+            _bkDraftSuppressed = false;
             $('#bookingStepBar').show();
             $('#bookSuccessScreen').hide();
             $('.bk-step-err').hide();
