@@ -1,0 +1,152 @@
+/* =====================================================================
+   ADMIN — ACCOLADES & RECOGNITION  (#accoladesAdmin, #aclDrawer — js/admin/accolades.js)
+   Built from the shared admin components: .atl-edit-card cards, .evt-bulk-bar, .atl-badge,
+   .atl-switch, .um-* form controls, the shared Pagination buttons, the .atl-actions-dropdown-*
+   menu styles, and the public-preview frame + notice shared with the Management Team
+   (css/admin/team.css). This file only adds what those don't cover. The preview's CONTENTS are the
+   public .acc-* rules (css/public/redesign.css), drawn by js/accolades-view.js. Theme-safe: every
+   colour is an --atl-* token, except the preview stage, which deliberately shows the (always dark)
+   public site. Every selector is new, so load order does not matter.
+   ===================================================================== */
+
+/* ── Toolbar: search + filters + sort + Select ── */
+.acl-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 0 0 14px; }
+.acl-toolbar__search { flex: 1 1 240px; min-width: 200px; }
+.acl-toolbar .atl-filter-select { flex: 0 1 auto; width: auto; min-width: 130px; }
+#aclBulkToggle { margin-left: auto; }
+@media (max-width: 575px) {
+    .acl-toolbar > * { flex: 1 1 100%; }
+    .acl-toolbar .atl-filter-select { min-width: 0; width: 100%; }
+}
+.acl-results-meta { margin: 0 0 12px; font-size: 12px; color: var(--atl-muted); min-height: 16px; }
+
+/* ── Bulk bar ── */
+.acl-select-all { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; color: var(--atl-ink); cursor: pointer; }
+.acl-select-all input { width: 18px; height: 18px; accent-color: var(--atl-amber); cursor: pointer; }
+.acl-bulk-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.acl-bulk-actions .atl-btn { font-size: 12px; }
+.acl-bulk-btn--danger { color: var(--atl-clay) !important; }
+.acl-bulk-actions .atl-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Cards ── */
+.acl-card .atl-edit-card__header { align-items: center; }
+.acl-card__year {
+    flex-shrink: 0; min-width: 64px;
+    font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 300; line-height: 1;
+    color: var(--atl-amber);
+}
+.acl-card__thumb {
+    width: 56px; height: 56px; flex-shrink: 0;
+    border-radius: 8px; overflow: hidden;
+    border: 1px solid var(--atl-line); background: var(--atl-paper);
+}
+.acl-card__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.acl-card__main { flex: 1 1 240px; min-width: 0; }
+.acl-card__main .atl-edit-card__title { overflow-wrap: anywhere; }
+.acl-card__badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0 0; }
+.acl-card__meta { margin: 8px 0 0; font-size: 12px; color: var(--atl-muted); }
+.acl-card__actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
+.acl-card--featured { border-color: var(--atl-amber-border, rgba(212,175,55,0.35)); }
+.acl-card--dragging { opacity: .45; }
+.acl-card--flash { box-shadow: 0 0 0 2px var(--atl-amber); transition: box-shadow .6s ease; }
+@media (max-width: 639px) {
+    .acl-card__actions { width: 100%; justify-content: flex-end; }
+}
+
+/* Category chip — the same three words the website uses, in its mono type. */
+.acl-cat {
+    display: inline-flex; align-items: center; padding: 3px 9px; border-radius: var(--atl-r-pill, 999px);
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+    border: 1px solid var(--atl-line); color: var(--atl-muted);
+}
+.acl-cat--win { color: var(--atl-amber); border-color: var(--atl-amber-border, rgba(212,175,55,0.35)); }
+.acl-cat--nomination { color: var(--atl-ink-dim); border-color: var(--atl-line-strong, var(--atl-line)); }
+
+/* Drag handle only in website order (dragging means "change the website order"); checkboxes only in
+   Select mode. */
+.acl-card .acl-drag { display: none; }
+#accoladesAdmin.acl-can-drag .acl-card .acl-drag { display: inline-flex; }
+.acl-select { display: none; align-items: center; justify-content: center; width: 32px; height: 40px; margin: 0; flex-shrink: 0; cursor: pointer; }
+#accoladesAdmin.acl-selectable .acl-select { display: inline-flex; }
+.acl-select input { width: 18px; height: 18px; accent-color: var(--atl-amber); cursor: pointer; }
+.acl-card.is-selected { outline: 2px solid var(--atl-amber); outline-offset: 2px; }
+
+.acl-pagination { justify-content: center; align-items: center; gap: 6px; flex-wrap: wrap; margin: 18px 0 0; }
+
+/* ── "More" menu — one element portalled to <body> (the cards clip overflow and animate with a
+   transform, either of which would trap a fixed-position menu inside them). ── */
+.acl-menu[hidden] { display: none; }
+.acl-menu .atl-actions-dropdown-item:focus-visible { outline: 2px solid var(--atl-focus, var(--atl-amber)); outline-offset: -2px; background: rgba(255,255,255,0.06); }
+.acl-menu .atl-actions-dropdown-item:disabled { opacity: .4; cursor: not-allowed; }
+.acl-menu .atl-actions-dropdown-item i { width: 14px; text-align: center; color: var(--atl-amber); }
+.acl-menu .atl-actions-dropdown-item--danger i { color: inherit; }
+
+/* ── Drawer form ── */
+.acl-group-title {
+    margin: 22px 0 12px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px;
+    color: var(--atl-amber) !important; font-family: 'Outfit', sans-serif !important;
+}
+.acl-group-title i { margin-right: 4px; }
+.acl-field-error { display: block; min-height: 0; margin-top: 4px; font-size: 12px; color: var(--atl-clay); }
+.acl-field-error:empty { display: none; }
+#aclForm .um-input[aria-invalid="true"] { border-color: var(--atl-clay) !important; }
+.acl-inline { display: flex; gap: 8px; align-items: center; }
+/* .um-field-group (redesign-admin.css, loaded later) is a column — the switch rows need a row. */
+.um-field-group.acl-switch-row { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.acl-switch-row .um-label { margin: 0; }
+.acl-switch-hint { font-weight: 400; color: var(--atl-muted); }
+.acl-counter { display: block; text-align: right; }
+.acl-upload-zone.um-upload-zone--dragging { border-color: var(--atl-amber); }
+
+/* Current media: a thumbnail (or a PDF chip) with Replace / Remove beside it. */
+.acl-media { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; padding: 10px; border: 1px solid var(--atl-line); border-radius: var(--atl-r-md, 8px); background: var(--atl-surface2); }
+.acl-media[hidden] { display: none; }
+.acl-media__thumb { width: 72px; height: 72px; flex-shrink: 0; border-radius: 6px; overflow: hidden; background: var(--atl-paper); border: 1px solid var(--atl-line); display: flex; align-items: center; justify-content: center; }
+.acl-media__thumb img { width: 100%; height: 100%; object-fit: contain; }
+.acl-media__thumb i { font-size: 26px; color: var(--atl-clay); }
+.acl-media__info { flex: 1; min-width: 0; font-size: 12px; color: var(--atl-muted); overflow-wrap: anywhere; }
+.acl-media__info strong { display: block; color: var(--atl-ink); font-weight: 500; }
+.acl-media__info a { color: var(--atl-amber); }
+
+.acl-history { padding: 12px; background: var(--atl-surface2); border: 1px solid var(--atl-line); border-radius: 6px; font-size: 12px; color: var(--atl-muted); }
+
+/* ── Live preview (frame shared with Team) — the stage shows the public section's own surface. ── */
+#aclPublicPreview .acl-preview__stage { background: var(--bg-page, #0a0a0a); }
+#aclPublicPreview .acc-ledger { max-width: none; }
+#aclPublicPreview .acc-entry { grid-template-columns: 84px minmax(0, 1fr); column-gap: 20px; padding: 22px 0 24px; }
+#aclPublicPreview .acc-entry__action { grid-column: 2; margin-top: 10px; }
+#aclPublicPreview .acc-entry--featured { padding: 20px 0; }
+#aclPublicPreview .acc-feature { padding: 36px 22px; }
+#aclPublicPreview .acc-feature__title { font-size: 30px !important; }
+#aclPublicPreview .acc-cta { cursor: default; }
+#aclPublicPreview .acl-preview__stage.is-hidden .acc-ledger { opacity: .45; }
+.acl-preview__detail { border-top: 1px solid var(--atl-line); }
+.acl-preview__detail > summary { padding: 10px 14px; font-size: 12px; color: var(--atl-muted); cursor: pointer; }
+.acl-preview__detail > summary:hover, .acl-preview__detail > summary:focus-visible { color: var(--atl-amber); }
+.acl-preview__stage--detail { padding: 22px; color: var(--text-primary, #fff); }
+
+/* Informational variant of the shared notice (css/admin/team.css) — "nothing is published yet". */
+.acl-notice.acl-notice--info {
+    background: color-mix(in srgb, var(--atl-amber) 8%, transparent);
+    border-color: color-mix(in srgb, var(--atl-amber) 26%, transparent);
+}
+.acl-notice.acl-notice--info i { color: var(--atl-amber); }
+
+/* css/style.css forces the admin's theme font onto every h2-h4 and p inside body.admin-body, with
+   !important — which would turn the preview's Cormorant titles and JetBrains Mono labels into the
+   admin font. Put the website's own type back so the preview is a faithful likeness. */
+body.admin-body #aclPublicPreview .acc-entry__title,
+body.admin-body #aclPublicPreview .acc-feature__title,
+body.admin-body #aclPublicPreview .acc-detail__result { font-family: var(--f-display) !important; }
+body.admin-body #aclPublicPreview .acc-entry__kicker,
+body.admin-body #aclPublicPreview .acc-feature__label,
+body.admin-body #aclPublicPreview .acc-detail__kicker { font-family: var(--f-mono) !important; }
+body.admin-body #aclPublicPreview .acc-entry__meta,
+body.admin-body #aclPublicPreview .acc-feature__org,
+body.admin-body #aclPublicPreview .acc-detail__desc { font-family: var(--f-body) !important; }
+
+/* Light theme: css/public/redesign.css's h1-h6 {color:var(--text-primary)!important} (always white)
+   beats .atl-drawer__header h5's own color:var(--atl-ink), so a drawer title is white on white. That
+   is true of EVERY admin drawer today (pre-existing); this only fixes the Accolades one — the same
+   rule without the #aclDrawer prefix would fix them all. */
+:root[data-theme="light"] #aclDrawer .atl-drawer__header h5 { color: var(--atl-ink) !important; }

@@ -1,33 +1,35 @@
 /* =====================================================================
    ADMIN — MANAGEMENT TEAM
    Frames the live "Public preview" in the team editor drawer, and the notice shown when the whole
-   Team section is switched off. The preview's CONTENTS are rendered by js/team-view.js — the same
+   Team section is switched off. SHARED: the preview frame and the notice also serve Accolades &
+   Recognition (.acl-preview*, .acl-notice — js/admin/accolades.js); its own additions are in
+   css/admin/accolades.css. The preview's CONTENTS are rendered by js/team-view.js — the same
    code as the public site — and styled by the public .team-* rules in css/public/redesign.css; this
    file adds no member styling of its own, it only frames it. Every selector here is new (.team-preview*,
    .team-notice), so load order does not matter.
    ===================================================================== */
 
-.team-preview {
+.team-preview, .acl-preview {
     margin: 0 0 22px;
     border: 1px solid var(--atl-line);
     border-radius: var(--atl-r-md);
     background: var(--atl-surface2);
     overflow: hidden;
 }
-.team-preview__hd {
+.team-preview__hd, .acl-preview__hd {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding: 10px 14px;
     border-bottom: 1px solid var(--atl-line);
     font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
     color: var(--atl-muted);
 }
-.team-preview__title i { color: var(--atl-amber); margin-right: 6px; }
-.team-preview__state { font-size: 11px; text-transform: none; letter-spacing: 0; text-align: right; }
-.team-preview__state.is-live { color: var(--atl-sage, #6fbf8b); }
-.team-preview__state.is-hidden { color: var(--atl-clay); }
+.team-preview__title i, .acl-preview__title i { color: var(--atl-amber); margin-right: 6px; }
+.team-preview__state, .acl-preview__state { font-size: 11px; text-transform: none; letter-spacing: 0; text-align: right; }
+.team-preview__state.is-live, .acl-preview__state.is-live { color: var(--atl-sage, #6fbf8b); }
+.team-preview__state.is-hidden, .acl-preview__state.is-hidden { color: var(--atl-clay); }
 
 /* The stage reproduces the public section's own surface so the member looks as it does on the site. */
-.team-preview__stage {
+.team-preview__stage, .acl-preview__stage {
     padding: 22px 18px;
     background: var(--bg-surface, #141414);
     color: var(--text-primary, #f4f0e6);
@@ -39,13 +41,13 @@
 #teamPublicPreview .team-row__inner { cursor: default; }
 .team-preview__stage.is-hidden .team-layout { opacity: .45; }
 
-.team-preview__note {
+.team-preview__note, .acl-preview__note {
     margin: 0; padding: 10px 14px;
     border-top: 1px solid var(--atl-line);
     font-size: 11px; line-height: 1.5; color: var(--atl-muted);
 }
 
-.team-notice {
+.team-notice, .acl-notice {
     display: flex; gap: 10px; align-items: flex-start;
     margin: 0 0 14px; padding: 12px 14px;
     border-radius: 8px;
@@ -53,5 +55,5 @@
     background: color-mix(in srgb, var(--atl-clay) 10%, transparent);
     border: 1px solid color-mix(in srgb, var(--atl-clay) 28%, transparent);
 }
-.team-notice[hidden] { display: none; }
-.team-notice i { color: var(--atl-clay); margin-top: 2px; }
+.team-notice[hidden], .acl-notice[hidden] { display: none; }
+.team-notice i, .acl-notice i { color: var(--atl-clay); margin-top: 2px; }

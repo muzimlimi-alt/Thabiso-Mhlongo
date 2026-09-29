@@ -28,6 +28,7 @@ var SECTION_REGISTRY = [
     { key: 'services',   label: 'What I Do',         cat: 'Content',    desc: 'The services grid ("From the mic to the moment").' },
     { key: 'about',      label: 'About',             cat: 'Content',    desc: 'Your biography, portrait and story.' },
     { key: 'career',     label: 'Milestones',        cat: 'Content',    desc: 'The career-defining moments panel (data managed in the Career admin section).' },
+    { key: 'accolades',  label: 'Accolades & Recognition', cat: 'Content', desc: 'The ledger of wins, nominations and honours (data managed in the Accolades admin section). Stays hidden until at least one accolade is Active.' },
     { key: 'footprint',  label: 'Footprint',         cat: 'Content',    desc: 'The flag grid of countries you\'ve performed in.' },
     { key: 'team',       label: 'Management Team',   cat: 'Content',    desc: 'The team photo grid and member list (data managed in the Management Team admin section).' },
     { key: 'gallery',    label: 'Gallery',           cat: 'Engagement', desc: 'The photo grid of moments from road, stage & studio.' },

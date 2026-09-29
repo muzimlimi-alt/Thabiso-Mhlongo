@@ -7,6 +7,7 @@ const { uploadsWriteDir } = require('../../lib/runtime-paths');
 const { safeUploadFilename } = require('../../lib/uploads');
 const { unescapeHtml, SECTION_KEYS } = require('../../lib/html-sanitize');
 const { listPublicMembers } = require('../../lib/team');
+const { listPublicAccolades } = require('../../lib/accolades');
 const { getSettingsByKeys } = require('../../database/repositories/settings.repository');
 const router = express.Router();
 
@@ -224,6 +225,20 @@ router.get('/api/public/team', async (req, res) => { // Public route for index.h
         res.json(await listPublicMembers());
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+});
+
+// --- Accolades & Recognition (published only) ---
+// Same single-source design as the team route above: lib/accolades.js decides visibility, order and
+// the published field list for this route AND GET /api/admin/accolades. Revalidated on every load,
+// so publishing / unpublishing in the admin shows on the next page view.
+router.get('/api/public/accolades', async (req, res) => { // Public route for index.html
+    try {
+        res.set('Cache-Control', 'no-cache');
+        res.json(await listPublicAccolades());
+    } catch (err) {
+        console.error('[Accolades] public list failed:', err.message);
+        res.status(500).json({ success: false, message: 'Could not load accolades.' });
     }
 });
 

@@ -502,6 +502,43 @@ function initializeDatabase() {
             updated_at DATETIME
         )`, () => {});
 
+        // 7c. Accolades & Recognition — EXTERNAL recognition (wins, nominations, honours). Kept apart
+        // from career_highlights on purpose: Milestones are the career journey, this is what others
+        // awarded. Rules (categories, validation, ordering, what is published) live in
+        // lib/accolades.js, not here — no CHECK constraints, matching the status-column preference
+        // noted on testimonials above. status defaults to 'inactive' so a row that reaches the table
+        // any other way than the admin form is never published by accident.
+        db.run(`CREATE TABLE IF NOT EXISTS accolades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            category TEXT NOT NULL,
+            year INTEGER NOT NULL,
+            achievement_date TEXT,
+            organisation TEXT,
+            event_name TEXT,
+            result TEXT,
+            description TEXT,
+            location TEXT,
+            image TEXT,
+            organisation_logo TEXT,
+            certificate_file TEXT,
+            external_url TEXT,
+            source_url TEXT,
+            featured INTEGER DEFAULT 0,
+            display_order INTEGER DEFAULT 0,
+            status TEXT DEFAULT 'inactive',
+            created_by INTEGER REFERENCES admins(id),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_by INTEGER REFERENCES admins(id),
+            updated_at DATETIME
+        )`, () => {
+            // One record per award: the same title + category + year + organisation (case-insensitive)
+            // cannot be stored twice. Backstop for the friendlier 409 check in routes/admin/accolades.js
+            // — this index is what stops two simultaneous submissions both getting through.
+            db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_accolades_identity
+                    ON accolades (lower(title), category, year, lower(COALESCE(organisation, '')))`, () => {});
+        });
+
          // 8. Manager Details Table
         db.run(`CREATE TABLE IF NOT EXISTS manager_details (
             manager_id INTEGER PRIMARY KEY AUTOINCREMENT,

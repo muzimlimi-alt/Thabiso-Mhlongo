@@ -170,6 +170,35 @@ async function selectFakePlaceOn(p, inputId) {
         await p.close();
     }
 
+    // ══════════ ACCOLADES drawer: #aclLocation (a plain text field — no venues row, unlike above) ══════════
+    {
+        const p = await openAdmin(browser);
+        await p.waitForSelector('#accoladesAddNewBtn', { timeout: 20000 });
+        await p.evaluate(() => document.getElementById('accoladesAddNewBtn').click());
+        await p.waitForSelector('#aclLocation', { timeout: 15000 });
+        await p.waitForFunction(() => window.__autocompletes && window.__autocompletes.some(a => a._input && a._input.id === 'aclLocation'), { timeout: 15000 });
+
+        await selectFakePlaceOn(p, 'aclLocation');
+        const got = await p.evaluate(() => document.getElementById('aclLocation').value);
+        ok(got === 'Cape Town', 'Accolades: selecting a place fills Location with "city, else province" (TMLocation.cityOrState) — same display rule as Manual Booking/Events', got);
+
+        // Typing after a selection is still free text (no re-lookup forced) — the field stays editable.
+        await p.evaluate(() => { const i = document.getElementById('aclLocation'); i.value = 'Cape Town, custom note'; i.dispatchEvent(new Event('input', { bubbles: true })); });
+        const edited = await p.evaluate(() => document.getElementById('aclLocation').value);
+        ok(edited === 'Cape Town, custom note', 'Accolades: the field stays freely editable after a place is picked', edited);
+
+        // Closing the drawer resets the double-init guard, so a fresh Add/Edit gets a fresh Autocomplete.
+        await p.evaluate(() => document.getElementById('aclCancelBtn').click());
+        await p.waitForFunction(() => !document.getElementById('aclDrawer').classList.contains('atl-drawer--open'), { timeout: 10000 });
+        await p.evaluate(() => document.getElementById('accoladesAddNewBtn').click());
+        await p.waitForSelector('#aclLocation', { timeout: 15000 });
+        const reinited = await p.waitForFunction(() => window.__autocompletes.filter(a => a._input && a._input.id === 'aclLocation').length === 2, { timeout: 10000 }).then(() => true, () => false);
+        ok(reinited, 'Accolades: reopening the drawer re-attaches Places (the guard was reset on close)', JSON.stringify(await p.evaluate(() => window.__autocompletes.filter(a => a._input && a._input.id === 'aclLocation').length)));
+
+        ok(p._errs.length === 0, 'Accolades: no page errors', p._errs.join(' | '));
+        await p.close();
+    }
+
     await browser.close(); await support.stop();
     console.log(fails ? `\n${fails} FAILURE(S)` : '\nALL PASS'); process.exit(fails ? 1 : 0);
 })().catch(async e => { console.error('ERR', e.stack || e.message); try { await support.stop(); } catch (_) {} process.exit(2); });

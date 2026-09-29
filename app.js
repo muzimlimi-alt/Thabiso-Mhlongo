@@ -410,6 +410,7 @@ app.use(require('./routes/admin/settings'));
 app.use(require('./routes/admin/site-content'));
 app.use(require('./routes/admin/content'));
 app.use(require('./routes/admin/team'));
+app.use(require('./routes/admin/accolades'));
 app.use(require('./routes/admin/home-social'));
 app.use(require('./routes/admin/newsletter-subscribers'));
 app.use(require('./routes/admin/newsletter-campaigns'));

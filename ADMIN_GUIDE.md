@@ -27,7 +27,15 @@ The heart of your business operations.
 - **Uploads**: Add new high-resolution photos or videos.
 - **Optimization**: Images are automatically lazy-loaded for your visitors to ensure the site stays fast.
 
-## 🔒 6. Security Maintenance
+## 🏅 6. Accolades & Recognition
+Under **Site Content → Accolades**. External recognition only — wins, nominations and honours. Your own career moments belong in **Career** (the Milestones section).
+- **Add**: New accolades start **Inactive** (a draft). Check the live preview in the drawer, then switch **Active** on to publish.
+- **Website**: The "Accolades & Recognition" section stays hidden until at least one accolade is Active. Newest year comes first; drag cards (in website order) or use **More → Move up/down** to arrange accolades within a year.
+- **Featured**: Marks an accolade for a large framed panel on the website.
+- **Media & links**: An achievement image, the organisation's logo, a certificate (PDF or image), plus an official page and a source link — shown when a visitor clicks "View".
+- **Remove**: Set it **Inactive** to take it off the website but keep it. Deleting is permanent and administrator-only.
+
+## 🔒 7. Security Maintenance
 - **Session Expiry**: For security, the admin portal will automatically log you out after 2 hours of inactivity.
 - **Backups**: Ensure someone runs `npm run backup` weekly, or set up a server 'cron' job to do it automatically.
 

@@ -41,8 +41,9 @@
     <link href="css/style.css" rel="stylesheet">
     <!-- redesign.css was split by the CSS refactor. These two halves must stay adjacent and in
          this order — together they reproduce the original single file byte for byte. -->
-    <link href="css/public/redesign.css?v=8" rel="stylesheet">
-    <link href="css/admin/team.css" rel="stylesheet">
+    <link href="css/public/redesign.css?v=9" rel="stylesheet">
+    <link href="css/admin/team.css?v=2" rel="stylesheet">
+    <link href="css/admin/accolades.css?v=1" rel="stylesheet">
     <link href="css/admin/redesign-admin.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
     <link rel="stylesheet" href="css/components/notifications.css">
@@ -310,6 +311,7 @@
                             <li><a href="#homeAdmin" class="tm-nav-link" title="Home slider"><span class="tm-nav-text">Home Slider</span></a></li>
                             <li><a href="#aboutAdmin" class="tm-nav-link" title="About Me"><span class="tm-nav-text">About Me</span></a></li>
                             <li><a href="#careerAdmin" class="tm-nav-link" title="Career highlights"><span class="tm-nav-text">Career</span></a></li>
+                            <li><a href="#accoladesAdmin" class="tm-nav-link" title="Accolades &amp; Recognition"><span class="tm-nav-text">Accolades</span></a></li>
                             <li><a href="#footprintAdmin" class="tm-nav-link" title="Footprint"><span class="tm-nav-text">Footprint</span></a></li>
                             <li><a href="#teamAdmin" class="tm-nav-link" title="Management Team"><span class="tm-nav-text">Management Team</span></a></li>
                             <li><a href="#testimonialsAdmin" class="tm-nav-link" title="Testimonials"><span class="tm-nav-text">Testimonials</span></a></li>
@@ -4166,6 +4168,146 @@
                 </div>
             </div>
 
+            <!-- Accolades & Recognition — external recognition (wins, nominations, honours). Controller:
+                 js/admin/accolades.js; rules and ordering: lib/accolades.js; editor: #aclDrawer below. -->
+            <div class="admin-section" id="accoladesAdmin">
+                <div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">Recognition</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-award"></i> Accolades &amp; Recognition</h2>
+                            <p class="atl-section-sub">Wins, nominations and honours shown in the Accolades &amp; Recognition section of the public site.</p>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
+                            <button type="button" id="accoladesAddNewBtn" class="atl-btn atl-btn--primary">
+                                <i class="fa-solid fa-plus"></i> Add Accolade
+                            </button>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
+
+                    <div class="atl-tab-bar" role="tablist">
+                        <button class="atl-tab-btn active" data-um-tab="accoladesConfigPanel" role="tab" aria-selected="true"><i class="fa-solid fa-award"></i> Manage Accolades</button>
+                        <button class="atl-tab-btn" data-um-tab="accoladesAboutPanel" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
+                    </div>
+
+                    <div id="accoladesConfigPanel" class="um-panel active">
+                        <div id="aclSectionNotice" class="acl-notice" role="status" hidden></div>
+
+                        <div class="acl-toolbar" role="search" aria-label="Find accolades">
+                            <div class="um-input-wrap acl-toolbar__search">
+                                <i class="fa-solid fa-magnifying-glass um-input-icon" aria-hidden="true"></i>
+                                <input type="search" id="aclSearch" class="um-input" placeholder="Search title, organisation, event…" aria-label="Search accolades">
+                            </div>
+                            <select id="aclFilterCategory" class="um-input atl-filter-select" aria-label="Filter by category">
+                                <option value="">All categories</option>
+                                <option value="win">Wins</option>
+                                <option value="nomination">Nominations</option>
+                                <option value="accolade">Accolades</option>
+                            </select>
+                            <select id="aclFilterYear" class="um-input atl-filter-select" aria-label="Filter by year">
+                                <option value="">All years</option>
+                            </select>
+                            <select id="aclFilterStatus" class="um-input atl-filter-select" aria-label="Filter by status">
+                                <option value="">Any status</option>
+                                <option value="active">Active (on the website)</option>
+                                <option value="inactive">Inactive (hidden)</option>
+                            </select>
+                            <select id="aclFilterFeatured" class="um-input atl-filter-select" aria-label="Filter by featured">
+                                <option value="">Featured or not</option>
+                                <option value="1">Featured only</option>
+                                <option value="0">Not featured</option>
+                            </select>
+                            <select id="aclSort" class="um-input atl-filter-select" aria-label="Sort accolades">
+                                <option value="site">Sort: website order</option>
+                                <option value="year_desc">Sort: year, newest first</option>
+                                <option value="year_asc">Sort: year, oldest first</option>
+                                <option value="title">Sort: title A&ndash;Z</option>
+                                <option value="updated">Sort: recently updated</option>
+                            </select>
+                            <button type="button" id="aclBulkToggle" class="atl-btn atl-btn--ghost" aria-pressed="false" title="Select accolades for bulk actions">
+                                <i class="fa-regular fa-square-check" aria-hidden="true"></i> Select
+                            </button>
+                        </div>
+
+                        <!-- Bulk actions (shown in Select mode) — POST /api/admin/accolades/bulk, all-or-nothing. -->
+                        <div id="aclBulkBar" class="evt-bulk-bar" style="display:none;">
+                            <label class="acl-select-all"><input type="checkbox" id="aclSelectAll"> <span>Select this page</span></label>
+                            <span id="aclBulkCount" class="evt-bulk-count" aria-live="polite">0 selected</span>
+                            <div class="acl-bulk-actions">
+                                <button type="button" class="atl-btn atl-btn--ghost acl-bulk-btn" data-bulk="publish"><i class="fa-solid fa-globe" aria-hidden="true"></i> Publish</button>
+                                <button type="button" class="atl-btn atl-btn--ghost acl-bulk-btn" data-bulk="unpublish"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Unpublish</button>
+                                <button type="button" class="atl-btn atl-btn--ghost acl-bulk-btn" data-bulk="feature"><i class="fa-solid fa-star" aria-hidden="true"></i> Feature</button>
+                                <button type="button" class="atl-btn atl-btn--ghost acl-bulk-btn" data-bulk="unfeature"><i class="fa-regular fa-star" aria-hidden="true"></i> Unfeature</button>
+                                <button type="button" class="atl-btn atl-btn--ghost acl-bulk-btn acl-bulk-btn--danger" data-bulk="delete" id="aclBulkDelete"><i class="fa-solid fa-trash-can" aria-hidden="true"></i> Delete</button>
+                            </div>
+                            <button type="button" id="aclBulkCancel" class="atl-btn atl-btn--ghost" style="margin-left:auto;"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Done</button>
+                        </div>
+
+                        <p id="aclResultsMeta" class="acl-results-meta" aria-live="polite"></p>
+                        <div id="adminAccoladesList" class="evt-card-grid">
+                            <!-- Accolade cards injected here by js/admin/accolades.js -->
+                        </div>
+                        <div id="aclPagination" class="acl-pagination" style="display:none;"></div>
+                    </div><!-- /#accoladesConfigPanel -->
+
+                    <div id="accoladesAboutPanel" class="um-panel">
+                        <div class="atl-card">
+                            <div class="um-icon-header">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                <div>
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">About Accolades &amp; Recognition</h4>
+                                    <p class="um-section-desc">The ledger of wins, nominations and honours on your public site.</p>
+                                </div>
+                            </div>
+                            <div class="um-divider"></div>
+                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                Each card is one piece of <strong style="color:var(--atl-ink);">external recognition</strong>: a <strong style="color:var(--atl-ink);">Win</strong> (an award or competition won), a <strong style="color:var(--atl-ink);">Nomination</strong> (an official nomination) or an <strong style="color:var(--atl-ink);">Accolade</strong> (an honour, selection or notable recognition). Your own career moments belong in <strong style="color:var(--atl-ink);">Career</strong> (the Milestones section) instead &mdash; the two are kept apart on purpose.
+                            </p>
+                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+                            <div class="um-roles-grid" style="margin-bottom:26px;">
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-globe" style="color:var(--atl-amber);"></i> Publishing</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> New accolades start <strong style="color:var(--atl-ink);">Inactive</strong> &mdash; check the preview, then switch them to Active</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> The website section stays hidden until at least one accolade is Active</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-arrow-down-wide-short" style="color:var(--atl-amber);"></i> Order &amp; Featured</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> Newest year first; drag cards (in website order) to arrange accolades within a year</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Featured</strong> accolades get a large framed panel on the website</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-photo-film" style="color:var(--atl-amber);"></i> Media &amp; links</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> An achievement image, the organisation&rsquo;s logo and a certificate (PDF or image)</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> An official page and a source link, opened from the &ldquo;View&rdquo; panel</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head"><span class="um-feature-title"><i class="fa-solid fa-trash" style="color:var(--atl-amber);"></i> Delete</span></div>
+                                    <ul class="um-role-list">
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Deleting requires an administrator and cannot be undone</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> To take one off the website but keep it, set it Inactive</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>The website adds <strong style="color:var(--atl-ink);">All / Wins / Nominations / Accolades</strong> filters by itself once there are at least four entries across two or more categories. Every change is recorded in each accolade&rsquo;s <strong style="color:var(--atl-ink);">Change History</strong>.</span>
+                            </p>
+                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
+                                <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
+                                <span>Only add real recognition &mdash; everything that is Active is published on the live website the moment you save.</span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Footprint (countries performed in) -->
             <div class="admin-section" id="footprintAdmin">
                 <div>
@@ -7294,7 +7436,7 @@
         window.initAdminDateTimePickers = function() {
             ['finDateFrom', 'finDateTo', 'txDateFrom', 'txDateTo', 'expenseDateFrom', 'expenseDateTo',
              'svcValidFrom', 'svcValidTo', 'auditDateFrom', 'auditDateTo', 'contractSignedDate',
-             'expenseDate', 'manualTxDate', 'quoteModalExpiry', 'boDate', 'boEndDate'
+             'expenseDate', 'manualTxDate', 'quoteModalExpiry', 'boDate', 'boEndDate', 'aclDate'
             ].forEach(function(id) { _fpDate(document.getElementById(id)); });
             ['bdaySendTime', 'boTime'].forEach(function(id) { _fpTime(document.getElementById(id)); });
             _fpDateTime(document.getElementById('scheduledDateTime'));
@@ -7356,6 +7498,9 @@
     <!-- Same renderer the public site uses for team members (js/team-view.js) — drives the live preview. -->
     <script src="js/team-view.js?v=2"></script>
     <script src="js/admin/team.js?v=3"></script>
+    <!-- Accolades & Recognition: the public renderer (drives the live preview) + the admin controller. -->
+    <script src="js/accolades-view.js?v=1"></script>
+    <script src="js/admin/accolades.js?v=1"></script>
     <script>
 
         // ============================================================
@@ -8267,6 +8412,7 @@
                     loadHighlights();
                     loadFootprint();
                     loadTeam();
+                    if (typeof window.loadAccolades === 'function') window.loadAccolades();
                     if (typeof window.loadGoogleMaps === 'function') window.loadGoogleMaps();
                     loadTestimonials();
                     loadGallery();
@@ -8399,6 +8545,7 @@
                     loadHighlights();
                     loadFootprint();
                     loadTeam();
+                    if (typeof window.loadAccolades === 'function') window.loadAccolades();
                     if (typeof window.loadGoogleMaps === 'function') window.loadGoogleMaps();
                     loadTestimonials();
                     loadGallery();
@@ -9430,6 +9577,217 @@
             <div style="padding:12px; background:var(--atl-surface2); border:1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
                 <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
                 <div id="teamChangeHistoryList"></div>
+            </div>
+          </section>
+        </div>
+    </div>
+
+    <!-- Accolades & Recognition editor drawer (Add / Edit) — js/admin/accolades.js. -->
+    <div id="aclDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="aclDrawer" class="atl-drawer atl-drawer--600" role="dialog" aria-labelledby="aclDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="aclDrawerTitle"><i class="fa-solid fa-award"></i> Add Accolade</h5>
+            <button type="button" class="atl-drawer__close" id="aclDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="dv-subhead">
+            <div class="dv-tabs" role="tablist" aria-label="Accolade sections" id="aclTabs">
+                <button type="button" class="dv-tab" role="tab" id="acl-tab-edit" aria-controls="acl-panel-edit" aria-selected="true" tabindex="0">Edit</button>
+                <button type="button" class="dv-tab" role="tab" id="acl-tab-history" aria-controls="acl-panel-history" aria-selected="false" tabindex="-1" style="display:none;">Change History</button>
+            </div>
+        </div>
+        <div class="atl-drawer__body">
+          <section class="dv-panel" role="tabpanel" id="acl-panel-edit" aria-labelledby="acl-tab-edit" tabindex="0">
+            <form id="aclForm" class="um-form" autocomplete="off" novalidate>
+                <!-- Live preview: rendered by the SAME code as the website (js/accolades-view.js), from the
+                     fields the server publishes (lib/accolades.js PUBLIC_FIELDS). -->
+                <div class="acl-preview" id="aclPublicPreview">
+                    <div class="acl-preview__hd">
+                        <span class="acl-preview__title"><i class="fa-solid fa-eye" aria-hidden="true"></i> Public preview</span>
+                        <span class="acl-preview__state" id="aclPreviewState"></span>
+                    </div>
+                    <div class="acl-preview__stage">
+                        <ol class="acc-ledger" id="aclPreviewLedger" aria-label="Public preview of this accolade"></ol>
+                    </div>
+                    <details class="acl-preview__detail">
+                        <summary>Preview the panel its &ldquo;View&rdquo; button opens</summary>
+                        <div class="acl-preview__stage acl-preview__stage--detail" id="aclPreviewDetail"></div>
+                    </details>
+                    <p class="acl-preview__note">The &ldquo;View&rdquo; button only appears once there is more to show &mdash; a description, image, certificate, link, date or location.</p>
+                </div>
+
+                <h5 class="acl-group-title"><i class="fa-solid fa-award" aria-hidden="true"></i> Details</h5>
+                <div class="um-field-group">
+                    <label class="um-label" for="aclTitle">Title <span class="um-req">*</span></label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-heading um-input-icon" aria-hidden="true"></i>
+                        <input type="text" class="um-input" id="aclTitle" maxlength="160" required placeholder="e.g. Best Comedian" aria-describedby="aclTitleErr">
+                    </div>
+                    <small class="acl-field-error" id="aclTitleErr"></small>
+                </div>
+                <div class="um-form-grid">
+                    <div class="um-field-group">
+                        <label class="um-label" for="aclCategory">Category <span class="um-req">*</span></label>
+                        <select class="um-input atl-filter-select" id="aclCategory" required aria-describedby="aclCategoryHelp aclCategoryErr" style="width:100%;">
+                            <option value="win">Win &mdash; an award or competition won</option>
+                            <option value="nomination">Nomination &mdash; an official nomination</option>
+                            <option value="accolade">Accolade &mdash; an honour, selection or recognition</option>
+                        </select>
+                        <small class="help-block" id="aclCategoryHelp">Decides the label and the website filter it appears under.</small>
+                        <small class="acl-field-error" id="aclCategoryErr"></small>
+                    </div>
+                    <div class="um-field-group">
+                        <label class="um-label" for="aclYear">Year <span class="um-req">*</span></label>
+                        <div class="um-input-wrap">
+                            <i class="fa-regular fa-calendar um-input-icon" aria-hidden="true"></i>
+                            <input type="number" class="um-input" id="aclYear" inputmode="numeric" min="1950" step="1" required placeholder="e.g. 2025" aria-describedby="aclYearErr">
+                        </div>
+                        <small class="acl-field-error" id="aclYearErr"></small>
+                    </div>
+                </div>
+                <div class="um-form-grid">
+                    <div class="um-field-group">
+                        <label class="um-label" for="aclDate">Date</label>
+                        <div class="acl-inline">
+                            <div class="um-input-wrap" style="flex:1;">
+                                <i class="fa-regular fa-calendar-check um-input-icon" aria-hidden="true"></i>
+                                <input type="text" class="um-input" id="aclDate" placeholder="Optional" aria-describedby="aclDateHelp aclDateErr">
+                            </div>
+                            <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" id="aclDateClear" aria-label="Clear the date">Clear</button>
+                        </div>
+                        <small class="help-block" id="aclDateHelp">The ceremony or announcement date, if known.</small>
+                        <small class="acl-field-error" id="aclDateErr"></small>
+                    </div>
+                    <div class="um-field-group">
+                        <label class="um-label" for="aclResult">Result</label>
+                        <div class="um-input-wrap">
+                            <i class="fa-solid fa-medal um-input-icon" aria-hidden="true"></i>
+                            <input type="text" class="um-input" id="aclResult" maxlength="80" list="aclResultSuggestions" placeholder="e.g. Winner, Nominee, Finalist" aria-describedby="aclResultErr">
+                        </div>
+                        <datalist id="aclResultSuggestions">
+                            <option value="Winner"></option><option value="Runner-up"></option><option value="Finalist"></option>
+                            <option value="Nominee"></option><option value="Shortlisted"></option><option value="Honouree"></option>
+                            <option value="Selected"></option><option value="Recipient"></option>
+                        </datalist>
+                        <small class="acl-field-error" id="aclResultErr"></small>
+                    </div>
+                </div>
+                <div class="um-form-grid">
+                    <div class="um-field-group">
+                        <label class="um-label" for="aclOrganisation">Awarding Organisation</label>
+                        <div class="um-input-wrap">
+                            <i class="fa-solid fa-building-columns um-input-icon" aria-hidden="true"></i>
+                            <input type="text" class="um-input" id="aclOrganisation" maxlength="160" placeholder="e.g. South African Comedy Awards" aria-describedby="aclOrganisationErr">
+                        </div>
+                        <small class="acl-field-error" id="aclOrganisationErr"></small>
+                    </div>
+                    <div class="um-field-group">
+                        <label class="um-label" for="aclEvent">Event / Ceremony</label>
+                        <div class="um-input-wrap">
+                            <i class="fa-solid fa-champagne-glasses um-input-icon" aria-hidden="true"></i>
+                            <input type="text" class="um-input" id="aclEvent" maxlength="160" placeholder="e.g. Annual Awards Gala" aria-describedby="aclEventErr">
+                        </div>
+                        <small class="acl-field-error" id="aclEventErr"></small>
+                    </div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="aclLocation">Location</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-location-dot um-input-icon" aria-hidden="true"></i>
+                        <input type="text" class="um-input" id="aclLocation" maxlength="120" placeholder="Search a city or venue…" autocomplete="off" aria-describedby="aclLocationHelp aclLocationErr">
+                    </div>
+                    <small class="help-block" id="aclLocationHelp">Pick a suggestion, or type your own — e.g. Johannesburg.</small>
+                    <small class="acl-field-error" id="aclLocationErr"></small>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="aclDescription">Description</label>
+                    <textarea class="um-input" id="aclDescription" rows="4" maxlength="2000" placeholder="What the recognition was for (optional)" aria-describedby="aclDescriptionCount aclDescriptionErr"></textarea>
+                    <small class="help-block acl-counter" id="aclDescriptionCount" aria-live="polite">0 / 2000</small>
+                    <small class="acl-field-error" id="aclDescriptionErr"></small>
+                </div>
+
+                <h5 class="acl-group-title"><i class="fa-solid fa-photo-film" aria-hidden="true"></i> Media</h5>
+                <div class="um-field-group">
+                    <label class="um-label" for="aclImageFile">Achievement Image</label>
+                    <div class="acl-media" id="aclImagePreview" hidden></div>
+                    <label for="aclImageFile" class="um-upload-zone acl-upload-zone">
+                        <i class="fa-solid fa-cloud-arrow-up um-upload-icon" aria-hidden="true"></i>
+                        <p class="um-upload-text" id="aclImageText">Drag &amp; drop or select an image</p>
+                        <input type="file" id="aclImageFile" class="um-file-input" accept="image/*" aria-describedby="aclImageErr">
+                    </label>
+                    <small class="help-block">A photo of the moment or the award itself. JPG, PNG or WEBP, up to 15&nbsp;MB.</small>
+                    <small class="acl-field-error" id="aclImageErr"></small>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="aclLogoFile">Organisation Logo</label>
+                    <div class="acl-media" id="aclLogoPreview" hidden></div>
+                    <label for="aclLogoFile" class="um-upload-zone acl-upload-zone">
+                        <i class="fa-solid fa-cloud-arrow-up um-upload-icon" aria-hidden="true"></i>
+                        <p class="um-upload-text" id="aclLogoText">Drag &amp; drop or select a logo</p>
+                        <input type="file" id="aclLogoFile" class="um-file-input" accept="image/*" aria-describedby="aclLogoErr">
+                    </label>
+                    <small class="help-block">Shown small beside the organisation name. A transparent PNG or SVG works best.</small>
+                    <small class="acl-field-error" id="aclLogoErr"></small>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="aclCertFile">Certificate / PDF</label>
+                    <div class="acl-media" id="aclCertPreview" hidden></div>
+                    <label for="aclCertFile" class="um-upload-zone acl-upload-zone">
+                        <i class="fa-solid fa-cloud-arrow-up um-upload-icon" aria-hidden="true"></i>
+                        <p class="um-upload-text" id="aclCertText">Drag &amp; drop or select a PDF or image</p>
+                        <input type="file" id="aclCertFile" class="um-file-input" accept="application/pdf,.pdf,image/jpeg,image/png,image/webp" aria-describedby="aclCertErr">
+                    </label>
+                    <small class="help-block">Visitors can open it from the &ldquo;View&rdquo; panel. PDF, JPG, PNG or WEBP, up to 15&nbsp;MB.</small>
+                    <small class="acl-field-error" id="aclCertErr"></small>
+                </div>
+
+                <h5 class="acl-group-title"><i class="fa-solid fa-link" aria-hidden="true"></i> Links</h5>
+                <div class="um-field-group">
+                    <label class="um-label" for="aclExternalUrl">External URL</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-arrow-up-right-from-square um-input-icon" aria-hidden="true"></i>
+                        <input type="url" class="um-input" id="aclExternalUrl" maxlength="500" placeholder="https://… (the official award page)" aria-describedby="aclExternalUrlErr">
+                    </div>
+                    <small class="acl-field-error" id="aclExternalUrlErr"></small>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="aclSourceUrl">Source / Reference URL</label>
+                    <div class="um-input-wrap">
+                        <i class="fa-solid fa-newspaper um-input-icon" aria-hidden="true"></i>
+                        <input type="url" class="um-input" id="aclSourceUrl" maxlength="500" placeholder="https://… (a news story or announcement)" aria-describedby="aclSourceUrlErr">
+                    </div>
+                    <small class="acl-field-error" id="aclSourceUrlErr"></small>
+                </div>
+
+                <h5 class="acl-group-title"><i class="fa-solid fa-sliders" aria-hidden="true"></i> Publishing</h5>
+                <div class="um-field-group acl-switch-row">
+                    <label class="um-label" for="aclActiveSwitch">Status: Active <span class="acl-switch-hint">(shown on the website)</span></label>
+                    <button type="button" class="atl-switch" role="switch" id="aclActiveSwitch" aria-checked="false" aria-label="Active: shown on the website"></button>
+                </div>
+                <div class="um-field-group acl-switch-row">
+                    <label class="um-label" for="aclFeaturedSwitch">Featured <span class="acl-switch-hint">(a large framed panel on the website)</span></label>
+                    <button type="button" class="atl-switch" role="switch" id="aclFeaturedSwitch" aria-checked="false" aria-label="Featured accolade"></button>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="aclDisplayOrder">Display Order</label>
+                    <div class="um-input-wrap">
+                        <input type="number" class="um-input" id="aclDisplayOrder" min="0" step="1" placeholder="Automatic" aria-describedby="aclDisplayOrderHelp aclDisplayOrderErr">
+                    </div>
+                    <small class="help-block" id="aclDisplayOrderHelp">Lower numbers come first among accolades from the same year. Leave blank to add it at the end; you can also drag cards in website order.</small>
+                    <small class="acl-field-error" id="aclDisplayOrderErr"></small>
+                </div>
+
+                <div class="um-form-actions" style="justify-content:flex-end; gap:10px;">
+                    <button type="button" class="atl-btn atl-btn--ghost" id="aclCancelBtn">Cancel</button>
+                    <button type="submit" class="atl-btn atl-btn--primary" id="aclSubmitBtn">
+                        <i class="fa-solid fa-plus-circle"></i> Add Accolade
+                    </button>
+                </div>
+            </form>
+          </section>
+          <section class="dv-panel" role="tabpanel" id="acl-panel-history" aria-labelledby="acl-tab-history" tabindex="0" hidden>
+            <div class="acl-history">
+                <h5 class="acl-group-title" style="margin-top:0;"><i class="fa-solid fa-timeline" aria-hidden="true"></i> Change History</h5>
+                <div id="aclChangeHistoryList"></div>
             </div>
           </section>
         </div>
@@ -11249,6 +11607,7 @@
         careerAdmin:      { label: 'Career',            icon: 'fa-star' },
         footprintAdmin:   { label: 'Footprint',         icon: 'fa-earth-africa' },
         teamAdmin:        { label: 'Management Team',   icon: 'fa-user-tie' },
+        accoladesAdmin:   { label: 'Accolades & Recognition', icon: 'fa-award' },
         testimonialsAdmin:{ label: 'Testimonials',      icon: 'fa-quote-left' },
         galleryAdmin:     { label: 'Gallery',           icon: 'fa-image' },
         socialAdmin:      { label: 'Socials',           icon: 'fa-share-nodes' },

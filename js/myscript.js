@@ -390,6 +390,7 @@ $(function() {
         services:   { sel: '.tm-services', nav: [] },
         about:      { sel: '#about',       nav: ['#about'] },
         career:     { sel: '#career',      nav: ['#career'] },
+        accolades:  { sel: '#accolades',   nav: ['#accolades'] },
         footprint:  { sel: '#footprint',   nav: ['#footprint'] },
         team:       { sel: '#team',        nav: ['#team'] },
         gallery:    { sel: '#gallery',     nav: ['#gallery'] },
@@ -871,6 +872,60 @@ $(function() {
     }
 
     renderCareer();
+
+    // 9a2. Accolades & Recognition — wins, nominations and honours. WHAT is published and in WHICH
+    // order is decided by lib/accolades.js (the admin portal uses the same module); HOW it looks is
+    // js/accolades-view.js, the same renderer as the admin's live preview. With nothing published the
+    // section and its nav links stay hidden — it never shows placeholder awards.
+    async function renderAccolades() {
+        var $section = $('#accolades');
+        if (!$section.length || !window.AccoladesView) return;
+        var items = [];
+        try {
+            const response = await fetch('/api/public/accolades');
+            const data = await response.json();
+            if (Array.isArray(data)) items = data;
+        } catch (err) {
+            console.error("Failed to load accolades from server:", err);
+        }
+
+        var $nav = $('.tm-navlinks a[href="#accolades"]').closest('li').add('.tm-mobile-menu a[href="#accolades"]');
+        if (!items.length) {
+            $section.prop('hidden', true);
+            $nav.addClass('tm-nav-empty');
+            return;
+        }
+
+        var $ledger = $('#accoladesLedger');
+        AccoladesView.mount({
+            items: items,
+            $ledger: $ledger,
+            $filters: $('#accoladesFilters'),
+            $status: $('#accoladesStatus'),
+            onOpen: function (item) {
+                $('#accoladeDrawerTitle').text(item.title || 'Recognition');
+                AccoladesView.renderDetail(item, $('#accoladeDrawerBody'));
+                if (window.openAtlDrawer) openAtlDrawer('accoladeDrawer');
+            }
+        });
+        $nav.removeClass('tm-nav-empty');
+        // If applySectionVisibility() already ran, its .toggle(true) met these links while
+        // .tm-nav-empty was hiding them, and jQuery left its default inline display behind
+        // (display:inline on the mobile <a>, which undoes the menu's block styling). Clear it —
+        // unless the admin switched the section off, when that inline display:none must stay.
+        if (!$section.hasClass('tm-section-hidden')) $nav.css('display', '');
+        $section.prop('hidden', false);
+
+        // First render reveals entry by entry on scroll, like the Footprint cards (a filter change
+        // re-draws them with their own enter animation instead — see .acc-entry--enter).
+        var $entries = $ledger.children('.acc-entry').addClass('tm-reveal reveal');
+        if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
+            $entries.each(function () { revealObserver.observe(this); });
+        } else {
+            $entries.addClass('active');
+        }
+    }
+    renderAccolades();
 
     // 9b. Dynamic Footprint Rendering (countries performed in — flag grid)
     async function renderFootprint() {
