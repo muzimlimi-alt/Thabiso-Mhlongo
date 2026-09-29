@@ -2529,8 +2529,12 @@ $(document).ready(function() {
                     $('#expiredNotice').show();
                 }
 
-                // Client self-cancel button
-                if (['PENDING','QUOTED'].includes(bStatus)) {
+                // Client self-cancel button. Phase 1 booking-lifecycle review (2026-09-29), P2-1:
+                // the backend (POST /api/public/bookings/:id/cancel) has always allowed self-cancel
+                // on PENDING/QUOTED/ACCEPTED — this button was only ever shown for the first two, so
+                // a client who'd accepted a quote (but not yet paid) had no visible way to cancel,
+                // even though the API would have accepted it. Matched to the backend's own list.
+                if (['PENDING','QUOTED','ACCEPTED'].includes(bStatus)) {
                     $('#clientCancelSection').show();
                 } else {
                     $('#clientCancelSection').hide();

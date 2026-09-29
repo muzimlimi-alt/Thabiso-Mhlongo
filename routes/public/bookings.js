@@ -461,7 +461,17 @@ router.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter,
                     return { status: 500, body: { success: false, message: 'Database busy. Please retry.' } };
                 }
                 try {
-                    await dbRun("UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [req.params.id]);
+                    // P0-2: guarded against the booking having left a cancellable state between the
+                    // read above (before this transaction opened) and here — e.g. an admin's own
+                    // cancel, or the automated quote-expiry sweep, landing in that window. Mirrors
+                    // the same fix applied to the admin cancel route's cancelBookingAsync().
+                    const cancelUpd = await dbRun(
+                        "UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ? AND status IN ('PENDING','QUOTED','ACCEPTED')",
+                        [req.params.id]);
+                    if (!cancelUpd || cancelUpd.changes === 0) {
+                        await dbRun("ROLLBACK").catch(() => {});
+                        return { status: 409, body: { success: false, message: 'This booking was just changed by another action. Please refresh and try again.' } };
+                    }
                     await insertCancellationForPublicCancel(req.params.id, reason || 'Client request', reason_code || null, calc.totalPaid, calc.refund, calc.retention);
                     // Released with the cancellation, not after it: this ran post-COMMIT and could
                     // leave the date held against a booking that no longer holds it.
@@ -866,19 +876,30 @@ router.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter
         const typeLabel = request_type === 'extension' ? 'Quote Expiry Extension' : 'Quote Revision';
         const notifEmail = await getNotificationEmail();
 
+        // Phase 1 booking-lifecycle review (2026-09-29), P1-1: filing this request used to only
+        // leave a booking note + emails — nothing stopped lib/background-clerk.js's automated
+        // QUOTED->EXPIRED sweep (quote_expiry_date < today) from expiring the quote out from under
+        // an unread request. Push quote_expiry_date out to at least 5 days from today (never
+        // shortens an already-later expiry) so there's a guaranteed review window; revision_requested_at
+        // is stamped for the admin-side "open requests" view and cleared when a fresh quote is
+        // issued (routes/admin/bookings.js's quote route — a new quote resets the negotiation).
+        const graceExpiry = new Date(Date.now() + 5 * 86400000).toISOString().slice(0, 10);
+        const newExpiry = (!row.quote_expiry_date || row.quote_expiry_date < graceExpiry) ? graceExpiry : row.quote_expiry_date;
+        const expiryWasExtended = newExpiry !== row.quote_expiry_date;
+
         const adminHtml = emailComponents.renderSystemEmail({
             preheaderText: `${typeLabel} request from ${row.name} for booking #${row.id}.`,
             category: 'Quotes & Proposals',
             severity: 'action',
             leadFact: `A client has submitted a <strong style="color:#D4AF37;">${typeLabel}</strong> request for booking <strong style="color:#FAFAFA;">#${row.id}</strong>.`,
-            bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Please review this request in the admin panel and respond to the client accordingly.</p>`,
+            bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Please review this request in the admin panel and respond to the client accordingly.${expiryWasExtended ? ` The quote expiry has been automatically extended to <strong style="color:#FAFAFA;">${newExpiry}</strong> so it won't lapse while this is under review.` : ''}</p>`,
             cards: [{
                 rows: [
                     { label: 'Client', value: row.name, mono: false },
                     { label: 'Email', value: row.email },
                     { label: 'Event', value: `${row.event_name || row.event_type} on ${row.date}`, mono: false },
                     { label: 'Quote Amount', value: `R ${parseFloat(row.quote_amount || 0).toFixed(2)}`, highlight: true },
-                    { label: 'Quote Expiry', value: row.quote_expiry_date || 'Not set' },
+                    { label: 'Quote Expiry', value: newExpiry || 'Not set', highlight: expiryWasExtended },
                     { label: 'Request Type', value: typeLabel, mono: false, highlight: true },
                     { label: 'Client Message', value: message.trim(), mono: false }
                 ]
@@ -889,6 +910,9 @@ router.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter
             // Log the client's request as a booking note first (critical operation)
             const noteText = `[${typeLabel} Request]\n"${message.trim()}"`;
             await insertBookingNoteFromTracker(row.id, encodeUserHtml(noteText));
+            await dbRun(
+                "UPDATE bookings SET quote_expiry_date = ?, revision_requested_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'QUOTED'",
+                [newExpiry, row.id]);
 
             // Send email notifications asynchronously in the background (no await)
             sendEmail({
@@ -912,6 +936,7 @@ router.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter
                         greeting: `Hi ${row.name},`,
                         bodyHtml:
                             `We've received your <strong style="color:#D4AF37;">${typeLabel.toLowerCase()}</strong> request for booking <strong style="color:#FAFAFA;">#${row.id}</strong>. Our team will review your request and get back to you shortly.` +
+                            (expiryWasExtended ? `<p style="margin:10px 0 0; color:#E6E6E6;">We've extended your quote's validity to <strong style="color:#D4AF37;">${newExpiry}</strong> so there's no rush while we review this.</p>` : '') +
                             `<p style="margin:10px 0 0; color:#B0B0B0; font-size:12px;">Your request: "${message.trim()}"</p>`,
                         socialLinks
                     }),

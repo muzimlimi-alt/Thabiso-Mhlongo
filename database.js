@@ -2480,6 +2480,18 @@ function initializeDatabase() {
         db.run("ALTER TABLE bookings ADD COLUMN buffer_minutes INTEGER DEFAULT NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.buffer_minutes migration:', err.message); });
         db.run("ALTER TABLE bookings ADD COLUMN consent_source TEXT DEFAULT 'public_form'", (err) => { if (err && !err.message.includes('duplicate column name')) {} });
         db.run("ALTER TABLE consent_audit ADD COLUMN consent_source TEXT DEFAULT 'public_form'", (err) => { if (err && !err.message.includes('duplicate column name')) {} });
+        // Phase 1 booking-lifecycle review (2026-09-29), P1-2: distinguishes the two distinct causes
+        // that both land on status='EXPIRED' — pending_inactivity (48h, no quote ever issued) vs
+        // quote_expiry (quoted, client never responded) — previously indistinguishable without
+        // manually diffing pending_at/quoted_at/quote_expiry_date. Set by expirePendingBooking /
+        // expireQuotedBooking (database/repositories/bookings.repository.js).
+        db.run("ALTER TABLE bookings ADD COLUMN expired_reason TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.expired_reason migration:', err.message); });
+        // P1-1: stamped when a client files a quote-revision/extension request (routes/public/
+        // bookings.js's quote-revision-request route) so the automated quote-expiry sweep
+        // (lib/background-clerk.js) can extend past it instead of expiring a quote under active
+        // review. Cleared when a fresh quote is subsequently issued (routes/admin/bookings.js's
+        // quote route) — a new quote resets the negotiation.
+        db.run("ALTER TABLE bookings ADD COLUMN revision_requested_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.revision_requested_at migration:', err.message); });
 
         // ============================================================
         // Legal & Compliance Centre — legal documents + version history

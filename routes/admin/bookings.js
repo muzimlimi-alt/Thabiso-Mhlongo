@@ -2699,7 +2699,18 @@ router.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => 
                     // aborted the whole statement — this route returned 500 on every call. The real
                     // payment state must survive cancellation anyway: the refund owed is computed
                     // from what the client actually paid.
-                    await cancelBookingAsync(bookingId);
+                    //
+                    // P0-2: cancelBookingAsync's UPDATE is itself guarded (status NOT IN
+                    // ('CANCELLED','COMPLETED')) — this booking left that window between the
+                    // currentStatus check above (a read, before this transaction opened) and here. 0
+                    // rows changed means the race was lost to a concurrent action (e.g. the client's
+                    // own accept-quote or self-cancel); roll back rather than run the cascade below
+                    // over a state this request no longer has an accurate picture of.
+                    const cancelResult = await cancelBookingAsync(bookingId);
+                    if (!cancelResult || cancelResult.changes === 0) {
+                        await dbRun("ROLLBACK").catch(() => {});
+                        return { status: 409, body: { success: false, message: 'This booking was already changed by another action (e.g. accepted or cancelled elsewhere) just before this cancellation could complete. Please refresh and try again.' } };
+                    }
 
                     await insertCancellationForAdminCancel(bookingId, cancelledBy, reason || null, totalPaid, refundDue, retentionAmount, notes || null, req.session.adminId);
 

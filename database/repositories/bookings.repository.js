@@ -109,8 +109,16 @@ function getStaleNewBookings(nowLocal, callback) {
             WHERE status = 'NEW'
             AND datetime(created_at, '+24 hours') < ?`, [nowLocal], callback);
 }
+// Phase 1 booking-lifecycle review (2026-09-29), P0-1: every automated-sweep write in this file
+// used to be an unconditional `WHERE id=?`, with no re-check of the status the SELECT above it had
+// just matched on. Between that SELECT and this UPDATE actually running, a client or admin can
+// legitimately move the same booking on (accept a quote, get paid, cancel it) — the blind UPDATE
+// would still fire and silently clobber that real action. Each write below now carries the exact
+// same status guard its own SELECT filtered on (mirrors the compare-and-swap already used by
+// routes/public/bookings.js's accept-quote route); a lost race is now a harmless no-op (0 rows
+// affected) instead of a silent state corruption.
 function promoteBookingToPending(bookingId) {
-    db.run(`UPDATE bookings SET status='PENDING', pending_at=CURRENT_TIMESTAMP WHERE id=?`, [bookingId]);
+    db.run(`UPDATE bookings SET status='PENDING', pending_at=CURRENT_TIMESTAMP WHERE id=? AND status='NEW'`, [bookingId]);
 }
 // S6: auto-complete CONFIRMED fully-paid bookings whose event date has passed.
 function getConfirmedPaidPastEvents(todayLocal, callback) {
@@ -122,7 +130,7 @@ function getConfirmedPaidPastEvents(todayLocal, callback) {
             AND date < ?`, [todayLocal], callback);
 }
 function markBookingAutoCompleted(bookingId) {
-    db.run(`UPDATE bookings SET status='COMPLETED', completed_at=CURRENT_TIMESTAMP WHERE id=?`, [bookingId]);
+    db.run(`UPDATE bookings SET status='COMPLETED', completed_at=CURRENT_TIMESTAMP WHERE id=? AND status='CONFIRMED'`, [bookingId]);
 }
 // 1. Expire unquoted PENDING bookings after 48h of inactivity.
 function getStalePendingBookings(nowLocal, callback) {
@@ -130,17 +138,23 @@ function getStalePendingBookings(nowLocal, callback) {
             WHERE status = 'PENDING'
             AND datetime(created_at, '+48 hours') < ?`, [nowLocal], callback);
 }
+// P1-2: expired_reason distinguishes this cause ('pending_inactivity' — never quoted) from
+// expireQuotedBooking's ('quote_expiry' — quoted, client never responded); both used to land on
+// the same bare 'EXPIRED' with only this function's message note (and none from the other) to go on.
 function expirePendingBooking(bookingId) {
-    db.run(`UPDATE bookings SET status = 'EXPIRED', message = COALESCE(message,'') || '\n[System: Expired due to 48h inactivity]' WHERE id = ?`, [bookingId]);
+    db.run(`UPDATE bookings SET status = 'EXPIRED', expired_reason = 'pending_inactivity', message = COALESCE(message,'') || '\n[System: Expired due to 48h inactivity]' WHERE id = ? AND status = 'PENDING'`, [bookingId]);
 }
-// 2. Expire QUOTED bookings after quote_expiry_date.
+// 2. Expire QUOTED bookings after quote_expiry_date. A revision/extension request
+// (quote-revision-request route) pushes quote_expiry_date itself out, so a booking under active
+// review naturally stays out of this query's WHERE clause rather than needing a second condition
+// here — see P1-1's header note on that route.
 function getOverdueQuotedBookings(todayLocal, callback) {
     db.all(`SELECT id, google_event_id, name, email, event_name, event_type, date FROM bookings
             WHERE status = 'QUOTED'
             AND quote_expiry_date < ?`, [todayLocal], callback);
 }
 function expireQuotedBooking(bookingId) {
-    db.run("UPDATE bookings SET status = 'EXPIRED' WHERE id = ?", [bookingId]);
+    db.run(`UPDATE bookings SET status = 'EXPIRED', expired_reason = 'quote_expiry', message = COALESCE(message,'') || '\n[System: Quote expired — no response from client]' WHERE id = ? AND status = 'QUOTED'`, [bookingId]);
 }
 function clearBookingGoogleEventId(bookingId) {
     db.run("UPDATE bookings SET google_event_id = NULL WHERE id = ?", [bookingId]);
@@ -361,9 +375,12 @@ function updateBookingLedgerAfterInvoice(total, amountOutstanding, bookingId) {
 // lookups and the payment_schedules/invoices/contracts re-quote cascade all stay in server.js
 // (cross-domain). Only the bookings-table status/total UPDATE, and this same transaction's
 // booking_services/booking_line_items refresh (this domain's own satellite tables), moved.
+// P1-1: revision_requested_at cleared here — a fresh quote (whatever prompted it, including a
+// client's own revision/extension request) resets the negotiation, so any earlier open request no
+// longer applies to the new numbers/expiry the admin just issued.
 function updateBookingAfterQuote(quote_amount, quote_details, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId) {
     return promised(
-        "UPDATE bookings SET quote_amount = ?, quote_details = ?, quote_expiry_date = ?, status = ?, quoted_at = CURRENT_TIMESTAMP, total_amount = ?, amount_outstanding = ? WHERE id = ?",
+        "UPDATE bookings SET quote_amount = ?, quote_details = ?, quote_expiry_date = ?, status = ?, quoted_at = CURRENT_TIMESTAMP, total_amount = ?, amount_outstanding = ?, revision_requested_at = NULL WHERE id = ?",
         [quote_amount, quote_details, quote_expiry_date, nextStatus, finalTotal, newOutstanding, bookingId]);
 }
 function deleteBookingLineItems(bookingId) {
@@ -780,8 +797,13 @@ function clearBookingGoogleEventIdAsync(bookingId) {
 // POST /api/admin/bookings/:id/cancel — the transactional status UPDATE. Distinct from
 // cancelBookingForErasureAsync above (no cancellation_reason/cancelled_by columns — this route
 // records those via its own INSERT INTO cancellations instead, which stays in server.js).
+// P0-2: guarded against the booking having already left a cancellable state between the admin
+// cancel route's own read (getBookingById, before this transaction opens) and this write — e.g. a
+// client's own accept-quote (or self-cancel) landing in that window. promised() resolves the
+// `this` from db.run, so the caller can check `.changes === 0` to detect a lost race and roll back
+// instead of reporting success over a cascade that shouldn't have run.
 function cancelBookingAsync(bookingId) {
-    return promised("UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ?", [bookingId]);
+    return promised("UPDATE bookings SET status = 'CANCELLED', cancelled_at = CURRENT_TIMESTAMP WHERE id = ? AND status NOT IN ('CANCELLED','COMPLETED')", [bookingId]);
 }
 
 // PUT /api/admin/bookings/:id/refund — final payment_status re-derivation. The ledger recalculation
