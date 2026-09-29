@@ -141,7 +141,7 @@
 .bkm-header { display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); }
 .bkm-header i { font-size:18px; }
 .bkm-header--info       { border-left:3px solid #64B5F6; }
-.bkm-header--financial  { border-left:3px solid #D4AF37; }
+.bkm-header--financial  { border-left:3px solid var(--atl-amber); }
 .bkm-header--email      { border-left:3px solid #4ade80; }
 .bkm-title { font-size:15px; font-weight:700; color: var(--atl-ink); }
 .bkm-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }

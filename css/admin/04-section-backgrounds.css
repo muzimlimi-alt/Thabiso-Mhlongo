@@ -304,7 +304,7 @@
 }
 .atl-tag-badge--contract-unsigned {
     background: rgba(212,175,55,0.12);
-    color: var(--atl-amber, #d4af37);
+    color: var(--atl-amber);
     border: 1px solid rgba(212,175,55,0.35);
 }
 .atl-tag-badge--triaged {

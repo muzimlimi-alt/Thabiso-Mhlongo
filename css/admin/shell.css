@@ -78,6 +78,11 @@ body.admin-body .admin-section {
 
 body.admin-body #tmAdminSidebar {
     width: var(--atl-nav-w) !important;
+    /* The sidebar's z-index was declared three different ways across three older files (200 in a
+       mobile media query, 1040 as its base rule, 10000 in an off-canvas variant) — none of which
+       this shell ever touched, since it doesn't otherwise set stacking. One value, unconditional,
+       wins over all three (tokens.css documents this as a since-Step-5 open item). */
+    z-index: var(--atl-z-sidebar) !important;
     display: flex !important;
     flex-direction: column !important;
     background: var(--atl-sidebar-bg) !important;

@@ -146,7 +146,7 @@
 
 .atl-actions-dropdown-panel {
     position: fixed;
-    z-index: 99999;
+    z-index: var(--atl-z-action-menu, 99999);
     background: var(--atl-card);
     border: 1px solid rgba(255,255,255,0.15);
     border-radius: 10px;
@@ -169,7 +169,7 @@
 
 /* Modal System styles */
 .atl-modal-overlay {
-    position: fixed; inset: 0; z-index: 9000;
+    position: fixed; inset: 0; z-index: var(--atl-z-modal, 9000);
     background: var(--atl-overlay);
     backdrop-filter: blur(4px);
     display: flex; align-items: flex-start; justify-content: center;
@@ -1555,7 +1555,7 @@ input:focus, select:focus, textarea:focus, .form-control:focus, .um-input:focus 
 }
 /* redesign.css's .admin-body input:focus/etc (specificity 0,2,1) beats the rule just above
    (0,1,1) - its border-color/box-shadow hardcode --y-base/--y-muted (dark-theme-only gold,
-   #D4AF37), so every focused field got that instead of the theme's own --atl-amber. Also
+   var(--atl-amber)), so every focused field got that instead of the theme's own --atl-amber. Also
    replaces the box-shadow's own hardcoded dark-amber rgba() literal with color-mix so the
    ring itself is theme-aware, not just a fixed win over redesign.css. */
 body.admin-body input:focus, body.admin-body select:focus, body.admin-body textarea:focus,
