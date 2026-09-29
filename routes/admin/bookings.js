@@ -1070,33 +1070,12 @@ router.put('/api/admin/bookings/:id/venue-google', requireAdmin, async (req, res
     }
 
     try {
-        const venueId = await new Promise((resolve, reject) => {
-            db.get("SELECT id FROM venues WHERE place_id = ?", [place_id], (err, row) => {
-                if (err) return reject(err);
-                if (row) {
-                    db.run(
-                        `UPDATE venues SET 
-                            name = ?, address = ?, city = ?, state = ?, country = ?, 
-                            latitude = ?, longitude = ?, updated_at = CURRENT_TIMESTAMP 
-                         WHERE id = ?`,
-                        [name, address || null, city || null, state || null, country || null, latitude || null, longitude || null, row.id],
-                        (upErr) => {
-                            if (upErr) reject(upErr);
-                            else resolve(row.id);
-                        }
-                    );
-                } else {
-                    db.run(
-                        `INSERT INTO venues (name, address, city, state, country, place_id, latitude, longitude) 
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                        [name, address || null, city || null, state || null, country || null, place_id, latitude || null, longitude || null],
-                        function(insErr) {
-                            if (insErr) reject(insErr);
-                            else resolve(this.lastID);
-                        }
-                    );
-                }
-            });
+        // Shared upsert (lib/client-venue.js) — was this route's own inline copy of the same
+        // upsert-by-place_id logic every venue-creating path now goes through (2026-09-29
+        // location-search consolidation audit).
+        const venueId = await findOrCreateVenueFromPlace({
+            name, address: address || null, city: city || null, state: state || null, country: country || null,
+            placeId: place_id, latitude: latitude || null, longitude: longitude || null
         });
 
         updateBookingVenueGoogle(
@@ -1679,7 +1658,12 @@ router.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', '
     const { name, email, cell, company, event_date, event_start_time,
             event_name, event_type, event_location, status, budget_range, message,
             venue_place_id, city, venue_address, country, services, override_conflict,
-            override_duplicate, override_working_hours, popia_consent, source_inquiry_id } = req.body;
+            override_duplicate, override_working_hours, popia_consent, source_inquiry_id,
+            // Optional, additive richer venue fields the shared Places result carries when the
+            // manual-booking venue search found a real Google place (2026-09-29 consolidation) —
+            // `venues` has had columns for these since its original schema; nothing needed them
+            // threaded through here before now.
+            venue_state, venue_postal_code, venue_latitude, venue_longitude } = req.body;
 
     if (!name || !email || !cell || !event_date || !event_name || !event_type || !event_location || !message)
         return res.status(400).json({ success: false, message: 'Missing required fields.' });
@@ -1803,7 +1787,10 @@ router.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', '
         }
 
         const clientId = await findOrCreateClient(name, email, cell, company, null);
-        const venueId = await findOrCreateVenueFromPlace(event_location, venue_address || null, city || null, country || null, venue_place_id || null);
+        const venueId = await findOrCreateVenueFromPlace({
+            name: event_location, address: venue_address || null, city: city || null, country: country || null, placeId: venue_place_id || null,
+            state: venue_state || null, postalCode: venue_postal_code || null, latitude: venue_latitude || null, longitude: venue_longitude || null
+        });
 
         const outcome = await withDbTransaction(async () => {
             try {

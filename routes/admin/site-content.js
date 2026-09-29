@@ -28,7 +28,7 @@ router.post('/api/admin/migrate', requireAdmin, async (req, res) => {
                 findOrCreateClient(row.name, row.email, row.cell, row.company)
                     .then(clientId => {
                         clientsMigrated++;
-                        findOrCreateVenueFromPlace(row.event_location, row.venue_address)
+                        findOrCreateVenueFromPlace({ name: row.event_location, address: row.venue_address })
                             .then(venueId => {
                                 venuesMigrated++;
                                 // Update bookings table with new foreign keys

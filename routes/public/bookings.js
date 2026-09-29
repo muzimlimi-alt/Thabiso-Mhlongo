@@ -1129,6 +1129,10 @@ function parseDurationMins(durationRaw) {
 const BOOKING_TEXT_LIMITS = {
     company: 150, event_name: 200, event_location: 200, venue_address: 300,
     city: 100, country: 100, venue_type: 60, event_type: 60,
+    // Additive richer venue fields (2026-09-29 location-search consolidation): Google already
+    // returns these in the same place/details response the venue combobox already fetches for
+    // city/country — venues (the DB table) has had columns for them from the start.
+    venue_state: 100, venue_postal_code: 20,
     audience_size: 40, audience_demographic: 120, budget_range: 60,
     performance_slot: 40, performance_duration: 40,
     vat_number: 30, source: 100, referrer: 500,
@@ -1147,7 +1151,8 @@ router.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (re
         event_location, venue_address, city, country, venue_type,
         event_type, audience_size, audience_demographic, budget_range, travel_accommodation, message,
         alternative_dates, content_notes, heard_about,
-        services, venuePlaceId, popia_consent, vat_number
+        services, venuePlaceId, popia_consent, vat_number,
+        venue_state, venue_postal_code, venue_latitude, venue_longitude
     } = req.body;
     // req.body.policy_version is deliberately ignored — see CURRENT_POLICY_VERSION.
 
@@ -1170,6 +1175,13 @@ router.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (re
     heard_about = asBookingText(heard_about);
     message = asBookingText(message);         vat_number = asBookingText(vat_number);
     venuePlaceId = asBookingText(venuePlaceId);
+    venue_state = asBookingText(venue_state); venue_postal_code = asBookingText(venue_postal_code);
+    // Coordinates are the one non-text venue field — validated, not just length-capped. Absent or
+    // unparsable/out-of-range input becomes null (matches every other optional field here failing
+    // "open"), never a wrong-but-numeric value silently stored as though Google had supplied it.
+    const latNum = parseFloat(venue_latitude), lngNum = parseFloat(venue_longitude);
+    venue_latitude = (venue_latitude !== undefined && venue_latitude !== null && venue_latitude !== '' && !isNaN(latNum) && latNum >= -90 && latNum <= 90) ? latNum : null;
+    venue_longitude = (venue_longitude !== undefined && venue_longitude !== null && venue_longitude !== '' && !isNaN(lngNum) && lngNum >= -180 && lngNum <= 180) ? lngNum : null;
 
     // Bug fix: `message` ("Additional Notes") is explicitly labelled optional on the public form
     // (index.html) and the client-side validator deliberately never blocks on it — but this check
@@ -1456,7 +1468,10 @@ router.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (re
 
         // 8. NORMALIZE RELATIONAL CORE ENTITIES — the first writes in this handler.
         const clientId = await findOrCreateClient(name, email, cell, company, vat_number);
-        const venueId = await findOrCreateVenueFromPlace(event_location, venue_address, city, country, venuePlaceId);
+        const venueId = await findOrCreateVenueFromPlace({
+            name: event_location, address: venue_address, city, country, placeId: venuePlaceId,
+            state: venue_state, postalCode: venue_postal_code, latitude: venue_latitude, longitude: venue_longitude
+        });
 
         let initialQuoteAmountStr = `R ${calculatedBaseScope.toFixed(2)}`;
         let initialTotalAmount = calculatedBaseScope;
