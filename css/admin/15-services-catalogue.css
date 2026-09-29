@@ -137,7 +137,12 @@
 }
 .atl-drawer__header h5 {
     margin: 0; font-size: 15px; font-weight: 600;
-    color: var(--atl-ink); display: flex; align-items: center; gap: 10px;
+    /* redesign.css h1-h6{color:var(--text-primary)!important} bleed (same root cause as
+       .atl-edit-card__title/.svc-drawer__header h3) — --text-primary is always white (the public
+       site's own dark-only token), so under light Finish every drawer's title rendered white on the
+       Ivory background. Shared by every admin drawer (~21 of them), so fixing it here fixes all of
+       them at once. */
+    color: var(--atl-ink) !important; display: flex; align-items: center; gap: 10px;
 }
 .atl-drawer__close {
     background: transparent; border: none; color: var(--atl-muted);

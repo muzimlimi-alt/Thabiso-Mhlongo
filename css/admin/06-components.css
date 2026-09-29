@@ -21,8 +21,13 @@
     transition: border-color 0.3s ease, box-shadow 0.3s ease, background-color 0.4s ease;
     animation: atl-card-in 0.4s ease backwards;
 }
-.atl-edit-card:hover { border-color: rgba(212,175,55,0.35); box-shadow: var(--atl-shadow-card); }
-.atl-edit-card.is-expanded { border-color: rgba(212,175,55,0.45); }
+/* color-mix(), not a hardcoded gold rgba(): this card is shared by every content section (Career,
+   Footprint, Team, Gallery, Testimonials, Events, Accolades…), so a literal gold hover glow ignored
+   whichever House accent (Settings → Appearance) the admin actually chose — every card glowed gold
+   even under Vetiver/Cassis/Cuivre. --atl-amber already resolves to the chosen accent; color-mix
+   keeps the exact original opacity (35%/45%) while following it. */
+.atl-edit-card:hover { border-color: color-mix(in srgb, var(--atl-amber) 35%, transparent); box-shadow: var(--atl-shadow-card); }
+.atl-edit-card.is-expanded { border-color: color-mix(in srgb, var(--atl-amber) 45%, transparent); }
 .atl-edit-card__header {
     display: flex; gap: 16px; align-items: flex-start; flex-wrap: wrap;
     cursor: pointer;

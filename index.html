@@ -334,6 +334,25 @@
 		</div>
 		<div class="acc-filters" id="accoladesFilters" role="group" aria-label="Filter accolades" hidden></div>
 		<p class="sr-only" id="accoladesStatus" role="status" aria-live="polite"></p>
+
+		<!-- Desktop/tablet (768px+): a year-by-year horizontal scrubber. Built by
+		     AccoladesView.mountTimeline() (js/accolades-view.js). Mobile shows the vertical ledger
+		     below instead — js/myscript.js's renderAccolades() picks one per viewport width and
+		     re-picks on any resize across the breakpoint; only one is ever visible at a time. -->
+		<div class="acc-tl" id="accoladesTimeline">
+			<div class="acc-tl__axis" aria-hidden="true"><span>Year</span></div>
+			<button type="button" class="acc-tl__nav acc-tl__nav--prev" id="accoladesPrev" aria-label="Scroll to earlier years">
+				<i class="fa-solid fa-chevron-left" aria-hidden="true"></i>
+			</button>
+			<div class="acc-tl__viewport" id="accoladesViewport" tabindex="0" role="group" aria-label="Accolades timeline — scroll to browse by year">
+				<div class="acc-tl__track" id="accoladesTrack"></div>
+			</div>
+			<button type="button" class="acc-tl__nav acc-tl__nav--next" id="accoladesNext" aria-label="Scroll to later years">
+				<i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+			</button>
+		</div>
+
+		<!-- Mobile (<768px): the original vertical ledger — unchanged. -->
 		<ol class="acc-ledger" id="accoladesLedger" aria-label="Accolades, nominations and wins, newest first"></ol>
 	</div>
 </section>

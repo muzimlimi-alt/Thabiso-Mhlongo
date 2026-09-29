@@ -896,18 +896,6 @@ $(function() {
             return;
         }
 
-        var $ledger = $('#accoladesLedger');
-        AccoladesView.mount({
-            items: items,
-            $ledger: $ledger,
-            $filters: $('#accoladesFilters'),
-            $status: $('#accoladesStatus'),
-            onOpen: function (item) {
-                $('#accoladeDrawerTitle').text(item.title || 'Recognition');
-                AccoladesView.renderDetail(item, $('#accoladeDrawerBody'));
-                if (window.openAtlDrawer) openAtlDrawer('accoladeDrawer');
-            }
-        });
         $nav.removeClass('tm-nav-empty');
         // If applySectionVisibility() already ran, its .toggle(true) met these links while
         // .tm-nav-empty was hiding them, and jQuery left its default inline display behind
@@ -916,14 +904,80 @@ $(function() {
         if (!$section.hasClass('tm-section-hidden')) $nav.css('display', '');
         $section.prop('hidden', false);
 
-        // First render reveals entry by entry on scroll, like the Footprint cards (a filter change
-        // re-draws them with their own enter animation instead — see .acc-entry--enter).
-        var $entries = $ledger.children('.acc-entry').addClass('tm-reveal reveal');
-        if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
-            $entries.each(function () { revealObserver.observe(this); });
-        } else {
-            $entries.addClass('active');
+        function openDetail(item) {
+            $('#accoladeDrawerTitle').text(item.title || 'Recognition');
+            AccoladesView.renderDetail(item, $('#accoladeDrawerBody'));
+            if (window.openAtlDrawer) openAtlDrawer('accoladeDrawer');
         }
+
+        // Desktop/tablet gets the horizontal year timeline; mobile keeps the vertical ledger — the
+        // same split the reference "Lifeline" component itself makes (a desktop layout vs a
+        // vertical one), not a squeeze of one into the other. 768px matches every other breakpoint
+        // this page already treats as "mobile" (css/public/redesign.css, .tm-navlinks, etc.).
+        var ACC_MOBILE_BREAKPOINT = 768;
+        var accMode = null; // 'mobile' | 'desktop' — only re-render when this actually changes
+        var $timeline = $('#accoladesTimeline');
+        var $ledger = $('#accoladesLedger');
+
+        function renderMobile() {
+            AccoladesView.mount({
+                items: items, $ledger: $ledger, $filters: $('#accoladesFilters'), $status: $('#accoladesStatus'),
+                onOpen: openDetail
+            });
+            // First render reveals entry by entry on scroll, like the Footprint cards (a filter
+            // change re-draws them with their own enter animation instead — see .acc-entry--enter).
+            var $entries = $ledger.children('.acc-entry').addClass('tm-reveal reveal');
+            if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
+                $entries.each(function () { revealObserver.observe(this); });
+            } else {
+                $entries.addClass('active');
+            }
+        }
+
+        function renderDesktop() {
+            AccoladesView.mountTimeline({
+                items: items, $viewport: $('#accoladesViewport'), $track: $('#accoladesTrack'),
+                $prev: $('#accoladesPrev'), $next: $('#accoladesNext'), $filters: $('#accoladesFilters'),
+                $status: $('#accoladesStatus'), onOpen: openDetail
+            });
+            $timeline.addClass('tm-reveal reveal');
+            if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
+                revealObserver.observe($timeline[0]);
+                // Belt-and-braces: the shared observer occasionally misses this element (observed
+                // intermittently, not tied to any one cause) — a geometry re-check on scroll/resize
+                // catches it independently and stops once the reveal has actually happened, so this
+                // never fights the observer or leaves a permanent listener behind.
+                var checkVisible = function () {
+                    if ($timeline.hasClass('active')) { $(window).off('scroll.accReveal resize.accReveal'); return; }
+                    var r = $timeline[0].getBoundingClientRect();
+                    if (r.top < window.innerHeight && r.bottom > 0) {
+                        $timeline.addClass('active');
+                        $(window).off('scroll.accReveal resize.accReveal');
+                    }
+                };
+                $(window).off('scroll.accReveal resize.accReveal').on('scroll.accReveal resize.accReveal', checkVisible);
+                checkVisible();
+            } else {
+                $timeline.addClass('active');
+            }
+        }
+
+        function syncMode() {
+            var wantMobile = window.innerWidth < ACC_MOBILE_BREAKPOINT;
+            var want = wantMobile ? 'mobile' : 'desktop';
+            if (want === accMode) return;
+            accMode = want;
+            $ledger.toggle(wantMobile);
+            $timeline.toggle(!wantMobile);
+            if (wantMobile) renderMobile(); else renderDesktop();
+        }
+
+        syncMode();
+        var accResizeTimer;
+        $(window).off('resize.accolades').on('resize.accolades', function () {
+            clearTimeout(accResizeTimer);
+            accResizeTimer = setTimeout(syncMode, 150);
+        });
     }
     renderAccolades();
 

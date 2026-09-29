@@ -145,8 +145,6 @@ body.admin-body #aclPublicPreview .acc-entry__meta,
 body.admin-body #aclPublicPreview .acc-feature__org,
 body.admin-body #aclPublicPreview .acc-detail__desc { font-family: var(--f-body) !important; }
 
-/* Light theme: css/public/redesign.css's h1-h6 {color:var(--text-primary)!important} (always white)
-   beats .atl-drawer__header h5's own color:var(--atl-ink), so a drawer title is white on white. That
-   is true of EVERY admin drawer today (pre-existing); this only fixes the Accolades one — the same
-   rule without the #aclDrawer prefix would fix them all. */
-:root[data-theme="light"] #aclDrawer .atl-drawer__header h5 { color: var(--atl-ink) !important; }
+/* The light-theme white-on-white drawer title (redesign.css's h1-h6{color:var(--text-primary)
+   !important} bleed) is now fixed for every admin drawer at its source — see the comment on
+   .atl-drawer__header h5 in css/admin/15-services-catalogue.css. */

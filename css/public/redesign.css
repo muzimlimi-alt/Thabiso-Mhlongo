@@ -1330,6 +1330,138 @@ header .navbar {
 .acc-detail__desc{ margin:0 0 28px; font-size:1rem; line-height:1.8; color:var(--text-secondary); white-space:pre-line; }
 .acc-detail__links{ display:flex; flex-wrap:wrap; gap:12px; }
 
+/* ---------- ACCOLADES — HORIZONTAL TIMELINE (desktop/tablet, 768px+) ----------
+   A year-by-year scrubber: a pinned "Year" axis label, then a horizontally scrolling track of one
+   COLUMN per calendar year (from the earliest accolade's year through at least the current year) —
+   a year number, a tick on a rail, and (only for years with something published) a caption. Built by
+   AccoladesView.mountTimeline() (js/accolades-view.js); below 768px js/myscript.js builds the
+   original .acc-ledger vertical timeline instead and this block never renders — see renderAccolades().
+   .acc-tl__track is a CSS Grid (not fixed-width flex columns): each year's width is driven by its
+   widest cell across all three rows — a title never wraps (a CTA/label may run long), so a year with
+   a long title claims exactly the room it needs and the next year's tick starts right after it; years
+   with nothing published compress down to just their number. The three .acc-tl__row wrappers are
+   display:contents so their per-year .acc-tl__cell children become the actual grid items — grid row 1
+   (years) / 2 (rail+ticks) / 3 (captions) is assigned by which wrapper a cell's descendant selector
+   matches, grid column by that cell's own --i (its position in the year range). */
+@keyframes acc-tl-rail-draw{ from{ transform:scaleX(0); } to{ transform:scaleX(1); } }
+
+.acc-tl{
+  display:flex; align-items:stretch; gap:6px;
+  max-width:1040px; margin:0 auto;
+}
+
+/* The axis chip and the nav arrows pair with the YEAR/RAIL rows specifically — not with the much
+   taller block once captions are included — so they're pinned near the top (flex-start + a small
+   offset) rather than vertically centered against the whole component's height. */
+.acc-tl__axis{
+  flex:0 0 auto; align-self:flex-start; margin-top:16px;
+  padding:10px 16px; margin-right:4px;
+  border:1px solid var(--border-low); border-radius:var(--r);
+  background:var(--bg-surface);
+}
+.acc-tl__axis span{
+  font-family:var(--f-mono); font-size:.66rem; font-weight:500;
+  letter-spacing:.28em; text-transform:uppercase; color:var(--text-secondary);
+  white-space:nowrap;
+}
+
+.acc-tl__nav{
+  flex:0 0 auto; align-self:flex-start; margin-top:12px;
+  display:inline-flex; align-items:center; justify-content:center;
+  width:44px; height:44px; padding:0;
+  background:transparent; border:1px solid transparent; border-radius:50%;
+  color:var(--text-secondary); font-size:1rem; cursor:pointer;
+  transition:color var(--t) var(--ease), border-color var(--t) var(--ease), transform var(--t) var(--ease);
+}
+.acc-tl__nav:hover, .acc-tl__nav:focus-visible{ color:var(--y-base); border-color:var(--border-low); transform:translateY(-1px); }
+.acc-tl__nav:active{ transform:translateY(0) scale(.94); }
+.acc-tl__nav:disabled{ opacity:.25; cursor:default; pointer-events:none; }
+
+.acc-tl__viewport{
+  flex:1 1 auto; min-width:0;
+  overflow-x:auto; overflow-y:hidden;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain;
+  scrollbar-width:none;
+}
+.acc-tl__viewport::-webkit-scrollbar{ display:none; }
+.acc-tl__viewport:focus-visible{ outline:2px solid var(--y-base); outline-offset:2px; border-radius:var(--r); }
+
+.acc-tl__track{
+  display:grid;
+  grid-auto-columns:minmax(56px, max-content);
+  column-gap:32px; row-gap:14px;
+  align-items:start;
+}
+@media (min-width:1024px){ .acc-tl__track{ column-gap:40px; } }
+.acc-tl__row{ display:contents; }
+
+.acc-tl__rail-line{
+  grid-row:2; grid-column:1 / -1; align-self:center;
+  height:1px; background:rgba(212,175,55,.3);
+  transform:scaleX(0); transform-origin:left;
+}
+.acc-tl.reveal.active .acc-tl__rail-line{ animation:acc-tl-rail-draw .9s var(--ease-out) .1s both; }
+
+.acc-tl__cell{
+  grid-column:calc(var(--i, 0) + 1);
+  display:flex; align-items:center; justify-content:flex-start;
+}
+.acc-tl__row--years .acc-tl__cell{ grid-row:1; }
+.acc-tl__row--rail  .acc-tl__cell{ grid-row:2; }
+.acc-tl__row--caps  .acc-tl__cell{ grid-row:3; }
+.acc-tl__cell--cap{ flex-direction:column; align-items:flex-start; gap:12px; }
+
+.acc-tl__yr{
+  font-family:var(--f-mono); font-weight:300; font-size:.82rem; letter-spacing:.02em;
+  color:var(--text-muted); white-space:nowrap;
+}
+.acc-tl__yr.is-marked{ font-size:1.05rem; font-weight:400; color:var(--text-primary); }
+
+.acc-tl__tick{
+  position:relative; z-index:1;
+  display:inline-block; width:7px; height:7px; border-radius:50%; flex-shrink:0;
+  background:var(--bg-page); border:1px solid var(--border-strong);
+}
+.acc-tl__tick.is-marked{ width:9px; height:9px; background:var(--y-base); border-color:var(--y-base); }
+.acc-tl__tick.is-featured{ width:13px; height:13px; box-shadow:0 0 0 4px rgba(212,175,55,.18); }
+
+.acc-tl__cap--featured{
+  padding:10px 12px; margin:-10px -12px 0;
+  border:1px solid rgba(212,175,55,.28); border-radius:var(--r-md);
+  background:rgba(212,175,55,.06);
+}
+.acc-tl__kicker{
+  display:flex; align-items:center; gap:5px;
+  margin:0 0 6px;
+  font-family:var(--f-mono); font-size:.62rem; font-weight:600;
+  letter-spacing:.2em; text-transform:uppercase;
+  color:var(--y-base); white-space:nowrap;
+}
+.acc-tl__cap--nomination .acc-tl__kicker{ color:var(--y-light); }
+.acc-tl__cap--accolade .acc-tl__kicker{ color:var(--text-secondary); }
+.acc-tl__kicker i{ font-size:.7em; }
+
+/* Never wraps — a year's column is exactly as wide as its title needs. max-width is a safety net for
+   an outlying long title (titles can run up to 160 characters): it still never wraps, just truncates
+   with an ellipsis rather than ballooning that one year far past what's readable; the native title
+   attribute (set in JS) carries the full text on hover. */
+.acc-tl__title{
+  display:block; width:100%; max-width:420px;
+  padding:0; margin:0 0 4px;
+  background:none; border:0; text-align:left; cursor:pointer;
+  font-family:var(--f-display); font-weight:400; font-size:1.02rem; line-height:1.25;
+  color:var(--text-primary);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  transition:color var(--t) var(--ease);
+}
+.acc-tl__title:hover, .acc-tl__title:focus-visible{ color:var(--y-hover); }
+.acc-tl__title:focus-visible{ outline:2px solid var(--y-base); outline-offset:3px; border-radius:var(--r); }
+.acc-tl__title--static{ cursor:default; }
+/* Capped narrower than the title (and left free to wrap onto 2 lines) so a long organisation/result
+   line doesn't ALSO claim column width on its own — the title is what's meant to size the column. */
+.acc-tl__meta{ max-width:280px; margin:0; font-size:.78rem; line-height:1.5; color:var(--text-secondary); }
+
 /* ---------- FOOTPRINT ---------- */
 .tm-footprint{ background:var(--bg-section); }
 /* auto-fit (not auto-fill) + justify-content:center: with fewer countries than fit one row,
