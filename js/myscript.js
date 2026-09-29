@@ -2317,7 +2317,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 var $e = $(s);
                 if ($e.data('bkAuto')) $e.val('').data('bkAuto', false);
             });
-            $('#venuePlaceId').val('');
+            $('#venuePlaceId, #venueState, #venuePostalCode, #venueLatitude, #venueLongitude').val('');
             $('#venueSelected').hide().empty();
         }
         // Confirms the address that came from the selected place (also used when a draft is restored).
@@ -2385,15 +2385,24 @@ document.addEventListener("DOMContentLoaded", function() {
                     $input.val(place.name || main);
                     $('#venuePlaceId').val(p.place_id || '');
                     venueSetAuto('#bookAddress', place.formatted_address || '');
-                    var city = '', country = '', prov = '';
-                    (place.address_components || []).forEach(function(c) {
-                        if (c.types.includes('locality') || c.types.includes('sublocality_level_1')) city = c.long_name;
-                        else if (c.types.includes('administrative_area_level_1')) prov = c.long_name;
-                        else if (c.types.includes('country')) country = c.long_name;
-                    });
-                    if (city) venueSetAuto('#bookCity', city);
-                    else if (prov) venueSetAuto('#bookCity', prov);
-                    if (country) venueSetAuto('#bookCountry', country);
+                    // Shared parser (js/shared/location-utils.js) — the same one the admin portal's
+                    // Places Autocomplete uses (js/admin/places-autocomplete.js); Google's
+                    // address_components array has the identical shape from both the REST API
+                    // (here) and the Maps JS SDK (there). cityOrState() is this field's own existing,
+                    // tested display rule (a true city, else the province) — kept local to it rather
+                    // than folded into the shared parser, which never blurs city and state together.
+                    var addr = window.TMLocation ? window.TMLocation.parseAddressComponents(place.address_components) : { city: '', state: '', postalCode: '', country: '' };
+                    var cityForDisplay = window.TMLocation ? window.TMLocation.cityOrState(addr) : (addr.city || addr.state);
+                    if (cityForDisplay) venueSetAuto('#bookCity', cityForDisplay);
+                    if (addr.country) venueSetAuto('#bookCountry', addr.country);
+                    // Additive: state/postal code/coordinates aren't shown anywhere, just carried
+                    // through to enrich the venues row on submit (2026-09-29 consolidation) — Google
+                    // already returns them in this same response; they used to be discarded here.
+                    $('#venueState').val(addr.state || '');
+                    $('#venuePostalCode').val(addr.postalCode || '');
+                    var loc = place.geometry && place.geometry.location; // REST API shape: plain {lat, lng} numbers, not the JS SDK's LatLng methods
+                    $('#venueLatitude').val(loc && typeof loc.lat === 'number' ? loc.lat : '');
+                    $('#venueLongitude').val(loc && typeof loc.lng === 'number' ? loc.lng : '');
                     $input.removeClass('bk-input--err');
                     $('#err-bookLocation').hide();
                     bkRenderVenueSelected();
@@ -2567,7 +2576,9 @@ document.addEventListener("DOMContentLoaded", function() {
             'bookCountry','bookAudience','bookDemographic','bookTravel','bookNotes',
             'bookBudget','bookAltDates','bookContentNotes','bookHeardAbout','bookHeardAboutOther',
             // Venue type, the selected Places id and the chosen slot/duration used to be dropped on close/reopen.
-            'bookVenueType','venuePlaceId','bkSlotFrom','bkSlotTo','bkReadoutDurSelect'];
+            'bookVenueType','venuePlaceId','bkSlotFrom','bkSlotTo','bkReadoutDurSelect',
+            // Additive richer venue fields (2026-09-29 consolidation) — carried the same way venuePlaceId already was.
+            'venueState','venuePostalCode','venueLatitude','venueLongitude'];
 
         // True once the visitor has entered something worth keeping. bookCountry / bookTravel are
         // deliberately ignored: they can hold a default value on an untouched form.
@@ -3305,6 +3316,11 @@ $bookingForm.on('blur', '#bookName', function() {
                 event_location: $('#bookLocation').val().trim(),
                 venue_address: $('#bookAddress').val().trim(),
                 venuePlaceId: $('#venuePlaceId').val().trim(),
+                // Additive richer venue fields (2026-09-29 consolidation) — enrich the venues row; never shown, never required.
+                venue_state: $('#venueState').val().trim(),
+                venue_postal_code: $('#venuePostalCode').val().trim(),
+                venue_latitude: $('#venueLatitude').val().trim(),
+                venue_longitude: $('#venueLongitude').val().trim(),
                 city: $('#bookCity').val().trim(),
                 country: $('#bookCountry').val().trim(),
                 venue_type: $('#bookVenueType').val(),

@@ -7213,7 +7213,13 @@
         // window.atlActivateDrawerTab (defined above, ~line 14783) is called from inside this
         // block but NOT moved — a Phase 7 "Shared candidate".
     </script>
-    <script src="js/admin/bookings-dealview.js"></script>
+    <!-- Shared location-search utilities (2026-09-29 consolidation audit) — must load before any
+         admin script that uses AdminPlacesAutocomplete: js/admin/bookings-dealview.js (booking
+         "Link a venue"), js/admin/events.js (Events venue search) and the inline Manual Booking
+         script further down this file. -->
+    <script src="js/shared/location-utils.js?v=1"></script>
+    <script src="js/admin/places-autocomplete.js?v=1"></script>
+    <script src="js/admin/bookings-dealview.js?v=2"></script>
     <!-- Shared overlay stack — must load before drawer.js and notificationService.js, which both
          register with it. See js/overlay-stack.js for the defect it fixes. -->
     <script src="js/overlay-stack.js?v=2"></script>
@@ -7262,7 +7268,7 @@
         // block below (_fpDate/_fpTime/_fpDateTime/window.initAdminDateTimePickers, used by many
         // other sections) was NOT moved — it stays exactly here.
     </script>
-    <script src="js/admin/events.js"></script>
+    <script src="js/admin/events.js?v=2"></script>
     <script>
 
         // Every other native <input type="date/time/datetime-local"> across the admin panel — same
@@ -8660,6 +8666,18 @@
                         <div class="um-input-wrap">
                             <i class="fa-solid fa-magnifying-glass-location um-input-icon"></i>
                             <input type="text" id="eventsVenueSearch" class="um-input" placeholder="Search for a location...">
+                            <!-- Google Place data for the selected venue (2026-09-29 location-search consolidation)
+                                 — used to create/link a proper `venues` row, same as a booking's venue does;
+                                 previously this drawer never captured a place_id at all, so an Events venue could
+                                 never be linked to the venues table (parity fix, see js/admin/events.js). -->
+                            <input type="hidden" id="eventsVenuePlaceId">
+                            <input type="hidden" id="eventsVenueAddress">
+                            <input type="hidden" id="eventsVenueCity">
+                            <input type="hidden" id="eventsVenueState">
+                            <input type="hidden" id="eventsVenueCountry">
+                            <input type="hidden" id="eventsVenuePostalCode">
+                            <input type="hidden" id="eventsVenueLatitude">
+                            <input type="hidden" id="eventsVenueLongitude">
                         </div>
                         <small class="help-block">Select a location here to auto-fill the Venue Name above.</small>
                     </div>
@@ -11478,6 +11496,10 @@
             document.getElementById('mbCity').value = '';
             document.getElementById('mbAddress').value = '';
             document.getElementById('mbCountry').value = '';
+            document.getElementById('mbState').value = '';
+            document.getElementById('mbPostalCode').value = '';
+            document.getElementById('mbLatitude').value = '';
+            document.getElementById('mbLongitude').value = '';
             document.getElementById('mbSourceInquiryId').value = '';
             openAtlDrawer('manualBookingDrawer');
         });
@@ -11506,6 +11528,10 @@
         document.getElementById('mbCity').value = '';
         document.getElementById('mbAddress').value = '';
         document.getElementById('mbCountry').value = '';
+        document.getElementById('mbState').value = '';
+        document.getElementById('mbPostalCode').value = '';
+        document.getElementById('mbLatitude').value = '';
+        document.getElementById('mbLongitude').value = '';
         document.getElementById('mbSourceInquiryId').value = inquiry.inquiry_id;
         window.mbConvertingInquiryId = inquiry.inquiry_id;
         closeAtlDrawer('inqDetailDrawer');
@@ -11568,6 +11594,10 @@
             var city      = document.getElementById('mbCity').value;
             var address   = document.getElementById('mbAddress').value;
             var country   = document.getElementById('mbCountry').value;
+            var venueState  = document.getElementById('mbState').value;
+            var venuePostal = document.getElementById('mbPostalCode').value;
+            var venueLat    = document.getElementById('mbLatitude').value;
+            var venueLng    = document.getElementById('mbLongitude').value;
 
             var services = [];
             $('.mb-service-row').each(function() {
@@ -11619,6 +11649,8 @@
                     budget_range: budget || null, message: message,
                     venue_place_id: placeId || null, city: city || null,
                     venue_address: address || null, country: country || null,
+                    venue_state: venueState || null, venue_postal_code: venuePostal || null,
+                    venue_latitude: venueLat || null, venue_longitude: venueLng || null,
                     services: services,
                     override_conflict: false,
                     source_inquiry_id: sourceInquiryId || null
@@ -11722,31 +11754,26 @@
             });
         }
 
-        // Google Places autocomplete for location
+        // Google Places autocomplete for location (js/admin/places-autocomplete.js — shared with
+        // the Booking Pipeline's "Link a venue" search and the Events drawer's venue search;
+        // 2026-09-29 location-search consolidation).
         var locInput = document.getElementById('mbLocation');
-        if (locInput && !locInput._placesInited && window.google && window.google.maps && window.google.maps.places) {
-            locInput._placesInited = true;
-            var ac = new google.maps.places.Autocomplete(locInput, {
-                fields: ['name', 'formatted_address', 'place_id', 'address_components']
-            });
-            ac.addListener('place_changed', function() {
-                var place = ac.getPlace();
-                if (!place) return;
-                if (place.name) locInput.value = place.name;
-                document.getElementById('mbPlaceId').value = place.place_id || '';
-                var city = '';
-                var country = '';
-                (place.address_components || []).forEach(function(c) {
-                    if (!city && (c.types.includes('locality') || c.types.includes('sublocality_level_1')))
-                        city = c.long_name;
-                    else if (!city && c.types.includes('administrative_area_level_1'))
-                        city = c.long_name;
-                    if (c.types.includes('country'))
-                        country = c.long_name;
-                });
-                document.getElementById('mbCity').value = city;
-                document.getElementById('mbCountry').value = country;
-                document.getElementById('mbAddress').value = place.formatted_address || '';
+        if (window.AdminPlacesAutocomplete) {
+            window.AdminPlacesAutocomplete.init(locInput, {
+                fields: ['name', 'formatted_address', 'place_id', 'address_components'],
+                onPlace: function(loc) {
+                    if (loc.name) locInput.value = loc.name;
+                    document.getElementById('mbPlaceId').value = loc.placeId;
+                    // cityOrState: this field's existing display rule (a true city, else the province) — a
+                    // UI choice kept local to the field, not folded into the shared parser.
+                    document.getElementById('mbCity').value = window.TMLocation ? window.TMLocation.cityOrState(loc) : (loc.city || loc.state);
+                    document.getElementById('mbCountry').value = loc.country;
+                    document.getElementById('mbAddress').value = loc.formattedAddress;
+                    document.getElementById('mbState').value = loc.state;
+                    document.getElementById('mbPostalCode').value = loc.postalCode;
+                    document.getElementById('mbLatitude').value = loc.latitude != null ? loc.latitude : '';
+                    document.getElementById('mbLongitude').value = loc.longitude != null ? loc.longitude : '';
+                }
             });
         }
         })();
@@ -11760,7 +11787,8 @@
             if (el && el._flatpickr) { el._flatpickr.destroy(); }
         });
         var loc = document.getElementById('mbLocation');
-        if (loc) loc._placesInited = false;
+        if (window.AdminPlacesAutocomplete) window.AdminPlacesAutocomplete.reset(loc);
+        else if (loc) loc._placesInited = false;
     });
 
     /* ---- Block-Out Modal ---- */
@@ -13854,6 +13882,12 @@
               <input type="hidden" id="mbCity">
               <input type="hidden" id="mbAddress">
               <input type="hidden" id="mbCountry">
+              <!-- Additive richer venue fields (2026-09-29 location-search consolidation) — same
+                   role as their #venueState/etc counterparts on the public form. -->
+              <input type="hidden" id="mbState">
+              <input type="hidden" id="mbPostalCode">
+              <input type="hidden" id="mbLatitude">
+              <input type="hidden" id="mbLongitude">
             </div>
           </div>
 

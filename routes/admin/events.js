@@ -5,6 +5,7 @@ const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { addMinutesToTime, parseDurationToMinutes, timeRangesOverlap } = require('../../lib/time-utils');
 const { resolveActor } = require('../../lib/actor');
+const { findOrCreateVenueFromPlace } = require('../../lib/client-venue');
 const { deleteGoogleEvent } = require('../../lib/google-calendar');
 const {
     hasCalendarConflict, syncBookingToCalendar, syncEventToCalendar
@@ -125,8 +126,13 @@ router.get('/api/admin/events', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/events', requireAdmin, (req, res) => {
-    const { event_title, event_description, event_datetime, event_end_time, event_type, venue_name, venue_id, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity, booking_id, block_type } = req.body;
+router.post('/api/admin/events', requireAdmin, async (req, res) => {
+    const {
+        event_title, event_description, event_datetime, event_end_time, event_type, venue_name, venue_id, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity, booking_id, block_type,
+        // Parity fix (2026-09-29 location-search consolidation): the Events venue search used to
+        // never capture a place_id at all — see window.initEventsMap, js/admin/events.js.
+        venue_place_id, venue_address, venue_city, venue_state, venue_country, venue_postal_code, venue_latitude, venue_longitude
+    } = req.body;
     const ip_address = req.ip || req.connection.remoteAddress || 'unknown';
     const user_agent = req.get('User-Agent') || 'unknown';
 
@@ -139,12 +145,27 @@ router.post('/api/admin/events', requireAdmin, (req, res) => {
 
     const eventDateStr = (event_datetime || '').split('T')[0];
 
+    // A fresh Google place selection is authoritative over any raw venue_id the caller also sent
+    // (none currently does — venue_id alone is a legacy, dead code path, see the same shared-helper
+    // note on the booking-creation route below) — same shared upsert every venue-creating path uses.
+    let resolvedVenueId = venue_id || null;
+    if (venue_place_id) {
+        try {
+            resolvedVenueId = await findOrCreateVenueFromPlace({
+                name: venue_name, address: venue_address || null, city: venue_city || null, state: venue_state || null,
+                postalCode: venue_postal_code || null, country: venue_country || null, placeId: venue_place_id, latitude: venue_latitude || null, longitude: venue_longitude || null
+            });
+        } catch (venueErr) {
+            return res.status(500).json({ success: false, error: 'Failed to save venue: ' + venueErr.message });
+        }
+    }
+
     checkEventConflicts(event_datetime, booking_id, null, (err, hasConflict) => {
         if (err) return res.status(500).json({ success: false, error: 'Conflict check failed: ' + err.message });
         if (hasConflict) return res.status(409).json({ success: false, message: 'Calendar conflict: The selected date is already booked or held.' });
 
         insertEventFull(
-            event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, venue_id || null, venue_map_link, ticket_sales_link, poster_image_path, event_status || 'upcoming', event_capacity || null, booking_id || null, req.session.adminId, ip_address, user_agent,
+            event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, resolvedVenueId, venue_map_link, ticket_sales_link, poster_image_path, event_status || 'upcoming', event_capacity || null, booking_id || null, req.session.adminId, ip_address, user_agent,
             async function(err) {
                 if (err) return res.status(500).json({ success: false, error: err.message });
                 const newEventId = this.lastID;
@@ -182,11 +203,26 @@ router.post('/api/admin/events', requireAdmin, (req, res) => {
     });
 });
 
-router.put('/api/admin/events/:id', requireAdmin, (req, res) => {
-    const { event_title, event_description, event_datetime, event_end_time, event_type, venue_name, venue_id, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity, cancellation_reason, booking_id } = req.body;
+router.put('/api/admin/events/:id', requireAdmin, async (req, res) => {
+    const {
+        event_title, event_description, event_datetime, event_end_time, event_type, venue_name, venue_id, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity, cancellation_reason, booking_id,
+        venue_place_id, venue_address, venue_city, venue_state, venue_country, venue_postal_code, venue_latitude, venue_longitude
+    } = req.body;
     const ip_address = req.ip || req.connection.remoteAddress || 'unknown';
     const user_agent = req.get('User-Agent') || 'unknown';
     const eventId = req.params.id;
+
+    let resolvedVenueId = venue_id || null;
+    if (venue_place_id) {
+        try {
+            resolvedVenueId = await findOrCreateVenueFromPlace({
+                name: venue_name, address: venue_address || null, city: venue_city || null, state: venue_state || null,
+                postalCode: venue_postal_code || null, country: venue_country || null, placeId: venue_place_id, latitude: venue_latitude || null, longitude: venue_longitude || null
+            });
+        } catch (venueErr) {
+            return res.status(500).json({ success: false, error: 'Failed to save venue: ' + venueErr.message });
+        }
+    }
 
     if (!event_title || !event_title.trim()) return res.status(400).json({ success: false, error: 'event_title is required' });
     if (event_status && !VALID_EVENT_STATUSES.includes(event_status)) return res.status(400).json({ success: false, error: 'Invalid event_status value' });
@@ -221,7 +257,7 @@ router.put('/api/admin/events/:id', requireAdmin, (req, res) => {
         }
 
         updateEventFull(
-            event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, venue_id || null, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity || null, cancellation_reason || null, booking_id || null, req.session.adminId, req.session.role || null, ip_address, user_agent, eventId,
+            event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, resolvedVenueId, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity || null, cancellation_reason || null, booking_id || null, req.session.adminId, req.session.role || null, ip_address, user_agent, eventId,
             async function(err) {
                 if (err) return res.status(500).json({ success: false, error: err.message });
                 const actor = await resolveActor(req.session.adminId);

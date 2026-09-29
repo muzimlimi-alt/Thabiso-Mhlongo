@@ -564,6 +564,16 @@ $(document).on('submit', '#eventsForm', async function (e) {
     var eventTypeInput = ($('#eventsType').val() || '').trim();
     var venueInput = ($('#eventsVenue').val() || '').trim();
     var venueMapLink = ($('#eventsVenueMapLink').val() || '').trim();
+    // Additive: only present when the venue search (above) found a real Google place — parity
+    // fix, 2026-09-29 consolidation (see the comment on window.initEventsMap).
+    var venuePlaceId = ($('#eventsVenuePlaceId').val() || '').trim();
+    var venueAddress = ($('#eventsVenueAddress').val() || '').trim();
+    var venueCity = ($('#eventsVenueCity').val() || '').trim();
+    var venueState = ($('#eventsVenueState').val() || '').trim();
+    var venueCountry = ($('#eventsVenueCountry').val() || '').trim();
+    var venuePostalCode = ($('#eventsVenuePostalCode').val() || '').trim();
+    var venueLatitude = ($('#eventsVenueLatitude').val() || '').trim();
+    var venueLongitude = ($('#eventsVenueLongitude').val() || '').trim();
     var ticketUrl = ($('#eventsTicketUrl').val() || '').trim();
     
     var bookingId = ($('#eventsBookingId').val() || '').trim();
@@ -618,6 +628,14 @@ $(document).on('submit', '#eventsForm', async function (e) {
             event_type: eventTypeInput || null,
             venue_name: venueInput,
             venue_map_link: venueMapLink,
+            venue_place_id: venuePlaceId || null,
+            venue_address: venueAddress || null,
+            venue_city: venueCity || null,
+            venue_state: venueState || null,
+            venue_country: venueCountry || null,
+            venue_postal_code: venuePostalCode || null,
+            venue_latitude: venueLatitude || null,
+            venue_longitude: venueLongitude || null,
             ticket_sales_link: ticketUrl,
             poster_image_path: finalMediaUrl,
             event_status: $('#eventsStatus').val() || 'upcoming',
@@ -792,27 +810,31 @@ document.addEventListener('atl:drawerOpened', function(e) {
     }
 });
 
-// Google Maps Places Autocomplete Integration for Venue
+// Google Maps Places Autocomplete Integration for Venue — js/admin/places-autocomplete.js (shared
+// with the Manual Booking drawer and the Booking Pipeline's "Link a venue" search; 2026-09-29
+// location-search consolidation). Parity fix: this used to capture only a venue name + a maps
+// link and nothing else — no place_id, no address, no `venues` row at all, unlike every other
+// venue-search surface in the project. It now captures the same standardised location data they
+// do (into the hidden fields beside #eventsVenueSearch, admin.html) so the event can be linked to
+// a real venues row exactly like a booking's venue is (see the venue_place_id handling in
+// routes/admin/events.js) — the two behaviours this field already had (auto-filling the venue
+// name box, and preferring place.url for the map link, falling back to a lat/lng query link) are
+// unchanged.
 window.initEventsMap = function() {
     var searchInput = document.getElementById('eventsVenueSearch');
-    if(searchInput && !searchInput._placesInited && window.google && window.google.maps && window.google.maps.places) {
-        searchInput._placesInited = true;
-        var autocomplete = new google.maps.places.Autocomplete(searchInput);
-        autocomplete.addListener('place_changed', function() {
-            var place = autocomplete.getPlace();
-            if (place) {
-                if (place.url) {
-                    $('#eventsVenueMapLink').val(place.url); // Capture maps link
-                } else if (place.geometry && place.geometry.location) {
-                    var lat = place.geometry.location.lat();
-                    var lng = place.geometry.location.lng();
-                    $('#eventsVenueMapLink').val('https://maps.google.com/?q=' + lat + ',' + lng);
-                }
-                
-                if (place.name) {
-                    $('#eventsVenue').val(place.name); // Auto-fill the required venue name box
-                }
-            }
-        });
-    }
+    if (!searchInput || !window.AdminPlacesAutocomplete) return;
+    window.AdminPlacesAutocomplete.init(searchInput, {
+        onPlace: function(loc) {
+            $('#eventsVenueMapLink').val(loc.mapUrl || (loc.latitude != null ? 'https://maps.google.com/?q=' + loc.latitude + ',' + loc.longitude : ''));
+            if (loc.name) $('#eventsVenue').val(loc.name); // Auto-fill the required venue name box
+            $('#eventsVenuePlaceId').val(loc.placeId);
+            $('#eventsVenueAddress').val(loc.formattedAddress);
+            $('#eventsVenueCity').val(loc.city);
+            $('#eventsVenueState').val(loc.state);
+            $('#eventsVenueCountry').val(loc.country);
+            $('#eventsVenuePostalCode').val(loc.postalCode);
+            $('#eventsVenueLatitude').val(loc.latitude != null ? loc.latitude : '');
+            $('#eventsVenueLongitude').val(loc.longitude != null ? loc.longitude : '');
+        }
+    });
 };

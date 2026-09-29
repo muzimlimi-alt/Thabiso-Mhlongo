@@ -953,76 +953,32 @@
             window.refreshDealView();
         });
 
+        // js/admin/places-autocomplete.js — shared with the Manual Booking drawer and the Events
+        // drawer's venue search (2026-09-29 location-search consolidation). This surface used to
+        // have its OWN address-component parsing, a two-pass city fallback chain slightly
+        // different from — and covering one more case (administrative_area_level_2) than — the
+        // other two surfaces'; that fallback chain now lives once, in the shared parser.
         window.initBookingVenueAutocomplete = function(bookingId) {
             const input = document.getElementById(`venueLinkGoogle-${bookingId}`);
-            if (!input || input._placesInited) return;
+            if (!input || !window.AdminPlacesAutocomplete) return;
 
-            if (!window.google || !window.google.maps || !window.google.maps.places) {
-                console.warn('Google Maps Places library is not loaded.');
-                return;
-            }
-
-            input._placesInited = true;
-            const autocomplete = new google.maps.places.Autocomplete(input, {
-                fields: ['place_id', 'name', 'formatted_address', 'address_components', 'geometry']
-            });
-
-            autocomplete.addListener('place_changed', function() {
-                const place = autocomplete.getPlace();
-                const $btn = $(`#venueLinkGoogleBtn-${bookingId}`);
-                if (!place || !place.place_id) {
-                    $btn.prop('disabled', true);
-                    return;
+            window.AdminPlacesAutocomplete.init(input, {
+                fields: ['place_id', 'name', 'formatted_address', 'address_components', 'geometry'],
+                onPlace: function(loc) {
+                    const $btn = $(`#venueLinkGoogleBtn-${bookingId}`);
+                    if (!loc.placeId) { $btn.prop('disabled', true); return; }
+                    // PUT /api/admin/bookings/:id/venue-google's existing request-body shape (unchanged
+                    // by this consolidation) — translated from the shared standardised location object.
+                    $btn.data('payload', {
+                        place_id: loc.placeId, name: loc.name || input.value, address: loc.formattedAddress,
+                        city: loc.city, state: loc.state, country: loc.country,
+                        latitude: loc.latitude, longitude: loc.longitude
+                    }).prop('disabled', false);
                 }
-
-                // Parse address components
-                let city = '';
-                let state = '';
-                let country = '';
-                if (place.address_components) {
-                    place.address_components.forEach(function(comp) {
-                        const types = comp.types || [];
-                        if (types.includes('locality')) {
-                            city = comp.long_name;
-                        } else if (!city && types.includes('administrative_area_level_2')) {
-                            city = comp.long_name;
-                        }
-                        if (types.includes('administrative_area_level_1')) {
-                            state = comp.long_name;
-                        }
-                        if (types.includes('country')) {
-                            country = comp.long_name;
-                        }
-                    });
-                }
-
-                if (!city && place.address_components) {
-                    place.address_components.forEach(function(comp) {
-                        const types = comp.types || [];
-                        if (types.includes('sublocality') || types.includes('sublocality_level_1')) {
-                            city = comp.long_name;
-                        } else if (!city && types.includes('administrative_area_level_1')) {
-                            city = comp.long_name;
-                        }
-                    });
-                }
-
-                const payload = {
-                    place_id: place.place_id,
-                    name: place.name || input.value,
-                    address: place.formatted_address || '',
-                    city: city,
-                    state: state,
-                    country: country,
-                    latitude: place.geometry && place.geometry.location ? place.geometry.location.lat() : null,
-                    longitude: place.geometry && place.geometry.location ? place.geometry.location.lng() : null
-                };
-
-                $btn.data('payload', payload).prop('disabled', false);
             });
 
             // If user types to change input, disable link button
-            $(input).on('input', function() {
+            $(input).off('input.venuelinkgoogle').on('input.venuelinkgoogle', function() {
                 $(`#venueLinkGoogleBtn-${bookingId}`).prop('disabled', true).removeData('payload');
             });
         };

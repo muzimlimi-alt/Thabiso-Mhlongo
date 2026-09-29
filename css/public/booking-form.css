@@ -7,16 +7,10 @@
    the <link> replacing it sits in that same final position. Moving it above
    css/public/redesign.css would let the redesign's booking rules override it.
 
-   The one non-booking rule is .pac-container (Google Places autocomplete
-   dropdown) — it needs z-index 10000 to clear the booking modal, and it is
-   kept here because that is the only place it is used.
-
    Runtime-set styles are NOT here by design (§10): the booking wizard's
    widths, progress values and dynamic colours are written by js/myscript.js
    as inline styles and must stay there.
    ===================================================================== */
-
-.pac-container { z-index: 10000 !important; }
 
 /* Dynamic Pricing Premium Styling */
 .bk-sticky-total {
