@@ -76,7 +76,6 @@
   --warning: #f59e0b;
   --info:    #3b82f6;
 
-<<<<<<< Updated upstream
   /* -- Availability status (public booking drawer) --
      ONE colour per date state. Each is an r,g,b triplet so the same token gives the solid colour
      (rgb(var(--status-x-rgb)) / --status-x) AND its translucent rings and fills (rgba(var(--status-x-rgb), .1)).
@@ -92,8 +91,6 @@
   --status-blocked:   rgb(var(--status-blocked-rgb));
   --status-muted:     rgb(var(--status-muted-rgb));
 
-=======
->>>>>>> Stashed changes
   /* -- Borders and Dividers -- */
   --border-low:     rgba(255, 255, 255, 0.08);
   --border-default: rgba(255, 255, 255, 0.15);
@@ -414,26 +411,16 @@ header .navbar {
   }
 }
 
-<<<<<<< Updated upstream
 /* The link list is wider than the header can fit, so the lowest-priority links are hidden first,
    in progressively wider bands, rather than shrinking text to the point of being hard to read.
    The links to hide are marked with a class in index.html (tm-nav-low: Career, Team, Gallery;
    tm-nav-lower: Social) instead of by position. These rules used to be nth-child(n) and were
    broken twice by inserting a link (Footprint, then Team): every later link shifted one place,
    so the rule hid the wrong ones and the nav collided with the logo.
-=======
-/* Footprint + Testimonials widened the link list past what the original 7-link nav fit —
-   managed by hiding the lowest-priority links first, in progressively wider bands, rather
-   than shrinking text to the point of being hard to read. nth-child(4) was Gallery when the
-   original single-tier version of this rule was written; inserting Footprint at position 4
-   silently shifted Gallery to position 5, so it kept hiding Footprint instead. Fixed to the
-   current Home/About/Career/Footprint/Gallery/Social/Events/Testimonials/Contact order.
->>>>>>> Stashed changes
    !important is required here: applySectionVisibility() (js/myscript.js) runs jQuery
    .toggle(true) on every nav <li> for every visible CMS section on every page load, which
    sets an inline style="display:list-item" — inline styles beat any stylesheet rule regardless
    of specificity, so a plain display:none here would silently never apply. */
-<<<<<<< Updated upstream
 @media (min-width: 992px) and (max-width: 1899px) {
   .tm-navlinks li.tm-nav-low { display: none !important; }
 }
@@ -451,15 +438,6 @@ header .navbar {
    must not bring back a link that would scroll to a hidden section. renderAccolades() removes it. */
 .tm-navlinks li.tm-nav-empty,
 .tm-mobile-menu a.tm-nav-empty { display: none !important; }
-=======
-@media (min-width: 992px) and (max-width: 1700px) {
-  .tm-navlinks li:nth-child(3),
-  .tm-navlinks li:nth-child(5) { display: none !important; } /* Hide Career and Gallery */
-}
-@media (min-width: 992px) and (max-width: 1330px) {
-  .tm-navlinks li:nth-child(6) { display: none !important; } /* Also hide Social */
-}
->>>>>>> Stashed changes
 
 .tm-navbar__logo{
   font-family:var(--f-display);
@@ -523,15 +501,12 @@ header .navbar {
 @media (min-width: 992px) and (max-width: 1040px) {
   .tm-navlinks{ gap:2px; }
 }
-<<<<<<< Updated upstream
 /* Even with the gap at 2px the six remaining links touched the logo at 992px, and just past 1040px
    (gap back to 10px) they overlapped it. Slightly tighter tracking through ~1120px, where the
    natural spacing has enough room again, avoids both without dropping another link. */
 @media (min-width: 992px) and (max-width: 1119px) {
   .tm-navlinks a{ letter-spacing:.1em; }
 }
-=======
->>>>>>> Stashed changes
 
 .tm-navbar__cta{ display:flex; align-items:center; gap:14px; }
 .tm-navbar__cta .btn-primary, .tm-navbar__cta .tm-btn--primary{ padding:8px 20px; font-size:.68rem; }
@@ -935,17 +910,10 @@ header .navbar {
   background-position:center;
   transition:transform var(--t-slow) var(--ease);
 }
-<<<<<<< Updated upstream
 .tm-service__bg--1{ background-image: url('../../images/services/services-01.jpg'); }
 .tm-service__bg--2{ background-image: url('../../images/services/services-02.jpg'); }
 .tm-service__bg--3{ background-image: url('../../images/services/services-03.jpg'); }
 .tm-service__bg--4{ background-image: url('../../images/services/services-04.jpg'); }
-=======
-.tm-service__bg--1{ background-image: url('../images/services/services-01.jpg'); }
-.tm-service__bg--2{ background-image: url('../images/services/services-02.jpg'); }
-.tm-service__bg--3{ background-image: url('../images/services/services-03.jpg'); }
-.tm-service__bg--4{ background-image: url('../images/services/services-04.jpg'); }
->>>>>>> Stashed changes
 .tm-service:hover .tm-service__bg{ transform:scale(1.06); }
 .tm-service__overlay{
   position:absolute; inset:0;
@@ -1137,7 +1105,6 @@ header .navbar {
   max-height: none;
 }
 
-<<<<<<< Updated upstream
 /* ---------- ACCOLADES & RECOGNITION ----------
    An editorial ledger of wins, nominations and honours, newest year first: year column | the
    achievement | "View …" action. Featured entries break out into a framed panel. The markup is built
@@ -1506,13 +1473,6 @@ header .navbar {
   display:grid;
   grid-template-columns:repeat(auto-fit, minmax(180px, 220px));
   justify-content:center;
-=======
-/* ---------- FOOTPRINT ---------- */
-.tm-footprint{ background:var(--bg-section); }
-.fp-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));
->>>>>>> Stashed changes
   gap:20px;
 }
 .fp-card{
@@ -1557,15 +1517,11 @@ header .navbar {
    flex's default cross-axis "stretch" and leave its columns hugging the left edge. */
 .team-layout{ display:flex; flex-direction:column; align-items:center; gap:32px; max-width:960px; margin:0 auto; }
 @media (min-width:768px){
-<<<<<<< Updated upstream
   /* justify-content:center centers the photos+list PAIR as one block when there are few enough
      members that it doesn't fill the row (team-list gives up flex:1 below, at the same breakpoint,
      for exactly this reason — a flex:1 item claims all leftover space before justify-content gets
      a say, which is what used to pin the photos left and stretch the list across the rest). */
   .team-layout{ flex-direction:row; align-items:flex-start; justify-content:center; gap:40px; }
-=======
-  .team-layout{ flex-direction:row; align-items:flex-start; gap:40px; }
->>>>>>> Stashed changes
 }
 @media (min-width:1024px){ .team-layout{ gap:56px; } }
 
@@ -1596,7 +1552,6 @@ header .navbar {
   flex-shrink:0;
   transition:opacity .4s var(--ease);
 }
-<<<<<<< Updated upstream
 /* ~15% larger than the reference component's original sizes at every breakpoint, same per-column
    proportions (col 2 biggest, col 3 in between) that give the staggered collage its look. */
 .team-photo-col:nth-child(1) .team-photo-card{ width:125px; height:140px; }
@@ -1611,20 +1566,6 @@ header .navbar {
   .team-photo-col:nth-child(1) .team-photo-card{ width:180px; height:190px; }
   .team-photo-col:nth-child(2) .team-photo-card{ width:200px; height:210px; }
   .team-photo-col:nth-child(3) .team-photo-card{ width:185px; height:200px; }
-=======
-.team-photo-col:nth-child(1) .team-photo-card{ width:110px; height:120px; }
-.team-photo-col:nth-child(2) .team-photo-card{ width:122px; height:132px; }
-.team-photo-col:nth-child(3) .team-photo-card{ width:115px; height:125px; }
-@media (min-width:640px){
-  .team-photo-col:nth-child(1) .team-photo-card{ width:130px; height:140px; }
-  .team-photo-col:nth-child(2) .team-photo-card{ width:145px; height:155px; }
-  .team-photo-col:nth-child(3) .team-photo-card{ width:136px; height:146px; }
-}
-@media (min-width:768px){
-  .team-photo-col:nth-child(1) .team-photo-card{ width:155px; height:165px; }
-  .team-photo-col:nth-child(2) .team-photo-card{ width:172px; height:182px; }
-  .team-photo-col:nth-child(3) .team-photo-card{ width:162px; height:172px; }
->>>>>>> Stashed changes
 }
 .team-photo-card img{
   width:100%; height:100%; object-fit:cover;
@@ -1643,15 +1584,11 @@ header .navbar {
 @media (min-width:640px) and (max-width:767px){
   .team-list{ display:grid; grid-template-columns:1fr 1fr; gap:20px 28px; }
 }
-<<<<<<< Updated upstream
 @media (min-width:768px){
   /* Caps at a comfortable reading width instead of flex:1 (which used to stretch it across
      whatever the photo cluster left over) — the pair centers as a compact block instead. */
   .team-list{ flex:0 1 420px; width:auto; gap:20px; }
 }
-=======
-@media (min-width:768px){ .team-list{ gap:20px; } }
->>>>>>> Stashed changes
 .team-row{ transition:opacity .3s var(--ease); }
 .team-row.is-dimmed{ opacity:.5; }
 .team-row__inner{ cursor:pointer; border-radius:var(--r); }
@@ -1685,7 +1622,6 @@ header .navbar {
   font-size:.68rem; letter-spacing:.2em; text-transform:uppercase;
   color:var(--text-muted);
 }
-<<<<<<< Updated upstream
 /* Biography — revealed with the social icons (hover / tap / Enter), same active state. It sits
    beside the button (not inside it) in the DOM so assistive tech reads it. Height is capped for the
    reveal animation only; the admin limits a bio to 600 characters (lib/team.js BIO_MAX), which fits. */
@@ -1716,8 +1652,6 @@ header .navbar {
    specificity. The button stayed visibly on screen (just stopped doing anything once exhausted) —
    toggleClass('tm-hidden', ...) instead, backed by an !important rule specific enough to win. */
 .tm-view-more-wrap .btn.tm-hidden{ display:none !important; }
-=======
->>>>>>> Stashed changes
 
 /* ---------- GALLERY ---------- */
 .tm-gallery{ background:var(--bg-page); }
@@ -2793,23 +2727,14 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   background:var(--bg-elevated)!important;
   box-shadow:0 0 0 3px var(--y-muted)!important;
 }
-<<<<<<< Updated upstream
 .bk-step-err{ display:none; color:var(--status-blocked); font-size:.78rem; margin-top:6px; }
-=======
-.bk-step-err{ display:none; color:var(--danger); font-size:.78rem; margin-top:6px; }
->>>>>>> Stashed changes
 .bk-step-err.show{ display:block; }
 /* padding-bottom, not margin-bottom — as the last child of .form-group, a trailing margin here
    would collapse into the group's own margin-bottom instead of adding to it, leaving no real
    gap before the next field. Padding isn't subject to margin collapsing. */
 .bk-step-hint { display:block; font-size:11px; color:#888; margin-top:4px; padding:0 0 10px 2px; line-height:1.4; }
-<<<<<<< Updated upstream
 .bk-input--err { border-color:var(--status-blocked) !important; box-shadow:0 0 0 2px rgba(var(--status-blocked-rgb),.15) !important; }
 .bk-input--ok  { border-color:var(--status-available) !important; }
-=======
-.bk-input--err { border-color:#ef5350 !important; box-shadow:0 0 0 2px rgba(239,83,80,0.15) !important; }
-.bk-input--ok  { border-color:#4caf50 !important; }
->>>>>>> Stashed changes
 .bk-input:disabled,
 .bk-input.bk-input--disabled,
 #bookingDrawer .form-control:disabled,
@@ -2864,15 +2789,9 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   color:var(--text-primary)!important;
 }
 #bookingFormError{
-<<<<<<< Updated upstream
   background:rgba(var(--status-blocked-rgb),.08)!important;
   border:1px solid rgba(var(--status-blocked-rgb),.3)!important;
   color:var(--status-blocked)!important;
-=======
-  background:rgba(185,77,77,.08)!important;
-  border:1px solid rgba(185,77,77,.3)!important;
-  color:var(--error)!important;
->>>>>>> Stashed changes
   border-radius:var(--r)!important;
 }
 
@@ -3071,11 +2990,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   font-weight: 600;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-<<<<<<< Updated upstream
   color: rgba(212,175,55,0.9);           /* was .6 - measured 3.8:1, below the 4.5:1 AA minimum for text this size */
-=======
-  color: rgba(212,175,55,0.6);
->>>>>>> Stashed changes
   white-space: nowrap;
 }
 
@@ -3112,7 +3027,6 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   pointer-events: none;
 }
 
-<<<<<<< Updated upstream
 /* ---------- SELECTED-DATE BAR (under the calendar) ----------
    Shows the date chosen in the calendar and what it means. It is drawn from the SAME state as that date's
    calendar cell - dateState() in js/myscript.js sets data-state on both - and takes its colour through the
@@ -3147,27 +3061,6 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
 .bk-date-status.bk-input--err[data-state="none"] .bk-date-status__icon,
 .bk-date-status.bk-input--err[data-state="none"] .bk-date-status__msg { color: var(--status-blocked); }
 .bk-date-status.bk-input--err:not([data-state="none"]) { border-color: rgb(var(--st-rgb)) !important; box-shadow: none !important; }
-=======
-.bk-date-display {
-  padding: 10px 14px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: var(--r, 4px);
-  font-family: var(--f-body);
-  font-size: var(--fs-base);
-  color: #666;
-  margin-bottom: 6px;
-  transition: border-color .2s, color .2s;
-}
-.bk-date-display.bk-date-display--filled {
-  color: var(--y-base, #D4AF37);
-  border-color: rgba(212,175,55,0.35);
-}
-.bk-date-display.bk-input--err {
-  border-color: var(--danger, #ef5350);
-  color: var(--danger, #ef5350);
-}
->>>>>>> Stashed changes
 
 .bk-step-header{
   margin-bottom:24px;
@@ -3433,11 +3326,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
 .bk-disclaimer-text{
   font-family:var(--f-body);
   font-size:.67rem;
-<<<<<<< Updated upstream
   color:var(--text-secondary);           /* was --text-muted: 3.3:1 */
-=======
-  color:var(--text-muted);
->>>>>>> Stashed changes
   line-height:1.65;
   margin:0;
   letter-spacing:.01em;
@@ -3487,16 +3376,11 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
 .tm-cal-daynames span{
   text-align:center;
   font-size:10px;
-<<<<<<< Updated upstream
   color:var(--text-secondary);           /* was --text-muted: 3.8:1 on the drawer surface */
-=======
-  color:var(--text-muted);
->>>>>>> Stashed changes
   text-transform:uppercase;
   letter-spacing:.05em;
   padding:4px 0;
 }
-<<<<<<< Updated upstream
 /* ---------- AVAILABILITY STATE -> COLOUR (the ONLY place a date state is given a colour) ----------
    dateState() in js/myscript.js decides a date's state from real data (working days, the month's held / booked /
    full-day dates, the server's per-date answer and its minimum-notice rule) and writes it as data-state on the
@@ -3519,9 +3403,6 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   --cal-fill-strong:rgba(255,255,255,.08);
   --cal-solid:rgb(var(--st-rgb));
   position:relative;
-=======
-.tm-cal-cell{
->>>>>>> Stashed changes
   aspect-ratio:1;
   display:flex;
   align-items:center;
@@ -3530,7 +3411,6 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   font-size:13px;
   font-weight:500;
   color:#666;
-<<<<<<< Updated upstream
   background:var(--cal-fill);
   border:1px solid var(--cal-ring);
   transition:background .15s, border-color .15s, box-shadow .15s, color .15s;
@@ -3600,45 +3480,10 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   margin-left:6px; padding:0; border:0; background:none;
   color:var(--y-base); font:inherit; text-decoration:underline; cursor:pointer;
 }
-=======
-  background:transparent;
-  border:1px solid transparent;
-  transition:all .15s;
-}
-.tm-cal-cell--past{ color:#5c5c5c; cursor:default; }
-.tm-cal-cell--held{ background:rgba(255,255,255,.03); color:#5c5c5c; cursor:not-allowed; }
-.tm-cal-cell--booked{
-  background:rgba(212,175,55,.08);
-  color:var(--y-base);
-  border-color:rgba(212,175,55,.2);
-  cursor:pointer;
-}
-.tm-cal-cell--booked:hover{ background:rgba(212,175,55,.18); border-color:var(--y-base); }
-.tm-cal-cell--avail{ color:#ccc; cursor:pointer; }
-.tm-cal-cell--avail:hover{
-  background:rgba(76,175,80,.12);
-  border-color:rgba(76,175,80,.4);
-  color:#4CAF50;
-}
-.tm-cal-cell--today{
-  border-color:var(--y-base)!important;
-  font-weight:700;
-  color:var(--y-base)!important;
-}
-.tm-cal-cell--clickable:focus{ outline:2px solid var(--y-base); outline-offset:1px; }
-.tm-cal-cell--selected{
-  background:rgba(212,175,55,.18) !important;
-  border-color:var(--y-base, #D4AF37) !important;
-  color:var(--y-base, #D4AF37) !important;
-  font-weight:700;
-}
-.tm-cal-cell--empty{ cursor:default; }
->>>>>>> Stashed changes
 .tm-cal-legend{
   display:flex;
   align-items:center;
   justify-content:center;
-<<<<<<< Updated upstream
   gap:10px 16px;
   margin-top:16px;
   font-family:var(--f-body);
@@ -3658,27 +3503,6 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
 .tm-cal-dot[data-state]{ border-color:rgb(var(--st-rgb)); background:rgba(var(--st-rgb),.18); }
 .tm-cal-dot[data-state="nonworking"]{ border-color:rgba(var(--st-rgb),.45); background:rgba(var(--st-rgb),.08); }
 .tm-cal-dot--selected{ border-color:#fff; background:#fff; }
-=======
-  gap:16px;
-  margin-top:18px;
-  font-family:var(--f-body);
-  font-size:11px;
-  color:var(--text-muted);
-  flex-wrap:wrap;
-}
-.tm-cal-dot{
-  width:8px;height:8px;
-  border-radius:50%;
-  display:inline-block;
-  margin-right:4px;
-  vertical-align:middle;
-}
-.tm-cal-dot--avail{ background:#4CAF50; }
-.tm-cal-dot--booked{ background:var(--y-base); }
-.tm-cal-dot--held{ background:#333; border:1px solid #555; }
-.tm-cal-dot--nonworking{ background:#2a2a2a; border:1px solid #444; }
-.tm-cal-cell--nonworking{ color:#5c5c5c; cursor:not-allowed; background:rgba(255,255,255,0.01); }
->>>>>>> Stashed changes
 .book-step-dot .bk-step-num i{ font-size:.78rem; }
 
 /* ---------- BOOKING NAV ROW ---------- */
@@ -3757,11 +3581,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
 }
 .bk-success__icon{
   font-size:52px;
-<<<<<<< Updated upstream
   color:var(--status-available);
-=======
-  color:var(--success);
->>>>>>> Stashed changes
   margin-bottom:16px;
   animation:tmFadeIn .5s var(--ease-out);
 }
@@ -3810,11 +3630,7 @@ select.tm-nl-input option{ background-color:#0c0c0c !important; color:#fff !impo
   color:var(--text-secondary);
   margin:0;
 }
-<<<<<<< Updated upstream
 .bk-success__status-value{ color:var(--status-available); }
-=======
-.bk-success__status-value{ color:var(--success); }
->>>>>>> Stashed changes
 .bk-success__hint{
   font-size:var(--fs-xs);
   color:var(--text-muted);

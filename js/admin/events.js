@@ -82,11 +82,7 @@ async function renderEventsList(highlightId) {
 
         var displayTitle = item.event_title || 'No Event Name';
         var displayVenue = item.venue_name || 'No Venue specified';
-<<<<<<< Updated upstream
         var descText = (item.event_description || '').substring(0, 110) + ((item.event_description || '').length > 110 ? '...' : '');
-=======
-        var safeDescription = $('<span>').text(item.event_description || '').html();
->>>>>>> Stashed changes
         var encodedItem = encodeURIComponent(JSON.stringify(item));
         var isUpcoming = itemTime >= now || !itemTime;
         var cardIdx = isUpcoming ? upcomingCount : pastCount;
@@ -130,15 +126,9 @@ async function renderEventsList(highlightId) {
                   ${badgeTimeline}${badgeDraft}${badgeLinked}${badgeGcal}${badgeVideo}${badgeCategory}
                 </div>
                 <h3 class="atl-edit-card__title">${displayTitle}</h3>
-<<<<<<< Updated upstream
                 ${descText ? `<p class="atl-edit-card__subtitle">${descText}</p>` : ''}
                 <p class="evt-card-meta" style="margin-bottom:2px;"><i class="fa-regular fa-calendar-check" style="color:var(--atl-amber);"></i> ${displayDateStr}</p>
                 <p class="evt-card-meta"><i class="fa-solid fa-location-dot" style="color:var(--atl-amber);"></i> ${displayVenue}</p>
-=======
-                ${safeDescription ? `<p class="atl-edit-card__subtitle" style="max-height:36px; overflow:hidden;">${safeDescription}</p>` : ''}
-                <p class="atl-edit-card__desc" style="margin-bottom:2px;"><i class="fa-regular fa-calendar-check" style="color:var(--atl-muted-dim);"></i> ${displayDateStr}</p>
-                <p class="atl-edit-card__desc"><i class="fa-solid fa-location-dot" style="color:var(--atl-muted-dim);"></i> ${displayVenue}</p>
->>>>>>> Stashed changes
               </div>
               <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
                 <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="window.openEvtEditDrawer(${item.event_id})" title="Edit event" aria-label="Edit event: ${displayTitle}">
@@ -232,7 +222,7 @@ $(document).on('click', '.evt-duplicate-btn', async function(e) {
 function eventsApplySearch(q) {
     $('.atl-event-card').each(function() {
         var title = ($(this).find('.atl-edit-card__title').text() || '').toLowerCase();
-        var meta  = ($(this).find('.atl-edit-card__subtitle, .atl-edit-card__desc').text() || '').toLowerCase();
+        var meta  = ($(this).find('.atl-edit-card__subtitle').text() || '').toLowerCase();
         $(this).toggle(!q || title.includes(q) || meta.includes(q));
     });
 }

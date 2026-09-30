@@ -41,7 +41,7 @@ const AUDIT_TABLE_LABELS = {
     services: 'Services', clients: 'Clients',
     popia_erasure_requests: 'POPIA Erasure', popia_verification_codes: 'POPIA Verification',
     career_highlights: 'Career', home_slider: 'Home Slider', testimonials: 'Testimonials',
-    footprint_countries: 'Footprint', about_me: 'About Me', team_members: 'Management Team'
+    footprint_countries: 'Footprint', about_me: 'About Me'
 };
 function auditSectionLabel(tableName) {
     if (AUDIT_TABLE_LABELS[tableName]) return AUDIT_TABLE_LABELS[tableName];

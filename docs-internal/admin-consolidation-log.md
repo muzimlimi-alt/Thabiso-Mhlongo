@@ -767,7 +767,6 @@ Broken down by selector and *property* (`prop-breakdown.js`), rather than taken 
 
 ---
 
-<<<<<<< Updated upstream
 ## Step 6 — Applying the token scale; a first, bounded pass at portal-wide standardisation
 
 **Label:** `consol7-tokenapply` · CSS-only, no markup/JS behaviour change
@@ -886,86 +885,3 @@ The brief's checklist is much larger than the above, and none of it should be re
 **Recommended next step**, if this is picked up again: one category at a time (e.g. "every hardcoded
 shadow value" or "Bookings onto the shared table"), each with its own before/after parity capture —
 the same shape as Steps 1-5, rather than attempting the full brief as a single step.
-=======
-## Step 6 — Portal-wide standardisation, increment 1: audit + component consolidation
-
-**Brief:** "standardise the entire admin portal using the new sidebar's design language" — full 18-section
-brief plus an explicit DRY/reuse addendum ("reuse existing code, do not create multiple versions of the
-same component"). Scope: admin only, never `index.html`.
-
-### Audit finding, before any edit
-
-The premise that the rest of the admin needs a component system *built* is wrong — it already has one.
-`css/admin/07-components.css` carries "UNIVERSAL CARD/BUTTON/FORM/TABLE/MODAL SYSTEM" blocks that already
-bridge legacy class names onto shared, token-driven rules (`.atl-card, .db-card, .cms-card`; `.atl-btn,
-.btn-admin-primary, .um-btn`; `.form-control, .um-input, .tm-form-input`; etc.), and `docs-internal/
-oluhle-admin-reference.md` §5 already scoped and partly executed this exact work before Step 5 (tokens,
-z-index scale, `overlayStack` port are already done — see tokens.css's z-index scale and `js/overlay-
-stack.js`). So this increment is a **gap-finding pass against a mature system**, not a from-scratch build
-— consistent with the brief's own reuse instruction.
-
-### Fixed
-
-1. **Theme-breaking hardcodes in the global search dropdown** (`redesign-admin.css` `.adm-search__results`
-   and its descendants) — the entire panel (`#141414` background, `#2a2a2a` border, `#ccc/#fff/#ddd/#666/
-   #555` text, `#D4AF37` accents) was hardcoded to dark values with **no light-theme override anywhere**,
-   unlike every other themed surface in the admin. In light theme this rendered a dark popup with
-   dark-on-dark badge tints over the site's cream chrome. Repointed every value to the matching `--atl-*`
-   token (`--atl-surface2`, `--atl-line-strong`, `--atl-shadow-modal`, `--atl-ink`/`-dim`, `--atl-muted`,
-   `--atl-amber`/`-dim`), keeping the old literal as the `var(..., fallback)` value — this file's own
-   existing convention (`.adm-search__input::placeholder` already does this). The booking/event result
-   badges had no `--atl-*` equivalent for their green/blue tints, so they now read `rgba(var(--atl-sage-
-   rgb), .15)` / `rgba(var(--atl-blue-rgb), .15)` — reusing the RGB-channel tokens already defined for
-   exactly this purpose, rather than inventing new ones. **Not yet visually verified against a live login**
-   (no admin credentials in this session) — spot-check the search dropdown in light theme.
-2. **Focus-ring colour, tokenised.** `rgba(212,175,55,0.22)` was hardcoded at 10 call sites across 6 files
-   (`07-components.css` ×5, `04-section-backgrounds.css`, `17-shell-forms.css`, `20-calendar-filters.css`
-   ×2, `redesign-admin.css`) for every text-input/select/textarea focus box-shadow — same defect class as
-   #1 (never re-declared for light theme, so every focused field showed the *dark* theme's gold at 0.22
-   alpha regardless of the active theme). Added `--atl-focus-ring: rgba(var(--atl-amber-rgb), 0.22)` to
-   `core/tokens.css` (built from the already-per-theme `--atl-amber-rgb` channel, so it needs no restating
-   in `themes.css` — same same-element `var()` resolution rule `oluhle-admin-reference.md` §2 documents),
-   and repointed all 10 sites. Two near-identical literals were deliberately left alone after checking
-   their call sites: `07-components.css:939` (`.atl-promote-ticket-save:hover` background fill, not a
-   focus ring) and `calendar.css:85` (`[data-theme="dark"]` `.fc-day-today`, already theme-scoped
-   on purpose per its own comment) — reusing a "focus ring" token for either would be a misnomer than a
-   consolidation.
-3. **Badge radius, tokenised.** `border-radius: 999px` (`atl-status-badge`, `atl-payment-badge`,
-   `atl-tag-badge`, `evt-badge`) and `border-radius: 20px` (`svc-card__cat-badge`, `svc-card__model-
-   badge`, `svc-tag`, `adm-search__result-badge`) both already render as a full pill at badge scale —
-   repointed both to the existing `--atl-r-pill` token (already `999px`). Zero visual change; removes 8
-   more hardcoded repeats of a value that already had a name.
-4. **Dead tab system quarantined.** `.nav-tabs` (Bootstrap tabs) in `07-components.css` had exactly one
-   remaining match anywhere in `admin.html`/`js/`: the comment at `admin.html:2353` documenting that its
-   one caller ("Ledger tabs") already migrated to `.atl-tab-bar`. Confirmed dead, not just unlikely —
-   moved verbatim to `_quarantine/css/admin/07-components.dead-rules.css` per the Phase 8 convention
-   (soak before delete), leaving a pointer comment. The admin now has exactly one tab visual language.
-
-### Audited and left alone (real duplication, but lower value or higher risk than the above)
-
-- **Section-specific badge families** (`.um-role-badge`/`.um-status-badge`, `.inq-badge`/`.inq-overdue-
-  badge`, `.evt-badge--*`) already use `--atl-*` tokens and `--atl-r-pill` (post-fix) for their base shape
-  — they differ from `.atl-badge` only in class name, not in any token/value that's actually wrong. Worth
-  a follow-up pass to fold them onto one shared base rule (a `07-components.css`-style combined selector,
-  same technique already used for buttons/cards/inputs), but that's a bigger, purely-cosmetic refactor
-  with no live defect behind it — deferred rather than rushed.
-- **Pagination containers** (`.um-pagination-btns`, `.inq-pagination`, `.atl-pagination-bar`, `.lc-
-  pagination`) turned out to already share the real component (their buttons are `.atl-btn`); the
-  per-section classes are layout wrappers whose differences (space-between vs centered, border-top or
-  not) track genuine content differences, not drift. No change made — flagged in case that judgment is
-  wrong for a section not yet built.
-- **`.atl-btn`/`.atl-input`/`.atl-modal-*` at `07-components.css:97-295`** duplicate declarations that the
-  file's own later "UNIVERSAL BUTTON SYSTEM" block (line ~1320) already supersedes for every overlapping
-  property (same class, second declaration wins by source order) — cosmetically redundant but not
-  provably safe to delete in this pass without diffing every non-overlapping property (e.g. `outline:
-  none` at line 107) computed-style-by-computed-style first. Left in place rather than guessed at.
-
-### What Sections 2–11 of the brief still need, beyond this increment
-
-This pass covered tokens/badges/tabs — a slice, not the full 22-section, every-control sweep the brief
-asks for. Sections not yet audited section-by-section against the shell language: Calendar, Events,
-Gallery, Home, Career/Milestones, Testimonials, Footprint, Newsletter, Contact, Social, Legal/Policies,
-Preferences, Email Logs/Management, Finance, Quotes, Invoices, Payments, Settings — and the full
-mobile-breakpoint and light/dark sweep the brief's §14/§15/§18 ask for. Flagging explicitly rather than
-implying the brief is complete.
->>>>>>> Stashed changes

@@ -95,10 +95,7 @@ router.post('/upload', (req, res, next) => {
     else if (section === 'footprint') folderPath = 'images/footprint/';
     else if (section === 'testimonials') folderPath = 'images/testimonials/';
     else if (section === 'team') folderPath = 'images/team/';
-<<<<<<< Updated upstream
     else if (section === 'accolades') folderPath = 'images/accolades/';
-=======
->>>>>>> Stashed changes
 
     const relativePath = folderPath + req.file.filename;
 

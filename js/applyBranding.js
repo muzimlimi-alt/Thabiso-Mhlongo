@@ -4,6 +4,7 @@
  *
  * Pulls /api/public/branding and applies, where applicable:
  *   - favicon            (every page)
+ *   - accent colour      (--brand-gold)
  *   - theme font         (--theme-font; only visibly changes pages whose CSS uses var(--theme-font))
  *   - site logo          (any img.site-logo / .header-logo / #siteLogo; hides .tm-navbar__logo-text)
  *
@@ -42,6 +43,10 @@
             var b = data.branding || {};
 
             applyFavicon(b.favicon);
+
+            if (b.primary_color) {
+                document.documentElement.style.setProperty('--brand-gold', b.primary_color);
+            }
 
             // Theme font (headings + body). style.css consumes --theme-font; redesign.css consumes
             // --f-body / --f-display, so drive those too. Only override when a custom font is set,

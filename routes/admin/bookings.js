@@ -2287,23 +2287,15 @@ router.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(
             
             getBookingById(bookingId, async (bookErr, booking) => {
                 if (bookErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-
+                
                 const total = parseFloat(booking.total_amount) || 0;
                 const outstanding = Math.max(0, total - txPaid);
-<<<<<<< Updated upstream
                 
-=======
-
->>>>>>> Stashed changes
                 // Covers the first live schedule row, not a flat 50% of total — correct for a
                 // client-selected 3-way plan too. total<=0 keeps the booking's existing status,
                 // same as the original threshold block being skipped entirely in that case.
                 const payment_status = total > 0 ? await deriveManualPaymentStatus(bookingId, total, txPaid) : booking.payment_status;
-<<<<<<< Updated upstream
                 
-=======
-
->>>>>>> Stashed changes
                 // A deposit confirms, same as every other payment path.
                 const newStatus = deriveBookingStatusAfterPayment(booking.status, payment_status);
 
@@ -2425,22 +2417,18 @@ router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRo
                 const stmt = prepareInsertPaymentSchedule();
                 let insertError = null;
                 const sorted = schedules.slice().sort((a, b) => (a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0));
-<<<<<<< Updated upstream
                 
-=======
-
->>>>>>> Stashed changes
                 sorted.forEach((item, idx) => {
                     stmt.run([bookingId, item.description.trim(), item.due_date, parseFloat(item.expected_amount), idx + 1], (runErr) => {
                         if (runErr) insertError = runErr;
                     });
                 });
-
+                
                 stmt.finalize((finErr) => {
                     if (insertError || finErr) {
                         return res.status(500).json({ success: false, message: (insertError || finErr).message });
                     }
-
+                    
                     updateBookingMilestones(bookingId, (alignErr) => {
                         if (alignErr) console.error('[Schedules] Milestone alignment failed:', alignErr.message);
                         res.json({ success: true, message: 'Payment schedules updated and aligned successfully.' });
@@ -2930,7 +2918,6 @@ router.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['adminis
         // Covers the first live schedule row, not a flat 50% of total — correct for a
         // client-selected 3-way plan too.
         const payment_status = await deriveManualPaymentStatus(bookingId, total, newPaid);
-<<<<<<< Updated upstream
         // Awaited so the response never goes out ahead of the write — a caller (or test) that reads
         // the booking straight after this returns must see the re-derived status. A failed write is
         // still only logged, as before; it never fails the refund.
@@ -2938,10 +2925,6 @@ router.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['adminis
             if (psErr) console.error('[Refund] payment_status re-derivation failed:', psErr.message);
             resolve();
         }));
-=======
-        setBookingPaymentStatus(payment_status, bookingId,
-            (psErr) => { if (psErr) console.error('[Refund] payment_status re-derivation failed:', psErr.message); });
->>>>>>> Stashed changes
         // amount_paid dropped — re-run the milestone waterfall so covered rows
         // that are no longer covered fall back to pending.
         alignMilestonePayments(bookingId, newPaid, () => {});

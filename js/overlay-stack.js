@@ -48,13 +48,10 @@
 
     function lockScroll() {
         if (stack.length !== 1) return;          // only the first push locks
-<<<<<<< Updated upstream
         // Already locked (the same overlay pushed twice, e.g. a double-activated trigger): don't
         // re-record the overflow — it is now 'hidden', and restoring THAT on close would leave the
         // page permanently scroll-locked.
         if (savedOverflow !== null) return;
-=======
->>>>>>> Stashed changes
         savedOverflow = document.body.style.overflow || '';
         document.body.style.overflow = 'hidden';
         // A plain class alongside the scroll-lock, for CSS that needs to react to "something

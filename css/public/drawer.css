@@ -47,7 +47,6 @@
     flex-direction: column;
     color: var(--text-primary);
     transform: translateX(100%);
-<<<<<<< Updated upstream
     /* A closed drawer must be unreachable: visibility:hidden removes the off-canvas panel from
        the tab order and the accessibility tree. The delay keeps it painted for the slide-out. */
     visibility: hidden;
@@ -58,13 +57,6 @@
     visibility: visible;
     box-shadow: var(--sh-xl);
     transition-delay: 0s;
-=======
-    transition: transform var(--t) var(--ease-out), box-shadow var(--t) var(--ease);
-}
-.atl-drawer--open {
-    transform: translateX(0);
-    box-shadow: var(--sh-xl);
->>>>>>> Stashed changes
 }
 
 /* ── Header — Cormorant title, gold accent rule, 44×44 close target ── */
@@ -111,13 +103,9 @@
     background: transparent;
     border: none;
     cursor: pointer;
-<<<<<<< Updated upstream
     /* Explicit properties, NOT `all`: `all` also animates the *inherited* visibility, which kept
        this button un-focusable for ~150ms after the drawer opened (so the open-time focus failed). */
     transition: opacity var(--t) var(--ease), color var(--t) var(--ease), transform var(--t) var(--ease);
-=======
-    transition: all var(--t) var(--ease);
->>>>>>> Stashed changes
 }
 .atl-drawer__close:hover,
 .atl-drawer__close:focus-visible {
@@ -130,7 +118,6 @@
 /* ── Body — independently scrollable ── */
 .atl-drawer__body {
     flex: 1;
-<<<<<<< Updated upstream
     min-height: 0;                   /* lets the flex child shrink so it scrolls instead of growing the drawer */
     overflow-y: auto;
     overscroll-behavior: contain;    /* scrolling to the end doesn't chain to the page underneath */
@@ -138,11 +125,6 @@
     /* Padding lives in variables so the sticky action row (below) can extend through it. */
     --atl-pad-t: 30px; --atl-pad-r: 30px; --atl-pad-b: 30px; --atl-pad-l: 30px;
     padding: var(--atl-pad-t) var(--atl-pad-r) var(--atl-pad-b) var(--atl-pad-l);
-=======
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 30px;
->>>>>>> Stashed changes
     background: var(--bg-surface);
 }
 
@@ -174,7 +156,6 @@
    reads as intentional breathing room, not an error. */
 #bookingDrawer .bk-nav-row {
     position: sticky;
-<<<<<<< Updated upstream
     bottom: calc(-1 * var(--atl-pad-b));       /* flush with the drawer's bottom edge, not floating above it */
     z-index: 10;                               /* above step content scrolling underneath - incl. the field icons (z-index:3) */
     background: var(--bg-surface);
@@ -187,12 +168,6 @@
     padding-left: var(--atl-pad-l);
     padding-right: var(--atl-pad-r);
     padding-bottom: calc(var(--atl-pad-b) + env(safe-area-inset-bottom));
-=======
-    bottom: 0;
-    z-index: 1;                        /* sit above step content scrolling underneath */
-    background: var(--bg-surface);
-    padding-bottom: env(safe-area-inset-bottom);
->>>>>>> Stashed changes
 }
 
 /* ── Size variants, matching admin's own naming (unused here today, kept for
@@ -225,7 +200,6 @@ body.atl-overlay-open #back-to-top {
     pointer-events: none !important;
 }
 
-<<<<<<< Updated upstream
 /* Phones AND portrait tablets (768/810/820px iPads) get the full-width sheet — a 760px panel on
    a 768px screen would leave an 8px sliver of page, which reads as a bug rather than a drawer.
    Insets keep content clear of notches/rounded corners on devices that report them. */
@@ -241,14 +215,6 @@ body.atl-overlay-open #back-to-top {
         --atl-pad-r: max(16px, env(safe-area-inset-right));
         --atl-pad-l: max(16px, env(safe-area-inset-left));
     }
-=======
-@media (max-width: 767px) {
-    .atl-drawer { width: 100vw; }
-    .atl-drawer__header { padding: 18px 20px 16px; }
-    .atl-drawer__header::after { left: 20px; }
-    .atl-drawer__title { font-size: 1.25rem; }
-    .atl-drawer__body { padding: 20px 16px; }
->>>>>>> Stashed changes
     .atl-drawer__footer { padding: 14px 16px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
 }
 

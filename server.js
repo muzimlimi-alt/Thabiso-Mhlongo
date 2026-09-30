@@ -9,9 +9,9 @@ const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
     console.log(`✅ File Upload Server running at http://localhost:${PORT}`);
-    //   console.log(`✅ Email Dispatcher running at POST /send-email`);
-    // console.log(`✅ Newsletter Server running at POST /send-newsletter`);
-   // console.log(`Admin page will now save files physically to your images/ folder structure.`);
+    console.log(`✅ Email Dispatcher running at POST /send-email`);
+    console.log(`✅ Newsletter Server running at POST /send-newsletter`);
+    console.log(`Admin page will now save files physically to your images/ folder structure.`);
 
     // Load pending scheduled newsletter jobs
     setTimeout(loadPendingScheduledJobs, 1000);

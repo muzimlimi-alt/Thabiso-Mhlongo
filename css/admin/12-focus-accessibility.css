@@ -35,11 +35,7 @@ a:hover { color: var(--atl-amber-hover) !important; }
 /* Defect 18: Firefox scrollbar theming */
 .modal-body, .atl-scroll-container, .atl-modal-body {
     scrollbar-width: thin;
-<<<<<<< Updated upstream
     scrollbar-color: var(--atl-line-strong) transparent;
-=======
-    scrollbar-color: rgba(255,255,255,0.15) transparent;
->>>>>>> Stashed changes
 }
 .atl-page-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
 

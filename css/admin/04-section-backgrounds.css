@@ -64,11 +64,7 @@
     height: 1px;
     margin-top: 24px;
     margin-bottom: 24px;
-<<<<<<< Updated upstream
     background: linear-gradient(to right, var(--atl-amber), color-mix(in srgb, var(--atl-amber) 15%, transparent) 40%, transparent);
-=======
-    background: linear-gradient(to right, var(--atl-amber), rgba(212,175,55,0.15) 40%, transparent);
->>>>>>> Stashed changes
 }
 
 /* Header typography */
@@ -239,11 +235,7 @@
     animation: atl-card-in 0.4s ease backwards;
 }
 .atl-booking-card:hover {
-<<<<<<< Updated upstream
     border-color: color-mix(in srgb, var(--atl-amber) 35%, transparent) !important;
-=======
-    border-color: rgba(212,175,55,0.35) !important;
->>>>>>> Stashed changes
     box-shadow: var(--atl-shadow-card) !important;
 }
 @keyframes atl-card-in {
@@ -311,15 +303,9 @@
     border: 1px solid rgba(129,140,248,0.3);
 }
 .atl-tag-badge--contract-unsigned {
-<<<<<<< Updated upstream
     background: color-mix(in srgb, var(--atl-amber) 12%, transparent);
     color: var(--atl-amber);
     border: 1px solid color-mix(in srgb, var(--atl-amber) 35%, transparent);
-=======
-    background: rgba(212,175,55,0.12);
-    color: var(--atl-amber, #d4af37);
-    border: 1px solid rgba(212,175,55,0.35);
->>>>>>> Stashed changes
 }
 .atl-tag-badge--triaged {
     background: rgba(148,148,148,0.12);

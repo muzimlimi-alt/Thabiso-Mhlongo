@@ -10,7 +10,6 @@ window.tmThumbFallback = function (imgEl) {
     var div = document.createElement('div');
     div.style.cssText = 'width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--atl-amber); color:var(--atl-bg, #0a0a0a); font-family:var(--atl-font-display, serif); font-size:22px; font-weight:600;';
     div.textContent = initial;
-<<<<<<< Updated upstream
     // Grab the parent first: clearing it detaches the <img>, after which imgEl.parentElement is null.
     var parent = imgEl.parentElement;
     if (parent) {
@@ -30,19 +29,10 @@ function renderTeamSectionNotice() {
     }
 }
 
-=======
-    if (imgEl.parentElement) {
-        imgEl.parentElement.innerHTML = '';
-        imgEl.parentElement.appendChild(div);
-    }
-};
-
->>>>>>> Stashed changes
 async function loadTeam() {
     var $list = $('#adminTeamList');
     try {
         const data = await apiCall('/api/admin/team');
-<<<<<<< Updated upstream
         // /api/admin/team is built by lib/team.js — the module the public API also uses — so the
         // order here IS the website's order, and is_public / public_position say exactly what the
         // website does with each member. Nothing below re-derives visibility or position.
@@ -52,10 +42,6 @@ async function loadTeam() {
         renderTeamSectionNotice();
 
         if (members.length === 0) {
-=======
-
-        if (!Array.isArray(data) || data.length === 0) {
->>>>>>> Stashed changes
             $list.html(`
                 <div class="atl-empty-state">
                     <i class="fa-solid fa-user-tie" style="font-size:32px; color:var(--atl-muted-dim); margin-bottom:14px; display:block;"></i>
@@ -70,7 +56,6 @@ async function loadTeam() {
 
         $list.empty();
 
-<<<<<<< Updated upstream
         members.forEach(function (item) {
             var safeName = $('<span>').text(item.name || '').html();
             var safeRole = $('<span>').text(item.role || '').html();
@@ -79,21 +64,10 @@ async function loadTeam() {
             var updatedStr = updated ? new Date(updated).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
             var encoded = encodeURIComponent(JSON.stringify(item));
             var initial = window.TeamView ? TeamView.initialOf(item) : ((item.name || '?').trim().charAt(0).toUpperCase() || '?');
-=======
-        data.forEach(function (item) {
-            var safeName = $('<span>').text(item.name || '').html();
-            var safeRole = $('<span>').text(item.role || '').html();
-            var isActive = item.status !== 'inactive';
-            var updated = item.updated_at || item.created_at;
-            var updatedStr = updated ? new Date(updated).toLocaleDateString('en-ZA', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
-            var encoded = encodeURIComponent(JSON.stringify(item));
-            var initial = (item.name || '?').trim().charAt(0).toUpperCase();
->>>>>>> Stashed changes
             var thumb = item.image_path
                 ? `<img src="${item.image_path}" alt="${safeName}" onerror="window.tmThumbFallback(this)">`
                 : `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:var(--atl-amber); color:var(--atl-bg, #0a0a0a); font-family:var(--atl-font-display, serif); font-size:22px; font-weight:600;">${initial}</div>`;
 
-<<<<<<< Updated upstream
             var statusBadge;
             if (!isPublic) {
                 statusBadge = '<span class="atl-badge atl-badge--unpaid" title="Inactive members are not shown on the website">Hidden &middot; Inactive</span>';
@@ -102,22 +76,13 @@ async function loadTeam() {
             } else {
                 statusBadge = '<span class="atl-badge atl-badge--confirmed" title="Shown on the website">Live on site</span>';
             }
-=======
-            var statusBadge = isActive
-                ? '<span class="atl-badge atl-badge--confirmed">Active</span>'
-                : '<span class="atl-badge atl-badge--unpaid">Inactive</span>';
->>>>>>> Stashed changes
             var featuredBadge = (item.featured == 1)
                 ? '<span class="atl-badge atl-badge--info"><i class="fa-solid fa-star"></i> Featured</span>'
                 : '';
 
             var metaText = [];
             if (safeRole) metaText.push(safeRole);
-<<<<<<< Updated upstream
             metaText.push(isPublic && item.public_position ? 'Site position ' + item.public_position : 'Not on site');
-=======
-            metaText.push('Order ' + (item.display_order != null ? item.display_order : 0));
->>>>>>> Stashed changes
             if (updatedStr) metaText.push('Updated ' + updatedStr);
             var subtitle = metaText.length > 0 ? metaText.join(' &middot; ') : 'Team member';
 
@@ -186,10 +151,7 @@ function initDraggableTeam() {
                 body: JSON.stringify({ order: newOrder })
             });
             if (!res.ok) window.notificationService.showError('Reorder failed — please refresh and try again.');
-<<<<<<< Updated upstream
             else await loadTeam(); // re-read from the server so every card's "site position" is the real one
-=======
->>>>>>> Stashed changes
         } catch (e) {
             console.error("Reorder failed:", e);
             window.notificationService.showError('Reorder failed — please refresh and try again.');
@@ -217,7 +179,6 @@ function initDraggableTeam() {
 var teamEditId = null;
 var teamImageCleared = false;
 
-<<<<<<< Updated upstream
 // ── Live "Public preview" ──
 // Built from the form, filtered to the fields the SERVER publishes (window.teamPublicFields, from
 // lib/team.js via GET /api/admin/team — so email/phone are dropped here exactly as they are there),
@@ -263,8 +224,6 @@ function refreshTeamPreview() {
 window.refreshTeamPreview = refreshTeamPreview;
 $(document).on('input change', '#teamForm :input', refreshTeamPreview);
 
-=======
->>>>>>> Stashed changes
 function resetTeamForm() {
     $('#teamForm')[0].reset();
     $('#teamFile').val('');
@@ -280,10 +239,7 @@ function resetTeamForm() {
     window.atlActivateDrawerTab('teamDrawer', 'team-tab-edit');
     $('#teamDrawerTitle').html('<i class="fa-solid fa-user-tie"></i> Add Team Member');
     $('#teamSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Team Member').prop('disabled', false);
-<<<<<<< Updated upstream
     refreshTeamPreview();
-=======
->>>>>>> Stashed changes
 }
 window.resetTeamForm = resetTeamForm;
 
@@ -300,13 +256,9 @@ function applyTeamToEditor(item) {
     $('#teamInstagram').val(item.instagram || '');
     $('#teamBehance').val(item.behance || '');
     $('#teamDisplayOrder').val(item.display_order || 0);
-<<<<<<< Updated upstream
     // Server-derived (lib/team.js) — never re-derive "is this member public?" from the raw status here.
     var editorActive = item.is_public !== undefined ? !!item.is_public : item.status !== 'inactive';
     $('#teamActiveSwitch').attr('aria-checked', editorActive ? 'true' : 'false');
-=======
-    $('#teamActiveSwitch').attr('aria-checked', item.status !== 'inactive' ? 'true' : 'false');
->>>>>>> Stashed changes
     $('#teamFeaturedSwitch').attr('aria-checked', item.featured == 1 ? 'true' : 'false');
     $('#teamFile').val('');
     teamImageCleared = false;
@@ -318,10 +270,7 @@ function applyTeamToEditor(item) {
     $('#teamSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Team Member').prop('disabled', false);
     $('#team-tab-history').show();
     if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('teamChangeHistoryList', 'team_members', item.id);
-<<<<<<< Updated upstream
     refreshTeamPreview();
-=======
->>>>>>> Stashed changes
 }
 window.openTeamCreateDrawer = function () {
     resetTeamForm();
@@ -346,10 +295,7 @@ $(document).on('click', '#teamDrawerClose, #teamDrawerBackdrop, #teamCancelBtn',
 // Sections .sec-toggle switches in js/admin/system-settings.js).
 $(document).on('click', '#teamActiveSwitch, #teamFeaturedSwitch', function () {
     $(this).attr('aria-checked', $(this).attr('aria-checked') === 'true' ? 'false' : 'true');
-<<<<<<< Updated upstream
     refreshTeamPreview();
-=======
->>>>>>> Stashed changes
 });
 
 $(document).on('change', '#teamFile', function () {
@@ -362,10 +308,7 @@ $(document).on('change', '#teamFile', function () {
         reader.onload = function (ev) {
             $('#teamPreviewImg').attr('src', ev.target.result);
             $('#teamPreview').show();
-<<<<<<< Updated upstream
             refreshTeamPreview();
-=======
->>>>>>> Stashed changes
         };
         reader.readAsDataURL(file);
     }
@@ -378,10 +321,7 @@ $(document).on('click', '#btnTeamClearImage', function () {
     $('#teamPreviewImg').attr('src', '');
     var text = document.getElementById('teamUploadText');
     if (text) text.textContent = 'Drag & drop or select a photo';
-<<<<<<< Updated upstream
     refreshTeamPreview();
-=======
->>>>>>> Stashed changes
 });
 
 // Add / Edit submit (delegated — #teamForm lives in the drawer)
