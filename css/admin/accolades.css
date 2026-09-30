@@ -45,12 +45,14 @@
 .acl-card__main .atl-edit-card__title { overflow-wrap: anywhere; }
 .acl-card__badges { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0 0; }
 .acl-card__meta { margin: 8px 0 0; font-size: 12px; color: var(--atl-muted); }
-.acl-card__actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
+/* Stacked, icon-only squares — matches the Edit/Delete pair every other Site Content card list
+   uses (Gallery, Footprint, Testimonials: js/admin/gallery.js etc.), not a wide labelled pair. */
+.acl-card__actions { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; margin-left: auto; }
 .acl-card--featured { border-color: var(--atl-amber-border, rgba(212,175,55,0.35)); }
 .acl-card--dragging { opacity: .45; }
 .acl-card--flash { box-shadow: 0 0 0 2px var(--atl-amber); transition: box-shadow .6s ease; }
 @media (max-width: 639px) {
-    .acl-card__actions { width: 100%; justify-content: flex-end; }
+    .acl-card__actions { width: auto; }
 }
 
 /* Category chip — the same three words the website uses, in its mono type. */

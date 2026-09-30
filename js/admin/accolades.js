@@ -191,8 +191,8 @@
             +       '<p class="acl-card__meta">' + meta.join(' &middot; ') + '</p>'
             +     '</div>'
             +     '<div class="acl-card__actions">'
-            +       '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm acl-edit-btn" data-id="' + id + '" aria-label="Edit ' + title + '"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit</button>'
-            +       '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm acl-more-btn" data-id="' + id + '" aria-haspopup="menu" aria-expanded="false" aria-controls="aclMoreMenu" aria-label="More actions for ' + title + '"><i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i> More</button>'
+            +       '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm acl-edit-btn" data-id="' + id + '" title="Edit accolade" aria-label="Edit ' + title + '"><i class="fa-solid fa-pen" aria-hidden="true"></i></button>'
+            +       '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm acl-more-btn" data-id="' + id + '" aria-haspopup="menu" aria-expanded="false" aria-controls="aclMoreMenu" title="More actions" aria-label="More actions for ' + title + '"><i class="fa-solid fa-ellipsis-vertical" aria-hidden="true"></i></button>'
             +     '</div>'
             +   '</div></div>'
             + '</article>';
