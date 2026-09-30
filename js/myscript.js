@@ -41,29 +41,18 @@ $(function() {
         // $('.fullheight').css('height', wheight); //set to window tallness (Disabled to prevent layout loops)
     });
 
-    //Activate Scrollspy
-    $('body').scrollspy({
-        target: 'header .navbar',
-        offset: topoffset
-    });
-
-    // add inbody class
-    var hash = $(this).find('li.active a').attr('href');
-    if(hash !== '#featured') {
-        $('header nav').addClass('inbody');
-    } else {
-        $('header nav').removeClass('inbody');
-    }
-
-    // Add an inbody class to nav when scrollspy event fires
-    $('.navbar-fixed-top').on('activate.bs.scrollspy', function() {
-        var hash = $(this).find('li.active a').attr('href');
-        if(hash !== '#featured') {
-            $('header nav').addClass('inbody');
-        } else {
-            $('header nav').removeClass('inbody');
-        }
-    });
+    // Bootstrap's scrollspy + "inbody" class toggle removed here (2026-09-30): both were dead
+    // weight from the pre-redesign nav. scrollspy targeted 'header .navbar' via a data-driven
+    // '.navbar li.active a' lookup, and .navbar-fixed-top for its activate event — neither
+    // matches the current .tm-navbar/.tm-navlinks markup (no .navbar-fixed-top element exists at
+    // all), so it silently never fired. Even if it had, it toggles Bootstrap's own `.active` on
+    // the parent <li>, not the `.is-active` class on the <a> that .tm-navlinks a.is-active (CSS)
+    // and the hardcoded initial Home link actually use — so the current nav's active-section
+    // highlight never updated on scroll, staying stuck on Home. ".inbody" is also neutralized by
+    // redesign.css (`header .inbody, .navbar, .navbar-default { background: transparent !important; }`),
+    // superseded by the --scroll-progress header-fade script in index.html. A working replacement
+    // (real IntersectionObserver-based scroll-spy against .tm-navlinks a.is-active) now lives in
+    // index.html, next to that other nav-scroll script, matching the current markup this file predates.
 
     //Use smooth scrolling when clicking on navigation
     $('.navbar a[href*=#]:not([href=#])').click(function() {

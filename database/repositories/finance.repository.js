@@ -179,10 +179,10 @@ function insertPaymentLogEntry(bookingId, eventType, rawPayloadJson, sigValid, a
         [bookingId, eventType, rawPayloadJson, sigValid, amount], callback);
 }
 // logPaymentEvent() — the transactions half, only written for VERIFIED_OK/MANUAL_PAYMENT_RECORDED.
-function insertLoggedPaymentTransaction(bookingId, amount, mappedMethod, txReference, txSource, callback) {
-    db.run(`INSERT INTO transactions (booking_id, amount, transaction_type, payment_method, reference, transaction_date, status, source)
-                VALUES (?, ?, 'payment', ?, ?, CURRENT_TIMESTAMP, 'completed', ?)`,
-        [bookingId, amount, mappedMethod, txReference, txSource], callback);
+function insertLoggedPaymentTransaction(bookingId, amount, mappedMethod, txReference, txSource, proofOfPaymentPath, callback) {
+    db.run(`INSERT INTO transactions (booking_id, amount, transaction_type, payment_method, reference, transaction_date, status, source, proof_of_payment_path)
+                VALUES (?, ?, 'payment', ?, ?, CURRENT_TIMESTAMP, 'completed', ?, ?)`,
+        [bookingId, amount, mappedMethod, txReference, txSource, proofOfPaymentPath || null], callback);
 }
 // GET /api/bookings/:id/payment-logs
 function getPaymentLogsForBooking(bookingId, callback) {
@@ -295,9 +295,13 @@ function getTotalTransactionCount(callback) {
 // GET /api/admin/reconciliation/:bookingId/transactions
 function getCompletedTransactionsForReconciliation(bookingId, callback) {
     db.all(
-        `SELECT id, amount, source, payment_method, reference, transaction_date, status, is_duplicate, reconcile_note
+        `SELECT id, amount, source, payment_method, reference, transaction_date, status, is_duplicate, reconcile_note, proof_of_payment_path
          FROM transactions WHERE booking_id = ? AND status = 'completed' ORDER BY transaction_date DESC`,
         [bookingId], callback);
+}
+// GET /api/admin/transactions/:id/proof
+function getTransactionProofPath(id, callback) {
+    db.get("SELECT proof_of_payment_path FROM transactions WHERE id = ?", [id], callback);
 }
 // PATCH /api/admin/transactions/:id/reconcile
 function setTransactionDuplicateFlag(flag, note, id, callback) {
@@ -538,6 +542,7 @@ module.exports = {
     getTransactionsPaidSumForReconcile, insertManualTransaction,
     getTransactionRevenueTrend, getTransactionRevenueByPeriod, getPeriodRevenue, getTotalTransactionCount,
     getCompletedTransactionsForReconciliation, setTransactionDuplicateFlag, countTransactionsForIds,
+    getTransactionProofPath,
     redactTransactionForErasure,
 
     redactCancellationForErasure, insertCancellationForErasure, insertCancellationForAdminCancel,

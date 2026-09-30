@@ -708,6 +708,7 @@
                             <th>Method</th>
                             <th>Reference</th>
                             <th>Amount</th>
+                            <th style="text-align:center;">Proof</th>
                             <th style="text-align:center;">Duplicate?</th>
                             <th>Note</th>
                         </tr>
@@ -723,6 +724,11 @@
                                     <td style="color:var(--atl-muted);">${t.payment_method || '—'}</td>
                                     <td style="color:var(--atl-muted-dim);font-size:11px;">${t.reference || '—'}</td>
                                     <td style="font-weight:600;color: var(--atl-ink);">${R_FMT(t.amount)}</td>
+                                    <td style="text-align:center;">
+                                        ${t.proof_of_payment_path
+                                            ? `<a href="/api/admin/transactions/${t.id}/proof" target="_blank" rel="noopener" title="Download proof of payment" style="color:var(--atl-amber);"><i class="fa-solid fa-file-arrow-down"></i></a>`
+                                            : (t.source === 'manual' ? `<i class="fa-solid fa-triangle-exclamation" title="No proof of payment on file" style="color:var(--atl-muted-dim);"></i>` : '—')}
+                                    </td>
                                     <td style="text-align:center;">
                                         <input type="checkbox" title="Flag as duplicate (audit-safe)"
                                             data-tx-id="${t.id}" data-booking-id="${bookingId}"

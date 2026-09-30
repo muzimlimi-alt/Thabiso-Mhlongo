@@ -1,8 +1,10 @@
 const express = require('express');
+const fs = require('fs');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
-const { getCompletedTransactionsForReconciliation, setTransactionDuplicateFlag } = require('../../database/repositories/finance.repository');
+const { resolveDocsPath } = require('../../lib/runtime-paths');
+const { getCompletedTransactionsForReconciliation, setTransactionDuplicateFlag, getTransactionProofPath } = require('../../database/repositories/finance.repository');
 const router = express.Router();
 
 // ========================================
@@ -81,6 +83,19 @@ router.get('/api/admin/reconciliation/:bookingId/transactions', requireAdmin, re
             res.json({ success: true, transactions: rows || [] });
         }
     );
+});
+
+// GET /api/admin/transactions/:id/proof — download a manually-recorded payment's proof-of-payment file
+router.get('/api/admin/transactions/:id/proof', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    getTransactionProofPath(req.params.id, (err, row) => {
+        if (err) return res.status(500).json({ success: false, message: err.message });
+        if (!row || !row.proof_of_payment_path) return res.status(404).json({ success: false, message: 'No proof of payment on file for this transaction.' });
+        const filePath = resolveDocsPath('payment_proofs', row.proof_of_payment_path);
+        if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: 'Proof of payment file not found on server.' });
+        res.download(filePath, row.proof_of_payment_path, (dlErr) => {
+            if (dlErr) console.error('[Payment Proof Download Error]', dlErr.message);
+        });
+    });
 });
 
 // PATCH /api/admin/transactions/:id/reconcile — flag/unflag as duplicate (audit-safe, no delete)

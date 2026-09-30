@@ -1841,6 +1841,9 @@ function initializeDatabase() {
         db.run("ALTER TABLE transactions ADD COLUMN source TEXT DEFAULT 'manual'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: transactions.source already exists or error: " + err.message); });
         db.run("ALTER TABLE transactions ADD COLUMN is_duplicate INTEGER DEFAULT 0", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: transactions.is_duplicate already exists or error: " + err.message); });
         db.run("ALTER TABLE transactions ADD COLUMN reconcile_note TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: transactions.reconcile_note already exists or error: " + err.message); });
+        // Proof-of-payment attachment for manually-recorded payments (EFT/cash) — required before a
+        // manual payment can be saved; not applicable to PayFast transactions (the gateway is its own proof).
+        db.run("ALTER TABLE transactions ADD COLUMN proof_of_payment_path TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: transactions.proof_of_payment_path already exists or error: " + err.message); });
 
         // Services catalogue — active/inactive toggle
         db.run("ALTER TABLE services ADD COLUMN is_active INTEGER DEFAULT 1", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: services.is_active already exists or error: " + err.message); });

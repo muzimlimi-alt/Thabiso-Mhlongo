@@ -28,7 +28,7 @@ const {
 } = require('../../lib/contracts');
 const {
     sendQuoteEmail, sendBookingConfirmedEmail, sendReviewRequestEmail, remindBooking, sendDateChangedEmail,
-    sendAdminQuoteSentNotification, sendBookingCompletedEmail, sendRefundProcessedEmail
+    sendAdminQuoteSentNotification, sendBookingCompletedEmail, sendRefundProcessedEmail, sendAdminCompletionSummaryEmail
 } = require('../../lib/booking-notifications');
 const {
     hasCalendarConflict, syncBookingToCalendar, checkDateAvailability, isWithinWorkingHours
@@ -64,7 +64,8 @@ const {
     getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload, getLatestQuoteFileForResend, markQuotationResent,
     getQuoteNumberCollisionCount, voidInvoiceForRequote, archivePreviousQuotations, getNextQuoteVersion,
     insertQuotation, insertQuoteLineItem,
-    voidInvoicesForCancelledBookingAsync, getActiveQuoteStatusForInvoiceGuard, markInvoicePaidIfOpen
+    voidInvoicesForCancelledBookingAsync, getActiveQuoteStatusForInvoiceGuard, markInvoicePaidIfOpen,
+    markInvoicePaidOnStatusComplete
 } = require('../../database/repositories/invoices-quotations.repository');
 const {
     getExpensesForBooking, getCancellationDetailForBooking, getTransactionsForBooking,
@@ -156,6 +157,28 @@ const contractUpload = multer({
             cb(null, true);
         } else {
             cb(new Error('Only PDF files are accepted for contract uploads.'), false);
+        }
+    },
+    limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+// Proof of payment (manual/EFT payment recording) — a bank app screenshot/photo is at least as
+// common as a PDF statement here, unlike the contract upload above.
+const PAYMENT_PROOF_MIMES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+const paymentProofUpload = multer({
+    storage: multer.diskStorage({
+        destination: function(req, file, cb) {
+            cb(null, docsWriteDir('payment_proofs'));
+        },
+        filename: function(req, file, cb) {
+            cb(null, `payment-proof-${req.params.id}-${Date.now()}${path.extname(file.originalname)}`);
+        }
+    }),
+    fileFilter: function(req, file, cb) {
+        if (PAYMENT_PROOF_MIMES.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only PDF, JPEG, PNG, or WEBP files are accepted as proof of payment.'), false);
         }
     },
     limits: { fileSize: 10 * 1024 * 1024 }
@@ -2618,7 +2641,15 @@ router.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
 });
 
 // Admin: manually record a payment when the PayFast ITN was not received
-router.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+router.put('/api/admin/bookings/:id/manual-payment', requireAdmin, requireRole(['administrator', 'manager']), (req, res, next) => {
+    paymentProofUpload.single('proof_of_payment')(req, res, function(err) {
+        if (err) {
+            return res.status(400).json({ success: false, message: err.message || 'Invalid file. Only PDF, JPEG, PNG, or WEBP files are accepted.' });
+        }
+        next();
+    });
+}, async (req, res) => {
+    if (!req.file) return res.status(400).json({ success: false, message: 'Proof of payment is required. Attach a PDF, JPEG, PNG, or WEBP file.' });
     const { payment_status, amount_paid, force } = req.body;
     // payment_status is advisory now — processManualPayment derives the real value from the amount
     // (an admin could otherwise record R1 as PAID). Still reject a garbage value if one is supplied,
@@ -2821,6 +2852,12 @@ router.post('/api/admin/bookings/:id/complete', requireAdmin, (req, res) => {
             booking.name  = booking.client_name  || booking.name;
             booking.email = booking.client_email || booking.email;
             sendBookingCompletedEmail(booking).catch(e => console.error('Completed email failed:', e.message));
+            // Parity with applyStatusChange's COMPLETED branch and the S6 auto-complete sweep
+            // (lib/background-clerk.js) — this dedicated route was missing both, so a booking
+            // completed via the admin's "Mark Complete" button never had its invoice auto-marked
+            // paid, and the admin never got the completion summary email.
+            markInvoicePaidOnStatusComplete(bookingId);
+            sendAdminCompletionSummaryEmail(booking).catch(e => console.error('Admin completion summary failed:', e.message));
             // Advance linked event to 'completed' status
             if (booking.event_id) {
                 advanceEventToCompleted(booking.event_id,

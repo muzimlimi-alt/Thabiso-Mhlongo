@@ -10548,6 +10548,11 @@
                             <option value="PARTIALLY_PAID">⏳ Partially Paid</option>
                         </select>
                     </div>
+                    <div class="form-group">
+                        <label class="mb-label" for="rpProofOfPayment">Proof of Payment <span class="atl-req">*</span></label>
+                        <input type="file" id="rpProofOfPayment" class="atl-input" accept=".pdf,.jpg,.jpeg,.png,.webp" style="background: var(--atl-paper);color: var(--atl-ink);padding:8px;">
+                        <small style="color: var(--atl-muted);font-size:11px;">PDF, JPEG, PNG, or WEBP — a bank app screenshot or EFT confirmation is fine. Required to save.</small>
+                    </div>
         </div>
         <div class="atl-drawer__footer">
                     <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('recordPaymentDrawer')">Cancel</button>
@@ -11558,6 +11563,14 @@
             loadBrandingSettings();
         }
 
+        // Refresh events list — events.js only calls renderEventsList() after its own CRUD
+        // actions, so an event created elsewhere (e.g. promoting a booking to a public event,
+        // js/admin/bookings-actions.js) never appeared here until a full page reload, even though
+        // the promote success toast tells the admin to come check this tab.
+        if (sectionId === 'eventsAdmin' && typeof renderEventsList === 'function') {
+            renderEventsList();
+        }
+
         // Banner Management Centre (Prompt 6) — populate category selects once, then (re)load the grid
         if (sectionId === 'brandingAdmin' && typeof initBnrLibrary === 'function') {
             initBnrLibrary();
@@ -12174,7 +12187,12 @@
         ).join('');
     }
 
-    function openBlockOutModal(dateStr, endDateStr) {
+    // Exposed on window: js/admin/calendar.js (a separate <script src>, loaded earlier in the
+    // page) calls this bare from both the mini-calendar day cells and the FullCalendar dateClick
+    // handler — without this, it's trapped in this block's IIFE and every call throws
+    // "openBlockOutModal is not defined", silently breaking every date-block entry point. Same
+    // reasoning as window.openAtlDrawer in js/admin/components/drawer.js.
+    window.openBlockOutModal = function openBlockOutModal(dateStr, endDateStr) {
         boPopulateCategorySelect();
         const dateInput = document.getElementById('boDate');
         if (dateInput) dateInput.value = dateStr || '';

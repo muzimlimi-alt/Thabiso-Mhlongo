@@ -40,7 +40,7 @@ const {
     getBookingEmailForTracking, consumeUnconsumedAccessCodes, insertBookingAccessCode,
     getActiveAccessCodeForVerification, consumeAccessCodeById, incrementAccessCodeAttempts,
     insertBookingAccessToken, getBookingById, insertBookingNoteFromTracker,
-    insertBookingService, insertBookingLineItem
+    insertBookingService, insertBookingLineItem, clearBookingPublicAndEventIdAsync, clearBookingGoogleEventId
 } = require('../../database/repositories/bookings.repository');
 const {
     getInvoiceForTracking, getQuoteVersionInfoForTracking, getLatestQuoteFileForPublicDownload,
@@ -51,7 +51,11 @@ const {
     insertCancellationForPublicCancel, cancelPendingPaymentSchedulesAsync,
     getPaymentSchedulesForPayfastInit, getNextPayableScheduleRow
 } = require('../../database/repositories/finance.repository');
-const { releaseDateHoldsForBookingAsync } = require('../../database/repositories/calendar.repository');
+const {
+    releaseDateHoldsForBookingAsync, getEventByBookingId, demoteEventForCancelledBookingByBookingIdAsync,
+    clearEventGoogleCalendarIdAsync
+} = require('../../database/repositories/calendar.repository');
+const { deleteGoogleEvent } = require('../../lib/google-calendar');
 const { getNotificationEmail } = require('../../database/repositories/settings.repository');
 const router = express.Router();
 
@@ -453,6 +457,7 @@ router.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter,
         db.get("SELECT policy_value FROM policies WHERE policy_key = 'cancellation_policy'", [], async (e, policy) => {
             const calc = calculateCancellationRefund(booking, policy ? policy.policy_value : '');
 
+            let linkedEvent = null, linkedEventGoogleId = null;
             const outcome = await withDbTransaction(async () => {
                 try {
                     await dbRun("BEGIN IMMEDIATE");
@@ -482,6 +487,21 @@ router.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter,
                     // and its payment-schedule rows pending, corrupting AR/outstanding-balance reporting.
                     await voidInvoicesForCancelledBookingAsync(req.params.id);
                     await cancelPendingPaymentSchedulesAsync(req.params.id);
+                    // Bug fix: an ACCEPTED booking can already be promoted to a public event (the
+                    // promote panel allows it, not just CONFIRMED) — this self-cancel route allows
+                    // cancelling ACCEPTED bookings, but never demoted/unlinked the event, so a client
+                    // cancelling their own booking left the show publicly listed as upcoming. Mirrors
+                    // the admin cancel route's cascade exactly (same cross-reference-cleanup fix,
+                    // applied there first).
+                    linkedEvent = await getEventByBookingId(req.params.id);
+                    if (linkedEvent) linkedEventGoogleId = linkedEvent.google_calendar_event_id || null;
+                    await demoteEventForCancelledBookingByBookingIdAsync('Booking #' + req.params.id + ' was cancelled by the client', req.params.id);
+                    if (booking.event_id) {
+                        await clearBookingPublicAndEventIdAsync(req.params.id);
+                    }
+                    if (linkedEventGoogleId) {
+                        await clearEventGoogleCalendarIdAsync(linkedEvent.event_id);
+                    }
 
                     await dbRun("COMMIT");
                     return { ok: true };
@@ -493,6 +513,18 @@ router.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter,
             });
 
             if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+
+            // ---- Side effects, after the commit ----
+            // Bug fix: the booking's own separate Google Calendar entry (synced via
+            // syncBookingToCalendar, e.g. right after accept-quote) was never cleaned up here — only
+            // the admin cancel route did this. Mirrors that route's post-commit cleanup exactly.
+            if (booking.google_event_id) {
+                deleteGoogleEvent(booking.google_event_id).catch(calErr => {
+                    console.error(`[Public Cancel] Google Calendar event removal failed for booking #${req.params.id}:`, calErr.message);
+                });
+                clearBookingGoogleEventId(req.params.id);
+            }
+            if (linkedEventGoogleId) deleteGoogleEvent(linkedEventGoogleId);
 
             booking.name = booking.client_name || booking.name;
             try { await sendCancellationEmail(booking, { reason: reason || 'Client request', refund_due: calc.refund, rule: calc.rule, days_until_event: calc.daysUntilEvent }); } catch(ce) {}

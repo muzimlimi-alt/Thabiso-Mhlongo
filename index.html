@@ -2118,6 +2118,38 @@ $(function() {
         }
     });
 
+    // --- NAV SCROLL-SPY ---
+    // Highlights the .tm-navlinks link for whichever section is currently in view. Replaces the
+    // old Bootstrap $.fn.scrollspy() call (js/myscript.js) — dead since the nav redesign: it
+    // targeted markup/classes ('header .navbar', '.navbar-fixed-top', '<li class="active">') that
+    // no longer exist, so .tm-navlinks a.is-active (the class the CSS and the hardcoded initial
+    // Home link actually use) never updated after page load.
+    (function () {
+        const navLinks = document.querySelectorAll('.tm-navlinks a[href^="#"]');
+        if (!navLinks.length) return;
+        const sections = [];
+        navLinks.forEach(link => {
+            const section = document.querySelector(link.hash);
+            if (section) sections.push({ link, section });
+        });
+        if (!sections.length) return;
+
+        const setActive = (hash) => {
+            navLinks.forEach(link => link.classList.toggle('is-active', link.hash === hash));
+        };
+
+        // A section counts as "current" once it crosses a thin band just below the fixed header
+        // (--header-h) — not merely "any part visible" (top:0 would keep a tall section marked
+        // current long after scrolling well past its heading, into whatever comes next).
+        const headerH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--header-h')) || 72;
+        const spy = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) setActive('#' + entry.target.id);
+            });
+        }, { rootMargin: `-${headerH + 10}px 0px -70% 0px`, threshold: 0 });
+        sections.forEach(({ section }) => spy.observe(section));
+    })();
+
     const main = document.querySelector('main');
 });
 </script>
