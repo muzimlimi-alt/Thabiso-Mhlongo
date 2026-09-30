@@ -1195,6 +1195,7 @@ header .navbar {
 }
 .acc-entry--nomination .acc-entry__kicker{ color:var(--y-light); }
 .acc-entry--accolade .acc-entry__kicker{ color:var(--text-secondary); }
+.acc-entry--lineup .acc-entry__kicker{ color:var(--accent-gold); }
 .acc-entry__title{
   margin:0 !important;
   font-family:var(--f-display) !important; font-weight:400 !important;
@@ -1449,6 +1450,7 @@ header .navbar {
 }
 .acc-tl__cap--nomination .acc-tl__kicker{ color:var(--y-light); }
 .acc-tl__cap--accolade .acc-tl__kicker{ color:var(--text-secondary); }
+.acc-tl__cap--lineup .acc-tl__kicker{ color:var(--accent-gold); }
 .acc-tl__kicker i{ font-size:.7em; }
 
 /* Never wraps — a year's column is exactly as wide as its title needs. max-width is a safety net for

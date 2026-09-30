@@ -21,7 +21,7 @@
 
     var PAGE_SIZE = 10;
     var MAX_UPLOAD_BYTES = 15 * 1024 * 1024;          // the shared upload limit (lib/uploads.js)
-    var CAT_LABELS = { win: 'Win', nomination: 'Nomination', accolade: 'Accolade' };
+    var CAT_LABELS = { win: 'Win', nomination: 'Nomination', accolade: 'Accolade', lineup: 'Lineup' };
     var MEDIA = {
         image:             { input: 'aclImageFile', preview: 'aclImagePreview', text: 'aclImageText', err: 'aclImageErr', label: 'Achievement image', prompt: 'Drag & drop or select an image', accept: 'image' },
         organisation_logo: { input: 'aclLogoFile',  preview: 'aclLogoPreview',  text: 'aclLogoText',  err: 'aclLogoErr',  label: 'Organisation logo', prompt: 'Drag & drop or select a logo', accept: 'image' },

@@ -63,6 +63,7 @@
 }
 .acl-cat--win { color: var(--atl-amber); border-color: var(--atl-amber-border, rgba(212,175,55,0.35)); }
 .acl-cat--nomination { color: var(--atl-ink-dim); border-color: var(--atl-line-strong, var(--atl-line)); }
+.acl-cat--lineup { color: var(--atl-blue); border-color: color-mix(in srgb, var(--atl-blue) 35%, transparent); }
 
 /* Drag handle only in website order (dragging means "change the website order"); checkboxes only in
    Select mode. */

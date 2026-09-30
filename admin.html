@@ -4204,6 +4204,7 @@
                                 <option value="win">Wins</option>
                                 <option value="nomination">Nominations</option>
                                 <option value="accolade">Accolades</option>
+                                <option value="lineup">Lineups</option>
                             </select>
                             <select id="aclFilterYear" class="um-input atl-filter-select" aria-label="Filter by year">
                                 <option value="">All years</option>
@@ -4262,7 +4263,7 @@
                             </div>
                             <div class="um-divider"></div>
                             <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
-                                Each card is one piece of <strong style="color:var(--atl-ink);">external recognition</strong>: a <strong style="color:var(--atl-ink);">Win</strong> (an award or competition won), a <strong style="color:var(--atl-ink);">Nomination</strong> (an official nomination) or an <strong style="color:var(--atl-ink);">Accolade</strong> (an honour, selection or notable recognition). Your own career moments belong in <strong style="color:var(--atl-ink);">Career</strong> (the Milestones section) instead &mdash; the two are kept apart on purpose.
+                                Each card is one piece of <strong style="color:var(--atl-ink);">external recognition</strong>: a <strong style="color:var(--atl-ink);">Win</strong> (an award or competition won), a <strong style="color:var(--atl-ink);">Nomination</strong> (an official nomination), an <strong style="color:var(--atl-ink);">Accolade</strong> (an honour, selection or notable recognition) or a <strong style="color:var(--atl-ink);">Lineup</strong> (billed on a big show or a great event&rsquo;s lineup). Your own career moments belong in <strong style="color:var(--atl-ink);">Career</strong> (the Milestones section) instead &mdash; the two are kept apart on purpose.
                             </p>
                             <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
                             <div class="um-roles-grid" style="margin-bottom:26px;">
@@ -4297,7 +4298,7 @@
                             </div>
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span>The website adds <strong style="color:var(--atl-ink);">All / Wins / Nominations / Accolades</strong> filters by itself once there are at least four entries across two or more categories. Every change is recorded in each accolade&rsquo;s <strong style="color:var(--atl-ink);">Change History</strong>.</span>
+                                <span>The website adds <strong style="color:var(--atl-ink);">All / Wins / Nominations / Accolades / Lineups</strong> filters by itself once there are at least four entries across two or more categories. Every change is recorded in each accolade&rsquo;s <strong style="color:var(--atl-ink);">Change History</strong>.</span>
                             </p>
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
                                 <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
@@ -9631,6 +9632,7 @@
                             <option value="win">Win &mdash; an award or competition won</option>
                             <option value="nomination">Nomination &mdash; an official nomination</option>
                             <option value="accolade">Accolade &mdash; an honour, selection or recognition</option>
+                            <option value="lineup">Lineup &mdash; billed on a big show or a great event's lineup</option>
                         </select>
                         <small class="help-block" id="aclCategoryHelp">Decides the label and the website filter it appears under.</small>
                         <small class="acl-field-error" id="aclCategoryErr"></small>
@@ -9667,13 +9669,15 @@
                             <option value="Winner"></option><option value="Runner-up"></option><option value="Finalist"></option>
                             <option value="Nominee"></option><option value="Shortlisted"></option><option value="Honouree"></option>
                             <option value="Selected"></option><option value="Recipient"></option>
+                            <option value="Headliner"></option><option value="Feature Act"></option><option value="Opening Act"></option>
+                            <option value="Special Guest"></option><option value="Full Lineup"></option>
                         </datalist>
                         <small class="acl-field-error" id="aclResultErr"></small>
                     </div>
                 </div>
                 <div class="um-form-grid">
                     <div class="um-field-group">
-                        <label class="um-label" for="aclOrganisation">Awarding Organisation</label>
+                        <label class="um-label" for="aclOrganisation">Organisation</label>
                         <div class="um-input-wrap">
                             <i class="fa-solid fa-building-columns um-input-icon" aria-hidden="true"></i>
                             <input type="text" class="um-input" id="aclOrganisation" maxlength="160" placeholder="e.g. South African Comedy Awards" aria-describedby="aclOrganisationErr">

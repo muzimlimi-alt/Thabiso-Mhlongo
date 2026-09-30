@@ -19,9 +19,10 @@
     var CATEGORIES = {
         win:        { label: 'Win',        plural: 'Wins',        cta: 'View Achievement', featured: 'Winner' },
         nomination: { label: 'Nomination', plural: 'Nominations', cta: 'View Nomination',  featured: 'Nominated' },
-        accolade:   { label: 'Accolade',   plural: 'Accolades',   cta: 'View Details',     featured: 'Honoured' }
+        accolade:   { label: 'Accolade',   plural: 'Accolades',   cta: 'View Details',     featured: 'Honoured' },
+        lineup:     { label: 'Lineup',     plural: 'Lineups',     cta: 'View Lineup',      featured: 'Billed' }
     };
-    var ORDER = ['win', 'nomination', 'accolade'];
+    var ORDER = ['win', 'nomination', 'accolade', 'lineup'];
     var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     // Filters only earn their place with enough entries spread over at least two categories.
     var FILTER_MIN_ITEMS = 4;
@@ -138,7 +139,7 @@
     }
 
     function countByCategory(items) {
-        var counts = { win: 0, nomination: 0, accolade: 0 };
+        var counts = { win: 0, nomination: 0, accolade: 0, lineup: 0 };
         items.forEach(function (i) { counts[catOf(i)]++; });
         return counts;
     }
@@ -286,7 +287,7 @@
     // a desktop and a mobile layout rather than squeezing one into the other. Every plain-text rule
     // and every safety check above (safeMedia/safeHref/hasDetails/catOf) is reused unchanged — this
     // section only adds a different arrangement of the same data.
-    var TL_CAT_TAG = { win: 'Win', nomination: 'Nom', accolade: 'Hon' };
+    var TL_CAT_TAG = { win: 'Win', nomination: 'Nom', accolade: 'Hon', lineup: 'Line' };
 
     // One accolade's caption block inside its year's column. A plain (non-interactive) block when
     // there is nothing more to show (hasDetails false) — same rule buildEntry() uses for the CTA.
