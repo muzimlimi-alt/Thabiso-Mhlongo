@@ -108,14 +108,14 @@
     border-radius: var(--atl-r-md) !important;
 }
 .um-feedback.success {
-    background: rgba(74,222,128,0.10) !important;
+    background: color-mix(in srgb, var(--atl-sage) 10%, transparent) !important;
     color: var(--atl-sage) !important;
-    border: 1px solid rgba(74,222,128,0.25) !important;
+    border: 1px solid color-mix(in srgb, var(--atl-sage) 25%, transparent) !important;
 }
 .um-feedback.error {
-    background: rgba(248,113,113,0.10) !important;
+    background: color-mix(in srgb, var(--atl-clay) 10%, transparent) !important;
     color: var(--atl-clay) !important;
-    border: 1px solid rgba(248,113,113,0.25) !important;
+    border: 1px solid color-mix(in srgb, var(--atl-clay) 25%, transparent) !important;
 }
 .um-user-count {
     font-family: 'JetBrains Mono', monospace !important;

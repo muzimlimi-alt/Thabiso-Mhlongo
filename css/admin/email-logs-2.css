@@ -11,7 +11,7 @@
     color: var(--atl-muted) !important;
     transition: background var(--atl-t-fast) !important;
 }
-.log-row:hover { background: rgba(212,175,55,0.03) !important; }
+.log-row:hover { background: color-mix(in srgb, var(--atl-amber) 3%, transparent) !important; }
 .log-row .log-time {
     font-family: 'JetBrains Mono', monospace !important;
     font-size: 11px !important;

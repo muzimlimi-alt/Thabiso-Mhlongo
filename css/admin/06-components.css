@@ -65,7 +65,7 @@
     width: 28px; height: 40px; cursor: grab; color: var(--atl-muted-dim);
     border-radius: 6px; transition: color 0.2s ease, background 0.2s ease;
 }
-.atl-drag-handle:hover { color: var(--atl-amber); background: rgba(255,255,255,0.04); }
+.atl-drag-handle:hover { color: var(--atl-amber); background: color-mix(in srgb, var(--atl-ink) 4%, transparent); }
 .atl-drag-handle:active { cursor: grabbing; }
 .um-upload-zone {
     display:block;

@@ -150,7 +150,7 @@
                     <h2 class="brand-name">
                         Thabiso <span class="surname"><i>Mhlongo</i></span>
                     </h2>
-                    <p class="brand-tagline" style="color: #b0b0b0;">Management Portal</p>
+                    <p class="brand-tagline" style="color: var(--tm-cream);">Management Portal</p>
                 </div>
             </div>
 
@@ -216,7 +216,7 @@
                         <p>Enter your email to receive a restoration link.</p>
                     </div>
 
-                    <div id="forgotMessage" class="tm-login-error" style="background: rgba(212,175,55,0.1); border-color: rgba(212,175,55,0.2); color: var(--tm-cream);"></div>
+                    <div id="forgotMessage" class="tm-login-error" style="background: color-mix(in srgb, var(--tm-gold) 10%, transparent); border-color: color-mix(in srgb, var(--tm-gold) 20%, transparent); color: var(--tm-cream);"></div>
 
                     <form id="adminForgotForm" novalidate>
                         <div class="tm-form-group">
@@ -1299,7 +1299,7 @@
                             <div class="inq-bulk-actions">
                                 <button id="inqBulkReadBtn" class="um-btn um-btn--ghost um-btn--sm"><i class="fa-solid fa-envelope-open" aria-hidden="true"></i> Mark Read</button>
                                 <button id="inqBulkArchiveBtn" class="um-btn um-btn--ghost um-btn--sm"><i class="fa-solid fa-box-archive" aria-hidden="true"></i> Archive</button>
-                                <button id="inqBulkDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="color:var(--atl-clay);border-color:rgba(248,113,113,0.3);"><i class="fa-solid fa-trash" aria-hidden="true"></i> Delete</button>
+                                <button id="inqBulkDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="color:var(--atl-clay);border-color:color-mix(in srgb, var(--atl-clay) 30%, transparent);"><i class="fa-solid fa-trash" aria-hidden="true"></i> Delete</button>
                             </div>
                         </div>
                         <div class="inq-list-body" id="inqListBody" role="list" aria-live="polite">
@@ -1426,7 +1426,7 @@
                     <div class="atl-tab-bar" role="tablist">
                         <button class="atl-tab-btn active" data-um-tab="bkPanelPipeline" role="tab" aria-selected="true"><i class="fa-solid fa-diagram-project"></i> Pipeline</button>
                         <button class="atl-tab-btn" data-um-tab="bkPanelArchive" role="tab" aria-selected="false"><i class="fa-solid fa-box-archive"></i> Archive</button>
-                        <button class="atl-tab-btn" data-um-tab="bkPanelRecovery" role="tab" aria-selected="false"><i class="fa-solid fa-arrow-rotate-left"></i> Booking Recovery<span id="abTabCount" style="display:none; margin-left:7px; background:var(--atl-amber); color:#000; font-size:11px; font-weight:700; padding:1px 7px; border-radius:10px;">0</span></button>
+                        <button class="atl-tab-btn" data-um-tab="bkPanelRecovery" role="tab" aria-selected="false"><i class="fa-solid fa-arrow-rotate-left"></i> Booking Recovery<span id="abTabCount" style="display:none; margin-left:7px; background:var(--atl-amber); color:var(--atl-on-amber); font-size:11px; font-weight:700; padding:1px 7px; border-radius:10px;">0</span></button>
                         <button class="atl-tab-btn" data-um-tab="bkPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
                     </div>
 
@@ -1742,7 +1742,7 @@
                                 </div>
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
-                                        <span class="um-feature-title"><i class="fa-solid fa-file-contract" style="color:#9575CD;"></i> Contract</span>
+                                        <span class="um-feature-title"><i class="fa-solid fa-file-contract" style="color:var(--atl-purple);"></i> Contract</span>
                                     </div>
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i><span> <code>draft &rarr; sent &rarr; signed</code> &mdash; only buildable/sendable once the booking is Accepted or later</span></li>
@@ -3943,7 +3943,7 @@
                             <hr class="um-divider" style="margin-top:0;">
                             <div class="live-preview-box" style="padding:16px; border:1px solid var(--atl-line); border-radius:8px; background:var(--atl-paper);">
                                 <div id="announcePrevWrap">
-                                    <div id="announcePrev" style="background:var(--atl-amber); color:#111; text-align:center; font-size:13px; letter-spacing:0.4px; padding:9px 14px; border-radius:6px;">&mdash;</div>
+                                    <div id="announcePrev" style="background:var(--atl-amber); color:var(--atl-on-amber); text-align:center; font-size:13px; letter-spacing:0.4px; padding:9px 14px; border-radius:6px;">&mdash;</div>
                                 </div>
                                 <p id="announcePrevOff" style="display:none; text-align:center; color:var(--atl-muted); font-size:12px; margin:10px 0 0;"><i class="fa-solid fa-eye-slash"></i> The bar is currently hidden on the live site.</p>
                                 <p id="announcePrevMotion" style="text-align:center; color:var(--atl-muted); font-size:11px; margin:10px 0 0; letter-spacing:0.3px;"></p>
@@ -5503,7 +5503,7 @@
                                     <!-- Bulk action bar -->
                                     <div id="campaignsBulkBar" class="um-bulk-bar" style="display:none;">
                                         <span id="campaignsBulkCount" class="um-bulk-bar__count">0 selected</span>
-                                        <button id="campaignsBulkDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(248,113,113,0.1);color:var(--atl-clay);border-color:rgba(248,113,113,0.3);">
+                                        <button id="campaignsBulkDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:color-mix(in srgb, var(--atl-clay) 10%, transparent);color:var(--atl-clay);border-color:color-mix(in srgb, var(--atl-clay) 30%, transparent);">
                                             <i class="fa-solid fa-trash"></i> Delete Selected
                                         </button>
                                     </div>
@@ -5597,10 +5597,10 @@
                                 <div id="subscriberBulkBar" class="um-bulk-bar" style="display:none;">
                                     <span id="bulkSelectedCount" class="um-bulk-bar__count">0 selected</span>
                                     <div style="display:flex; gap:6px;">
-                                        <button id="bulkSetActiveBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(52,211,153,0.1); color:var(--atl-green); border-color:rgba(52,211,153,0.3);">Set Active</button>
-                                        <button id="bulkSetInactiveBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(251,146,60,0.1); color:var(--atl-orange); border-color:rgba(251,146,60,0.3);">Set Inactive</button>
-                                        <button id="bulkDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(248,113,113,0.1); color:var(--atl-clay); border-color:rgba(248,113,113,0.3);">Delete</button>
-                                        <button id="bulkExportSelectedBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:rgba(212,175,55,0.1); color: var(--atl-amber); border-color:rgba(212,175,55,0.3);"><i class="fa-solid fa-file-csv"></i> Export Selected</button>
+                                        <button id="bulkSetActiveBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:color-mix(in srgb, var(--atl-green) 10%, transparent); color:var(--atl-green); border-color:color-mix(in srgb, var(--atl-green) 30%, transparent);">Set Active</button>
+                                        <button id="bulkSetInactiveBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:color-mix(in srgb, var(--atl-orange) 10%, transparent); color:var(--atl-orange); border-color:color-mix(in srgb, var(--atl-orange) 30%, transparent);">Set Inactive</button>
+                                        <button id="bulkDeleteBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:color-mix(in srgb, var(--atl-clay) 10%, transparent); color:var(--atl-clay); border-color:color-mix(in srgb, var(--atl-clay) 30%, transparent);">Delete</button>
+                                        <button id="bulkExportSelectedBtn" class="um-btn um-btn--ghost um-btn--sm" style="background:color-mix(in srgb, var(--atl-amber) 10%, transparent); color: var(--atl-amber); border-color:color-mix(in srgb, var(--atl-amber) 30%, transparent);"><i class="fa-solid fa-file-csv"></i> Export Selected</button>
                                     </div>
                                 </div>
 
@@ -6315,7 +6315,7 @@
                         </div>
                         <div id="bnrPreviewStatus" style="color:var(--atl-muted); font-size:12px; margin-bottom:10px;"></div>
                         <div style="display:flex; justify-content:center; background:var(--atl-paper); border-radius:var(--atl-r-md); border:1px solid var(--atl-line); padding:20px; overflow-x:auto;">
-                            <iframe id="bnrPreviewIframe" title="Email preview" style="width:600px; max-width:100%; height:640px; border:0; background:#0A0A0A; border-radius:8px; transition:width 0.2s ease;"></iframe>
+                            <iframe id="bnrPreviewIframe" title="Email preview" style="width:600px; max-width:100%; height:640px; border:0; background:var(--atl-paper); border-radius:8px; transition:width 0.2s ease;"></iframe>
                         </div>
                     </div>
 
@@ -8890,7 +8890,7 @@
                         </label>
                     </div>
 
-                    <div id="eventsGcalLinkBadge" style="display:none;margin-bottom:14px;padding:8px 12px;background:rgba(96,165,250,0.08);border:1px solid rgba(96,165,250,0.25);border-radius:6px;font-size:12px;color:var(--atl-blue);">
+                    <div id="eventsGcalLinkBadge" style="display:none;margin-bottom:14px;padding:8px 12px;background:color-mix(in srgb, var(--atl-blue) 8%, transparent);border:1px solid color-mix(in srgb, var(--atl-blue) 25%, transparent);border-radius:6px;font-size:12px;color:var(--atl-blue);">
                         <i class="fa-brands fa-google" style="margin-right:6px;"></i>
                         Synced to Google Calendar &mdash; <a id="eventsGcalLink" href="#" target="_blank" style="color:var(--atl-blue);text-decoration:underline;">View Event</a>
                     </div>
@@ -9211,7 +9211,7 @@
                     <small class="help-block">The flag loads automatically — no image upload needed.</small>
                 </div>
                 <div id="footprintFlagPreview" style="display:none; margin-top:14px; border-radius:var(--atl-r-md); overflow:hidden; position:relative; max-width:180px;">
-                    <img id="footprintFlagPreviewImg" src="" alt="Flag preview" style="display:block; width:100%; aspect-ratio:3/2; object-fit:cover; border-radius:var(--atl-r-md); border:1px solid var(--atl-line); background:var(--atl-surface-2, #1a1a1a);">
+                    <img id="footprintFlagPreviewImg" src="" alt="Flag preview" style="display:block; width:100%; aspect-ratio:3/2; object-fit:cover; border-radius:var(--atl-r-md); border:1px solid var(--atl-line); background:var(--atl-surface2);">
                 </div>
                 <div id="err-footprintForm" style="display:none;font-size:12px;color:var(--atl-clay);margin-top:4px;"></div>
                 <div class="um-form-actions" style="justify-content:flex-end; gap:10px;">
@@ -10256,7 +10256,7 @@
                     </select>
                 </div>
                 <div class="um-field-group" style="text-align:center;">
-                    <div id="iconPreviewDisplay" style="font-size:40px; margin:8px 0; color: var(--atl-amber); text-shadow:0 0 12px rgba(212,175,55,0.4); min-height:50px;"></div>
+                    <div id="iconPreviewDisplay" style="font-size:40px; margin:8px 0; color: var(--atl-amber); text-shadow:0 0 12px color-mix(in srgb, var(--atl-amber) 40%, transparent); min-height:50px;"></div>
                 </div>
                 <div class="um-field-group">
                     <label class="um-label" for="socUrl">Profile URL</label>
@@ -10305,7 +10305,7 @@
                     </select>
                 </div>
                 <div class="um-field-group" style="text-align:center;">
-                    <div id="embedIconPreviewDisplay" style="font-size:40px; margin:8px 0; color: var(--atl-amber); text-shadow:0 0 12px rgba(212,175,55,0.4); min-height:50px;"></div>
+                    <div id="embedIconPreviewDisplay" style="font-size:40px; margin:8px 0; color: var(--atl-amber); text-shadow:0 0 12px color-mix(in srgb, var(--atl-amber) 40%, transparent); min-height:50px;"></div>
                 </div>
                 <div class="um-field-group" id="apiKeyGroup" style="display:none;">
                     <label class="um-label" for="platformApiKey">API Key (Optional)</label>
@@ -10315,7 +10315,7 @@
                     </div>
                 </div>
                 <div id="fbTokenGenerator" style="display:none; background:var(--atl-amber-dim); border:1px solid var(--atl-amber-border); border-radius:8px; padding:16px; margin-bottom:16px;">
-                    <p style="margin-top:0; font-size:13px; color:#aaa;"><strong style="color: var(--atl-amber);">Generate Facebook Access Token:</strong> Enter your Meta App ID and App Secret to generate an access token. <a href="https://developers.facebook.com/apps" target="_blank" style="color: var(--atl-amber);">Create an App Here</a>.</p>
+                    <p style="margin-top:0; font-size:13px; color:var(--atl-ink-dim);"><strong style="color: var(--atl-amber);">Generate Facebook Access Token:</strong> Enter your Meta App ID and App Secret to generate an access token. <a href="https://developers.facebook.com/apps" target="_blank" style="color: var(--atl-amber);">Create an App Here</a>.</p>
                     <div style="display:flex; gap:10px; margin-bottom:10px;">
                         <div class="um-input-wrap" style="flex:1;">
                             <i class="fa-solid fa-fingerprint um-input-icon"></i>
@@ -10652,7 +10652,7 @@
                             </div>
                         </div>
                         <div id="contractSignMsg" style="font-size:12px;margin-top:4px;"></div>
-                        <button type="button" id="contractConfirmSignBtn" class="atl-btn atl-btn--ghost" style="font-size:13px;font-weight:600;margin-top:8px;color:var(--atl-green);border-color:rgba(52,211,153,0.3);">
+                        <button type="button" id="contractConfirmSignBtn" class="atl-btn atl-btn--ghost" style="font-size:13px;font-weight:600;margin-top:8px;color:var(--atl-green);border-color:color-mix(in srgb, var(--atl-green) 30%, transparent);">
                             <i class="fa-solid fa-circle-check" style="margin-right:6px;"></i>Confirm & Mark as Signed
                         </button>
                     </div>
@@ -10879,7 +10879,7 @@
         <!-- Header -->
         <div class="qb-drawer__header">
             <h5 style="display:flex;align-items:center;gap:10px;width:100%;">
-                <span style="width:32px;height:32px;border-radius:8px;background:rgba(96,165,250,0.15);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <span style="width:32px;height:32px;border-radius:8px;background:color-mix(in srgb, var(--atl-blue) 15%, transparent);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;">
                     <i class="fa-solid fa-file-invoice-dollar" style="color:var(--atl-blue);font-size:14px;"></i>
                 </span>
                 Quote Builder
@@ -10984,7 +10984,7 @@
                                 <i class="fa-solid fa-file-lines"></i>Payment Terms
                             </div>
                             <div id="qbTermsSourceSelector" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
-                                <label id="qbTermsOptPolicies" style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:10px 12px; border-radius:8px; border:1.5px solid var(--atl-blue); background:rgba(96,165,250,0.12); transition:all 0.2s;">
+                                <label id="qbTermsOptPolicies" style="display:flex; align-items:flex-start; gap:8px; cursor:pointer; padding:10px 12px; border-radius:8px; border:1.5px solid var(--atl-blue); background:color-mix(in srgb, var(--atl-blue) 12%, transparent); transition:all 0.2s;">
                                     <input type="radio" name="qbTermsSource" id="qbRadioGlobal" value="global" checked style="accent-color:var(--atl-blue); width:14px; height:14px; cursor:pointer; flex-shrink:0; margin-top:2px;">
                                     <div>
                                         <div style="font-size:11px; font-weight:700; color:var(--atl-blue); text-transform:uppercase; letter-spacing:0.4px; line-height:1.2;"><i class="fa-solid fa-globe" style="margin-right:4px;"></i>Booking Policies</div>
@@ -11029,7 +11029,7 @@
                                     <span style="color:var(--atl-amber); font-size:15px; font-weight:800;">Total</span>
                                     <span style="color:var(--atl-amber); font-size:20px; font-weight:800;">R <span id="qbFinalTotal">0.00</span></span>
                                 </div>
-                                <div style="background:rgba(96,165,250,0.08); border:1px solid rgba(96,165,250,0.25); border-radius:8px; padding:14px 16px;">
+                                <div style="background:color-mix(in srgb, var(--atl-blue) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-blue) 25%, transparent); border-radius:8px; padding:14px 16px;">
                                     <div style="font-size:10px; color:var(--atl-blue); text-transform:uppercase; letter-spacing:0.5px; font-weight:700; margin-bottom:8px;">Deposit Required</div>
                                     <div style="color:var(--atl-blue); font-size:26px; font-weight:800; line-height:1;">R <span id="qbDepositAmount">0.00</span></div>
                                 </div>
@@ -12577,7 +12577,7 @@
         }
 
         if (totalResults === 0) {
-            html = '<div class="adm-search__empty"><i class="fa-solid fa-magnifying-glass" style="margin-bottom:6px; font-size:20px; display:block; color:#333;"></i>No results for "' + escHtml(q) + '"</div>';
+            html = '<div class="adm-search__empty"><i class="fa-solid fa-magnifying-glass" style="margin-bottom:6px; font-size:20px; display:block; color:var(--atl-muted);"></i>No results for "' + escHtml(q) + '"</div>';
         }
 
         searchPanel.innerHTML = html;
@@ -12915,7 +12915,7 @@
         }
 
         container.html(`
-            <div class="atl-det-card" style="border:1px dashed var(--atl-line);padding:18px;background:rgba(255,255,255,0.01);">
+            <div class="atl-det-card" style="border:1px dashed var(--atl-line);padding:18px;background:color-mix(in srgb, var(--atl-ink) 1%, transparent);">
                 <h5 class="atl-det-title" style="color:var(--atl-amber);margin-bottom:16px;"><i class="fa-solid fa-calendar-check" style="margin-right:6px;"></i>Setup Payment Milestones</h5>
                 
                 <div class="form-group" style="margin-bottom:14px;">
@@ -13528,7 +13528,7 @@
                         </div>
 
                         <!-- Dynamic Preview Area -->
-                        <div id="cancelPreviewArea" style="display:none; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); border-radius: var(--atl-r-md); padding: 15px; margin-top: 20px;">
+                        <div id="cancelPreviewArea" style="display:none; background: color-mix(in srgb, var(--atl-clay) 10%, transparent); border: 1px solid color-mix(in srgb, var(--atl-clay) 30%, transparent); border-radius: var(--atl-r-md); padding: 15px; margin-top: 20px;">
                             <div style="font-size: 12px; color: var(--atl-clay); font-weight: bold; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;"><i class="fa-solid fa-calculator"></i> Refund Calculation</div>
                             <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 14px; color: var(--atl-ink-dim);">
                                 <span>Total Paid:</span> <span id="prevTotalPaid" style="font-weight:bold;">R 0.00</span>
@@ -14277,7 +14277,7 @@
             <button type="button" class="atl-btn atl-btn--ghost" id="btnAddMbService" style="margin-top: 8px; width: fit-content; padding: 6px 12px; font-size: 13px;">
                 <i class="fa-solid fa-plus"></i> Add Service
             </button>
-            <div id="mbTotalsDisplay" style="margin-top: 12px; padding: 10px; border-radius: 6px; background: rgba(255,255,255,0.05); font-size: 13px; display: none;">
+            <div id="mbTotalsDisplay" style="margin-top: 12px; padding: 10px; border-radius: 6px; background: color-mix(in srgb, var(--atl-ink) 5%, transparent); font-size: 13px; display: none;">
                 <div><strong>Estimated Duration:</strong> <span id="mbEstDuration">0 mins</span></div>
                 <div style="margin-top: 4px;"><strong>Estimated Price:</strong> <span id="mbEstPrice">R 0.00</span></div>
             </div>

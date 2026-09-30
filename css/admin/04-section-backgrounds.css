@@ -64,7 +64,7 @@
     height: 1px;
     margin-top: 24px;
     margin-bottom: 24px;
-    background: linear-gradient(to right, var(--atl-amber), rgba(212,175,55,0.15) 40%, transparent);
+    background: linear-gradient(to right, var(--atl-amber), color-mix(in srgb, var(--atl-amber) 15%, transparent) 40%, transparent);
 }
 
 /* Header typography */
@@ -235,7 +235,7 @@
     animation: atl-card-in 0.4s ease backwards;
 }
 .atl-booking-card:hover {
-    border-color: rgba(212,175,55,0.35) !important;
+    border-color: color-mix(in srgb, var(--atl-amber) 35%, transparent) !important;
     box-shadow: var(--atl-shadow-card) !important;
 }
 @keyframes atl-card-in {
@@ -303,9 +303,9 @@
     border: 1px solid rgba(129,140,248,0.3);
 }
 .atl-tag-badge--contract-unsigned {
-    background: rgba(212,175,55,0.12);
+    background: color-mix(in srgb, var(--atl-amber) 12%, transparent);
     color: var(--atl-amber);
-    border: 1px solid rgba(212,175,55,0.35);
+    border: 1px solid color-mix(in srgb, var(--atl-amber) 35%, transparent);
 }
 .atl-tag-badge--triaged {
     background: rgba(148,148,148,0.12);

@@ -13,8 +13,8 @@
 
 /* Panel wrapper */
 .bkr-promote-panel {
-    background: rgba(212,175,55,0.04);
-    border: 1px solid rgba(212,175,55,0.18);
+    background: color-mix(in srgb, var(--atl-amber) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--atl-amber) 18%, transparent);
     border-radius: 8px;
     padding: 12px 14px;
     margin: 12px 0;
@@ -43,9 +43,9 @@
 .bkr-promote-live-badge {
     display: inline-flex;
     align-items: center;
-    background: rgba(76,175,80,0.15);
+    background: color-mix(in srgb, var(--atl-green) 15%, transparent);
     color: var(--atl-green);
-    border: 1px solid rgba(76,175,80,0.4);
+    border: 1px solid color-mix(in srgb, var(--atl-green) 40%, transparent);
     padding: 2px 9px;
     border-radius: 20px;
     font-size: 10px;
@@ -55,17 +55,17 @@
     transition: background .25s, color .25s, border-color .25s;
 }
 .bkr-promote-live-badge--off {
-    background: rgba(120,120,120,0.10);
-    color: #666;
-    border-color: rgba(120,120,120,0.25);
+    background: color-mix(in srgb, var(--atl-muted-dim) 10%, transparent);
+    color: var(--atl-muted-dim);
+    border-color: color-mix(in srgb, var(--atl-muted-dim) 25%, transparent);
 }
 
 /* Missing field warning strip */
 .bkr-promote-warn {
-    background: rgba(255,167,38,0.10);
-    border: 1px solid rgba(255,167,38,0.3);
+    background: color-mix(in srgb, var(--atl-orange) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--atl-orange) 30%, transparent);
     border-radius: 6px;
-    color: #FFA726;
+    color: var(--atl-orange);
     font-size: 11px;
     padding: 6px 10px;
     display: flex;
@@ -74,7 +74,7 @@
 }
 .bkr-promote-warn-item {
     display: inline-block;
-    background: rgba(255,167,38,0.18);
+    background: color-mix(in srgb, var(--atl-orange) 18%, transparent);
     padding: 1px 7px;
     border-radius: 20px;
     font-weight: 700;
@@ -83,8 +83,8 @@
 
 /* Live preview card */
 .bkr-promote-preview {
-    background: rgba(212,175,55,0.06);
-    border: 1px dashed rgba(212,175,55,0.25);
+    background: color-mix(in srgb, var(--atl-amber) 6%, transparent);
+    border: 1px dashed color-mix(in srgb, var(--atl-amber) 25%, transparent);
     border-radius: 6px;
     padding: 10px 12px;
     transition: opacity .25s, max-height .3s;
@@ -98,13 +98,13 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .8px;
-    color: #555;
+    color: var(--atl-muted-dim);
     margin-bottom: 7px;
 }
 .bkr-promote-preview__name {
     font-size: 14px;
     font-weight: 700;
-    color: #eee;
+    color: var(--atl-ink);
     margin-bottom: 6px;
 }
 .bkr-promote-preview__meta {
@@ -115,42 +115,42 @@
     color: var(--atl-muted);
 }
 .bkr-promote-preview__meta span {
-    background: rgba(255,255,255,0.04);
-    border: 1px solid #222;
+    background: color-mix(in srgb, var(--atl-ink) 4%, transparent);
+    border: 1px solid var(--atl-line);
     padding: 2px 8px;
     border-radius: 20px;
 }
 .bkr-promote-preview__ticket {
     margin-top: 8px;
     padding-top: 8px;
-    border-top: 1px solid rgba(212,175,55,0.12);
+    border-top: 1px solid color-mix(in srgb, var(--atl-amber) 12%, transparent);
     font-size: 11px;
 }
 
 /* Ticket URL area */
 .bkr-promote-ticket {
-    border-top: 1px solid rgba(255,255,255,0.05);
+    border-top: 1px solid var(--atl-line);
     padding-top: 10px;
 }
 .bkr-promote-ticket-input:focus {
-    border-color: rgba(212,175,55,0.5) !important;
-    box-shadow: 0 0 0 2px rgba(212,175,55,0.12);
+    border-color: color-mix(in srgb, var(--atl-amber) 50%, transparent) !important;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--atl-amber) 12%, transparent);
 }
 
 /* ── Booking modal helpers ── */
-.bkm-header { display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid rgba(255,255,255,0.08); }
+.bkm-header { display:flex; align-items:center; gap:12px; padding:16px 20px; border-bottom:1px solid var(--atl-line); }
 .bkm-header i { font-size:18px; }
-.bkm-header--info       { border-left:3px solid #64B5F6; }
+.bkm-header--info       { border-left:3px solid var(--atl-blue); }
 .bkm-header--financial  { border-left:3px solid var(--atl-amber); }
-.bkm-header--email      { border-left:3px solid #4ade80; }
+.bkm-header--email      { border-left:3px solid var(--atl-sage); }
 .bkm-title { font-size:15px; font-weight:700; color: var(--atl-ink); }
 .bkm-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
 @media(max-width:640px){ .bkm-grid { grid-template-columns:1fr; } }
-.bkm-section { background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; padding:14px; }
-.bkm-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:#555; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid rgba(255,255,255,0.06); }
+.bkm-section { background:color-mix(in srgb, var(--atl-ink) 3%, transparent); border:1px solid var(--atl-line); border-radius:8px; padding:14px; }
+.bkm-section-title { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--atl-muted-dim); margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--atl-line); }
 .bkm-row { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; font-size:12px; padding:3px 0; }
-.bkm-key { color:#666; flex-shrink:0; }
+.bkm-key { color:var(--atl-muted-dim); flex-shrink:0; }
 .bkm-val { color: var(--atl-ink-dim); text-align:right; word-break:break-word; }
 .bkm-val--gold { color: var(--atl-amber); font-weight:700; }
-.bkm-val--green { color:#4ade80; font-weight:700; }
-.bkm-val--orange { color:#fb923c; font-weight:700; }
+.bkm-val--green { color:var(--atl-sage); font-weight:700; }
+.bkm-val--orange { color:var(--atl-orange); font-weight:700; }

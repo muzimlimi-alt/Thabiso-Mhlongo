@@ -76,7 +76,7 @@
 /* ── "More" menu — one element portalled to <body> (the cards clip overflow and animate with a
    transform, either of which would trap a fixed-position menu inside them). ── */
 .acl-menu[hidden] { display: none; }
-.acl-menu .atl-actions-dropdown-item:focus-visible { outline: 2px solid var(--atl-focus, var(--atl-amber)); outline-offset: -2px; background: rgba(255,255,255,0.06); }
+.acl-menu .atl-actions-dropdown-item:focus-visible { outline: 2px solid var(--atl-focus, var(--atl-amber)); outline-offset: -2px; background: color-mix(in srgb, var(--atl-ink) 6%, transparent); }
 .acl-menu .atl-actions-dropdown-item:disabled { opacity: .4; cursor: not-allowed; }
 .acl-menu .atl-actions-dropdown-item i { width: 14px; text-align: center; color: var(--atl-amber); }
 .acl-menu .atl-actions-dropdown-item--danger i { color: inherit; }

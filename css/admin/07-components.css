@@ -88,7 +88,9 @@
     position: absolute; top: 2px; left: 2px;
     width: 22px; height: 22px;
     border-radius: 999px;
-    background: #fff;
+    /* was a hardcoded #fff knob - invisible against the light track under light Finish.
+       --atl-ink is #fff in dark theme (same look) and the correct dark ink in light theme. */
+    background: var(--atl-ink);
     box-shadow: 0 1px 3px rgba(0,0,0,.3);
     transition: transform 0.2s ease;
 }
@@ -127,10 +129,10 @@
     color: var(--atl-clay);
     border: 1px solid var(--atl-clay);
 }
-.atl-btn--danger:hover { background: rgba(248,113,113,0.08); }
+.atl-btn--danger:hover { background: color-mix(in srgb, var(--atl-clay) 8%, transparent); }
 
 .atl-actions-dropdown-btn {
-    background: rgba(255,255,255,0.06);
+    background: color-mix(in srgb, var(--atl-ink) 6%, transparent);
     border: 1px solid var(--atl-line);
     color: var(--atl-muted);
     border-radius: 8px;
@@ -148,7 +150,7 @@
     position: fixed;
     z-index: var(--atl-z-action-menu, 99999);
     background: var(--atl-card);
-    border: 1px solid rgba(255,255,255,0.15);
+    border: 1px solid var(--atl-line-strong);
     border-radius: 10px;
     padding: 6px 0;
     min-width: 200px;
@@ -163,7 +165,7 @@
     cursor: pointer; text-align: left;
     transition: background 0.15s ease;
 }
-.atl-actions-dropdown-item:hover { background: rgba(255,255,255,0.06); }
+.atl-actions-dropdown-item:hover { background: color-mix(in srgb, var(--atl-ink) 6%, transparent); }
 .atl-actions-dropdown-item--danger { color: var(--atl-clay); }
 .atl-actions-dropdown-sep { height: 1px; background: var(--atl-line); margin: 4px 0; }
 
@@ -206,7 +208,7 @@
     color: var(--atl-ink); cursor: pointer;
     transition: background 0.15s ease;
 }
-.atl-modal-close:hover { background: rgba(255,255,255,0.08); }
+.atl-modal-close:hover { background: color-mix(in srgb, var(--atl-ink) 8%, transparent); }
 
 .atl-modal-body {
     padding: 20px;
@@ -691,7 +693,7 @@ code {
 .atl-det-table tfoot tr:first-child th { padding-top: 8px; color: var(--atl-muted); }
 .atl-det-table tfoot tr:last-child td,
 .atl-det-table tfoot tr:last-child th { font-weight: 700; font-size: 13px; padding-bottom: 4px; }
-.atl-det-table tr.atl-det-active-row { background: rgba(212,175,55,0.04); }
+.atl-det-table tr.atl-det-active-row { background: color-mix(in srgb, var(--atl-amber) 4%, transparent); }
 .atl-det-tabular { font-variant-numeric: tabular-nums; }
 
 @media (min-width: 600px) {
@@ -735,8 +737,8 @@ code {
   }
   .atl-det-table-responsive tbody tr:last-child { margin-bottom: 0; }
   .atl-det-table-responsive tbody tr.atl-det-active-row {
-    background: rgba(212,175,55,0.06);
-    border-color: rgba(212,175,55,0.20);
+    background: color-mix(in srgb, var(--atl-amber) 6%, transparent);
+    border-color: color-mix(in srgb, var(--atl-amber) 20%, transparent);
   }
   .atl-det-table-responsive tbody td {
     display: flex;
@@ -869,8 +871,8 @@ code {
 
 /* ── Cancellation Card Styling ── */
 .atl-det-card--cancel {
-  background: rgba(248,113,113,0.08);
-  border: 1px solid rgba(248,113,113,0.30);
+  background: color-mix(in srgb, var(--atl-clay) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--atl-clay) 30%, transparent);
   border-left: 3px solid var(--atl-clay);
 }
 .atl-det-card--cancel .atl-det-title { color: var(--atl-clay); }
@@ -881,8 +883,8 @@ code {
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
   padding: 2px 8px; border-radius: 999px;
-  background: rgba(74,222,128,0.15); color: var(--atl-sage);
-  border: 1px solid rgba(74,222,128,0.3);
+  background: color-mix(in srgb, var(--atl-sage) 15%, transparent); color: var(--atl-sage);
+  border: 1px solid color-mix(in srgb, var(--atl-sage) 30%, transparent);
   margin-left: 8px; vertical-align: middle;
 }
 .atl-promote-live-badge--off {
@@ -890,7 +892,7 @@ code {
 }
 .atl-promote-warn {
   display: flex; align-items: flex-start; gap: 8px;
-  background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.25);
+  background: color-mix(in srgb, var(--atl-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--atl-orange) 25%, transparent);
   border-radius: 8px; padding: 10px 12px; margin-top: 12px;
   font-size: 12px; color: var(--atl-orange);
 }
@@ -921,8 +923,8 @@ code {
   display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--atl-muted);
 }
 .atl-promote-ticket-save {
-  background: rgba(212,175,55,0.12) !important;
-  border: 1px solid rgba(212,175,55,0.35) !important;
+  background: color-mix(in srgb, var(--atl-amber) 12%, transparent) !important;
+  border: 1px solid color-mix(in srgb, var(--atl-amber) 35%, transparent) !important;
   color: var(--atl-amber) !important;
   border-radius: 8px !important;
   padding: 10px 14px !important;
@@ -936,7 +938,7 @@ code {
   transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .atl-promote-ticket-save:hover {
-  background: rgba(212,175,55,0.22) !important;
+  background: color-mix(in srgb, var(--atl-amber) 22%, transparent) !important;
   border-color: var(--atl-amber) !important;
 }
 .atl-promote-ticket-save:focus-visible {
@@ -1024,8 +1026,8 @@ body.admin-body .db-card-header h3 {
 body.admin-body {
     background-color: var(--atl-paper) !important;
     background-image:
-        radial-gradient(ellipse 80% 40% at 20% 0%,   rgba(212,175,55,0.06), transparent 55%),
-        radial-gradient(ellipse 60% 30% at 85% 100%,  rgba(212,175,55,0.04), transparent 50%) !important;
+        radial-gradient(ellipse 80% 40% at 20% 0%,   color-mix(in srgb, var(--atl-amber) 6%, transparent), transparent 55%),
+        radial-gradient(ellipse 60% 30% at 85% 100%,  color-mix(in srgb, var(--atl-amber) 4%, transparent), transparent 50%) !important;
     background-attachment: fixed !important;
     min-height: 100vh;
 }
@@ -1120,7 +1122,7 @@ body.admin-body .atl-section-heading {
 .atl-section-rule {
     height: 1px !important;
     margin: 18px 0 24px !important;
-    background: linear-gradient(to right, var(--atl-amber), rgba(212,175,55,0.18) 42%, transparent 78%) !important;
+    background: linear-gradient(to right, var(--atl-amber), color-mix(in srgb, var(--atl-amber) 18%, transparent) 42%, transparent 78%) !important;
     border: none !important;
 }
 /* ≥600px — title and action cluster share one baseline-aligned row */
@@ -1196,7 +1198,7 @@ body.admin-body .atl-section-heading {
     border-color: var(--atl-amber-border) !important;
 }
 .logout-action { color: var(--atl-muted) !important; }
-.logout-action:hover { color: var(--atl-clay) !important; background: rgba(248,113,113,0.08) !important; }
+.logout-action:hover { color: var(--atl-clay) !important; background: color-mix(in srgb, var(--atl-clay) 8%, transparent) !important; }
 
 /* ── CONTROL BAR (TOP NAV) ── */
 .adm-header {
@@ -1284,7 +1286,7 @@ body.admin-body .atl-section-heading {
     color: var(--atl-ink) !important;
 }
 .adm-dropdown__item--danger:hover {
-    background: rgba(248,113,113,0.08) !important;
+    background: color-mix(in srgb, var(--atl-clay) 8%, transparent) !important;
     color: var(--atl-clay) !important;
 }
 .adm-profile-card {
@@ -1353,7 +1355,7 @@ body.admin-body .atl-section-heading {
 .um-btn--primary:hover {
     background: var(--atl-amber-hover) !important;
     border-color: var(--atl-amber-hover) !important;
-    box-shadow: 0 4px 14px rgba(212,175,55,0.28) !important;
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--atl-amber) 28%, transparent) !important;
 }
 
 .atl-btn--ghost,
@@ -1376,11 +1378,11 @@ body.admin-body .atl-section-heading {
 .um-btn--danger {
     background: transparent !important;
     color: var(--atl-clay) !important;
-    border-color: rgba(248,113,113,0.35) !important;
+    border-color: color-mix(in srgb, var(--atl-clay) 35%, transparent) !important;
 }
 .atl-btn--danger:hover,
 .btn-admin-danger:hover,
-.um-btn--danger:hover { background: rgba(248,113,113,0.08) !important; }
+.um-btn--danger:hover { background: color-mix(in srgb, var(--atl-clay) 8%, transparent) !important; }
 .btn-admin-success {
     background: var(--atl-sage) !important;
     color: #fff !important;
@@ -1618,7 +1620,7 @@ input[type="checkbox"], input[type="radio"] {
     border-bottom: 1px solid var(--atl-line) !important;
     transition: background var(--atl-t-fast) !important;
 }
-.table tbody tr:hover, table tbody tr:hover { background: rgba(212,175,55,0.03) !important; }
+.table tbody tr:hover, table tbody tr:hover { background: color-mix(in srgb, var(--atl-amber) 3%, transparent) !important; }
 .table td, table td { border: none !important; color: var(--atl-ink) !important; }
 
 /* ── UNIVERSAL MODAL SYSTEM ── */
@@ -1679,7 +1681,7 @@ input[type="checkbox"], input[type="radio"] {
 }
 .modal-header .close:hover {
     color: var(--atl-ink) !important;
-    background: rgba(255,255,255,0.08) !important;
+    background: color-mix(in srgb, var(--atl-ink) 8%, transparent) !important;
 }
 .modal-body {
     background: var(--atl-card) !important;
@@ -1736,25 +1738,25 @@ input[type="checkbox"], input[type="radio"] {
     font-size: 11px;
     font-weight: 600;
 }
-.atl-badge--pending   { background: rgba(212,175,55,0.14); color: var(--atl-amber); }
-.atl-badge--quoted    { background: rgba(232,193,75,0.14);  color: #E8C14B; }
-.atl-badge--accepted  { background: rgba(96,165,250,0.16);  color: #60a5fa; }
-.atl-badge--confirmed { background: rgba(52,211,153,0.16);  color: #34d399; }
-.atl-badge--completed { background: rgba(74,222,128,0.16);  color: #4ade80; }
-.atl-badge--cancelled { background: rgba(248,113,113,0.16); color: #f87171; }
-.atl-badge--paid      { background: rgba(74,222,128,0.14);  color: #4ade80; }
-.atl-badge--unpaid    { background: rgba(255,255,255,0.06); color: var(--atl-muted); border: 1px solid var(--atl-line); }
-.atl-badge--overdue   { background: rgba(248,113,113,0.14); color: #f87171; }
-.atl-badge--new       { background: rgba(96,165,250,0.14);  color: #60a5fa; }
-.atl-badge--info      { background: rgba(212,175,55,0.10);  color: var(--atl-amber); }
-.atl-badge--warning   { background: rgba(251,146,60,0.14);  color: var(--atl-orange); }
-
-[data-theme="light"] .atl-badge--pending   { color: #8a6a0d; }
-[data-theme="light"] .atl-badge--completed { color: #15803d; }
-[data-theme="light"] .atl-badge--confirmed { color: #0f7a45; }
-[data-theme="light"] .atl-badge--accepted  { color: #1d4ed8; }
-[data-theme="light"] .atl-badge--cancelled { color: #b91c1c; }
-[data-theme="light"] .atl-badge--paid      { color: #15803d; }
+.atl-badge--pending   { background: color-mix(in srgb, var(--atl-amber) 14%, transparent); color: var(--atl-amber); }
+.atl-badge--quoted    { background: color-mix(in srgb, var(--atl-amber-hover) 14%, transparent);  color: var(--atl-amber-hover); }
+/* accepted/confirmed/completed/cancelled/paid were hardcoded dark-theme-only hex/rgba literals
+   (the dark values matched --atl-blue/--atl-green/--atl-sage/--atl-clay exactly, confirming
+   that's where they came from), patched for light theme with a manual [data-theme="light"]
+   override below instead of just referencing the token - the same pattern already fixed for
+   the overdue/new/warning badges right after them in this block. Tokenized the same way for
+   consistency; the per-theme overrides are now redundant (the token cascade already supplies
+   the right shade) and have been removed. */
+.atl-badge--accepted  { background: color-mix(in srgb, var(--atl-blue) 16%, transparent);  color: var(--atl-blue); }
+.atl-badge--confirmed { background: color-mix(in srgb, var(--atl-green) 16%, transparent);  color: var(--atl-green); }
+.atl-badge--completed { background: color-mix(in srgb, var(--atl-sage) 16%, transparent);  color: var(--atl-sage); }
+.atl-badge--cancelled { background: color-mix(in srgb, var(--atl-clay) 16%, transparent); color: var(--atl-clay); }
+.atl-badge--paid      { background: color-mix(in srgb, var(--atl-sage) 14%, transparent);  color: var(--atl-sage); }
+.atl-badge--unpaid    { background: color-mix(in srgb, var(--atl-ink) 6%, transparent); color: var(--atl-muted); border: 1px solid var(--atl-line); }
+.atl-badge--overdue   { background: color-mix(in srgb, var(--atl-clay) 14%, transparent); color: var(--atl-clay); }
+.atl-badge--new       { background: color-mix(in srgb, var(--atl-blue) 14%, transparent);  color: var(--atl-blue); }
+.atl-badge--info      { background: color-mix(in srgb, var(--atl-amber) 10%, transparent);  color: var(--atl-amber); }
+.atl-badge--warning   { background: color-mix(in srgb, var(--atl-orange) 14%, transparent);  color: var(--atl-orange); }
 
 /* ── NOTIFICATIONS PANEL ── */
 .adm-noti-list { max-height: 320px; overflow-y: auto; }
@@ -1785,7 +1787,7 @@ input[type="checkbox"], input[type="radio"] {
     font-size: 11px;
     color: var(--atl-muted);
 }
-.adm-noti-item.unread { background: rgba(212,175,55,0.03); }
+.adm-noti-item.unread { background: color-mix(in srgb, var(--atl-amber) 3%, transparent); }
 .adm-noti-item.unread .adm-noti-title::before {
     content: '● ';
     color: var(--atl-amber);

@@ -41,10 +41,12 @@
 .evt-badge--amber { background:var(--atl-amber-dim); color:var(--atl-amber); border:1px solid var(--atl-amber-border); }
 .evt-badge--amber-dim { background:var(--atl-amber-dim); color:var(--atl-amber); border:1px solid var(--atl-amber-border); }
 .evt-badge--muted { background:var(--atl-surface2); color:var(--atl-muted); border:1px solid var(--atl-line); }
-.evt-badge--blue { background:var(--atl-focus,rgba(96,165,250,0.12)); color:var(--atl-on-amber); border:1px solid var(--atl-focus,rgba(96,165,250,0.25)); }
-.evt-badge--red { background:var(--atl-clay-dim,rgba(239,68,68,0.1)); color:var(--atl-clay,#ef4444); border:1px solid var(--atl-clay-dim,rgba(239,68,68,0.2)); }
-.evt-badge--warn { background:rgba(251,191,36,0.12); color:#fbbf24; border:1px solid rgba(251,191,36,0.25); }
-.evt-badge--danger { background:var(--atl-clay-dim,rgba(239,68,68,0.1)); color:var(--atl-clay,#ef4444); border:1px solid var(--atl-clay-dim,rgba(239,68,68,0.2)); }
+.evt-badge--blue { background:rgba(var(--atl-blue-rgb), 0.12); color:var(--atl-blue); border:1px solid rgba(var(--atl-blue-rgb), 0.25); }
+/* --atl-clay-dim is never defined anywhere in css/core/ - the rgba() fallback was permanently
+   active, not a fallback, so this never followed Finish. */
+.evt-badge--red { background:color-mix(in srgb, var(--atl-clay) 10%, transparent); color:var(--atl-clay,#ef4444); border:1px solid color-mix(in srgb, var(--atl-clay) 20%, transparent); }
+.evt-badge--warn { background:color-mix(in srgb, var(--atl-orange) 12%, transparent); color:var(--atl-orange); border:1px solid color-mix(in srgb, var(--atl-orange) 25%, transparent); }
+.evt-badge--danger { background:color-mix(in srgb, var(--atl-clay) 10%, transparent); color:var(--atl-clay,#ef4444); border:1px solid color-mix(in srgb, var(--atl-clay) 20%, transparent); }
 .evt-badge--sage { background:color-mix(in srgb, var(--atl-sage) 12%, transparent); color:var(--atl-sage); border:1px solid color-mix(in srgb, var(--atl-sage) 30%, transparent); }
 
 /* Card text hierarchy, matching the other .atl-edit-card sections: title=ink, description=House

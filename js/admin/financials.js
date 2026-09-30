@@ -563,7 +563,11 @@ window.loadFinAnalytics = async function() {
         const chartOptions = {
             series: [{ name: 'Revenue Received', data: revenues }],
             chart: { type: 'area', height: 300, toolbar: { show: false }, background: 'transparent', animations: { enabled: true, speed: 600 } },
-            colors: ['#D4AF37'],
+            // Single-series brand accent — reused live off dashboard.js's dbAccentColor()
+            // (loaded earlier in admin.html, so its plain function declaration is already
+            // a global by the time this runs) so it follows the House Accent instead of
+            // always rendering gold.
+            colors: [dbAccentColor('--atl-amber', '#D4AF37')],
             stroke: { curve: 'smooth', width: 2 },
             fill: { type: 'gradient', gradient: { opacityFrom: 0.4, opacityTo: 0.05 } },
             dataLabels: { enabled: false },
@@ -679,6 +683,11 @@ function renderFinExtraCharts(res) {
                 series: cats.map(function(c){ return parseFloat(c.revenue || 0); }),
                 labels: cats.map(function(c){ return c.category; }),
                 chart: { type: 'donut', height: 300, background: 'transparent', animations: { enabled: true, speed: 600 } },
+                // Intentionally left hardcoded: a categorical (multi-hue) palette for an
+                // arbitrary-length list of service-type slices, not a shaded ramp of one
+                // accent hue — mixing in the live House Accent here would make one
+                // category (whichever lands on index 0) visually merge with the brand
+                // colour used everywhere else on the page. Not accent-linked by design.
                 colors: ['#D4AF37','#e0c04a','#b08800','#8a6d00','#c98a3c','#7c9a6d','#6d8a9a','#9a6d7c'],
                 stroke: { width: 0 },
                 legend: { position: 'bottom', fontSize: '12px', labels: { colors: fb.legend } },
@@ -711,6 +720,10 @@ function renderFinExtraCharts(res) {
                     { name: 'Net',      type: 'line',   data: cf.map(function(r){ return parseFloat(r.net      || 0); }) }
                 ],
                 chart: { type: 'line', height: 300, toolbar: { show: false }, background: 'transparent', animations: { enabled: true, speed: 600 } },
+                // Intentionally left hardcoded: fixed semantic roles (green=Revenue,
+                // red=Expenses, gold=Net), not a shaded ramp of one accent hue — the
+                // whole point of this combo chart is telling those three apart at a
+                // glance, so they stay fixed regardless of House Accent.
                 colors: ['#7c9a6d','#c17767','#D4AF37'],
                 stroke: { width: [0,0,3], curve: 'smooth' },
                 plotOptions: { bar: { columnWidth: '55%', borderRadius: 3 } },

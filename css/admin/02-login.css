@@ -58,16 +58,20 @@
     content: "";
     position: absolute;
     inset: 0;
+    /* color-mix() against --tm-black (= --atl-paper), not a hardcoded rgba(10,10,10,…): this
+       gradient fades the backdrop photo into the page background, so it must track whichever
+       Finish is active. The literal matched dark-theme's --atl-paper exactly but stayed a dark
+       vignette over the photo under light Finish, where --atl-paper is ivory. */
     background:
         linear-gradient(90deg,
             transparent 0%,
             transparent 30%,
-            rgba(10,10,10,0.4) 50%,
-            rgba(10,10,10,0.75) 70%,
-            rgba(10,10,10,0.92) 100%),
+            color-mix(in srgb, var(--tm-black) 40%, transparent) 50%,
+            color-mix(in srgb, var(--tm-black) 75%, transparent) 70%,
+            color-mix(in srgb, var(--tm-black) 92%, transparent) 100%),
         linear-gradient(180deg,
             transparent 60%,
-            rgba(10,10,10,0.5) 100%);
+            color-mix(in srgb, var(--tm-black) 50%, transparent) 100%);
     pointer-events: none;
 }
 
@@ -188,7 +192,10 @@ body.admin-body h2.brand-name {
 .tm-form-input {
     width: 100%;
     padding: 14px 18px;
-    background: rgba(244,239,228,0.05) !important;
+    /* was a hardcoded ivory rgba() glass tint, independent of Finish - invisible under light
+       Finish where the page itself turns ivory. color-mix reads --atl-ink so the tint stays
+       legible (a light wash in dark theme, a dark wash in light theme) either way. */
+    background: color-mix(in srgb, var(--atl-ink) 5%, transparent) !important;
     border: 1px solid var(--tm-glass-border) !important;
     border-radius: 2px !important;
     color: var(--tm-cream) !important;
@@ -203,7 +210,7 @@ body.admin-body h2.brand-name {
 
 .tm-form-input:focus {
     border-color: var(--tm-gold) !important;
-    background: rgba(212,175,55,0.04) !important;
+    background: color-mix(in srgb, var(--tm-gold) 4%, transparent) !important;
     box-shadow: 0 0 0 3px var(--tm-gold-glow) !important;
 }
 
@@ -259,26 +266,26 @@ body.admin-body h2.brand-name {
     width: 17px;
     height: 17px;
     flex-shrink: 0;
-    border: 1.5px solid rgba(244,239,228,0.22);
+    border: 1.5px solid color-mix(in srgb, var(--atl-ink) 22%, transparent);
     border-radius: 3px;
-    background: rgba(244,239,228,0.04);
+    background: color-mix(in srgb, var(--atl-ink) 4%, transparent);
     transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .tm-checkbox-wrap:hover .cb-box {
     border-color: var(--tm-gold);
-    background: rgba(212,175,55,0.1);
+    background: color-mix(in srgb, var(--tm-gold) 10%, transparent);
 }
 
 .tm-checkbox-wrap input[type="checkbox"]:focus + .cb-box {
     border-color: var(--tm-gold);
-    box-shadow: 0 0 0 3px rgba(212,175,55,0.2);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--tm-gold) 20%, transparent);
 }
 
 .tm-checkbox-wrap input[type="checkbox"]:checked + .cb-box {
     background: var(--tm-gold);
     border-color: var(--tm-gold);
-    box-shadow: 0 0 0 3px rgba(212,175,55,0.18);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--tm-gold) 18%, transparent);
 }
 
 /* Checkmark drawn on the span — works in all browsers unlike input::after */
@@ -287,7 +294,7 @@ body.admin-body h2.brand-name {
     display: block;
     width: 5px;
     height: 9px;
-    border: solid #0a0a0a;
+    border: solid var(--atl-on-amber);
     border-width: 0 2px 2px 0;
     transform: rotate(45deg) translate(-1px, -1px);
 }
@@ -331,7 +338,7 @@ body.admin-body h2.brand-name {
 }
 
 .tm-login-btn:hover {
-    background: #e0c04a;
+    background: var(--atl-amber-hover);
     transform: translateY(-1px);
 }
 
@@ -350,12 +357,12 @@ body.admin-body h2.brand-name {
 .tm-login-error {
     display: none;
     padding: 12px 16px;
-    background: rgba(192,57,43,0.1);
-    border: 1px solid rgba(192,57,43,0.25);
+    background: color-mix(in srgb, var(--atl-clay) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--atl-clay) 25%, transparent);
     border-radius: 2px;
     font-size: 13px;
     font-weight: 300;
-    color: #e8a0a0;
+    color: var(--atl-clay);
     margin-bottom: 20px;
     text-align: left;
 }
@@ -364,7 +371,7 @@ body.admin-body h2.brand-name {
     position: fixed;
     width: 20px;
     height: 20px;
-    border-color: rgba(212,175,55,0.2);
+    border-color: color-mix(in srgb, var(--tm-gold) 20%, transparent);
     z-index: 3;
     opacity: 0;
     animation: tmFadeIn 1s ease 1s forwards;
@@ -388,8 +395,8 @@ body.admin-body h2.brand-name {
     .login-bg img { object-position: 20% center; }
     .login-bg::after {
         background:
-            linear-gradient(180deg, transparent 0%, transparent 20%, rgba(10,10,10,0.55) 45%, rgba(10,10,10,0.72) 70%, rgba(10,10,10,0.82) 100%),
-            linear-gradient(90deg, transparent 0%, rgba(10,10,10,0.25) 100%);
+            linear-gradient(180deg, transparent 0%, transparent 20%, color-mix(in srgb, var(--tm-black) 55%, transparent) 45%, color-mix(in srgb, var(--tm-black) 72%, transparent) 70%, color-mix(in srgb, var(--tm-black) 82%, transparent) 100%),
+            linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--tm-black) 25%, transparent) 100%);
     }
     .login-panel { flex: none; min-height: auto; padding: 8px 28px 40px; background: transparent; }
     .brand-name { font-size: 32px; }

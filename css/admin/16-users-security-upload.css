@@ -13,7 +13,7 @@
 
 
 
-.um-upload-zone--dragging { border-color: var(--atl-amber) !important; background: rgba(212,175,55,0.06) !important; }
+.um-upload-zone--dragging { border-color: var(--atl-amber) !important; background: color-mix(in srgb, var(--atl-amber) 6%, transparent) !important; }
 
 /* ═══════════════════════════════════════════════════════════════════════
    MOBILE UI/UX POLISH — additive & admin-scoped. Phone tiers reuse the

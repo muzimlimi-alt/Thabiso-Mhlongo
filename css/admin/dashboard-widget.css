@@ -410,7 +410,9 @@
         white-space: nowrap;
     }
     .kpi-cfg-chip::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-    .kpi-cfg-chip--live   { color: var(--atl-sage);  background: var(--atl-sage-dim, rgba(74,222,128,0.12)); }
+    /* --atl-sage-dim is never defined anywhere in css/core/ - the rgba() fallback was
+       permanently active, not a fallback at all, so this never followed Finish. */
+    .kpi-cfg-chip--live   { color: var(--atl-sage);  background: color-mix(in srgb, var(--atl-sage) 12%, transparent); }
     .kpi-cfg-chip--manual { color: var(--atl-amber); background: var(--atl-amber-dim); }
 
     /* Segmented data-source control */

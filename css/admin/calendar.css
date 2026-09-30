@@ -82,7 +82,7 @@
    background but nearly disappears over the dark theme's near-black one, unlike the
    mini-calendar's solid "today" cell. Bump just this indicator in dark mode. */
 [data-theme="dark"] #calendarAdmin .fc-day-today {
-    background: rgba(212, 175, 55, 0.22) !important;
+    background: color-mix(in srgb, var(--atl-amber) 22%, transparent) !important;
     box-shadow: inset 0 0 0 1px var(--atl-amber-border);
 }
 #calendarAdmin .fc-daygrid-event {
@@ -154,4 +154,4 @@
     box-shadow: none !important;
 }
 /* Constrain FC selection preview to a subtle per-cell amber tint */
-#calendarAdmin { --fc-highlight-color: rgba(212, 175, 55, 0.12); }
+#calendarAdmin { --fc-highlight-color: color-mix(in srgb, var(--atl-amber) 12%, transparent); }

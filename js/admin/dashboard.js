@@ -80,11 +80,55 @@
             chart:       { background: 'transparent', foreColor: light ? '#333' : '#aaa',
                            toolbar: { show: false }, animations: { enabled: true, speed: 600 } },
             theme:       { mode: light ? 'light' : 'dark' },
-            colors:      ['#D4AF37', '#e0c04a', '#b08800'],
+            colors:      dbAccentShades(3),
             grid:        { borderColor: light ? '#e0e0e0' : '#222' },
             tooltip:     { theme: light ? 'light' : 'dark' },
             legend:      { labels: { colors: light ? '#333' : '#ccc' } }
         };
+    }
+
+    // ── 1b. Live House-accent colour helpers ──────────────────────────────────
+    // Grid lines / legend text / tooltip theme above are Finish-only (the `light`
+    // ternary), which is correct — they stay readable on dark vs light chrome
+    // regardless of accent. Chart SERIES colours are a different axis: they must
+    // follow the chosen House Accent (Gold/Vetiver/Cassis/Cuivre), not stay
+    // hardcoded gold. ApexCharts/jsVectorMap bake in whatever colour string they
+    // are given at render time, so these read the live --atl-amber* custom
+    // properties off :root fresh on every call (never cached), the same way
+    // dbApexBase() above already re-reads data-theme fresh on every call.
+    function dbAccentColor(varName, fallback) {
+        var v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+        return v || fallback;
+    }
+    // Resolves a CSS color-mix() expression against the live custom properties
+    // by letting the browser compute it (rather than hand-rolling colour maths),
+    // via a throwaway probe element.
+    function dbColorMix(mixExpr) {
+        var probe = document.createElement('span');
+        probe.style.cssText = 'position:absolute;left:-9999px;top:-9999px;visibility:hidden;';
+        probe.style.color = mixExpr;
+        document.body.appendChild(probe);
+        var resolved = getComputedStyle(probe).color;
+        document.body.removeChild(probe);
+        return resolved;
+    }
+    // A ramp of up to 6 shades of the CURRENT House Accent — base, brighter hover,
+    // then progressively darker — matching the visual pattern of the old fixed
+    // gold ramp so multi-series / multi-slice charts still read as one coherent
+    // accent hue (just whichever hue is selected) instead of unrelated colours.
+    function dbAccentShades(n) {
+        var base  = dbAccentColor('--atl-amber',       '#D4AF37');
+        var hover = dbAccentColor('--atl-amber-hover', '#E8C14B');
+        var dark  = dbAccentColor('--atl-amber-dark',  '#9A7B2C');
+        var ramp = [
+            base,
+            hover,
+            dark,
+            dbColorMix('color-mix(in srgb, ' + base + ', black 45%)'),
+            dbColorMix('color-mix(in srgb, ' + base + ', black 65%)'),
+            dbColorMix('color-mix(in srgb, ' + base + ', black 80%)')
+        ];
+        return ramp.slice(0, Math.max(1, n));
     }
 
     // ── 2. Format helpers ─────────────────────────────────────────────────────
@@ -305,7 +349,7 @@
                     plotOptions: { pie: { donut: { size: '68%' } } },
                     dataLabels: { enabled: false },
                     legend: Object.assign({}, base.legend, { position: 'bottom', fontSize: '11px' }),
-                    colors: ['#D4AF37','#e0c04a','#b08800','#7c5f00','#4a3800','#2a2000']
+                    colors: dbAccentShades(6)
                 }));
                 _dbChartSources.render();
             })
@@ -345,7 +389,7 @@
                     plotOptions: { pie: { donut: { size: '68%' } } },
                     dataLabels: { enabled: false },
                     legend: Object.assign({}, base.legend, { position: 'bottom', fontSize: '11px' }),
-                    colors: ['#D4AF37','#e0c04a','#8a6d00']
+                    colors: dbAccentShades(3)
                 }));
                 _dbChartDevices.render();
             })
@@ -450,11 +494,18 @@
                 var light      = document.documentElement.getAttribute('data-theme') === 'light';
                 var regionBase = light ? '#e4e4e4' : '#333b4d';
                 var regionLine = light ? '#ffffff' : '#1c2230';
-                // Map a 0..1 intensity to a dark→bright amber shade (smallest count stays visibly amber)
+                // Map a 0..1 intensity to a dim→full shade of the CURRENT House Accent
+                // (smallest count stays visibly tinted rather than fading to nothing).
+                // --atl-amber-rgb is a live "r, g, b" triple that already changes with
+                // the selected accent (see css/core/appearance.css), so scaling it here
+                // — rather than the old hardcoded amber-only rgb() literal — keeps the
+                // choropleth in the chosen hue instead of always painting gold.
+                var accentRgb = dbAccentColor('--atl-amber-rgb', '212, 175, 55')
+                    .split(',').map(function (s) { return parseFloat(s); });
                 function amberShade(t) {
                     t = Math.max(0, Math.min(1, t));
                     var u = 0.40 + 0.60 * t;
-                    return 'rgb(' + Math.round(74 + 138 * u) + ',' + Math.round(58 + 117 * u) + ',' + Math.round(15 + 40 * u) + ')';
+                    return 'rgb(' + accentRgb.map(function (c) { return Math.round(c * u); }).join(',') + ')';
                 }
 
                 // Recreate cleanly (jsVectorMap appends an SVG on each init)
@@ -470,7 +521,7 @@
                         zoomButtons: true,
                         regionStyle: {
                             initial: { fill: regionBase, stroke: regionLine, strokeWidth: 0.4, fillOpacity: 1 },
-                            hover:   { fill: '#e0c04a' }
+                            hover:   { fill: dbAccentColor('--atl-amber-hover', '#E8C14B') }
                         },
                         // jsVectorMap's numeric scale renders unreliably (and breaks for a
                         // single country), so we paint each visited region directly instead.
