@@ -294,7 +294,7 @@ app.use((req, res, next) => {
 // to preserve the exact registration order the plan's own middleware-ordering rule requires.
 app.get('/robots.txt', (req, res) => {
     res.type('text/plain');
-    res.send('User-agent: *\nDisallow: /admin\nDisallow: /api\n');
+    res.send('User-agent: *\nDisallow: /admin\nDisallow: /api\n\nSitemap: https://www.thabisomhlongo.com/sitemap.xml\n');
 });
 
 // Protect sensitive files and directories from static exposure
