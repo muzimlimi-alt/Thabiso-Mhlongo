@@ -328,7 +328,9 @@ $(function() {
             }
 
             var mediaHtml = '';
-            var safeAlt = item.title ? item.title.replace(/"/g, '&quot;') : '';
+            // Falls back to a real description, not '', so untitled photos still get indexed by
+            // Google Image Search and read sensibly by screen readers.
+            var safeAlt = item.title ? item.title.replace(/"/g, '&quot;') : 'Thabiso Mhlongo — gallery photo';
             if (isVideo) {
                 mediaHtml = `<video src="${item.image_path}" muted autoplay loop playsinline onerror="this.outerHTML='<img src=\\'https://placehold.co/250x250/111/EEE?text=Video+Error\\'>'"></video>`;
             } else {

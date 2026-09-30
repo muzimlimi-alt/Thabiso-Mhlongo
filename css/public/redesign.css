@@ -56,7 +56,7 @@
   /* -- Text Colour System (WCAG Compliant) -- */
   --text-primary:   #ffffff; /* Primary headings and body */
   --text-secondary: #b0b0b0; /* Secondary metadata/desc */
-  --text-muted:     #707070; /* Disabled/unimportant info */
+  --text-muted:     #8c8c8c; /* Disabled/unimportant info — 4.5:1+ against every --bg-* token (was #707070, 3.1-4.0:1, failed WCAG AA) */
   --text-inverse:   #0a0a0a; /* Dark text for golden orange buttons */
 
   /* -- Accent Colours (Controlled Palette) -- */
@@ -1622,7 +1622,7 @@ header .navbar {
   pointer-events:none;
 }
 .team-row.is-active .team-row__social{ opacity:1; transform:none; pointer-events:auto; }
-.team-row__social .social-icon-wrapper{ width:24px; height:24px; border:1px solid rgba(212,175,55,.22); }
+.team-row__social .social-icon-wrapper{ width:44px; height:44px; border:1px solid rgba(212,175,55,.22); }
 .team-row__social .social-icon-wrapper:hover{ transform:scale(1.1); }
 .team-row__social .social-icon-wrapper i{ font-size:11px !important; }
 .team-row__role{
@@ -1963,6 +1963,7 @@ header .navbar {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  min-height: 44px;
   background: rgba(212,175,55,0.12);
   border: 1px solid rgba(212,175,55,0.35);
   color: var(--y-base) !important;
