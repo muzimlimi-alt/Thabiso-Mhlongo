@@ -195,6 +195,7 @@
     --atl-z-search:         5000;   /* .adm-search__results */
     --atl-z-modal:          9000;   /* .atl-modal-overlay */
     --atl-z-scrim:          9999;   /* #tmSidebarOverlay */
+    --atl-z-sidebar-open:  10000;   /* #tmAdminSidebar.mobile-open — must clear --atl-z-scrim, see shell.css */
     --atl-z-toast:         10000;   /* matches --noti-z in components/notifications.css */
     --atl-z-profile-menu:  20000;
     --atl-z-action-menu:   99999;

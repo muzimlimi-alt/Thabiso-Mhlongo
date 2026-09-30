@@ -783,8 +783,12 @@ body.admin-body #adminControlBar {
 
 @media (max-width: 768px) {
     body.admin-body .tm-admin-main { padding-left: 0 !important; }
-    /* TOCA's off-canvas drawer: full labelled sidebar at 270px, no rail, no footer toggle. */
-    body.admin-body #tmAdminSidebar.mobile-open { width: var(--atl-nav-w) !important; display: flex !important; }
+    /* TOCA's off-canvas drawer: full labelled sidebar at 270px, no rail, no footer toggle.
+       z-index here closes the Step-5 open item noted above: the base rule's --atl-z-sidebar
+       (1040) left the open sidebar rendering BELOW #tmSidebarOverlay (--atl-z-scrim, 9999),
+       so it was only visible dimly through the dark blurred backdrop. This selector's added
+       .mobile-open class outranks the base rule's specificity, so it wins here. */
+    body.admin-body #tmAdminSidebar.mobile-open { width: var(--atl-nav-w) !important; display: flex !important; z-index: var(--atl-z-sidebar-open) !important; }
     #tmAdminSidebar .sh-side-foot { display: none !important; }
     body.admin-body #adminControlBar { padding: 0 16px !important; gap: 8px !important; }
     #adminControlBar .sh-burger { display: flex !important; }

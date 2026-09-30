@@ -427,16 +427,19 @@ header .navbar {
    .toggle(true) on every nav <li> for every visible CMS section on every page load, which
    sets an inline style="display:list-item" — inline styles beat any stylesheet rule regardless
    of specificity, so a plain display:none here would silently never apply. */
-@media (min-width: 992px) and (max-width: 1899px) {
+/* Newsletter joined this tier (2026-09-30) — the nav went from 10 to 11 always-shown-here links,
+   so the old 1899px cutoff (measured against 10) re-overlapped the logo from 1900-1950px.
+   Re-measured with 11: clear from 2000px. */
+@media (min-width: 992px) and (max-width: 1999px) {
   .tm-navlinks li.tm-nav-low { display: none !important; }
 }
 @media (min-width: 992px) and (max-width: 1399px) {
   .tm-navlinks li.tm-nav-lower { display: none !important; }
 }
-/* tm-nav-lowest: Accolades. With it, all eleven links only clear the centred logo from ~2050px
-   (measured: they overlapped it by 38px at 1900px), so it joins the desktop bar from 2100px; the
-   mobile menu always lists it. */
-@media (min-width: 992px) and (max-width: 2099px) {
+/* tm-nav-lowest: Accolades. Was "all eleven links… from ~2050px" — now twelve (Newsletter added
+   above), which re-overlapped from 2100-2200px at the old 2099px cutoff. Re-measured with twelve:
+   clear from 2250px. The mobile menu always lists it regardless of this breakpoint. */
+@media (min-width: 992px) and (max-width: 2249px) {
   .tm-navlinks li.tm-nav-lowest { display: none !important; }
 }
 /* A link to a section with nothing published yet (Accolades starts empty — it never shows demo
