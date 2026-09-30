@@ -37,8 +37,13 @@
 }
 
 .adm-hamburger-btn:hover {
+<<<<<<< Updated upstream
     color: var(--atl-amber);
     background: color-mix(in srgb, var(--atl-amber) 10%, transparent);
+=======
+    color: #D4AF37;
+    background: rgba(212, 175, 55, 0.1);
+>>>>>>> Stashed changes
 }
 
 /* Mobile search trigger — desktop hidden, mobile shown via @media */
@@ -56,7 +61,11 @@
     display: flex;
     height: 100vh;          /* exact viewport height — content area scrolls, not the page */
     overflow: hidden;
+<<<<<<< Updated upstream
     background-color: var(--atl-paper);
+=======
+    background-color: var(--bg-page);
+>>>>>>> Stashed changes
     position: relative;
 }
 
@@ -67,8 +76,13 @@
     left: 0;
     bottom: 0;
     width: var(--sidebar-width-collapsed);
+<<<<<<< Updated upstream
     background-color: var(--atl-sidebar-bg);
     border-right: 1px solid var(--atl-line-strong);
+=======
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--sidebar-border);
+>>>>>>> Stashed changes
     transition: width 0.3s ease, transform 0.3s ease;
     z-index: 1040;
     display: flex;
@@ -90,7 +104,11 @@
     display: flex;
     align-items: center;
     padding: 0 16px;
+<<<<<<< Updated upstream
     border-bottom: 1px solid var(--atl-line-strong);
+=======
+    border-bottom: 1px solid var(--sidebar-border);
+>>>>>>> Stashed changes
     flex-shrink: 0;
     position: relative;
     white-space: nowrap;
@@ -115,7 +133,11 @@
 }
 
 .tm-admin-sidebar-brand {
+<<<<<<< Updated upstream
     color: var(--atl-ink);
+=======
+    color: #fff;
+>>>>>>> Stashed changes
     font-size: 1.2rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -136,7 +158,11 @@
 .tm-admin-sidebar-toggle {
     background: transparent;
     border: none;
+<<<<<<< Updated upstream
     color: var(--atl-muted);
+=======
+    color: #999;
+>>>>>>> Stashed changes
     font-size: 20px;
     cursor: pointer;
     margin-left: auto;
@@ -153,7 +179,11 @@
 }
 
 .tm-admin-sidebar-toggle:hover {
+<<<<<<< Updated upstream
     color: var(--atl-amber);
+=======
+    color: var(--y-base);
+>>>>>>> Stashed changes
 }
 
 /* Scroll Area */
@@ -168,7 +198,11 @@
     width: 5px;
 }
 .tm-admin-sidebar-scroll::-webkit-scrollbar-thumb {
+<<<<<<< Updated upstream
     background-color: var(--atl-line-strong);
+=======
+    background-color: var(--sidebar-border);
+>>>>>>> Stashed changes
     border-radius: 5px;
 }
 
@@ -189,7 +223,11 @@
 .tm-admin-sidebar .nav.admin-sidebar > li > a {
     display: flex;
     align-items: center;
+<<<<<<< Updated upstream
     color: var(--atl-muted);
+=======
+    color: #a0a0a0;
+>>>>>>> Stashed changes
     padding: 12px 14px;
     border-radius: var(--r-md);
     white-space: nowrap;
@@ -240,6 +278,7 @@
 
 /* Hover & Active States */
 .tm-admin-sidebar .nav.admin-sidebar > li > a:hover {
+<<<<<<< Updated upstream
     background-color: color-mix(in srgb, var(--atl-ink) 6%, transparent);
     color: var(--atl-ink);
 }
@@ -247,11 +286,24 @@
 .tm-admin-sidebar .nav.admin-sidebar > li.active > a {
     background-color: var(--atl-amber);
     color: var(--atl-on-amber) !important;
+=======
+    background-color: var(--sidebar-hover);
+    color: #fff;
+}
+
+.tm-admin-sidebar .nav.admin-sidebar > li.active > a {
+    background-color: var(--y-base);
+    color: var(--bg-page) !important;
+>>>>>>> Stashed changes
     font-weight: 600;
 }
 
 .tm-admin-sidebar .nav.admin-sidebar > li.active > a > i {
+<<<<<<< Updated upstream
     color: var(--atl-on-amber) !important;
+=======
+    color: var(--bg-page) !important;
+>>>>>>> Stashed changes
     opacity: 1;
 }
 
@@ -259,7 +311,11 @@
 .tm-sidebar-group-title {
     padding: 20px 0 10px 0;
     margin: 0 15px;
+<<<<<<< Updated upstream
     border-bottom: 1px solid var(--atl-line-strong);
+=======
+    border-bottom: 1px solid var(--sidebar-border);
+>>>>>>> Stashed changes
     margin-bottom: 5px;
     white-space: nowrap;
     overflow: hidden;
@@ -268,7 +324,11 @@
 .tm-sidebar-group-title span {
     font-size: 11px;
     text-transform: uppercase;
+<<<<<<< Updated upstream
     color: var(--atl-muted-dim);
+=======
+    color: #666;
+>>>>>>> Stashed changes
     letter-spacing: 1px;
     font-weight: 600;
     opacity: 0;
@@ -286,7 +346,11 @@
 .tm-admin-sidebar-footer {
     margin-top: auto;
     padding: 10px 0;
+<<<<<<< Updated upstream
     border-top: 1px solid var(--atl-line-strong);
+=======
+    border-top: 1px solid var(--sidebar-border);
+>>>>>>> Stashed changes
     flex-shrink: 0;
 }
 
@@ -305,6 +369,7 @@
 }
 
 .tm-admin-sidebar-footer .nav.admin-sidebar > li > a:hover {
+<<<<<<< Updated upstream
     background: color-mix(in srgb, var(--atl-ink) 6%, transparent);
     color: var(--atl-amber);
 }
@@ -312,6 +377,15 @@
 .tm-admin-sidebar-footer .nav.admin-sidebar > li > a.logout-action:hover {
     color: var(--atl-clay);
     background: color-mix(in srgb, var(--atl-clay) 10%, transparent);
+=======
+    background: var(--bg-elevated);
+    color: var(--y-base);
+}
+
+.tm-admin-sidebar-footer .nav.admin-sidebar > li > a.logout-action:hover {
+    color: #ff5252;
+    background: rgba(255, 82, 82, 0.1);
+>>>>>>> Stashed changes
 }
 
 @media (min-width: 769px) {
@@ -379,7 +453,11 @@
         visibility: visible !important;
         transform: translateX(0);
         box-shadow: 15px 0 50px rgba(0,0,0,0.9) !important;
+<<<<<<< Updated upstream
         background: var(--atl-sidebar-bg) !important;
+=======
+        background: var(--bg-page) !important;
+>>>>>>> Stashed changes
     }
 
     /* Force text visibility on mobile open sidebar regardless of collapsed class */
@@ -450,7 +528,11 @@
 
 /* ==============================================
    ADMIN CONTROL BAR — .adm-header module
+<<<<<<< Updated upstream
    Golden Orange: var(--atl-amber) | Dark: #111, var(--bg-surface)
+=======
+   Golden Orange: #D4AF37 | Dark: #111, var(--bg-surface)
+>>>>>>> Stashed changes
    ============================================== */
 
 /* ---- Shell ---- */
@@ -458,10 +540,17 @@
     position: sticky;
     top: 0;
     z-index: 1040;
+<<<<<<< Updated upstream
     background: color-mix(in srgb, var(--atl-topbar-bg) 92%, transparent);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
     border-bottom: 1px solid color-mix(in srgb, var(--atl-amber) 18%, transparent);
+=======
+    background: rgba(17, 17, 17, 0.92);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border-bottom: 1px solid rgba(212, 175, 55, 0.18);
+>>>>>>> Stashed changes
     box-shadow: 0 2px 20px rgba(0, 0, 0, 0.45);
     margin-bottom: 22px;
     border-radius: 12px;
@@ -492,7 +581,11 @@
     align-items: center;
     gap: 6px;
     font-size: 13px;
+<<<<<<< Updated upstream
     color: var(--atl-muted);
+=======
+    color: #888;
+>>>>>>> Stashed changes
     white-space: nowrap;
 }
 
@@ -500,13 +593,22 @@
     display: flex;
     align-items: center;
     gap: 6px;
+<<<<<<< Updated upstream
     color: var(--atl-amber);
+=======
+    color: #D4AF37;
+>>>>>>> Stashed changes
     font-weight: 600;
     font-size: 13px;
 }
 .adm-breadcrumb__root i { font-size: 14px; }
+<<<<<<< Updated upstream
 .adm-breadcrumb__sep { color: var(--atl-muted-dim); font-size: 12px; }
 .adm-breadcrumb__current { color: var(--atl-ink-dim); font-size: 13px; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+=======
+.adm-breadcrumb__sep { color: #444; font-size: 12px; }
+.adm-breadcrumb__current { color: #ccc; font-size: 13px; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
+>>>>>>> Stashed changes
 
 /* ---- Centre: Search ---- */
 .adm-header__centre { flex: 1; max-width: 480px; margin: 0 auto; }
@@ -518,7 +620,11 @@
     left: 12px;
     top: 50%;
     transform: translateY(-50%);
+<<<<<<< Updated upstream
     color: var(--atl-placeholder);
+=======
+    color: #555;
+>>>>>>> Stashed changes
     font-size: 13px;
     pointer-events: none;
     transition: color 0.2s;
@@ -539,19 +645,32 @@
 }
 .adm-search__input::placeholder { color: var(--atl-placeholder, #555555); }
 .adm-search__input:hover { background: var(--atl-input-bg, #0f0f0f); }
+<<<<<<< Updated upstream
 .adm-search__input:focus { border-color: var(--atl-amber); box-shadow: 0 0 0 2px var(--atl-focus-ring, rgba(212,175,55,0.22)); }
 .adm-search:focus-within .adm-search__icon { color: var(--atl-amber); }
+=======
+.adm-search__input:focus { border-color: var(--atl-amber, #D4AF37); box-shadow: 0 0 0 2px var(--atl-focus-ring, rgba(212,175,55,0.22)); }
+.adm-search:focus-within .adm-search__icon { color: var(--atl-amber, #D4AF37); }
+>>>>>>> Stashed changes
 
 .adm-search__shortcut {
     position: absolute;
     right: 10px;
     top: 50%;
     transform: translateY(-50%);
+<<<<<<< Updated upstream
     background: var(--atl-surface2);
     border: 1px solid var(--atl-line-strong);
     border-radius: 4px;
     font-size: 10px;
     color: var(--atl-muted-dim);
+=======
+    background: #2a2a2a;
+    border: 1px solid #333;
+    border-radius: 4px;
+    font-size: 10px;
+    color: #666;
+>>>>>>> Stashed changes
     padding: 1px 5px;
     font-family: inherit;
     pointer-events: none;
@@ -574,7 +693,11 @@
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--atl-line-strong, #333) transparent;
+<<<<<<< Updated upstream
     z-index: var(--atl-z-dropdown, 2000);
+=======
+    z-index: 2000;
+>>>>>>> Stashed changes
     animation: admFadeIn 0.15s ease;
 }
 .adm-search__results::-webkit-scrollbar { width: 3px; }
@@ -600,12 +723,20 @@
     width: 100%; text-align: left; color: var(--atl-ink-dim, #ccc); font-size: 13px;
 }
 .adm-search__result:hover, .adm-search__result:focus { background: var(--atl-amber-dim, rgba(212,175,55,0.09)); color: var(--atl-ink, #fff); outline: none; }
+<<<<<<< Updated upstream
 .adm-search__result i { width: 28px; height: 28px; border-radius: 7px; background: var(--atl-amber-dim, rgba(212,175,55,0.12)); color: var(--atl-amber); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+=======
+.adm-search__result i { width: 28px; height: 28px; border-radius: 7px; background: var(--atl-amber-dim, rgba(212,175,55,0.12)); color: var(--atl-amber, #D4AF37); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+>>>>>>> Stashed changes
 .adm-search__result-main { min-width: 0; flex: 1; }
 .adm-search__result-title { font-size: 13px; color: var(--atl-ink, #ddd); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .adm-search__result-sub { font-size: 11px; color: var(--atl-muted, #666); }
 .adm-search__result-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: var(--atl-r-pill, 20px); flex-shrink: 0; }
+<<<<<<< Updated upstream
 .adm-search__result-badge--inquiry { background: var(--atl-amber-dim, rgba(212,175,55,0.15)); color: var(--atl-amber); }
+=======
+.adm-search__result-badge--inquiry { background: var(--atl-amber-dim, rgba(212,175,55,0.15)); color: var(--atl-amber, #D4AF37); }
+>>>>>>> Stashed changes
 .adm-search__result-badge--booking { background: rgba(var(--atl-sage-rgb, 76,175,80), 0.15); color: var(--atl-sage, #66BB6A); }
 .adm-search__result-badge--event   { background: rgba(var(--atl-blue-rgb, 33,150,243), 0.15); color: var(--atl-blue, #64B5F6); }
 .adm-search__empty { padding: 24px 16px; text-align: center; color: var(--atl-muted, #555); font-size: 13px; }
@@ -617,7 +748,11 @@
 /* ---- Dropdown shell ---- */
 .adm-dropdown { position: relative; }
 
+<<<<<<< Updated upstream
 .adm-dropdown__menu { position: absolute; top: calc(100% + 8px); right: 0; background: var(--atl-surface2); border: 1px solid var(--atl-line-strong); border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.7); min-width: 220px; overflow: hidden; display: none; z-index: var(--atl-z-dropdown, 2000); animation: admFadeIn 0.15s ease; }
+=======
+.adm-dropdown__menu { position: absolute; top: calc(100% + 8px); right: 0; background: #141414; border: 1px solid #2a2a2a; border-radius: 12px; box-shadow: 0 16px 48px rgba(0,0,0,0.7); min-width: 220px; overflow: hidden; display: none; z-index: 2000; animation: admFadeIn 0.15s ease; }
+>>>>>>> Stashed changes
 .adm-dropdown__menu.open   { display: block; }
 
 /* ── Unified profile panel ── */
@@ -631,10 +766,17 @@
     left: auto;
     border-radius: 14px;
     scrollbar-width: thin;
+<<<<<<< Updated upstream
     scrollbar-color: var(--atl-line-strong) transparent;
 }
 .adm-dropdown__menu--unified::-webkit-scrollbar { width: 3px; }
 .adm-dropdown__menu--unified::-webkit-scrollbar-thumb { background: var(--atl-line-strong); border-radius: 3px; }
+=======
+    scrollbar-color: #2a2a2a transparent;
+}
+.adm-dropdown__menu--unified::-webkit-scrollbar { width: 3px; }
+.adm-dropdown__menu--unified::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+>>>>>>> Stashed changes
 
 /* ── Section label (like a group heading) ── */
 .adm-dropdown__section-label {
@@ -646,23 +788,38 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.9px;
+<<<<<<< Updated upstream
     color: var(--atl-muted-dim);
     pointer-events: none;
     user-select: none;
 }
 .adm-dropdown__section-label > i { font-size: 10px; color: var(--atl-amber); opacity: 0.7; }
+=======
+    color: #444;
+    pointer-events: none;
+    user-select: none;
+}
+.adm-dropdown__section-label > i { font-size: 10px; color: #D4AF37; opacity: 0.7; }
+>>>>>>> Stashed changes
 
 /* ── Badge positioned on the profile trigger button ── */
 .adm-profile-btn { position: relative; }
 
+<<<<<<< Updated upstream
 .adm-dropdown__header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 8px; font-size: 11px; font-weight: 700; color: var(--atl-muted-dim); text-transform: uppercase; letter-spacing: 0.7px; border-bottom: 1px solid var(--atl-line); gap: 8px; }
 .adm-dropdown__header > span { display: flex; align-items: center; gap: 6px; }
 .adm-dropdown__header > span > i { color: var(--atl-amber); font-size: 11px; }
+=======
+.adm-dropdown__header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 8px; font-size: 11px; font-weight: 700; color: #666; text-transform: uppercase; letter-spacing: 0.7px; border-bottom: 1px solid #1e1e1e; gap: 8px; }
+.adm-dropdown__header > span { display: flex; align-items: center; gap: 6px; }
+.adm-dropdown__header > span > i { color: #D4AF37; font-size: 11px; }
+>>>>>>> Stashed changes
 
 
 .adm-dropdown__item {
     display: flex; align-items: center; gap: 12px; padding: 10px 16px;
     cursor: pointer; transition: background 0.12s; border: none; background: transparent;
+<<<<<<< Updated upstream
     width: 100%; text-align: left; color: var(--atl-ink-dim); font-size: 13px; text-decoration: none;
 }
 .adm-dropdown__item:hover, .adm-dropdown__item:focus { background: color-mix(in srgb, var(--atl-amber) 8%, transparent); color: var(--atl-ink); outline: none; text-decoration: none; }
@@ -673,16 +830,37 @@
 .adm-dropdown__item-title { font-size: 13px; color: inherit; display: block; line-height: 1.2; }
 .adm-dropdown__item-sub { font-size: 11px; color: var(--atl-muted-dim); display: block; margin-top: 1px; }
 .adm-dropdown__divider { height: 1px; background: var(--atl-line); margin: 4px 0; }
+=======
+    width: 100%; text-align: left; color: #ccc; font-size: 13px; text-decoration: none;
+}
+.adm-dropdown__item:hover, .adm-dropdown__item:focus { background: rgba(212,175,55,0.08); color: #fff; outline: none; text-decoration: none; }
+.adm-dropdown__item > i { width: 30px; height: 30px; border-radius: 8px; background: rgba(212,175,55,0.1); color: #D4AF37; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.adm-dropdown__item--danger:hover  { background: rgba(244,67,54,0.1); color: #ef5350; }
+.adm-dropdown__item--danger:hover > i { background: rgba(244,67,54,0.15); color: #ef5350; }
+.adm-dropdown__item--danger > i { color: #888; background: rgba(255,255,255,0.05); }
+.adm-dropdown__item-title { font-size: 13px; color: inherit; display: block; line-height: 1.2; }
+.adm-dropdown__item-sub { font-size: 11px; color: #666; display: block; margin-top: 1px; }
+.adm-dropdown__divider { height: 1px; background: #1e1e1e; margin: 4px 0; }
+>>>>>>> Stashed changes
 
 /* ---- Create button ---- */
 .adm-create-btn {
     display: flex; align-items: center; gap: 7px;
+<<<<<<< Updated upstream
     background: linear-gradient(135deg, var(--atl-amber) 0%, var(--atl-amber-dark) 100%);
     color: var(--atl-on-amber); border: none; border-radius: 9px; padding: 8px 14px;
     font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
 }
 .adm-create-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px color-mix(in srgb, var(--atl-amber) 40%, transparent); }
 .adm-create-btn:focus { outline: 2px solid var(--atl-amber); outline-offset: 2px; }
+=======
+    background: linear-gradient(135deg, #D4AF37 0%, #c0991f 100%);
+    color: #111; border: none; border-radius: 9px; padding: 8px 14px;
+    font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s ease; white-space: nowrap;
+}
+.adm-create-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(212,175,55,0.4); }
+.adm-create-btn:focus { outline: 2px solid #D4AF37; outline-offset: 2px; }
+>>>>>>> Stashed changes
 
 .adm-caret { font-size: 9px; transition: transform 0.2s ease; }
 [aria-expanded="true"] .adm-caret { transform: rotate(180deg); }
@@ -690,6 +868,7 @@
 /* ---- Icon button ---- */
 .adm-icon-btn {
     position: relative; display: flex; align-items: center; justify-content: center;
+<<<<<<< Updated upstream
     width: 36px; height: 36px; background: color-mix(in srgb, var(--atl-ink) 4%, transparent);
     border: 1px solid var(--atl-line-strong); border-radius: 9px; color: var(--atl-muted);
     cursor: pointer; transition: all 0.15s ease; font-size: 15px; padding: 0; flex-shrink: 0;
@@ -697,14 +876,30 @@
 .adm-icon-btn:hover { background: color-mix(in srgb, var(--atl-ink) 8%, transparent); color: var(--atl-ink); border-color: var(--atl-muted-dim); }
 .adm-icon-btn:focus { outline: 2px solid var(--atl-amber); outline-offset: 2px; }
 .adm-icon-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--atl-amber) 12%, transparent); color: var(--atl-amber); border-color: color-mix(in srgb, var(--atl-amber) 30%, transparent); }
+=======
+    width: 36px; height: 36px; background: rgba(255,255,255,0.04);
+    border: 1px solid #2a2a2a; border-radius: 9px; color: #888;
+    cursor: pointer; transition: all 0.15s ease; font-size: 15px; padding: 0; flex-shrink: 0;
+}
+.adm-icon-btn:hover { background: rgba(255,255,255,0.08); color: #fff; border-color: #444; }
+.adm-icon-btn:focus { outline: 2px solid var(--atl-focus, #D4AF37); outline-offset: 2px; }
+.adm-icon-btn[aria-expanded="true"] { background: var(--atl-amber-dim, rgba(212,175,55,0.12)); color: var(--atl-amber, #D4AF37); border-color: var(--atl-amber-border, rgba(212,175,55,0.3)); }
+>>>>>>> Stashed changes
 
 /* ---- Badge ---- */
 .adm-badge {
     position: absolute; top: 4px; right: 4px;
+<<<<<<< Updated upstream
     background: var(--atl-amber); color: var(--atl-on-amber); border-radius: 20px;
     font-size: 9px; font-weight: 800; min-width: 16px; height: 16px;
     display: flex; align-items: center; justify-content: center;
     padding: 0 4px; border: 2px solid var(--atl-topbar-bg);
+=======
+    background: var(--atl-amber, #D4AF37); color: var(--atl-on-amber, #111); border-radius: var(--atl-r-pill, 20px);
+    font-size: 9px; font-weight: 800; min-width: 16px; height: 16px;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 4px; border: 2px solid var(--atl-paper, #111);
+>>>>>>> Stashed changes
     animation: admBadgePulse 2s ease-in-out infinite;
 }
 @keyframes admBadgePulse {
@@ -713,16 +908,26 @@
 }
 
 /* ---- Notifications list ---- */
+<<<<<<< Updated upstream
 .adm-noti-list { max-height: 280px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--atl-line-strong) transparent; }
 .adm-noti-list::-webkit-scrollbar { width: 3px; }
 .adm-noti-list::-webkit-scrollbar-thumb { background: var(--atl-line-strong); border-radius: 3px; }
+=======
+.adm-noti-list { max-height: 280px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #333 transparent; }
+.adm-noti-list::-webkit-scrollbar { width: 3px; }
+.adm-noti-list::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+>>>>>>> Stashed changes
 
 .adm-noti-item {
     display: flex !important;
     gap: 10px;
     align-items: flex-start;
     padding: 10px 16px !important;
+<<<<<<< Updated upstream
     border-bottom: 1px solid var(--atl-line-strong);
+=======
+    border-bottom: 1px solid #2a2a2a;
+>>>>>>> Stashed changes
     border-left: none;
     border-right: none;
     border-top: none;
@@ -732,7 +937,11 @@
     width: 100%;
     text-align: left;
     background: transparent !important;
+<<<<<<< Updated upstream
     color: var(--atl-ink-dim) !important;
+=======
+    color: #ccc !important;
+>>>>>>> Stashed changes
     outline: none;
     border-radius: 0;
     font-family: inherit;
@@ -740,6 +949,7 @@
     -webkit-appearance: none;
     appearance: none;
 }
+<<<<<<< Updated upstream
 .adm-noti-item:hover { background: color-mix(in srgb, var(--atl-amber) 9%, transparent) !important; color: var(--atl-ink) !important; }
 .adm-noti-item:focus { background: color-mix(in srgb, var(--atl-amber) 6%, transparent) !important; outline: none; }
 .adm-noti-item:last-child { border-bottom: none; }
@@ -756,10 +966,29 @@
 .adm-noti-empty { display: flex; flex-direction: column; align-items: center; padding: 28px 16px; color: var(--atl-muted-dim); gap: 10px; }
 .adm-noti-empty i { font-size: 28px; color: var(--atl-line-strong); }
 .adm-noti-empty p { font-size: 13px; color: var(--atl-placeholder); margin: 0; }
+=======
+.adm-noti-item:hover { background: rgba(212,175,55,0.09) !important; color: #fff !important; }
+.adm-noti-item:focus { background: rgba(212,175,55,0.06) !important; outline: none; }
+.adm-noti-item:last-child { border-bottom: none; }
+
+.adm-noti-item__icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+.adm-noti-item__icon--inquiry { background: rgba(212,175,55,0.15); color: #D4AF37 !important; }
+.adm-noti-item__icon--booking { background: rgba(76,175,80,0.15); color: #66BB6A !important; }
+.adm-noti-item__icon--event   { background: rgba(33,150,243,0.15); color: #64B5F6 !important; }
+.adm-noti-item__body { flex: 1; min-width: 0; }
+.adm-noti-item__title { font-size: 13px; color: #e0e0e0 !important; white-space: normal; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4; margin-bottom: 2px; }
+.adm-noti-item__meta  { font-size: 11px; color: #888 !important; display: block; }
+.adm-noti-item__dot   { width: 7px; height: 7px; border-radius: 50%; background: #D4AF37; margin-top: 6px; flex-shrink: 0; }
+
+.adm-noti-empty { display: flex; flex-direction: column; align-items: center; padding: 28px 16px; color: #444; gap: 10px; }
+.adm-noti-empty i { font-size: 28px; color: #2a2a2a; }
+.adm-noti-empty p { font-size: 13px; color: #555; margin: 0; }
+>>>>>>> Stashed changes
 
 /* ---- Profile button ---- */
 .adm-profile-btn {
     display: flex; align-items: center; gap: 8px;
+<<<<<<< Updated upstream
     background: color-mix(in srgb, var(--atl-ink) 4%, transparent); border: 1px solid var(--atl-line-strong);
     border-radius: 9px; padding: 5px 10px 5px 6px; cursor: pointer; transition: all 0.15s ease;
 }
@@ -779,6 +1008,27 @@
 .adm-profile-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: color-mix(in srgb, var(--atl-amber) 6%, transparent); }
 .adm-profile-card__name { font-size: 14px; font-weight: 700; color: var(--atl-ink); }
 .adm-profile-card__role { font-size: 11px; color: var(--atl-amber); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+=======
+    background: rgba(255,255,255,0.04); border: 1px solid #2a2a2a;
+    border-radius: 9px; padding: 5px 10px 5px 6px; cursor: pointer; transition: all 0.15s ease;
+}
+.adm-profile-btn:hover { background: rgba(255,255,255,0.08); border-color: #3a3a3a; }
+.adm-profile-btn:focus { outline: 2px solid #D4AF37; outline-offset: 2px; }
+.adm-profile-btn[aria-expanded="true"] { border-color: rgba(212,175,55,0.3); }
+
+.adm-avatar {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: linear-gradient(135deg, #D4AF37 0%, #b8962e 100%);
+    color: #111; font-size: 11px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.adm-avatar--lg { width: 40px; height: 40px; font-size: 16px; }
+.adm-profile-name { font-size: 13px; font-weight: 600; color: #ccc; white-space: nowrap; }
+
+.adm-profile-card { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: rgba(212,175,55,0.06); }
+.adm-profile-card__name { font-size: 14px; font-weight: 700; color: #fff; }
+.adm-profile-card__role { font-size: 11px; color: #D4AF37; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+>>>>>>> Stashed changes
 
 /* ---- Animation ---- */
 @keyframes admFadeIn {
@@ -802,7 +1052,11 @@
         width: 100% !important;
         margin: 0 !important;
         border: none !important;
+<<<<<<< Updated upstream
         border-bottom: 1px solid var(--atl-line-strong) !important;
+=======
+        border-bottom: 1px solid rgba(255,255,255,0.06) !important;
+>>>>>>> Stashed changes
         box-shadow: 0 2px 16px rgba(0,0,0,0.4) !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
@@ -828,7 +1082,11 @@
         min-width: 44px !important;
         flex-shrink: 0 !important;
         font-size: 18px !important;
+<<<<<<< Updated upstream
         color: var(--atl-ink-dim) !important;
+=======
+        color: #aaa !important;
+>>>>>>> Stashed changes
         background: none !important;
         border: none !important;
         border-radius: 8px !important;
@@ -839,8 +1097,13 @@
     }
     .adm-hamburger-btn:hover,
     .adm-hamburger-btn:focus-visible {
+<<<<<<< Updated upstream
         color: var(--atl-amber) !important;
         background: color-mix(in srgb, var(--atl-amber) 10%, transparent) !important;
+=======
+        color: #D4AF37 !important;
+        background: rgba(212,175,55,0.1) !important;
+>>>>>>> Stashed changes
     }
 
     /* ── Logo: fills available space ── */
@@ -939,8 +1202,13 @@
         overflow: hidden;
         transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease;
         opacity: 0;
+<<<<<<< Updated upstream
         background: var(--atl-topbar-bg);
         border-bottom: 1px solid var(--atl-line-strong);
+=======
+        background: var(--bg-header, #0f0f0f);
+        border-bottom: 1px solid rgba(255,255,255,0.07);
+>>>>>>> Stashed changes
         position: sticky;
         top: 56px;
         z-index: 299;
@@ -961,9 +1229,15 @@
         height: 42px;
         border-radius: 10px;
         width: 100%;
+<<<<<<< Updated upstream
         border: 1px solid var(--atl-line-strong);
         background: var(--atl-input-bg);
         color: var(--atl-ink);
+=======
+        border: 1px solid rgba(255,255,255,0.1);
+        background: rgba(255,255,255,0.06);
+        color: #fff;
+>>>>>>> Stashed changes
     }
     .adm-mobile-search-close {
         position: absolute;
@@ -972,7 +1246,11 @@
         transform: translateY(-50%);
         background: none;
         border: none;
+<<<<<<< Updated upstream
         color: var(--atl-muted);
+=======
+        color: #888;
+>>>>>>> Stashed changes
         font-size: 16px;
         cursor: pointer;
         width: 32px;
@@ -982,7 +1260,11 @@
         justify-content: center;
         border-radius: 6px;
     }
+<<<<<<< Updated upstream
     .adm-mobile-search-close:hover { color: var(--atl-amber); }
+=======
+    .adm-mobile-search-close:hover { color: #D4AF37; }
+>>>>>>> Stashed changes
 
     /* ── Bottom sheet: unified profile panel ── */
     #admProfileMenu {
@@ -1000,16 +1282,27 @@
         transform: translateY(105%) !important;
         transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1), visibility 0s linear 0.4s;
         border-radius: 24px 24px 0 0 !important;
+<<<<<<< Updated upstream
         border: 1px solid var(--atl-line-strong) !important;
+=======
+        border: 1px solid rgba(255,255,255,0.08) !important;
+>>>>>>> Stashed changes
         border-bottom: none !important;
         z-index: 20000 !important;
         display: block !important;
         visibility: hidden !important;
         pointer-events: none;
+<<<<<<< Updated upstream
         background: var(--atl-surface2) !important;
         box-shadow: 0 -15px 50px rgba(0,0,0,0.95) !important;
         padding-bottom: calc(20px + env(safe-area-inset-bottom));
         color: var(--atl-ink) !important;
+=======
+        background: #111 !important;
+        box-shadow: 0 -15px 50px rgba(0,0,0,0.95) !important;
+        padding-bottom: calc(20px + env(safe-area-inset-bottom));
+        color: #fff !important;
+>>>>>>> Stashed changes
         overflow-y: auto !important;
         overflow-x: hidden !important;
     }
@@ -1033,9 +1326,15 @@
         bottom: 0 !important;
         width: 100% !important;
         max-height: 100vh !important;
+<<<<<<< Updated upstream
         z-index: var(--atl-z-search, 5000) !important;
         border-radius: 0 !important;
         background: var(--atl-surface2) !important;
+=======
+        z-index: 5000 !important;
+        border-radius: 0 !important;
+        background: var(--bg-page) !important;
+>>>>>>> Stashed changes
     }
 }
 
@@ -1063,12 +1362,17 @@
 .um-header {
     display: flex; align-items: flex-start; justify-content: space-between;
     flex-wrap: wrap; gap: 12px; margin-bottom: 28px; padding-bottom: 20px;
+<<<<<<< Updated upstream
     border-bottom: 1px solid var(--atl-line-strong);
+=======
+    border-bottom: 1px solid var(--bg-elevated);
+>>>>>>> Stashed changes
 }
 
 /* Tab Bar */
 .um-tab-btn {
     display: flex; align-items: center; gap: 7px; padding: 9px 20px;
+<<<<<<< Updated upstream
     border: none; border-radius: 7px; background: transparent; color: var(--atl-muted);
     font-size: 13.5px; font-weight: 500; font-family: inherit; cursor: pointer;
     transition: all 0.18s ease; white-space: nowrap;
@@ -1077,6 +1381,16 @@
 .um-tab-btn.active {
     background: var(--atl-amber); color: var(--atl-on-amber); font-weight: 700;
     box-shadow: 0 2px 12px color-mix(in srgb, var(--atl-amber) 30%, transparent);
+=======
+    border: none; border-radius: 7px; background: transparent; color: #777;
+    font-size: 13.5px; font-weight: 500; font-family: inherit; cursor: pointer;
+    transition: all 0.18s ease; white-space: nowrap;
+}
+.um-tab-btn:hover { background: rgba(255,255,255,0.06); color: #ccc; }
+.um-tab-btn.active {
+    background: #D4AF37; color: #111; font-weight: 700;
+    box-shadow: 0 2px 12px rgba(212,175,55,0.3);
+>>>>>>> Stashed changes
 }
 .um-tab-btn i { font-size: 13px; }
 
@@ -1106,6 +1420,7 @@
 .um-profile-hero { display: flex; align-items: center; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }
 .um-avatar-xl {
     width: 72px; height: 72px; border-radius: 50%;
+<<<<<<< Updated upstream
     background: linear-gradient(135deg, var(--atl-amber), var(--atl-amber-dark));
     color: var(--atl-on-amber); font-size: 28px; font-weight: 800;
     display: flex; align-items: center; justify-content: center;
@@ -1121,20 +1436,44 @@
     padding: 3px 10px; border-radius: 20px; margin-bottom: 6px;
 }
 .um-profile-hero__since { display: block; font-size: 12px; color: var(--atl-placeholder); margin-top: 4px; }
+=======
+    background: linear-gradient(135deg, #D4AF37, #C09A1A);
+    color: #111; font-size: 28px; font-weight: 800;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; box-shadow: 0 4px 16px rgba(212,175,55,0.35);
+    border: 2px solid rgba(212,175,55,0.4); text-transform: uppercase;
+}
+.um-profile-hero__info { flex: 1; min-width: 0; }
+.um-profile-hero__name { font-size: 20px; font-weight: 700; color: var(--atl-ink, #fff); margin: 0 0 4px 0; }
+.um-profile-hero__role {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 12px; font-weight: 600; color: var(--atl-amber, #D4AF37);
+    background: var(--atl-amber-dim, rgba(212,175,55,0.1)); border: 1px solid var(--atl-amber-border, rgba(212,175,55,0.2));
+    padding: 3px 10px; border-radius: var(--atl-r-pill, 20px); margin-bottom: 6px;
+}
+.um-profile-hero__since { display: block; font-size: 12px; color: var(--atl-muted, #555); margin-top: 4px; }
+>>>>>>> Stashed changes
 
 /* Icon Header */
 .um-icon-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 4px; }
 .um-icon-header__icon {
     width: 44px; height: 44px; border-radius: 10px;
+<<<<<<< Updated upstream
     background: color-mix(in srgb, var(--atl-amber) 12%, transparent); border: 1px solid color-mix(in srgb, var(--atl-amber) 20%, transparent);
     display: flex; align-items: center; justify-content: center;
     color: var(--atl-amber); font-size: 18px; flex-shrink: 0;
+=======
+    background: rgba(212,175,55,0.12); border: 1px solid rgba(212,175,55,0.2);
+    display: flex; align-items: center; justify-content: center;
+    color: #D4AF37; font-size: 18px; flex-shrink: 0;
+>>>>>>> Stashed changes
 }
 
 /* Forms */
 .um-form { width: 100%; }
 .um-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 4px; }
 .um-field-group { display: flex; flex-direction: column; gap: 7px; margin-bottom: 16px; }
+<<<<<<< Updated upstream
 .um-label { font-size: 12.5px; font-weight: 600; color: var(--atl-ink-dim); text-transform: uppercase; letter-spacing: 0.5px; }
 
 .um-input-wrap { position: relative; display: flex; align-items: center; }
@@ -1148,24 +1487,51 @@
 .um-input::placeholder { color: var(--atl-muted-dim); }
 .um-input:focus { border-color: var(--atl-amber); box-shadow: 0 0 0 3px color-mix(in srgb, var(--atl-amber) 12%, transparent); }
 .um-input-wrap:focus-within .um-input-icon { color: var(--atl-amber); }
+=======
+.um-label { font-size: 12.5px; font-weight: 600; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px; }
+
+.um-input-wrap { position: relative; display: flex; align-items: center; }
+.um-input-icon { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: #555; font-size: 13px; pointer-events: none; z-index: 1; transition: color 0.18s; }
+.um-input {
+    width: 100%; background: #101010; border: 1px solid #2c2c2c; border-radius: 8px;
+    color: #e0e0e0; font-size: 14px; font-family: inherit;
+    padding: 11px 14px 11px 38px; outline: none;
+    transition: border-color 0.18s, box-shadow 0.18s; -webkit-appearance: none; appearance: none;
+}
+.um-input::placeholder { color: #444; }
+.um-input:focus { border-color: #D4AF37; box-shadow: 0 0 0 3px rgba(212,175,55,0.12); }
+.um-input-wrap:focus-within .um-input-icon { color: #D4AF37; }
+>>>>>>> Stashed changes
 .um-form select.um-input,
 .um-form textarea.um-input { padding-left: 14px; }
 
 .um-eye-btn {
     position: absolute; right: 12px; border: none; background: transparent;
+<<<<<<< Updated upstream
     color: var(--atl-placeholder); padding: 4px; cursor: pointer; display: flex; align-items: center;
     font-size: 14px; transition: color 0.15s;
 }
 .um-eye-btn:hover { color: var(--atl-amber); }
+=======
+    color: #555; padding: 4px; cursor: pointer; display: flex; align-items: center;
+    font-size: 14px; transition: color 0.15s;
+}
+.um-eye-btn:hover { color: #D4AF37; }
+>>>>>>> Stashed changes
 
 /* Password strength */
 .um-strength-wrap { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .um-strength-bar { display: flex; gap: 4px; flex: 1; max-width: 180px; }
+<<<<<<< Updated upstream
 .um-strength-seg { flex: 1; height: 4px; border-radius: 2px; background: var(--atl-line-strong); transition: background 0.25s; }
+=======
+.um-strength-seg { flex: 1; height: 4px; border-radius: 2px; background: #2a2a2a; transition: background 0.25s; }
+>>>>>>> Stashed changes
 .um-strength-seg.s-weak   { background: #e53935; }
 .um-strength-seg.s-fair   { background: #FB8C00; }
 .um-strength-seg.s-good   { background: #FDD835; }
 .um-strength-seg.s-strong { background: #43A047; }
+<<<<<<< Updated upstream
 .um-strength-label { font-size: 11px; color: var(--atl-muted-dim); white-space: nowrap; }
 
 .um-match-hint { font-size: 11.5px; margin-top: 4px; display: block; }
@@ -1179,6 +1545,21 @@
     color: var(--atl-muted); font-size: 12.5px;
 }
 .um-security-tips > i { color: var(--atl-amber); margin-top: 1px; flex-shrink: 0; }
+=======
+.um-strength-label { font-size: 11px; color: #666; white-space: nowrap; }
+
+.um-match-hint { font-size: 11.5px; margin-top: 4px; display: block; }
+.um-match-hint.match { color: #66BB6A; }
+.um-match-hint.no-match { color: #ef5350; }
+
+.um-security-tips {
+    display: flex; align-items: flex-start; gap: 10px;
+    background: rgba(212,175,55,0.05); border: 1px solid rgba(212,175,55,0.12);
+    border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;
+    color: #888; font-size: 12.5px;
+}
+.um-security-tips > i { color: #D4AF37; margin-top: 1px; flex-shrink: 0; }
+>>>>>>> Stashed changes
 .um-security-tips ul { margin: 0; padding-left: 16px; line-height: 1.8; }
 .um-security-tips li { list-style: disc; }
 
@@ -1190,20 +1571,35 @@
     border-radius: 8px; font-size: 13.5px; font-weight: 600; font-family: inherit;
     cursor: pointer; border: 1px solid transparent; transition: all 0.18s ease; white-space: nowrap;
 }
+<<<<<<< Updated upstream
 .um-btn--primary { background: var(--atl-amber); color: var(--atl-on-amber); border-color: var(--atl-amber); box-shadow: 0 2px 8px color-mix(in srgb, var(--atl-amber) 25%, transparent); }
 .um-btn--primary:hover { background: var(--atl-amber-hover); border-color: var(--atl-amber-hover); box-shadow: 0 4px 14px color-mix(in srgb, var(--atl-amber) 35%, transparent); transform: translateY(-1px); }
 .um-btn--ghost { background: transparent; color: var(--atl-ink-dim); border-color: var(--atl-line-strong); }
 .um-btn--ghost:hover { background: color-mix(in srgb, var(--atl-ink) 5%, transparent); color: var(--atl-ink); border-color: var(--atl-muted-dim); }
 .um-btn--danger { background: color-mix(in srgb, var(--atl-clay) 12%, transparent); color: var(--atl-clay); border-color: color-mix(in srgb, var(--atl-clay) 25%, transparent); }
 .um-btn--danger:hover { background: color-mix(in srgb, var(--atl-clay) 22%, transparent); border-color: color-mix(in srgb, var(--atl-clay) 50%, transparent); }
+=======
+.um-btn--primary { background: #D4AF37; color: #111; border-color: #D4AF37; box-shadow: 0 2px 8px rgba(212,175,55,0.25); }
+.um-btn--primary:hover { background: #C09A1A; border-color: #C09A1A; box-shadow: 0 4px 14px rgba(212,175,55,0.35); transform: translateY(-1px); }
+.um-btn--ghost { background: transparent; color: #aaa; border-color: #2c2c2c; }
+.um-btn--ghost:hover { background: rgba(255,255,255,0.05); color: #ccc; border-color: #444; }
+.um-btn--danger { background: rgba(239,83,80,0.12); color: #ef5350; border-color: rgba(239,83,80,0.25); }
+.um-btn--danger:hover { background: rgba(239,83,80,0.22); border-color: rgba(239,83,80,0.5); }
+>>>>>>> Stashed changes
 .um-btn--sm { padding: 6px 14px; font-size: 12px; }
 
 /* Feedback */
 .um-feedback { padding: 0; font-size: 13px; border-radius: 7px; transition: all 0.2s ease; overflow: hidden; max-height: 0; }
 .um-feedback.show { padding: 11px 14px; max-height: 80px; }
+<<<<<<< Updated upstream
 .um-feedback.success { background: color-mix(in srgb, var(--atl-sage) 14%, transparent); border: 1px solid color-mix(in srgb, var(--atl-sage) 30%, transparent); color: var(--atl-sage); }
 .um-feedback.error   { background: color-mix(in srgb, var(--atl-clay) 12%, transparent); border: 1px solid color-mix(in srgb, var(--atl-clay) 30%, transparent); color: var(--atl-clay); }
 .um-feedback.info    { background: color-mix(in srgb, var(--atl-amber) 10%, transparent);  border: 1px solid color-mix(in srgb, var(--atl-amber) 25%, transparent); color: var(--atl-amber); }
+=======
+.um-feedback.success { background: rgba(67,160,71,0.14); border: 1px solid rgba(67,160,71,0.3); color: #66BB6A; }
+.um-feedback.error   { background: rgba(239,83,80,0.12); border: 1px solid rgba(239,83,80,0.3); color: #ef5350; }
+.um-feedback.info    { background: rgba(212,175,55,0.1);  border: 1px solid rgba(212,175,55,0.25); color: #D4AF37; }
+>>>>>>> Stashed changes
 
 /* Manage Users Panel */
 .um-panel-toprow { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 4px; }
@@ -1211,24 +1607,40 @@
 /* Drawer */
 .um-drawer { overflow: hidden; max-height: 0; transition: max-height 0.35s ease, opacity 0.25s ease; opacity: 0; margin-bottom: 0; }
 .um-drawer.open { max-height: 600px; opacity: 1; margin-bottom: 20px; }
+<<<<<<< Updated upstream
 .um-drawer__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid color-mix(in srgb, var(--atl-amber) 12%, transparent); }
 .um-drawer__header h5 { color: var(--atl-amber); font-size: 14px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; }
 .um-drawer__close { border: none; background: transparent; color: var(--atl-muted-dim); cursor: pointer; font-size: 16px; padding: 4px; display: flex; align-items: center; transition: color 0.15s; }
 .um-drawer__close:hover { color: var(--atl-clay); }
+=======
+.um-drawer__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid rgba(212,175,55,0.12); }
+.um-drawer__header h5 { color: #D4AF37; font-size: 14px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px; }
+.um-drawer__close { border: none; background: transparent; color: #666; cursor: pointer; font-size: 16px; padding: 4px; display: flex; align-items: center; transition: color 0.15s; }
+.um-drawer__close:hover { color: #ef5350; }
+>>>>>>> Stashed changes
 
 /* Search */
 .um-search-wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
 .um-search-input-wrap { flex: 1; min-width: 200px; }
+<<<<<<< Updated upstream
 .um-user-count { font-size: 12px; color: var(--atl-placeholder); white-space: nowrap; }
 
 /* User Cards Grid */
 .um-user-card {
     background: var(--atl-card); border: 1px solid var(--atl-line-strong); border-radius: 10px; padding: 18px;
+=======
+.um-user-count { font-size: 12px; color: #555; white-space: nowrap; }
+
+/* User Cards Grid */
+.um-user-card {
+    background: #101010; border: 1px solid #202020; border-radius: 10px; padding: 18px;
+>>>>>>> Stashed changes
     transition: border-color 0.18s, transform 0.18s, box-shadow 0.18s;
     position: relative; overflow: hidden;
 }
 .um-user-card::before {
     content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+<<<<<<< Updated upstream
     background: linear-gradient(90deg, var(--atl-amber), var(--atl-amber-dark)); opacity: 0; transition: opacity 0.18s;
 }
 .um-user-card:hover { border-color: color-mix(in srgb, var(--atl-amber) 20%, transparent); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
@@ -1244,14 +1656,38 @@
 }
 .um-user-card__badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: color-mix(in srgb, var(--atl-amber) 10%, transparent); color: var(--atl-amber); border: 1px solid color-mix(in srgb, var(--atl-amber) 20%, transparent); text-transform: uppercase; letter-spacing: 0.5px; }
 .um-user-card__badge--you { background: color-mix(in srgb, var(--atl-sage) 12%, transparent); color: var(--atl-sage); border-color: color-mix(in srgb, var(--atl-sage) 25%, transparent); }
+=======
+    background: linear-gradient(90deg, #D4AF37, #C09A1A); opacity: 0; transition: opacity 0.18s;
+}
+.um-user-card:hover { border-color: rgba(212,175,55,0.2); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.um-user-card:hover::before { opacity: 1; }
+.um-avatar-sm {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: linear-gradient(135deg, #D4AF37, #C09A1A); color: #111;
+    font-size: 17px; font-weight: 800; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; text-transform: uppercase;
+    box-shadow: 0 2px 8px rgba(212,175,55,0.25);
+}
+@media (max-width: 360px) {
+}
+.um-user-card__badge { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: var(--atl-r-pill, 20px); background: var(--atl-amber-dim, rgba(212,175,55,0.1)); color: var(--atl-amber, #D4AF37); border: 1px solid var(--atl-amber-border, rgba(212,175,55,0.2)); text-transform: uppercase; letter-spacing: 0.5px; }
+.um-user-card__badge--you { background: rgba(var(--atl-sage-rgb, 67,160,71), 0.12); color: var(--atl-sage, #66BB6A); border-color: rgba(var(--atl-sage-rgb, 67,160,71), 0.25); }
+>>>>>>> Stashed changes
 .um-user-card__confirm.visible { display: flex; }
 
 .um-loading-state, .um-empty-state {
     grid-column: 1 / -1; text-align: center; padding: 48px 16px;
+<<<<<<< Updated upstream
     color: var(--atl-muted-dim); font-size: 14px; display: flex; flex-direction: column;
     align-items: center; gap: 12px;
 }
 .um-empty-state i { font-size: 40px; color: var(--atl-line-strong); }
+=======
+    color: #444; font-size: 14px; display: flex; flex-direction: column;
+    align-items: center; gap: 12px;
+}
+.um-empty-state i { font-size: 40px; color: #2a2a2a; }
+>>>>>>> Stashed changes
 
 /* Responsive */
 @media (max-width: 768px) {
@@ -1267,14 +1703,20 @@
 .pac-container {
     z-index: 9999 !important;
     border-radius: var(--r-md);
+<<<<<<< Updated upstream
     border: 1px solid var(--atl-line-strong);
     background-color: var(--atl-card);
+=======
+    border: 1px solid var(--border-default);
+    background-color: var(--bg-surface);
+>>>>>>> Stashed changes
     font-family: var(--f-body);
     box-shadow: var(--sh-lg);
     margin-top: 5px;
 }
 .pac-item {
     padding: 10px 14px;
+<<<<<<< Updated upstream
     border-top: 1px solid var(--atl-line);
     color: var(--atl-ink-dim);
     cursor: pointer;
@@ -1284,13 +1726,73 @@
 }
 .pac-item-query {
     color: var(--atl-ink);
+=======
+    border-top: 1px solid var(--border-low);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.pac-item:hover {
+    background-color: var(--bg-elevated);
+}
+.pac-item-query {
+    color: var(--text-primary);
+>>>>>>> Stashed changes
     font-size: 14px;
 }
 .pac-icon {
     display: none; /* Hide default icons for cleaner look */
 }
 .pac-matched {
+<<<<<<< Updated upstream
     color: var(--atl-amber);
+=======
+    color: var(--y-base);
+}
+
+/* ---------- CUSTOM VENUE AUTOCOMPLETE DROPDOWN ---------- */
+.venue-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 9999;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-default);
+    border-radius: 0 0 var(--r-md) var(--r-md);
+    box-shadow: var(--sh-lg);
+    max-height: 260px;
+    overflow-y: auto;
+    margin-top: 2px;
+}
+.vdd-item {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 14px;
+    cursor: pointer;
+    border-top: 1px solid var(--border-low);
+    transition: background var(--t);
+}
+.vdd-item:first-child { border-top: none; }
+.vdd-item:hover,
+.vdd-item.vdd-active {
+    background: var(--bg-elevated);
+}
+.vdd-main {
+    color: var(--text-primary);
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.vdd-sec {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+>>>>>>> Stashed changes
 }
 
 /* ---------- UPLOAD ZONE COMPONENT ---------- */
@@ -1314,7 +1816,11 @@
 
 .um-upload-zone--active {
     border-color: var(--atl-amber);
+<<<<<<< Updated upstream
     background: color-mix(in srgb, var(--atl-amber) 5%, transparent);
+=======
+    background: rgba(212, 175, 55, 0.05);
+>>>>>>> Stashed changes
 }
 
 .um-upload-icon {
@@ -1354,8 +1860,13 @@
    === BOOKING MODAL STEP 1 (SERVICE CARDS)
    ============================================================ */
 .bk-service-card {
+<<<<<<< Updated upstream
     background: var(--atl-card);
     border: 1px solid var(--atl-line-strong);
+=======
+    background: #151515;
+    border: 1px solid #2a2a2a;
+>>>>>>> Stashed changes
     border-radius: 10px;
     overflow: hidden;
     cursor: pointer;
@@ -1369,12 +1880,18 @@
     .bk-service-card { width: 100%; }
 }
 .bk-service-card:hover {
+<<<<<<< Updated upstream
     border-color: var(--atl-amber);
     background: var(--atl-card);
+=======
+    border-color: #D4AF37;
+    background: var(--bg-surface);
+>>>>>>> Stashed changes
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0,0,0,0.5);
 }
 .bk-service-card.selected {
+<<<<<<< Updated upstream
     border-color: var(--atl-amber);
     background: color-mix(in srgb, var(--atl-amber) 8%, transparent);
     box-shadow: 0 0 0 1px var(--atl-amber);
@@ -1386,6 +1903,19 @@
     background: var(--atl-amber);
     border-color: var(--atl-amber);
     color: var(--atl-on-amber);
+=======
+    border-color: #D4AF37;
+    background: rgba(212, 175, 55, 0.08);
+    box-shadow: 0 0 0 1px #D4AF37;
+}
+.bk-service-card.selected .bk-service-card-img {
+    color: rgba(212, 175, 55, 0.8);
+}
+.bk-service-card.selected .bk-service-card-check {
+    background: #D4AF37;
+    border-color: #D4AF37;
+    color: #111;
+>>>>>>> Stashed changes
 }
 .bk-service-card input[type="checkbox"] {
     display: none;
@@ -1395,9 +1925,15 @@
 .bk-sticky-total {
     position: sticky;
     bottom: -20px; /* Counter modal body padding if needed */
+<<<<<<< Updated upstream
     background: color-mix(in srgb, var(--atl-topbar-bg) 95%, transparent);
     backdrop-filter: blur(10px);
     border-top: 1px solid var(--atl-line-strong);
+=======
+    background: rgba(17, 17, 17, 0.95);
+    backdrop-filter: blur(10px);
+    border-top: 1px solid #333;
+>>>>>>> Stashed changes
     padding: 15px 20px;
     margin: 20px -20px -20px -20px;
     display: none;
@@ -1409,18 +1945,30 @@
 .bk-sticky-total-info p {
     margin: 0;
     font-size: 13px;
+<<<<<<< Updated upstream
     color: var(--atl-ink-dim);
+=======
+    color: #aaa;
+>>>>>>> Stashed changes
 }
 .bk-sticky-total-info .amount {
     font-size: 18px;
     font-weight: 700;
+<<<<<<< Updated upstream
     color: var(--atl-amber);
+=======
+    color: #D4AF37;
+>>>>>>> Stashed changes
     display: block;
     margin-bottom: 2px;
 }
 .bk-sticky-total-note {
     font-size: 10px;
+<<<<<<< Updated upstream
     color: var(--atl-muted-dim);
+=======
+    color: #666;
+>>>>>>> Stashed changes
     margin-top: 4px !important;
 }
 
@@ -1432,11 +1980,14 @@
 :root {
   --bk-new:       #60a5fa; --bk-new-tint:       rgba(96,165,250,0.12);
   --bk-pending:   #f59e0b; --bk-pending-tint:   rgba(245,158,11,0.12);
+<<<<<<< Updated upstream
   /* Kept as its own fixed hex, unlike the direct amber usages elsewhere this pass tokenised: this is
      one of a matched set of 9 status colours (--bk-new/pending/accepted/…) that are all deliberately
      theme-INDEPENDENT (a status pill looks the same regardless of Obsidian/Ivory) — making only this
      one theme-aware via var(--atl-amber) would make QUOTED the one status that shifts hue on Ivory
      while its 8 siblings don't, which is a real inconsistency, not a fix. */
+=======
+>>>>>>> Stashed changes
   --bk-quoted:    #D4AF37; --bk-quoted-tint:    rgba(212,175,55,0.12);
   --bk-accepted:  #4ade80; --bk-accepted-tint:  rgba(74,222,128,0.12);
   --bk-confirmed: #2dd4bf; --bk-confirmed-tint: rgba(45,212,191,0.12);
@@ -1466,8 +2017,13 @@
 
 /* ── Booking card ─────────────────────────────────────────────────────────── */
 .bkr-card {
+<<<<<<< Updated upstream
   background: var(--atl-card);
   border: 1px solid var(--atl-line);
+=======
+  background: var(--bg-surface);
+  border: 1px solid var(--border-low);
+>>>>>>> Stashed changes
   border-left: 3px solid transparent;
   border-radius: 12px;
   margin-bottom: 10px;
@@ -1476,7 +2032,11 @@
   animation-delay: calc(var(--i, 0) * 35ms);
   transition: box-shadow 0.2s, border-color 0.2s;
 }
+<<<<<<< Updated upstream
 .bkr-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.45); border-color: var(--atl-line-strong); }
+=======
+.bkr-card:hover { box-shadow: 0 4px 18px rgba(0,0,0,0.45); border-color: var(--border-default); }
+>>>>>>> Stashed changes
 /* Status left-border colours */
 
 /* ── Card header ─────────────────────────────────────────────────────────── */
@@ -1491,8 +2051,13 @@
   -webkit-tap-highlight-color: transparent;
   transition: background 0.15s;
 }
+<<<<<<< Updated upstream
 .bkr-card-hd:hover  { background: color-mix(in srgb, var(--atl-ink) 2.5%, transparent); }
 .bkr-card-hd:active { background: color-mix(in srgb, var(--atl-ink) 4.5%, transparent); }
+=======
+.bkr-card-hd:hover  { background: rgba(255,255,255,0.025); }
+.bkr-card-hd:active { background: rgba(255,255,255,0.045); }
+>>>>>>> Stashed changes
 .bkr-card-hd[aria-expanded="true"] .bkr-chevron,
 .bkr-card-hd.is-open .bkr-chevron { transform: rotate(180deg); }
 
@@ -1540,9 +2105,15 @@
 .bkr-venue-select {
   flex: 1;
   min-width: 160px;
+<<<<<<< Updated upstream
   background: var(--atl-card) !important;
   border: 1px solid var(--atl-line-strong) !important;
   color: var(--atl-ink) !important;
+=======
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--border-default) !important;
+  color: var(--text-primary) !important;
+>>>>>>> Stashed changes
   padding: 8px 10px !important;
   border-radius: 6px !important;
   font-size: 13px !important;
@@ -1551,8 +2122,13 @@
 }
 
 /* ── Promote toggle ──────────────────────────────────────────────────────── */
+<<<<<<< Updated upstream
 .bkr-promote-row:has(.promote-toggle:checked) { background:color-mix(in srgb, var(--atl-amber) 9%, transparent); border-color:color-mix(in srgb, var(--atl-amber) 30%, transparent); }
 .promote-toggle:checked + .custom-control-label::before { background-color:var(--atl-amber) !important; border-color:var(--atl-amber) !important; }
+=======
+.bkr-promote-row:has(.promote-toggle:checked) { background:rgba(212,175,55,0.09); border-color:rgba(212,175,55,0.3); }
+.promote-toggle:checked + .custom-control-label::before { background-color:var(--y-base) !important; border-color:var(--y-base) !important; }
+>>>>>>> Stashed changes
 
 /* ── Message & Quote panels ──────────────────────────────────────────────── */
 
@@ -1568,7 +2144,11 @@
   align-items: center;
   justify-content: flex-end;
   padding: 12px 0 16px;
+<<<<<<< Updated upstream
   border-top: 1px solid var(--atl-line);
+=======
+  border-top: 1px solid var(--border-low);
+>>>>>>> Stashed changes
   margin-top: 4px;
 }
 /* Primary tier — gold, for the single most important next action */
@@ -1580,8 +2160,13 @@
 .bkr-more-dropdown {
   position: fixed;
   z-index: 99999;
+<<<<<<< Updated upstream
   background: var(--atl-surface2);
   border: 1px solid var(--atl-line-strong);
+=======
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+>>>>>>> Stashed changes
   border-radius: 10px;
   padding: 6px 0;
   min-width: 195px;
@@ -1596,7 +2181,11 @@
   width: 100%;
   background: none;
   border: none;
+<<<<<<< Updated upstream
   color: var(--atl-ink-dim);
+=======
+  color: var(--text-secondary);
+>>>>>>> Stashed changes
   padding: 8px 16px;
   font-size: 12px;
   font-weight: 500;
@@ -1605,9 +2194,15 @@
   line-height: 1.4;
   transition: background 0.12s, color 0.12s;
 }
+<<<<<<< Updated upstream
 .bkr-more-item:hover { background:color-mix(in srgb, var(--atl-ink) 5%, transparent); color:var(--atl-ink); }
 .bkr-more-item.is-danger { color:var(--atl-clay); }
 .bkr-more-item.is-danger:hover { background:color-mix(in srgb, var(--atl-clay) 8%, transparent); }
+=======
+.bkr-more-item:hover { background:rgba(255,255,255,0.05); color:var(--text-primary); }
+.bkr-more-item.is-danger { color:#f87171; }
+.bkr-more-item.is-danger:hover { background:rgba(248,113,113,0.08); }
+>>>>>>> Stashed changes
 
 /* ── Mobile: stacked actions ─────────────────────────────────────────────── */
 @media (max-width: 575px) {
@@ -1615,8 +2210,13 @@
 }
 
 /* ── Empty state ─────────────────────────────────────────────────────────── */
+<<<<<<< Updated upstream
 .bkr-empty { text-align:center; padding:64px 20px; color:var(--atl-muted); }
 .bkr-empty i { font-size:42px; display:block; margin-bottom:16px; opacity:0.3; color:var(--atl-amber); }
+=======
+.bkr-empty { text-align:center; padding:64px 20px; color:var(--text-muted); }
+.bkr-empty i { font-size:42px; display:block; margin-bottom:16px; opacity:0.3; color:var(--y-base); }
+>>>>>>> Stashed changes
 .bkr-empty p { font-size:14px; margin:0; line-height:1.6; }
 
 /* ── Bottom-sheet modals (mobile ≤ 767 px) ──────────────────────────────── */
@@ -1683,7 +2283,70 @@
   .bkr-venue-link-btn { min-height: 46px; }
 }
 
+<<<<<<< Updated upstream
 /* ── Custom Switch Alignment Overrides (Centering knob & track with label) ── */
 
+=======
+/* ---------- VISUAL TIME PICKER ---------- */
+.bk-time-slots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.bk-time-slot {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  text-align: center;
+  border-radius: var(--r);
+  cursor: pointer;
+  font-family: var(--f-body);
+  font-size: var(--fs-sm);
+  transition: all var(--t) var(--ease);
+}
+
+.bk-time-slot:hover:not(.busy) {
+  background: var(--y-muted);
+  border-color: var(--y-base);
+  color: var(--y-hover);
+}
+
+.bk-time-slot.selected {
+  background: var(--y-base);
+  color: var(--text-inverse);
+  border-color: var(--y-base);
+}
+
+.bk-time-slot.busy {
+  background: #151515;
+  color: #a0a0a0; /* Improved contrast gray */
+  border-color: #2e2e2e;
+  text-decoration: line-through;
+  cursor: not-allowed;
+}
+
+/* ── Custom Switch Alignment Overrides (Centering knob & track with label) ── */
+
+/* Mobile responsive file uploader styles */
+@media (max-width: 768px) {
+  #bookAttachZone {
+    padding: 12px 15px !important;
+    border-style: solid !important;
+    border-width: 1px !important;
+  }
+  .bk-attach-icon {
+    display: none !important;
+  }
+  .bk-attach-text-desktop {
+    display: none !important;
+  }
+  .bk-attach-text-mobile {
+    display: block !important;
+  }
+}
+>>>>>>> Stashed changes
 
 

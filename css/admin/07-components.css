@@ -88,9 +88,13 @@
     position: absolute; top: 2px; left: 2px;
     width: 22px; height: 22px;
     border-radius: 999px;
+<<<<<<< Updated upstream
     /* was a hardcoded #fff knob - invisible against the light track under light Finish.
        --atl-ink is #fff in dark theme (same look) and the correct dark ink in light theme. */
     background: var(--atl-ink);
+=======
+    background: #fff;
+>>>>>>> Stashed changes
     box-shadow: 0 1px 3px rgba(0,0,0,.3);
     transition: transform 0.2s ease;
 }
@@ -129,10 +133,17 @@
     color: var(--atl-clay);
     border: 1px solid var(--atl-clay);
 }
+<<<<<<< Updated upstream
 .atl-btn--danger:hover { background: color-mix(in srgb, var(--atl-clay) 8%, transparent); }
 
 .atl-actions-dropdown-btn {
     background: color-mix(in srgb, var(--atl-ink) 6%, transparent);
+=======
+.atl-btn--danger:hover { background: rgba(248,113,113,0.08); }
+
+.atl-actions-dropdown-btn {
+    background: rgba(255,255,255,0.06);
+>>>>>>> Stashed changes
     border: 1px solid var(--atl-line);
     color: var(--atl-muted);
     border-radius: 8px;
@@ -148,9 +159,15 @@
 
 .atl-actions-dropdown-panel {
     position: fixed;
+<<<<<<< Updated upstream
     z-index: var(--atl-z-action-menu, 99999);
     background: var(--atl-card);
     border: 1px solid var(--atl-line-strong);
+=======
+    z-index: 99999;
+    background: var(--atl-card);
+    border: 1px solid rgba(255,255,255,0.15);
+>>>>>>> Stashed changes
     border-radius: 10px;
     padding: 6px 0;
     min-width: 200px;
@@ -165,13 +182,21 @@
     cursor: pointer; text-align: left;
     transition: background 0.15s ease;
 }
+<<<<<<< Updated upstream
 .atl-actions-dropdown-item:hover { background: color-mix(in srgb, var(--atl-ink) 6%, transparent); }
+=======
+.atl-actions-dropdown-item:hover { background: rgba(255,255,255,0.06); }
+>>>>>>> Stashed changes
 .atl-actions-dropdown-item--danger { color: var(--atl-clay); }
 .atl-actions-dropdown-sep { height: 1px; background: var(--atl-line); margin: 4px 0; }
 
 /* Modal System styles */
 .atl-modal-overlay {
+<<<<<<< Updated upstream
     position: fixed; inset: 0; z-index: var(--atl-z-modal, 9000);
+=======
+    position: fixed; inset: 0; z-index: 9000;
+>>>>>>> Stashed changes
     background: var(--atl-overlay);
     backdrop-filter: blur(4px);
     display: flex; align-items: flex-start; justify-content: center;
@@ -208,7 +233,11 @@
     color: var(--atl-ink); cursor: pointer;
     transition: background 0.15s ease;
 }
+<<<<<<< Updated upstream
 .atl-modal-close:hover { background: color-mix(in srgb, var(--atl-ink) 8%, transparent); }
+=======
+.atl-modal-close:hover { background: rgba(255,255,255,0.08); }
+>>>>>>> Stashed changes
 
 .atl-modal-body {
     padding: 20px;
@@ -693,7 +722,11 @@ code {
 .atl-det-table tfoot tr:first-child th { padding-top: 8px; color: var(--atl-muted); }
 .atl-det-table tfoot tr:last-child td,
 .atl-det-table tfoot tr:last-child th { font-weight: 700; font-size: 13px; padding-bottom: 4px; }
+<<<<<<< Updated upstream
 .atl-det-table tr.atl-det-active-row { background: color-mix(in srgb, var(--atl-amber) 4%, transparent); }
+=======
+.atl-det-table tr.atl-det-active-row { background: rgba(212,175,55,0.04); }
+>>>>>>> Stashed changes
 .atl-det-tabular { font-variant-numeric: tabular-nums; }
 
 @media (min-width: 600px) {
@@ -737,8 +770,13 @@ code {
   }
   .atl-det-table-responsive tbody tr:last-child { margin-bottom: 0; }
   .atl-det-table-responsive tbody tr.atl-det-active-row {
+<<<<<<< Updated upstream
     background: color-mix(in srgb, var(--atl-amber) 6%, transparent);
     border-color: color-mix(in srgb, var(--atl-amber) 20%, transparent);
+=======
+    background: rgba(212,175,55,0.06);
+    border-color: rgba(212,175,55,0.20);
+>>>>>>> Stashed changes
   }
   .atl-det-table-responsive tbody td {
     display: flex;
@@ -871,8 +909,13 @@ code {
 
 /* ── Cancellation Card Styling ── */
 .atl-det-card--cancel {
+<<<<<<< Updated upstream
   background: color-mix(in srgb, var(--atl-clay) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--atl-clay) 30%, transparent);
+=======
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.30);
+>>>>>>> Stashed changes
   border-left: 3px solid var(--atl-clay);
 }
 .atl-det-card--cancel .atl-det-title { color: var(--atl-clay); }
@@ -883,8 +926,13 @@ code {
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase;
   padding: 2px 8px; border-radius: 999px;
+<<<<<<< Updated upstream
   background: color-mix(in srgb, var(--atl-sage) 15%, transparent); color: var(--atl-sage);
   border: 1px solid color-mix(in srgb, var(--atl-sage) 30%, transparent);
+=======
+  background: rgba(74,222,128,0.15); color: var(--atl-sage);
+  border: 1px solid rgba(74,222,128,0.3);
+>>>>>>> Stashed changes
   margin-left: 8px; vertical-align: middle;
 }
 .atl-promote-live-badge--off {
@@ -892,7 +940,11 @@ code {
 }
 .atl-promote-warn {
   display: flex; align-items: flex-start; gap: 8px;
+<<<<<<< Updated upstream
   background: color-mix(in srgb, var(--atl-orange) 8%, transparent); border: 1px solid color-mix(in srgb, var(--atl-orange) 25%, transparent);
+=======
+  background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.25);
+>>>>>>> Stashed changes
   border-radius: 8px; padding: 10px 12px; margin-top: 12px;
   font-size: 12px; color: var(--atl-orange);
 }
@@ -923,8 +975,13 @@ code {
   display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; color: var(--atl-muted);
 }
 .atl-promote-ticket-save {
+<<<<<<< Updated upstream
   background: color-mix(in srgb, var(--atl-amber) 12%, transparent) !important;
   border: 1px solid color-mix(in srgb, var(--atl-amber) 35%, transparent) !important;
+=======
+  background: rgba(212,175,55,0.12) !important;
+  border: 1px solid rgba(212,175,55,0.35) !important;
+>>>>>>> Stashed changes
   color: var(--atl-amber) !important;
   border-radius: 8px !important;
   padding: 10px 14px !important;
@@ -938,7 +995,11 @@ code {
   transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
 }
 .atl-promote-ticket-save:hover {
+<<<<<<< Updated upstream
   background: color-mix(in srgb, var(--atl-amber) 22%, transparent) !important;
+=======
+  background: rgba(212,175,55,0.22) !important;
+>>>>>>> Stashed changes
   border-color: var(--atl-amber) !important;
 }
 .atl-promote-ticket-save:focus-visible {
@@ -1026,8 +1087,13 @@ body.admin-body .db-card-header h3 {
 body.admin-body {
     background-color: var(--atl-paper) !important;
     background-image:
+<<<<<<< Updated upstream
         radial-gradient(ellipse 80% 40% at 20% 0%,   color-mix(in srgb, var(--atl-amber) 6%, transparent), transparent 55%),
         radial-gradient(ellipse 60% 30% at 85% 100%,  color-mix(in srgb, var(--atl-amber) 4%, transparent), transparent 50%) !important;
+=======
+        radial-gradient(ellipse 80% 40% at 20% 0%,   rgba(212,175,55,0.06), transparent 55%),
+        radial-gradient(ellipse 60% 30% at 85% 100%,  rgba(212,175,55,0.04), transparent 50%) !important;
+>>>>>>> Stashed changes
     background-attachment: fixed !important;
     min-height: 100vh;
 }
@@ -1122,7 +1188,11 @@ body.admin-body .atl-section-heading {
 .atl-section-rule {
     height: 1px !important;
     margin: 18px 0 24px !important;
+<<<<<<< Updated upstream
     background: linear-gradient(to right, var(--atl-amber), color-mix(in srgb, var(--atl-amber) 18%, transparent) 42%, transparent 78%) !important;
+=======
+    background: linear-gradient(to right, var(--atl-amber), rgba(212,175,55,0.18) 42%, transparent 78%) !important;
+>>>>>>> Stashed changes
     border: none !important;
 }
 /* ≥600px — title and action cluster share one baseline-aligned row */
@@ -1198,7 +1268,11 @@ body.admin-body .atl-section-heading {
     border-color: var(--atl-amber-border) !important;
 }
 .logout-action { color: var(--atl-muted) !important; }
+<<<<<<< Updated upstream
 .logout-action:hover { color: var(--atl-clay) !important; background: color-mix(in srgb, var(--atl-clay) 8%, transparent) !important; }
+=======
+.logout-action:hover { color: var(--atl-clay) !important; background: rgba(248,113,113,0.08) !important; }
+>>>>>>> Stashed changes
 
 /* ── CONTROL BAR (TOP NAV) ── */
 .adm-header {
@@ -1286,7 +1360,11 @@ body.admin-body .atl-section-heading {
     color: var(--atl-ink) !important;
 }
 .adm-dropdown__item--danger:hover {
+<<<<<<< Updated upstream
     background: color-mix(in srgb, var(--atl-clay) 8%, transparent) !important;
+=======
+    background: rgba(248,113,113,0.08) !important;
+>>>>>>> Stashed changes
     color: var(--atl-clay) !important;
 }
 .adm-profile-card {
@@ -1355,7 +1433,11 @@ body.admin-body .atl-section-heading {
 .um-btn--primary:hover {
     background: var(--atl-amber-hover) !important;
     border-color: var(--atl-amber-hover) !important;
+<<<<<<< Updated upstream
     box-shadow: 0 4px 14px color-mix(in srgb, var(--atl-amber) 28%, transparent) !important;
+=======
+    box-shadow: 0 4px 14px rgba(212,175,55,0.28) !important;
+>>>>>>> Stashed changes
 }
 
 .atl-btn--ghost,
@@ -1378,11 +1460,19 @@ body.admin-body .atl-section-heading {
 .um-btn--danger {
     background: transparent !important;
     color: var(--atl-clay) !important;
+<<<<<<< Updated upstream
     border-color: color-mix(in srgb, var(--atl-clay) 35%, transparent) !important;
 }
 .atl-btn--danger:hover,
 .btn-admin-danger:hover,
 .um-btn--danger:hover { background: color-mix(in srgb, var(--atl-clay) 8%, transparent) !important; }
+=======
+    border-color: rgba(248,113,113,0.35) !important;
+}
+.atl-btn--danger:hover,
+.btn-admin-danger:hover,
+.um-btn--danger:hover { background: rgba(248,113,113,0.08) !important; }
+>>>>>>> Stashed changes
 .btn-admin-success {
     background: var(--atl-sage) !important;
     color: #fff !important;
@@ -1557,7 +1647,11 @@ input:focus, select:focus, textarea:focus, .form-control:focus, .um-input:focus 
 }
 /* redesign.css's .admin-body input:focus/etc (specificity 0,2,1) beats the rule just above
    (0,1,1) - its border-color/box-shadow hardcode --y-base/--y-muted (dark-theme-only gold,
+<<<<<<< Updated upstream
    var(--atl-amber)), so every focused field got that instead of the theme's own --atl-amber. Also
+=======
+   #D4AF37), so every focused field got that instead of the theme's own --atl-amber. Also
+>>>>>>> Stashed changes
    replaces the box-shadow's own hardcoded dark-amber rgba() literal with color-mix so the
    ring itself is theme-aware, not just a fixed win over redesign.css. */
 body.admin-body input:focus, body.admin-body select:focus, body.admin-body textarea:focus,
@@ -1620,7 +1714,11 @@ input[type="checkbox"], input[type="radio"] {
     border-bottom: 1px solid var(--atl-line) !important;
     transition: background var(--atl-t-fast) !important;
 }
+<<<<<<< Updated upstream
 .table tbody tr:hover, table tbody tr:hover { background: color-mix(in srgb, var(--atl-amber) 3%, transparent) !important; }
+=======
+.table tbody tr:hover, table tbody tr:hover { background: rgba(212,175,55,0.03) !important; }
+>>>>>>> Stashed changes
 .table td, table td { border: none !important; color: var(--atl-ink) !important; }
 
 /* ── UNIVERSAL MODAL SYSTEM ── */
@@ -1681,7 +1779,11 @@ input[type="checkbox"], input[type="radio"] {
 }
 .modal-header .close:hover {
     color: var(--atl-ink) !important;
+<<<<<<< Updated upstream
     background: color-mix(in srgb, var(--atl-ink) 8%, transparent) !important;
+=======
+    background: rgba(255,255,255,0.08) !important;
+>>>>>>> Stashed changes
 }
 .modal-body {
     background: var(--atl-card) !important;
@@ -1738,6 +1840,7 @@ input[type="checkbox"], input[type="radio"] {
     font-size: 11px;
     font-weight: 600;
 }
+<<<<<<< Updated upstream
 .atl-badge--pending   { background: color-mix(in srgb, var(--atl-amber) 14%, transparent); color: var(--atl-amber); }
 .atl-badge--quoted    { background: color-mix(in srgb, var(--atl-amber-hover) 14%, transparent);  color: var(--atl-amber-hover); }
 /* accepted/confirmed/completed/cancelled/paid were hardcoded dark-theme-only hex/rgba literals
@@ -1757,6 +1860,27 @@ input[type="checkbox"], input[type="radio"] {
 .atl-badge--new       { background: color-mix(in srgb, var(--atl-blue) 14%, transparent);  color: var(--atl-blue); }
 .atl-badge--info      { background: color-mix(in srgb, var(--atl-amber) 10%, transparent);  color: var(--atl-amber); }
 .atl-badge--warning   { background: color-mix(in srgb, var(--atl-orange) 14%, transparent);  color: var(--atl-orange); }
+=======
+.atl-badge--pending   { background: rgba(212,175,55,0.14); color: var(--atl-amber); }
+.atl-badge--quoted    { background: rgba(232,193,75,0.14);  color: #E8C14B; }
+.atl-badge--accepted  { background: rgba(96,165,250,0.16);  color: #60a5fa; }
+.atl-badge--confirmed { background: rgba(52,211,153,0.16);  color: #34d399; }
+.atl-badge--completed { background: rgba(74,222,128,0.16);  color: #4ade80; }
+.atl-badge--cancelled { background: rgba(248,113,113,0.16); color: #f87171; }
+.atl-badge--paid      { background: rgba(74,222,128,0.14);  color: #4ade80; }
+.atl-badge--unpaid    { background: rgba(255,255,255,0.06); color: var(--atl-muted); border: 1px solid var(--atl-line); }
+.atl-badge--overdue   { background: rgba(248,113,113,0.14); color: #f87171; }
+.atl-badge--new       { background: rgba(96,165,250,0.14);  color: #60a5fa; }
+.atl-badge--info      { background: rgba(212,175,55,0.10);  color: var(--atl-amber); }
+.atl-badge--warning   { background: rgba(251,146,60,0.14);  color: var(--atl-orange); }
+
+[data-theme="light"] .atl-badge--pending   { color: #8a6a0d; }
+[data-theme="light"] .atl-badge--completed { color: #15803d; }
+[data-theme="light"] .atl-badge--confirmed { color: #0f7a45; }
+[data-theme="light"] .atl-badge--accepted  { color: #1d4ed8; }
+[data-theme="light"] .atl-badge--cancelled { color: #b91c1c; }
+[data-theme="light"] .atl-badge--paid      { color: #15803d; }
+>>>>>>> Stashed changes
 
 /* ── NOTIFICATIONS PANEL ── */
 .adm-noti-list { max-height: 320px; overflow-y: auto; }
@@ -1787,7 +1911,11 @@ input[type="checkbox"], input[type="radio"] {
     font-size: 11px;
     color: var(--atl-muted);
 }
+<<<<<<< Updated upstream
 .adm-noti-item.unread { background: color-mix(in srgb, var(--atl-amber) 3%, transparent); }
+=======
+.adm-noti-item.unread { background: rgba(212,175,55,0.03); }
+>>>>>>> Stashed changes
 .adm-noti-item.unread .adm-noti-title::before {
     content: '● ';
     color: var(--atl-amber);

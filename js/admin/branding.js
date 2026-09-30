@@ -8,8 +8,8 @@
    after) are reunited directly, and this file's <script src> tag sits before the whole
    initFinanceManagement block instead, alongside services.js/policies.js.
 
-   window.uploadBrandingAsset/updateBrandFontPreview/updateBrandColorPreview/resetBrandColor/
-   resetBrandFont/resetLoginBackground/loadBrandingSettings/saveBranding were already
+   window.uploadBrandingAsset/updateBrandFontPreview/resetBrandFont/resetLoginBackground/
+   loadBrandingSettings/saveBranding were already
    window-attached in the original source. updateBrandPreview was NOT — it is called from 3
    inline oninput="" attributes in the markup (brandLogoUrl/brandFaviconUrl/brandLoginBgUrl
    preview fields), which — being closure-scoped inside initFinanceManagement, unreachable from
@@ -68,23 +68,6 @@ window.updateBrandFontPreview = function() {
     $('#brandFontPreview').css('font-family', font);
 };
 
-// Reflect the currently-chosen accent colour in the swatch + sample button.
-window.updateBrandColorPreview = function() {
-    const c = ($('#brandColorHex').val().trim() || $('#brandPrimaryColor').val() || '#D4AF37');
-    $('#brandColorSwatch').css('background', c);
-    $('#brandColorSample').css('background', c);
-};
-
-// Reset accent colour to the factory default gold.
-window.resetBrandColor = function() {
-    const DEFAULT_COLOR = '#D4AF37';
-    $('#brandPrimaryColor').val(DEFAULT_COLOR);
-    $('#brandColorHex').val(DEFAULT_COLOR);
-    $('#errBrandColor').hide().text('');
-    updateBrandColorPreview();
-    if (window.notificationService) window.notificationService.showInfo('Accent colour reset to default (#D4AF37). Save Identity to apply.');
-};
-
 // Reset theme font to the factory default (Open Sans — the empty-value option).
 window.resetBrandFont = function() {
     $('#brandThemeFont').val('');
@@ -108,12 +91,10 @@ window.loadBrandingSettings = async function() {
         const b = data.branding;
         if (b.site_logo)     { $('#brandLogoUrl').val(b.site_logo);         updateBrandPreview('brandLogoUrl','brandLogoPreview'); }
         if (b.favicon)       { $('#brandFaviconUrl').val(b.favicon);         updateBrandPreview('brandFaviconUrl','brandFaviconPreview'); }
-        if (b.primary_color) { $('#brandPrimaryColor').val(b.primary_color); $('#brandColorHex').val(b.primary_color); }
         if (b.theme_font)    { $('#brandThemeFont').val(b.theme_font); }
         if (b.login_background) { $('#brandLoginBgUrl').val(b.login_background); updateBrandPreview('brandLoginBgUrl','brandLoginBgPreview'); }
         window.tmLoginBg = b.login_background || null;
         updateBrandFontPreview();
-        updateBrandColorPreview();
     } catch(e) {
         if (window.notificationService) window.notificationService.showError('Could not load branding settings. Please refresh.');
     } finally {
@@ -127,29 +108,11 @@ window.saveBranding = async function(scope) {
     const isSite = !scope || scope === 'site';
 
     if (isIdentity) {
-        // G5 — accent-colour hex validation (no other Branding fields are mandatory)
-        const _fe = (id, msg) => { const e = document.getElementById(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
-        _fe('errBrandColor', '');
-        const _hex = $('#brandColorHex').val().trim();
-        if (_hex && !/^#[0-9a-fA-F]{6}$/.test(_hex)) {
-            _fe('errBrandColor', 'Enter a 6-digit hex colour, e.g. #D4AF37.');
-            window.notificationService.showError('Please fix the highlighted fields.');
-            return;
-        }
-        const _siteLogo = $('#brandLogoUrl').val().trim();
-        const _favicon = $('#brandFaviconUrl').val().trim();
-        const _themeFont = $('#brandThemeFont').val();
-        settings.primary_color = $('#brandColorHex').val().trim() || $('#brandPrimaryColor').val();
-        Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
         // Always send site_logo, favicon and theme_font, even empty — clearing any of these
-        // fields and saving is meant to remove the custom value, but the strip-if-falsy loop
-        // above was deleting them from the payload whenever empty, so the request silently
-        // omitted them, the old value stayed in the settings table forever, and it reloaded
-        // right back into the field on the next visit. primary_color never hit this because its
-        // own reset button sets an actual default hex value, never an empty string.
-        settings.site_logo = _siteLogo;
-        settings.favicon = _favicon;
-        settings.theme_font = _themeFont;
+        // fields and saving is meant to remove the custom value.
+        settings.site_logo = $('#brandLogoUrl').val().trim();
+        settings.favicon = $('#brandFaviconUrl').val().trim();
+        settings.theme_font = $('#brandThemeFont').val();
     }
 
     if (isSite) {

@@ -7,6 +7,7 @@ const { requireRole } = require('../../middleware/rbac');
 const { upload } = require('../../lib/uploads');
 const { logAudit } = require('../../lib/audit-log');
 const { resolveActor } = require('../../lib/actor');
+<<<<<<< Updated upstream
 const { getAdminTeamView, validateTeamInput, cleanText } = require('../../lib/team');
 const router = express.Router();
 
@@ -21,6 +22,16 @@ router.get('/api/admin/team', requireAdmin, async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
+=======
+const router = express.Router();
+
+// Admin: every status (active + inactive), so hidden members can still be managed.
+router.get('/api/admin/team', requireAdmin, (req, res) => {
+    db.all("SELECT * FROM team_members ORDER BY display_order ASC, id ASC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+>>>>>>> Stashed changes
 });
 
 router.put('/api/admin/team/reorder', requireAdmin, (req, res) => {
@@ -39,6 +50,7 @@ router.put('/api/admin/team/reorder', requireAdmin, (req, res) => {
 
 router.post('/api/admin/team', requireAdmin, upload.single('file'), (req, res) => {
     const { name, role, biography, email, phone, website, twitter, linkedin, instagram, behance, fallback_url, status, featured } = req.body;
+<<<<<<< Updated upstream
     const cleanName = typeof name === 'string' ? name.trim() : '';
     if (!cleanName) return res.status(400).json({ success: false, message: 'Name is required.' });
     const invalid = validateTeamInput({ status: status || undefined, biography, website, twitter, linkedin, instagram, behance });
@@ -48,6 +60,14 @@ router.post('/api/admin/team', requireAdmin, upload.single('file'), (req, res) =
         name: cleanName, role: cleanText(role), biography: cleanText(biography), image_path: imagePath,
         email: cleanText(email), phone: cleanText(phone), website: cleanText(website),
         twitter: cleanText(twitter), linkedin: cleanText(linkedin), instagram: cleanText(instagram), behance: cleanText(behance),
+=======
+    if (!name) return res.status(400).json({ success: false, message: 'Name is required.' });
+    const imagePath = req.file ? `images/team/${req.file.filename}` : (fallback_url || null);
+    const newValues = {
+        name, role: role || null, biography: biography || null, image_path: imagePath,
+        email: email || null, phone: phone || null, website: website || null,
+        twitter: twitter || null, linkedin: linkedin || null, instagram: instagram || null, behance: behance || null,
+>>>>>>> Stashed changes
         status: status || 'active', featured: (featured === true || featured === 'true') ? 1 : 0
     };
 
@@ -71,6 +91,7 @@ router.put('/api/admin/team/:id', requireAdmin, (req, res) => {
         if (selErr) return res.status(500).json({ error: selErr.message });
         if (!existing) return res.status(404).json({ success: false, message: 'Team member not found' });
 
+<<<<<<< Updated upstream
         const newName = name !== undefined ? (typeof name === 'string' ? name.trim() : '') : existing.name;
         if (!newName) return res.status(400).json({ success: false, message: 'Name is required.' });
         const invalid = validateTeamInput({ status, biography, website, twitter, linkedin, instagram, behance });
@@ -78,12 +99,17 @@ router.put('/api/admin/team/:id', requireAdmin, (req, res) => {
         if (display_order !== undefined && !Number.isInteger(Number(display_order))) {
             return res.status(400).json({ success: false, message: 'Display order must be a whole number.' });
         }
+=======
+        const newName = name !== undefined ? name : existing.name;
+        if (!newName) return res.status(400).json({ success: false, message: 'Name is required.' });
+>>>>>>> Stashed changes
         let newImagePath = existing.image_path;
         if (clear_image === true || clear_image === 'true') newImagePath = null;
         else if (fallback_url) newImagePath = fallback_url;
 
         const newValues = {
             name: newName,
+<<<<<<< Updated upstream
             role: role !== undefined ? cleanText(role) : existing.role,
             biography: biography !== undefined ? cleanText(biography) : existing.biography,
             image_path: newImagePath,
@@ -97,6 +123,21 @@ router.put('/api/admin/team/:id', requireAdmin, (req, res) => {
             status: status !== undefined ? status : existing.status,
             featured: featured !== undefined ? ((featured === true || featured === 'true') ? 1 : 0) : existing.featured,
             display_order: display_order !== undefined ? Number(display_order) : existing.display_order
+=======
+            role: role !== undefined ? (role || null) : existing.role,
+            biography: biography !== undefined ? (biography || null) : existing.biography,
+            image_path: newImagePath,
+            email: email !== undefined ? (email || null) : existing.email,
+            phone: phone !== undefined ? (phone || null) : existing.phone,
+            website: website !== undefined ? (website || null) : existing.website,
+            twitter: twitter !== undefined ? (twitter || null) : existing.twitter,
+            linkedin: linkedin !== undefined ? (linkedin || null) : existing.linkedin,
+            instagram: instagram !== undefined ? (instagram || null) : existing.instagram,
+            behance: behance !== undefined ? (behance || null) : existing.behance,
+            status: status !== undefined ? status : existing.status,
+            featured: featured !== undefined ? ((featured === true || featured === 'true') ? 1 : 0) : existing.featured,
+            display_order: display_order !== undefined ? display_order : existing.display_order
+>>>>>>> Stashed changes
         };
 
         db.run(`UPDATE team_members SET name=?, role=?, biography=?, image_path=?, email=?, phone=?, website=?, twitter=?, linkedin=?, instagram=?, behance=?, status=?, featured=?, display_order=?, updated_by=?, updated_at=CURRENT_TIMESTAMP WHERE id=?`,

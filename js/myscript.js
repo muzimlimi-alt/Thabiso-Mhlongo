@@ -1041,6 +1041,7 @@ $(function() {
             return;
         }
 
+<<<<<<< Updated upstream
         // All DOM building and hover/tap behaviour lives in js/team-view.js — the same module the
         // admin portal's live preview renders with, so the two can never look different.
         var $photos = $('#teamPhotoGrid');
@@ -1048,6 +1049,103 @@ $(function() {
         TeamView.render(members, $photos, $list);
         $layout.show();
         TeamView.bindInteractions($layout, $photos, $list);
+=======
+        var $photos = $('#teamPhotoGrid');
+        var $list = $('#teamList');
+        $photos.empty();
+        $list.empty();
+
+        var cols = [$('<div>').addClass('team-photo-col'), $('<div>').addClass('team-photo-col'), $('<div>').addClass('team-photo-col')];
+        cols.forEach(function (c) { $photos.append(c); });
+
+        members.forEach(function (m, i) {
+            var initial = (m.name || '?').trim().charAt(0).toUpperCase() || '?';
+
+            // Photo card (decorative)
+            var $card = $('<div>').addClass('team-photo-card').attr('data-id', m.id);
+            if (m.image_path) {
+                $card.append($('<img>').attr({ src: m.image_path, alt: '', loading: 'lazy' }).on('error', function () {
+                    $card.addClass('team-photo-card--monogram').empty().text(initial);
+                }));
+            } else {
+                $card.addClass('team-photo-card--monogram').text(initial);
+            }
+            cols[i % 3].append($card);
+
+            // List row (accessible name/role/social)
+            var $row = $('<div>').addClass('team-row').attr({ 'data-id': m.id, role: 'listitem' });
+            var $inner = $('<div>').addClass('team-row__inner').attr({
+                role: 'button', tabindex: '0', 'aria-pressed': 'false',
+                'aria-label': (m.name || 'Team member') + (m.role ? (', ' + m.role) : '')
+            });
+            var $head = $('<div>').addClass('team-row__head');
+            $head.append($('<span>').addClass('team-row__dot').attr('aria-hidden', 'true'));
+            $head.append($('<span>').addClass('team-row__name').text(m.name || ''));
+
+            var socialLinks = [
+                { url: m.twitter, label: 'X / Twitter', icon: 'fa-brands fa-x-twitter' },
+                { url: m.linkedin, label: 'LinkedIn', icon: 'fa-brands fa-linkedin' },
+                { url: m.instagram, label: 'Instagram', icon: 'fa-brands fa-instagram' },
+                { url: m.behance, label: 'Behance', icon: 'fa-brands fa-behance' }
+            ].filter(function (s) { return s.url; });
+
+            if (socialLinks.length) {
+                var $social = $('<div>').addClass('team-row__social');
+                socialLinks.forEach(function (s) {
+                    $social.append(
+                        $('<a>').addClass('social-icon-wrapper').attr({
+                            href: s.url, target: '_blank', rel: 'noopener noreferrer',
+                            title: s.label, 'aria-label': s.label + ' (opens in a new tab)'
+                        }).on('click', function (e) { e.stopPropagation(); })
+                        .append($('<i>').addClass(s.icon).attr('aria-hidden', 'true'))
+                    );
+                });
+                $head.append($social);
+            }
+
+            $inner.append($head);
+            if (m.role) $inner.append($('<p>').addClass('team-row__role').text(m.role));
+            $row.append($inner);
+            $list.append($row);
+        });
+
+        $layout.show();
+
+        // Hover (pointer) highlights; click/Enter/Space toggles it (works for touch + keyboard,
+        // matching the reference component's active/dimmed relationship between grid and list).
+        function setActiveTeamMember(id) {
+            $('.team-photo-card, .team-row').each(function () {
+                var $el = $(this);
+                var isActive = id !== null && String($el.data('id')) === String(id);
+                $el.toggleClass('is-active', isActive);
+                $el.toggleClass('is-dimmed', id !== null && !isActive);
+            });
+            $('.team-row__inner').each(function () {
+                var rowId = $(this).closest('.team-row').data('id');
+                $(this).attr('aria-pressed', (id !== null && String(rowId) === String(id)) ? 'true' : 'false');
+            });
+        }
+        var activeTeamId = null;
+        $photos.add($list).on('mouseenter', '.team-photo-card, .team-row', function () {
+            activeTeamId = $(this).data('id');
+            setActiveTeamMember(activeTeamId);
+        });
+        $layout.on('mouseleave', function () {
+            activeTeamId = null;
+            setActiveTeamMember(null);
+        });
+        $photos.add($list).on('click', '.team-photo-card, .team-row__inner', function () {
+            var id = $(this).closest('[data-id]').data('id');
+            activeTeamId = (activeTeamId !== null && String(activeTeamId) === String(id)) ? null : id;
+            setActiveTeamMember(activeTeamId);
+        });
+        $list.on('keydown', '.team-row__inner', function (e) {
+            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+                e.preventDefault();
+                $(this).trigger('click');
+            }
+        });
+>>>>>>> Stashed changes
     }
     renderTeam();
 
@@ -3818,6 +3916,7 @@ $bookingForm.on('blur', '#bookName', function() {
         document.addEventListener('atl:drawerClosed', function(e) {
             if (!e.detail || e.detail.id !== 'bookingDrawer') return;
             flushBkDraft();
+<<<<<<< Updated upstream
             // Keep what the visitor typed so reopening restores it ("draft preserved for reopen").
             // Not after a successful submit — that draft was cleared on purpose.
             if (!$('#bookSuccessScreen').is(':visible')) saveBkDraft(true);
@@ -3827,6 +3926,8 @@ $bookingForm.on('blur', '#bookName', function() {
             // drawer was reopened in the meantime.
             setTimeout(function () {
             if ($('#bookingDrawer').hasClass('atl-drawer--open')) return;
+=======
+>>>>>>> Stashed changes
             _venueInited = false; // allow fresh init + event rebind next open
             isSubmitting = false;
             $bookingForm[0].reset();

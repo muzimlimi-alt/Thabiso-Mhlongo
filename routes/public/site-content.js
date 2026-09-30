@@ -128,7 +128,7 @@ router.get('/api/public/legal/cookie-policy', (req, res) => {
 });
 
 router.get('/api/public/branding', (req, res) => {
-    const keys = ['site_logo', 'favicon', 'primary_color', 'theme_font', 'email_banner', 'login_background'];
+    const keys = ['site_logo', 'favicon', 'theme_font', 'email_banner', 'login_background'];
     getSettingsByKeys(keys,
         (err, rows) => {
             if (err) return res.status(500).json({ error: err.message });
@@ -216,6 +216,7 @@ router.get('/api/public/gallery', (req, res) => { // Public route for index.html
 });
 
 // --- Management Team (active members only) ---
+<<<<<<< Updated upstream
 // Visibility, ordering and the published field list all come from lib/team.js, the same module the
 // admin API uses — so the public site and the admin portal cannot disagree. Revalidated on every
 // request (ETag, no max-age) so an admin edit shows up on the next page load.
@@ -240,6 +241,13 @@ router.get('/api/public/accolades', async (req, res) => { // Public route for in
         console.error('[Accolades] public list failed:', err.message);
         res.status(500).json({ success: false, message: 'Could not load accolades.' });
     }
+=======
+router.get('/api/public/team', (req, res) => { // Public route for index.html
+    db.all("SELECT * FROM team_members WHERE status = 'active' ORDER BY display_order ASC, id ASC", [], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+>>>>>>> Stashed changes
 });
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): the email-templates admin routes (and SYSTEM_TRACK_TEMPLATE_KEYS)

@@ -24,10 +24,15 @@ const BASE = process.env.PARITY_URL || 'http://localhost:3000';
 // PARITY_OUT lets captures live off the OneDrive-synced project tree — 135 PNGs per run, once per
 // phase, is not something to sync to the cloud (and C: is tight; see docs-internal/css-audit.md §10).
 const OUT_ROOT = process.env.PARITY_OUT || path.join(__dirname, '..', 'docs-internal', 'css-baseline');
+<<<<<<< Updated upstream
 // An admin login, supplied by the caller — deliberately no defaults, because this file is committed
 // to a public repo. Only `capture` needs them; `compare` just diffs manifests.
 const EMAIL = process.env.PARITY_EMAIL;
 const PASSWORD = process.env.PARITY_PASSWORD;
+=======
+const EMAIL = process.env.PARITY_EMAIL || 'muzi.mlimi@gmail.com';
+const PASSWORD = process.env.PARITY_PASSWORD || 'password123';
+>>>>>>> Stashed changes
 
 const CHROME = [
     process.env.CHROME_BIN,
@@ -203,7 +208,10 @@ async function shoot(page, dir, name, manifest, styleDir) {
 
 async function capture(label) {
     if (!CHROME) throw new Error('No system Chrome found. Set CHROME_BIN.');
+<<<<<<< Updated upstream
     if (!EMAIL || !PASSWORD) throw new Error('Set PARITY_EMAIL and PARITY_PASSWORD to an admin login before capturing.');
+=======
+>>>>>>> Stashed changes
     const dir = path.join(OUT_ROOT, label);
     fs.mkdirSync(dir, { recursive: true });
     const styleDir = path.join(dir, 'styles');

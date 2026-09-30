@@ -27,24 +27,40 @@
 	<link rel="icon" href="images/icon/logo5.png" type="image/gif" sizes="16x16" />
 	
 	<!-- Core Stylesheets -->
+<<<<<<< Updated upstream
 	<link href="css/vendor/bootstrap.min.css?v=2" rel="stylesheet">
+=======
+	<link href="css/vendor/bootstrap.min.css" rel="stylesheet">
+>>>>>>> Stashed changes
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
 	
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
+<<<<<<< Updated upstream
 	<link rel="stylesheet" href="css/public/redesign.css?v=16">
+=======
+	<link rel="stylesheet" href="css/public/redesign.css?v=2">
+>>>>>>> Stashed changes
 	<link rel="stylesheet" href="css/public/tracking-modal.css">
 	<link rel="stylesheet" href="css/components/notifications.css">
 	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
 	     reuses. Must load before booking-form.css (below), which documents its own need to
 	     stay last; nothing here needs to win a cascade tie against it. -->
+<<<<<<< Updated upstream
 	<link rel="stylesheet" href="css/public/drawer.css?v=5">
+=======
+	<link rel="stylesheet" href="css/public/drawer.css">
+>>>>>>> Stashed changes
 
 	<!-- Google Places Visibility Fix -->
 	<!-- Booking wizard styles — extracted from the inline block that sat here. Must stay
 	     LAST of the project stylesheets: it relied on being after every <link>. -->
+<<<<<<< Updated upstream
 	<link rel="stylesheet" href="css/public/booking-form.css?v=8">
+=======
+	<link rel="stylesheet" href="css/public/booking-form.css">
+>>>>>>> Stashed changes
 
 	<!-- No-FOUC section visibility: hide sections the admin turned off, from cache, before first paint.
 	     renderSiteContent() in myscript.js reconciles with the server and removes this style. -->
@@ -52,7 +68,11 @@
 	(function () {
 		try {
 			var v = JSON.parse(localStorage.getItem('tm_sections') || '{}');
+<<<<<<< Updated upstream
 			var MAP = { hero:'#hero', features:'.tm-features', services:'.tm-services', about:'#about', career:'#career', accolades:'#accolades', footprint:'#footprint', team:'#team', gallery:'#gallery', events:'#events', social:'#social', newsletter:'#newsletter', testimonials:'#testimonials', contact:'#contact', footer:'.tm-footer' };
+=======
+			var MAP = { hero:'#hero', features:'.tm-features', services:'.tm-services', about:'#about', career:'#career', footprint:'#footprint', team:'#team', gallery:'#gallery', events:'#events', social:'#social', newsletter:'#newsletter', testimonials:'#testimonials', contact:'#contact', footer:'.tm-footer' };
+>>>>>>> Stashed changes
 			var sel = [];
 			Object.keys(MAP).forEach(function (k) { if (v[k] === false) sel.push(MAP[k]); });
 			if (sel.length) {
@@ -91,9 +111,15 @@
 				<li class="tm-nav-low"><a href="#career">Career</a></li>
 				<li class="tm-nav-lowest tm-nav-empty"><a href="#accolades">Accolades</a></li>
 				<li><a href="#footprint">Footprint</a></li>
+<<<<<<< Updated upstream
 				<li class="tm-nav-low"><a href="#team">Team</a></li>
 				<li class="tm-nav-low"><a href="#gallery">Gallery</a></li>
 				<li class="tm-nav-lower"><a href="#social">Social</a></li>
+=======
+				<li><a href="#team">Team</a></li>
+				<li><a href="#gallery">Gallery</a></li>
+				<li><a href="#social">Social</a></li>
+>>>>>>> Stashed changes
 				<li><a href="#events">Events</a></li>
 				<li><a href="#testimonials">Testimonials</a></li>
 				<li><a href="#contact">Contact</a></li>
@@ -375,7 +401,11 @@
 <section class="tm-section tm-team" id="team" aria-labelledby="teamTitle">
 	<div class="tm-container">
 		<div class="tm-section__head text-center tm-reveal">
+<<<<<<< Updated upstream
 			<p class="tm-eyebrow">The People Behind It All</p>
+=======
+			<p class="tm-eyebrow">The People Behind It</p>
+>>>>>>> Stashed changes
 			<h2 id="teamTitle">The <em>Management</em> Team</h2>
 			<p class="tm-section__desc">The people who keep the shows booked, the brand sharp, and the calendar honest.</p>
 		</div>
@@ -724,7 +754,11 @@
 	     css/public/drawer.css for the visual translation). role="dialog" + aria-modal + the
 	     labelledby wiring are unchanged from the modal; only the container behaviour is new. -->
 	<div class="atl-drawer-backdrop" id="bookingDrawerBackdrop" onclick="closeAtlDrawer('bookingDrawer')"></div>
+<<<<<<< Updated upstream
 	<div class="atl-drawer" id="bookingDrawer" role="dialog" aria-modal="true" data-atl-modal data-atl-return-focus=".tm-burger" inert aria-labelledby="bookingModalLabel">
+=======
+	<div class="atl-drawer" id="bookingDrawer" role="dialog" aria-modal="true" aria-labelledby="bookingModalLabel">
+>>>>>>> Stashed changes
 			<div class="atl-drawer__header">
 					<h3 class="atl-drawer__title" id="bookingModalLabel">Book Thabiso Mhlongo</h3>
 					<button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('bookingDrawer')" aria-label="Close"><span aria-hidden="true">&times;</span></button>
@@ -1278,6 +1312,7 @@
 			</div>
 	</div>
 
+<<<<<<< Updated upstream
 	<!-- Accolade detail drawer — opened by the "View Achievement / Nomination / Details" buttons in
 	     #accolades. Same drawer component as the Booking / Track drawers (js/admin/components/drawer.js,
 	     skinned by css/public/drawer.css); its body is built by AccoladesView.renderDetail()
@@ -1297,6 +1332,13 @@
 	<div class="atl-drawer-backdrop" id="trackingDrawerBackdrop" onclick="closeAtlDrawer('trackingDrawer')"></div>
 	<div class="atl-drawer" id="trackingDrawer" role="dialog" aria-modal="true" data-atl-modal data-atl-return-focus=".tm-burger" inert aria-labelledby="trackingModalLabel">
 
+=======
+	<!-- Track Booking Drawer — same conversion as the Booking Drawer above; same component
+	     family (identical BEM classes, identical open/close mechanism). -->
+	<div class="atl-drawer-backdrop" id="trackingDrawerBackdrop" onclick="closeAtlDrawer('trackingDrawer')"></div>
+	<div class="atl-drawer" id="trackingDrawer" role="dialog" aria-modal="true" aria-labelledby="trackingModalLabel">
+
+>>>>>>> Stashed changes
 				<div class="atl-drawer__header">
 					<h4 class="atl-drawer__title" id="trackingModalLabel">
 						<i class="fa-solid fa-ticket"></i>Track Your Booking
@@ -2020,6 +2062,7 @@
     <script src="js/jquery-2.1.1.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/intlTelInput.min.js"></script>
+<<<<<<< Updated upstream
 	<script src="js/team-view.js?v=2"></script>
 	<!-- Same renderer the admin preview uses for accolades (js/accolades-view.js). -->
 	<script src="js/accolades-view.js?v=1"></script>
@@ -2028,12 +2071,21 @@
 	<script src="js/shared/location-utils.js?v=1"></script>
 	<script src="js/myscript.js?v=1.9.4"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
+=======
+	<script src="js/myscript.js?v=1.3.0"></script>
+	<script src="js/overlay-stack.js"></script>
+>>>>>>> Stashed changes
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather
 	     than a second, public-only implementation. See css/public/drawer.css for the public
 	     skin (same BEM classes, public design tokens instead of admin's --atl-* ones). -->
+<<<<<<< Updated upstream
 	<script src="js/admin/components/drawer.js?v=3"></script>
 	<script src="js/notificationService.js?v=2.0.2"></script>
+=======
+	<script src="js/admin/components/drawer.js"></script>
+	<script src="js/notificationService.js"></script>
+>>>>>>> Stashed changes
 </body>
 <!-- UI Dependencies -->
 <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
@@ -2931,11 +2983,16 @@ $(document).ready(function() {
     // atl:drawerClosed fires from closeAtlDrawer() regardless of which control triggered the
     // close (X button, backdrop click, Escape) — one listener covers every path Bootstrap's
     // 'hidden.bs.modal' used to.
+<<<<<<< Updated upstream
     // The reset waits for the slide-out to finish (--t: .35s) so the panel doesn't visibly blank
     // mid-animation, and is skipped if the drawer was reopened in the meantime.
     document.addEventListener('atl:drawerClosed', function(e) {
         if (!e.detail || e.detail.id !== 'trackingDrawer') return;
         setTimeout(function() { if (!$('#trackingDrawer').hasClass('atl-drawer--open')) resetTracker(); }, 400);
+=======
+    document.addEventListener('atl:drawerClosed', function(e) {
+        if (e.detail && e.detail.id === 'trackingDrawer') resetTracker();
+>>>>>>> Stashed changes
     });
 
     // Every "Book Me" / "Track Booking" entry point on the page (header, mobile nav, hero,

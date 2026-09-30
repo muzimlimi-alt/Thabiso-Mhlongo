@@ -502,6 +502,7 @@ function initializeDatabase() {
             updated_at DATETIME
         )`, () => {});
 
+<<<<<<< Updated upstream
         // 7c. Accolades & Recognition — EXTERNAL recognition (wins, nominations, honours). Kept apart
         // from career_highlights on purpose: Milestones are the career journey, this is what others
         // awarded. Rules (categories, validation, ordering, what is published) live in
@@ -539,6 +540,8 @@ function initializeDatabase() {
                     ON accolades (lower(title), category, year, lower(COALESCE(organisation, '')))`, () => {});
         });
 
+=======
+>>>>>>> Stashed changes
          // 8. Manager Details Table
         db.run(`CREATE TABLE IF NOT EXISTS manager_details (
             manager_id INTEGER PRIMARY KEY AUTOINCREMENT,

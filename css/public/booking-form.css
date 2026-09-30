@@ -7,11 +7,23 @@
    the <link> replacing it sits in that same final position. Moving it above
    css/public/redesign.css would let the redesign's booking rules override it.
 
+<<<<<<< Updated upstream
+=======
+   The one non-booking rule is .pac-container (Google Places autocomplete
+   dropdown) — it needs z-index 10000 to clear the booking modal, and it is
+   kept here because that is the only place it is used.
+
+>>>>>>> Stashed changes
    Runtime-set styles are NOT here by design (§10): the booking wizard's
    widths, progress values and dynamic colours are written by js/myscript.js
    as inline styles and must stay there.
    ===================================================================== */
 
+<<<<<<< Updated upstream
+=======
+.pac-container { z-index: 10000 !important; }
+
+>>>>>>> Stashed changes
 /* Dynamic Pricing Premium Styling */
 .bk-sticky-total {
 	position: sticky;
@@ -83,6 +95,7 @@
 	color: #eee !important;
 	font-weight: 600 !important;
 }
+<<<<<<< Updated upstream
 
 /* =====================================================================
    PUBLIC BOOKING WIZARD — rules moved here from css/admin/redesign-admin.css
@@ -323,3 +336,5 @@
 .venue-dropdown { scroll-margin-bottom: 96px; }
 /* The red asterisk on required labels had no rule of its own. */
 .bk-required { color: var(--status-blocked); margin-left: 2px; }
+=======
+>>>>>>> Stashed changes

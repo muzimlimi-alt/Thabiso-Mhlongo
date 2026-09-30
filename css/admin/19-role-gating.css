@@ -28,8 +28,11 @@ body.role-manager #inqReadDeleteBtn,
 body.role-manager #evtBulkDelete,
 body.role-manager .remove-events-action,
 body.role-manager .team-delete-btn,
+<<<<<<< Updated upstream
 body.role-manager .acl-delete-btn,
 body.role-manager #aclBulkDelete,
+=======
+>>>>>>> Stashed changes
 body.role-manager .bk-delete-note-btn,
 body.role-manager .btn-svc-delete,
 body.role-manager .btn-void-invoice,
@@ -53,8 +56,11 @@ body.role-assistant #inqReadDeleteBtn,
 body.role-assistant #evtBulkDelete,
 body.role-assistant .remove-events-action,
 body.role-assistant .team-delete-btn,
+<<<<<<< Updated upstream
 body.role-assistant .acl-delete-btn,
 body.role-assistant #aclBulkDelete,
+=======
+>>>>>>> Stashed changes
 body.role-assistant .bk-delete-note-btn,
 body.role-assistant .btn-svc-delete,
 body.role-assistant .btn-void-invoice,
