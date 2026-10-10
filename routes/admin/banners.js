@@ -1,13 +1,12 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const crypto = require('crypto');
 const { imageSize } = require('image-size');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
-const { uploadsWriteDir } = require('../../lib/runtime-paths');
+const objectStorage = require('../../lib/object-storage');
 const bannerRegistry = require('../../js/bannerRegistry');
 const router = express.Router();
 
@@ -42,12 +41,13 @@ function validateBannerImageBuffer(file) {
     return { ok: true };
 }
 
-// Writes a validated buffer to the banners upload dir and returns its web-servable /images/... path.
-function saveBannerImage(file) {
+// Stores a validated buffer under images/banners/ and returns its web-servable /images/... path.
+async function saveBannerImage(file) {
     const ext = path.extname(file.originalname).toLowerCase();
     const filename = `${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
-    fs.writeFileSync(path.join(uploadsWriteDir('banners'), filename), file.buffer);
-    return `/images/banners/${filename}`;
+    const key = `images/banners/${filename}`;
+    await objectStorage.putBuffer(key, file.buffer, file.mimetype);
+    return `/${key}`;
 }
 
 const BANNER_CATEGORIES = [
@@ -109,7 +109,7 @@ router.get('/api/admin/banners/:id', requireAdmin, requireRole(['administrator',
 
 // ── Create ──
 router.post('/api/admin/banners', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    bannerUpload(req, res, (uploadErr) => {
+    bannerUpload(req, res, async (uploadErr) => {
         if (uploadErr) return res.status(400).json({ success: false, message: uploadErr.message || 'Upload failed.' });
 
         const { name, category, alt_text, headline, subtitle } = req.body;
@@ -120,7 +120,9 @@ router.post('/api/admin/banners', requireAdmin, requireRole(['administrator', 'm
         const validation = validateBannerImageBuffer(req.file);
         if (!validation.ok) return res.status(400).json({ success: false, message: validation.message });
 
-        const imageUrl = saveBannerImage(req.file);
+        let imageUrl;
+        try { imageUrl = await saveBannerImage(req.file); }
+        catch (e) { return res.status(500).json({ success: false, message: 'Could not save the banner image.' }); }
         db.run(
             `INSERT INTO banners (name, category, image_url, alt_text, headline, subtitle, created_by)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -141,7 +143,7 @@ router.put('/api/admin/banners/:id', requireAdmin, requireRole(['administrator',
     bannerUpload(req, res, (uploadErr) => {
         if (uploadErr) return res.status(400).json({ success: false, message: uploadErr.message || 'Upload failed.' });
 
-        db.get('SELECT * FROM banners WHERE id = ?', [req.params.id], (err, existing) => {
+        db.get('SELECT * FROM banners WHERE id = ?', [req.params.id], async (err, existing) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
             if (!existing) return res.status(404).json({ success: false, message: 'Banner not found.' });
 
@@ -154,7 +156,8 @@ router.put('/api/admin/banners/:id', requireAdmin, requireRole(['administrator',
             if (req.file) {
                 const validation = validateBannerImageBuffer(req.file);
                 if (!validation.ok) return res.status(400).json({ success: false, message: validation.message });
-                imageUrl = saveBannerImage(req.file);
+                try { imageUrl = await saveBannerImage(req.file); }
+                catch (e) { return res.status(500).json({ success: false, message: 'Could not save the banner image.' }); }
             }
 
             db.run(

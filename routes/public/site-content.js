@@ -4,6 +4,7 @@ const multer = require('multer');
 const db = require('../../database');
 const { ipRateLimiter } = require('../../middleware/rate-limiters');
 const { uploadsWriteDir } = require('../../lib/runtime-paths');
+const objectStorage = require('../../lib/object-storage');
 const { safeUploadFilename } = require('../../lib/uploads');
 const { unescapeHtml, SECTION_KEYS } = require('../../lib/html-sanitize');
 const { listPublicMembers } = require('../../lib/team');
@@ -15,7 +16,7 @@ const router = express.Router();
 // from req.body.section) because this route only ever handles testimonial photos and the public
 // submission form has no reason to send a `section` field — relying on it silently misfiled
 // uploads into images/ instead of images/testimonials/ while the DB kept the intended path.
-const publicImageUploadStorage = multer.diskStorage({
+const publicImageUploadStorage = objectStorage.multerStorage({
     destination: function (req, file, cb) {
         cb(null, uploadsWriteDir('testimonials'));
     },

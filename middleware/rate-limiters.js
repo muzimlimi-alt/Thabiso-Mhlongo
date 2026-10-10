@@ -151,7 +151,7 @@ const payfastItnRateLimiter = rateLimit ? rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
-        const ip = (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim().replace('::ffff:', '');
+        const ip = (req.ip || '').replace('::ffff:', '');
         return PAYFAST_VALID_IPS.includes(ip);
     },
     handler: (req, res) => {

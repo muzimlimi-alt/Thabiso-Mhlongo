@@ -66,6 +66,12 @@ async function spawnAndWait() {
             DB_PATH: TEST_DB,
             DOCS_PATH: TEST_DOCS_DIR,
             UPLOADS_PATH: TEST_UPLOADS_DIR,
+            // Empty values keep test uploads on disk even when the local .env has real R2 credentials
+            // (dotenv never overrides a variable that is already set, empty or not).
+            R2_ENDPOINT: '',
+            R2_BUCKET: '',
+            R2_ACCESS_KEY_ID: '',
+            R2_SECRET_ACCESS_KEY: '',
             // Sandbox so the PayFast ITN accepts synthetic notifications (lenient signature/IP).
             PAYFAST_URL: 'https://sandbox.payfast.co.za',
             PAYFAST_MERCHANT_ID: '10000100',
@@ -114,6 +120,13 @@ async function start() {
             }
         }
     }
+    // The source DB mirrors real Google Calendar blocks (birthdays and the like) as date_holds on fixed
+    // dates, while tests book at future(N) offsets that move every day. Inherited rows made bookings
+    // collide with unrelated holds once the calendar rolled over, so drop the mirrored copies here.
+    await new Promise((res, rej) => {
+        const db = new sqlite3.Database(TEST_DB);
+        db.run("DELETE FROM date_holds WHERE block_type = 'calendar_sync'", e => db.close(() => e ? rej(e) : res()));
+    });
     await seedAdmin();
     await spawnAndWait();
 
@@ -158,6 +171,7 @@ async function stop() {
 
 // Authenticated JSON request.
 async function api(method, urlPath, body) {
+    if (method === 'PUT' && MANUAL_PAYMENT_PATH.test(urlPath)) return sendProofPayment(cookie, method, urlPath, body);
     const r = await fetch(BASE + urlPath, {
         method,
         headers: { 'Content-Type': 'application/json', Cookie: cookie },
@@ -247,6 +261,7 @@ async function loginAs(role) {
     const roleCookie = sc.split(';')[0];
 
     return async (method, urlPath, body) => {
+        if (method === 'PUT' && MANUAL_PAYMENT_PATH.test(urlPath)) return sendProofPayment(roleCookie, method, urlPath, body);
         const r = await fetch(BASE + urlPath, {
             method,
             headers: { 'Content-Type': 'application/json', Cookie: roleCookie },
@@ -255,6 +270,20 @@ async function loginAs(role) {
         let json = null; try { json = await r.json(); } catch (e) {}
         return { status: r.status, body: json };
     };
+}
+
+// manual-payment refuses a payment without a proof-of-payment file, so these calls are sent as multipart
+// with a small PNG attached (the route's own field name). Every other request stays plain JSON.
+const MANUAL_PAYMENT_PATH = /\/manual-payment$/;
+async function sendProofPayment(cookieHeader, method, urlPath, fields) {
+    const form = new FormData();
+    for (const [k, v] of Object.entries(fields || {})) {
+        if (v !== undefined && v !== null) form.append(k, String(v));
+    }
+    form.append('proof_of_payment', new Blob([makeTestPng(4, 4)], { type: 'image/png' }), 'proof.png');
+    const r = await fetch(BASE + urlPath, { method, headers: { Cookie: cookieHeader }, body: form });
+    let json = null; try { json = await r.json(); } catch (e) {}
+    return { status: r.status, body: json };
 }
 
 // Unauthenticated request (public endpoints).

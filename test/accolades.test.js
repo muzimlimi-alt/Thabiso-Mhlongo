@@ -51,7 +51,7 @@ module.exports = async function ({ check, api, pub, upload, loginAs, q, one, mak
     const first = await adminView();
     check('admin API returns { accolades, section_visible, public_fields, categories, limits }',
         first && Array.isArray(first.accolades) && typeof first.section_visible === 'boolean' && Array.isArray(first.public_fields)
-        && JSON.stringify(first.categories) === JSON.stringify(['win', 'nomination', 'accolade']) && first.limits && first.limits.title === 160,
+        && JSON.stringify(first.categories) === JSON.stringify(['win', 'nomination', 'accolade', 'lineup']) && first.limits && first.limits.title === 160,
         JSON.stringify(Object.keys(first || {})));
     check('published fields include the display fields and exclude internal ones',
         ['title', 'category', 'year', 'organisation', 'result', 'description', 'image', 'organisation_logo', 'certificate_file', 'external_url', 'source_url', 'featured'].every(k => first.public_fields.includes(k))

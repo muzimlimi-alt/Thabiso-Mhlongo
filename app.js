@@ -71,6 +71,7 @@ if (!fs.existsSync(scratchDir)) {
 // caller here — every route that used them has moved to its own route file, each importing
 // whichever of these it still needs directly. Only UPLOADS_PATH still has real callers here.
 const { UPLOADS_PATH } = require('./lib/runtime-paths');
+const objectStorage = require('./lib/object-storage');
 
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): parseDurationMins moved to routes/public/bookings.js —
@@ -327,6 +328,29 @@ app.use((req, res, next) => {
     next();
 });
 
+// Admin uploads are served from object storage when it is configured (lib/object-storage.js). A miss
+// calls next(), so the images still shipped in the repo fall through to the disk static servers below.
+function serveFromObjectStorage(keyPrefix) {
+    return async (req, res, next) => {
+        if (!objectStorage.enabled || (req.method !== 'GET' && req.method !== 'HEAD')) return next();
+        try {
+            const rel = decodeURIComponent(req.path).replace(/^\/+/, '');
+            if (!/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(rel) || rel.includes('..')) return next();
+            const obj = await objectStorage.getObject(keyPrefix + rel);
+            if (!obj) return next();
+            res.set('Content-Type', obj.ContentType || 'application/octet-stream');
+            res.set('Cache-Control', 'public, max-age=604800');
+            if (obj.ContentLength != null) res.set('Content-Length', String(obj.ContentLength));
+            if (req.method === 'HEAD') return res.end();
+            obj.Body.on('error', () => res.destroy()).pipe(res);
+        } catch (err) {
+            next(err);
+        }
+    };
+}
+app.use('/images', serveFromObjectStorage('images/'));
+app.use('/uploads', serveFromObjectStorage('images/'));
+
 // Uploaded images are written under UPLOADS_PATH, which by default IS the project's images/ folder, so
 // the blanket repo-root static server below already serves /images/<section>/<file> (with the long
 // image cache headers) and no extra mount is needed. Only when UPLOADS_PATH is overridden to somewhere
@@ -385,7 +409,7 @@ if (_sessionStore.db && typeof _sessionStore.db.configure === 'function') {
     _sessionStore.db.configure('busyTimeout', 5000);
 }
 
-app.set('trust proxy', 1); // Trust first proxy (ngrok)
+app.set('trust proxy', Number(process.env.TRUST_PROXY_HOPS) || 1); // 1 behind Render alone; 2 behind Cloudflare → Render
 app.use(session({
     store: _sessionStore,
     secret: _sessionSecret,

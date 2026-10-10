@@ -119,7 +119,7 @@ router.post('/api/public/analytics/track', analyticsTrackLimiter, (req, res) => 
         if (!visitor_id || !session_id || !event) return;
 
         // Geo — extract country from IP then discard the IP
-        const ip  = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+        const ip  = req.ip || '';
         const geo = geoip.lookup(ip) || {};
         const countryCode = geo.country || 'ZZ';
         const countryName = geo.country || 'Unknown'; // geoip-lite returns ISO alpha-2

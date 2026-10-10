@@ -74,7 +74,7 @@ router.get('/api/admin/accolades', requireAdmin, async (req, res) => {
 });
 
 router.post('/api/admin/accolades', requireAdmin, async (req, res) => {
-    const prepared = prepareAccolade(req.body, null);
+    const prepared = await prepareAccolade(req.body, null);
     if (prepared.error) return res.status(400).json({ success: false, message: prepared.error, field: prepared.field });
     const v = prepared.values;
     try {
@@ -213,7 +213,7 @@ router.put('/api/admin/accolades/:id', requireAdmin, async (req, res) => {
         const outcome = await withDbTransaction(async () => {
             const existing = await dbGet('SELECT * FROM accolades WHERE id = ?', [id]);
             if (!existing) return failed(404, 'Accolade not found.');
-            const prepared = prepareAccolade(req.body, existing);
+            const prepared = await prepareAccolade(req.body, existing);
             if (prepared.error) return failed(400, prepared.error, { field: prepared.field });
             const v = prepared.values;
             const dup = await findDuplicate(v, id);

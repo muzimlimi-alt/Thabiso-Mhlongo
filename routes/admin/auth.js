@@ -41,7 +41,7 @@ router.post('/api/admin/login', adminLoginRateLimiter, (req, res) => {
                 
                 updateAdminLastLogin(row.id, () => {});
 
-                const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+                const ip = req.ip || '';
                 const ua = req.headers['user-agent'] || '';
 
                 insertAdminLoginLog(

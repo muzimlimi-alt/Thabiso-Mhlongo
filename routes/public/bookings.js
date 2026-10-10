@@ -124,7 +124,7 @@ router.post('/api/public/bookings/draft', ipRateLimiter, async (req, res) => {
         const consent = b.consent_given ? 1 : 0;
         const source = (b.source || '').toString().slice(0, 120);
         const ua = (req.headers['user-agent'] || '').toString().slice(0, 255);
-        const ip = (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim();
+        const ip = (req.ip || '').toString();
         const msg = (b.message || '').toString().slice(0, 2000);
 
         const resumeToken = crypto.randomBytes(24).toString('hex');
@@ -814,7 +814,7 @@ router.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateL
     if (signatoryName.length < 2 || signatoryName.length > 120) {
         return res.status(400).json({ success: false, message: 'Please enter your full legal name.' });
     }
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const clientIp = req.ip || 'unknown';
 
     db.get("SELECT id, email FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
@@ -1024,7 +1024,7 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
     if (vat_number.length > 30) return res.status(400).json({ success: false, message: 'VAT number must be under 30 characters.' });
 
     const bookingId = req.params.id;
-    const clientIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.ip || 'unknown';
+    const clientIp = req.ip || 'unknown';
 
     try {
         const row = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);

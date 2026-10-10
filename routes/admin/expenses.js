@@ -5,13 +5,14 @@ const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { uploadsWriteDir } = require('../../lib/runtime-paths');
+const objectStorage = require('../../lib/object-storage');
 const { insertExpense, getActiveExpenseById, softDeleteExpense, updateExpense } = require('../../database/repositories/finance.repository');
 const router = express.Router();
 
 const VALID_EXPENSE_CATEGORIES = ['mileage','airfare','accommodation','meals','per_diem','parking_tolls','marketing','props','misc'];
 
 // Receipt file storage for expenses
-const receiptStorage = multer.diskStorage({
+const receiptStorage = objectStorage.multerStorage({
     destination: (req, file, cb) => {
         cb(null, uploadsWriteDir('receipts'));
     },
