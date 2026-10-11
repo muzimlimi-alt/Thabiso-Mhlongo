@@ -1353,7 +1353,6 @@ header .navbar {
    display:contents so their per-year .acc-tl__cell children become the actual grid items — grid row 1
    (years) / 2 (rail+ticks) / 3 (captions) is assigned by which wrapper a cell's descendant selector
    matches, grid column by that cell's own --i (its position in the year range). */
-@keyframes acc-tl-rail-draw{ from{ transform:scaleX(0); } to{ transform:scaleX(1); } }
 
 .acc-tl{
   display:flex; align-items:stretch; gap:6px;
@@ -1409,9 +1408,7 @@ header .navbar {
 .acc-tl__rail-line{
   grid-row:2; grid-column:1 / -1; align-self:center;
   height:1px; background:rgba(212,175,55,.3);
-  transform:scaleX(0); transform-origin:left;
 }
-.acc-tl.reveal.active .acc-tl__rail-line{ animation:acc-tl-rail-draw .9s var(--ease-out) .1s both; }
 
 .acc-tl__cell{
   grid-column:calc(var(--i, 0) + 1);
