@@ -284,17 +284,25 @@ app.use((req, res, next) => {
     next();
 });
 
-// Disallow admin and API paths from search engine crawlers
+// robots.txt and sitemap.xml are the two files crawlers act on, and Cloudflare (in front of Render) caches
+// *.txt for hours by default - after the Allow: /api/public/ fix it kept serving Googlebot the old rules.
+// A 5-minute max-age makes the edge re-check often enough that edits reach crawlers quickly.
+const CRAWLER_FILE_CACHE_CONTROL = 'public, max-age=300';
+
+// Disallow admin and API paths from search engine crawlers (but allow /api/public/: the homepage
+// renders its sections from those endpoints, and Googlebot has to be able to fetch them).
 // Phase 5 (HOUSEKEEPING-NOTES.md): deliberately NOT moved to a route file, unlike every other
 // route in the final standalone/webhook batch. This handler is registered before the blanket
 // static-file server further below (`express.static(path.join(__dirname, '/'))`), and a physical
-// `robots.txt` file exists at the project root with genuinely different content (confirmed via
-// diff) — Express matches routes/middleware in registration order, so moving this into the
+// `robots.txt` file exists at the project root. It had genuinely different content when this was
+// written; the two now carry the same rules (test/seo-crawl-files.test.js keeps them in sync).
+// Express matches routes/middleware in registration order, so moving this into the
 // `app.use(require(...))` mount block (itself registered after that static server) would let the
 // physical file silently shadow this dynamic handler, a real behaviour change. Left in place here
 // to preserve the exact registration order the plan's own middleware-ordering rule requires.
 app.get('/robots.txt', (req, res) => {
     res.type('text/plain');
+    res.set('Cache-Control', CRAWLER_FILE_CACHE_CONTROL);
     res.send('User-agent: *\nDisallow: /admin\nDisallow: /api\nAllow: /api/public/\n\nSitemap: https://www.thabisomhlongo.com/sitemap.xml\n');
 });
 
@@ -302,6 +310,7 @@ app.get('/robots.txt', (req, res) => {
 // utility pages). Registered before express.static so it can't be shadowed.
 app.get('/sitemap.xml', (req, res) => {
     res.type('application/xml');
+    res.set('Cache-Control', CRAWLER_FILE_CACHE_CONTROL);
     res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>https://www.thabisomhlongo.com/</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n');
 });
 
