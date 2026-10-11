@@ -9,6 +9,7 @@ const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { mutateRateLimiter } = require('../../middleware/rate-limiters');
 const { resolveDocsPath, docsWriteDir, PROJECT_ROOT } = require('../../lib/runtime-paths');
+const objectStorage = require('../../lib/object-storage');
 // Phase 5 housekeeping fix: dbGet was called at 5 sites below (all in the contract cluster moved in
 // sub-batch C) with no import anywhere in this file — a missing re-import from that move, not a
 // pre-existing app bug (app.js itself has always imported these from lib/db-helpers). Restores the
@@ -144,7 +145,7 @@ const BOOKING_DELETE_UNLINK = [
 
 // P2.6 — Contract management (admin)
 const contractUpload = multer({
-    storage: multer.diskStorage({
+    storage: objectStorage.multerStorage({
         destination: function(req, file, cb) {
             cb(null, docsWriteDir('contracts'));
         },
@@ -166,7 +167,7 @@ const contractUpload = multer({
 // common as a PDF statement here, unlike the contract upload above.
 const PAYMENT_PROOF_MIMES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 const paymentProofUpload = multer({
-    storage: multer.diskStorage({
+    storage: objectStorage.multerStorage({
         destination: function(req, file, cb) {
             cb(null, docsWriteDir('payment_proofs'));
         },
@@ -193,8 +194,8 @@ async function sendContractEmail(booking, contractPdfPath) {
     const signUrl = `${baseUrl}/?track=${id}&email=${encodeURIComponent(email)}`;
 
     const attachments = [];
-    if (contractPdfPath && fs.existsSync(contractPdfPath)) {
-        attachments.push({ filename: `Contract_${id}_Thabiso_Mhlongo.pdf`, path: contractPdfPath, contentType: 'application/pdf' });
+    if (contractPdfPath && await objectStorage.fileExists(contractPdfPath)) {
+        attachments.push({ filename: `Contract_${id}_Thabiso_Mhlongo.pdf`, content: await objectStorage.readFile(contractPdfPath), contentType: 'application/pdf' });
     }
 
     const { socialLinks } = await getEmailFooterContext();
@@ -457,35 +458,29 @@ router.get('/api/admin/bookings/:id/reconcile', requireAdmin, (req, res) => {
 // 2b. Download Invoice (Admin Authorized)
 router.get('/api/admin/bookings/:id/invoice/download', requireAdmin, (req, res) => {
     // Same as the public route: serve the live invoice, never a superseded VOID revision.
-    getInvoiceFileForAdminDownload(req.params.id, (err, row) => {
+    getInvoiceFileForAdminDownload(req.params.id, async (err, row) => {
 
         if (err || !row) return res.status(404).send('Invoice not found');
 
-        const filePath = resolveDocsPath('invoices', row.file_path);
-        if (fs.existsSync(filePath)) {
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=Invoice_${row.invoice_number}.pdf`);
-            res.sendFile(filePath);
-        } else {
-            res.status(404).send('Physical PDF file not found on server.');
-        }
+        const doc = await objectStorage.resolveDocument('invoices', row.file_path);
+        if (!doc) return res.status(404).send('Physical PDF file not found on server.');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=Invoice_${row.invoice_number}.pdf`);
+        if (doc.stream) doc.stream.pipe(res); else res.sendFile(doc.diskPath);
     });
 });
 
 // 2c. Download Quote (Admin Authorized)
 router.get('/api/admin/bookings/:id/quote/download', requireAdmin, (req, res) => {
-    getQuoteFileForAdminDownload(req.params.id, (err, row) => {
+    getQuoteFileForAdminDownload(req.params.id, async (err, row) => {
 
         if (err || !row) return res.status(404).send('Quotation not found');
 
-        const filePath = resolveDocsPath('quotes', row.file_path);
-        if (fs.existsSync(filePath)) {
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=Quote_${row.quote_number}.pdf`);
-            res.sendFile(filePath);
-        } else {
-            res.status(404).send('Physical PDF file not found on server.');
-        }
+        const doc = await objectStorage.resolveDocument('quotes', row.file_path);
+        if (!doc) return res.status(404).send('Physical PDF file not found on server.');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=Quote_${row.quote_number}.pdf`);
+        if (doc.stream) doc.stream.pipe(res); else res.sendFile(doc.diskPath);
     });
 });
 
@@ -674,7 +669,7 @@ router.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => 
     }
 
     const forceCountersign = req.body && req.body.force === true;
-    db.get("SELECT status, is_frozen, signed_by_client_at, pdf_url, client_signature_data FROM contracts WHERE booking_id = ?", [bookingId], (checkErr, existing) => {
+    db.get("SELECT status, is_frozen, signed_by_client_at, pdf_url, client_signature_data FROM contracts WHERE booking_id = ?", [bookingId], async (checkErr, existing) => {
         if (checkErr) return res.status(500).json({ success: false, message: checkErr.message });
         if (!existing) return res.status(404).json({ success: false, message: 'No contract found for this booking. Upload a PDF first.' });
         if (existing.is_frozen === 1 || existing.status === 'signed') {
@@ -701,8 +696,8 @@ router.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => 
             }
             if (clientHash && existing.pdf_url) {
                 const cpath = resolveDocsPath('contracts', existing.pdf_url);
-                if (fs.existsSync(cpath)) {
-                    const nowHash = crypto.createHash('sha256').update(fs.readFileSync(cpath)).digest('hex');
+                if (await objectStorage.fileExists(cpath)) {
+                    const nowHash = crypto.createHash('sha256').update(await objectStorage.readFile(cpath)).digest('hex');
                     integrityVerified = (nowHash === clientHash);
                     if (integrityVerified === false) console.warn(`[Contract Countersign] PDF hash changed since client signed (booking #${bookingId}) — possible tamper.`);
                 }
@@ -741,13 +736,19 @@ router.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => 
 
 // GET — download the contract PDF
 router.get('/api/admin/bookings/:id/contract/download', requireAdmin, (req, res) => {
-    db.get("SELECT pdf_url FROM contracts WHERE booking_id = ?", [req.params.id], (err, row) => {
+    db.get("SELECT pdf_url FROM contracts WHERE booking_id = ?", [req.params.id], async (err, row) => {
         if (err || !row || !row.pdf_url) return res.status(404).json({ success: false, message: 'No contract on file for this booking.' });
-        const filePath = resolveDocsPath('contracts', row.pdf_url);
-        if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: 'Contract file not found on server. It may have been deleted.' });
-        res.download(filePath, row.pdf_url, (dlErr) => {
-            if (dlErr) console.error('[Contract Download Error]', dlErr.message);
-        });
+        const doc = await objectStorage.resolveDocument('contracts', row.pdf_url);
+        if (!doc) return res.status(404).json({ success: false, message: 'Contract file not found on server. It may have been deleted.' });
+        if (doc.stream) {
+            res.setHeader('Content-Type', doc.contentType);
+            res.setHeader('Content-Disposition', `attachment; filename="${row.pdf_url}"`);
+            doc.stream.pipe(res);
+        } else {
+            res.download(doc.diskPath, row.pdf_url, (dlErr) => {
+                if (dlErr) console.error('[Contract Download Error]', dlErr.message);
+            });
+        }
     });
 });
 
@@ -770,7 +771,7 @@ router.post('/api/admin/bookings/:id/contract/send', requireAdmin, mutateRateLim
                 return res.status(400).json({ success: false, message: 'This contract is already signed and finalised.' });
             }
             const pdfPath = resolveDocsPath('contracts', contract.pdf_url);
-            if (!fs.existsSync(pdfPath)) return res.status(404).json({ success: false, message: 'Contract file not found on server. Regenerate it first.' });
+            if (!await objectStorage.fileExists(pdfPath)) return res.status(404).json({ success: false, message: 'Contract file not found on server. Regenerate it first.' });
 
             try {
                 await sendContractEmail(booking, pdfPath);
@@ -1472,7 +1473,8 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
                 // quoteNumber is passed through so the number on the client's PDF is the number stored in
                 // `quotations.quote_number`, as invoices now do.
                 const pdfResult = await pdfService.generateDocument('Quote', booking, items, pdfPath, [], quoteNumber);
-                
+                await objectStorage.syncFileToStorage(pdfPath);
+
                 // Archive the old quotation, restamp the booking, insert the new versioned quotation
                 // and rebuild its line-item snapshot — one atomic unit, queued behind every other
                 // guarded transaction on the shared connection.

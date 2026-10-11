@@ -1,11 +1,13 @@
 const express = require('express');
-const fs = require('fs');
+const path = require('path');
 const db = require('../../database');
 const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRoleForInquiryEmail } = require('../../middleware/rbac');
 const { emailAttachUpload } = require('../../lib/uploads');
+const { PROJECT_ROOT } = require('../../lib/runtime-paths');
+const objectStorage = require('../../lib/object-storage');
 const { getEmailFooterContext } = require('../../lib/email-context');
 const { scheduledJobs } = require('../../lib/newsletter-scheduling');
 const { scheduleDirectEmailSend, sendDirectEmail } = require('../../lib/direct-emails');
@@ -157,8 +159,9 @@ router.delete('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
             try {
                 const paths = JSON.parse(row.attachment_paths);
                 paths.forEach(p => {
-                    if (p && p.path && fs.existsSync(p.path)) {
-                        fs.unlink(p.path, () => {});
+                    if (p && p.path) {
+                        const resolvedPath = path.isAbsolute(p.path) ? p.path : path.join(PROJECT_ROOT, p.path);
+                        objectStorage.deleteFile(resolvedPath).catch(() => {});
                     }
                 });
             } catch(e) {}

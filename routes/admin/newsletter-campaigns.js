@@ -1,5 +1,4 @@
 const express = require('express');
-const fs = require('fs');
 const moment = require('moment-timezone');
 const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
@@ -8,6 +7,7 @@ const { applyMergeFields } = require('../../js/mergeFields');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { newsletterUpload } = require('../../lib/uploads');
+const objectStorage = require('../../lib/object-storage');
 const { getEmailFooterContext, emailBaseUrl } = require('../../lib/email-context');
 const { scheduledJobs, buildSegmentCondition, scheduleNewsletterSend } = require('../../lib/newsletter-scheduling');
 const { sanitizeEmailInput, EMAIL_FORMAT_RE } = require('../../lib/validation');
@@ -168,7 +168,7 @@ router.delete('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['
                 delete scheduledJobs[id];
             }
             if (!fetchErr && row && row.attachment_paths) {
-                try { JSON.parse(row.attachment_paths).forEach(a => fs.unlink(a.path, () => {})); } catch(e) {}
+                try { JSON.parse(row.attachment_paths).forEach(a => objectStorage.deleteFile(a.path).catch(() => {})); } catch(e) {}
             }
             res.json({ success: true });
         });
@@ -187,7 +187,7 @@ router.put('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['adm
     if (!scheduled_at) return res.status(400).json({ success: false, message: 'scheduled_at is required.' });
     const editFireDate = new Date(scheduled_at);
     if (isNaN(editFireDate.getTime()) || editFireDate <= new Date()) {
-        newFiles.forEach(f => fs.unlink(f.path, () => {}));
+        newFiles.forEach(f => objectStorage.deleteFile(f.path).catch(() => {}));
         return res.status(400).json({ success: false, message: 'scheduled_at must be a valid future date and time.' });
     }
 
@@ -197,7 +197,7 @@ router.put('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['adm
         if (newFiles.length > 0) {
             // New files uploaded — delete old ones and replace
             if (!fetchErr && existing && existing.attachment_paths) {
-                try { JSON.parse(existing.attachment_paths).forEach(a => fs.unlink(a.path, () => {})); } catch(e) {}
+                try { JSON.parse(existing.attachment_paths).forEach(a => objectStorage.deleteFile(a.path).catch(() => {})); } catch(e) {}
             }
             attachmentPaths = JSON.stringify(newFiles.map(f => ({ filename: f.originalname, path: f.path })));
         } else {
@@ -207,11 +207,11 @@ router.put('/api/admin/newsletter/schedule/:id', requireAdmin, requireRole(['adm
 
         updateScheduledNewsletter(subject, content, scheduled_at, attachmentPaths, segment || null, segment_value || null, id, function(err) {
             if (err) {
-                newFiles.forEach(f => fs.unlink(f.path, () => {}));
+                newFiles.forEach(f => objectStorage.deleteFile(f.path).catch(() => {}));
                 return res.status(500).json({ success: false, message: err.message });
             }
             if (this.changes === 0) {
-                newFiles.forEach(f => fs.unlink(f.path, () => {}));
+                newFiles.forEach(f => objectStorage.deleteFile(f.path).catch(() => {}));
                 return res.status(400).json({ success: false, message: 'Schedule not found or no longer pending.' });
             }
             if (scheduledJobs[id]) {

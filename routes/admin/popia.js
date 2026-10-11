@@ -173,7 +173,7 @@ router.post('/api/admin/popia/requests/:id/process', requireAdmin, requireRole([
             pending_booking_ids: outcome.pendingBookingIds
         });
     }
-    deletePopiaFiles(outcome.filesToDelete);
+    await deletePopiaFiles(outcome.filesToDelete);
     res.json({ success: true, message: 'Request processed — data anonymized.', affected: outcome.affected });
 });
 
@@ -183,7 +183,7 @@ router.post('/api/admin/popia/requests/:id/process', requireAdmin, requireRole([
 router.post('/api/admin/popia/requests/:id/complete-anonymization', requireAdmin, requireRole(['administrator']), async (req, res) => {
     const outcome = await completePopiaAnonymization(req.params.id, req.session.adminId, req.session.username);
     if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
-    deletePopiaFiles(outcome.filesToDelete);
+    await deletePopiaFiles(outcome.filesToDelete);
     res.json({ success: true, message: 'Refund(s) resolved — data anonymized.', affected: outcome.affected });
 });
 
@@ -225,7 +225,7 @@ router.post('/api/admin/popia/requests', requireAdmin, requireRole(['administrat
         });
     }
 
-    deletePopiaFiles(processed.filesToDelete);
+    await deletePopiaFiles(processed.filesToDelete);
 
     res.json({ success: true, message: 'Request created and processed — data anonymized.', id: created.id, reference_number: created.reference_number, affected: processed.affected });
 });
@@ -271,7 +271,7 @@ router.post('/api/admin/gdpr/delete', requireAdmin, requireRole(['administrator'
         });
     }
 
-    deletePopiaFiles(processed.filesToDelete);
+    await deletePopiaFiles(processed.filesToDelete);
 
     console.log(`[GDPR] Anonymized for ${emailNorm} (request #${created.id}):`, processed.affected);
     res.json({

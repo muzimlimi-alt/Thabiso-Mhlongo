@@ -4,6 +4,7 @@ const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { resolveDocsPath } = require('../../lib/runtime-paths');
+const objectStorage = require('../../lib/object-storage');
 const { getEmailFooterContext } = require('../../lib/email-context');
 const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
@@ -132,10 +133,11 @@ router.get('/api/admin/clients/duplicates', requireAdmin, (req, res) => {
 });
 
 // Admin: serve a booking attachment file
-router.get('/api/admin/booking-attachments/:filename', requireAdmin, (req, res) => {
-    const filePath = resolveDocsPath('booking_attachments', req.params.filename);
-    if (!fs.existsSync(filePath)) return res.status(404).send('File not found.');
-    res.sendFile(filePath);
+router.get('/api/admin/booking-attachments/:filename', requireAdmin, async (req, res) => {
+    const doc = await objectStorage.resolveDocument('booking_attachments', req.params.filename);
+    if (!doc) return res.status(404).send('File not found.');
+    if (doc.stream) { res.setHeader('Content-Type', doc.contentType); doc.stream.pipe(res); }
+    else res.sendFile(doc.diskPath);
 });
 
 // Admin: approve or delete a review

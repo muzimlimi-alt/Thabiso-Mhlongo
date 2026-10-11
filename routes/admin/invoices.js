@@ -5,6 +5,7 @@ const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { resolveDocsPath } = require('../../lib/runtime-paths');
 const { sendInvoiceEmail } = require('../../lib/invoice-email');
+const objectStorage = require('../../lib/object-storage');
 const {
     markInvoiceSent, markInvoiceSentAndPublished, getInvoiceById, voidInvoiceWithReason, markInvoicePaidById
 } = require('../../database/repositories/invoices-quotations.repository');
@@ -16,7 +17,7 @@ router.post('/api/admin/invoices/:id/send', requireAdmin, requireRole(['administ
             FROM invoices i JOIN bookings b ON i.booking_id = b.id WHERE i.id = ?`, [req.params.id], async (err, inv) => {
         if (err || !inv) return res.status(404).json({ error: 'Invoice not found.' });
         const invoiceFilePath = inv.file_path ? resolveDocsPath('invoices', inv.file_path) : null;
-        if (!invoiceFilePath || !fs.existsSync(invoiceFilePath)) {
+        if (!invoiceFilePath || !await objectStorage.fileExists(invoiceFilePath)) {
             return res.status(400).json({ error: 'Invoice PDF not found. Please regenerate the invoice first.' });
         }
         if ((inv.status || '').toUpperCase() === 'VOID') {
@@ -50,7 +51,7 @@ router.post('/api/admin/invoices/bulk-send-unsent', requireAdmin, requireRole(['
             let sent = 0, failed = 0, errors = [];
             for (const inv of rows) {
                 const invoiceFilePath = inv.file_path ? resolveDocsPath('invoices', inv.file_path) : null;
-                if (!invoiceFilePath || !fs.existsSync(invoiceFilePath)) { failed++; errors.push(inv.invoice_number + ': PDF missing'); continue; }
+                if (!invoiceFilePath || !await objectStorage.fileExists(invoiceFilePath)) { failed++; errors.push(inv.invoice_number + ': PDF missing'); continue; }
                 try {
                     const bookingObj = { id: inv.booking_id, name: inv.name, email: inv.email, event_name: inv.event_name, event_type: inv.event_type, date: inv.date };
                     await sendInvoiceEmail(bookingObj, invoiceFilePath);

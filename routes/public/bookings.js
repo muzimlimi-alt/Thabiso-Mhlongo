@@ -13,6 +13,7 @@ const { requireBookingAccessToken } = require('../../middleware/booking-access')
 const { encodeUserHtml } = require('../../lib/html-sanitize');
 const { getEmailFooterContext } = require('../../lib/email-context');
 const { resolveDocsPath, docsWriteDir } = require('../../lib/runtime-paths');
+const objectStorage = require('../../lib/object-storage');
 const {
     asBookingText, OTP_TTL_MINUTES, OTP_MAX_ATTEMPTS, ACCESS_TOKEN_TTL_MINUTES,
     generateOtpCode, hashAccessToken
@@ -395,14 +396,11 @@ router.get('/api/public/bookings/:id/invoice/download', ipRateLimiter, trackRate
 
         if (err || !row) return res.status(404).send('Invoice not found');
 
-        const filePath = resolveDocsPath('invoices', row.file_path);
-        if (fs.existsSync(filePath)) {
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=Invoice_${row.invoice_number}.pdf`);
-            res.sendFile(filePath);
-        } else {
-            res.status(404).send('Physical PDF file not found on server.');
-        }
+        const doc = await objectStorage.resolveDocument('invoices', row.file_path);
+        if (!doc) return res.status(404).send('Physical PDF file not found on server.');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=Invoice_${row.invoice_number}.pdf`);
+        if (doc.stream) doc.stream.pipe(res); else res.sendFile(doc.diskPath);
     });
 });
 
@@ -415,14 +413,11 @@ router.get('/api/public/bookings/:id/contract/download', ipRateLimiter, trackRat
 
         if (err || !row || !row.pdf_url) return res.status(404).send('Contract not found');
 
-        const filePath = resolveDocsPath('contracts', row.pdf_url);
-        if (fs.existsSync(filePath)) {
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=Contract_${row.pdf_url}`);
-            res.sendFile(filePath);
-        } else {
-            res.status(404).send('Physical PDF file not found on server.');
-        }
+        const doc = await objectStorage.resolveDocument('contracts', row.pdf_url);
+        if (!doc) return res.status(404).send('Physical PDF file not found on server.');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=Contract_${row.pdf_url}`);
+        if (doc.stream) doc.stream.pipe(res); else res.sendFile(doc.diskPath);
     });
 });
 
@@ -433,14 +428,13 @@ router.post('/api/public/bookings/:id/quote/download', ipRateLimiter, trackRateL
         if (!['QUOTED','ACCEPTED','CONFIRMED','COMPLETED'].includes(booking.status))
             return res.status(403).json({ success: false, message: 'No quote available for your booking.' });
         getLatestQuoteFileForPublicDownload(
-            req.params.id, (e, q) => {
+            req.params.id, async (e, q) => {
                 if (e || !q) return res.status(404).json({ success: false, message: 'Quote PDF not found.' });
-                const filePath = resolveDocsPath('quotes', q.file_path);
-                if (!fs.existsSync(filePath))
-                    return res.status(404).json({ success: false, message: 'Quote file not found on server.' });
+                const doc = await objectStorage.resolveDocument('quotes', q.file_path);
+                if (!doc) return res.status(404).json({ success: false, message: 'Quote file not found on server.' });
                 res.setHeader('Content-Type', 'application/pdf');
                 res.setHeader('Content-Disposition', `attachment; filename=Quote_${q.quote_number}.pdf`);
-                res.sendFile(filePath);
+                if (doc.stream) doc.stream.pipe(res); else res.sendFile(doc.diskPath);
             });
     });
 });
@@ -594,7 +588,7 @@ router.post('/api/public/bookings/:id/review', mutateRateLimiter, ipRateLimiter,
 // (the attachments route below).
 // Booking client attachments (posters, briefs, programmes)
 const bookingAttachUpload = multer({
-    storage: multer.diskStorage({
+    storage: objectStorage.multerStorage({
         destination: function (req, file, cb) {
             cb(null, docsWriteDir('booking_attachments'));
         },
@@ -818,7 +812,7 @@ router.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateL
 
     db.get("SELECT id, email FROM bookings WHERE id = ?", [bookingId], (err, booking) => {
         if (err || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
-        db.get("SELECT status, is_frozen, signed_by_client_at, pdf_url, content_hash FROM contracts WHERE booking_id = ?", [bookingId], (cErr, contract) => {
+        db.get("SELECT status, is_frozen, signed_by_client_at, pdf_url, content_hash FROM contracts WHERE booking_id = ?", [bookingId], async (cErr, contract) => {
             if (cErr) return res.status(500).json({ success: false, message: cErr.message });
             if (!contract) return res.status(404).json({ success: false, message: 'No contract is available for this booking yet.' });
             if (contract.is_frozen === 1 || contract.status === 'signed') {
@@ -838,7 +832,7 @@ router.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateL
             try {
                 if (contract.pdf_url) {
                     const cpath = resolveDocsPath('contracts', contract.pdf_url);
-                    if (fs.existsSync(cpath)) signedFileHash = crypto.createHash('sha256').update(fs.readFileSync(cpath)).digest('hex');
+                    if (await objectStorage.fileExists(cpath)) signedFileHash = crypto.createHash('sha256').update(await objectStorage.readFile(cpath)).digest('hex');
                 }
             } catch (hErr) { console.error('[Contract Sign] Could not hash PDF for booking #' + bookingId + ':', hErr.message); }
 

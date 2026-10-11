@@ -1,8 +1,8 @@
 const express = require('express');
-const fs = require('fs');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { newsletterUpload } = require('../../lib/uploads');
+const objectStorage = require('../../lib/object-storage');
 const { buildSegmentCondition, scheduledJobs } = require('../../lib/newsletter-scheduling');
 const { getEmailFooterContext, emailBaseUrl } = require('../../lib/email-context');
 const bannerRegistry = require('../../js/bannerRegistry');
@@ -31,23 +31,25 @@ router.post('/api/admin/campaigns', requireAdmin, requireRole(['administrator', 
     const { subject, message, segment, segment_value } = req.body;
     const uploadedFiles = req.files || [];
 
+    const cleanupUploads = () => uploadedFiles.forEach(f => objectStorage.deleteFile(f.path).catch(() => {}));
+
     if (!subject || !message) {
-        uploadedFiles.forEach(f => fs.unlink(f.path, () => {}));
+        cleanupUploads();
         return res.status(400).json({ success: false, message: 'Subject and message are required.' });
     }
 
-    const attachments = uploadedFiles.map(f => ({ filename: f.originalname, path: f.path }));
+    const attachments = await Promise.all(uploadedFiles.map(async f => ({ filename: f.originalname, content: await objectStorage.readFile(f.path) })));
     const { condition: segCondition, params: segParams } = buildSegmentCondition(segment, segment_value);
 
     // First fetch the segmented subscriber list
     getActiveSubscribersForSegment(segCondition, segParams, async (err, rows) => {
         if (err) {
-            uploadedFiles.forEach(f => fs.unlink(f.path, () => {}));
+            cleanupUploads();
             return res.status(500).json({ success: false, message: 'Database error fetching subscribers' });
         }
 
         if (!rows || rows.length === 0) {
-            uploadedFiles.forEach(f => fs.unlink(f.path, () => {}));
+            cleanupUploads();
             return res.status(400).json({ success: false, message: 'No active subscribers match this audience.' });
         }
 
@@ -104,7 +106,7 @@ router.post('/api/admin/campaigns', requireAdmin, requireRole(['administrator', 
         // Log campaign to database then clean up temp attachment files
         insertCampaignLog(subject, message, rows.length, successCount, errors.length, function(err) {
             if (err) console.error("CRITICAL: Error logging campaign to DB:", err);
-            uploadedFiles.forEach(f => fs.unlink(f.path, () => {}));
+            cleanupUploads();
 
             const finalMessage = `Newsletter dispatch complete. Successfully sent: ${successCount}/${rows.length}. Failures: ${errors.length}.`;
             console.log(`✅ ${finalMessage}`);
@@ -243,7 +245,7 @@ router.post('/api/admin/campaigns/bulk-delete', requireAdmin, requireRole(['admi
             if (!err && rows) {
                 rows.forEach(r => {
                     if (r.attachment_paths) {
-                        try { JSON.parse(r.attachment_paths).forEach(a => fs.unlink(a.path, () => {})); } catch(e) {}
+                        try { JSON.parse(r.attachment_paths).forEach(a => objectStorage.deleteFile(a.path).catch(() => {})); } catch(e) {}
                     }
                 });
             }

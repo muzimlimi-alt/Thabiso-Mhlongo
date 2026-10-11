@@ -4,6 +4,7 @@ const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { resolveDocsPath } = require('../../lib/runtime-paths');
+const objectStorage = require('../../lib/object-storage');
 const { getCompletedTransactionsForReconciliation, setTransactionDuplicateFlag, getTransactionProofPath } = require('../../database/repositories/finance.repository');
 const router = express.Router();
 
@@ -87,14 +88,20 @@ router.get('/api/admin/reconciliation/:bookingId/transactions', requireAdmin, re
 
 // GET /api/admin/transactions/:id/proof — download a manually-recorded payment's proof-of-payment file
 router.get('/api/admin/transactions/:id/proof', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
-    getTransactionProofPath(req.params.id, (err, row) => {
+    getTransactionProofPath(req.params.id, async (err, row) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         if (!row || !row.proof_of_payment_path) return res.status(404).json({ success: false, message: 'No proof of payment on file for this transaction.' });
-        const filePath = resolveDocsPath('payment_proofs', row.proof_of_payment_path);
-        if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: 'Proof of payment file not found on server.' });
-        res.download(filePath, row.proof_of_payment_path, (dlErr) => {
-            if (dlErr) console.error('[Payment Proof Download Error]', dlErr.message);
-        });
+        const doc = await objectStorage.resolveDocument('payment_proofs', row.proof_of_payment_path);
+        if (!doc) return res.status(404).json({ success: false, message: 'Proof of payment file not found on server.' });
+        if (doc.stream) {
+            res.setHeader('Content-Type', doc.contentType);
+            res.setHeader('Content-Disposition', `attachment; filename="${row.proof_of_payment_path}"`);
+            doc.stream.pipe(res);
+        } else {
+            res.download(doc.diskPath, row.proof_of_payment_path, (dlErr) => {
+                if (dlErr) console.error('[Payment Proof Download Error]', dlErr.message);
+            });
+        }
     });
 });
 

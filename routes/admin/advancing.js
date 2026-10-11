@@ -9,6 +9,7 @@ const { mutateRateLimiter } = require('../../middleware/rate-limiters');
 const { dbGet, dbRun } = require('../../lib/db-helpers');
 const { withDbTransaction } = require('../../lib/db-transaction');
 const { docsWriteDir, resolveDocsPath } = require('../../lib/runtime-paths');
+const objectStorage = require('../../lib/object-storage');
 const { encodeUserHtml } = require('../../lib/html-sanitize');
 const { getBookingByIdAsync, getBookingIdStatusAsync } = require('../../database/repositories/bookings.repository');
 const emailService = require('../../js/emailService');
@@ -36,7 +37,7 @@ async function sendAdvancingPackEmail(booking, venue, pdfPath) {
         <p>Please get in touch if anything needs adjusting before the day.</p>
         <p>Thabiso Mhlongo Management</p>
     `;
-    const attachments = [{ filename: `Advancing_Pack_${booking.id}.pdf`, path: pdfPath }];
+    const attachments = [{ filename: `Advancing_Pack_${booking.id}.pdf`, content: await objectStorage.readFile(pdfPath) }];
     const recipients = [];
     if (booking.email) recipients.push(booking.email);
     if (venue && venue.contact_email && venue.contact_email !== booking.email) recipients.push(venue.contact_email);
@@ -350,6 +351,7 @@ router.post('/api/admin/bookings/:id/advancing/pdf', requireAdmin, async (req, r
         const pdfPath = path.join(advancingDir, fileName);
 
         await pdfService.generateAdvancingPack(booking, pack, rosItems, contacts, pdfPath);
+        await objectStorage.syncFileToStorage(pdfPath);
         await dbRun("UPDATE advancing_packs SET pdf_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [fileName, pack.id]);
 
         res.json({ success: true, pdf_url: fileName });
@@ -363,11 +365,17 @@ router.get('/api/admin/bookings/:id/advancing/download', requireAdmin, async (re
     try {
         const pack = await dbGet("SELECT pdf_url FROM advancing_packs WHERE booking_id = ?", [req.params.id]);
         if (!pack || !pack.pdf_url) return res.status(404).json({ success: false, message: 'No advancing pack PDF on file yet.' });
-        const filePath = resolveDocsPath('advancing', pack.pdf_url);
-        if (!fs.existsSync(filePath)) return res.status(404).json({ success: false, message: 'PDF file not found on server.' });
-        res.download(filePath, pack.pdf_url, (dlErr) => {
-            if (dlErr) console.error('[Advancing Download Error]', dlErr.message);
-        });
+        const doc = await objectStorage.resolveDocument('advancing', pack.pdf_url);
+        if (!doc) return res.status(404).json({ success: false, message: 'PDF file not found on server.' });
+        if (doc.stream) {
+            res.setHeader('Content-Type', doc.contentType);
+            res.setHeader('Content-Disposition', `attachment; filename="${pack.pdf_url}"`);
+            doc.stream.pipe(res);
+        } else {
+            res.download(doc.diskPath, pack.pdf_url, (dlErr) => {
+                if (dlErr) console.error('[Advancing Download Error]', dlErr.message);
+            });
+        }
     } catch (e) {
         console.error('[Advancing] download failed:', e.message);
         res.status(500).json({ success: false, message: 'Could not download the advancing pack.' });
@@ -398,6 +406,7 @@ router.post('/api/admin/bookings/:id/advancing/send', requireAdmin, requireRole(
         const fileName = `ADV-${bookingId}-${moment().format('YYMMDDHHmmss')}.pdf`;
         const pdfPath = path.join(advancingDir, fileName);
         await pdfService.generateAdvancingPack(booking, pack, rosItems, contacts, pdfPath);
+        await objectStorage.syncFileToStorage(pdfPath);
 
         await sendAdvancingPackEmail(booking, venue, pdfPath);
 
