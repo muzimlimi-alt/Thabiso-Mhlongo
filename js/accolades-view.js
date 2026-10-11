@@ -319,16 +319,23 @@
         return $cap;
     }
 
-    // Builds the three aligned rows (years / rail+ticks / captions) as one column per calendar year
-    // from the earliest item's year through at least the current year, so the rail always reaches
-    // "now" even when the most recent accolade is a little further back. `items` is already filtered.
+    // Builds the three aligned rows (years / rail+ticks / captions) as one column per YEAR THAT HAS
+    // SOMETHING PUBLISHED, plus the current year as a trailing anchor so the rail always reaches
+    // "now" even when the most recent accolade is a little further back. Earlier this rendered one
+    // column per CALENDAR year across the whole span (e.g. 2014-2026, 13 columns for 2 real entries)
+    // — mostly empty columns forced the track wider than the card, so it had to scroll, and the
+    // default scroll-to-end view could leave the earliest (often most important, e.g. a featured
+    // "first" entry) scrolled out of view entirely. Rendering only populated years + "now" keeps the
+    // "line reaches today" idea without the dead space, so the whole span fits and draws at once.
+    // `items` is already filtered.
     function buildTimelineRows(items) {
         var now = new Date().getFullYear();
-        var years = items.map(function (i) { return i.year; });
-        var minYear = years.length ? Math.min.apply(null, years) : now;
-        var maxYear = Math.max(now, years.length ? Math.max.apply(null, years) : now);
         var byYear = {};
         items.forEach(function (i) { (byYear[i.year] = byYear[i.year] || []).push(i); });
+        var yearSet = {};
+        Object.keys(byYear).forEach(function (y) { yearSet[y] = true; });
+        yearSet[now] = true;
+        var displayYears = Object.keys(yearSet).map(Number).sort(function (a, b) { return a - b; });
 
         var $years = $('<div>').addClass('acc-tl__row acc-tl__row--years');
         var $rail = $('<div>').addClass('acc-tl__row acc-tl__row--rail');
@@ -336,7 +343,7 @@
         $rail.append($('<div>').addClass('acc-tl__rail-line').attr('aria-hidden', 'true'));
 
         var i = 0;
-        for (var y = minYear; y <= maxYear; y++) {
+        displayYears.forEach(function (y) {
             var list = byYear[y] || [];
             var marked = list.length > 0;
             var featured = list.some(function (it) { return it.featured == 1; });
@@ -351,7 +358,7 @@
             list.forEach(function (item) { $cell.append(buildTimelineCaption(item)); });
             $caps.append($cell);
             i++;
-        }
+        });
         return { $years: $years, $rail: $rail, $caps: $caps, count: i };
     }
 

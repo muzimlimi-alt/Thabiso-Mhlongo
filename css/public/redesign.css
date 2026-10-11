@@ -1399,8 +1399,11 @@ header .navbar {
 .acc-tl__track{
   display:grid;
   grid-auto-columns:minmax(56px, max-content);
+  justify-content:space-between;
   column-gap:32px; row-gap:14px;
   align-items:start;
+  width:100%;
+  padding:0 4px;
 }
 @media (min-width:1024px){ .acc-tl__track{ column-gap:40px; } }
 .acc-tl__row{ display:contents; }
