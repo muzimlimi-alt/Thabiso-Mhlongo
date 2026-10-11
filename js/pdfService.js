@@ -2,6 +2,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const moment = require('moment-timezone');
+const { decodeStoredDeep } = require('../lib/html-sanitize');
 
 const TAX_INVOICE_THRESHOLD = 5000;
 const OUR_VAT_REG = process.env.COMPANY_VAT_NUMBER || '';
@@ -252,6 +253,12 @@ class PDFService {
      *   the number on the client's PDF disagreed with the ledger.
      */
     async generateDocument(type, booking, lineItems, outputPath, schedules = [], docNumberOverride = null, opts = {}) {
+        // A PDF prints plain text, but the database holds entity-encoded text ("O&#x27;Brien &amp; Sons") - decode the
+        // whole record first or the quote/invoice shows the raw entities. See lib/html-sanitize.js.
+        booking = decodeStoredDeep(booking);
+        lineItems = decodeStoredDeep(lineItems);
+        schedules = decodeStoredDeep(schedules);
+        opts = decodeStoredDeep(opts);
         return new Promise((resolve, reject) => {
             const doc = new PDFDocument({ margin: 28 });
             const stream = fs.createWriteStream(outputPath);

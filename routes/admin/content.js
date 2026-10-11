@@ -5,7 +5,7 @@ const { requireRole } = require('../../middleware/rbac');
 const { upload } = require('../../lib/uploads');
 const { logAudit } = require('../../lib/audit-log');
 const { resolveActor } = require('../../lib/actor');
-const { normalizeEncodedText } = require('../../lib/html-sanitize');
+const { normalizeEncodedText, normalizeBodyFields } = require('../../lib/html-sanitize');
 const router = express.Router();
 
 // Highlight text is shown as HTML on the public site, so it must be stored in the single-layer encoded form
@@ -85,7 +85,7 @@ router.get('/api/admin/footprint', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/footprint', requireAdmin, upload.single('file'), (req, res) => {
+router.post('/api/admin/footprint', requireAdmin, upload.single('file'), normalizeBodyFields(['country_name']), (req, res) => {
     const { country_name, display_order, fallback_url } = req.body;
     const imagePath = req.file ? `images/footprint/${req.file.filename}` : (fallback_url || null);
     if (!country_name || !imagePath) {
@@ -143,7 +143,7 @@ router.get('/api/admin/testimonials', requireAdmin, (req, res) => {
 });
 
 // Admin-authored testimonial — the site owner's own content skips the review queue.
-router.post('/api/admin/testimonials', requireAdmin, upload.single('file'), (req, res) => {
+router.post('/api/admin/testimonials', requireAdmin, upload.single('file'), normalizeBodyFields(['name', 'designation', 'quote']), (req, res) => {
     const { name, designation, quote, display_order, fallback_url } = req.body;
     if (!name || !quote) {
         return res.status(400).json({ success: false, message: 'Name and testimonial text are required.' });
@@ -208,7 +208,7 @@ router.put('/api/admin/gallery/reorder', requireAdmin, (req, res) => {
     });
 });
 
-router.post('/api/admin/gallery', requireAdmin, upload.single('file'), (req, res) => {
+router.post('/api/admin/gallery', requireAdmin, upload.single('file'), normalizeBodyFields(['title', 'uploader_name', 'location']), (req, res) => {
     const { title, fallback_url, uploader_name, location } = req.body;
     const imagePath = req.file ? `images/gallery/${req.file.filename}` : (fallback_url || null);
     if (!imagePath) return res.status(400).json({ success: false, message: 'Image file required' });

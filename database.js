@@ -2,7 +2,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-const { normalizeEncodedText } = require('./lib/html-sanitize');
+const { normalizeEncodedText, decodeStoredText, sanitizeAboutHtml } = require('./lib/html-sanitize');
 
 // DB_PATH lets the integration tests point the whole app at a throwaway copy of the database
 // instead of the real database.sqlite. Production/dev leave it unset and use the repo-root file.
@@ -31,6 +31,20 @@ const db = new sqlite3.Database(dbPath, (err) => {
 db.on('error', (err) => {
     console.error('[db] Unhandled SQLite error on a callback-less statement (process kept alive):', err && err.message);
 });
+
+// One-time, idempotent repair of rich text (the admin's Quill editors) saved before it was exempted from entity-encoding
+// (RAW_HTML_BODY_FIELDS in app.js). It sits in the database as "&lt;p&gt;Hi&lt;/p&gt;", so a direct email was sent - and
+// a legal page shown - as literal tags. Real HTML always contains a "<"; a value with none but with "&lt;" is the
+// encoded form, so decode it back (and strip scripts/handlers the way the save routes now do). Touches nothing else.
+function repairEncodedRichText(table, column) {
+    db.all(`SELECT id, ${column} AS v FROM ${table} WHERE ${column} NOT LIKE '%<%' AND ${column} LIKE '%&lt;%'`, (selErr, rows) => {
+        if (selErr || !rows) return;
+        rows.forEach((r) => {
+            db.run(`UPDATE ${table} SET ${column} = ? WHERE id = ?`, [sanitizeAboutHtml(decodeStoredText(r.v)), r.id],
+                (e) => console.log(e ? '[migration] ' + table + '.' + column + ' rich-text repair failed for id ' + r.id + ': ' + e.message : '[migration] ' + table + ' id ' + r.id + ': restored HTML that had been saved entity-encoded'));
+        });
+    });
+}
 
 function initializeDatabase() {
     db.serialize(() => {
@@ -1498,7 +1512,7 @@ function initializeDatabase() {
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_direct_emails_status ON direct_emails(status)`);
-        db.run(`CREATE INDEX IF NOT EXISTS idx_direct_emails_inquiry ON direct_emails(inquiry_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_direct_emails_inquiry ON direct_emails(inquiry_id)`, () => repairEncodedRichText('direct_emails', 'body'));
 
         // EMAIL BANNER REGISTRY (Prompt 5) — per-category banner images assignable to lifecycle
         // email templates. Independent of direct_emails.selected_banner_url (the separate Direct
@@ -2585,6 +2599,7 @@ function initializeDatabase() {
             created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (document_id) REFERENCES legal_documents(id) ON DELETE CASCADE
         )`, () => {
+            repairEncodedRichText('legal_document_versions', 'content_html');
             // Seed the initial published version (1.0) once, from the existing static legal content.
             db.get("SELECT COUNT(*) AS c FROM legal_document_versions", (err, row) => {
                 if (err || (row && row.c > 0)) return;

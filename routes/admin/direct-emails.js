@@ -9,6 +9,7 @@ const { emailAttachUpload } = require('../../lib/uploads');
 const { PROJECT_ROOT } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
 const { getEmailFooterContext } = require('../../lib/email-context');
+const { sanitizeAboutHtml } = require('../../lib/html-sanitize');
 const { scheduledJobs } = require('../../lib/newsletter-scheduling');
 const { scheduleDirectEmailSend, sendDirectEmail } = require('../../lib/direct-emails');
 const router = express.Router();
@@ -73,7 +74,9 @@ router.get('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
 
 // Create draft or scheduled direct email
 router.post('/api/admin/direct-emails', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
-    const { inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
+    const { inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body: rawBody, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
+    // Quill's HTML arrives unescaped (RAW_HTML_BODY_FIELDS in app.js) - strip scripts/handlers instead.
+    const body = sanitizeAboutHtml(rawBody);
     
     if (!to_emails || !body) {
         return res.status(400).json({ error: 'Recipient and body are required.' });
@@ -106,7 +109,8 @@ router.post('/api/admin/direct-emails', requireAdmin, requireRoleForInquiryEmail
 
 // Update draft or scheduled direct email
 router.put('/api/admin/direct-emails/:id', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
-    const { to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
+    const { to_emails, cc_emails, bcc_emails, reply_to, subject, body: rawBody, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
+    const body = sanitizeAboutHtml(rawBody);
     const { id } = req.params;
 
     if (!to_emails || !body) {
@@ -195,7 +199,8 @@ router.post('/api/admin/direct-emails/:id/send', requireAdmin, requireRoleForInq
 // createEmailWrapper() unconditionally while the real send (gated by the always-off
 // EMAIL_OVERHAUL_ENABLED flag) shipped raw HTML, so preview and reality had permanently diverged.
 router.post('/api/admin/direct-emails/preview', requireAdmin, async (req, res) => {
-    const { body, subject, inquiry_id } = req.body;
+    const { body: rawBody, subject, inquiry_id } = req.body;
+    const body = sanitizeAboutHtml(rawBody);
     const templateKey = inquiry_id ? 'inquiry_reply' : 'direct_compose';
     const banner = await bannerRegistry.resolveBanner(templateKey);
     const { socialLinks } = await getEmailFooterContext();

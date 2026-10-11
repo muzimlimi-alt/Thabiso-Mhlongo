@@ -626,8 +626,8 @@
                         '<div class="db-schedule-title" style="flex:1;"></div>' +
                         '<div class="db-schedule-desc"></div>';
                     item.querySelector('.db-schedule-time').textContent  = ev.start_time || '—';
-                    item.querySelector('.db-schedule-title').textContent = ev.title || 'Untitled';
-                    item.querySelector('.db-schedule-desc').textContent  = desc;
+                    item.querySelector('.db-schedule-title').textContent = window.decodeStoredText(ev.title || 'Untitled');   // stored text is entity-encoded - js/shared/stored-text.js
+                    item.querySelector('.db-schedule-desc').textContent  = window.decodeStoredText(desc);
                     list.insertBefore(item, spinner || null);
                 });
             })

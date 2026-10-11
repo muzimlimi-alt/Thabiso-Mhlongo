@@ -17,7 +17,7 @@
     /* ---- Helpers ---- */
     function qs(sel, ctx) { return (ctx || document).querySelector(sel); }
     function qsa(sel, ctx) { return Array.from((ctx || document).querySelectorAll(sel)); }
-    function esc(str) { return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+    function esc(str) { return String(window.decodeStoredText(str || '')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }   // decode the stored form first - js/shared/stored-text.js
     function initial(name) { return (name || '?').charAt(0).toUpperCase(); }
     function fmtDate(dt) {
         if (!dt) return '—';
@@ -179,7 +179,7 @@
                         var fn = qs('#umMyFullName');
                         var ph = qs('#umMyPhone');
                         if (em) em.value = data.email || '';
-                        if (fn) fn.value = data.full_name || '';
+                        if (fn) fn.value = window.decodeStoredText(data.full_name || '');
                         if (ph) ph.value = data.phone || '';
                         showFeedback(qs('#umProfileFeedback'), 'Fields reset to current values.', 'info');
                     });
@@ -370,7 +370,7 @@
             if (idField) idField.value = user.id;
             if (title) title.innerHTML = '<i class="fa-solid fa-user-pen"></i> Edit Admin Account';
             if (qs('#umNewUserEmail')) qs('#umNewUserEmail').value = user.email || '';
-            if (qs('#umNewUserFullName')) qs('#umNewUserFullName').value = user.full_name || '';
+            if (qs('#umNewUserFullName')) qs('#umNewUserFullName').value = window.decodeStoredText(user.full_name || '');
             if (qs('#umNewUserRole')) qs('#umNewUserRole').value = user.role || 'manager';
             if (statusGroup) statusGroup.style.display = '';
             if (qs('#umNewUserStatus')) qs('#umNewUserStatus').value = (user.is_active === 0 ? '0' : '1');

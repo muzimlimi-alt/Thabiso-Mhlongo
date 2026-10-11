@@ -10,6 +10,7 @@ const { requireRole } = require('../../middleware/rbac');
 const { mutateRateLimiter } = require('../../middleware/rate-limiters');
 const { resolveDocsPath, docsWriteDir, PROJECT_ROOT } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
+const { sanitizeAboutHtml } = require('../../lib/html-sanitize');
 // Phase 5 housekeeping fix: dbGet was called at 5 sites below (all in the contract cluster moved in
 // sub-batch C) with no import anywhere in this file — a missing re-import from that move, not a
 // pre-existing app bug (app.js itself has always imported these from lib/db-helpers). Restores the
@@ -2592,7 +2593,9 @@ router.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrat
 
 // Admin Booking Direct Email Responder
 router.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
-    const { email, subject, message } = req.body;
+    const { email, subject, message: rawMessage } = req.body;
+    // Quill's HTML arrives unescaped (RAW_HTML_BODY_FIELDS in app.js) - strip scripts/handlers instead.
+    const message = sanitizeAboutHtml(rawMessage);
     const bookingId = req.params.id;
 
     if (!email || !subject || !message) {

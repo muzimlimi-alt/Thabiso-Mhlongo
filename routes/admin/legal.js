@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
+const { sanitizeAboutHtml } = require('../../lib/html-sanitize');
 const router = express.Router();
 
 // Next version number for a document: max numeric base + 0.1, with optional "-draft" suffix.
@@ -68,7 +69,8 @@ router.get('/api/admin/legal/documents/:type/history', requireAdmin, (req, res) 
 // Route 4 — Save a new draft version (write)
 router.post('/api/admin/legal/documents/:type/draft', requireAdmin, requireRole(['administrator']), (req, res) => {
     const type = req.params.type;
-    let content = (req.body.content_html || '').toString();
+    // Quill's HTML arrives unescaped (RAW_HTML_BODY_FIELDS in app.js) - strip scripts/handlers instead.
+    let content = sanitizeAboutHtml((req.body.content_html || '').toString());
     if (!content.trim()) return res.status(400).json({ success: false, message: 'Content cannot be empty.' });
     if (content.length > 500000) content = content.substring(0, 500000);
     const summary = ((req.body.change_summary || '').toString().substring(0, 500)) || null;

@@ -41,9 +41,13 @@ const TOKENS = {
     maxWidth: 600
 };
 
+const { decodeStoredText } = require('../lib/html-sanitize');
+
 /* ── Small helpers ── */
+// Values come from the database entity-encoded once (see lib/html-sanitize.js), so decode first - escaping the stored
+// form directly double-encoded it ("&amp;#x27;"). Idempotent.
 function esc(v) {
-    return String(v == null ? '' : v)
+    return String(decodeStoredText(v == null ? '' : v))
         .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }

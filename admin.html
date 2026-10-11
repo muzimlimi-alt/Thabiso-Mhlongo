@@ -6941,6 +6941,7 @@
     </div><!-- /.tm-admin-wrapper -->
 
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+    <script src="js/shared/stored-text.js"></script>
     <script src="js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="js/myscript.js?v=15"></script>
@@ -6950,7 +6951,9 @@
         // --- Admin Panel Global Helpers ---
         window.qs = (sel, ctx) => (ctx || document).querySelector(sel);
         window.qsa = (sel, ctx) => Array.from((ctx || document).querySelectorAll(sel));
-        window.escHtml = (str) => String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        // Stored text is entity-encoded once (js/shared/stored-text.js explains), so decode before escaping - escaping the
+        // stored form directly showed "O&#x27;Brien" on screen.
+        window.escHtml = (str) => String(window.decodeStoredText(str || '')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
         // --- "Last Updated By" meta footer (shared across every editable drawer/modal/panel) ---
         // Renders from a save response's `last_updated: {name, role, at}` field. The global fetch
@@ -7454,7 +7457,7 @@
         // inside this block but NOT moved — both are shared verbatim by other sections, Phase 7
         // "Shared candidates".
     </script>
-    <script src="js/admin/career.js?v=2"></script>
+    <script src="js/admin/career.js?v=3"></script>
     <script>
 
         // Phase 6 (HOUSEKEEPING-NOTES.md): the "5b. Footprint Logic" block (resetFootprintForm/
@@ -8309,7 +8312,7 @@
         // (bundled together with the Dashboard Analytics module below it in the document —
         // see that file's header comment for full detail). Loaded once, here.
     </script>
-    <script src="js/admin/dashboard.js"></script>
+    <script src="js/admin/dashboard.js?v=2"></script>
     <script>
 
         // ==========================================
@@ -11888,13 +11891,13 @@
     // Pre-fills the manual booking form from an inquiry and hands off to it.
     window.inqConvertToBooking = function(inquiry) {
         document.getElementById('manualBookingAlert').style.display = 'none';
-        document.getElementById('mbName').value = inquiry.sender_name || '';
+        document.getElementById('mbName').value = window.decodeStoredText(inquiry.sender_name || '');
         document.getElementById('mbEmail').value = inquiry.sender_email || '';
         document.getElementById('mbPhone').value = inquiry.sender_phone || '';
         document.getElementById('mbCompany').value = '';
-        document.getElementById('mbEventName').value = inquiry.subject || '';
+        document.getElementById('mbEventName').value = window.decodeStoredText(inquiry.subject || '');
         document.getElementById('mbLocation').value = '';
-        document.getElementById('mbMessage').value = inquiry.message_body || '';
+        document.getElementById('mbMessage').value = window.decodeStoredText(inquiry.message_body || '');
         document.getElementById('mbDate').value = '';
         document.getElementById('mbTime').value = '';
         document.getElementById('mbEventType').value = '';
@@ -12621,7 +12624,7 @@
     }
 
     function escHtml(str) {
-        return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        return String(window.decodeStoredText(str || '')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');   // decode the stored form first - js/shared/stored-text.js
     }
 
 })();
@@ -12634,7 +12637,7 @@
     <!-- Phase 6 (HOUSEKEEPING-NOTES.md): the entire User Management module (own CRUD + Login
          Activity Logs panel), previously the initUserManagement(...) closure here, moved to
          js/admin/user-management.js — see that file's header comment for full detail. -->
-    <script src="js/admin/user-management.js"></script>
+    <script src="js/admin/user-management.js?v=2"></script>
 
 <script>
     /* About Me Rich Text Editors — initialised after Quill loads */

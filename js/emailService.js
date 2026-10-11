@@ -7,6 +7,7 @@ const nodemailer = require('nodemailer');
 const emailTemplates = require('./emailTemplates');
 const emailAssets = require('./emailAssets');
 const db = require('../database');
+const { decodeStoredText, unescapeHtml } = require('../lib/html-sanitize');
 require('dotenv').config();
 
 // Create a reusable transporter
@@ -46,10 +47,11 @@ if (process.env.SMTP_MOCK === 'true') {
  */
 function htmlToPlainText(html) {
     if (!html) return '';
-    return html
+    return unescapeHtml(html
         .replace(/<style[^>]*>.*<\/style>/gms, '') // Remove styles
         .replace(/<[^>]+>/g, ' ')                  // Strip tags
-        .replace(/\s\s+/g, ' ')                    // Normalize spaces
+        .replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ')  // entities the text/plain part has no use for
+        .replace(/\s\s+/g, ' '))                   // Normalize spaces
         .trim();
 }
 
@@ -177,7 +179,7 @@ async function sendEmailDirectly({
             const mailOptions = {
                 from: `${fromName} <${process.env.EMAIL_USER}>`,
                 to,
-                subject,
+                subject: decodeStoredText(subject),   // a header is plain text; the stored form is entity-encoded
                 html: processedContent.html,
                 // Prompt 8: this branch is the one actually active (EMAIL_OVERHAUL_ENABLED is unset in
                 // every deployment so far), and it previously sent HTML-only with no text/plain part at
@@ -248,7 +250,7 @@ async function sendEmailDirectly({
         const mailOptions = {
             from: `"${fromName}" <${process.env.EMAIL_USER}>`,
             to,
-            subject,
+            subject: decodeStoredText(subject),   // a header is plain text; the stored form is entity-encoded
             html: finalHtml,
             text: finalPlainText,
             attachments: mergedAttachments

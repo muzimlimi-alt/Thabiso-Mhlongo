@@ -118,25 +118,16 @@ function resetCareerForm() {
     $('#careerSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Highlight').prop('disabled', false);
 }
 
-// Stored text is entity-encoded once by the server (normalizeEncodedText, lib/html-sanitize.js) because the
-// public site shows it as HTML. The edit boxes need the text as typed - loading the encoded form into them made
-// every save encode it again. Decodes until stable so rows saved by older versions (stacked layers) load clean too.
-function decodeStoredText(str) {
-    var ta = document.createElement('textarea');
-    var prev, cur = str || '';
-    do { prev = cur; ta.innerHTML = prev; cur = ta.value; } while (cur !== prev);
-    return cur;
-}
-
 function applyCareerToEditor(item) {
     editingHighlightId = item.id;
     careerImageCleared = false;
     initCareerYears();                       // ensure year options exist before setting
     $('#careerYear').val(item.year);
-    $('#careerTitle').val(decodeStoredText(item.title));
-    $('#careerBadge').val(decodeStoredText(item.badge));
-    $('#careerLocation').val(decodeStoredText(item.location));
-    $('#careerDesc').val(decodeStoredText(item.description));
+    // The stored text is entity-encoded; .val() shows it as typed (js/shared/stored-text.js), so saving adds no layer.
+    $('#careerTitle').val(item.title || '');
+    $('#careerBadge').val(item.badge || '');
+    $('#careerLocation').val(item.location || '');
+    $('#careerDesc').val(item.description || '');
     $('#careerUrl').val('');
     $('#careerFile').val('');
     $('#careerVideoWarning').hide();

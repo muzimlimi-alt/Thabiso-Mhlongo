@@ -235,23 +235,40 @@ app.use(express.urlencoded({ extended: true, limit: '50kb' }));
 // XSS sanitisation — custom middleware compatible with Express 5.
 // (express-mongo-sanitize and xss-clean both crash on Express 5's read-only req.query)
 // NoSQL injection is handled by the custom sanitizer below; XSS by deepEscapeBody.
+const { normalizeEncodedText } = require('./lib/html-sanitize');
 const escapeHtml = (str) => str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;');
-const deepEscapeBody = (obj) => {
+// Rich-text HTML from the admin's Quill editors. Entity-encoding it would send/show the HTML as literal text
+// ("<p>Hi</p>" in the recipient's inbox, tags on a published legal page), so deepEscapeBody leaves just these keys on
+// just these paths alone and the routes sanitise them with sanitizeAboutHtml instead.
+const RAW_HTML_BODY_FIELDS = [
+    { path: /^\/api\/admin\/direct-emails(\/preview|\/\d+)?$/, keys: ['body'] },
+    { path: /^\/api\/admin\/bookings\/\d+\/respond$/, keys: ['message'] },
+    { path: /^\/api\/admin\/legal\/documents\/[^/]+\/draft$/, keys: ['content_html'] },
+];
+const deepEscapeBody = (obj, rawKeys) => {
     if (!obj || typeof obj !== 'object') return;
     Object.keys(obj).forEach(key => {
-        if (typeof obj[key] === 'string') obj[key] = escapeHtml(obj[key]);
-        else if (typeof obj[key] === 'object' && obj[key] !== null) deepEscapeBody(obj[key]);
+        if (typeof obj[key] === 'string') {
+            if (rawKeys && rawKeys.includes(key)) return;
+            // Encode once, but never on top of text that is already encoded - so saving a value an editor loaded
+            // back from the database can't stack another layer ("&amp;amp;quot;"). See lib/html-sanitize.js for how
+            // stored text works. Password-like keys keep the plain single encode: stored hashes were made from it.
+            obj[key] = /pass/i.test(key) ? escapeHtml(obj[key]) : normalizeEncodedText(obj[key]);
+        } else if (typeof obj[key] === 'object' && obj[key] !== null) deepEscapeBody(obj[key]);
     });
 };
 app.use((req, res, next) => {
     // about-me + site-content carry admin-authored rich text (e.g. <em>); they are sanitised
     // per-field in their handlers instead of being blanket entity-escaped here.
-    if (req.body && req.path !== '/api/admin/about-me' && req.path !== '/api/admin/site-content' && req.path !== '/api/admin/newsletter/birthday-settings') deepEscapeBody(req.body);
+    if (req.body && req.path !== '/api/admin/about-me' && req.path !== '/api/admin/site-content' && req.path !== '/api/admin/newsletter/birthday-settings') {
+        const raw = RAW_HTML_BODY_FIELDS.find(r => r.path.test(req.path));
+        deepEscapeBody(req.body, raw && raw.keys);
+    }
     next();
 });
 
