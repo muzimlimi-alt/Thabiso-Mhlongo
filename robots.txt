@@ -1,6 +1,5 @@
 User-agent: *
-Allow: /
-Disallow: /admin.html
-Disallow: /api/
+Disallow: /admin
+Disallow: /api
 
 Sitemap: https://www.thabisomhlongo.com/sitemap.xml

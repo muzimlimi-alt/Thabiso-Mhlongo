@@ -504,6 +504,33 @@ $(function() {
             return dateB - dateA;
         });
 
+        // SEO: expose upcoming shows to search engines as schema.org Event JSON-LD.
+        try {
+            var ldEvents = upcomingEvents.filter(function(e) { return e.event_datetime && !isNaN(new Date(e.event_datetime).getTime()); }).map(function(e) {
+                var ev = {
+                    '@type': 'Event',
+                    name: e.event_title,
+                    startDate: e.event_datetime,
+                    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+                    eventStatus: 'https://schema.org/EventScheduled',
+                    performer: { '@type': 'Person', name: 'Thabiso Mhlongo' }
+                };
+                if (e.event_description) ev.description = e.event_description;
+                if (e.venue_name) ev.location = { '@type': 'Place', name: e.venue_name, address: e.venue_name };
+                if (e.ticket_sales_link) ev.offers = { '@type': 'Offer', url: e.ticket_sales_link };
+                return ev;
+            });
+            var ldEl = document.getElementById('events-jsonld');
+            if (ldEl) ldEl.remove();
+            if (ldEvents.length) {
+                ldEl = document.createElement('script');
+                ldEl.type = 'application/ld+json';
+                ldEl.id = 'events-jsonld';
+                ldEl.textContent = JSON.stringify({ '@context': 'https://schema.org', '@graph': ldEvents }).replace(/</g, '\\u003c');
+                document.head.appendChild(ldEl);
+            }
+        } catch (e) {}
+
         // `opts.paginate` (used for Past Shows only — Upcoming Shows always shows everything,
         // never hidden behind a click) shows the first 8 with a "View More" button for the rest.
         function populateGrid($grid, items, emptyMessage, opts) {

@@ -298,6 +298,13 @@ app.get('/robots.txt', (req, res) => {
     res.send('User-agent: *\nDisallow: /admin\nDisallow: /api\n\nSitemap: https://www.thabisomhlongo.com/sitemap.xml\n');
 });
 
+// Single-page site: the sitemap lists the homepage only (the other .html files are admin / token /
+// utility pages). Registered before express.static so it can't be shadowed.
+app.get('/sitemap.xml', (req, res) => {
+    res.type('application/xml');
+    res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>https://www.thabisomhlongo.com/</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n');
+});
+
 // Protect sensitive files and directories from static exposure
 app.use((req, res, next) => {
     const url = req.path.toLowerCase();
