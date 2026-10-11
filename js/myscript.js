@@ -509,15 +509,18 @@ $(function() {
             var ldEvents = upcomingEvents.filter(function(e) { return e.event_datetime && !isNaN(new Date(e.event_datetime).getTime()); }).map(function(e) {
                 var ev = {
                     '@type': 'Event',
-                    name: e.event_title,
+                    name: decodeHtmlEntities(e.event_title),
                     startDate: e.event_datetime,
                     eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
                     eventStatus: 'https://schema.org/EventScheduled',
                     performer: { '@type': 'Person', name: 'Thabiso Mhlongo' }
                 };
-                if (e.event_description) ev.description = e.event_description;
-                if (e.venue_name) ev.location = { '@type': 'Place', name: e.venue_name, address: e.venue_name };
-                if (e.ticket_sales_link) ev.offers = { '@type': 'Offer', url: e.ticket_sales_link };
+                if (e.event_description) ev.description = decodeHtmlEntities(e.event_description);
+                if (e.venue_name) ev.location = { '@type': 'Place', name: decodeHtmlEntities(e.venue_name), address: decodeHtmlEntities(e.venue_name) };
+                if (e.ticket_sales_link) ev.offers = { '@type': 'Offer', url: decodeHtmlEntities(e.ticket_sales_link) };
+                if (e.poster_image_path) {
+                    try { ev.image = new URL(decodeHtmlEntities(e.poster_image_path), location.origin + '/').href; } catch (err) {}
+                }
                 return ev;
             });
             var ldEl = document.getElementById('events-jsonld');
@@ -862,7 +865,7 @@ $(function() {
                 .attr({
                     role: 'button', tabindex: '0',
                     'aria-expanded': index === 0 ? 'true' : 'false',
-                    'aria-label': (item.year ? item.year + ' — ' : '') + item.title,
+                    'aria-label': (item.year ? item.year + ' — ' : '') + decodeHtmlEntities(item.title),
                     'data-embed-url': embedUrl || '',
                     'data-watch-url': watchUrl || ''
                 });

@@ -2,6 +2,7 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const { normalizeEncodedText } = require('./lib/html-sanitize');
 
 // DB_PATH lets the integration tests point the whole app at a throwaway copy of the database
 // instead of the real database.sqlite. Production/dev leave it unset and use the repo-root file.
@@ -388,6 +389,20 @@ function initializeDatabase() {
             // Milestones redesign: per-entry icon badge (mic/tv/plane/etc.) — nullable, falls back
             // to a generic icon on the frontend for existing rows.
             db.run("ALTER TABLE career_highlights ADD COLUMN icon TEXT", () => {});
+            // One-time repair, idempotent (it only touches rows whose text carries stacked entity layers):
+            // the admin editor used to load the stored, already-encoded text back into its form boxes, so every
+            // edit of a title/description containing & " ' encoded it again - "&amp;amp;quot;Celeste..." showed
+            // on the public page. Collapse them to the single-layer form deepEscapeBody stores.
+            db.all("SELECT id, title, badge, location, description FROM career_highlights", (selErr, rows) => {
+                if (selErr || !rows) return;
+                rows.forEach((r) => {
+                    const fixed = [r.title, r.badge, r.location, r.description].map(normalizeEncodedText);
+                    if (fixed[0] === r.title && fixed[1] === r.badge && fixed[2] === r.location && fixed[3] === r.description) return;
+                    db.run("UPDATE career_highlights SET title = ?, badge = ?, location = ?, description = ? WHERE id = ?",
+                        [fixed[0], fixed[1], fixed[2], fixed[3], r.id],
+                        (e) => console.log(e ? '[migration] career_highlights text repair failed for id ' + r.id + ': ' + e.message : '[migration] career_highlights id ' + r.id + ': collapsed stacked HTML-entity encoding'));
+                });
+            });
         });
 
         // Footprint — countries performed in, shown as a flag grid on the public site.

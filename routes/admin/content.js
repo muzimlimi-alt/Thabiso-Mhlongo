@@ -5,7 +5,18 @@ const { requireRole } = require('../../middleware/rbac');
 const { upload } = require('../../lib/uploads');
 const { logAudit } = require('../../lib/audit-log');
 const { resolveActor } = require('../../lib/actor');
+const { normalizeEncodedText } = require('../../lib/html-sanitize');
 const router = express.Router();
+
+// Highlight text is shown as HTML on the public site, so it must be stored in the single-layer encoded form
+// deepEscapeBody produces. Normalising here keeps a save idempotent whatever the client sends (an admin page
+// still running a cached older script would otherwise stack another layer on every edit).
+const highlightText = (body) => ({
+    title: normalizeEncodedText(body.title),
+    badge: normalizeEncodedText(body.badge),
+    location: normalizeEncodedText(body.location),
+    description: normalizeEncodedText(body.description),
+});
 
 // Admin route — same data/ordering as the public route, but session-gated for the dashboard
 router.get('/api/admin/highlights', requireAdmin, (req, res) => {
@@ -17,7 +28,8 @@ router.get('/api/admin/highlights', requireAdmin, (req, res) => {
 
 // Using Multer array middleware we defined earlier, or single file handler
 router.post('/api/admin/highlights', requireAdmin, upload.single('file'), (req, res) => {
-    const { year, title, badge, location, description, display_order, fallback_url, icon } = req.body;
+    const { year, display_order, fallback_url, icon } = req.body;
+    const { title, badge, location, description } = highlightText(req.body);
     // Prioritize uploaded file over the fallback URL
     const imagePath = req.file ? `images/${req.file.filename}` : (fallback_url || null);
 
@@ -31,7 +43,8 @@ router.post('/api/admin/highlights', requireAdmin, upload.single('file'), (req, 
 });
 
 router.put('/api/admin/highlights/:id', requireAdmin, (req, res) => {
-    const { year, title, badge, location, description, display_order, fallback_url, clear_image, icon } = req.body;
+    const { year, display_order, fallback_url, clear_image, icon } = req.body;
+    const { title, badge, location, description } = highlightText(req.body);
     db.get("SELECT * FROM career_highlights WHERE id = ?", [req.params.id], (selErr, existing) => {
         const done = function(err) {
             if (err) return res.status(500).json({ error: err.message });
