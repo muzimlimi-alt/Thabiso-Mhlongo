@@ -1637,7 +1637,9 @@ document.addEventListener("DOMContentLoaded", function() {
 
     // Initialize intl-tel-input for the contact form cell number
     var input = document.querySelector("#contactCell");
-    if (input) {
+    // The library is loaded from a CDN; if that request fails (offline visitor, crawler) skip the
+    // enhancement instead of throwing, which would abort the rest of this ready handler.
+    if (input && typeof window.intlTelInput === 'function') {
         window.itiContact = window.intlTelInput(input, {
             utilsScript: "https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/js/utils.js",
             separateDialCode: true,
