@@ -1402,6 +1402,12 @@ header .navbar {
   grid-auto-columns:minmax(56px, max-content);
   column-gap:32px; row-gap:14px;
   align-items:start;
+  /* Left/right: keeps the first/last year's tick+card off the viewport's clipping edge instead of
+     sitting flush against it. Bottom: the viewport below clips vertical overflow (overflow-y:hidden,
+     needed so a taller caption can't push the whole component's height around while scrolling
+     horizontally) — this guarantees real headroom under the tallest caption (the bordered "featured"
+     card) instead of the couple of px of accidental slack it had before. */
+  padding:0 4px 18px;
 }
 @media (min-width:1024px){ .acc-tl__track{ column-gap:40px; } }
 .acc-tl__row{ display:contents; }
@@ -1437,7 +1443,12 @@ header .navbar {
 .acc-tl__tick.is-featured{ width:13px; height:13px; box-shadow:0 0 0 4px rgba(212,175,55,.18); }
 
 .acc-tl__cap--featured{
-  padding:10px 12px; margin:-10px -12px 0;
+  /* No negative top margin here on purpose: it used to pull this box 10px up to visually "hug" the
+     kicker above, but with nothing compensating on the bottom, that 10px came entirely out of the
+     rail/tick row above — the card's own border painted over the rail line instead of sitting
+     cleanly inside its own row (grid-row 3), which is what the row-gap below the rail already
+     exists to prevent. */
+  padding:10px 12px;
   border:1px solid rgba(212,175,55,.28); border-radius:var(--r-md);
   background:rgba(212,175,55,.06);
 }
