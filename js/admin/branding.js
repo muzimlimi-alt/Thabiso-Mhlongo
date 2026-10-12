@@ -154,7 +154,10 @@ window.saveBranding = async function(scope) {
         // G5 — accent-colour hex validation (no other Branding fields are mandatory)
         const _fe = (id, msg) => { const e = document.getElementById(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
         _fe('errBrandColor', '');
-        const _hex = $('#brandColorHex').val().trim();
+        // The accent-colour inputs (#brandColorHex / #brandPrimaryColor) were removed from the Branding screen by an earlier
+        // admin refactor. $(...).val() is undefined for a missing element, so the old `.val().trim()` threw and "Save Identity"
+        // crashed before sending anything - no favicon, logo or font change could be saved. Tolerate their absence.
+        const _hex = ($('#brandColorHex').val() || '').trim();
         if (_hex && !/^#[0-9a-fA-F]{6}$/.test(_hex)) {
             _fe('errBrandColor', 'Enter a 6-digit hex colour, e.g. #D4AF37.');
             window.notificationService.showError('Please fix the highlighted fields.');
@@ -163,7 +166,7 @@ window.saveBranding = async function(scope) {
         const _siteLogo = $('#brandLogoUrl').val().trim();
         const _favicon = $('#brandFaviconUrl').val().trim();
         const _themeFont = $('#brandThemeFont').val();
-        settings.primary_color = $('#brandColorHex').val().trim() || $('#brandPrimaryColor').val();
+        settings.primary_color = _hex || $('#brandPrimaryColor').val();   // empty when the fields are gone: dropped below, so the saved colour is left alone
         Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
         // Always send site_logo, favicon and theme_font, even empty — clearing any of these
         // fields and saving is meant to remove the custom value, but the strip-if-falsy loop

@@ -75,6 +75,12 @@ const pngSize = (buf) => ({ w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) });
             return { url, buf, size: pngSize(buf) };
         };
         const a = await pick(bigPng);
+        // Saving used to throw ("Cannot read properties of undefined (reading 'trim')") because the accent-colour inputs no longer exist.
+        await p.evaluate(() => window.saveBranding('identity'));
+        await sleep(2000);
+        const saved = await (await fetch(BASE + '/api/public/branding')).json();
+        ok(saved.success && saved.branding.favicon === a.url, 'admin: pressing Save Identity after the upload succeeds and stores the shrunk favicon', JSON.stringify({ saved: saved.branding && saved.branding.favicon, uploaded: a.url }));
+        ok(errs.length === 0, 'admin: Save Identity raised no page error (it used to crash on a removed colour field)', errs.join(' | '));
         ok(a.size.w === 192 && a.size.h === 192 && a.buf.length < 100 * 1024, 'admin: a 1536x1536 image picked as the favicon is uploaded as a 192x192 PNG, not the original', JSON.stringify({ url: a.url, size: a.size, bytes: a.buf.length }));
         const b = await pick(smallPng);
         ok(b.size.w === 64 && b.size.h === 64, 'admin: an already-small favicon is uploaded untouched', JSON.stringify({ url: b.url, size: b.size }));
