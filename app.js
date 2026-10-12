@@ -331,6 +331,19 @@ app.get('/sitemap.xml', (req, res) => {
     res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>https://www.thabisomhlongo.com/</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n');
 });
 
+// Production-readiness pass (2026-10-12): liveness/readiness probe for the hosting platform
+// (Render) and any external uptime monitor. Actually touches the DB (not just "the process is
+// alive") so a wedged/corrupted sqlite handle shows as unhealthy instead of a false-positive 200 —
+// cheap (bare SELECT 1) and won't contend with real traffic. No auth: a health endpoint that
+// requires a session can't be checked by the platform that's deciding whether to route to it.
+app.get('/health', (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    db.get('SELECT 1', [], (err) => {
+        if (err) return res.status(503).json({ status: 'error', db: false, error: err.message });
+        res.json({ status: 'ok', db: true, uptime_s: Math.round(process.uptime()) });
+    });
+});
+
 // Protect sensitive files and directories from static exposure
 app.use((req, res, next) => {
     const url = req.path.toLowerCase();

@@ -5,6 +5,22 @@
 const { app, loadPendingScheduledJobs, loadPendingDirectEmails } = require('./app');
 const db = require('./database');
 
+// Production-readiness pass (2026-10-12): without these, a single uncaught throw or unhandled
+// promise rejection anywhere in this process — a route, a scheduled job, a fire-and-forget email
+// send that was missed — either crashes the whole server silently (older Node default for
+// unhandledRejection) or, for a true uncaughtException, leaves the process in a now-undefined
+// state while Express keeps accepting new requests against it. Log loudly either way so it's never
+// silently lost; exit(1) only for uncaughtException, so whatever's hosting this (Render) restarts a
+// clean process rather than this one limping on half-broken. No deploy config in this repo sets up
+// a separate process manager, so "the platform restarts on exit" is the actual safety net here.
+process.on('unhandledRejection', (reason) => {
+    console.error('🚨 UNHANDLED REJECTION — this indicates a missing .catch() somewhere:', reason);
+});
+process.on('uncaughtException', (err) => {
+    console.error('🚨 UNCAUGHT EXCEPTION — process will exit for a clean restart:', err);
+    process.exit(1);
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
