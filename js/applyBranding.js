@@ -11,15 +11,31 @@
  * No-ops gracefully when a target element isn't present, so it's safe on every page.
  */
 (function () {
+    // A favicon is shown at 16-48px. One uploaded straight from a logo can be a 1536px, 1.8 MB PNG: every visitor
+    // downloads it for a tab icon, and Google's favicon crawler doesn't want it. Anything over this size is ignored in
+    // favour of the small static icons in the page <head>; the admin's favicon upload now shrinks new files itself.
+    var MAX_FAVICON_BYTES = 200 * 1024;
+
     function applyFavicon(href) {
         if (!href) return;
         var link = document.querySelector("link[rel~='icon']");
+        var created = false;
         if (!link) {
             link = document.createElement('link');
             link.rel = 'icon';
             document.head.appendChild(link);
+            created = true;
         }
-        link.href = href;
+        var use = function () { link.href = href; };
+        fetch(href, { method: 'HEAD' }).then(function (r) {
+            var bytes = parseInt(r.headers.get('content-length'), 10);
+            if (bytes > MAX_FAVICON_BYTES) {
+                console.info('[branding] favicon not applied: ' + bytes + ' bytes is too big for a favicon - re-upload it in Admin > Branding.');
+                if (created) link.parentNode.removeChild(link);
+                return;
+            }
+            use();
+        }).catch(use);     // can't tell the size (offline, cross-origin) - behave as before
     }
 
     function applySiteLogo(src) {

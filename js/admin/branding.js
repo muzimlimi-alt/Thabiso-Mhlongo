@@ -19,11 +19,35 @@
    this incidentally makes the live preview-as-you-type work, as a side effect of correct
    extraction, not a deliberate fix (confirmed with the user before doing this). */
 
+// A favicon is shown at 16-48px, but the admin usually picks their full logo (the live one was 1536px and 1.8 MB). Shrink it to
+// a 192x192 PNG in the browser before uploading, centred on a transparent square so a non-square logo isn't stretched.
+// SVG / ICO files, and anything already small, are uploaded untouched; if the browser can't decode it, so is the original.
+async function shrinkFavicon(file) {
+    try {
+        if (!/^image\/(png|jpeg|webp|gif|bmp)$/.test(file.type)) return file;
+        const bmp = await createImageBitmap(file);
+        const SIZE = 192;
+        if (bmp.width <= SIZE && bmp.height <= SIZE && file.size <= 200 * 1024) return file;
+        const scale = Math.min(SIZE / bmp.width, SIZE / bmp.height);
+        const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = SIZE; canvas.height = SIZE;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(bmp, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
+        const blob = await new Promise(function (res) { canvas.toBlob(res, 'image/png'); });
+        return blob ? new File([blob], file.name.replace(/\.[^.]+$/, '') + '.png', { type: 'image/png' }) : file;
+    } catch (e) {
+        return file;
+    }
+}
+
 window.uploadBrandingAsset = async function(fileInputId, targetInputId, previewImgId) {
     const fileInput = document.getElementById(fileInputId);
     if (!fileInput || !fileInput.files.length) return;
 
-    const file = fileInput.files[0];
+    let file = fileInput.files[0];
+    if (fileInputId === 'brandFaviconFile') file = await shrinkFavicon(file);
     const formData = new FormData();
     formData.append('section', 'branding'); // must come before 'file' so Multer reads it before the destination callback fires
     formData.append('file', file);
