@@ -79,6 +79,13 @@ module.exports = async function ({ check }) {
     check('GET /sitemap.xml serves 200 application/xml', sitemapRes.status === 200 && /^application\/xml/.test(sitemapRes.headers.get('content-type') || ''), `status=${sitemapRes.status} type=${sitemapRes.headers.get('content-type')}`);
     check('...as a urlset listing the homepage', /<urlset[^>]*sitemaps\.org\/schemas\/sitemap\/0\.9/.test(sitemap) && /<loc>https:\/\/www\.thabisomhlongo\.com\/<\/loc>/.test(sitemap), sitemap);
 
+    // ── site name (the line above the title in Google results; falls back to the bare domain without WebSite markup) ──
+    const ldBlocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m => { try { return JSON.parse(m[1]); } catch (e) { return null; } });
+    check('every static JSON-LD block in index.html is valid JSON', ldBlocks.length >= 2 && ldBlocks.every(Boolean), `${ldBlocks.length} blocks, ${ldBlocks.filter(b => !b).length} invalid`);
+    const site = ldBlocks.find(b => b && b['@type'] === 'WebSite');
+    check('index.html has WebSite markup with the brand as its name and the homepage as its url', !!site && site.name === 'Thabiso Mhlongo' && site.url === 'https://www.thabisomhlongo.com/', JSON.stringify(site));
+    check('...and og:site_name agrees with it', /<meta property="og:site_name" content="Thabiso Mhlongo">/.test(html), '');
+
     // ── favicon: Google's favicon crawler wants a square image, a multiple of 48px, crawlable, at a stable URL ──
     // (The old tag declared a 1536px / 1.8 MB PNG as a 16x16 GIF and there was no /favicon.ico.)
     const pngSize = (buf) => (buf.length > 24 && buf.slice(1, 4).toString() === 'PNG') ? { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) } : null;
