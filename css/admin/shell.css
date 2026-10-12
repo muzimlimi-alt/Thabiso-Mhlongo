@@ -146,6 +146,27 @@ body.admin-body #tmAdminSidebar {
     white-space: nowrap !important;
 }
 
+/* Close button — phone drawer only (shown by the MOBILE block at the foot of this file). Same
+   look as the top bar's burger so the two read as an open/close pair. */
+#tmAdminSidebar .sh-drawer-close {
+    display: none !important;
+    flex: none !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: var(--atl-tap) !important;
+    height: var(--atl-tap) !important;
+    margin: 0 0 0 auto !important;
+    padding: 0 !important;
+    background: none !important;
+    border: 1px solid var(--atl-line-strong) !important;
+    border-radius: var(--atl-r-sm) !important;
+    box-shadow: none !important;
+    color: var(--atl-ink-dim) !important;
+    cursor: pointer !important;
+}
+#tmAdminSidebar .sh-drawer-close:hover { border-color: var(--atl-amber) !important; color: var(--atl-amber) !important; }
+#tmAdminSidebar .sh-drawer-close:focus-visible { outline: none !important; box-shadow: inset 0 0 0 2px var(--atl-amber-border) !important; }
+
 /* ── Scroll area ── */
 #tmAdminSidebar .sh-nav {
     flex: 1 !important;
@@ -790,12 +811,38 @@ body.admin-body #adminControlBar {
        .mobile-open class outranks the base rule's specificity, so it wins here. */
     body.admin-body #tmAdminSidebar.mobile-open { width: var(--atl-nav-w) !important; display: flex !important; z-index: var(--atl-z-sidebar-open) !important; }
     #tmAdminSidebar .sh-side-foot { display: none !important; }
+    /* Drawer ergonomics. The close button sits where the rail toggle would be on desktop; the
+       brand row gives it the right-hand 12px instead of the usual 24px. Scrolling past either end
+       of the menu stays inside the drawer rather than moving the page (iOS ignores the body's
+       overflow:hidden for touch scrolling on older versions). */
+    #tmAdminSidebar .sh-drawer-close { display: flex !important; }
+    #tmAdminSidebar .sh-brand { padding-right: 12px !important; }
+    #tmAdminSidebar .sh-nav { overscroll-behavior: contain !important; }
     body.admin-body #adminControlBar { padding: 0 16px !important; gap: 8px !important; }
     #adminControlBar .sh-burger { display: flex !important; }
     #adminControlBar .sh-search { display: none !important; }
     #adminControlBar .sh-icon-btn.adm-mobile-search-btn { display: grid !important; }
     #adminControlBar .sh-acct-meta { display: none !important; }
     body.admin-body .admin-section { padding: 20px 16px 80px !important; }
+}
+
+/* Touch targets. Group rows and top-level links are already --atl-tap (44px); the nested links
+   were TOCA's 36px, which is fine for a mouse and fiddly for a thumb. Applies on a phone, and on
+   any touch device wider than one (a tablet keeps the desktop sidebar), including the rail flyout.
+   Mouse users on desktop keep TOCA's measured 36px. */
+@media (max-width: 768px), (pointer: coarse) {
+    #tmAdminSidebar .sh-nav-sub a.tm-nav-link,
+    .sh-nav-sub.atl-nav-sub--portalled a.tm-nav-link { min-height: var(--atl-tap) !important; }
+}
+
+/* Press feedback — :hover is unreliable on touch (it sticks after the tap), so show :active, and
+   drop the browser's grey tap flash that would otherwise sit on top of it. */
+@media (hover: none) {
+    #tmAdminSidebar .sh-nav-item,
+    #tmAdminSidebar .sh-nav-sub a.tm-nav-link,
+    #tmAdminSidebar .sh-drawer-close { -webkit-tap-highlight-color: transparent; }
+    #tmAdminSidebar .sh-nav-item:active { background: var(--atl-surface2) !important; color: var(--atl-ink) !important; }
+    #tmAdminSidebar .sh-nav-sub a.tm-nav-link:active { background: rgba(var(--atl-ink-rgb), .06) !important; color: var(--atl-ink) !important; }
 }
 
 

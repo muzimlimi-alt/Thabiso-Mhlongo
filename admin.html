@@ -250,7 +250,7 @@
     <div id="dashboardSection" class="tm-admin-wrapper" style="display: none;">
 
         <!-- Mobile Overlay -->
-        <div class="tm-sidebar-overlay" id="tmSidebarOverlay"></div>
+        <div class="tm-sidebar-overlay" id="tmSidebarOverlay" aria-hidden="true"></div>
         
         <!-- Side navigation — a copy of the O'luhle/TOCA admin sidebar (Sidebar.jsx, as shipped
              in its built bundle): brand block, labelled sections, collapsible groups, footer
@@ -268,6 +268,11 @@
                     <span class="sh-brand-name">THABISO</span>
                     <span class="sh-brand-sub">Mhlongo &middot; Admin</span>
                 </span>
+                <!-- Phone drawer only (hidden above 768px by css/admin/shell.css). The dimmed strip beside
+                     the drawer is a small target on a 390px screen; this is the obvious way out. -->
+                <button type="button" class="sh-drawer-close" id="tmMobileAdminClose" aria-label="Close navigation menu">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                </button>
             </div>
 
             <nav class="tm-admin-sidebar-scroll sh-nav" aria-label="Sections">
@@ -372,7 +377,7 @@
                  search with keyboard hint, icon actions, account button + menu. Ids are Thabiso's
                  so the existing search, dropdown manager and profile loader keep working. -->
             <header class="adm-header sh-top" id="adminControlBar" role="banner" aria-label="Admin control bar">
-                <button type="button" class="adm-hamburger-btn sh-burger" id="tmMobileAdminOpen" aria-label="Toggle navigation menu" aria-expanded="false">
+                <button type="button" class="adm-hamburger-btn sh-burger" id="tmMobileAdminOpen" aria-label="Toggle navigation menu" aria-expanded="false" aria-controls="tmAdminSidebar">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/></svg>
                 </button>
 
@@ -7373,7 +7378,7 @@
     <!-- Appearance axes controller. Single writer for data-theme / data-accent / data-presence. -->
     <script src="js/appearance.js"></script>
     <script src="js/admin/components/drawer.js?v=3"></script>
-    <script src="js/admin/sidebar-nav.js"></script>
+    <script src="js/admin/sidebar-nav.js?v=2"></script>
     <script src="js/admin/components/data-table.js"></script>
     <script src="js/admin/components/pagination.js"></script>
     <script src="js/admin/components/util.js"></script>
@@ -11232,7 +11237,7 @@
     <!-- Admin shell (sidebar, top bar, account menu) — a copy of the O'luhle/TOCA admin shell.
          After every admin section sheet so it wins over their !important shell rules; before
          core/appearance.css so the Presence axis can still override density on top. -->
-    <link rel="stylesheet" href="css/admin/shell.css?v=1">
+    <link rel="stylesheet" href="css/admin/shell.css?v=2">
 
     <!-- Appearance axes. MUST load after every other admin stylesheet: the Presence
          rules target components whose own rules already carry !important, so they win
@@ -11308,21 +11313,83 @@
     }
     syncRailToggle();
 
+    /* ---- Phone drawer ----
+       The drawer is the same <aside> as the desktop sidebar, slid in by .mobile-open (≤768px only).
+       Beyond the slide, it behaves like a modal: the page behind it is inert (no tabbing or
+       screen-reader reach into it), focus moves in and comes back to the burger, Escape and a
+       left swipe close it, and the current section is brought into view. */
+    const mainEl = qs('.tm-admin-main');
+    const closeBtn = qs('#tmMobileAdminClose');
+    const phoneMQ = window.matchMedia('(max-width: 768px)');
+
+    function isMobileOpen() { return !!sidebar && sidebar.classList.contains('mobile-open'); }
+
+    // The drawer can open with the current section far below the fold (Gallery sits under an
+    // expanded Site Content). Scroll only the nav — Element.scrollIntoView would also try to move
+    // the (scroll-locked) page.
+    function revealCurrentInDrawer() {
+        var nav = sidebar.querySelector('.sh-nav');
+        var cur = sidebar.querySelector('.sh-nav-sub > li.active > a, .sh-nav-group.active > a.sh-nav-item');
+        if (!nav || !cur) return;
+        var nr = nav.getBoundingClientRect(), cr = cur.getBoundingClientRect();
+        if (cr.top < nr.top || cr.bottom > nr.bottom) {
+            nav.scrollTop += (cr.top - nr.top) - (nav.clientHeight - cr.height) / 2;
+        }
+    }
+
     function openMobileSidebar() {
-        if (!sidebar || !overlay) return;
+        if (!sidebar || !overlay || isMobileOpen()) return;
         sidebar.classList.add('mobile-open');
         overlay.classList.add('active');
         overlay.classList.add('show'); // Support both classes
-        document.body.style.overflow = 'hidden'; 
+        document.body.style.overflow = 'hidden';
+        if (mobileOpenBtn) mobileOpenBtn.setAttribute('aria-expanded', 'true');
+        if (mainEl) mainEl.inert = true;
+        revealCurrentInDrawer();
+        // The drawer is visibility:hidden until its slide starts, so focus has to wait a beat.
+        setTimeout(function () {
+            if (isMobileOpen() && closeBtn) closeBtn.focus({ preventScroll: true });
+        }, 60);
     }
 
-    function closeMobileSidebar() {
+    // refocus: put focus back on the burger. Skipped when the viewport grew past the breakpoint
+    // (the burger is display:none by then, so there is nothing to focus).
+    function closeMobileSidebar(refocus) {
         if (!sidebar || !overlay) return;
+        var wasOpen = isMobileOpen();
         sidebar.classList.remove('mobile-open');
         overlay.classList.remove('active');
         overlay.classList.remove('show');
         document.body.style.overflow = '';
+        if (mobileOpenBtn) mobileOpenBtn.setAttribute('aria-expanded', 'false');
+        if (mainEl) mainEl.inert = false;
+        if (wasOpen && refocus !== false && mobileOpenBtn) mobileOpenBtn.focus({ preventScroll: true });
     }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && isMobileOpen()) { e.preventDefault(); closeMobileSidebar(); }
+    });
+    if (closeBtn) closeBtn.addEventListener('click', function () { closeMobileSidebar(); });
+    // Growing past the breakpoint (rotating a tablet, resizing a window) with the drawer open would
+    // otherwise leave the page scroll-locked and inert behind a sidebar that is now permanent.
+    var onPhoneMQ = function (e) { if (!e.matches) closeMobileSidebar(false); };
+    if (phoneMQ.addEventListener) phoneMQ.addEventListener('change', onPhoneMQ); else phoneMQ.addListener(onPhoneMQ);
+
+    // Swipe the drawer toward the left edge to dismiss it. Mostly-horizontal only, so scrolling the
+    // menu up and down never closes it.
+    (function () {
+        var start = null;
+        if (!sidebar) return;
+        sidebar.addEventListener('touchstart', function (e) {
+            start = (isMobileOpen() && e.touches.length === 1) ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : null;
+        }, { passive: true });
+        sidebar.addEventListener('touchmove', function (e) {
+            if (!start) return;
+            var dx = e.touches[0].clientX - start.x, dy = e.touches[0].clientY - start.y;
+            if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 1.5) { start = null; closeMobileSidebar(); }
+        }, { passive: true });
+        sidebar.addEventListener('touchend', function () { start = null; }, { passive: true });
+    })();
 
     if (toggleBtn) toggleBtn.addEventListener('click', toggleSidebar);
 

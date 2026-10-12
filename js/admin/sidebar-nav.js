@@ -34,9 +34,15 @@
         return $('.atl-nav-group.open > .atl-nav-sub').map(function () { return this.id; }).get();
     }
 
+    /* The rail only exists above the phone breakpoint — css/admin/shell.css scopes every
+       .collapsed rule to min-width:769px. Below it the drawer is always full-width and labelled,
+       so a leftover .collapsed (carried in sessionStorage from a desktop window, or devtools'
+       device mode) must not send group taps to the flyout portal instead of expanding in place. */
+    var desktopMQ = window.matchMedia('(min-width: 769px)');
+
     function isRailed() {
         var sb = document.getElementById('tmAdminSidebar');
-        return !!(sb && sb.classList.contains('collapsed'));
+        return !!(sb && sb.classList.contains('collapsed') && desktopMQ.matches);
     }
 
     function setGroupOpen($group, open) {
@@ -98,7 +104,9 @@
         // Clamp so a flyout opened near the bottom of a tall list doesn't run off
         // the viewport — menus are short (at most 6 items) so a flat "pull up by
         // however much it overflows" is enough, no need to measure before paint.
-        var estimatedHeight = sub.children.length * 36 + 40;
+        // Rows are 36px with a mouse and 44px on a coarse pointer (shell.css), so prefer the real
+        // height — the flyout is already in <body> and styled by the time this runs.
+        var estimatedHeight = sub.offsetHeight || (sub.children.length * 36 + 40);
         if (top + estimatedHeight > window.innerHeight - 8) {
             top = Math.max(8, window.innerHeight - estimatedHeight - 8);
         }
@@ -200,6 +208,7 @@
     // the sidebar was still animating to rail width (its trigger's rect was measured at an
     // intermediate width, leaving the flyout floating off to the right of the icon).
     function repositionPortal() {
+        if (portal.sub && !isRailed()) { closePortal(); return; }   // shrank to a phone with a flyout open
         if (portal.sub && portal.group) positionPortal(portal.sub, portal.group.querySelector(':scope > .atl-nav-parent'));
     }
     $(window).on('resize', repositionPortal);
