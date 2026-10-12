@@ -39,10 +39,10 @@ const pngSize = (buf) => ({ w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) });
         return { links, errs };
     };
     const big = await firstIcon('images/icon/logo5.png');                  // 1536px, ~1.8 MB
-    ok(big.links[0] === '/images/icon/favicon-48.png', 'public: an oversized branding favicon (1.8 MB) is ignored - the small static icon stays first', JSON.stringify(big.links));
+    ok(big.links[0] === '/images/icon/mic-favicon-48.png', 'public: an oversized branding favicon (1.8 MB) is ignored - the small static icon stays first', JSON.stringify(big.links));
     ok(big.errs.length === 0, 'public: no page errors with an oversized branding favicon', big.errs.join(' | '));
-    const small = await firstIcon('images/icon/favicon-96.png');           // 12 KB
-    ok(small.links[0] === 'images/icon/favicon-96.png', 'public: a small branding favicon is still applied (the admin\'s Branding setting keeps working)', JSON.stringify(small.links));
+    const small = await firstIcon('images/icon/mic-favicon-96.png');           // 12 KB
+    ok(small.links[0] === 'images/icon/mic-favicon-96.png', 'public: a small branding favicon is still applied (the admin\'s Branding setting keeps working)', JSON.stringify(small.links));
     ok(small.links.length >= 4, 'public: the rest of the static favicon set is untouched', JSON.stringify(small.links));
     await api('PUT', '/api/admin/branding', { settings: { site_logo: '', favicon: '', theme_font: '' } });
 

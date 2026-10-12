@@ -101,9 +101,10 @@ module.exports = async function ({ check }) {
     const icoRes = await fetch(`${support.BASE}/favicon.ico`);
     const ico = Buffer.from(await icoRes.arrayBuffer());
     check('GET /favicon.ico serves 200 with a valid multi-size icon (16, 32 and 48 px)', icoRes.status === 200 && ico.readUInt16LE(2) === 1 && ico.readUInt16LE(4) === 3 && [ico[6], ico[22], ico[38]].join() === '16,32,48', `status=${icoRes.status} type=${icoRes.headers.get('content-type')} head=${ico.slice(0, 6).toString('hex')}`);
-    check('/favicon.ico and the icon folder are allowed by robots.txt', isAllowed(rules, '/favicon.ico') && isAllowed(rules, '/images/icon/favicon-48.png'), robots);
-    const appleTouch = path.join(ROOT, 'images', 'icon', 'apple-touch-icon.png');
-    check('the apple-touch-icon exists and is 180x180', /rel="apple-touch-icon"/.test(html) && fs.existsSync(appleTouch) && (() => { const d = pngSize(fs.readFileSync(appleTouch)); return d && d.w === 180 && d.h === 180; })(), '');
+    check('/favicon.ico and the icon folder are allowed by robots.txt', isAllowed(rules, '/favicon.ico') && isAllowed(rules, '/images/icon/mic-favicon-48.png'), robots);
+    const appleHref = (/rel="apple-touch-icon"[^>]*href="([^"]+)"/.exec(html) || [])[1];
+    const appleTouch = appleHref && path.join(ROOT, appleHref.replace(/^\//, ''));
+    check('the apple-touch-icon is declared, exists and is 180x180', !!appleTouch && fs.existsSync(appleTouch) && (() => { const d = pngSize(fs.readFileSync(appleTouch)); return d && d.w === 180 && d.h === 180; })(), String(appleHref));
 
     // ── caching ──
     for (const [name, res] of [['robots.txt', robotsRes], ['sitemap.xml', sitemapRes]]) {

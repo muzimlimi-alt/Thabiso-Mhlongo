@@ -39,12 +39,14 @@
 
 	<!-- Favicon set. Google's favicon crawler wants a square image whose side is a multiple of 48px at a stable, crawlable
 	     URL (the old tag declared a 1536px / 1.8 MB PNG as a 16x16 GIF); /favicon.ico is what browsers and crawlers ask for by
-	     default. js/applyBranding.js swaps the FIRST icon link for the admin's Branding favicon, unless that file is oversized. -->
-	<link rel="icon" type="image/png" sizes="48x48" href="/images/icon/favicon-48.png">
-	<link rel="icon" type="image/png" sizes="96x96" href="/images/icon/favicon-96.png">
-	<link rel="icon" type="image/png" sizes="192x192" href="/images/icon/favicon-192.png">
-	<link rel="icon" href="/favicon.ico" sizes="any">
-	<link rel="apple-touch-icon" href="/images/icon/apple-touch-icon.png">
+	     default. js/applyBranding.js swaps the FIRST icon link for the admin's Branding favicon, unless that file is oversized.
+	     The icon is a bold gold microphone on purpose: line art of a hand holding a mic turns to mush at 16px. Icons are cached for a
+	     year, so a new design gets new file names (and ?v=) rather than overwriting these. -->
+	<link rel="icon" type="image/png" sizes="48x48" href="/images/icon/mic-favicon-48.png">
+	<link rel="icon" type="image/png" sizes="96x96" href="/images/icon/mic-favicon-96.png">
+	<link rel="icon" type="image/png" sizes="192x192" href="/images/icon/mic-favicon-192.png">
+	<link rel="icon" href="/favicon.ico?v=2" sizes="any">
+	<link rel="apple-touch-icon" href="/images/icon/mic-apple-touch-icon.png">
 	
 	<!-- Core Stylesheets -->
 	<link href="css/vendor/bootstrap.min.css?v=2" rel="stylesheet">
