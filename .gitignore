@@ -12,12 +12,12 @@ node_modules/
 *.sqlite-shm
 *.sqlite-wal
 *.sqlite-journal
-# EXCEPTION: the production database is tracked. Render's free plan has no persistent disk,
-# so local filesystem writes (including this file) don't survive a redeploy or an idle
-# spin-down/wake cycle — the git-committed copy is the only thing that persists across those.
-# Re-checkpoint the WAL (PRAGMA wal_checkpoint(TRUNCATE)) and re-commit after any admin
-# changes you want to survive the next deploy. Test/throwaway *.sqlite files stay ignored.
-!/database.sqlite
+# database.sqlite used to be force-tracked here as a workaround for Render's free plan having no
+# persistent disk — that meant every `git push` overwrote the live database with whatever was last
+# committed (often a stale local dev copy), silently wiping admin edits made since. Fixed 2026-10-12
+# by attaching a Render persistent Disk (DB_PATH=/var/data/database.sqlite, survives redeploys on
+# its own); the DB no longer needs git tracking at all, so it now just follows the blanket
+# *.sqlite rule above like any other throwaway/local copy.
 
 # Generated PDFs (invoices/quotes/contracts/attachments) — DOCS_PATH default (lib/runtime-paths.js).
 docs/
