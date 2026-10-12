@@ -319,37 +319,24 @@
         return $cap;
     }
 
-    // Builds the three aligned rows (years / rail+ticks / captions) as one content column per YEAR
-    // THAT HAS SOMETHING PUBLISHED, plus the current year as a trailing anchor so the rail always
-    // reaches "now" even when the most recent accolade is a little further back. Between each pair
-    // of displayed years a SPACER column is inserted, sized in `fr` proportional to how many
-    // calendar years actually separate them — a decade-long gap reads visibly longer than a
-    // two-year one, instead of every pair of ticks sitting an identical fixed distance apart
-    // regardless of how much time really separates them (which is what a plain equal-width/
-    // space-between grid produced, and looked arbitrary with only a couple of real entries).
-    // `template` (a grid-template-columns value) is handed back for the caller to apply to the
-    // track element, since content + spacer tracks are only known once the data is in hand.
-    // `items` is already filtered.
+    // Builds the three aligned rows (years / rail+ticks / captions) as one column per calendar year
+    // from the earliest item's year through at least the current year, so the rail always reaches
+    // "now" even when the most recent accolade is a little further back. `items` is already filtered.
     function buildTimelineRows(items) {
         var now = new Date().getFullYear();
+        var years = items.map(function (i) { return i.year; });
+        var minYear = years.length ? Math.min.apply(null, years) : now;
+        var maxYear = Math.max(now, years.length ? Math.max.apply(null, years) : now);
         var byYear = {};
         items.forEach(function (i) { (byYear[i.year] = byYear[i.year] || []).push(i); });
-        var yearSet = {};
-        Object.keys(byYear).forEach(function (y) { yearSet[y] = true; });
-        yearSet[now] = true;
-        var displayYears = Object.keys(yearSet).map(Number).sort(function (a, b) { return a - b; });
 
         var $years = $('<div>').addClass('acc-tl__row acc-tl__row--years');
         var $rail = $('<div>').addClass('acc-tl__row acc-tl__row--rail');
         var $caps = $('<div>').addClass('acc-tl__row acc-tl__row--caps');
         $rail.append($('<div>').addClass('acc-tl__rail-line').attr('aria-hidden', 'true'));
 
-        var template = [];
-        displayYears.forEach(function (y, idx) {
-            if (idx > 0) template.push(Math.max(y - displayYears[idx - 1], 1) + 'fr');
-            var i = template.length;
-            template.push('minmax(56px, max-content)');
-
+        var i = 0;
+        for (var y = minYear; y <= maxYear; y++) {
             var list = byYear[y] || [];
             var marked = list.length > 0;
             var featured = list.some(function (it) { return it.featured == 1; });
@@ -363,8 +350,9 @@
             var $cell = setVar($('<div>').addClass('acc-tl__cell acc-tl__cell--cap'), '--i', i);
             list.forEach(function (item) { $cell.append(buildTimelineCaption(item)); });
             $caps.append($cell);
-        });
-        return { $years: $years, $rail: $rail, $caps: $caps, template: template.join(' ') };
+            i++;
+        }
+        return { $years: $years, $rail: $rail, $caps: $caps, count: i };
     }
 
     // Public-page controller for the horizontal layout — the desktop counterpart to mount(). o =
@@ -387,7 +375,7 @@
         function draw(announce) {
             var list = current === 'all' ? items : items.filter(function (i) { return catOf(i) === current; });
             var rows = buildTimelineRows(list);
-            o.$track.empty().css('grid-template-columns', rows.template).append(rows.$years, rows.$rail, rows.$caps);
+            o.$track.empty().append(rows.$years, rows.$rail, rows.$caps);
             if (announce && o.$status) o.$status.text(statusText(list.length, current));
             // Opens on the most recent end of the rail — the most relevant accolades need no scrolling.
             vp.scrollLeft = vp.scrollWidth;
