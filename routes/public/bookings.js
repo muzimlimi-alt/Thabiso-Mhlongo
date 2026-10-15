@@ -50,7 +50,7 @@ const {
 const {
     getPaymentSchedulesForTracking, getCancellationSummaryForTracking,
     insertCancellationForPublicCancel, cancelPendingPaymentSchedulesAsync,
-    getPaymentSchedulesForPayfastInit, getNextPayableScheduleRow
+    getPaymentSchedulesForPayfastInit, getNextPayableScheduleRow, insertPaymentIntent
 } = require('../../database/repositories/finance.repository');
 const {
     releaseDateHoldsForBookingAsync, getEventByBookingId, demoteEventForCancelledBookingByBookingIdAsync,
@@ -693,6 +693,16 @@ function buildAndSendPfData(row, amt, milestoneDesc, mPaymentId, req, res) {
         pfData.signature = generatePayFastSignature(pfData, passphrase);
 
         const pfHost = process.env.PAYFAST_URL || 'https://sandbox.payfast.co.za/eng/process';
+
+        // Record what this redirect was actually built for — the ITN handler (routes/public/
+        // payment.js) cross-checks amount_gross against this instead of trusting the ITN amount on
+        // its own. Parsed from mPaymentId the same way the ITN handler parses it back out, so the
+        // two always agree on what "the type" of this m_payment_id means.
+        const _rawType = (mPaymentId.split('_')[1] || 'FULL');
+        const _intentType = _rawType.startsWith('SCHED') ? 'SCHED' : _rawType;
+        const _intentScheduleId = _intentType === 'SCHED' ? parseInt(_rawType.replace('SCHED', ''), 10) : null;
+        insertPaymentIntent(row.id, mPaymentId, amount, _intentType, _intentScheduleId)
+            .catch(e => console.error(`[PayFast] Failed to record payment intent for booking #${row.id}:`, e.message));
 
         console.log(`[PayFast] Payment initiated: Booking #${row.id}, m_payment_id: ${mPaymentId}, Amount: R${amount.toFixed(2)}`);
         res.json({ success: true, pfData: pfData, pfHost: pfHost });

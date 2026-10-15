@@ -124,6 +124,20 @@ getAllSettings((err, rows) => {
         // Encrypt a legacy plaintext SMTP password in place, then prime the sender-address cache.
         const smtpCfg = require('./lib/smtp-config');
         smtpCfg.migrateLegacyPassword().then(() => smtpCfg.resolveSmtpConfig()).catch(e => console.error('SMTP config init failed:', e.message));
+
+        // C9b: the synchronous PAYFAST_URL guard further down this file runs before this async DB
+        // callback can possibly have fired (sqlite I/O always resolves on a later tick than the rest
+        // of this script's top-level synchronous code), so it only ever sees a host-level env var,
+        // never a value stored only via the admin Settings UI. It's also narrower than what actually
+        // matters: it catches "explicitly sandbox" but not "never configured at all" — and an unset
+        // PAYFAST_URL falls back to PayFast's sandbox endpoint in routes/public/bookings.js just the
+        // same as an explicit sandbox URL would. This is the one place process.env.PAYFAST_URL holds
+        // its final resolved value (DB override applied if present), so it's the only reliable place
+        // to catch both cases for admin-panel-configured deployments.
+        if (process.env.NODE_ENV === 'production' && !(process.env.PAYFAST_URL || '').startsWith('https://www.payfast.co.za')) {
+            console.error(`🚨 STARTUP ABORTED: PAYFAST_URL is ${process.env.PAYFAST_URL ? 'set to a non-production value' : 'not configured'} while NODE_ENV is "production". Set it to https://www.payfast.co.za/eng/process via Admin > Settings or the PAYFAST_URL env var before restarting.`);
+            process.exit(1);
+        }
     }
 });
 const moment = require('moment-timezone');

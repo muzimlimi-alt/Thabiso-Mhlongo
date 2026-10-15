@@ -157,6 +157,36 @@ function getNextPayableScheduleRow(bookingId, callback) {
 // transactions
 // ══════════════════════════════════════════════════════════════════════════
 
+// /pay route (buildAndSendPfData) — records what a PayFast redirect was actually built for, so the
+// ITN handler can later verify amount_gross against it. INSERT OR REPLACE: m_payment_id is
+// deterministic per booking+payment_type/schedule, so retrying an abandoned payment intentionally
+// reuses it — the replacement keeps the expected amount current if a re-quote happened in between.
+function insertPaymentIntent(bookingId, mPaymentId, expectedAmount, paymentType, scheduleId) {
+    return promised(
+        `INSERT OR REPLACE INTO payfast_payment_intents (booking_id, m_payment_id, expected_amount, payment_type, schedule_id, status, created_at)
+                                                   VALUES (?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)`,
+        [bookingId, mPaymentId, expectedAmount, paymentType, scheduleId || null]);
+}
+// PayFast ITN handler — looked up by the raw m_payment_id PayFast echoes back in the ITN.
+function getPaymentIntentByMPaymentId(mPaymentId) {
+    return promisedGet("SELECT * FROM payfast_payment_intents WHERE m_payment_id = ?", [mPaymentId]);
+}
+// PayFast ITN handler — marked once the ITN that matches this intent has been processed.
+function markPaymentIntentFulfilled(mPaymentId) {
+    return promised("UPDATE payfast_payment_intents SET status = 'fulfilled', fulfilled_at = CURRENT_TIMESTAMP WHERE m_payment_id = ?", [mPaymentId]);
+}
+// lib/payfast-pending-timeout-job.js — redirects built but never followed by a matching ITN.
+function getStuckPaymentIntents() {
+    return new Promise(resolve => {
+        db.all(
+            `SELECT i.id, i.booking_id, i.expected_amount, i.payment_type, i.created_at, b.name, b.email, b.event_name
+             FROM payfast_payment_intents i JOIN bookings b ON b.id = i.booking_id
+             WHERE i.status = 'pending' AND i.created_at <= datetime('now', '-1 hour')`,
+            [], (err, rows) => resolve(err ? [] : (rows || []))
+        );
+    });
+}
+
 // PayFast ITN handler — idempotency pre-check (before the atomic transaction insert below).
 function getPayfastTransactionByReference(reference, bookingId) {
     return new Promise(resolve => {
@@ -534,6 +564,8 @@ module.exports = {
     cancelPendingPaymentSchedules, cancelPendingPaymentSchedulesAsync,
     supersedePaymentSchedulesForRequote, getPaymentSchedulesForPayfastInit, getPaymentSchedulesForTracking,
     getNextPayableScheduleRow,
+
+    insertPaymentIntent, getPaymentIntentByMPaymentId, markPaymentIntentFulfilled, getStuckPaymentIntents,
 
     getPayfastTransactionByReference, insertPayfastTransaction,
     insertPaymentLogEntry, insertLoggedPaymentTransaction, getPaymentLogsForBooking,

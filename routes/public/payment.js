@@ -25,7 +25,8 @@ const {
 } = require('../../database/repositories/bookings.repository');
 const { insertAutoCreatedEvent } = require('../../database/repositories/calendar.repository');
 const {
-    getPayfastTransactionByReference, insertPayfastTransaction, getPaymentLogsForBooking
+    getPayfastTransactionByReference, insertPayfastTransaction, getPaymentLogsForBooking,
+    getPaymentIntentByMPaymentId, markPaymentIntentFulfilled
 } = require('../../database/repositories/finance.repository');
 const { markInvoicePaidIfOpenAsync } = require('../../database/repositories/invoices-quotations.repository');
 const router = express.Router();
@@ -168,7 +169,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
         // would defeat this check entirely.
         const sourceIp = (req.ip || req.connection.remoteAddress || '').split(',')[0].trim().replace('::ffff:', '');
 
-        if (!isSandbox && !PAYFAST_VALID_IPS.includes(sourceIp)) {
+        if (!isSandbox && !PAYFAST_VALID_IPS.has(sourceIp)) {
             console.error(`[PayFast ITN] INVALID SOURCE IP: ${sourceIp}`);
             logPaymentEvent(bookingId, 'FAILED_IP', pfData, true);
             return;
@@ -263,6 +264,23 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
         // ══════════════════════════════════════════
         if (pfData.payment_status === 'COMPLETE') {
             const itnAmount = parseFloat(pfData.amount_gross) || 0;
+
+            // Verify amount_gross against what THIS specific m_payment_id was actually built for
+            // (PayFast's own docs call this check pfValidPaymentData) — the overpayment guard
+            // further down only protects the booking's total as a whole, not this transaction's
+            // expected amount specifically. No matching intent (payments initiated before this
+            // check existed, or a test/manually-replayed ITN) is not itself a failure — it just
+            // means this extra check can't run, same as before it existed.
+            const intent = await getPaymentIntentByMPaymentId(pfData.m_payment_id).catch(() => null);
+            if (intent && Math.abs(itnAmount - parseFloat(intent.expected_amount)) > 0.01) {
+                console.error(`[PayFast ITN] AMOUNT MISMATCH booking #${bookingId}: ITN=R${itnAmount.toFixed(2)}, expected R${parseFloat(intent.expected_amount).toFixed(2)} for m_payment_id=${pfData.m_payment_id}`);
+                logPaymentEvent(bookingId, 'FAILED_AMOUNT_MISMATCH', pfData, true);
+                if (!isSandbox) return; // Hard-fail in production only
+                console.warn(`[PayFast ITN] Sandbox: proceeding despite amount mismatch against recorded intent.`);
+            } else if (intent) {
+                console.log(`[PayFast ITN] ✓ Amount matches recorded intent for booking #${bookingId}`);
+            }
+
             const currentTotal = parseFloat(booking.total_amount) || parseFloat((booking.quote_amount||'0').replace(/[^0-9.]/g, '')) || 0;
             // P2-13: If we still can't resolve a total, reject the ITN — overpayment guard cannot function without it.
             if (currentTotal === 0) {
@@ -390,6 +408,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
             }
 
             // ── Committed. The transactions row exists; log the payment_logs audit entries only. ──
+            if (intent) markPaymentIntentFulfilled(pfData.m_payment_id).catch(e => console.error(`[PayFast ITN] Failed to mark intent fulfilled for booking #${bookingId}:`, e.message));
             logPaymentEvent(bookingId, 'VERIFIED_OK', pfData, true, itnRef, { auditOnly: true });
             const updatedRow = outcome.fresh;
             const newAmountPaid = parseFloat(updatedRow.amount_paid) || 0;

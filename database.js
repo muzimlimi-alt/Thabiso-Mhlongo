@@ -1181,6 +1181,29 @@ function initializeDatabase() {
             db.run("ALTER TABLE transactions ADD COLUMN reference TEXT", () => {});
         });
 
+        // Recorded when a PayFast redirect is built (routes/public/bookings.js buildAndSendPfData),
+        // before the customer ever reaches PayFast — lets the ITN handler verify amount_gross
+        // against what THIS specific payment attempt was actually for (PayFast's own docs call this
+        // check pfValidPaymentData), not just that it doesn't overpay the booking as a whole.
+        // m_payment_id is UNIQUE and written with INSERT OR REPLACE: it's deterministic per
+        // booking+payment_type/schedule (e.g. "42_DEPOSIT"), so a customer retrying an abandoned
+        // payment reuses the same id on purpose — the replacement keeps the expected amount current
+        // if anything changed (a re-quote) between attempts, rather than checking against a stale one.
+        db.run(`CREATE TABLE IF NOT EXISTS payfast_payment_intents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            m_payment_id TEXT NOT NULL UNIQUE,
+            booking_id INTEGER NOT NULL,
+            expected_amount DECIMAL(10,2) NOT NULL,
+            payment_type TEXT,
+            schedule_id INTEGER,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            fulfilled_at DATETIME,
+            FOREIGN KEY (booking_id) REFERENCES bookings(id)
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_payfast_intents_booking ON payfast_payment_intents(booking_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_payfast_intents_status ON payfast_payment_intents(status, created_at)`);
+
         // CANCELLATIONS & REFUNDS
         db.run(`CREATE TABLE IF NOT EXISTS cancellations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

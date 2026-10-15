@@ -125,8 +125,25 @@ const ipRateLimiter = (req, res, next) => {
     next();
 };
 
-// PayFast valid IP ranges for ITN source validation
-const PAYFAST_VALID_IPS = process.env.PAYFAST_VALID_IPS
+// PayFast valid IPs for ITN source validation.
+//
+// PayFast's own docs (developers.payfast.co.za/docs#step_4_confirm_payment) don't publish a
+// static IP list at all — their reference implementation resolves www.payfast.co.za,
+// sandbox.payfast.co.za, w1w.payfast.co.za and w2w.payfast.co.za live via DNS on every ITN and
+// checks against whatever comes back. Confirmed by live lookup (2026-10-15) that this matters:
+// www./sandbox. now resolve to GCP IPs (34.107.176.x / 34.120.184.x) via gcp-in.payfast.co.za,
+// and w1w./w2w. round-robin across a much larger, actively-changing pool that includes whole
+// ranges (102.216.36.x, 144.126.193.139, 13.245.74.88) absent from the 48-IP list this used to be
+// hardcoded to — a real production payment landing on any of those would have been silently
+// rejected here even though PayFast itself confirms the ITN is genuine.
+//
+// This keeps the original hardcoded list as a floor (never removed, so a transient DNS hiccup
+// can never make a previously-valid IP start failing) and layers a background-refreshed Set on
+// top, re-resolved every 15 minutes and merged in additively. Lookups never block a request —
+// the request-time check is a plain Set.has() against whatever has been resolved so far.
+const dns = require('dns');
+const PAYFAST_ITN_HOSTNAMES = ['www.payfast.co.za', 'sandbox.payfast.co.za', 'w1w.payfast.co.za', 'w2w.payfast.co.za'];
+const PAYFAST_VALID_IPS = new Set(process.env.PAYFAST_VALID_IPS
     ? process.env.PAYFAST_VALID_IPS.split(',').map(ip => ip.trim())
     : [
         '197.97.145.144', '197.97.145.145', '197.97.145.146', '197.97.145.147',
@@ -141,7 +158,17 @@ const PAYFAST_VALID_IPS = process.env.PAYFAST_VALID_IPS
         '41.74.179.212', '41.74.179.213', '41.74.179.214', '41.74.179.215',
         '41.74.179.216', '41.74.179.217', '41.74.179.218', '41.74.179.219',
         '41.74.179.220', '41.74.179.221', '41.74.179.222', '41.74.179.223'
-    ];
+    ]);
+
+function refreshPayfastValidIps() {
+    PAYFAST_ITN_HOSTNAMES.forEach(host => {
+        dns.resolve4(host, (err, addrs) => {
+            if (!err && addrs) addrs.forEach(ip => PAYFAST_VALID_IPS.add(ip));
+        });
+    });
+}
+refreshPayfastValidIps();
+if (process.env.NODE_ENV !== 'test') setInterval(refreshPayfastValidIps, 15 * 60 * 1000).unref();
 
 // S4-4: Rate limiter for PayFast ITN — generous window to allow retries, but caps floods.
 // Known PayFast IPs skip the limit entirely; unknown IPs (misconfigured proxies) are throttled.
@@ -152,7 +179,7 @@ const payfastItnRateLimiter = rateLimit ? rateLimit({
     legacyHeaders: false,
     skip: (req) => {
         const ip = (req.ip || '').replace('::ffff:', '');
-        return PAYFAST_VALID_IPS.includes(ip);
+        return PAYFAST_VALID_IPS.has(ip);
     },
     handler: (req, res) => {
         console.warn(`[PayFast ITN] Rate limit hit from IP: ${req.ip}`);
