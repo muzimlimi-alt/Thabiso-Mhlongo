@@ -11,6 +11,7 @@ const db = require('../database');
 const { decodeStoredText, unescapeHtml } = require('../lib/html-sanitize');
 const smtpConfig = require('../lib/smtp-config');
 const smtpOauth = require('../lib/smtp-oauth');
+const queuedAttachments = require('../lib/queued-attachments');
 require('dotenv').config();
 
 // The ONE transport. It is built lazily from the resolved SMTP configuration (lib/smtp-config.js: Admin -> System
@@ -170,13 +171,9 @@ async function sendEmail({
     branding = 'default'
 }) {
     try {
-        let attachmentPathsString = null;
-        if (attachments && attachments.length > 0) {
-            const paths = attachments.map(a => a.path || a.content).filter(p => typeof p === 'string');
-            if (paths.length > 0) {
-                attachmentPathsString = JSON.stringify(paths);
-            }
-        }
+        // Attachments must survive the queue: every in-memory attachment is copied into notification_attachments (once per distinct file)
+        // and each entry keeps its filename and content type. Throws - so the email is reported as NOT queued - if one cannot be stored.
+        const attachmentPathsString = await queuedAttachments.store(attachments);
 
         const emailDetails = {
             htmlContent,

@@ -166,14 +166,27 @@ Where Microsoft logs it: Entra -> Monitoring & health -> Sign-in logs -> **Servi
 * Never run against a real mail server. A live check needs the real password and is manual: Test Connection,
   then Send Test, then look in the inbox and the message trace.
 
+## Attachments through the queue (`lib/queued-attachments.js`)
+
+`sendEmail()` only queues; the worker sends later, and callers may have finished (the newsletter code deletes its source files right after
+queueing). So attachments are copied **into** the queue entry:
+
+* `store()` copies the bytes of every in-memory attachment (`{ filename, content: Buffer|string }` - quote/invoice/contract PDFs, the
+  advancing pack, `.ics` invites, direct-email and campaign attachments) into `notification_attachments`, **content-addressed by SHA-256**
+  (one flyer sent to 500 subscribers is stored once). The `notifications.attachment_paths` JSON keeps one entry per attachment with its
+  filename and content type: `{ filename, contentType?, cid?, blob }`, or `{ filename, path }` for a file on disk.
+* `load()` rebuilds the nodemailer attachments in the worker. **If stored bytes are missing the email is failed with `ATTACHMENT_ERROR`** -
+  it is never sent without the attachment it promises.
+* `release()` deletes the bytes once no *pending* email references them (after "sent" or a final failure); a failed attempt that will be
+  retried keeps them. `sweepOrphans()` runs hourly for crash leftovers, expired rows and POPIA-anonymised rows (`attachment_paths = NULL`).
+* Limit: 25 MB of attachments per email. Over the limit (or an unsupported shape) `sendEmail()` reports failure and queues nothing.
+* Rows queued by the previous build (a plain JSON array of path strings) still send.
+
+History: from 2026-06-21 (commit d3f3dbc9, when `sendEmail` started queueing) until this change every in-memory attachment was silently
+dropped, so quotes, invoices, contracts and calendar invites went out without their files.
+
 ## Known gaps (deliberately left alone)
 * `GET /api/admin/settings` still returns the PayFast merchant key/passphrase to any admin role (the UI masks the
   passphrase only cosmetically). Same treatment as SMTP would fix it.
 * `app.js` sets `NODE_TLS_REJECT_UNAUTHORIZED=0` for the whole process (affects every other outbound HTTPS call).
 * Invite / password-reset routes report "sent" when the email was **queued**.
-* **Queued emails lose their attachments (open bug, found Oct 2026, NOT fixed).** Since `sendEmail` started queueing (commit d3f3dbc9,
-  2026-06-21) only *string* paths survive into `notifications.attachment_paths`; every `{ filename, content: Buffer }` attachment is silently
-  dropped - the quote/invoice/contract PDFs, the advancing pack, `.ics` invites, direct-email and campaign attachments - and path
-  attachments lose their display name. Reproduce: queue a Buffer attachment and read `attachment_paths` (NULL). A proper fix has to
-  persist the bytes durably (the DB, de-duplicated by hash so newsletters do not copy a PDF per recipient) and keep
-  `{ filename, contentType }`; it needs a storage decision (R2 vs disk vs DB), so it was left for the owner to decide.

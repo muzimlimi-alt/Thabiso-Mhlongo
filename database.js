@@ -1493,6 +1493,14 @@ function initializeDatabase() {
         db.run(`CREATE INDEX IF NOT EXISTS idx_notifications_status ON notifications(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_notifications_entity ON notifications(related_entity, related_id)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_notifications_scheduled ON notifications(scheduled_at)`);
+        // Attachment bytes for queued emails (lib/queued-attachments.js): content-addressed, so one PDF sent to 500 subscribers is stored once,
+        // and deleted as soon as no pending email references it.
+        db.run(`CREATE TABLE IF NOT EXISTS notification_attachments (
+            sha256 TEXT PRIMARY KEY,
+            size INTEGER NOT NULL,
+            data BLOB NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
 
         // DIRECT EMAILS (DRAFTS & SCHEDULED REPLIES/COMPOSITIONS)
         db.run(`CREATE TABLE IF NOT EXISTS direct_emails (

@@ -27,6 +27,27 @@ function useEnv(port, over = {}) {
 }
 const clearEnv = () => SMTP_VARS.forEach(k => delete process.env[k]);
 
+// Minimal MIME reader for the raw message the fake SMTP server captured: returns every attachment part as { filename, type, bytes }.
+function parseAttachments(raw) {
+    const out = [];
+    const unfold = (s) => s.replace(/\r\n[ \t]+/g, ' ');
+    const qpDecode = (s) => Buffer.from(s.replace(/=\r\n/g, '').replace(/=([0-9A-F]{2})/gi, (m, h) => String.fromCharCode(parseInt(h, 16))), 'latin1');
+    for (const b of [...raw.matchAll(/boundary="?([^"\r\n;]+)"?/gi)].map(m => m[1])) {
+        for (const part of raw.split('--' + b)) {
+            const idx = part.indexOf('\r\n\r\n');
+            if (idx < 0) continue;
+            const head = unfold(part.slice(0, idx)), body = part.slice(idx + 4);
+            const disp = /Content-Disposition:\s*attachment[^\r\n]*?filename\*?=(?:"([^"]+)"|([^;\r\n]+))/i.exec(head);
+            if (!disp) continue;
+            const enc = ((/Content-Transfer-Encoding:\s*(\S+)/i.exec(head) || [])[1] || '7bit').toLowerCase();
+            const clean = body.replace(/\r\n--\s*$/, '');
+            const bytes = enc === 'base64' ? Buffer.from(clean.replace(/\s+/g, ''), 'base64') : enc === 'quoted-printable' ? qpDecode(clean) : Buffer.from(clean.replace(/\r\n$/, ''), 'latin1');
+            out.push({ filename: disp[1] || disp[2], type: (/Content-Type:\s*([^\r\n]+)/i.exec(head) || [])[1] || '', bytes });
+        }
+    }
+    return out;
+}
+
 const emailService = require('../js/emailService');
 const smtp = require('../lib/smtp-config');
 const db = require('../database');
@@ -438,6 +459,102 @@ async function main() {
         await processNotificationQueue();
         const old = (await q(db, "SELECT status FROM notifications WHERE subject = 'Queue test old'"))[0];
         rec('an email that has waited 24h behind a mail-server fault is expired rather than sent late', old.status === 'failed', JSON.stringify(old));
+    }
+
+    // ── 14. attachments survive the queue ────────────────────────────────────────────────────────────────────────
+    {
+        const fs = require('fs'), os = require('os'), pathMod = require('path');
+        const qa = require('../lib/queued-attachments');
+        const f = await startFakeSmtp({ user: 'bookings@test.invalid', pass: PASS1, tlsMaterial });
+        useEnv(f.port); emailService.resetTransport();
+        await run(db, 'DELETE FROM notifications'); await run(db, 'DELETE FROM notification_attachments');
+        const blobCount = async () => (await q(db, 'SELECT COUNT(*) n FROM notification_attachments'))[0].n;
+        const queue = (to, subject, attachments, extra = {}) => emailService.sendEmail(Object.assign({ to, subject, htmlContent: '<p>x</p>', preWrapped: true, trigger_event: 'Test: att', attachments }, extra));
+        const pdfBytes = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.from(Array.from({ length: 256 }, (_, i) => i)), Buffer.from('\n%%EOF')]);   // every byte value 0-255
+        const icsText = 'BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\nSUMMARY:Show\r\nEND:VCALENDAR\r\n';
+        const diskFile = pathMod.join(os.tmpdir(), 'qa-disk-' + process.pid + '.txt'); fs.writeFileSync(diskFile, 'bytes on disk');
+
+        const rq = await queue('att1@test.invalid', 'Att test', [
+            { filename: 'Contract_7_Thabiso_Mhlongo.pdf', content: pdfBytes, contentType: 'application/pdf' },
+            { filename: 'Booking_7.ics', content: Buffer.from(icsText), contentType: 'text/calendar; method=REQUEST' },
+            { filename: 'Notes from me.txt', content: 'plain string content' },
+            { filename: 'Nice Name.txt', path: diskFile }
+        ]);
+        const queued = (await q(db, "SELECT id, attachment_paths FROM notifications WHERE subject = 'Att test'"))[0] || {};
+        rec('queueing keeps every attachment (the old queue stored NULL for the in-memory ones)', rq.success === true && !!queued.attachment_paths && JSON.parse(queued.attachment_paths).length === 4, JSON.stringify(rq) + ' ' + queued.attachment_paths);
+        rec('...the queue row holds hashes and names, not the file bytes', !queued.attachment_paths.includes('JVBERi') && (await blobCount()) === 3 && /"filename":"Contract_7_Thabiso_Mhlongo.pdf"/.test(queued.attachment_paths), queued.attachment_paths);
+        await processNotificationQueue();
+        const sess = f.sessions.find(s => s.data && s.rcpt[0] === 'att1@test.invalid') || {};
+        const atts = parseAttachments(sess.data || '');
+        const by = (n) => atts.find(a => a.filename === n) || {};
+        const summary = JSON.stringify(atts.map(a => [a.filename, a.type.slice(0, 30), a.bytes && a.bytes.length]));
+        rec('the PDF arrives with its filename, content type and EXACT bytes (all 256 byte values)', !!by('Contract_7_Thabiso_Mhlongo.pdf').bytes && by('Contract_7_Thabiso_Mhlongo.pdf').bytes.equals(pdfBytes) && /application\/pdf/.test(by('Contract_7_Thabiso_Mhlongo.pdf').type), summary);
+        rec('the .ics invite arrives as text/calendar (method=REQUEST) with its content intact', !!by('Booking_7.ics').bytes && by('Booking_7.ics').bytes.toString().trim() === icsText.trim() && /text\/calendar/.test(by('Booking_7.ics').type) && /REQUEST/.test(by('Booking_7.ics').type), summary);
+        rec('string content and a file on disk arrive too, under their given display names', !!by('Notes from me.txt').bytes && by('Notes from me.txt').bytes.toString().trim() === 'plain string content' && !!by('Nice Name.txt').bytes && by('Nice Name.txt').bytes.toString().trim() === 'bytes on disk', summary);
+        await sleep(400);
+        const done = (await q(db, "SELECT status FROM notifications WHERE subject = 'Att test'"))[0];
+        rec('after delivery the email is marked sent and its stored bytes are deleted', done.status === 'sent' && (await blobCount()) === 0, JSON.stringify({ s: done.status, blobs: await blobCount() }));
+
+        // one file, three recipients (a newsletter): stored once, kept until the LAST sibling is done
+        const shared = Buffer.from('newsletter flyer ' + 'x'.repeat(8000));
+        for (const n of [1, 2]) await queue('news' + n + '@test.invalid', 'Dedupe test', [{ filename: 'Flyer.pdf', content: shared, contentType: 'application/pdf' }], { trigger_event: 'Test: dedupe' });
+        rec('the same file queued for two recipients is stored ONCE', (await blobCount()) === 1, 'blobs=' + (await blobCount()));
+        const sib = await q(db, "SELECT id, attachment_paths FROM notifications WHERE subject = 'Dedupe test' ORDER BY id");
+        const d1 = await qa.release(sib[0].attachment_paths, sib[0].id);
+        rec('release() keeps the bytes while a sibling email is still pending...', d1 === 0 && (await blobCount()) === 1, 'deleted=' + d1);
+        await run(db, "UPDATE notifications SET status = 'sent' WHERE id = ?", [sib[1].id]);
+        const d2 = await qa.release(sib[0].attachment_paths, sib[0].id);
+        rec('...and deletes them once no pending email needs them', d2 === 1 && (await blobCount()) === 0, 'deleted=' + d2);
+        await run(db, "DELETE FROM notifications WHERE subject = 'Dedupe test'");
+
+        // a transient failure keeps the bytes until the email finally gives up
+        const dead = await startFakeSmtp({ tlsMaterial }); const deadPort = dead.port; await dead.close();
+        useEnv(deadPort); emailService.resetTransport();
+        await queue('retry@test.invalid', 'Retry att', [{ filename: 'R.pdf', content: Buffer.from('retry bytes'), contentType: 'application/pdf' }]);
+        await processNotificationQueue();
+        await sleep(300);
+        const r1 = (await q(db, "SELECT status, retry_count FROM notifications WHERE subject = 'Retry att'"))[0];
+        rec('a transient failure keeps the stored bytes (the retry still needs them)', r1.status === 'pending' && r1.retry_count === 1 && (await blobCount()) === 1, JSON.stringify(r1));
+        await processNotificationQueue(); await processNotificationQueue(); await sleep(400);
+        const r3 = (await q(db, "SELECT status FROM notifications WHERE subject = 'Retry att'"))[0];
+        rec('...and releases them only when the email is finally marked failed', r3.status === 'failed' && (await blobCount()) === 0, JSON.stringify({ r3, blobs: await blobCount() }));
+
+        // missing bytes: fail loudly, never send without the attachment
+        const f2 = await startFakeSmtp({ user: 'bookings@test.invalid', pass: PASS1, tlsMaterial });
+        useEnv(f2.port); emailService.resetTransport();
+        await queue('lost@test.invalid', 'Lost att', [{ filename: 'Lost.pdf', content: Buffer.from('gone soon'), contentType: 'application/pdf' }]);
+        await run(db, 'DELETE FROM notification_attachments');
+        await processNotificationQueue(); await sleep(300);
+        const lost = (await q(db, "SELECT status, error_message FROM notifications WHERE subject = 'Lost att'"))[0];
+        rec('an email whose stored attachment is gone is FAILED with a clear reason - never sent without its attachment', lost.status === 'failed' && /^ATTACHMENT_ERROR/.test(lost.error_message) && /Lost\.pdf/.test(lost.error_message) && !f2.sessions.some(s => s.data && s.rcpt[0] === 'lost@test.invalid'), JSON.stringify(lost));
+
+        // limits and unsupported shapes are reported as "not queued"
+        const big = await queue('big@test.invalid', 'Too big', [{ filename: 'Big.bin', content: Buffer.alloc(qa.MAX_TOTAL_BYTES + 1) }]);
+        const nBig = (await q(db, "SELECT COUNT(*) n FROM notifications WHERE subject = 'Too big'"))[0].n;
+        rec('attachments over the size limit make sendEmail report failure and queue nothing', big.success === false && /larger than/.test(big.error) && nBig === 0, JSON.stringify(big));
+        const odd = await queue('odd@test.invalid', 'Odd att', [{ filename: 'x.pdf', href: 'http://example.invalid/x.pdf' }]);
+        rec('an unsupported attachment shape is reported, not silently dropped', odd.success === false && /unsupported attachment/.test(odd.error), JSON.stringify(odd));
+
+        // orphan sweep
+        await run(db, "INSERT INTO notification_attachments (sha256, size, data, created_at) VALUES ('" + 'a'.repeat(64) + "', 1, x'00', '2000-01-01 00:00:00')");
+        await run(db, "INSERT INTO notification_attachments (sha256, size, data, created_at) VALUES ('" + 'b'.repeat(64) + "', 1, x'00', '2000-01-01 00:00:00')");
+        await run(db, "INSERT INTO notification_attachments (sha256, size, data) VALUES ('" + 'c'.repeat(64) + "', 1, x'00')");
+        await run(db, "INSERT INTO notifications (type, channel, status, recipient_email, subject, body, attachment_paths, scheduled_at) VALUES ('email','email','pending','sched@test.invalid','Scheduled att','{}', ?, datetime('now','+7 days'))", [JSON.stringify([{ filename: 'S.pdf', blob: 'b'.repeat(64) }])]);
+        const swept = await qa.sweepOrphans();
+        const left = (await q(db, 'SELECT sha256 FROM notification_attachments')).map(r => r.sha256[0]).sort().join('');
+        rec('the hourly sweep deletes old bytes nothing references, and keeps referenced ones and brand-new ones', swept === 1 && left === 'bc', JSON.stringify({ swept, left }));
+
+        // rows queued by the previous build (a plain JSON array of path strings) still send
+        await run(db, 'DELETE FROM notification_attachments');
+        await run(db, "INSERT INTO notifications (type, channel, status, recipient_email, subject, body, attachment_paths) VALUES ('email','email','pending','legacy@test.invalid','Legacy att', ?, ?)",
+            [JSON.stringify({ htmlContent: '<p>x</p>', preWrapped: true, trigger_event: 'Test: legacy' }), JSON.stringify([diskFile])]);
+        await processNotificationQueue(); await sleep(300);
+        const lg = parseAttachments((f2.sessions.find(s => s.data && s.rcpt[0] === 'legacy@test.invalid') || {}).data || '');
+        rec('a row queued by the previous build (plain path string) is still delivered with its file', lg.length === 1 && lg[0].bytes.toString().trim() === 'bytes on disk', JSON.stringify(lg.map(a => [a.filename, a.bytes.length])));
+
+        try { fs.unlinkSync(diskFile); } catch (e) { /* temp file */ }
+        await f.close(); await f2.close();
+        clearEnv(); emailService.resetTransport();
     }
 }
 
