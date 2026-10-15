@@ -147,6 +147,66 @@ async function saveSectionVisibility(btn) {
 }
 
 // ─── System Settings ───
+// Email (SMTP): the server never sends the password back. `r.smtp` carries only whether one is saved (and where it comes
+// from); administrators get it, other roles do not (and then the whole card is hidden - they cannot change it either).
+var _smtpEditable = false;
+
+function stSmtpStatusText(m) {
+    if (!m) return '';
+    if (m.legacyApi) return 'The server is still running the previous version of the app - restart it to load the update. You can still save email settings, but Test Connection, OAuth and encrypted storage only work after the restart.';
+    if (m.loadError) return 'The email settings could not be loaded just now - reload the page. Nothing has been changed.';
+    if (m.source === 'legacy-env') {
+        var inc = (m.incomplete || []).length ? ' The email settings are incomplete (' + m.incomplete.join('; ') + ').' : '';
+        return 'Currently sending through the legacy server settings (' + (m.active.host || '?') + (m.active.user ? ' as ' + m.active.user : '') + ').' + inc + ' Enter your Microsoft 365 details below and save to switch over.';
+    }
+    if (!m.ok) return 'Not fully configured: ' + (m.problems || []).join('; ') + '.';
+    var via = m.active.user + ' via ' + m.active.host + ':' + m.active.port + ' (' + (m.secure === 'ssl' ? 'SSL' : 'STARTTLS') + ')';
+    if (m.auth === 'oauth') return 'Active: ' + via + ' using Microsoft 365 OAuth \u2014 ' + (m.secretSource === 'environment' ? 'client secret supplied by the server environment' : 'client secret saved (encrypted)') + '.';
+    var pw = m.passwordSource === 'environment' ? 'password supplied by the server environment' : 'password saved (encrypted)';
+    return 'Active: ' + via + ' \u2014 ' + pw + '.';
+}
+
+// An older server (not restarted since the update) still returns the SMTP fields inside the generic settings map and has no
+// "smtp" section. An administrator must not lose the card because of that, so build the same shape from the old response.
+function stSmtpFromLegacyApi(s) {
+    return {
+        host: s.smtp_host || '', port: s.smtp_port || '', secure: s.smtp_secure === 'ssl' ? 'ssl' : 'starttls', user: s.smtp_user || '',
+        from: s.smtp_from || '', fromName: s.smtp_from_name || '', passwordSet: !!s.smtp_pass, passwordSource: 'settings', source: 'settings',
+        auth: 'password', oauthTenant: '', oauthClient: '', secretSet: false, secretSource: null,
+        legacyApi: true, active: { host: s.smtp_host || '', port: s.smtp_port || '', user: s.smtp_user || '', source: 'settings' },
+        ok: true, problems: [], incomplete: [], warnings: []
+    };
+}
+
+// Show the password box for password sign-in, the three Microsoft fields for OAuth.
+function stToggleAuth() {
+    var oauth = $('#stSmtpAuth').val() === 'oauth';
+    $('#stSmtpPassGroup').toggle(!oauth);
+    $('#stSmtpOauthGroup').toggle(oauth);
+}
+$(document).on('change', '#stSmtpAuth', stToggleAuth);
+
+function stApplySmtp(m) {
+    if (!m) { _smtpEditable = false; $('#stSmtpCard').hide(); return; }
+    _smtpEditable = true;
+    $('#stSmtpCard').show();
+    $('#stSmtpHost').val(m.host || '');
+    $('#stSmtpPort').val(m.port || '');
+    $('#stSmtpSecure').val(m.secure === 'ssl' ? 'ssl' : 'starttls');
+    $('#stSmtpAuth').val(m.auth === 'oauth' ? 'oauth' : 'password');
+    $('#stSmtpUser').val(m.user || '');
+    $('#stSmtpFrom').val(m.from || '');
+    $('#stSmtpFromName').val(m.fromName || '');
+    $('#stSmtpTenant').val(m.oauthTenant || '');
+    $('#stSmtpClient').val(m.oauthClient || '');
+    // Never render a secret - only a masked indicator so the admin knows one is saved (blank = keep it)
+    var dots = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022  (saved \u2014 leave blank to keep current)';
+    $('#stSmtpPass').val('').attr('placeholder', m.passwordSet ? dots : 'mailbox password');
+    $('#stSmtpSecret').val('').attr('placeholder', m.secretSet ? dots : 'secret VALUE');
+    stToggleAuth();
+    $('#stSmtpStatus').text(stSmtpStatusText(m));
+}
+
 window.loadSystemSettings = async function() {
     var _pl = qs('#prefLoading'); if (_pl) _pl.style.display = 'block';
     try {
@@ -164,11 +224,14 @@ window.loadSystemSettings = async function() {
                 $('#stPayfastPass').data('has-existing', false);
             }
             if (s.payfast_url) $('#stPayfastUrl').val(s.payfast_url);
-            if (s.smtp_host) $('#stSmtpHost').val(s.smtp_host);
-            if (s.smtp_port) $('#stSmtpPort').val(s.smtp_port);
-            if (s.smtp_user) $('#stSmtpUser').val(s.smtp_user);
-            if (s.smtp_pass) $('#stSmtpPass').val(s.smtp_pass);
-            if (s.smtp_from) $('#stSmtpFrom').val(s.smtp_from);
+            // Only administrators may see the card (the role comes from the session, not from what the response happens to contain).
+            var smtpView = r.smtp;
+            if (!smtpView && window.currentUserRole === 'administrator') {
+                smtpView = r.smtpError
+                    ? { host: '', port: '', secure: 'starttls', user: '', from: '', fromName: '', passwordSet: false, source: 'none', loadError: true, active: {}, ok: false, problems: [], incomplete: [], warnings: [] }
+                    : stSmtpFromLegacyApi(s);
+            }
+            stApplySmtp(smtpView);
             if (s.notification_email) $('#stNotificationEmail').val(s.notification_email);
         }
     } catch(e) {
@@ -178,6 +241,57 @@ window.loadSystemSettings = async function() {
     }
 };
 
+// The SMTP form as the API wants it. Passwords/secrets are read with the native .value (not jQuery's patched .val()) so they
+// reach the server exactly as typed. Only the fields of the chosen sign-in method are sent.
+function stSmtpFormValues() {
+    var oauth = $('#stSmtpAuth').val() === 'oauth';
+    var v = {
+        smtp_host: $('#stSmtpHost').val(),
+        smtp_port: $('#stSmtpPort').val(),
+        smtp_secure: $('#stSmtpSecure').val(),
+        smtp_auth: oauth ? 'oauth' : 'password',
+        smtp_user: $('#stSmtpUser').val(),
+        smtp_from: $('#stSmtpFrom').val(),
+        smtp_from_name: $('#stSmtpFromName').val()
+    };
+    if (oauth) {
+        v.smtp_oauth_tenant = $('#stSmtpTenant').val();
+        v.smtp_oauth_client = $('#stSmtpClient').val();
+        v.smtp_oauth_secret = document.getElementById('stSmtpSecret').value;
+    } else {
+        v.smtp_pass = document.getElementById('stSmtpPass').value;
+    }
+    return v;
+}
+
+// Inline per-field checks shared by Save and Test Connection. Returns true when everything entered is acceptable.
+function stValidateSmtp(v) {
+    const _fe = (id, msg) => { const e = document.getElementById(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
+    ['errStHost', 'errStPort', 'errStSecure', 'errStAuth', 'errStUser', 'errStTenant', 'errStClient', 'errStSecret', 'errStFrom', 'errStFromName'].forEach(function (id) { _fe(id, ''); });
+    const _emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const _guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    let bad = false;
+    const host = String(v.smtp_host || '').trim();
+    if (host && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(host)) { _fe('errStHost', 'Enter just the server name, e.g. smtp.office365.com.'); bad = true; }
+    const port = String(v.smtp_port || '').trim();
+    if (port && (!/^\d+$/.test(port) || +port < 1 || +port > 65535)) { _fe('errStPort', 'Port must be a number between 1 and 65535.'); bad = true; }
+    if (port === '587' && v.smtp_secure === 'ssl') { _fe('errStSecure', 'Port 587 uses STARTTLS.'); bad = true; }
+    if (port === '465' && v.smtp_secure === 'starttls') { _fe('errStSecure', 'Port 465 uses SSL/TLS.'); bad = true; }
+    if (v.smtp_from && !_emailRe.test(v.smtp_from)) { _fe('errStFrom', 'Enter a valid email address.'); bad = true; }
+    if (/[\r\n]/.test(v.smtp_from_name || '')) { _fe('errStFromName', 'No line breaks, please.'); bad = true; }
+    if (v.smtp_auth === 'oauth') {
+        const user = String(v.smtp_user || '').trim();
+        if (user && user.indexOf('@') < 0) { _fe('errStUser', 'For OAuth this must be the mailbox address.'); bad = true; }
+        const tenant = String(v.smtp_oauth_tenant || '').trim();
+        if (tenant && !_guid.test(tenant) && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(tenant)) { _fe('errStTenant', 'Enter the tenant ID (a GUID) or your tenant domain.'); bad = true; }
+        const client = String(v.smtp_oauth_client || '').trim();
+        if (client && !_guid.test(client)) { _fe('errStClient', 'Enter the Application (client) ID - a GUID.'); bad = true; }
+        const secret = String(v.smtp_oauth_secret || '');
+        if (secret && /\s/.test(secret)) { _fe('errStSecret', 'The secret VALUE has no spaces.'); bad = true; }
+        else if (secret && _guid.test(secret.trim())) { _fe('errStSecret', 'That looks like the Secret ID. Use the secret VALUE.'); bad = true; }
+    }
+    return !bad;
+}
 
 window.saveSystemSettings = async function(btn) {
     const $btn = btn ? $(btn) : $('#btnSaveSystemSettings');
@@ -188,35 +302,57 @@ window.saveSystemSettings = async function(btn) {
         payfast_merchant_key: $('#stPayfastKey').val(),
         payfast_passphrase: $('#stPayfastPass').val(),
         payfast_url: $('#stPayfastUrl').val(),
-        smtp_host: $('#stSmtpHost').val(),
-        smtp_port: $('#stSmtpPort').val(),
-        smtp_user: $('#stSmtpUser').val(),
-        smtp_pass: $('#stSmtpPass').val(),
-        smtp_from: $('#stSmtpFrom').val(),
         notification_email: $('#stNotificationEmail').val()
     };
+    if (_smtpEditable) Object.assign(settings, stSmtpFormValues());   // only administrators ever see (or send) the SMTP card
     // G5 — inline per-field validation
     const _fe = (id, msg) => { const e = document.getElementById(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
-    _fe('errStPort', ''); _fe('errStFrom', ''); _fe('errStNotif', '');
+    _fe('errStNotif', '');
     const _emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    let _bad = false;
-    const _port = String(settings.smtp_port || '').trim();
-    if (_port && !/^\d+$/.test(_port)) { _fe('errStPort', 'Port must be a number.'); _bad = true; }
-    if (settings.smtp_from && !_emailRe.test(settings.smtp_from)) { _fe('errStFrom', 'Enter a valid email address.'); _bad = true; }
+    let _bad = _smtpEditable ? !stValidateSmtp(settings) : false;
     if (settings.notification_email && !_emailRe.test(settings.notification_email)) { _fe('errStNotif', 'Enter a valid email address.'); _bad = true; }
     if (_bad) { window.notificationService.showError('Please fix the highlighted fields.'); $btn.prop('disabled', false).html(origHtml); return; }
-    // Remove blank keys to avoid overwriting with empty strings
+    // Remove blank keys to avoid overwriting with empty strings (a blank password therefore means "keep the saved one")
     Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
     try {
-        await apiCall('/api/admin/settings', 'PUT', { settings });
+        const r = await apiCall('/api/admin/settings', 'PUT', { settings });
+        if (r && r.smtp) stApplySmtp(r.smtp);
+        $('#stSmtpTestResult').text('');
         window.notificationService.showSuccess('System settings saved successfully.');
+        (r && r.warnings || []).forEach(function (w) { window.notificationService.showWarning('Email settings', w); });
     } catch(e) {
-        window.notificationService.showError('Failed to save settings.');
+        // apiCall has already shown the server's reason (e.g. "the connection test failed ... NOT saved") - nothing was overwritten.
     } finally {
         $btn.prop('disabled', false).html(origHtml);
     }
 };
 
+// Connection test: signs in with what is on screen (saved or not) without sending an email.
+window.testSmtpConnection = async function() {
+    const $btn = $('#stSmtpTestBtn');
+    const orig = $btn.html();
+    const $out = $('#stSmtpTestResult');
+    const v = stSmtpFormValues();
+    if (!stValidateSmtp(v)) { window.notificationService.showError('Please fix the highlighted fields.'); return; }
+    Object.keys(v).forEach(function (k) { if (!v[k]) delete v[k]; });
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Testing...');
+    $out.text('').css('color', '');
+    try {
+        const r = await apiCall('/api/admin/settings/smtp/test-connection', 'POST', v);
+        const res = (r && r.result) || {};
+        // textContent only: the message can quote the mail server's reply
+        if (res.ok) $out.text('✓ ' + res.message).css('color', 'var(--atl-sage)');
+        else $out.text('✗ ' + (res.stage ? '[' + res.stage + '] ' : '') + (res.message || 'The connection test failed.')).css('color', 'var(--atl-clay)');
+        (r.warnings || []).forEach(function (w) { window.notificationService.showWarning('Email settings', w); });
+    } catch(e) {
+        // apiCall has already shown the reason
+    } finally {
+        $btn.prop('disabled', false).html(orig);
+    }
+};
+
+// Send Test: a real message through the saved SMTP settings to the Notifications inbox. "Success" = the mail server accepted
+// it for delivery (submission) - not proof that it reached the inbox.
 window.sendTestNotification = async function() {
     const $btn = $('#testNotifBtn');
     const orig = $btn.html();
@@ -224,12 +360,12 @@ window.sendTestNotification = async function() {
     try {
         const r = await apiCall('/api/admin/settings/test-notification', 'POST');
         if (r && r.success) {
-            window.notificationService.showSuccess(r.message || 'Test email sent.');
+            window.notificationService.showSuccess(r.message || 'The mail server accepted the test email.');
         } else {
-            window.notificationService.showError(r.error || 'Failed to send test email.');
+            window.notificationService.showError((r && r.message) || 'The test email was not sent.');
         }
     } catch(e) {
-        window.notificationService.showError('Failed to send test email.');
+        // apiCall has already shown the reason
     } finally {
         $btn.prop('disabled', false).html(orig);
     }

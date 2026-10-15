@@ -3,6 +3,9 @@ const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { bookingConfig } = require('../../lib/booking-config');
+const smtpConfig = require('../../lib/smtp-config');
+const emailService = require('../../js/emailService');
+const { logAudit } = require('../../lib/audit-log');
 const {
     getMinBookingGapSetting, getTypeBuffersSetting, saveMinBookingGapMinutes, saveTypeBuffers,
     getAllSettings, upsertSetting,
@@ -210,41 +213,164 @@ router.put('/api/admin/policies', requireAdmin, (req, res) => {
 });
 
 // --- Settings ---
+// Email (SMTP) settings are special-cased: the password is a secret (stored encrypted, never returned by any API, never
+// copied into process.env - see lib/smtp-config.js) and only administrators may read or change them.
+
+// Everything the admin form may see about the SMTP configuration - never the password itself.
+async function smtpStatus() {
+    const r = await smtpConfig.resolveSmtpConfig();
+    const view = smtpConfig.publicView(r.config);
+    const legacy = view.source === 'legacy-env';
+    return {
+        // The legacy Gmail pair is reported as "active" but not pre-filled into the form, so saving never copies it over.
+        host: legacy ? '' : view.host, port: legacy ? '' : view.port, secure: view.secure,
+        user: legacy ? '' : view.user, from: legacy ? '' : view.from, fromName: view.fromName,
+        passwordSet: legacy ? false : view.passwordSet, passwordSource: legacy ? null : view.passwordSource,
+        source: view.source,
+        auth: view.auth, oauthTenant: legacy ? '' : view.oauthTenant, oauthClient: legacy ? '' : view.oauthClient,
+        secretSet: legacy ? false : view.secretSet, secretSource: legacy ? null : view.secretSource,
+        active: { host: r.config.host || '', port: r.config.port || '', user: r.config.user || '', source: view.source },
+        ok: r.ok, problems: r.problems, incomplete: r.fallbackFrom || [], warnings: r.warnings || []
+    };
+}
+
 router.get('/api/admin/settings', requireAdmin, (req, res) => {
-    getAllSettings((err, rows) => {
+    getAllSettings(async (err, rows) => {
         if (err) { console.error('load settings failed:', err); return res.status(500).json({ success: false, message: 'Could not load settings. Please try again.' }); }
         const obj = {};
-        (rows || []).forEach(r => { obj[r.setting_key] = r.setting_value; });
+        // smtp_* never travels in this map (smtp_pass is a secret); administrators get the safe view in "smtp" below.
+        (rows || []).forEach(r => { if (!String(r.setting_key).startsWith('smtp_')) obj[r.setting_key] = r.setting_value; });
         // Merge env-only keys so the frontend can read them (read-only exposure)
         if (process.env.CALENDAR_FEED_SECRET) obj.CALENDAR_FEED_SECRET = process.env.CALENDAR_FEED_SECRET;
-        res.json({ success: true, settings: obj });
+        const out = { success: true, settings: obj };
+        try { if ((req.session.role || 'assistant') === 'administrator') out.smtp = await smtpStatus(); }
+        catch (e) { console.error('smtp status failed:', e.message); out.smtpError = true; }
+        res.json(out);
     });
 });
 
-router.put('/api/admin/settings', requireAdmin, (req, res) => {
+const saveSetting = (key, val) => new Promise((resolve, reject) => upsertSetting(key, val, (err) => err ? reject(err) : resolve()));
+
+router.put('/api/admin/settings', requireAdmin, async (req, res) => {
     const { settings } = req.body;
     if (!settings || typeof settings !== 'object') return res.status(400).json({ error: 'settings object required.' });
     const envMap = {
         payfast_merchant_id: 'PAYFAST_MERCHANT_ID', payfast_merchant_key: 'PAYFAST_MERCHANT_KEY',
         payfast_passphrase: 'PAYFAST_PASSPHRASE', payfast_url: 'PAYFAST_URL',
-        smtp_host: 'SMTP_HOST', smtp_port: 'SMTP_PORT', smtp_user: 'SMTP_USER',
-        smtp_pass: 'SMTP_PASS', smtp_from: 'SMTP_FROM',
         email_banner: 'EMAIL_BANNER'
     };
     const keys = Object.keys(settings);
-    let pending = keys.length;
-    if (pending === 0) return res.json({ success: true });
-    let failed = false;
-    keys.forEach(key => {
-        const val = String(settings[key]);
-        if (val !== null && val !== undefined && val !== '') {
-            if (envMap[key]) process.env[envMap[key]] = val;
+    if (keys.length === 0) return res.json({ success: true });
+    const smtpKeys = keys.filter(k => k.startsWith('smtp_'));
+    const otherKeys = keys.filter(k => !k.startsWith('smtp_'));
+
+    // Live payment credentials — same administrator-only bar as SMTP below. Any admin role could
+    // otherwise repoint the merchant id/key/passphrase/URL that every customer payment signs against.
+    if (keys.some(k => k in envMap && k.startsWith('payfast_')) && (req.session.role || 'assistant') !== 'administrator') {
+        return res.status(403).json({ success: false, message: 'Forbidden: only administrators can change the PayFast payment settings.' });
+    }
+
+    // ── SMTP: authorise, validate, and (if the connection details changed) prove they work BEFORE anything is written ──
+    const toStore = {};
+    let smtpAudit = null;
+    let warnings = [];
+    if (smtpKeys.length) {
+        if ((req.session.role || 'assistant') !== 'administrator') {
+            return res.status(403).json({ success: false, message: 'Forbidden: only administrators can change the email (SMTP) settings.' });
         }
-        upsertSetting(key, val, (err) => {
-                if (err && !failed) { failed = true; console.error('save settings failed:', err); return res.status(500).json({ success: false, message: 'Could not save settings. Please try again.' }); }
-                if (--pending === 0 && !failed) res.json({ success: true });
-            });
-    });
+        const known = new Set(smtpConfig.KEYS);
+        if (smtpKeys.some(k => !known.has(k))) return res.status(400).json({ success: false, message: 'Unknown email (SMTP) setting.' });
+        const v = smtpConfig.validateInput({
+            host: settings.smtp_host, port: settings.smtp_port, secure: settings.smtp_secure, user: settings.smtp_user,
+            from: settings.smtp_from, fromName: settings.smtp_from_name, pass: settings.smtp_pass,
+            auth: settings.smtp_auth, oauthTenant: settings.smtp_oauth_tenant, oauthClient: settings.smtp_oauth_client, oauthSecret: settings.smtp_oauth_secret
+        });
+        for (const f of ['host', 'port', 'secure', 'user', 'auth']) {
+            if (f in v.clean && !v.clean[f]) v.errors[f] = v.errors[f] || 'This field cannot be blank.';
+        }
+        if (Object.keys(v.errors).length) {
+            return res.status(400).json({ success: false, message: 'Email settings not saved: ' + Object.values(v.errors).join(' '), errors: v.errors });
+        }
+        warnings = v.warnings;
+        const before = await smtpConfig.resolveSmtpConfig();
+        const after = await smtpConfig.resolveSmtpConfig(v.clean);
+        const cur = before.config, nxt = after.config;
+        const sameStr = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+        const connectionChanged = !!v.clean.pass || !!v.clean.oauthSecret
+            || ['host', 'port', 'secure', 'user'].some(f => f in v.clean && !sameStr(v.clean[f], cur[f]))
+            || ('auth' in v.clean && !sameStr(v.clean.auth, cur.auth || 'password'))
+            || ('oauthTenant' in v.clean && !sameStr(v.clean.oauthTenant, cur.oauth && cur.oauth.tenant))
+            || ('oauthClient' in v.clean && !sameStr(v.clean.oauthClient, cur.oauth && cur.oauth.clientId));
+        if (connectionChanged) {
+            if (!after.ok) {
+                return res.status(400).json({ success: false, message: 'Email settings not saved: ' + after.problems.join('; ') + '.' });
+            }
+            // Never overwrite working settings with ones that do not work: test the new ones first.
+            const vr = await emailService.verifySmtp(v.clean);
+            if (!vr.ok) {
+                return res.status(422).json({ success: false, message: 'Email settings were NOT saved - the connection test failed. ' + vr.message, verify: vr });
+            }
+        }
+        try {
+            if ('host' in v.clean) toStore.smtp_host = v.clean.host;
+            if ('port' in v.clean) toStore.smtp_port = v.clean.port;
+            if ('secure' in v.clean) toStore.smtp_secure = v.clean.secure;
+            if ('user' in v.clean) toStore.smtp_user = v.clean.user;
+            if ('from' in v.clean) toStore.smtp_from = v.clean.from;
+            if ('fromName' in v.clean) toStore.smtp_from_name = v.clean.fromName;
+            if (v.clean.pass) toStore.smtp_pass = smtpConfig.encryptSecret(v.clean.pass);   // blank = keep the stored password
+            if ('auth' in v.clean) toStore.smtp_auth = v.clean.auth;
+            if ('oauthTenant' in v.clean) toStore.smtp_oauth_tenant = v.clean.oauthTenant;
+            if ('oauthClient' in v.clean) toStore.smtp_oauth_client = v.clean.oauthClient;
+            if (v.clean.oauthSecret) toStore.smtp_oauth_secret = smtpConfig.encryptSecret(v.clean.oauthSecret);   // blank = keep the stored secret
+        } catch (e) {
+            return res.status(500).json({ success: false, message: 'Email settings not saved: ' + e.message });
+        }
+        smtpAudit = { old: smtpConfig.publicView(cur), new: Object.assign(smtpConfig.publicView(nxt), { passwordChanged: !!v.clean.pass, clientSecretChanged: !!v.clean.oauthSecret }) };
+    }
+
+    // ── persist ──
+    try {
+        for (const key of otherKeys) {
+            const val = String(settings[key]);
+            if (val !== '' && envMap[key]) process.env[envMap[key]] = val;
+            await saveSetting(key, val);
+        }
+        for (const [key, val] of Object.entries(toStore)) await saveSetting(key, val);
+    } catch (err) {
+        console.error('save settings failed:', err);
+        return res.status(500).json({ success: false, message: 'Could not save settings. Please try again.' });
+    }
+    const out = { success: true };
+    if (smtpKeys.length) {
+        emailService.resetTransport();   // next email uses the new settings, and a paused queue resumes
+        logAudit({ tableName: 'settings', recordId: 0, action: 'update', req, oldValues: { smtp: smtpAudit.old }, newValues: { smtp: smtpAudit.new } })
+            .catch(e => console.error('logAudit failed:', e.message));
+        out.smtp = await smtpStatus();
+        out.warnings = warnings;
+    }
+    res.json(out);
+});
+
+// Connection test: connect, negotiate STARTTLS and authenticate with the saved settings (plus any unsaved form values),
+// WITHOUT sending a message. A failed test is a normal result (HTTP 200, ok:false), not a request error.
+router.post('/api/admin/settings/smtp/test-connection', requireAdmin, requireRole(['administrator']), async (req, res) => {
+    try {
+        const b = req.body || {};
+        const v = smtpConfig.validateInput({
+            host: b.smtp_host, port: b.smtp_port, secure: b.smtp_secure, user: b.smtp_user,
+            from: b.smtp_from, fromName: b.smtp_from_name, pass: b.smtp_pass,
+            auth: b.smtp_auth, oauthTenant: b.smtp_oauth_tenant, oauthClient: b.smtp_oauth_client, oauthSecret: b.smtp_oauth_secret
+        });
+        if (Object.keys(v.errors).length) {
+            return res.status(400).json({ success: false, message: Object.values(v.errors).join(' '), errors: v.errors });
+        }
+        const result = await emailService.verifySmtp(v.clean);
+        res.json({ success: true, ok: result.ok, result, warnings: v.warnings });
+    } catch (e) {
+        console.error('smtp test-connection failed:', e.message);
+        res.status(500).json({ success: false, message: 'The connection test could not be run.' });
+    }
 });
 
 module.exports = router;

@@ -16,6 +16,7 @@ const { getEmailFooterContext } = require('../../lib/email-context');
 const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
 const { sendEmail } = require('../../js/emailService');
+const { getSenderEmail } = require('../../lib/smtp-config');
 const { insertLegacyBookingFromContactForm } = require('../../database/repositories/bookings.repository');
 const { insertInquiry } = require('../../database/repositories/inquiries.repository');
 const {
@@ -226,7 +227,7 @@ router.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) =
 
     // 0. FETCH CONFIGURED DELIVERY EMAIL FROM DB
     db.get("SELECT email FROM contact_info ORDER BY quote_id ASC LIMIT 1", [], async (err, contactRow) => {
-        let configuredReceiverEmail = process.env.EMAIL_USER || 'admin@thabisomhlongo.com';
+        let configuredReceiverEmail = getSenderEmail() || 'admin@thabisomhlongo.com';
         if (!err && contactRow && contactRow.email) {
             configuredReceiverEmail = contactRow.email;
         }

@@ -785,6 +785,7 @@ function initializeDatabase() {
                 const colNames = columns.map(c => c.name);
                 if (!colNames.includes('error_message')) db.run("ALTER TABLE email_logs ADD COLUMN error_message TEXT", () => {});
                 if (!colNames.includes('trigger_event')) db.run("ALTER TABLE email_logs ADD COLUMN trigger_event TEXT", () => {});
+                if (!colNames.includes('smtp_response')) db.run("ALTER TABLE email_logs ADD COLUMN smtp_response TEXT", () => {});
             });
         });
 

@@ -15,7 +15,8 @@ function getNotificationEmail() {
     return new Promise((resolve) => {
         db.get("SELECT setting_value FROM settings WHERE setting_key = 'notification_email'", [], (err, row) => {
             if (!err && row && row.setting_value) return resolve(row.setting_value);
-            resolve(process.env.NOTIFICATION_EMAIL || process.env.EMAIL_USER || 'muzi.mlimi@gmail.com');
+            // lazy require: lib/smtp-config.js itself imports this repository
+            resolve(process.env.NOTIFICATION_EMAIL || require('../../lib/smtp-config').getSenderEmail() || 'admin@thabisomhlongo.com');
         });
     });
 }

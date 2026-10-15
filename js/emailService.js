@@ -3,43 +3,103 @@
  * Implementation of Phased Overhaul Phase 3.
  */
 
+const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 const emailTemplates = require('./emailTemplates');
 const emailAssets = require('./emailAssets');
 const db = require('../database');
 const { decodeStoredText, unescapeHtml } = require('../lib/html-sanitize');
+const smtpConfig = require('../lib/smtp-config');
+const smtpOauth = require('../lib/smtp-oauth');
 require('dotenv').config();
 
-// Create a reusable transporter
-// Moved from server.js to maintain a single instance while supporting new service logic
-// Create a reusable transporter
-// Moved from server.js to maintain a single instance while supporting new service logic
-let transporter;
-if (process.env.SMTP_MOCK === 'true') {
-    console.log('⚠️ [EMAIL SERVICE] SMTP Mocking Enabled. No real emails will be sent.');
-    transporter = {
-        sendMail: async (options) => {
-            // Simulate 50ms network delay
-            await new Promise(r => setTimeout(r, 50));
-            return { messageId: 'mock-id-' + Date.now(), response: '250 OK' };
-        }
-    };
-} else {
-    transporter = nodemailer.createTransport({
-        host: 'smtp.gmail.com',
-        port: 587,
-        secure: false, 
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-        },
-        connectionTimeout: 30000, // 30 seconds
-        greetingTimeout: 30000, // 30 seconds
-        socketTimeout: 45000, // 45 seconds
-        tls: {
-            rejectUnauthorized: false
-        }
-    });
+// The ONE transport. It is built lazily from the resolved SMTP configuration (lib/smtp-config.js: Admin -> System
+// Settings -> Email (SMTP), then SMTP_* environment variables, then the legacy EMAIL_USER/EMAIL_PASS pair) and is rebuilt
+// automatically whenever that configuration changes, so a saved change applies to the next email without a restart.
+// Every workflow - queued emails, the background clerk, scheduled jobs, test sends - reaches SMTP only through here.
+const mockTransport = {
+    sendMail: async (options) => {
+        // Simulate 50ms network delay
+        await new Promise(r => setTimeout(r, 50));
+        return { messageId: 'mock-id-' + Date.now(), response: '250 OK' };
+    }
+};
+const isMock = () => process.env.SMTP_MOCK === 'true';
+if (isMock()) console.log('⚠️ [EMAIL SERVICE] SMTP Mocking Enabled. No real emails will be sent.');
+
+let _cached = { key: null, transport: null, config: null };
+
+async function getTransport() {
+    if (isMock()) {
+        const sender = smtpConfig.getSenderEmail() || 'mock@localhost';
+        return { transport: mockTransport, config: { host: 'mock', port: 0, from: sender, fromName: smtpConfig.DEFAULT_FROM_NAME, source: 'mock' } };
+    }
+    const r = await smtpConfig.resolveSmtpConfig();
+    if (!r.ok) {
+        const e = new Error('SMTP is not configured: ' + r.problems.join('; '));
+        e.code = 'ECONFIG';
+        throw e;
+    }
+    const opts = smtpConfig.toTransportOptions(r.config);
+    // anything that changes how we sign in must change the key, so a saved change takes effect on the very next email
+    const credential = r.config.auth === 'oauth' ? [r.config.oauth.tenant, r.config.oauth.clientId, r.config.oauth.secret].join('|') : String(r.config.pass);
+    const key = JSON.stringify([opts.host, opts.port, opts.secure, opts.requireTLS, r.config.auth || 'password', opts.auth.user,
+        crypto.createHash('sha256').update(credential).digest('hex'), opts.tls.rejectUnauthorized]);
+    if (_cached.key !== key) {
+        try { if (_cached.transport && _cached.transport.close) _cached.transport.close(); } catch (e) { /* idle connection already gone */ }
+        _cached = { key, transport: nodemailer.createTransport(opts), config: r.config };
+    } else {
+        _cached.config = r.config;   // sender address / display name can change without a new connection
+    }
+    return _cached;
+}
+
+// A systemic fault (wrong password, SMTP AUTH switched off, bad TLS, refused sender) fails EVERY email the same way until an
+// admin acts, so the queue worker pauses instead of burning retries - and hammering the mail server's sign-in - on customer mail.
+let _pausedUntil = 0;
+function pauseSending(ms) { _pausedUntil = Date.now() + ms; }
+function isSendingPaused() { return Date.now() < _pausedUntil; }
+
+// Called whenever the SMTP settings are saved: the next email uses them and a paused queue resumes immediately.
+function resetTransport() { _cached = { key: null, transport: null, config: null }; _pausedUntil = 0; smtpOauth.clearTokens(); }
+
+// Back-compat facade: this export used to be a nodemailer transporter. Nothing outside this file uses it any more.
+const transporter = { sendMail: async (options) => (await getTransport()).transport.sendMail(options) };
+
+/**
+ * Connection test for the admin "Test Connection" control. Opens a fresh connection with the saved settings (plus any
+ * unsaved form values in `overrides`), negotiates STARTTLS and authenticates, WITHOUT sending a message. The result
+ * never contains the password; failures are classified into actionable categories (config / connection / tls / auth).
+ */
+async function verifySmtp(overrides) {
+    const started = Date.now();
+    if (isMock()) return { ok: true, mock: true, endpoint: 'mock', message: 'SMTP mock mode is on - no real connection was made.', ms: 0 };
+    const r = await smtpConfig.resolveSmtpConfig(overrides);
+    if (!r.ok) {
+        return { ok: false, category: 'config', code: 'ECONFIG', stage: 'config', message: 'SMTP is not fully configured: ' + r.problems.join('; ') + '.', ms: 0 };
+    }
+    const cfg = r.config;
+    const t = nodemailer.createTransport(Object.assign(smtpConfig.toTransportOptions(cfg), { connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000 }));
+    const endpoint = `${cfg.host}:${cfg.port}`;
+    if (cfg.auth === 'oauth') smtpOauth.clearTokens();   // a test must really ask Microsoft for a fresh token
+    try {
+        await t.verify();
+        if (!overrides || !Object.keys(overrides).length) _pausedUntil = 0;   // the saved settings are proven good
+        return {
+            ok: true, endpoint, encryption: cfg.secure === 'ssl' ? 'SSL' : 'STARTTLS', user: cfg.user, from: cfg.from, source: cfg.source,
+            ms: Date.now() - started,
+            authMethod: cfg.auth || 'password',
+            message: cfg.auth === 'oauth'
+                ? `Got a Microsoft 365 access token for the app, connected to ${endpoint}, secured the connection with ${cfg.secure === 'ssl' ? 'SSL' : 'STARTTLS'} and signed in to ${cfg.user} with OAuth (no mailbox password used). No email was sent.`
+                : `Connected to ${endpoint}, secured the connection with ${cfg.secure === 'ssl' ? 'SSL' : 'STARTTLS'} and authenticated as ${cfg.user}. No email was sent.`
+        };
+    } catch (err) {
+        const c = smtpConfig.classifySmtpError(err, cfg);
+        const stage = { config: 'config', connection: 'connect', tls: 'starttls', auth: 'authenticate', oauth: 'token' }[c.category] || 'connect';
+        return { ok: false, endpoint, stage, category: c.category, code: c.code, message: c.message, ms: Date.now() - started };
+    } finally {
+        try { t.close(); } catch (e) { /* nothing to close */ }
+    }
 }
 
 /**
@@ -91,13 +151,13 @@ function extractInlineImages(htmlContent) {
  * Unified async function to send emails with professional branding and logging/**
  * Unified public email queue function. Instead of sending directly, it inserts the details into the notifications queue.
  */
-async function sendEmail({ 
-    to, 
-    subject, 
-    htmlContent, 
-    plainTextAlternative = null, 
-    attachments = [], 
-    fromName = "Thabiso Mhlongo Management", 
+async function sendEmail({
+    to,
+    subject,
+    htmlContent,
+    plainTextAlternative = null,
+    attachments = [],
+    fromName = null,   // null = the configured sender name (Admin -> System Settings -> Email (SMTP)); a caller may still pass its own
     replyTo = null,
     skipBrandAttachments = false,
     titleOverride = null,
@@ -151,6 +211,57 @@ async function sendEmail({
     }
 }
 
+// ── email_logs: one row per delivery ATTEMPT, written for both rendering branches ───────────────────────────────
+// status 'success' means "accepted by the SMTP server" (submission) - the server's own reply is kept in smtp_response.
+// It is NOT proof that the message reached the recipient's inbox; only a bounce / message trace can show that.
+const dbRun = (sql, params) => new Promise((resolve) => db.run(sql, params, function (err) { resolve(err ? null : this.lastID); }));
+
+async function openEmailLog(to, subject, trigger_event) {
+    return dbRun("INSERT INTO email_logs (recipient_email, subject, trigger_event, status) VALUES (?, ?, ?, 'pending')", [to, subject, trigger_event]);
+}
+
+function closeEmailLog(logId, to, subject, trigger_event, status, errorMessage, smtpResponse) {
+    const safeResponse = smtpResponse ? String(smtpResponse).slice(0, 500) : null;
+    if (!logId) {
+        // The 'pending' insert failed - still record the outcome so it is never lost.
+        db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status, error_message) VALUES (?, ?, ?, ?, ?)", [to, subject, trigger_event, status, errorMessage]);
+        return;
+    }
+    db.run("UPDATE email_logs SET status = ?, error_message = ?, smtp_response = ? WHERE id = ?", [status, errorMessage, safeResponse, logId], (err) => {
+        // smtp_response is added by a migration at boot; on the first instants of a fresh DB it may not exist yet.
+        if (err) db.run("UPDATE email_logs SET status = ?, error_message = ? WHERE id = ?", [status, errorMessage, logId]);
+    });
+}
+
+/**
+ * Hands one fully-built message to the shared transport and records the outcome. Returns
+ * { success, messageId, response } or { success:false, error, code, category, retryable, systemic } - never throws.
+ * A failure is never reported as success, and `error` is already safe to log/show (no credentials).
+ */
+async function deliver(mailOptions, { to, subject, trigger_event, fromName }) {
+    const logId = await openEmailLog(to, subject, trigger_event);
+    let cfg = null;
+    try {
+        const t = await getTransport();
+        cfg = t.config;
+        mailOptions.from = { name: decodeStoredText(fromName) || cfg.fromName || smtpConfig.DEFAULT_FROM_NAME, address: cfg.from };
+        const info = await t.transport.sendMail(mailOptions);
+        if (Array.isArray(info.accepted) && info.accepted.length === 0) {
+            const e = new Error('The mail server accepted no recipients');
+            e.code = 'EENVELOPE';
+            throw e;
+        }
+        const rejected = Array.isArray(info.rejected) && info.rejected.length ? `Some recipients were refused: ${info.rejected.join(', ')}` : null;
+        closeEmailLog(logId, to, subject, trigger_event, 'success', rejected, info.response);
+        return { success: true, messageId: info.messageId, response: info.response };
+    } catch (err) {
+        const c = smtpConfig.classifySmtpError(err, cfg);
+        console.error(`❌ Email failed [${trigger_event}] to ${to}: ${c.message}`);   // classified + redacted: never the raw error object
+        closeEmailLog(logId, to, subject, trigger_event, 'failed', c.message.slice(0, 480), null);
+        return { success: false, error: c.message, code: c.code, category: c.category, retryable: c.retryable, systemic: c.systemic };
+    }
+}
+
 /**
  * Internal direct email sender that connects to the SMTP transporter.
  */
@@ -160,7 +271,7 @@ async function sendEmailDirectly({
     htmlContent,
     plainTextAlternative = null,
     attachments = [],
-    fromName = "Thabiso Mhlongo Management",
+    fromName = null,
     replyTo = null,
     skipBrandAttachments = false,
     titleOverride = null,
@@ -171,13 +282,14 @@ async function sendEmailDirectly({
     branding = 'default'
 }) {
     const isOverhaulEnabled = process.env.EMAIL_OVERHAUL_ENABLED === 'true';
+    const meta = { to, subject, trigger_event, fromName };
 
     // 1. Fallback Logic (Feature Flag Restricted)
     if (!isOverhaulEnabled) {
+        let mailOptions;
         try {
             const processedContent = extractInlineImages(htmlContent);
-            const mailOptions = {
-                from: `${fromName} <${process.env.EMAIL_USER}>`,
+            mailOptions = {
                 to,
                 subject: decodeStoredText(subject),   // a header is plain text; the stored form is entity-encoded
                 html: processedContent.html,
@@ -191,16 +303,15 @@ async function sendEmailDirectly({
             if (bcc) mailOptions.bcc = bcc;
             const merged = [...processedContent.attachments, ...attachments];
             if (merged.length > 0) mailOptions.attachments = merged;
-
-            const res = await transporter.sendMail(mailOptions);
-            return { success: true, messageId: res.messageId };
         } catch (error) {
-            console.error('❌ Legacy Email Fallback Failed:', error);
-            return { success: false, error };
+            console.error('❌ Legacy Email Fallback Failed:', error.message);
+            return { success: false, error: error.message };
         }
+        return deliver(mailOptions, meta);
     }
 
     // 2. Branded Logic
+    let mailOptions;
     try {
         const processedContent = extractInlineImages(htmlContent);
         const emailBody = processedContent.html;
@@ -210,7 +321,7 @@ async function sendEmailDirectly({
         const subRow = await new Promise((resolve) => {
             db.get("SELECT unsubscribe_token FROM newsletter_subscribers WHERE LOWER(email) = LOWER(?)", [to], (err, row) => resolve(row));
         });
-        
+
         if (subRow && subRow.unsubscribe_token) {
             const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
             unsubscribeUrl = `${baseUrl}/unsubscribe.html?token=${subRow.unsubscribe_token}&email=${encodeURIComponent(to)}`;
@@ -228,7 +339,7 @@ async function sendEmailDirectly({
         // pre-rebuild createEmailWrapper() path below, which is skipped entirely when preWrapped.
         const brandAttachments = (skipBrandAttachments || preWrapped) ? [] : emailAssets.getBrandAttachments();
         const mergedAttachments = [...brandAttachments, ...inlineAttachments, ...attachments];
-        
+
         let bannerSrc = null;
         let finalBranding = branding || 'default';
         if (branding && (branding.startsWith('http') || branding.startsWith('/') || branding.includes('.'))) {
@@ -247,8 +358,7 @@ async function sendEmailDirectly({
             : emailTemplates.createEmailWrapper(emailBody, titleOverride || subject, unsubscribeUrl, bannerSrc, socialLinks, finalBranding);
         const finalPlainText = plainTextAlternative || htmlToPlainText(emailBody);
 
-        const mailOptions = {
-            from: `"${fromName}" <${process.env.EMAIL_USER}>`,
+        mailOptions = {
             to,
             subject: decodeStoredText(subject),   // a header is plain text; the stored form is entity-encoded
             html: finalHtml,
@@ -259,40 +369,24 @@ async function sendEmailDirectly({
         if (replyTo) mailOptions.replyTo = replyTo;
         if (cc) mailOptions.cc = cc;
         if (bcc) mailOptions.bcc = bcc;
-
-        let logId = null;
-        await new Promise((resVal) => {
-            db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status) VALUES (?, ?, ?, 'pending')", 
-                [to, subject, trigger_event], function(err) {
-                    if (!err) logId = this.lastID;
-                    resVal();
-                }
-            );
-        });
-
-        const info = await transporter.sendMail(mailOptions);
-        
-        if (logId) {
-            db.run("UPDATE email_logs SET status = 'success' WHERE id = ?", [logId]);
-        } else {
-            db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status) VALUES (?, ?, ?, 'success')", 
-                [to, subject, trigger_event]);
-        }
-
-        return { success: true, messageId: info.messageId };
     } catch (error) {
-        console.error('❌ Premium Email Service Failed:', error);
-        db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status, error_message) VALUES (?, ?, ?, 'failed', ?)", 
+        console.error('❌ Premium Email Service Failed:', error.message);
+        db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status, error_message) VALUES (?, ?, ?, 'failed', ?)",
             [to, subject, trigger_event, error.message]
         );
         return { success: false, error: error.message };
     }
+    return deliver(mailOptions, meta);
 }
 
 module.exports = {
     transporter,
     sendEmail,
     sendEmailDirectly,
+    verifySmtp,
+    resetTransport,
+    pauseSending,
+    isSendingPaused,
     htmlToPlainText,
     extractInlineImages
 };

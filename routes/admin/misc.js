@@ -8,7 +8,8 @@ const objectStorage = require('../../lib/object-storage');
 const { getEmailFooterContext } = require('../../lib/email-context');
 const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
-const { sendEmail } = require('../../js/emailService');
+const { sendEmail, sendEmailDirectly } = require('../../js/emailService');
+const { getSenderEmail } = require('../../lib/smtp-config');
 const { getNotificationEmail } = require('../../database/repositories/settings.repository');
 const { getAllBookingsFull, updateBookingClientVenue } = require('../../database/repositories/bookings.repository');
 const router = express.Router();
@@ -75,7 +76,7 @@ router.get('/api/admin/email-logs', requireAdmin, (req, res) => {
 router.post('/api/admin/settings/test-notification', requireAdmin, requireRole(['administrator']), async (req, res) => {
     try {
         const to = await getNotificationEmail();
-        await sendEmail({
+        const result = await sendEmailDirectly({
             to,
             subject: 'Test Notification — Thabiso Mhlongo Admin',
             htmlContent: emailComponents.renderSystemEmail({
@@ -88,9 +89,16 @@ router.post('/api/admin/settings/test-notification', requireAdmin, requireRole([
             preWrapped: true,
             trigger_event: 'Admin: Test Notification'
         });
-        res.json({ success: true, message: `Test email sent to ${to}` });
+        if (!result.success) {
+            return res.json({ success: false, ok: false, category: result.category || 'unknown', message: `The test email to ${to} was NOT sent. ${result.error}` });
+        }
+        res.json({
+            success: true, ok: true, smtp_response: result.response || null,
+            message: `The mail server accepted the test email for delivery to ${to}. This confirms SMTP submission only - open that inbox (and Email Logs) to confirm it arrived.`
+        });
     } catch (e) {
-        res.status(500).json({ success: false, error: e.message });
+        console.error('test-notification failed:', e.message);
+        res.status(500).json({ success: false, ok: false, message: 'The test email could not be sent.' });
     }
 });
 
@@ -202,7 +210,7 @@ router.post('/api/admin/compose', requireAdmin, async (req, res) => {
             subject: subject || 'Message from Thabiso Mhlongo Management',
             htmlContent: htmlTemplate,
             preWrapped: true,
-            replyTo: process.env.EMAIL_USER || 'admin@thabisomhlongo.com',
+            replyTo: getSenderEmail() || 'admin@thabisomhlongo.com',
             titleOverride: 'Direct Message',
             trigger_event: 'Admin: Direct Compose'
         });

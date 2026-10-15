@@ -140,7 +140,7 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, apiBi
 
     // ══════════ 6. SMTP subject and Google Calendar (isolated child, both stubbed) ══════════
     const tmpDb = path.join(os.tmpdir(), `stored-text-${process.pid}-${Date.now()}.sqlite`);
-    const child = spawnSync(process.execPath, [path.join(__dirname, 'stored-text.child.js')], { env: { ...process.env, DB_PATH: tmpDb, NODE_ENV: 'test', R2_ENDPOINT: '', R2_BUCKET: '', R2_ACCESS_KEY_ID: '', R2_SECRET_ACCESS_KEY: '', GOOGLE_REFRESH_TOKEN: 'test-mode-invalid-refresh-token', SMTP_MOCK: 'false', EMAIL_OVERHAUL_ENABLED: '' }, encoding: 'utf8', timeout: 60000 });
+    const child = spawnSync(process.execPath, [path.join(__dirname, 'stored-text.child.js')], { env: { ...process.env, DB_PATH: tmpDb, NODE_ENV: 'test', R2_ENDPOINT: '', R2_BUCKET: '', R2_ACCESS_KEY_ID: '', R2_SECRET_ACCESS_KEY: '', GOOGLE_REFRESH_TOKEN: 'test-mode-invalid-refresh-token', SMTP_MOCK: 'false', EMAIL_OVERHAUL_ENABLED: '', SMTP_HOST: 'smtp.test.invalid', SMTP_USER: 'sender@test.invalid', SMTP_PASS: 'not-a-real-password' }, encoding: 'utf8', timeout: 60000 });
     for (const suffix of ['', '-wal', '-shm']) { try { fs.unlinkSync(tmpDb + suffix); } catch (e) {} }
     const line = (child.stdout || '').split('\n').find(l => l.startsWith('RESULT:'));
     check('the stubbed child ran (SMTP + Google Calendar captured)', !!line, (child.stdout || '') + (child.stderr || '').slice(-300));

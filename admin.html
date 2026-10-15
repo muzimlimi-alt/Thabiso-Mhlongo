@@ -5921,7 +5921,7 @@
                                 </div>
 
                                 <!-- Card: Email (SMTP) -->
-                                <div class="atl-card um-settings-card">
+                                <div class="atl-card um-settings-card" id="stSmtpCard">
                                     <div class="um-icon-header">
                                         <div class="um-icon-header__icon"><i class="fa-solid fa-envelopes-bulk"></i></div>
                                         <div>
@@ -5930,25 +5930,71 @@
                                         </div>
                                     </div>
                                     <div class="um-divider"></div>
+                                    <p class="um-section-desc" id="stSmtpStatus" role="status" style="margin:0 0 14px;"></p>
                                     <div class="row">
                                         <div class="col-md-6">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpHost">SMTP Host</label><div class="um-input-wrap"><i class="fa-solid fa-server um-input-icon"></i><input type="text" class="um-input" id="stSmtpHost" placeholder="smtp.gmail.com"></div></div>
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpHost">SMTP Host</label><div class="um-input-wrap"><i class="fa-solid fa-server um-input-icon"></i><input type="text" class="um-input" id="stSmtpHost" placeholder="smtp.office365.com" autocomplete="off" spellcheck="false"></div></div>
+                                            <div class="atl-field-error" id="errStHost" style="display:none;"></div>
                                         </div>
                                         <div class="col-md-2">
                                             <div class="um-field-group"><label class="um-label" for="stSmtpPort">Port</label><div class="um-input-wrap"><i class="fa-solid fa-ethernet um-input-icon"></i><input type="number" class="um-input" id="stSmtpPort" placeholder="587"></div></div>
                                             <div class="atl-field-error" id="errStPort" style="display:none;"></div>
                                         </div>
                                         <div class="col-md-4">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpFrom">From Address</label><div class="um-input-wrap"><i class="fa-solid fa-envelope um-input-icon"></i><input type="email" class="um-input" id="stSmtpFrom" placeholder="noreply@example.com"></div></div>
-                                            <div class="atl-field-error" id="errStFrom" style="display:none;"></div>
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpSecure">Encryption</label><div class="um-input-wrap"><i class="fa-solid fa-shield-halved um-input-icon"></i><select class="um-input" id="stSmtpSecure"><option value="starttls">STARTTLS (587, recommended)</option><option value="ssl">SSL/TLS (465)</option></select></div></div>
+                                            <div class="atl-field-error" id="errStSecure" style="display:none;"></div>
                                         </div>
                                     </div>
                                     <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpAuth">Sign-in method</label><div class="um-input-wrap"><i class="fa-solid fa-key um-input-icon"></i><select class="um-input" id="stSmtpAuth"><option value="password">Mailbox password</option><option value="oauth">Microsoft 365 OAuth (recommended)</option></select></div></div>
+                                            <div class="atl-field-error" id="errStAuth" style="display:none;"></div>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpUser">SMTP User <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(the mailbox)</small></label><div class="um-input-wrap"><i class="fa-solid fa-user um-input-icon"></i><input type="text" class="um-input" id="stSmtpUser" placeholder="bookings@thabisomhlongo.com" autocomplete="off" spellcheck="false"></div></div>
+                                            <div class="atl-field-error" id="errStUser" style="display:none;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="row" id="stSmtpPassGroup">
+                                        <div class="col-md-12">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpPass">SMTP Password</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stSmtpPass" placeholder="mailbox password" autocomplete="new-password"></div></div>
+                                        </div>
+                                    </div>
+                                    <div id="stSmtpOauthGroup" style="display:none;">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="um-field-group"><label class="um-label" for="stSmtpTenant">Directory (tenant) ID</label><div class="um-input-wrap"><i class="fa-solid fa-building um-input-icon"></i><input type="text" class="um-input" id="stSmtpTenant" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></div></div>
+                                                <div class="atl-field-error" id="errStTenant" style="display:none;"></div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="um-field-group"><label class="um-label" for="stSmtpClient">Application (client) ID</label><div class="um-input-wrap"><i class="fa-solid fa-id-card um-input-icon"></i><input type="text" class="um-input" id="stSmtpClient" placeholder="from the app registration" autocomplete="off" spellcheck="false"></div></div>
+                                                <div class="atl-field-error" id="errStClient" style="display:none;"></div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="um-field-group"><label class="um-label" for="stSmtpSecret">Client secret</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stSmtpSecret" placeholder="secret VALUE" autocomplete="new-password"></div></div>
+                                                <div class="atl-field-error" id="errStSecret" style="display:none;"></div>
+                                            </div>
+                                        </div>
+                                        <p class="um-section-desc" style="margin:0 0 14px;"><i class="fa-solid fa-circle-info" style="margin-right:6px; color:var(--atl-amber);"></i>No mailbox password is used. This needs a one-time setup in Microsoft Entra and Exchange &mdash; the steps are under <strong style="color:var(--atl-ink);">About</strong> on this page.</p>
+                                    </div>
+                                    <div class="row">
                                         <div class="col-md-6">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpUser">SMTP User</label><div class="um-input-wrap"><i class="fa-solid fa-user um-input-icon"></i><input type="text" class="um-input" id="stSmtpUser" placeholder="your@email.com"></div></div>
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpFrom">From Address</label><div class="um-input-wrap"><i class="fa-solid fa-envelope um-input-icon"></i><input type="email" class="um-input" id="stSmtpFrom" placeholder="bookings@thabisomhlongo.com" autocomplete="off"></div></div>
+                                            <div class="atl-field-error" id="errStFrom" style="display:none;"></div>
                                         </div>
                                         <div class="col-md-6">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpPass">SMTP Password</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stSmtpPass" placeholder="app password"></div></div>
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpFromName">Sender Name</label><div class="um-input-wrap"><i class="fa-solid fa-signature um-input-icon"></i><input type="text" class="um-input" id="stSmtpFromName" placeholder="Thabiso Mhlongo" maxlength="100" autocomplete="off"></div></div>
+                                            <div class="atl-field-error" id="errStFromName" style="display:none;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="row" style="align-items:center;">
+                                        <div class="col-md-4">
+                                            <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stSmtpTestBtn" onclick="testSmtpConnection()">
+                                                <i class="fa-solid fa-plug-circle-check" style="margin-right:5px;"></i>Test Connection
+                                            </button>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <p class="um-section-desc" id="stSmtpTestResult" role="status" aria-live="polite" style="margin:0;"></p>
                                         </div>
                                     </div>
                                 </div>
@@ -6057,11 +6103,23 @@
                                         <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-envelopes-bulk" style="color:var(--atl-amber);"></i> Email (SMTP)</p>
                                         <p class="um-role-info__desc">The outgoing mail server used for <strong style="color:var(--atl-ink);">every</strong> system email &mdash; quotes, booking confirmations, payment receipts, password resets and the new <strong style="color:var(--atl-ink);">user invitation</strong> emails. If email stops working, this is the first place to check.</p>
                                         <ul class="um-role-list">
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">SMTP Host</strong> &mdash; your mail provider's server, e.g. <code>smtp.gmail.com</code>.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Port</strong> &mdash; <code>587</code> for STARTTLS (most common) or <code>465</code> for SSL.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">From Address</strong> &mdash; the address recipients see the email coming from.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">SMTP User</strong> &amp; <strong style="color:var(--atl-ink);">Password</strong> &mdash; the mailbox login. For Gmail / Google Workspace, turn on 2-step verification and use an <strong style="color:var(--atl-ink);">App Password</strong>, not your normal password.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">SMTP Host</strong> &mdash; your mail provider's server, e.g. <code>smtp.office365.com</code> for Microsoft 365.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Port &amp; Encryption</strong> &mdash; <code>587</code> with <strong style="color:var(--atl-ink);">STARTTLS</strong> (Microsoft 365 and most providers) or <code>465</code> with SSL. Mail is never sent unencrypted.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">From Address &amp; Sender Name</strong> &mdash; what recipients see. With Microsoft 365 the From address must be the signed-in mailbox (or one it has &ldquo;Send As&rdquo; permission for).</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">SMTP User</strong> &amp; <strong style="color:var(--atl-ink);">Password</strong> &mdash; the mailbox login. The password is stored encrypted and never shown again; leave it blank to keep the saved one. Microsoft 365 needs <strong style="color:var(--atl-ink);">Authenticated SMTP</strong> enabled for the mailbox (and the tenant). Gmail needs an <strong style="color:var(--atl-ink);">App Password</strong>.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Test Connection</strong> &mdash; signs in with the values on screen (saved or not) without sending an email. Saving changed connection details runs the same check first and refuses to overwrite working settings with ones that fail.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Sign-in method</strong> &mdash; <strong style="color:var(--atl-ink);">Microsoft 365 OAuth</strong> signs in as an app instead of with the mailbox password, so security defaults, MFA and the password-SMTP shutdown do not get in the way. It needs a one-time setup (below).</li>
                                         </ul>
+                                        <p class="um-section-label" style="margin:14px 0 6px;">One-time Microsoft 365 setup for OAuth</p>
+                                        <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.8;">
+                                            <li>Entra admin center &rarr; <strong style="color:var(--atl-ink);">App registrations &rarr; New registration</strong> (single tenant). Copy the <strong style="color:var(--atl-ink);">Application (client) ID</strong> and <strong style="color:var(--atl-ink);">Directory (tenant) ID</strong>.</li>
+                                            <li><strong style="color:var(--atl-ink);">API permissions &rarr; Add a permission &rarr; APIs my organization uses &rarr; Office 365 Exchange Online &rarr; Application permissions &rarr; SMTP.SendAsApp</strong>, then <strong style="color:var(--atl-ink);">Grant admin consent</strong>.</li>
+                                            <li><strong style="color:var(--atl-ink);">Certificates &amp; secrets &rarr; New client secret</strong>. Copy the secret <strong style="color:var(--atl-ink);">Value</strong> immediately (not the Secret ID) and note its expiry date.</li>
+                                            <li>Entra &rarr; <strong style="color:var(--atl-ink);">Enterprise applications</strong> &rarr; your app &rarr; copy its <strong style="color:var(--atl-ink);">Object ID</strong> (not the one on the App registration page).</li>
+                                            <li>In PowerShell: <code>Connect-ExchangeOnline -Organization &lt;tenant ID&gt;</code>, then <code>New-ServicePrincipal -AppId &lt;client ID&gt; -ObjectId &lt;enterprise-app Object ID&gt;</code>, then <code>Add-MailboxPermission -Identity "bookings@thabisomhlongo.com" -User &lt;enterprise-app Object ID&gt; -AccessRights FullAccess</code>.</li>
+                                            <li>Keep <strong style="color:var(--atl-ink);">Authenticated SMTP</strong> enabled for the mailbox and the organisation. Allow 15&ndash;30 minutes, enter the three values here, press <strong style="color:var(--atl-ink);">Test Connection</strong>, then <strong style="color:var(--atl-ink);">Save</strong>.</li>
+                                        </ol>
+                                        <ul class="um-role-list" style="margin-top:8px;">
                                     </div>
 
                                     <!-- Notifications -->
@@ -6070,14 +6128,14 @@
                                         <p class="um-role-info__desc">Where the system's internal alerts are delivered.</p>
                                         <ul class="um-role-list">
                                             <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Notifications Email</strong> &mdash; the inbox that receives new-booking alerts, overdue-payment warnings and other admin notices.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Send Test</strong> &mdash; emails a sample message to that address right now, so you can confirm your SMTP settings actually work. Use it whenever you change the Email (SMTP) card.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Send Test</strong> &mdash; sends a real test message to that address through your SMTP server and shows the mail server's actual answer. Success means the server <em>accepted</em> it &mdash; check the inbox too, as acceptance does not prove delivery. Use it whenever you change the Email (SMTP) card.</li>
                                         </ul>
                                     </div>
 
                                     <h4 class="um-section-label" style="margin: 20px 0 12px;">Common tasks</h4>
                                     <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
                                         <li><strong style="color:var(--atl-ink);">Connect PayFast</strong> &mdash; paste your Merchant ID, Merchant Key and (optionally) passphrase, set the sandbox URL to test, then switch to the live URL and <strong style="color:var(--atl-ink);">Save System Settings</strong>.</li>
-                                        <li><strong style="color:var(--atl-ink);">Set up email</strong> &mdash; enter the SMTP host, port, from-address and login, save, then use <strong style="color:var(--atl-ink);">Send Test</strong> to confirm mail actually delivers.</li>
+                                        <li><strong style="color:var(--atl-ink);">Set up email</strong> &mdash; enter the SMTP host, port, encryption, sender and login, press <strong style="color:var(--atl-ink);">Test Connection</strong>, save, then use <strong style="color:var(--atl-ink);">Send Test</strong> to confirm a real message is accepted.</li>
                                         <li><strong style="color:var(--atl-ink);">Route admin alerts</strong> &mdash; set the Notifications Email so new-booking and overdue-payment notices reach the right inbox.</li>
                                     </ol>
 
@@ -6633,8 +6691,8 @@
                                 <div class="um-role-info">
                                     <p class="um-section-label" style="margin-bottom:10px;"><i class="fa-solid fa-signal" style="margin-right:8px; color:var(--atl-amber);"></i>Delivery statuses</p>
                                     <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> <span><strong style="color:var(--atl-ink);">Success</strong> &mdash; accepted by the mail server</span></li>
-                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> <span><strong style="color:var(--atl-ink);">Failed</strong> &mdash; could not be delivered</span></li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <span><strong style="color:var(--atl-ink);">Success</strong> &mdash; accepted by the mail server for delivery (SMTP cannot confirm it reached the inbox; hover for the server's reply)</span></li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> <span><strong style="color:var(--atl-ink);">Failed</strong> &mdash; the mail server refused it or could not be reached (hover for the reason)</span></li>
                                         <li><i class="fa-solid fa-clock" style="color:var(--atl-orange);"></i> <span><strong style="color:var(--atl-ink);">Pending</strong> &mdash; queued, delivery not yet confirmed</span></li>
                                     </ul>
                                 </div>
@@ -12701,7 +12759,7 @@
     <!-- Phase 6 (HOUSEKEEPING-NOTES.md) FIX: relocated here (from mid-way through the User
          Management module's own script block below) so that block could be reunited into
          one continuous closure. -->
-    <script src="js/admin/email-logs.js"></script>
+    <script src="js/admin/email-logs.js?v=smtp1"></script>
     <!-- Phase 6 (HOUSEKEEPING-NOTES.md): the entire User Management module (own CRUD + Login
          Activity Logs panel), previously the initUserManagement(...) closure here, moved to
          js/admin/user-management.js — see that file's header comment for full detail. -->
@@ -12821,7 +12879,7 @@
     <script src="js/admin/policies.js"></script>
     <script src="js/admin/branding.js?v=3"></script>
     <script src="js/admin/security-audit.js"></script>
-    <script src="js/admin/system-settings.js"></script>
+    <script src="js/admin/system-settings.js?v=smtp2"></script>
     <script src="js/admin/financials.js"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================

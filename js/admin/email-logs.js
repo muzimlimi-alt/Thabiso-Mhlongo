@@ -67,6 +67,12 @@ const emailLogsTable = new DataTable({
         const escape = (str) => { const div = document.createElement('div'); div.textContent = str || ''; return div.innerHTML; };
         const date = new Date(log.sent_at).toLocaleString();
         const statusClass = log.status === 'success' ? 'text-success' : (log.status === 'pending' ? 'text-warning' : 'text-danger');
+        // 'success' = the mail server ACCEPTED the message (SMTP submission). SMTP cannot confirm inbox delivery, so say so.
+        // The text comes from a mail server / error, so it is attribute-escaped as well as HTML-escaped.
+        const statusTip = (log.status === 'success'
+            ? 'Accepted by the mail server for delivery - inbox delivery is not confirmed.' + (log.smtp_response ? ' Server reply: ' + log.smtp_response : '') + (log.error_message ? ' Note: ' + log.error_message : '')
+            : (log.status === 'pending' ? 'Being sent...' : 'Not sent: ' + (log.error_message || 'unknown error')));
+        const tipAttr = escape(statusTip).replace(/"/g, '&quot;');
         const triggerIcon = (log.trigger_event||'').includes('Newsletter') ? 'fa-envelopes-bulk' :
                            (log.trigger_event||'').includes('Booking') ? 'fa-calendar-check' :
                            (log.trigger_event||'').includes('Admin') ? 'fa-user-shield' : 'fa-paper-plane';
@@ -75,7 +81,7 @@ const emailLogsTable = new DataTable({
                     <td style="padding: 15px; border:none; font-weight: 500;">${escape(log.recipient_email)}</td>
                     <td style="padding: 15px; border:none; color: #ddd;">${escape(log.subject)}</td>
                     <td style="padding: 15px; border:none; font-size: 12px;"><i class="fa-solid ${triggerIcon}" style="margin-right:6px; opacity:0.6;"></i>${escape(log.trigger_event)}</td>
-                    <td style="padding: 15px; border:none;"><span class="${statusClass}" style="font-weight:bold; text-transform:uppercase; font-size:11px;"><i class="fa-solid ${log.status === 'success' ? 'fa-check-circle' : (log.status === 'pending' ? 'fa-clock' : 'fa-circle-xmark')}" style="margin-right:4px;"></i>${escape(log.status)}</span></td>
+                    <td style="padding: 15px; border:none;"><span class="${statusClass}" title="${tipAttr}" style="font-weight:bold; text-transform:uppercase; font-size:11px;"><i class="fa-solid ${log.status === 'success' ? 'fa-check-circle' : (log.status === 'pending' ? 'fa-clock' : 'fa-circle-xmark')}" style="margin-right:4px;"></i>${escape(log.status)}</span></td>
                 `;
         return '<tr>' + cells + '</tr>';
     },

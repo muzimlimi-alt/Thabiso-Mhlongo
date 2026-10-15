@@ -47,6 +47,7 @@ const { generateInvoice } = require('../../lib/invoicing');
 const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
 const { sendEmail } = require('../../js/emailService');
+const { getSenderEmail } = require('../../lib/smtp-config');
 const pdfService = require('../../js/pdfService');
 const {
     getBookingNotesForBooking, insertBookingNote, getBookingNoteById, deleteBookingNote,
@@ -2618,7 +2619,7 @@ router.post('/api/admin/bookings/:id/respond', requireAdmin, (req, res) => {
         subject: subject,
         htmlContent: htmlTemplate,
         preWrapped: true,
-        replyTo: process.env.EMAIL_USER || process.env.NOTIFICATION_EMAIL || 'muzi.mlimi@gmail.com',
+        replyTo: getSenderEmail() || process.env.NOTIFICATION_EMAIL || 'admin@thabisomhlongo.com',
         titleOverride: 'Booking Management Response',
         trigger_event: 'Admin: Booking Respond'
     }).then(result => {

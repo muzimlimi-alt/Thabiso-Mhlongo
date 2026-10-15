@@ -82,7 +82,10 @@ async function spawnAndWait() {
             // as before, so every email.test.js assertion is unaffected). The bogus refresh token makes
             // syncBookingToCalendar() fail exactly the way it already did before re-auth — caught
             // internally, resolves null, no test depends on a real calendar write succeeding.
-            SMTP_MOCK: 'true',
+            // TEST_SMTP_MOCK=false lets a scratch run exercise the REAL transport against test/fake-smtp.js (set SMTP_* in the runner's env).
+            SMTP_MOCK: process.env.TEST_SMTP_MOCK === 'false' ? 'false' : 'true',
+            // Fixed key so test/smtp.test.js can decrypt the SMTP password the API stores (settings.smtp_pass is AES-encrypted).
+            SETTINGS_ENCRYPTION_KEY: 'test-only-settings-encryption-key',
             GOOGLE_REFRESH_TOKEN: 'test-mode-invalid-refresh-token',
         },
         stdio: ['ignore', 'pipe', 'pipe'],

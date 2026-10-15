@@ -99,13 +99,14 @@ getAllSettings((err, rows) => {
         const envMap = {
             payfast_merchant_id: 'PAYFAST_MERCHANT_ID', payfast_merchant_key: 'PAYFAST_MERCHANT_KEY',
             payfast_passphrase: 'PAYFAST_PASSPHRASE', payfast_url: 'PAYFAST_URL',
-            smtp_host: 'SMTP_HOST', smtp_port: 'SMTP_PORT', smtp_user: 'SMTP_USER',
-            smtp_pass: 'SMTP_PASS', smtp_from: 'SMTP_FROM',
             email_banner: 'EMAIL_BANNER'
         };
         rows.forEach(r => {
             const key = r.setting_key;
             const val = r.setting_value;
+            // SMTP settings (the password above all) are read straight from the table by lib/smtp-config.js on every send;
+            // the generic fall-through below must not copy them into process.env.
+            if (key.startsWith('smtp_')) return;
             if (val !== null && val !== undefined && val !== '') {
                 if (key === 'min_booking_gap_minutes') {
                     const parsed = parseInt(val);
@@ -120,6 +121,9 @@ getAllSettings((err, rows) => {
             }
         });
         console.log("Settings loaded from database.");
+        // Encrypt a legacy plaintext SMTP password in place, then prime the sender-address cache.
+        const smtpCfg = require('./lib/smtp-config');
+        smtpCfg.migrateLegacyPassword().then(() => smtpCfg.resolveSmtpConfig()).catch(e => console.error('SMTP config init failed:', e.message));
     }
 });
 const moment = require('moment-timezone');
