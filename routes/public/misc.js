@@ -7,6 +7,7 @@ const db = require('../../database');
 const {
     ipRateLimiter, bookingRateLimiter, analyticsTrackLimiter, sitemapRateLimiter
 } = require('../../middleware/rate-limiters');
+const multer = require('multer');
 const { upload } = require('../../lib/uploads');
 const { PROJECT_ROOT } = require('../../lib/runtime-paths');
 const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-utils');
@@ -79,7 +80,20 @@ router.post('/upload', (req, res, next) => {
         return res.status(401).json({ success: false, message: 'Unauthorized. Please log in.' });
     }
     next();
-}, upload.single('file'), (req, res) => {
+}, (req, res, next) => {
+    // Run multer here rather than as plain middleware: /upload isn't under /api/, so a rejected file (wrong type, too big)
+    // fell through to the global error handler, which answers non-API paths with the error.html PAGE. The admin's
+    // fetch(...).json() then choked on HTML and every rejection showed as "Network error during upload".
+    upload.single('file')(req, res, (err) => {
+        if (!err) return next();
+        let status = 400;
+        let message = err.message || 'Upload failed.';
+        if (err.code === 'LIMIT_FILE_SIZE') message = 'That file is too large. The limit is 15 MB.';
+        else if (err.code === 'UNSUPPORTED_FILE_TYPE') status = 415;
+        else if (!(err instanceof multer.MulterError)) { status = 500; message = 'Upload failed on the server. Please try again.'; console.error('upload failed:', err); }
+        res.status(status).json({ success: false, message });
+    });
+}, (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'No file uploaded' });
     }

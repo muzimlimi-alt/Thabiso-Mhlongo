@@ -188,6 +188,18 @@
 
 /* System Settings — separate cards + save bar */
 .um-settings-card { margin-bottom: 18px; }
+/* An input with its action button on the same line (System Settings > Notifications "Send Test"). The button
+ * stretches to the input's height and keeps its natural width; below 600px it drops under the input, full width. */
+.um-inline-action { display: flex; align-items: stretch; gap: 12px; }
+/* System Settings > Location Search check result */
+.um-places-result.is-ok { color: var(--atl-green, #4caf7a); }
+.um-places-result.is-bad { color: var(--atl-red, #e06464); }
+.um-inline-action .um-input-wrap { flex: 1 1 auto; min-width: 0; }
+.um-inline-action .atl-btn { flex: 0 0 auto; justify-content: center; white-space: nowrap; }
+@media (max-width: 600px) {
+    .um-inline-action { flex-direction: column; }
+    .um-inline-action .atl-btn { width: 100%; }
+}
 .um-settings-save {
     display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
     background: var(--atl-surface2); border: 1px solid var(--atl-line);

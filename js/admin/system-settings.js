@@ -351,6 +351,34 @@ window.testSmtpConnection = async function() {
     }
 };
 
+// Test Google Places (2026-10 Places audit): runs one real venue search through lib/places.js and shows what Google
+// answered - which API version is in use, or exactly what to fix in Google Cloud. Never shows the key.
+window.testPlacesConfig = async function() {
+    const $btn = $('#testPlacesBtn');
+    const $out = $('#stPlacesResult');
+    const orig = $btn.html();
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Checking...');
+    $out.removeClass('is-ok is-bad').text('');
+    try {
+        const r = await fetch('/api/admin/places/status', { credentials: 'same-origin', cache: 'no-store', bypassInterceptor: true, retry: false });
+        const d = await r.json().catch(() => null);
+        if (!r.ok || !d || !d.success) {
+            $out.addClass('is-bad').text(r.status === 403 ? 'Only an administrator can run this check.' : 'The check could not run. Please try again.');
+            return;
+        }
+        if (d.ok) {
+            const api = d.provider === 'legacy' ? 'the legacy Places API' : 'Places API (New)';
+            $out.addClass('is-ok').text('Working: Google returned ' + d.sample + ' result(s) through ' + api + '.' + (d.hint ? '\n' + d.hint : ''));
+        } else {
+            $out.addClass('is-bad').text('Not working (' + d.code + '). ' + (d.hint || '') + (d.detail ? '\nGoogle said: ' + d.detail : ''));
+        }
+    } catch (e) {
+        $out.addClass('is-bad').text('The check could not reach the server. Please try again.');
+    } finally {
+        $btn.prop('disabled', false).html(orig);
+    }
+};
+
 // Send Test: a real message through the saved SMTP settings to the Notifications inbox. "Success" = the mail server accepted
 // it for delivery (submission) - not proof that it reached the inbox.
 window.sendTestNotification = async function() {

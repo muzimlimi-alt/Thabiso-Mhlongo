@@ -51,7 +51,7 @@
 
 	<!-- Favicon set. Google's favicon crawler wants a square image whose side is a multiple of 48px at a stable, crawlable
 	     URL (the old tag declared a 1536px / 1.8 MB PNG as a 16x16 GIF); /favicon.ico is what browsers and crawlers ask for by
-	     default. js/applyBranding.js swaps the FIRST icon link for the admin's Branding favicon, unless that file is oversized.
+	     default. js/applyBranding.js replaces ALL of these icon links with the admin's Branding favicon, unless that file is oversized or missing.
 	     The icon is a bold gold microphone on purpose: line art of a hand holding a mic turns to mush at 16px. Icons are cached for a
 	     year, so a new design gets new file names (and ?v=) rather than overwriting these. -->
 	<link rel="icon" type="image/png" sizes="48x48" href="/images/icon/mic-favicon-48.png">
@@ -2062,7 +2062,9 @@
 	<!-- Shared location-search utilities (2026-09-29 consolidation audit) — used by the booking
 	     wizard's venue combobox below (parseAddressComponents / cityOrState). -->
 	<script src="js/shared/location-utils.js?v=1"></script>
-	<script src="js/myscript.js?v=1.9.6"></script>
+	<!-- Shared location-search client (2026-10 Places audit) - the booking wizard uses its session tokens. -->
+	<script src="js/shared/places-client.js?v=1"></script>
+	<script src="js/myscript.js?v=1.9.8"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather
@@ -2075,7 +2077,7 @@
 <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
 
 <!-- Apply saved branding (favicon, accent color, site logo, theme font) -->
-<script src="js/applyBranding.js?v=2"></script>
+<script src="js/applyBranding.js?v=3"></script>
 
 <!-- UI Bridge & Animations Logic -->
 <script>
