@@ -1985,7 +1985,10 @@ function initializeDatabase() {
             ['deposit_percentage', '50'],
             ['quote_validity_days', '7'],
             ['payment_terms', '50% non-refundable deposit due upon acceptance of quote. Remaining balance due 48 hours before the event.'],
-            ['inquiry_response_sla_hours', '24']
+            ['inquiry_response_sla_hours', '24'],
+            // Client payment plans (lib/payment-plan.js): the smallest payment, in rands, a client may
+            // schedule when splitting their balance. A single remaining payment is exempt.
+            ['min_installment_amount', '500']
         ];
         defaultPolicies.forEach(p => {
             db.run(`INSERT OR IGNORE INTO policies (policy_key, policy_value) VALUES (?, ?)`, p);
@@ -2486,6 +2489,10 @@ function initializeDatabase() {
         // banner category, which existed as a selectable category with no template ever mapped to it.
         db.run("ALTER TABLE bookings ADD COLUMN event_reminder_sent_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note:', err.message); });
         db.run(`INSERT OR IGNORE INTO email_template_banners (template_key, category) VALUES ('event_reminder', 'Event Reminders')`);
+        // Client payment plans: the "Your Payment Plan Has Been Updated" confirmation the client gets
+        // after rearranging their milestones online (lib/booking-notifications.js
+        // sendPaymentPlanUpdatedEmail) — same idempotent registration as the keys above.
+        db.run(`INSERT OR IGNORE INTO email_template_banners (template_key, category) VALUES ('payment_plan_updated', 'Payments & Invoices')`);
 
         // ============================================================
         // Booking Recovery — abandoned booking drafts (abandoned-cart style)
@@ -2593,6 +2600,12 @@ function initializeDatabase() {
         // review. Cleared when a fresh quote is subsequently issued (routes/admin/bookings.js's
         // quote route) — a new quote resets the negotiation.
         db.run("ALTER TABLE bookings ADD COLUMN revision_requested_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.revision_requested_at migration:', err.message); });
+        // Client payment plans: stamped when the client rearranges their unpaid milestones online
+        // (POST /api/public/bookings/:id/payment-plan), shown in the admin Payment Milestones card as
+        // "Last changed by the client on …"; cleared when a re-acceptance builds a fresh plan. That
+        // route also sets modified_by = NULL, modified_by_role = 'client' (both added above) in the
+        // same UPDATE, so audit_bookings_update attributes the change to the client.
+        db.run("ALTER TABLE bookings ADD COLUMN payment_plan_changed_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: bookings.payment_plan_changed_at migration:', err.message); });
 
         // ============================================================
         // Legal & Compliance Centre — legal documents + version history

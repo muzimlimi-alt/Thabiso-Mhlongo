@@ -3500,7 +3500,7 @@
                                     <div class="um-icon-header__icon"><i class="fa-solid fa-sliders"></i></div>
                                     <div>
                                         <h4 class="um-section-label" style="margin-bottom:4px;">Booking Policies</h4>
-                                        <p class="um-section-desc">Manage deposits, quote validity, payment terms, cancellation rules, and automated reminders.</p>
+                                        <p class="um-section-desc">Manage deposits, client payment plans, quote validity, payment terms, cancellation rules, and automated reminders.</p>
                                     </div>
                                 </div>
                                 <div class="um-divider"></div>
@@ -3532,6 +3532,18 @@
                                                 <i class="fa-solid fa-stopwatch um-input-icon"></i>
                                                 <input type="number" id="polInquirySlaHours" class="atl-input um-input" min="1" placeholder="24">
                                             </div>
+                                        </div>
+                                    </div>
+                                    <!-- Client payment plans (docs-internal/client-payment-plans.md): enforced by
+                                         js/shared/payment-plan-rules.js on the tracker and again by the server. -->
+                                    <div class="col-md-6">
+                                        <div class="um-field-group">
+                                            <label class="um-label" for="polMinInstallment">Minimum Instalment Amount (R)</label>
+                                            <div class="um-input-wrap">
+                                                <i class="fa-solid fa-coins um-input-icon"></i>
+                                                <input type="number" id="polMinInstallment" class="atl-input um-input" min="0" step="50" placeholder="500" aria-describedby="polMinInstallmentHint">
+                                            </div>
+                                            <small id="polMinInstallmentHint" style="color:var(--atl-muted-dim); font-size:12px; margin-top:4px; display:block;">Smallest payment a client may schedule when designing their own payment plan.</small>
                                         </div>
                                     </div>
                                 </div>
@@ -12876,7 +12888,7 @@
          Finance module's own script block below) so that block could be reunited into one
          continuous closure. Order preserved (services before policies). -->
     <script src="js/admin/services.js"></script>
-    <script src="js/admin/policies.js"></script>
+    <script src="js/admin/policies.js?v=2"></script>
     <script src="js/admin/branding.js?v=3"></script>
     <script src="js/admin/security-audit.js"></script>
     <script src="js/admin/system-settings.js?v=smtp2"></script>
@@ -12896,6 +12908,37 @@
     // fix, this closure is kept whole.
 
     // --- Payment Milestone Schedules (Phase 4 Widget) ---
+    // Milestone descriptions are stored text (entity-encoded once; js/shared/stored-text.js), so
+    // they are escaped through window.escHtml, which decodes the stored form before escaping.
+    // Labels on client plans are server-generated, but admin-typed descriptions are free text.
+    const escSchedText = (s) => (typeof window.escHtml === 'function')
+        ? window.escHtml(s == null ? '' : String(s))
+        : String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    // A 'YYYY-MM-DD' due date shown as a local calendar date. new Date('2026-11-02') would be UTC
+    // midnight, which a browser west of UTC displays as the day before.
+    const fmtScheduleDue = (value) => {
+        const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
+        if (!m) return value ? escSchedText(value) : '—';
+        return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('en-ZA');
+    };
+    // bookings.payment_plan_changed_at is a SQLite CURRENT_TIMESTAMP: UTC with no zone marker.
+    // Shown in the business's own timezone, like every other date the client sees.
+    const fmtPlanChangedAt = (ts) => {
+        const s = String(ts || '').trim();
+        if (!s) return '';
+        const d = new Date(/[T ]/.test(s) && !/[zZ]$|[+-]\d\d:?\d\d$/.test(s) ? s.replace(' ', 'T') + 'Z' : s);
+        if (isNaN(d.getTime())) return s;
+        try {
+            return d.toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        } catch (e) {
+            return d.toLocaleString('en-ZA');
+        }
+    };
+    // The schedule each card last loaded, for its "Edit Schedule" button. Kept here rather than
+    // serialised into an onclick attribute: the attribute decodes entities, so a description holding
+    // an encoded quote (&quot;) turned back into a raw " and broke out of the JSON (script injection).
+    const loadedScheduleByBooking = {};
+
     window.loadBookingPaymentSchedule = async function(bookingId) {
         const container = $(`#atl-paymentschedule-${bookingId}`);
         if (!container.length) return;
@@ -12911,32 +12954,49 @@
             
             const schedules = res.schedules || [];
             const totalAmount = res.total_amount || 0;
+            loadedScheduleByBooking[String(bookingId)] = { schedules, totalAmount };
             
             if (schedules.length > 0) {
                 let rows = schedules.map(s => {
-                    let sc = s.status === 'paid' ? 'var(--atl-green)' : s.status === 'overdue' ? 'var(--atl-clay)' : 'var(--atl-orange)';
+                    const status = String(s.status || 'pending').toLowerCase();
+                    let sc = status === 'paid' ? 'var(--atl-green)' : status === 'overdue' ? 'var(--atl-clay)' : 'var(--atl-orange)';
+                    // Paid milestones can't be moved or resized by the client's plan builder (the
+                    // booking tracker); only this admin editor can still change them.
+                    const lockedHtml = status === 'paid'
+                        ? `<div style="color:var(--atl-sage);font-size:10px;font-weight:600;margin-top:3px;" title="The client can only rearrange the payments they still owe. You can still change this one under Edit Schedule."><i class="fa-solid fa-lock" aria-hidden="true" style="margin-right:4px;"></i>Paid · locked for the client</div>`
+                        : '';
                     return `
                         <tr>
-                            <td>${s.description}</td>
-                            <td>${s.due_date ? new Date(s.due_date).toLocaleDateString('en-ZA') : '—'}</td>
+                            <td>${escSchedText(s.description)}${lockedHtml}</td>
+                            <td>${s.due_date ? fmtScheduleDue(s.due_date) : '—'}</td>
                             <td class="right" style="font-weight:700;">R ${parseFloat(s.expected_amount).toFixed(2)}</td>
-                            <td style="color:${sc};font-size:11px;font-weight:700;text-transform:uppercase;">${s.status}</td>
+                            <td style="color:${sc};font-size:11px;font-weight:700;text-transform:uppercase;">${escSchedText(status)}</td>
                         </tr>
                     `;
                 }).join('');
                 
                 const totalScheduled = schedules.reduce((sum, s) => sum + parseFloat(s.expected_amount), 0);
                 const isMatching = Math.abs(totalScheduled - totalAmount) < 0.01;
-                // Client-selectable installment plans: surface who set up this schedule, since the
-                // Setup Milestones editor could otherwise silently overwrite a plan the client
-                // already picked and may be paying against.
-                const scheduleSource = schedules[0] && schedules[0].source;
-                const sourceLabel = scheduleSource === 'client'
-                    ? `Client selected a ${schedules.length}-payment plan at quote acceptance.`
-                    : scheduleSource === 'admin'
+                // Client-designed payment plans: surface who set up this schedule, since the Setup
+                // Milestones editor could otherwise silently overwrite a plan the client built and
+                // may be paying against. ANY live client row counts: after the client rearranges,
+                // the first row by due date is usually an older paid deposit that keeps its
+                // original source.
+                const isClientPlan = schedules.some(s => s.source === 'client');
+                const isAdminPlan = schedules.some(s => s.source === 'admin');
+                const changedAtText = isClientPlan ? fmtPlanChangedAt(res.payment_plan_changed_at) : '';
+                const sourceLabel = isClientPlan
+                    ? (changedAtText
+                        ? `Last changed by the client on ${escSchedText(changedAtText)} (applied immediately). You can still edit the plan here.`
+                        : 'Designed by the client at quote acceptance. You can still edit the plan here.')
+                    : isAdminPlan
                         ? 'Admin-configured payment plan.'
                         : 'System default payment plan.';
-                const sourceBannerHtml = `<div style="color:var(--atl-muted);font-size:11px;margin-bottom:10px;"><i class="fa-solid fa-circle-info"></i> ${sourceLabel}</div>`;
+                const sourceIcon = isClientPlan ? 'fa-user-pen' : 'fa-circle-info';
+                const sourceBannerHtml = `<div style="color:var(--atl-muted);font-size:11px;margin-bottom:10px;"><i class="fa-solid ${sourceIcon}" aria-hidden="true"></i> ${sourceLabel}</div>`;
+                const clientBadgeHtml = isClientPlan
+                    ? `<span class="atl-badge atl-badge--info" title="The client designed this plan on their booking page, within the Booking Policies rules."><i class="fa-solid fa-user-pen" aria-hidden="true"></i> Client-designed plan</span>`
+                    : '';
                 const warningHtml = !isMatching
                     ? `<div style="color:var(--atl-orange);font-size:11px;margin-top:10px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;">
                          <span><i class="fa-solid fa-triangle-exclamation"></i> Total scheduled (R ${totalScheduled.toFixed(2)}) does not match booking total (R ${totalAmount.toFixed(2)}).</span>
@@ -12946,9 +13006,12 @@
                 
                 container.html(`
                     <div class="atl-det-card">
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                            <h5 class="atl-det-title" style="margin:0;">Payment Milestones</h5>
-                            <button type="button" class="atl-det-link" onclick="showPaymentScheduleEditor(${bookingId}, ${totalAmount}, ${JSON.stringify(schedules).replace(/"/g, '&quot;')})" style="background:none;border:none;cursor:pointer;padding:0;color:var(--atl-amber);font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:4px;"><i class="fa-solid fa-pen-to-square"></i> Edit Schedule</button>
+                        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+                            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px;">
+                                <h5 class="atl-det-title" style="margin:0;">Payment Milestones</h5>
+                                ${clientBadgeHtml}
+                            </div>
+                            <button type="button" class="atl-det-link bk-edit-schedule" data-id="${bookingId}" style="background:none;border:none;cursor:pointer;padding:0;color:var(--atl-amber);font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:4px;"><i class="fa-solid fa-pen-to-square"></i> Edit Schedule</button>
                         </div>
                         ${sourceBannerHtml}
                         <div class="atl-det-table-wrap">
@@ -12982,6 +13045,13 @@
             container.html('<div class="atl-det-card"><h5 class="atl-det-title">Payment Schedule</h5><div style="color:var(--atl-clay);">Failed to load schedule from server.</div></div>');
         }
     };
+
+    // "Edit Schedule" opens the editor on the rows this card last loaded (see loadedScheduleByBooking).
+    $(document).on('click', '.bk-edit-schedule', function() {
+        const id = $(this).data('id');
+        const loaded = loadedScheduleByBooking[String(id)] || { schedules: [], totalAmount: 0 };
+        window.showPaymentScheduleEditor(id, loaded.totalAmount, loaded.schedules);
+    });
 
     // Reconcile a mismatched schedule: proportionally rescale the unpaid milestones to the booking total.
     $(document).on('click', '.bk-rebalance-schedule', async function() {
@@ -13053,15 +13123,16 @@
         const container = $(`#atl-paymentschedule-${bookingId}`);
         if (!container.length) return;
 
-        // Client-selectable installment plans: warn before opening the editor on a plan the
-        // client already picked and may be paying against — don't silently let admin replace it.
-        if (existingSchedules && existingSchedules.length > 0 && existingSchedules[0].source === 'client') {
+        // Client-designed payment plans: warn before opening the editor on a plan the client built
+        // and may be paying against — don't silently let admin replace it. Any client row counts
+        // (after a client rearrangement the first row is usually an older paid deposit).
+        if (Array.isArray(existingSchedules) && existingSchedules.some(s => s && s.source === 'client')) {
             const proceed = window.notificationService ? await window.notificationService.showConfirm({
                 title: 'Replace the client\'s payment plan?',
-                message: `The client already selected and is paying against this ${existingSchedules.length}-payment plan. Editing here replaces their live schedule.`,
+                message: `The client designed this ${existingSchedules.length}-payment plan and may already be paying against it. Saving here replaces their live schedule.`,
                 confirmText: 'Edit Anyway',
                 isDestructive: true
-            }) : confirm('The client already selected this payment plan. Replace it?');
+            }) : confirm('The client designed this payment plan. Replace it?');
             if (!proceed) return;
         }
 
@@ -13170,8 +13241,8 @@
         
         list.append(`
             <div class="milestone-row" id="${rowId}" style="display:flex;gap:12px;align-items:center;">
-                <input type="text" class="atl-input milestone-desc" placeholder="e.g. Deposit" value="${description}" style="flex:2;font-size:12px;height:32px;background:var(--atl-paper);color:var(--atl-ink);border-color:var(--atl-line);" required>
-                <input type="date" class="atl-input milestone-due" value="${dueDate}" style="flex:1.5;font-size:12px;height:32px;background:var(--atl-paper);color:var(--atl-ink);border-color:var(--atl-line);" required>
+                <input type="text" class="atl-input milestone-desc" placeholder="e.g. Deposit" value="${escSchedText(description)}" style="flex:2;font-size:12px;height:32px;background:var(--atl-paper);color:var(--atl-ink);border-color:var(--atl-line);" required>
+                <input type="date" class="atl-input milestone-due" value="${escSchedText(dueDate)}" style="flex:1.5;font-size:12px;height:32px;background:var(--atl-paper);color:var(--atl-ink);border-color:var(--atl-line);" required>
                 <div style="position:relative;flex:1.2;display:flex;align-items:center;">
                     <span style="position:absolute;left:10px;font-size:11px;color:var(--atl-muted);pointer-events:none;">R</span>
                     <input type="number" step="0.01" class="atl-input milestone-amt" placeholder="0.00" value="${parseFloat(amount).toFixed(2)}" oninput="updateEditorTotalSum(${bookingId})" style="width:100%;padding-left:26px !important;font-size:12px;height:32px;background:var(--atl-paper);color:var(--atl-ink);border-color:var(--atl-line);" required>

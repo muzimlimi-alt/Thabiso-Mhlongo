@@ -342,6 +342,9 @@ None of these require an admin session. Several are still gated by an **anti-abu
 (`requireBookingAccessToken`, obtained via the OTP flow — the closest thing public routes have to
 "login").
 
+Rows added after the 2026-08-27 snapshot give `file:line` in the Line column (the routes now live
+under `routes/`), and are not included in the counts above.
+
 | Verb | Path | Line | Auth? | Role(s) | Description |
 |---|---|---|---|---|---|
 | POST | /api/public/analytics/track | 1996 | Rate-limited only | — | Records a pageview/heartbeat/page_exit analytics beacon; IP discarded after geo lookup |
@@ -360,8 +363,9 @@ None of these require an admin session. Several are still gated by an **anti-abu
 | POST | /api/public/compliance/request-forget | 6776 | Rate-limited only | — | Legacy "right to be forgotten" endpoint, funnels into the same reviewable request (OTP-gated) |
 | POST | /api/public/compliance/export-data | 6801 | Rate-limited only | — | Returns a JSON export of all bookings/inquiries tied to an email (data portability) |
 | POST | /api/public/bookings/lookup | 6830 | Rate-limited only | — | Email-only paginated lookup of a client's bookings |
-| POST | /api/public/bookings/:id/track | 6859 | `requireBookingAccessToken` | — | Returns the full tracking payload for a booking (status, invoice, schedule, quote, contract) |
-| POST | /api/public/bookings/:id/accept-quote | 6928 | `requireBookingAccessToken` | — | Client accepts a sent quote; builds payment schedule, generates+emails invoice and draft contract |
+| POST | /api/public/bookings/:id/track | 6859 | `requireBookingAccessToken` | — | Returns the full tracking payload for a booking (status, invoice, schedule, quote, contract); `payment_plan` carries the client plan-builder context, editability and `plan_version` (docs-internal/client-payment-plans.md) |
+| POST | /api/public/bookings/:id/accept-quote | 6928 | `requireBookingAccessToken` | — | Client accepts a sent quote; writes the client-designed payment plan (`milestones`, validated by js/shared/payment-plan-rules.js) or the ready-made one, generates+emails invoice and draft contract |
+| POST | /api/public/bookings/:id/payment-plan | routes/public/bookings.js:1284 | `requireBookingAccessToken` (+ `mutateRateLimiter`, `ipRateLimiter`) | — | Client rearranges the unpaid milestones of an accepted/confirmed booking (`plan_version` + `milestones`); applies immediately, notifies the admin and the client (docs-internal/client-payment-plans.md) |
 | POST | /api/public/bookings/:id/quote-revision-request | 7079 | `requireBookingAccessToken` | — | Client requests a quote extension/revision; logs a note and notifies admin |
 | GET | /api/public/availability | 7265 | Rate-limited only | — | Checks whether a date is available, with fallback date suggestions |
 | GET | /api/public/booking-config | 7328 | Rate-limited only | — | Returns working-hours + min booking gap config for a day of week (slot picker) |

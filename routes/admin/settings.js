@@ -196,16 +196,37 @@ router.get('/api/admin/policies', requireAdmin, (req, res) => {
     });
 });
 
+// The minimum instalment a client may schedule when designing their own payment plan
+// (lib/payment-plan.js getMinInstallmentAmount). Rands; a finite number of 0 or more, stored rounded
+// to cents. Returns the value to store, or null when it is not acceptable.
+function normaliseMinInstallmentAmount(raw) {
+    let n = NaN;
+    if (typeof raw === 'number') n = raw;
+    else if (typeof raw === 'string' && raw.trim() !== '') n = Number(raw.trim());
+    if (!Number.isFinite(n) || n < 0) return null;
+    return String(Math.round(n * 100) / 100);
+}
+
 router.put('/api/admin/policies', requireAdmin, (req, res) => {
     const { policies } = req.body;
     if (!policies || typeof policies !== 'object') return res.status(400).json({ error: 'policies object required.' });
-    const keys = Object.keys(policies);
+    // Copied so the per-key normalisation below never mutates the parsed request body.
+    const values = { ...policies };
+    if (Object.prototype.hasOwnProperty.call(values, 'min_installment_amount')) {
+        const minInstallment = normaliseMinInstallmentAmount(values.min_installment_amount);
+        if (minInstallment === null) {
+            const message = 'Minimum instalment amount must be a number of 0 or more.';
+            return res.status(400).json({ success: false, error: message, message });
+        }
+        values.min_installment_amount = minInstallment;
+    }
+    const keys = Object.keys(values);
     let pending = keys.length;
     if (pending === 0) return res.json({ success: true });
     let failed = false;
     keys.forEach(key => {
         db.run("INSERT OR REPLACE INTO policies (policy_key, policy_value, updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
-            [key, String(policies[key])], (err) => {
+            [key, String(values[key])], (err) => {
                 if (err && !failed) { failed = true; return res.status(500).json({ error: err.message }); }
                 if (--pending === 0 && !failed) res.json({ success: true });
             });

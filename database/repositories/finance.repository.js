@@ -80,15 +80,23 @@ function getActiveScheduleRowsForAlignment(bookingId, callback) {
         [bookingId], callback);
 }
 // ids come from getActiveScheduleRowsForAlignment above, never from user input.
+// The alignment reads rows, then writes them in a later statement, and it deliberately runs outside
+// any transaction — so a payment-plan change (client re-plan, admin Setup Milestones) can supersede a
+// row in between. Re-checking "still live" in the UPDATE itself stops a racing alignment from flipping
+// a just-superseded row back to 'paid' (resurrecting it: live rows would then sum to more than the
+// booking total). markScheduleRowsPending's own "= 'paid'" check already excludes dead rows; the
+// explicit guard is repeated there so both statements state the rule and stay safe if that changes.
 function markScheduleRowsPaid(placeholders, ids, next) {
     db.run(`UPDATE payment_schedules SET status = 'paid', updated_at = CURRENT_TIMESTAMP
                         WHERE id IN (${placeholders})
-                          AND LOWER(COALESCE(status,'pending')) <> 'paid'`, ids, next);
+                          AND LOWER(COALESCE(status,'pending')) <> 'paid'
+                          AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')`, ids, next);
 }
 function markScheduleRowsPending(placeholders, ids, next) {
     db.run(`UPDATE payment_schedules SET status = 'pending', updated_at = CURRENT_TIMESTAMP
                         WHERE id IN (${placeholders})
-                          AND LOWER(COALESCE(status,'pending')) = 'paid'`, ids, next);
+                          AND LOWER(COALESCE(status,'pending')) = 'paid'
+                          AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')`, ids, next);
 }
 
 // Shared by GET .../payment-schedules, POST .../payment-schedules/rebalance (twice) — 3
@@ -96,16 +104,25 @@ function markScheduleRowsPending(placeholders, ids, next) {
 function getActivePaymentSchedules(bookingId, callback) {
     db.all("SELECT * FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled') ORDER BY due_date ASC, id ASC", [bookingId], callback);
 }
-// POST /api/admin/bookings/:id/payment-schedules — replace-all.
-function deletePaymentSchedulesForBooking(bookingId, callback) {
-    db.run('DELETE FROM payment_schedules WHERE booking_id = ?', [bookingId], callback);
+// POST /api/admin/bookings/:id/payment-schedules — replace-all, inside the route's BEGIN IMMEDIATE
+// transaction. Every live row (paid ones included — the admin resubmits the whole plan and the
+// payment waterfall re-derives paid status from bookings.amount_paid afterwards) is superseded rather
+// than deleted: reminders_log.schedule_id is a foreign key to these rows, so the old hard DELETE
+// failed with a 500 as soon as any milestone reminder had been sent, and superseded rows keep the
+// PayFast intent / reminder history readable.
+function supersedeLivePaymentSchedules(bookingId) {
+    return promised(
+        `UPDATE payment_schedules SET status = 'superseded', updated_at = CURRENT_TIMESTAMP
+         WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')`,
+        [bookingId]);
 }
-// The route's own db.prepare()/forEach/finalize dance stays in server.js unchanged — only the
-// prepared statement's SQL text is relocated here. Admin-authored via the Setup Milestones
-// editor, so every row this inserts is hardcoded source='admin'; the route computes each row's
-// 1-based `sequence` from the submitted rows' due_date order before binding it here.
-function prepareInsertPaymentSchedule() {
-    return db.prepare(`INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount, sequence, source, status) VALUES (?, ?, ?, ?, ?, 'admin', 'pending')`);
+// Same route, same transaction. Admin-authored via the Setup Milestones editor, so every row this
+// inserts is hardcoded source='admin'; the route computes each row's 1-based `sequence` from the
+// submitted rows' due_date order before binding it here.
+function insertAdminPaymentScheduleRow(bookingId, description, dueDate, amount, sequence) {
+    return promised(
+        `INSERT INTO payment_schedules (booking_id, description, due_date, expected_amount, sequence, source, status) VALUES (?, ?, ?, ?, ?, 'admin', 'pending')`,
+        [bookingId, description, dueDate, amount, sequence]);
 }
 // POST .../payment-schedules/rebalance — same "relocate the prepare() call only" treatment.
 function prepareUpdatePaymentScheduleAmount() {
@@ -559,8 +576,8 @@ module.exports = {
     getLivePaymentScheduleCount, getPaidPaymentScheduleSum, insertPaymentScheduleMilestone,
     getPaymentSchedulesForDocument, flagOverduePaymentSchedules,
     getActiveScheduleRowsForAlignment, markScheduleRowsPaid, markScheduleRowsPending,
-    getActivePaymentSchedules, deletePaymentSchedulesForBooking,
-    prepareInsertPaymentSchedule, prepareUpdatePaymentScheduleAmount,
+    getActivePaymentSchedules, supersedeLivePaymentSchedules,
+    insertAdminPaymentScheduleRow, prepareUpdatePaymentScheduleAmount,
     cancelPendingPaymentSchedules, cancelPendingPaymentSchedulesAsync,
     supersedePaymentSchedulesForRequote, getPaymentSchedulesForPayfastInit, getPaymentSchedulesForTracking,
     getNextPayableScheduleRow,

@@ -57,6 +57,11 @@ const TEMPLATE_MAP = {
     refund_processed: 'Payments & Invoices',
     schedule_payment_reminder: 'Payments & Invoices',
     balance_payment_reminder: 'Payments & Invoices',
+    // Client-designed payment plans: the client's "your payment plan has been updated" confirmation
+    // (lib/booking-notifications.js sendPaymentPlanUpdatedEmail). The real row is also inserted
+    // directly in database.js (INSERT OR IGNORE at boot), so DB_PATH deployments get it without
+    // running this script.
+    payment_plan_updated: 'Payments & Invoices',
 
     booking_confirmed: 'Booking Confirmations',
 

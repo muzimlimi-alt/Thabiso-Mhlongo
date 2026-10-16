@@ -75,8 +75,8 @@ const {
     supersedePaymentSchedulesForRequote,
     getRecentPayfastTransactionForBooking, insertCancellationForAdminCancel, cancelPendingPaymentSchedulesAsync,
     getCancellationForRefund, getAlreadyRefundedAmount, updateCancellationRefund, insertRefundTransaction,
-    getTransactionsPaidSumForReconcile, getActivePaymentSchedules, deletePaymentSchedulesForBooking,
-    prepareInsertPaymentSchedule, prepareUpdatePaymentScheduleAmount
+    getTransactionsPaidSumForReconcile, getActivePaymentSchedules, supersedeLivePaymentSchedules,
+    insertAdminPaymentScheduleRow, prepareUpdatePaymentScheduleAmount
 } = require('../../database/repositories/finance.repository');
 const {
     unlinkEventVenue, updateEventVenueLegacyLink, updateEventVenueGoogleLink, updateEventVenueFreeText,
@@ -2369,7 +2369,9 @@ router.post('/api/admin/bookings/:id/reconcile/sync', requireAdmin, requireRole(
 // GET /api/admin/bookings/:id/payment-schedules — get schedules for a booking
 router.get('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res) => {
     const bookingId = req.params.id;
-    db.get("SELECT total_amount, (SELECT COALESCE(SUM(expected_amount), 0) FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')) AS scheduled_total FROM bookings WHERE id = ?", [bookingId, bookingId], (bErr, booking) => {
+    // b.* rather than a named column list so payment_plan_changed_at (added by a guarded boot-time
+    // ALTER TABLE) is read when present and simply absent — not an SQL error — on an older database.
+    db.get("SELECT b.*, (SELECT COALESCE(SUM(expected_amount), 0) FROM payment_schedules WHERE booking_id = b.id AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')) AS scheduled_total FROM bookings b WHERE b.id = ?", [bookingId], (bErr, booking) => {
         if (bErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
         
         getActivePaymentSchedules(bookingId, (err, rows) => {
@@ -2378,6 +2380,9 @@ router.get('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res)
                 success: true,
                 total_amount: booking.total_amount || 0,
                 scheduled_total: booking.scheduled_total || 0,
+                // When the client last rearranged their plan from the booking tracker (null if never)
+                // — the Payment Milestones card shows "Last changed by the client on …".
+                payment_plan_changed_at: booking.payment_plan_changed_at || null,
                 schedules: rows || []
             });
         });
@@ -2385,7 +2390,9 @@ router.get('/api/admin/bookings/:id/payment-schedules', requireAdmin, (req, res)
 });
 
 // POST /api/admin/bookings/:id/payment-schedules — create or replace schedules
-router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+// Admin-built plans are not bound by the client plan rules (max 4 payments, deposit floor, minimum
+// instalment, due-date window) — only by the sum matching the booking total.
+router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
     const bookingId = req.params.id;
     const { schedules } = req.body;
     
@@ -2394,7 +2401,7 @@ router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRo
     }
     
     for (const item of schedules) {
-        if (!item.description || !item.description.trim()) {
+        if (!item || typeof item.description !== 'string' || !item.description.trim()) {
             return res.status(400).json({ success: false, message: 'Each schedule item must have a description.' });
         }
         if (!item.due_date) {
@@ -2404,66 +2411,93 @@ router.post('/api/admin/bookings/:id/payment-schedules', requireAdmin, requireRo
             return res.status(400).json({ success: false, message: 'Each schedule item must have a valid non-negative expected amount.' });
         }
     }
-    
-    getBookingTotalAmount(bookingId, (bErr, booking) => {
-        if (bErr || !booking) return res.status(404).json({ success: false, message: 'Booking not found.' });
 
-        // Validate that schedule amounts sum to total_amount (skip if total_amount not yet set)
-        if (schedules.length > 0 && booking.total_amount > 0) {
-            const scheduleSum = schedules.reduce((s, item) => s + parseFloat(item.expected_amount), 0);
-            const diff = Math.abs(scheduleSum - parseFloat(booking.total_amount));
-            if (diff > 0.01) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Schedule amounts sum to R${scheduleSum.toFixed(2)} but booking total is R${parseFloat(booking.total_amount).toFixed(2)}. Adjust amounts so they add up to the booking total.`
-                });
+    // Replace-all as ONE guarded transaction: the booking total, the client-plan guard and the write
+    // all see the same state, and a failed insert rolls back to the previous plan instead of leaving
+    // a partial schedule. Before this it was a bare db.serialize() DELETE-then-INSERT that any other
+    // statement could interleave with, and the DELETE itself failed (FOREIGN KEY constraint, 500)
+    // once a milestone reminder had been sent for one of the rows.
+    let outcome;
+    try {
+        outcome = await withDbTransaction(async () => {
+            try {
+                await dbRun("BEGIN IMMEDIATE");
+            } catch (beginErr) {
+                console.error('[Schedules] BEGIN IMMEDIATE failed:', beginErr.message);
+                return { status: 500, body: { success: false, message: 'Database busy. Please retry.' } };
             }
-        }
-
-        // Client-selectable installment plans: don't silently overwrite a live schedule the
-        // client picked and may already be paying against. The admin UI confirms first and
-        // resubmits with acknowledge_override — this is the defense-in-depth backstop for any
-        // caller that skips that confirm.
-        getActivePaymentSchedules(bookingId, (existErr, existing) => {
-            if (!existErr && existing && existing.length > 0 && existing[0].source === 'client' && !req.body.acknowledge_override) {
-                return res.status(409).json({
-                    success: false,
-                    requires_override: true,
-                    message: `The client already selected and is paying against a ${existing.length}-payment plan. Resubmit with acknowledge_override to replace it.`
-                });
-            }
-
-        db.serialize(() => {
-            deletePaymentSchedulesForBooking(bookingId, (delErr) => {
-                if (delErr) return res.status(500).json({ success: false, message: delErr.message });
-
-                if (schedules.length === 0) {
-                    return res.json({ success: true, message: 'Payment schedules cleared.' });
+            try {
+                const booking = await dbGet('SELECT total_amount FROM bookings WHERE id = ?', [bookingId]);
+                if (!booking) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 404, body: { success: false, message: 'Booking not found.' } };
                 }
 
-                const stmt = prepareInsertPaymentSchedule();
-                let insertError = null;
-                const sorted = schedules.slice().sort((a, b) => (a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0));
-                
-                sorted.forEach((item, idx) => {
-                    stmt.run([bookingId, item.description.trim(), item.due_date, parseFloat(item.expected_amount), idx + 1], (runErr) => {
-                        if (runErr) insertError = runErr;
-                    });
-                });
-                
-                stmt.finalize((finErr) => {
-                    if (insertError || finErr) {
-                        return res.status(500).json({ success: false, message: (insertError || finErr).message });
+                // Validate that schedule amounts sum to total_amount (skip if total_amount not yet set)
+                if (schedules.length > 0 && booking.total_amount > 0) {
+                    const scheduleSum = schedules.reduce((s, item) => s + parseFloat(item.expected_amount), 0);
+                    const diff = Math.abs(scheduleSum - parseFloat(booking.total_amount));
+                    if (diff > 0.01) {
+                        await dbRun("ROLLBACK").catch(() => {});
+                        return { status: 400, body: {
+                            success: false,
+                            message: `Schedule amounts sum to R${scheduleSum.toFixed(2)} but booking total is R${parseFloat(booking.total_amount).toFixed(2)}. Adjust amounts so they add up to the booking total.`
+                        } };
                     }
-                    
-                    updateBookingMilestones(bookingId, (alignErr) => {
-                        if (alignErr) console.error('[Schedules] Milestone alignment failed:', alignErr.message);
-                        res.json({ success: true, message: 'Payment schedules updated and aligned successfully.' });
-                    });
-                });
-            });
+                }
+
+                // Client-designed plans: don't silently overwrite a live schedule the client built
+                // and may already be paying against. The admin UI confirms first and resubmits with
+                // acknowledge_override — this is the defense-in-depth backstop for any caller that
+                // skips that confirm. ANY live client row counts: after a client rearranges, the first
+                // row by due date is usually an older paid 'auto'/'admin' deposit, so checking only
+                // the first row let an admin save silently wipe the client's plan.
+                const existing = await dbAll(
+                    "SELECT id, source FROM payment_schedules WHERE booking_id = ? AND LOWER(COALESCE(status,'pending')) NOT IN ('superseded','cancelled')",
+                    [bookingId]);
+                if (existing.some(r => r.source === 'client') && !req.body.acknowledge_override) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 409, body: {
+                        success: false,
+                        requires_override: true,
+                        message: `The client already selected and is paying against a ${existing.length}-payment plan. Resubmit with acknowledge_override to replace it.`
+                    } };
+                }
+
+                // Supersede, never delete (see supersedeLivePaymentSchedules): new rows get new ids,
+                // so milestone reminders fire again for the new dates.
+                await supersedeLivePaymentSchedules(bookingId);
+
+                const sorted = schedules.slice().sort((a, b) => (a.due_date < b.due_date ? -1 : a.due_date > b.due_date ? 1 : 0));
+                for (let idx = 0; idx < sorted.length; idx++) {
+                    const item = sorted[idx];
+                    await insertAdminPaymentScheduleRow(bookingId, item.description.trim(), item.due_date, parseFloat(item.expected_amount), idx + 1);
+                }
+
+                await dbRun("COMMIT");
+                return { ok: true };
+            } catch (txErr) {
+                await dbRun("ROLLBACK").catch(() => {});
+                console.error('[Schedules] Replace failed — rolled back, previous plan kept:', txErr.message);
+                return { status: 500, body: { success: false, message: txErr.message } };
+            }
         });
-        });
+    } catch (e) {
+        console.error('[Schedules] Replace failed:', e.message);
+        return res.status(500).json({ success: false, message: e.message });
+    }
+
+    if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+
+    if (schedules.length === 0) {
+        return res.json({ success: true, message: 'Payment schedules cleared.' });
+    }
+
+    // After the commit, outside the queue (alignment issues its own unguarded statements): re-derive
+    // which of the new rows bookings.amount_paid already covers.
+    updateBookingMilestones(bookingId, (alignErr) => {
+        if (alignErr) console.error('[Schedules] Milestone alignment failed:', alignErr.message);
+        res.json({ success: true, message: 'Payment schedules updated and aligned successfully.' });
     });
 });
 

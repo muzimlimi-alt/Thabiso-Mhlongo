@@ -1,7 +1,9 @@
-// Client-selectable installment plans (2 or 3 payments, chosen at accept-quote time) and the
-// "pay one specific installment separately, in strict due order" flow through /pay's new
-// schedule_id path. Date offsets live in the 950+ range, clear of every other file's claimed
-// ranges (see calendar-booking-sync.test.js's own header comment on this convention).
+// Client-selectable installment plans (the ready-made plan an older cached tracker asks for with
+// installment_count, chosen at accept-quote time) and the "pay one specific installment
+// separately, in strict due order" flow through /pay's new schedule_id path. Date offsets live in
+// the 950+ range, clear of every other file's claimed ranges (see calendar-booking-sync.test.js's
+// own header comment on this convention). Client-designed plans (accept-quote `milestones`, the
+// change route) are covered by client-milestones.test.js.
 const SVC = 15; // 'Travel Buyout – Gauteng' (active, flat fee, zero lead time)
 let seq = 0;
 const email = () => `test.${Date.now()}.ip${seq++}@example.invalid`;
@@ -21,9 +23,13 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, getTr
     const bk = await one('SELECT date FROM bookings WHERE id=?', [id]);
     const expiry = new Date(Date.parse(bk.date) - 10 * 86400000).toISOString().slice(0, 10);
     const AMOUNT = 1000;
+    // The 3-payment plan needs a larger total: the ready-made 3-payment plan is "deposit first, the
+    // rest split equally" (50/25/25 at the 50% policy), and every payment of a split plan must meet
+    // the R500 minimum instalment (Booking Policies), so R1000 can't be split three ways at all.
+    const AMOUNT3 = 2000;
     await api('POST', `/api/admin/bookings/${id}/quote`, {
         quote_expiry_date: expiry, terms: 'T', apply_vat: false, discount: 0,
-        items: [{ service_id: SVC, description: 'Travel Buyout – Gauteng', quantity: 1, unit_price: AMOUNT }],
+        items: [{ service_id: SVC, description: 'Travel Buyout – Gauteng', quantity: 1, unit_price: AMOUNT3 }],
     });
     const token = await getTrackingToken(id, em);
 
@@ -37,10 +43,10 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, getTr
     check('sequence 1/2/3 assigned', rows.every((r, i) => r.sequence === i + 1), JSON.stringify(rows.map(r => r.sequence)));
     check('source=client on every row', rows.every(r => r.source === 'client'), JSON.stringify(rows.map(r => r.source)));
     const sum = rows.reduce((s, r) => s + parseFloat(r.expected_amount), 0);
-    check('amounts sum to total', Math.abs(sum - AMOUNT) < 0.01, `sum=${sum}`);
-    check('30/30/40 split', Math.abs(parseFloat(rows[0].expected_amount) - 300) < 0.01
-        && Math.abs(parseFloat(rows[1].expected_amount) - 300) < 0.01
-        && Math.abs(parseFloat(rows[2].expected_amount) - 400) < 0.01,
+    check('amounts sum to total', Math.abs(sum - AMOUNT3) < 0.01, `sum=${sum}`);
+    check('deposit-first split (50% deposit, rest equal: 1000/500/500)', Math.abs(parseFloat(rows[0].expected_amount) - 1000) < 0.01
+        && Math.abs(parseFloat(rows[1].expected_amount) - 500) < 0.01
+        && Math.abs(parseFloat(rows[2].expected_amount) - 500) < 0.01,
         JSON.stringify(rows.map(r => r.expected_amount)));
 
     // ── Attempt to skip ahead to installment 3 while 1 is still outstanding -> 409 ──
@@ -79,7 +85,7 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, getTr
     check('after installment 2: still DEPOSIT_PAID (not PAID) — by design, no 3rd intermediate label', b.payment_status === 'DEPOSIT_PAID', JSON.stringify(b));
 
     // ── Pay installment 3 (the final one) ──
-    await api('PUT', `/api/admin/bookings/${id}/manual-payment`, { amount_paid: AMOUNT });
+    await api('PUT', `/api/admin/bookings/${id}/manual-payment`, { amount_paid: AMOUNT3 });
     await sleep(3000);
     b = await one('SELECT payment_status, amount_outstanding FROM bookings WHERE id=?', [id]);
     check('after installment 3: PAID', b.payment_status === 'PAID', JSON.stringify(b));
@@ -116,6 +122,10 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, getTr
         JSON.stringify(rows2));
 
     // ── 2-way plan follows the Booking Policies deposit percentage ──
+    // R2000 rather than R1000: at a 30% deposit the R1000 plan's R300 deposit would be below the
+    // R500 minimum instalment, so no 2-payment plan of that shape is allowed and the server falls
+    // back to a single payment. R2000 gives a 600/1400 split that satisfies every client rule.
+    const AMOUNT30 = 2000;
     const prevPolicy = await one("SELECT policy_value FROM policies WHERE policy_key='deposit_percentage'");
     await api('PUT', '/api/admin/policies', { policies: { deposit_percentage: '30' } });
     try {
@@ -132,7 +142,7 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, getTr
         const expiry3 = new Date(Date.parse(bk3.date) - 10 * 86400000).toISOString().slice(0, 10);
         await api('POST', `/api/admin/bookings/${id3}/quote`, {
             quote_expiry_date: expiry3, terms: 'T', apply_vat: false, discount: 0,
-            items: [{ service_id: SVC, description: 'Travel Buyout – Gauteng', quantity: 1, unit_price: AMOUNT }],
+            items: [{ service_id: SVC, description: 'Travel Buyout – Gauteng', quantity: 1, unit_price: AMOUNT30 }],
         });
         const token3 = await getTrackingToken(id3, em3);
         const trackRes = await pub('POST', `/api/public/bookings/${id3}/track`, { access_token: token3 });
@@ -142,8 +152,8 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, getTr
         await sleep(100);
         const rows3 = await q('SELECT description, expected_amount FROM payment_schedules WHERE booking_id=? ORDER BY sequence ASC', [id3]);
         check('30% policy -> 2 rows, 30/70 split', rows3.length === 2
-            && Math.abs(parseFloat(rows3[0].expected_amount) - 300) < 0.01
-            && Math.abs(parseFloat(rows3[1].expected_amount) - 700) < 0.01,
+            && Math.abs(parseFloat(rows3[0].expected_amount) - 600) < 0.01
+            && Math.abs(parseFloat(rows3[1].expected_amount) - 1400) < 0.01,
             JSON.stringify(rows3));
         check('30% policy -> labels match the split', rows3.length === 2
             && rows3[0].description === '30% Deposit' && rows3[1].description === '70% Balance',

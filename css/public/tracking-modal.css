@@ -312,12 +312,15 @@
    PAYMENT SCHEDULE SECTION
    ========================================================================== */
 
+/* redesign.css (loaded first) also styles .trk-schedule-section/.trk-schedule-title as a card with a
+   #111 header bar and overflow:hidden. The section's own padding now lives on its body and the
+   plan-change area, so that header bar sits flush with the card edges. */
 .trk-schedule-section {
   margin-top: 14px;
   background: rgba(255,255,255,.03);
   border: 1px solid var(--border-low);
   border-radius: var(--r-md);
-  padding: 14px;
+  padding: 0;
 }
 .trk-schedule-title {
   font-size: .7rem;
@@ -325,9 +328,65 @@
   text-transform: uppercase;
   letter-spacing: .08em;
   font-weight: 600;
-  margin-bottom: 10px;
+  margin-bottom: 0;
 }
 .trk-schedule-title i { color: var(--y-base); margin-right: 5px; }
+.trk-schedule-body { padding: 4px 14px; }
+
+/* Milestone list — one stacked row per payment (description + amount, then due date + status, then
+   a full-width Pay Now on the next payable row). Replaces the 5-column table that clipped the Pay
+   Now button on phones narrower than 390px. */
+.trk-sched-list { list-style: none; margin: 0; padding: 0; }
+.trk-sched-item { padding: 10px 0; border-bottom: 1px solid var(--border-low); }
+.trk-sched-item:last-child { border-bottom: none; }
+.trk-sched-main,
+.trk-sched-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 12px;
+}
+.trk-sched-desc { min-width: 0; overflow-wrap: anywhere; font-size: .8125rem; font-weight: 500; color: var(--text-primary); }
+.trk-sched-amt  { white-space: nowrap; font-size: .875rem; font-weight: 700; color: var(--y-base); }
+.trk-sched-meta { margin-top: 3px; font-size: .75rem; color: var(--text-muted); }
+.trk-sched-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.trk-sched-status.is-paid    { color: var(--success); }
+.trk-sched-status.is-overdue { color: var(--error); }
+.trk-sched-status.is-next    { color: var(--y-base); }
+.trk-sched-item.is-paid .trk-sched-amt { color: var(--text-secondary); }
+.trk-sched-action { margin-top: 10px; }
+.trk-sched-pay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 16px;
+  background: var(--y-base);
+  color: #111;
+  border: none;
+  border-radius: var(--r-md);
+  font-family: var(--f-body);
+  font-size: .8125rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  cursor: pointer;
+  transition: background var(--t) var(--ease);
+}
+.trk-sched-pay:hover { background: var(--y-hover); }
+.trk-sched-pay:disabled { opacity: .6; cursor: not-allowed; }
+.trk-sched-pay:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
 
 /* ==========================================================================
    ACCEPT QUOTE SECTION
@@ -372,6 +431,414 @@
 .trk-accept-btn:active  { transform: translateY(0); box-shadow: 0 2px 10px rgba(25, 118, 210, .3); }
 .trk-accept-btn:focus   { outline: none !important; box-shadow: 0 0 0 3px rgba(25, 118, 210, .35); }
 .trk-accept-btn i       { margin-right: 10px; }
+
+/* The terms sentence is a <label> (so the whole row toggles the checkbox): keep it a readable
+   sentence rather than the drawer's uppercase micro-label style. */
+#trackingDrawer #chkTermsRow { font-size: inherit; font-weight: 400; letter-spacing: normal; text-transform: none; }
+
+/* VAT number field (company bookings): the room for the leading icon is only set up for
+   #bookingDrawer in redesign.css, so here the "#" icon sat on top of the typed text. */
+#trackingDrawer .bk-ico-input.form-control { padding-left: 38px !important; }
+
+/* ==========================================================================
+   CLIENT PAYMENT PLAN BUILDER (js/public/payment-plan-builder.js)
+   Used in the accept step (#planBuilder) and in "Change payment plan" (#planEditor).
+   Rules below are prefixed with .trk-plan where they must beat `.trk-accept-section p`
+   (margins/size of every <p> in the accept box) and `#trackingDrawer label`.
+   ========================================================================== */
+
+.trk-plan-accept { margin: 4px 0 12px; }
+.trk-plan { margin: 0; text-align: left; }
+.trk-plan:focus { outline: none; }
+.trk-plan.is-busy { opacity: .7; }
+
+/* Labels in the drawer are uppercase micro-labels; the builder's are ordinary field labels. */
+#trackingDrawer .trk-plan label {
+  display: block;
+  margin: 0 0 4px;
+  font-size: .75rem;
+  font-weight: 500;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--text-secondary);
+}
+
+.trk-plan .trk-plan-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  margin-bottom: 8px;
+}
+.trk-plan .trk-plan-title {
+  margin: 0;
+  font-family: var(--f-body);
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+.trk-plan .trk-plan-title i { color: var(--y-base); margin-right: 8px; }
+.trk-plan .trk-plan-due { margin: 0; font-size: .8125rem; color: var(--text-secondary); }
+.trk-plan .trk-plan-due strong { color: var(--y-base); font-weight: 700; }
+.trk-plan .trk-plan-intro { margin: 0 0 10px; font-size: .8125rem; line-height: 1.5; color: var(--text-secondary); }
+
+.trk-plan .trk-plan-rules {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: var(--bg-page);
+  border: 1px solid var(--border-low);
+  border-radius: var(--r-md);
+}
+.trk-plan .trk-plan-rules li {
+  position: relative;
+  padding-left: 14px;
+  font-size: .75rem;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.trk-plan .trk-plan-rules li + li { margin-top: 4px; }
+.trk-plan .trk-plan-rules li::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  top: .62em;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--y-base);
+}
+
+.trk-plan .trk-plan-sub {
+  margin: 0 0 6px;
+  font-size: .6875rem;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Read-only rows: paid (locked) milestones, and a prepared plan before "Change plan" */
+.trk-plan-list { list-style: none; margin: 0 0 14px; padding: 0; }
+.trk-plan-item {
+  padding: 9px 12px;
+  background: var(--bg-page);
+  border: 1px solid var(--border-low);
+  border-radius: var(--r-md);
+}
+.trk-plan-item + .trk-plan-item { margin-top: 6px; }
+.trk-plan-item.is-paid { border-left: 3px solid var(--success); }
+.trk-plan-item-main,
+.trk-plan-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 10px;
+}
+.trk-plan-item-desc { min-width: 0; overflow-wrap: anywhere; font-size: .8125rem; font-weight: 500; color: var(--text-primary); }
+.trk-plan-item-amt  { white-space: nowrap; font-size: .8125rem; font-weight: 700; color: var(--y-base); }
+.trk-plan-item.is-paid .trk-plan-item-amt { color: var(--text-secondary); }
+.trk-plan-item-meta { margin-top: 2px; font-size: .75rem; color: var(--text-muted); }
+.trk-plan-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: .6875rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.trk-plan-tag--paid { color: var(--success); }
+
+/* 1 / 2 / 3 / 4 payments segmented control */
+.trk-plan-presets {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.trk-plan-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 2px;
+  background: var(--bg-page);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  color: var(--text-secondary);
+  font-family: var(--f-body);
+  cursor: pointer;
+  transition: border-color var(--t) var(--ease), background var(--t) var(--ease), color var(--t) var(--ease);
+}
+.trk-plan-preset strong { font-size: 1rem; line-height: 1.1; color: var(--text-primary); }
+.trk-plan-preset span   { font-size: .625rem; letter-spacing: .04em; text-transform: uppercase; }
+.trk-plan-preset:hover:not(:disabled) { border-color: var(--y-base); }
+.trk-plan-preset[aria-pressed="true"] { border-color: var(--y-base); background: rgba(212, 175, 55, .12); color: var(--y-base); }
+.trk-plan-preset[aria-pressed="true"] strong { color: var(--y-base); }
+.trk-plan-preset:disabled { opacity: .35; cursor: not-allowed; }
+
+/* Editable payment cards */
+.trk-plan-rows { list-style: none; margin: 0; padding: 0; }
+.trk-plan-card {
+  padding: 8px 12px 12px;
+  background: var(--bg-section);
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+}
+.trk-plan-card + .trk-plan-card { margin-top: 8px; }
+.trk-plan-card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.trk-plan-num {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(212, 175, 55, .14);
+  color: var(--y-base);
+  font-size: .75rem;
+  font-weight: 700;
+}
+.trk-plan-card-label { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-size: .8125rem; font-weight: 600; color: var(--text-primary); }
+.trk-plan-remove {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  margin-right: -10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--r-md);
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+}
+.trk-plan-remove-x { font-size: 1.5rem; line-height: 1; }
+.trk-plan-remove:hover:not(:disabled) { color: var(--error); background: rgba(239, 68, 68, .08); }
+.trk-plan-remove:disabled { opacity: .3; cursor: not-allowed; }
+.trk-plan-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px 10px;
+}
+.trk-plan-field { min-width: 0; }
+.trk-plan-money { position: relative; }
+.trk-plan-cur {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: .875rem;
+  pointer-events: none;
+}
+
+/* Dark inputs (.bk-input.form-control from redesign.css), compact, with a dark native date picker. */
+/* A fixed height: a native date input is otherwise taller than the text input beside it. */
+.trk-plan .bk-input.form-control {
+  height: 46px !important;
+  padding: 0 12px !important;
+  line-height: normal;
+  color-scheme: dark;
+}
+.trk-plan .trk-plan-money .bk-input.form-control { padding-left: 28px !important; }
+.trk-plan input[type="date"].bk-input { min-width: 0; max-width: 100%; }
+.trk-plan input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+.trk-plan input[type="date"]::-webkit-calendar-picker-indicator { opacity: .7; cursor: pointer; }
+.trk-plan input[type="date"]::-webkit-calendar-picker-indicator:hover { opacity: 1; }
+.trk-plan .bk-input.form-control:disabled { opacity: .6 !important; }
+/* A field with a problem. redesign.css's own .bk-input--err loses to `.bk-input.form-control`
+   (both !important, that one is more specific), so without this the bad field looked like every
+   other field. More specific than the :focus rule too, so it stays red while being corrected. */
+.trk-plan .bk-input.form-control.bk-input--err {
+  border-color: var(--status-blocked) !important;
+  box-shadow: 0 0 0 2px rgba(var(--status-blocked-rgb), .2) !important;
+}
+
+.trk-plan-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin-top: 8px;
+  background: none;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  color: var(--y-base);
+  font-family: var(--f-body);
+  font-size: .8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.trk-plan-add-plus { font-size: 1.125rem; font-weight: 400; line-height: 1; }
+.trk-plan-add:hover:not(:disabled) { border-color: var(--y-base); background: rgba(212, 175, 55, .06); }
+.trk-plan-add:disabled { color: var(--text-muted); opacity: .5; cursor: not-allowed; }
+
+/* Allocated / remaining */
+.trk-plan-summary {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--bg-page);
+  border: 1px solid var(--border-low);
+  border-radius: var(--r-md);
+}
+.trk-plan-summary.is-err { border-color: rgba(239, 68, 68, .45); }
+.trk-plan .trk-plan-summary-line { margin: 0; font-size: .8125rem; color: var(--text-secondary); }
+.trk-plan .trk-plan-summary-left { margin: 2px 0 0; font-size: .8125rem; font-weight: 600; }
+.trk-plan .trk-plan-summary-left.is-ok   { color: var(--success); }
+.trk-plan .trk-plan-summary-left.is-warn { color: var(--warning); }
+.trk-plan .trk-plan-summary-left.is-err  { color: var(--error); }
+.trk-plan-fix {
+  margin-top: 8px;
+  min-height: 40px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--y-base);
+  border-radius: var(--r-md);
+  color: var(--y-base);
+  font-family: var(--f-body);
+  font-size: .75rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.trk-plan-fix:hover:not(:disabled) { background: rgba(212, 175, 55, .1); }
+
+/* The one live error list */
+.trk-plan-errors:focus { outline: none; }
+.trk-plan-errors.has-errors {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, .08);
+  border: 1px solid rgba(239, 68, 68, .35);
+  border-radius: var(--r-md);
+}
+.trk-plan .trk-plan-errors-title { margin: 0 0 4px; font-size: .8125rem; font-weight: 600; color: var(--error); }
+.trk-plan-errors ul { margin: 0; padding-left: 18px; }
+.trk-plan-errors li { font-size: .8125rem; line-height: 1.5; color: var(--text-primary); }
+.trk-plan-errors li + li { margin-top: 4px; }
+
+/* Buttons and notes around the builder (index.html) */
+.trk-plan-ghost-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--y-base);
+  border-radius: var(--r-md);
+  color: var(--y-base);
+  font-family: var(--f-body);
+  font-size: .8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--t) var(--ease);
+}
+.trk-plan-ghost-btn:hover:not(:disabled) { background: rgba(212, 175, 55, .1); }
+.trk-plan-ghost-btn:disabled { opacity: .5; cursor: not-allowed; }
+#planExisting .trk-plan-ghost-btn { margin-bottom: 12px; }
+/* Inside #paymentScheduleSection (which has no padding of its own): every visible child carries
+   its own bottom spacing, so the area collapses to nothing when all of it is hidden. */
+.trk-plan-change { padding: 0 14px; }
+.trk-plan-change > .trk-plan-ghost-btn { margin: 6px 0 14px; }
+.trk-plan-editor { padding: 14px 0; border-top: 1px solid var(--border-low); }
+.trk-plan-note,
+.trk-accept-section .trk-plan-note {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 0;
+  font-size: .75rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.trk-plan-note i { margin-top: 3px; color: var(--y-base); }
+.trk-plan-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.trk-plan-save {
+  flex: 1 1 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  background: var(--y-base);
+  color: #111;
+  border: none;
+  border-radius: var(--r-md);
+  font-family: var(--f-body);
+  font-size: .875rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.trk-plan-save:hover:not(:disabled) { background: var(--y-hover); }
+.trk-plan-save:disabled { opacity: .45; cursor: not-allowed; }
+.trk-plan-cancel {
+  flex: 0 1 auto;
+  min-height: 44px;
+  padding: 8px 18px;
+  background: none;
+  border: 1px solid var(--border-default);
+  border-radius: var(--r-md);
+  color: var(--text-secondary);
+  font-family: var(--f-body);
+  font-size: .8125rem;
+  cursor: pointer;
+}
+.trk-plan-cancel:hover:not(:disabled) { color: var(--text-primary); border-color: var(--border-strong); }
+.trk-plan-cancel:disabled { opacity: .5; cursor: not-allowed; }
+.trk-plan-muted,
+.trk-accept-section .trk-plan-muted { margin: 10px 0; font-size: .75rem; line-height: 1.5; color: var(--text-muted); }
+.trk-plan-change > .trk-plan-muted { margin: 8px 0 14px; }
+#planChangeReason:focus { outline: none; } /* focused by script only, after the editor closes */
+.trk-plan-editor > .trk-plan-muted { margin: 10px 0 0; }
+.trk-accept-section .trk-plan-muted--warn { color: var(--warning); }
+
+.trk-plan-preset:focus-visible,
+.trk-plan-remove:focus-visible,
+.trk-plan-add:focus-visible,
+.trk-plan-fix:focus-visible,
+.trk-plan-ghost-btn:focus-visible,
+.trk-plan-save:focus-visible,
+.trk-plan-cancel:focus-visible { outline: 2px solid var(--y-base); outline-offset: 2px; }
+
+/* Phones: 16px inputs so iOS Safari doesn't zoom the page on focus (it zooms below 16px). */
+@media (max-width: 820px) {
+  #trackingDrawer .trk-plan .bk-input.form-control,
+  #trackingDrawer #acceptVatNumber { font-size: 16px !important; }
+}
+
+/* ==========================================================================
+   TOASTS + CONFIRM DIALOG on the public page
+   css/components/notifications.css takes its surface and gold from the admin panel's tokens
+   (--atl-card, --atl-amber, --atl-amber-hover in css/core/tokens.css), which index.html does not
+   load. Unset, the dialog and toasts had no background and the confirm dialog's primary button
+   ("Save plan") was transparent with black text — invisible on the dark overlay. Map them to this
+   page's own tokens, scoped to the notification roots notificationService.js creates.
+   ========================================================================== */
+#tm-toast-container,
+#tm-modal-root,
+#tm-http-error-root {
+  --noti-bg: var(--bg-surface);
+  --noti-gold: var(--y-base);
+  --noti-gold-light: var(--y-hover);
+}
 
 /* ==========================================================================
    PAYMENT RETURN ALERTS

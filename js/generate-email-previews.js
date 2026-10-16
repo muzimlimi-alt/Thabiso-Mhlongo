@@ -317,6 +317,20 @@ const premium = {
         ]}],
         cta: { label: 'Make Payment Now', url: '#' }
     }),
+    /* Client-designed payment plans: the client's confirmation after rearranging their unpaid
+       milestones (lib/booking-notifications.js sendPaymentPlanUpdatedEmail). */
+    'payment-plan-updated.html': P({
+        preheaderText: 'Booking #100045: your payment plan has been updated.',
+        headline: 'Your Payment Plan Has Been Updated', greeting: 'Hi Naledi,',
+        bodyHtml: `Your payment plan for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">14 Aug 2026</strong> has been updated. Your booking reference is <strong style="color:#D4AF37;">#100045</strong>, and your new schedule is below.` +
+            `<p style="font-size:12px; color:#B0B0B0; margin-top:8px;">Please make each payment by its due date to keep your booking active. You can review your plan and pay from your booking page. If you didn't make this change, contact us straight away at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</p>`,
+        cards: [{ title: 'Your Payment Plan', rows: [
+            { label: '50% Deposit', value: 'R 9,250.00 · paid', mono: false },
+            { label: 'Payment 2 of 3', value: 'R 4,625.00 due 31 Jul 2026', mono: false, highlight: true },
+            { label: 'Final Payment – Payment 3 of 3', value: 'R 4,625.00 due 12 Aug 2026', mono: false }
+        ]}],
+        cta: { label: 'View Your Booking', url: '#' }
+    }),
     'quote-still-open.html': P({
         preheaderText: 'Your quote for booking #100045 is still open.',
         headline: 'Your Quote Awaits', greeting: 'Hi Naledi,',
@@ -449,6 +463,36 @@ const system = {
             { label: 'Amount Paid', value: 'R9250.00', highlight: true },
             { label: 'Payment Status', value: 'DEPOSIT_PAID' }
         ] }]
+    }),
+    /* Client-designed payment plans: the admin notice after a client rearranges their plan
+       (lib/booking-notifications.js sendAdminPaymentPlanChangedNotification) — shown with the
+       "contract already sent" warning. */
+    'payment-plan-changed-notice.html': S({
+        preheaderText: 'Naledi Mokoena changed the payment plan for booking #100045.',
+        category: 'Payments & Invoices', severity: 'action',
+        leadFact: '<strong style="color:#FAFAFA;">Naledi Mokoena</strong> changed the payment plan for booking <strong style="color:#FAFAFA;">#100045</strong>.',
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">Applied immediately — no approval needed. You can still change it under Setup Milestones.</p>` +
+            `<p style="margin:8px 0 0; color:#B0B0B0; font-size:12px;">The invoice PDF now shows the new schedule (same invoice number, nothing re-sent).</p>` +
+            C.spacer(12) + C.alertStrip({ severity: 'action', text: 'The contract was already sent to the client and still lists the previous payment schedule. It was left unchanged — regenerate and re-send it if the new schedule should be part of the agreement.' }),
+        cards: [
+            { title: 'Booking', rows: [
+                { label: 'Client', rawValue: 'Naledi Mokoena (<a href="mailto:naledi@example.com" style="color:#D4AF37; text-decoration:none;">naledi@example.com</a>)' },
+                { label: 'Event', value: 'Corporate Year-End on 14 Aug 2026', mono: false },
+                { label: 'Booking Total', value: 'R 18,500.00' },
+                { label: 'Paid So Far', value: 'R 9,250.00' }
+            ] },
+            { title: 'Previous plan', rows: [
+                { label: '50% Deposit (paid)', value: 'R 9,250.00 due 20 Jul 2026', mono: false },
+                { label: '50% Balance', value: 'R 9,250.00 due 12 Aug 2026', mono: false },
+                { label: 'Total', value: 'R 18,500.00', highlight: true }
+            ] },
+            { title: 'New plan', rows: [
+                { label: '50% Deposit (paid)', value: 'R 9,250.00 due 20 Jul 2026', mono: false },
+                { label: 'Payment 2 of 3', value: 'R 4,625.00 due 31 Jul 2026', mono: false },
+                { label: 'Final Payment – Payment 3 of 3', value: 'R 4,625.00 due 12 Aug 2026', mono: false },
+                { label: 'Total', value: 'R 18,500.00', highlight: true }
+            ] }
+        ]
     }),
     'quote-accepted-notification.html': S({
         preheaderText: 'Naledi Mokoena accepted the quote for booking #100045 — invoice auto-generated.',

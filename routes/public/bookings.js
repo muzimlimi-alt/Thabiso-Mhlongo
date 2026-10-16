@@ -23,13 +23,23 @@ const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-uti
 const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/client-venue');
 const { calculateCancellationRefund } = require('../../lib/cancellation-refund');
 const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
-const { sendQuoteAcceptedEmail, sendBookingReceivedEmail } = require('../../lib/booking-notifications');
+// The module object is kept as well as the destructured names: the payment-plan notifications are
+// looked up on it at call time, so a missing export degrades to a logged warning, not a crash.
+const bookingNotifications = require('../../lib/booking-notifications');
+const { sendQuoteAcceptedEmail, sendBookingReceivedEmail } = bookingNotifications;
 const { generatePayFastSignature } = require('../../lib/payfast-signature');
 const {
     syncBookingToCalendar, checkDateAvailability, hasCalendarConflict, isWithinWorkingHours
 } = require('../../lib/calendar-sync');
-const { autoBuildDepositBalanceSchedule, generateInvoice, getDepositPercentage } = require('../../lib/invoicing');
+const { generateInvoice, getDepositPercentage } = require('../../lib/invoicing');
 const { generateContract } = require('../../lib/contracts');
+const { updateBookingMilestones } = require('../../lib/payment-processing');
+const PaymentPlanRules = require('../../js/shared/payment-plan-rules');
+const {
+    loadPlanState, loadLiveRows, buildPlanContext, publicPlanState, toTrackingSchedule, parseMilestonesInput,
+    pickDefaultPreset, writeClientPlanInTx, summaryToFlatObject, describeSummaryRow,
+    refreshInvoiceAfterPlanChange, syncContractAfterPlanChange
+} = require('../../lib/payment-plan');
 const { dbGet, dbRun } = require('../../lib/db-helpers');
 // Phase 5: MUST stay the exact same singleton module.exports app.js and every other route file
 // import — see lib/db-transaction.js's own header comment.
@@ -50,7 +60,8 @@ const {
 const {
     getPaymentSchedulesForTracking, getCancellationSummaryForTracking,
     insertCancellationForPublicCancel, cancelPendingPaymentSchedulesAsync,
-    getPaymentSchedulesForPayfastInit, getNextPayableScheduleRow, insertPaymentIntent
+    getPaymentSchedulesForPayfastInit, getNextPayableScheduleRow, insertPaymentIntent,
+    getPaymentSchedulesForDocument
 } = require('../../database/repositories/finance.repository');
 const {
     releaseDateHoldsForBookingAsync, getEventByBookingId, demoteEventForCancelledBookingByBookingIdAsync,
@@ -336,9 +347,24 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                     getQuoteVersionInfoForTracking(row.id, (qvErr, qv) => {
                             getCancellationSummaryForTracking(row.id, (cErr, cancRow) => {
                                     db.get("SELECT pdf_url, status, sent_to_client_at, signed_by_client_at, signed_by_comedian_at, is_frozen FROM contracts WHERE booking_id = ?", [row.id], async (contractErr, contractRow) => {
-                                        // Lets the pre-acceptance payment preview show the same deposit/balance
-                                        // split autoBuildDepositBalanceSchedule() will build.
+                                        // Kept for older cached tracker scripts; the plan builder reads the
+                                        // deposit percentage from payment_plan.context instead.
                                         const depositPercentage = await getDepositPercentage();
+                                        // Client payment plans: the rules context the tracker's plan builder
+                                        // runs on, whether the client may change the plan right now (and why
+                                        // not), and the plan_version the change route checks. The schedule is
+                                        // rebuilt from the same rows so every row's `locked` flag (paid, by
+                                        // money) and `source` agree with that context. Tracking itself must
+                                        // never fail because of this, so it falls back to the plain schedule.
+                                        let paymentSchedule = schedule || [];
+                                        let paymentPlan = null;
+                                        try {
+                                            const planState = await loadPlanState(row);
+                                            paymentPlan = publicPlanState(planState);
+                                            paymentSchedule = toTrackingSchedule(planState);
+                                        } catch (planErr) {
+                                            console.error(`[Track] Booking #${row.id}: payment plan state unavailable:`, planErr.message);
+                                        }
                                         // SEC: build the public payload from an explicit allowlist rather than
                                         // spreading the full `bookings` row and denylisting a few gateway fields.
                                         // The denylist previously missed `admin_notes` — a free-text field admins
@@ -368,7 +394,8 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                             success: true,
                                             booking: publicBooking,
                                             invoice: inv || null,
-                                            payment_schedule: schedule || [],
+                                            payment_schedule: paymentSchedule,
+                                            payment_plan: paymentPlan,
                                             deposit_percentage: depositPercentage,
                                             services: services || [],
                                             quote_version: qv ? qv.version : null,
@@ -1000,16 +1027,34 @@ router.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter
 // proven control of the booking's inbox via the /track/request-code + /track/verify-code OTP flow.
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved from app.js verbatim, byte-identical — single-consumer
 // (the accept-quote route directly below).
-async function sendAdminQuoteAcceptedNotification(booking) {
+// opts.clientDesigned: the client built the payment plan themselves in the accept step (they sent
+// `milestones`), as opposed to accepting the ready-made plan or an admin pre-built one.
+async function sendAdminQuoteAcceptedNotification(booking, opts = {}) {
     const notifEmail = await getNotificationEmail();
     const { id, name, email, event_name, event_type, date } = booking;
+    // The plan as committed. infoCard escapes labels and values, so the stored descriptions are
+    // passed as plain text.
+    const schedule = await getPaymentSchedulesForDocument(id);
+    const planRows = schedule.length > 0
+        ? schedule.map(s => ({
+            label: s.description,
+            value: `${PaymentPlanRules.formatRand(PaymentPlanRules.roundToCents(s.expected_amount))} due ${PaymentPlanRules.formatDate(String(s.due_date || '').slice(0, 10))}`,
+            mono: false
+        }))
+        : [{ label: 'No milestones on record', value: 'Set them up under Setup Milestones', mono: false }];
     const body = emailComponents.renderSystemEmail({
         preheaderText: `${name} accepted the quote for booking #${id} — invoice auto-generated.`,
         category: 'Quotes & Proposals',
         severity: 'action',
-        leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(name)}</strong> (${email}) has accepted the quote for booking <strong style="color:#FAFAFA;">#${id}</strong>.`,
-        bodyHtml: `<p style="margin:0; color:#E6E6E6;">An invoice has been auto-generated. Log in to confirm the booking.</p>`,
-        cards: [{ rows: [{ label: 'Event', value: `${event_name || event_type} on ${date}`, mono: false }] }]
+        leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(name)}</strong> (${emailComponents.esc(email)}) has accepted the quote for booking <strong style="color:#FAFAFA;">#${emailComponents.esc(id)}</strong>.`,
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">An invoice has been auto-generated. Log in to confirm the booking.</p>` +
+            (opts.clientDesigned
+                ? `<p style="margin:8px 0 0; color:#B0B0B0; font-size:12px;">The client designed this payment plan themselves. You can still change it under Setup Milestones.</p>`
+                : ''),
+        cards: [
+            { rows: [{ label: 'Event', value: `${event_name || event_type} on ${date}`, mono: false }] },
+            { title: opts.clientDesigned ? 'Payment plan – Client-designed' : 'Payment plan', rows: planRows }
+        ]
     });
     await sendEmail({ to: notifEmail, subject: `Invoice Issued – Booking #${id} Awaiting Payment`,
         htmlContent: body, preWrapped: true, replyTo: email, titleOverride: 'Invoice Issued – Action Required',
@@ -1021,10 +1066,16 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
     const email = req.trackingEmail;
     if (!terms_agreed) return res.status(400).json({ success: false, message: 'You must agree to the terms and conditions to accept this quote.' });
 
-    // Client-selectable installment plans: defaults to 2 (today's behaviour) for any request that
-    // omits it, so a stale cached frontend that hasn't picked up the new selector still works.
+    // Client payment plans: the tracker's plan builder sends the plan the client designed as
+    // `milestones: [{amount, due_date}]`. Only its shape is checked here; the rules are checked
+    // against fresh data inside the transaction below. Without `milestones` (a stale cached
+    // frontend) the ready-made plan with `installment_count` payments is built instead — 1 to 4,
+    // defaulting to 2 (the long-standing deposit/balance plan) for anything else.
+    const planInput = parseMilestonesInput(req.body.milestones);
+    if (!planInput.ok) return res.status(400).json({ success: false, code: 'INVALID_PLAN', message: planInput.message });
+    const milestones = planInput.milestones;
     let installmentCount = parseInt(req.body.installment_count, 10);
-    if (![2, 3].includes(installmentCount)) installmentCount = 2;
+    if (!(installmentCount >= 1 && installmentCount <= PaymentPlanRules.MAX_PAYMENTS)) installmentCount = 2;
 
     // Client-supplied and written straight to bookings.vat_number, which the admin panel renders.
     // Same treatment as every other public free-text field: bounded and output-encoded.
@@ -1096,23 +1147,56 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
                         VALUES ('bookings', ?, 'QUOTE_ACCEPTED', ?, ?, CURRENT_TIMESTAMP, ?)`,
                     [bookingId, JSON.stringify({ accepted_by: email, ip: clientIp, amount: row.quote_amount }), email, clientIp]);
 
-                // Auto-create the default deposit/balance split only when there is no LIVE UNPAID plan.
-                // F3: both rows must exist before generateInvoice() reads payment_schedules for the PDF.
+                // The payment plan. F3: it must exist before generateInvoice() reads payment_schedules
+                // for the PDF, so it is written in this transaction, from state re-read inside it.
                 //
-                // A surviving PAID row must NOT suppress creation. Re-quoting an ACCEPTED booking
-                // supersedes every unpaid milestone but leaves the paid ones (the money moved), and the
-                // old "does a plan exist?" count treated that paid deposit as an admin-configured plan —
-                // so a client who paid R500 on a R1000 quote, re-quoted to R5000, ended up owing R4500
-                // against no milestones at all. Detection therefore excludes 'paid' too.
-                //
-                // The split covers the OUTSTANDING balance, measured against the paid rows'
-                // expected_amount rather than bookings.amount_paid: the invariant below is defined over
-                // expected_amount, and expected_amount is what the invoice PDF renders.
-                //
-                // Invariant: SUM(expected_amount) over live (non-superseded, non-cancelled) rows == total_amount.
-                // Shared with the admin QUOTED→ACCEPTED path (applyStatusChange) so the two never diverge.
-                const totalAmount = quotedTotal || parseFloat(row.total_amount) || 0;
-                await autoBuildDepositBalanceSchedule(bookingId, totalAmount, row.date || row.event_date, installmentCount, { source: 'client' });
+                // Paid milestones that survived a re-quote stay locked (decided by money: what
+                // bookings.amount_paid covers, walked in the payment waterfall's order) and the plan
+                // covers only the rest; "locked" rows count toward the 4-payment limit.
+                //   - `milestones` sent: the client's own plan, checked against every client rule. Any
+                //     failure rolls back the acceptance too (the booking stays QUOTED, nothing written).
+                //     It replaces any unpaid milestones already on the booking.
+                //   - not sent, unpaid milestones already live (e.g. an admin pre-built plan): kept, as
+                //     before.
+                //   - not sent, nothing unpaid: the ready-made plan (installment_count payments, else
+                //     fewer), which satisfies the same rules.
+                // The total is the quote being accepted (quote_amount, else total_amount), exactly what
+                // this route has always scheduled, read fresh so the plan matches what is committed.
+                // Invariant (checked by writeClientPlanInTx; a mismatch rolls everything back):
+                // SUM(expected_amount) over live (non-superseded, non-cancelled) rows == that total.
+                const fresh = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
+                const planCtx = await buildPlanContext(fresh, 'accept', await loadLiveRows(bookingId));
+                let planWritten = false;
+                if (milestones) {
+                    const check = PaymentPlanRules.validatePlan(planCtx, milestones);
+                    if (!check.ok) {
+                        await dbRun("ROLLBACK").catch(() => {});
+                        return { status: 400, body: { success: false, code: 'INVALID_PLAN', message: check.errors[0].message, errors: check.errors } };
+                    }
+                    await writeClientPlanInTx(bookingId, planCtx, check.rows, { source: 'client' });
+                    planWritten = true;
+                } else if (planCtx.unpaid_rows.length === 0 && planCtx.remaining_cents > 0) {
+                    const preset = pickDefaultPreset(planCtx, installmentCount);
+                    if (preset) {
+                        await writeClientPlanInTx(bookingId, planCtx, preset, { source: 'client' });
+                    } else {
+                        // No plan can satisfy the client rules (e.g. four payments were already made
+                        // before a re-quote raised the total). The balance still has to be scheduled —
+                        // /pay and the invoice both read the milestones — so it becomes one payment, built
+                        // by the system rather than the client, for the admin to adjust if needed.
+                        console.warn(`[Accept-Quote] Booking #${bookingId}: no payment plan satisfies the client rules — scheduling the remaining ${PaymentPlanRules.formatRand(planCtx.remaining_cents)} as a single payment.`);
+                        await writeClientPlanInTx(bookingId, planCtx,
+                            [{ amount_cents: planCtx.remaining_cents, due_date: planCtx.first_due_by || planCtx.latest_due }],
+                            { source: 'auto' });
+                    }
+                    planWritten = true;
+                }
+                // A fresh plan from this acceptance: "last changed by the client on …" (set by the
+                // payment-plan route) would now describe a plan that no longer exists. Guarded so the
+                // audit trigger only fires when there is something to clear.
+                if (planWritten) {
+                    await dbRun("UPDATE bookings SET payment_plan_changed_at = NULL WHERE id = ? AND payment_plan_changed_at IS NOT NULL", [bookingId]);
+                }
 
                 // Read back what the CASE above actually resolved to, so the response and the client
                 // email report the real status rather than assuming ACCEPTED.
@@ -1157,7 +1241,7 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
         // an unhandled rejection and the client never received a response for a booking already accepted.
         await sendQuoteAcceptedEmail({ ...row, status: newStatus }, { invoiceGenerated })
             .catch(e => console.error('[Accept-Quote] Client confirmation email failed:', e.message));
-        sendAdminQuoteAcceptedNotification({ ...row, status: newStatus })
+        sendAdminQuoteAcceptedNotification({ ...row, status: newStatus }, { clientDesigned: !!milestones })
             .catch(e => console.error('Admin quote-accepted notification failed:', e.message));
 
         // Gap 2: Conditionally tell the client about the invoice based on whether it was generated.
@@ -1168,6 +1252,185 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
     } catch (e) {
         console.error('[Accept-Quote] Unexpected failure (booking #' + bookingId + '):', e);
         res.status(500).json({ success: false, message: 'We could not process your acceptance. Please contact us directly.' });
+    }
+});
+
+const PLAN_CHANGED_MESSAGE = 'Your payment plan was updated elsewhere — please review the latest plan and try again.';
+
+// Calls one of the payment-plan notifications without awaiting it. They never reject and resolve
+// sendEmail's { success } — but a missing export or a surprise throw must still not touch the
+// client's request, which has already been committed.
+function notifyPlanChange(fnName, args, bookingId) {
+    const fn = bookingNotifications[fnName];
+    if (typeof fn !== 'function') {
+        console.warn(`[Payment Plan] ${fnName} is unavailable — notification for booking #${bookingId} skipped.`);
+        return;
+    }
+    Promise.resolve()
+        .then(() => fn(...args))
+        .then(r => {
+            if (r === false || (r && r.success === false)) {
+                console.error(`[Payment Plan] ${fnName} for booking #${bookingId} was not sent:`, (r && r.error) || 'unknown reason');
+            }
+        })
+        .catch(e => console.error(`[Payment Plan] ${fnName} for booking #${bookingId} failed:`, e && e.message ? e.message : e));
+}
+
+// Client rearranges the UNPAID part of their payment plan after accepting the quote. Owner
+// decisions: changes apply immediately (no approval); the admin is notified and can still edit the
+// plan under Setup Milestones; paid milestones are locked; at most 4 payments in total. Every rule
+// lives in js/shared/payment-plan-rules.js — the same code the tracker's plan builder runs.
+// Body: { access_token, plan_version (from /track's payment_plan), milestones: [{amount, due_date}] }.
+router.post('/api/public/bookings/:id/payment-plan', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+    const bookingId = parseInt(req.params.id, 10);
+    const email = req.trackingEmail;
+    const clientIp = req.ip || 'unknown';
+    const planInput = parseMilestonesInput(req.body.milestones, { required: true });
+    if (!planInput.ok) return res.status(400).json({ success: false, code: 'INVALID_PLAN', message: planInput.message });
+    const planVersion = typeof req.body.plan_version === 'string' ? req.body.plan_version : '';
+
+    try {
+        // One atomic unit, with every read inside it: the editability gates, the version check, the
+        // validation and the write all see the same state, and nothing else (another plan change,
+        // an admin Setup Milestones save, a PayFast credit) can land in between. No network calls
+        // in here — they would hold the queue for every other guarded write.
+        const outcome = await withDbTransaction(async () => {
+            try {
+                await dbRun("BEGIN IMMEDIATE");
+            } catch (beginErr) {
+                console.error('[Payment Plan] BEGIN IMMEDIATE failed:', beginErr.message);
+                return { status: 503, body: { success: false, message: 'We could not update your payment plan just now. Please try again in a moment.' } };
+            }
+            try {
+                const booking = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
+                if (!booking) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 404, body: { success: false, message: 'Booking not found.' } };
+                }
+
+                const state = await loadPlanState(booking, 'change');
+                if (!state.editable) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 409, body: { success: false, code: state.reason_code, message: state.reason } };
+                }
+                // Optimistic concurrency: the client designed against the plan /track showed them.
+                // If any live milestone, the money paid or the total has moved since, their design may
+                // no longer make sense — make them look at the current plan first.
+                if (!planVersion || planVersion !== state.plan_version) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 409, body: { success: false, code: 'PLAN_CHANGED', message: PLAN_CHANGED_MESSAGE } };
+                }
+
+                const check = PaymentPlanRules.validatePlan(state.ctx, planInput.milestones);
+                if (!check.ok) {
+                    await dbRun("ROLLBACK").catch(() => {});
+                    return { status: 400, body: { success: false, code: 'INVALID_PLAN', message: check.errors[0].message, errors: check.errors } };
+                }
+
+                // Saving the plan exactly as it is: nothing to supersede, nobody to notify.
+                if (PaymentPlanRules.isUnchangedPlan(state.ctx, check.rows)) {
+                    await dbRun("COMMIT");
+                    return { ok: true, unchanged: true, state };
+                }
+
+                const written = await writeClientPlanInTx(bookingId, state.ctx, check.rows, { source: 'client' });
+
+                // Attribution: the audit_bookings_update trigger copies modified_by/modified_by_role
+                // into audit_log, so this UPDATE is recorded as the client's (no admin id).
+                await dbRun(
+                    `UPDATE bookings SET payment_plan_changed_at = CURRENT_TIMESTAMP, modified_by = NULL,
+                            modified_by_role = 'client', modified_on = CURRENT_TIMESTAMP
+                     WHERE id = ?`,
+                    [bookingId]);
+
+                await dbRun(
+                    `INSERT INTO audit_log (table_name, record_id, action, changed_by, user_email, ip_address, old_values, new_values, actor_role, change_timestamp)
+                     VALUES ('bookings', ?, 'CLIENT_PAYMENT_PLAN_CHANGED', ?, ?, ?, ?, ?, 'client', CURRENT_TIMESTAMP)`,
+                    [bookingId, email, email, clientIp,
+                        JSON.stringify(summaryToFlatObject(written.before)),
+                        JSON.stringify(summaryToFlatObject(written.after))]);
+
+                const noteText = ['[Payment Plan Changed]', 'The client changed their payment plan online (applied immediately).', 'Previous plan:']
+                    .concat(written.before.map(r => `- ${r.description}: ${describeSummaryRow(r)}`))
+                    .concat(['New plan:'])
+                    .concat(written.after.map(r => `- ${r.description}: ${describeSummaryRow(r)}`))
+                    .join('\n');
+                await insertBookingNoteFromTracker(bookingId, encodeUserHtml(noteText));
+
+                await dbRun("COMMIT");
+                return { ok: true, unchanged: false, written };
+            } catch (txErr) {
+                await dbRun("ROLLBACK").catch(() => {});
+                // The live rows moved under the write (e.g. a payment was applied mid-save): same
+                // answer as a stale plan_version.
+                if (txErr && txErr.code === 'PLAN_CONFLICT') {
+                    console.warn(`[Payment Plan] Booking #${bookingId}: ${txErr.message} — rolled back.`);
+                    return { status: 409, body: { success: false, code: 'PLAN_CHANGED', message: PLAN_CHANGED_MESSAGE } };
+                }
+                console.error(`[Payment Plan] Change failed — rolled back, plan unchanged (#${bookingId}):`, txErr && txErr.message ? txErr.message : txErr);
+                return { status: 500, body: { success: false, message: 'We could not update your payment plan. Please try again.' } };
+            }
+        });
+
+        if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
+
+        if (outcome.unchanged) {
+            return res.json({
+                success: true, unchanged: true, message: 'Your payment plan is unchanged.',
+                payment_schedule: toTrackingSchedule(outcome.state),
+                payment_plan: publicPlanState(outcome.state)
+            });
+        }
+
+        // ---- Side effects, after the commit. None of these may fail the request. ----
+        // Re-run the payment waterfall over the new rows (it also settles any row the money already
+        // covers whose 'paid' flag was still lagging).
+        await new Promise(resolve => {
+            try {
+                updateBookingMilestones(bookingId, (alignErr) => {
+                    if (alignErr) console.error(`[Payment Plan] Booking #${bookingId}: milestone alignment failed:`, alignErr.message);
+                    resolve();
+                });
+            } catch (alignErr) {
+                console.error(`[Payment Plan] Booking #${bookingId}: milestone alignment failed:`, alignErr.message);
+                resolve();
+            }
+        });
+
+        // The invoice the client holds lists the schedule: re-render its PDF in place (same number,
+        // status and totals, no email). Then the contract: only an unsent auto-generated draft is
+        // regenerated; anything sent or signed is left alone and flagged to the admin.
+        const invoice = await refreshInvoiceAfterPlanChange(bookingId);
+        const contract = await syncContractAfterPlanChange(bookingId);
+
+        const freshBooking = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]).catch(() => null);
+        let freshState = null;
+        if (freshBooking) {
+            try { freshState = await loadPlanState(freshBooking, 'change'); }
+            catch (stateErr) { console.error(`[Payment Plan] Booking #${bookingId}: could not reload the plan:`, stateErr.message); }
+        }
+
+        const notifyBooking = freshBooking || { id: bookingId, email };
+        notifyPlanChange('sendAdminPaymentPlanChangedNotification', [notifyBooking, outcome.written.before, outcome.written.after, {
+            invoiceRefreshed: invoice.refreshed,
+            invoiceReason: invoice.reason,
+            contractState: contract.state,
+            // contractState 'sent' also covers a draft that could not be regenerated (an uploaded
+            // PDF, or a failed render); contractDetail says which.
+            contractDetail: contract.detail,
+            context: 'rearrange'
+        }], bookingId);
+        if (freshBooking) notifyPlanChange('sendPaymentPlanUpdatedEmail', [freshBooking, outcome.written.after], bookingId);
+
+        res.json({
+            success: true,
+            message: 'Your payment plan has been updated.',
+            payment_schedule: freshState ? toTrackingSchedule(freshState) : null,
+            payment_plan: freshState ? publicPlanState(freshState) : null
+        });
+    } catch (e) {
+        console.error(`[Payment Plan] Unexpected failure (booking #${bookingId}):`, e);
+        res.status(500).json({ success: false, message: 'We could not update your payment plan. Please try again.' });
     }
 });
 

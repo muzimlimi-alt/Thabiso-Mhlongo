@@ -35,7 +35,22 @@ Under **Site Content → Accolades**. External recognition only — wins, nomina
 - **Media & links**: An achievement image, the organisation's logo, a certificate (PDF or image), plus an official page and a source link — shown when a visitor clicks "View".
 - **Remove**: Set it **Inactive** to take it off the website but keep it. Deleting is permanent and administrator-only.
 
-## 🔒 7. Security Maintenance
+## 💳 7. Client Payment Plans
+Clients design their own payment plan when they accept a quote, and can later rearrange the payments they haven't made yet from their booking page. Changes apply **immediately** — there is nothing to approve.
+- **The rules** (checked on the booking page and again by the server):
+  - At most **4 payments** in total. Payments already made count towards the 4.
+  - The **first payment** must be at least the **Deposit Percentage** of the total, and due within **7 days** of accepting the quote. The 7 days count from the original acceptance, so a client can't keep pushing the deposit back by editing the plan.
+  - Every payment must be due between **today** and **2 days before the event**, one payment per day.
+  - No payment may be below the **Minimum Instalment Amount**, unless it is the only payment left.
+  - **Paid payments are locked.** The client can only move or split what is still owed.
+- **Where the settings live**: **Policies → Booking Policies**: **Deposit Percentage** and **Minimum Instalment Amount (R)** (default R500). Changes apply to the next plan a client saves; existing plans are left as they are.
+- **What you'll see**: an email titled **"Payment Plan Changed – Booking #…"** (showing the previous and new plan), a **[Payment Plan Changed]** note on the booking, and an entry in its Change History. When a client designs the plan while accepting, the usual "Invoice Issued" email lists the plan and marks it as client-designed. In the booking's **Payment Milestones** card, a **Client-designed plan** badge shows when the client last changed it, and paid payments are marked **Paid · locked for the client**. The client also gets a "Your Payment Plan Has Been Updated" email with the new schedule.
+- **Invoices & contracts**: the invoice PDF is updated automatically (same invoice number, nothing re-sent); if that isn't possible, the email tells you. A **draft** contract is regenerated. A contract that has already been **sent or signed is never changed**, and the email warns you that it still shows the old schedule. Regenerate and re-send it yourself if the new schedule should be part of the agreement.
+- **You stay in control**: you can still change any plan with **Edit Schedule / Setup Milestones**. You'll be asked to confirm before replacing a client-designed plan. Your own plans don't have to follow the client rules.
+- **When the client can't change the plan online**: if a payment needs to be reconciled (for example, a part-payment), a payment was started in the last hour, or all 4 payments are used up, the booking page explains why and, where needed, asks the client to contact you.
+- **Check your wording**: the **Payment Terms** text on quotes and contracts may still say something like "50% deposit on acceptance, balance 48 hours before the event". Reword it if it no longer matches how clients can pay.
+
+## 🔒 8. Security Maintenance
 - **Session Expiry**: For security, the admin portal will automatically log you out after 2 hours of inactivity.
 - **Backups**: Ensure someone runs `npm run backup` weekly, or set up a server 'cron' job to do it automatically.
 

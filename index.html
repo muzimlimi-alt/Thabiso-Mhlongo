@@ -68,7 +68,7 @@
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
 	<link rel="stylesheet" href="css/public/redesign.css?v=19">
-	<link rel="stylesheet" href="css/public/tracking-modal.css">
+	<link rel="stylesheet" href="css/public/tracking-modal.css?v=2">
 	<link rel="stylesheet" href="css/components/notifications.css">
 	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
 	     reuses. Must load before booking-form.css (below), which documents its own need to
@@ -1524,7 +1524,29 @@
 								<div class="trk-schedule-title">
 									<i class="fa-solid fa-calendar-check"></i>Payment Schedule
 								</div>
-								<div id="paymentScheduleBody"></div>
+								<div id="paymentScheduleBody" class="trk-schedule-body"></div>
+								<!-- Client payment plans: rearrange the unpaid milestones after acceptance
+								     (POST /api/public/bookings/:id/payment-plan). Shown only when /track's
+								     payment_plan.editable; otherwise a short reason for the few cases the
+								     client can act on (contact us / wait for a payment to clear). -->
+								<div id="planChangeArea" class="trk-plan-change">
+									<button type="button" id="btnChangePlan" class="trk-plan-ghost-btn" style="display:none;" aria-expanded="false" aria-controls="planEditor">
+										<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>Change payment plan
+									</button>
+									<p id="planChangeReason" class="trk-plan-muted" tabindex="-1" style="display:none;"></p>
+									<div id="planEditor" class="trk-plan-editor" style="display:none;">
+										<div id="planEditorBuilder"></div>
+										<p class="trk-plan-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>Your new plan applies as soon as you save it. We'll email you a copy and let our team know.</p>
+										<p id="planContractNote" class="trk-plan-note" style="display:none;"><i class="fa-solid fa-file-contract" aria-hidden="true"></i>Your contract still shows your current plan. Our team will be in touch if it needs to be updated.</p>
+										<div class="trk-plan-actions">
+											<button type="button" id="btnSavePlan" class="trk-plan-save" disabled>
+												<i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Save new plan
+											</button>
+											<button type="button" id="btnCancelPlan" class="trk-plan-cancel">Cancel</button>
+										</div>
+										<p id="planSaveHint" class="trk-plan-muted" style="display:none;"></p>
+									</div>
+								</div>
 							</div>
 
 							<!-- Payment Success -->
@@ -1534,19 +1556,21 @@
 							</div>
 						</div>
 
-						<!-- Invoice + Quote PDF downloads — side by side, full-width row -->
-						<div id="docDownloadRow" style="display:flex;gap:8px;margin-top:16px;margin-bottom:16px;">
-							<div id="invoiceSection" style="display:none;flex:1;">
+						<!-- Invoice + Quote + Contract PDF downloads — side by side, full-width row. Wraps (and each
+						     button keeps a 100px basis) so all three still fit on a 320px phone instead of the
+						     third running off the drawer's edge. -->
+						<div id="docDownloadRow" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;margin-bottom:16px;">
+							<div id="invoiceSection" style="display:none;flex:1 1 100px;">
 								<a id="invoiceDownloadLink" href="#" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;width:100%;box-sizing:border-box;background:color-mix(in srgb, var(--y-base) 12%, transparent);border:1px solid color-mix(in srgb, var(--y-base) 35%, transparent);border-radius:8px;color:var(--y-base);font-size:12px;font-weight:700;text-decoration:none;transition:background 0.2s;">
 									<i class="fa-solid fa-file-pdf"></i> Download Invoice
 								</a>
 							</div>
-							<div id="quotePdfSection" style="display:none;flex:1;">
+							<div id="quotePdfSection" style="display:none;flex:1 1 100px;">
 								<button id="btnDownloadQuotePdf" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;width:100%;box-sizing:border-box;background:color-mix(in srgb, var(--y-base) 8%, transparent);border:1px solid color-mix(in srgb, var(--y-base) 30%, transparent);border-radius:8px;color:var(--y-base);font-size:12px;font-weight:700;cursor:pointer;">
 									<i class="fa-solid fa-file-pdf"></i> Download Quote
 								</button>
 							</div>
-							<div id="contractDownloadSection" style="display:none;flex:1;">
+							<div id="contractDownloadSection" style="display:none;flex:1 1 100px;">
 								<a id="contractDownloadLink" href="#" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;width:100%;box-sizing:border-box;background:color-mix(in srgb, var(--y-base) 8%, transparent);border:1px solid color-mix(in srgb, var(--y-base) 30%, transparent);border-radius:8px;color:var(--y-base);font-size:12px;font-weight:700;text-decoration:none;transition:background 0.2s;">
 									<i class="fa-solid fa-file-contract"></i> Download Contract
 								</a>
@@ -1602,29 +1626,25 @@
 						<div id="acceptQuoteSection" style="display:none;">
 							<div class="trk-accept-section">
 								<p>You've received a quote! Review the details above and formally accept it to proceed.</p>
-								<div id="installmentChoiceSection" style="display:none;margin:12px 0;">
-									<label class="bk-label" style="font-size:11px;">How would you like to pay?</label>
-									<div style="display:flex;gap:10px;margin-top:6px;">
-										<label style="flex:1;display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 12px;background:var(--bg-page);border:1px solid var(--border-default);border-radius:4px;">
-											<input type="radio" name="installmentChoice" value="2" checked style="accent-color:var(--y-base);">
-											<span style="font-size:12px;color:var(--text-secondary);">2 payments <span id="installmentSplitLabel" style="color:var(--text-muted);">(50/50)</span></span>
-										</label>
-										<label style="flex:1;display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 12px;background:var(--bg-page);border:1px solid var(--border-default);border-radius:4px;">
-											<input type="radio" name="installmentChoice" value="3" style="accent-color:var(--y-base);">
-											<span style="font-size:12px;color:var(--text-secondary);">3 payments <span style="color:var(--text-muted);">(30/30/40)</span></span>
-										</label>
+								<!-- Client payment plans: the client designs their own plan here while accepting
+								     (js/public/payment-plan-builder.js, accept mode). When a plan already exists
+								     (built by our team before acceptance) it is shown read-only with a "Change
+								     plan" toggle; milestones are only sent when the builder was used. -->
+								<div id="planBuilder" class="trk-plan-accept" style="display:none;">
+									<div id="planExisting" class="trk-plan" style="display:none;">
+										<div id="planExistingView">
+											<div class="trk-plan-head">
+												<p class="trk-plan-title"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i>Your payment plan</p>
+											</div>
+											<p class="trk-plan-intro">We've prepared this payment plan for you. Accept it as it is, or change it to suit you.</p>
+											<ol id="planExistingList" class="trk-plan-list"></ol>
+										</div>
+										<button type="button" id="btnTogglePlanBuilder" class="trk-plan-ghost-btn" aria-expanded="false" aria-controls="planBuilderMount">
+											<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i><span>Change plan</span>
+										</button>
 									</div>
-								</div>
-								<div id="payPreviewPanel" style="background:var(--bg-section);border:1px solid var(--border-default);border-radius:4px;padding:14px;margin:12px 0;">
-									<div style="font-size:11px;color:var(--y-base);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Payment Schedule</div>
-									<div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-										<span style="color:var(--text-muted);font-size:12px;">Next Milestone</span>
-										<span id="payPreviewDeposit" style="color:var(--text-primary);font-size:13px;font-weight:600;">&mdash;</span>
-									</div>
-									<div style="display:flex;justify-content:space-between;">
-										<span style="color:var(--text-muted);font-size:12px;">Remaining Balance</span>
-										<span id="payPreviewBalance" style="color:var(--text-primary);font-size:13px;font-weight:600;">&mdash;</span>
-									</div>
+									<div id="planBuilderMount"></div>
+									<p id="planAcceptNote" class="trk-plan-muted" style="display:none;"></p>
 								</div>
 								<div id="vatFieldGroup" style="display:none;margin:12px 0;">
 									<label class="bk-label" style="font-size:11px;">VAT Number <span style="color:var(--text-muted);font-weight:400;">(optional &mdash; enables Tax Invoice)</span></label>
@@ -1638,6 +1658,7 @@
 									<input type="checkbox" id="chkTermsAgree" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--y-base);margin-top:1px;">
 									<span style="font-size:12px;color:var(--text-secondary);line-height:1.5;">I have read and agree to the <a href="/terms" target="_blank" rel="noopener" style="color:var(--y-base);text-decoration:underline;">Terms and Conditions</a> and commit to making payments per the schedule above.</span>
 								</label>
+								<p id="acceptPlanHint" class="trk-plan-muted trk-plan-muted--warn" style="display:none;"></p>
 								<button id="acceptQuoteBtn" class="trk-accept-btn" disabled style="opacity:0.4;cursor:not-allowed;">
 									<i class="fa-solid fa-handshake"></i>Accept Quote
 								</button>
@@ -2070,6 +2091,11 @@
 	     skin (same BEM classes, public design tokens instead of admin's --atl-* ones). -->
 	<script src="js/admin/components/drawer.js?v=3"></script>
 	<script src="js/notificationService.js?v=2.0.2"></script>
+	<!-- Client payment plans (Track Booking drawer): the shared rules module — the very file the server
+	     validates a plan with (routes/public/bookings.js) — and the plan builder built on it. Both must
+	     load before the tracking script below. -->
+	<script src="js/shared/payment-plan-rules.js?v=1"></script>
+	<script src="js/public/payment-plan-builder.js?v=1"></script>
 </body>
 <!-- UI Dependencies -->
 <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
@@ -2198,6 +2224,24 @@ $(document).ready(function() {
     let pendingBookingId = null;     // id/email awaiting a code (between request-code and verify-code)
     let pendingEmail = null;
 
+    // Client payment plans. Everything the plan UI needs comes from the latest /track response (or
+    // the payment-plan route's response after a save), never from text read back out of the page.
+    //   view           booking facts the schedule renderer needs (status, money)
+    //   plan           /track's payment_plan {mode, editable, reason_code, reason, plan_version, context}
+    //   schedule       /track's payment_schedule rows (live rows, with `locked` and `source`)
+    //   contract       /track's contract row (a sent/signed contract keeps showing the old schedule)
+    //   acceptBuilder  the accept-step builder; acceptOpen: it is in use, so `milestones` are sent
+    //   acceptShowsPlan the accept step presents the plan, so the schedule section stays hidden
+    //   changeBuilder  the post-acceptance "Change payment plan" editor's builder
+    var planState = {
+        view: null, plan: null, schedule: [], contract: null,
+        acceptBuilder: null, acceptOpen: false, acceptShowsPlan: false, accepting: false, accepted: false,
+        changeBuilder: null, saving: false
+    };
+    // Reasons the client can act on (contact us / wait for a payment to clear); any other reason
+    // (fully paid, event passed, …) needs no explanation next to the schedule.
+    var PLAN_REASONS_SHOWN = ['NEEDS_ADMIN', 'NO_SLOTS', 'PAYMENT_IN_PROGRESS'];
+
     function maskEmail(email) {
         var parts = String(email || '').split('@');
         if (parts.length !== 2 || !parts[0]) return email;
@@ -2255,6 +2299,438 @@ $(document).ready(function() {
         var $badge = $('#tdStatus');
         $badge.removeClass('PENDING QUOTED ACCEPTED CONFIRMED').addClass(status).text(status);
     }
+
+    // The verification session (access token) expired or was revoked: back to the lookup screen
+    // with the booking id/email still filled in. Shared by every call that sends the token.
+    function handleTokenExpired() {
+        clearCachedToken(currentBookingId);
+        currentAccessToken = null;
+        closePlanEditor();
+        destroyAcceptPlan();
+        $('#trackingDetails').hide();
+        $('#trackId').val(currentBookingId);
+        $('#trackEmail').val(currentBookingEmail || '');
+        $('#trackingCodeEntry').hide();
+        $('#trackingAuth').show();
+        $('#trackError').text('Your verification session expired. Please verify your booking again.').show();
+    }
+
+    // ───────────── Payment schedule + client payment plans ─────────────
+
+    function isLiveScheduleRow(s) {
+        var st = String((s && s.status) || 'pending').toLowerCase();
+        return !!s && st !== 'superseded' && st !== 'cancelled';
+    }
+
+    // The browser's own calendar date — only a fallback for "overdue" when the server's SAST
+    // `today` (payment_plan.context.today) is unavailable. Never toISOString(): that is the UTC date.
+    function localTodayYmd() {
+        var d = new Date();
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+
+    // Money/dates for display: the shared rules module's formatters when loaded ("R 1,234.50",
+    // "2 Nov 2026"), else the page's long-standing plain formats. A non-breaking space keeps the
+    // "R" with its number on narrow phones.
+    function fmtRand(amount) {
+        var R = window.PaymentPlanRules;
+        var text = R ? R.formatRand(R.roundToCents(amount)) : 'R ' + (parseFloat(amount) || 0).toFixed(2);
+        return text.replace(/^(-?R) /, '$1\u00a0');
+    }
+    function fmtDate(ymd) {
+        var R = window.PaymentPlanRules;
+        return R ? R.formatDate(ymd) : String(ymd || '');
+    }
+
+    // {scheduleRowId: description} for the builder's read-only paid rows.
+    function scheduleDescriptions(schedule) {
+        var map = {};
+        (schedule || []).forEach(function(s) { if (s && s.id !== undefined && s.id !== null) map[s.id] = s.description; });
+        return map;
+    }
+
+    function schedulePlanItems(schedule) {
+        var R = window.PaymentPlanRules;
+        return (schedule || []).filter(isLiveScheduleRow).map(function(s) {
+            return {
+                description: s.description,
+                due_date: String(s.due_date || '').slice(0, 10),
+                amount_cents: R ? R.roundToCents(s.expected_amount) : Math.round((parseFloat(s.expected_amount) || 0) * 100),
+                paid: s.locked === true || String(s.status || '').toLowerCase() === 'paid'
+            };
+        });
+    }
+
+    /**
+     * Renders #paymentScheduleSection from a payment_schedule array and its payment_plan block —
+     * used by loadTrackingDetails() and again, without another /track call, after the client saves a
+     * new plan (the payment-plan route answers with both). Every stored string goes in as text.
+     * A mobile-first list (one row per milestone, the Pay Now button full width underneath), so
+     * nothing is clipped at 320px wide.
+     */
+    function renderPaymentSchedule(schedule, paymentPlan) {
+        var view = planState.view || {};
+        var rows = (Array.isArray(schedule) ? schedule : []).filter(isLiveScheduleRow);
+        var $body = $('#paymentScheduleBody').empty();
+        // While the quote is still open, the accept step shows the plan (with the builder), so it is
+        // not repeated here.
+        var hiddenByAccept = view.status === 'QUOTED' && planState.acceptShowsPlan;
+        if (!view.isQuotedOrActive || rows.length === 0 || hiddenByAccept) {
+            $('#paymentScheduleSection').hide();
+            renderPlanChangeControls(null);
+            return;
+        }
+
+        var ctx = paymentPlan && paymentPlan.context;
+        var today = (ctx && ctx.today) || localTodayYmd();
+        var payableCanPay = view.status === 'ACCEPTED' || view.status === 'CONFIRMED';
+        var nextPayableFound = false;
+        var $list = $('<ol class="trk-sched-list"></ol>');
+        rows.forEach(function(s) {
+            var st = String(s.status || 'pending').toLowerCase();
+            // `locked` is decided by the money actually paid; the status flag can lag a few seconds
+            // behind a payment, so either one means paid.
+            var isPaid = s.locked === true || st === 'paid';
+            var due = String(s.due_date || '').slice(0, 10);
+            var isOverdue = !isPaid && (st === 'overdue' || (!!due && due < today));
+            var isNext = payableCanPay && !isPaid && !nextPayableFound;
+            if (isNext) nextPayableFound = true;
+
+            var $li = $('<li class="trk-sched-item"></li>')
+                .toggleClass('is-paid', isPaid).toggleClass('is-overdue', isOverdue).toggleClass('is-next', isNext);
+            var $main = $('<div class="trk-sched-main"></div>');
+            $main.append($('<span class="trk-sched-desc"></span>').text(s.description || 'Payment'));
+            $main.append($('<span class="trk-sched-amt"></span>').text(fmtRand(s.expected_amount)));
+            var $meta = $('<div class="trk-sched-meta"></div>');
+            $meta.append($('<span class="trk-sched-date"></span>').text(due ? 'Due ' + fmtDate(due) : 'No due date'));
+            var $status = $('<span class="trk-sched-status"></span>');
+            if (isPaid) {
+                $status.addClass('is-paid').append('<i class="fa-solid fa-lock" aria-hidden="true"></i>').append(document.createTextNode(' Paid'));
+            } else if (isOverdue) {
+                $status.addClass('is-overdue').text('Overdue');
+            } else if (isNext) {
+                $status.addClass('is-next').text('Next payment');
+            } else {
+                $status.text('Pending');
+            }
+            $meta.append($status);
+            $li.append($main, $meta);
+            if (isNext) {
+                // The earliest unpaid row is the one /pay accepts (strict due order); later rows
+                // wait their turn. `pay-btn` is what the delegated PayFast handler listens for.
+                var $pay = $('<button type="button" class="pay-btn trk-sched-pay"></button>')
+                    .attr('data-schedule-id', s.id)
+                    .append('<i class="fa-solid fa-credit-card" aria-hidden="true"></i>')
+                    .append(document.createTextNode(' Pay Now'));
+                $li.append($('<div class="trk-sched-action"></div>').append($pay));
+            }
+            $list.append($li);
+        });
+        $body.append($list);
+        $('#paymentScheduleSection').show();
+        // A schedule exists — the static DEPOSIT/FULL buttons are superseded by the per-row "Pay Now"
+        // action; they stay only as the fallback for a booking with no schedule rows at all.
+        if (payableCanPay && view.amountPaid < view.totalScope) $('#paymentSection').hide();
+        renderPlanChangeControls(paymentPlan);
+    }
+
+    // "Change payment plan" button, or the reason it is unavailable when the client can act on it.
+    function renderPlanChangeControls(paymentPlan) {
+        var $btn = $('#btnChangePlan');
+        var $reason = $('#planChangeReason');
+        if (planState.changeBuilder) return; // the editor is open; it manages these itself
+        var canChange = !!(paymentPlan && paymentPlan.mode === 'change' && paymentPlan.editable && paymentPlan.context &&
+            window.PaymentPlanBuilder && window.PaymentPlanRules);
+        if (canChange) {
+            $btn.show().attr('aria-expanded', 'false');
+            $reason.hide().text('');
+        } else if (paymentPlan && !paymentPlan.editable && PLAN_REASONS_SHOWN.indexOf(paymentPlan.reason_code) !== -1 && paymentPlan.reason) {
+            $btn.hide();
+            $reason.text(paymentPlan.reason).show();
+        } else {
+            $btn.hide();
+            $reason.hide().text('');
+        }
+    }
+
+    function refreshSaveBtn() {
+        var b = planState.changeBuilder;
+        if (!b) return;
+        var unchanged = b.isUnchanged();
+        var enabled = !planState.saving && b.isValid() && !unchanged;
+        $('#btnSavePlan').prop('disabled', !enabled);
+        var hint = !planState.saving && unchanged ? 'This is your current plan. Change a payment to save a new plan.' : '';
+        $('#planSaveHint').text(hint).toggle(!!hint);
+    }
+
+    function openPlanEditor() {
+        var plan = planState.plan;
+        if (!plan || !plan.editable || !plan.context || !window.PaymentPlanBuilder) return;
+        closePlanEditor();
+        var ctx = plan.context;
+        var builder = window.PaymentPlanBuilder.create(document.getElementById('planEditorBuilder'), {
+            context: ctx,
+            mode: 'change',
+            rows: (ctx.unpaid_rows || []).map(function(r) { return { amount_cents: r.amount_cents, due_date: r.due_date }; }),
+            descriptions: scheduleDescriptions(planState.schedule),
+            idPrefix: 'planChange',
+            onChange: refreshSaveBtn
+        });
+        if (!builder) {
+            window.notificationService.showError('Payment Plan', 'The payment plan editor could not be loaded. Please refresh the page and try again.');
+            return;
+        }
+        planState.changeBuilder = builder;
+        var c = planState.contract;
+        $('#planContractNote').toggle(!!(c && (c.status === 'sent' || c.status === 'signed' || c.signed_by_client_at || c.is_frozen === 1)));
+        $('#btnChangePlan').hide().attr('aria-expanded', 'true');
+        $('#planChangeReason').hide();
+        refreshSaveBtn();
+        $('#planEditor').stop(true, true).slideDown(200, function() { builder.focus(); });
+    }
+
+    // Closes the editor and drops its unsaved state (the next open starts from the current plan).
+    function closePlanEditor() {
+        if (planState.changeBuilder) {
+            planState.changeBuilder.destroy();
+            planState.changeBuilder = null;
+        }
+        $('#planEditorBuilder').empty();
+        $('#planEditor').stop(true, true).hide();
+        $('#planSaveHint').hide().text('');
+        $('#planContractNote').hide();
+        $('#btnChangePlan').attr('aria-expanded', 'false');
+    }
+
+    // ── Accept step ──
+
+    function refreshAcceptBtn() {
+        if (planState.accepting || planState.accepted) return;
+        var termsOk = $('#chkTermsAgree').is(':checked');
+        var b = planState.acceptBuilder;
+        var planOk = !planState.acceptOpen || (!!b && b.isValid());
+        var enabled = termsOk && planOk;
+        $('#acceptQuoteBtn').prop('disabled', !enabled).css({ opacity: enabled ? '1' : '0.4', cursor: enabled ? 'pointer' : 'not-allowed' });
+        var hint = planOk ? '' : (planState.acceptBuilder && planState.acceptBuilder.isUnchanged() && $('#btnTogglePlanBuilder').is(':visible')
+            ? 'Adjust your payment plan above, or choose "Keep the original plan", to accept the quote.'
+            : 'Adjust your payment plan above to accept the quote.');
+        $('#acceptPlanHint').text(hint).toggle(!!hint);
+    }
+
+    function openAcceptBuilder(ctx, rows) {
+        if (planState.acceptBuilder) planState.acceptBuilder.destroy();
+        planState.acceptBuilder = window.PaymentPlanBuilder ? window.PaymentPlanBuilder.create(document.getElementById('planBuilderMount'), {
+            context: ctx,
+            mode: 'accept',
+            rows: rows,
+            presetCount: 2,   // the classic deposit/balance plan, else the largest valid plan below it
+            descriptions: scheduleDescriptions(planState.schedule),
+            idPrefix: 'planAccept',
+            onChange: refreshAcceptBtn
+        }) : null;
+        planState.acceptOpen = !!planState.acceptBuilder;
+        refreshAcceptBtn();
+        return planState.acceptBuilder;
+    }
+
+    function closeAcceptBuilder() {
+        if (planState.acceptBuilder) planState.acceptBuilder.destroy();
+        planState.acceptBuilder = null;
+        planState.acceptOpen = false;
+        $('#planBuilderMount').empty();
+        refreshAcceptBtn();
+    }
+
+    function destroyAcceptPlan() {
+        if (planState.acceptBuilder) planState.acceptBuilder.destroy();
+        planState.acceptBuilder = null;
+        planState.acceptOpen = false;
+        planState.acceptShowsPlan = false;
+        $('#planBuilderMount').empty();
+        $('#planExistingList').empty();
+        $('#planExistingView').show();
+        $('#planExisting').hide();
+        $('#btnTogglePlanBuilder').attr('aria-expanded', 'false').find('span').text('Change plan');
+        $('#planAcceptNote').hide().text('');
+        $('#planBuilder').hide();
+        $('#acceptPlanHint').hide().text('');
+    }
+
+    // The plan part of the accept step, from /track's payment_plan (mode 'accept'):
+    //   - a plan already exists (built by our team): shown read-only, with a "Change plan" toggle;
+    //   - otherwise the builder opens on the default plan (2 payments, else 1);
+    //   - nothing can be designed (no plan data, no payment slots, nothing left to pay): no builder,
+    //     and the server keeps/builds the plan itself when the quote is accepted.
+    function setupAcceptPlan(data) {
+        destroyAcceptPlan();
+        planState.accepted = false;
+        var plan = data.payment_plan;
+        var ctx = plan && plan.mode === 'accept' ? plan.context : null;
+        var toolsLoaded = !!(window.PaymentPlanBuilder && window.PaymentPlanRules);
+        var canBuild = !!(toolsLoaded && ctx && plan.editable && ctx.slots > 0 && ctx.remaining_cents > 0);
+        var schedule = (data.payment_schedule || []).filter(isLiveScheduleRow);
+
+        if (toolsLoaded && ctx && (ctx.unpaid_rows || []).length > 0) {
+            window.PaymentPlanBuilder.renderPlanList(document.getElementById('planExistingList'), schedulePlanItems(schedule));
+            $('#planExistingView').show();
+            $('#btnTogglePlanBuilder').toggle(canBuild);
+            $('#planExisting').show();
+            $('#planBuilder').show();
+            planState.acceptShowsPlan = true;
+        } else if (canBuild) {
+            $('#planBuilder').show();
+            if (openAcceptBuilder(ctx, null)) planState.acceptShowsPlan = true;
+            else $('#planBuilder').hide();
+        } else if (plan && !plan.editable && plan.reason) {
+            $('#planAcceptNote').text(plan.reason).show();
+            $('#planBuilder').show();
+        }
+        refreshAcceptBtn();
+    }
+
+    $(document).on('click', '#btnTogglePlanBuilder', function() {
+        var plan = planState.plan;
+        var ctx = plan && plan.context;
+        if (!ctx || planState.accepting) return;
+        if (planState.acceptOpen) {
+            // Back to the plan our team prepared: nothing the client typed is sent.
+            closeAcceptBuilder();
+            $('#planExistingView').show();
+            $(this).attr('aria-expanded', 'false').find('span').text('Change plan');
+        } else {
+            var builder = openAcceptBuilder(ctx, (ctx.unpaid_rows || []).map(function(r) { return { amount_cents: r.amount_cents, due_date: r.due_date }; }));
+            if (!builder) return;
+            $('#planExistingView').hide();
+            $(this).attr('aria-expanded', 'true').find('span').text('Keep the original plan');
+            builder.focus();
+        }
+        refreshAcceptBtn();
+    });
+
+    $(document).on('click', '#btnChangePlan', function() {
+        openPlanEditor();
+    });
+
+    $(document).on('click', '#btnCancelPlan', function() {
+        if (planState.saving) return;
+        closePlanEditor();
+        renderPlanChangeControls(planState.plan);
+        var $btn = $('#btnChangePlan');
+        if ($btn.is(':visible')) $btn.focus();
+    });
+
+    // Once the editor has closed, the control that had focus (Save) is gone: put keyboard and
+    // screen-reader users back on the plan — the "Change payment plan" button, else the line that
+    // says why the plan can't be changed — and bring the schedule into view.
+    function revealPlanArea(scroll) {
+        var section = document.getElementById('paymentScheduleSection');
+        if (!section || !$(section).is(':visible')) return;
+        if (scroll) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var target = $('#btnChangePlan').is(':visible') ? document.getElementById('btnChangePlan')
+            : ($('#planChangeReason').is(':visible') ? document.getElementById('planChangeReason') : null);
+        if (!target) return;
+        try { target.focus({ preventScroll: true }); } catch (e) { target.focus(); }
+    }
+
+    // After a successful save: re-render from the route's response (no second /track call — that
+    // costs rate limit, resets the drawer's scroll and repeats the PayFast banner).
+    async function onPlanSaved(data) {
+        closePlanEditor();
+        if (Array.isArray(data.payment_schedule) && data.payment_plan) {
+            planState.schedule = data.payment_schedule;
+            planState.plan = data.payment_plan;
+            renderPaymentSchedule(data.payment_schedule, data.payment_plan);
+        } else {
+            // The plan was saved, but the server could not read it back for this response.
+            await loadTrackingDetails();
+        }
+        if (data.unchanged) {
+            window.notificationService.showInfo('Plan Unchanged', data.message || 'Your payment plan is unchanged.');
+        } else {
+            window.notificationService.showSuccess('Payment Plan Updated', 'Your new payment plan is saved. We\'ll email you a copy.');
+        }
+        revealPlanArea(true);
+    }
+
+    $(document).on('click', '#btnSavePlan', async function() {
+        var $btn = $(this);
+        var builder = planState.changeBuilder;
+        var plan = planState.plan;
+        if (!builder || !plan || planState.saving || $btn.prop('disabled')) return;
+        if (!builder.isValid()) { builder.focusErrors(); refreshSaveBtn(); return; }
+        if (builder.isUnchanged()) { refreshSaveBtn(); return; }
+        if (!currentAccessToken) { handleTokenExpired(); return; }
+
+        var confirmed = await window.notificationService.showConfirm({
+            title: 'Save your new payment plan?',
+            message: 'Your unpaid balance will be due as follows: ' + builder.describePlan() + '. The new plan applies immediately.',
+            confirmText: 'Save plan',
+            cancelText: 'Keep editing'
+        });
+        // The editor may have been closed (drawer closed, session expired) while the dialog was open.
+        if (!confirmed || planState.changeBuilder !== builder || planState.saving) return;
+
+        var origHtml = $btn.html();
+        planState.saving = true;
+        builder.setBusy(true);
+        // Read the plan only now, with the builder locked: the cards cannot be re-ordered between
+        // this and the response, so a 400's error indices still point at the right cards.
+        var milestones = builder.getMilestones();
+        $('#btnCancelPlan').prop('disabled', true);
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving…');
+        try {
+            // bypassInterceptor: the errors are shown inline, next to the plan, not as a second toast.
+            var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/payment-plan', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: currentAccessToken, plan_version: plan.plan_version, milestones: milestones }),
+                bypassInterceptor: true
+            });
+            var data = {};
+            try { data = (await res.json()) || {}; } catch (parseErr) { data = {}; }
+
+            if (res.status === 401 || data.code === 'TOKEN_REQUIRED') { handleTokenExpired(); return; }
+            if (res.ok && data.success) { await onPlanSaved(data); return; }
+            if (res.status === 429) {
+                builder.showNotice('Too many attempts. Please wait 15 minutes and try again.');
+                return;
+            }
+            if (data.code === 'INVALID_PLAN') {
+                builder.showServerErrors(data.errors, data.message);
+                return;
+            }
+            if (data.code === 'PLAN_CHANGED') {
+                // Someone (our team, or a payment) changed the plan since it was loaded: show the
+                // current plan before the client designs against it again.
+                closePlanEditor();
+                window.notificationService.showWarning('Plan Updated Elsewhere', data.message || 'Your payment plan was updated elsewhere. Please review the latest plan and try again.');
+                await loadTrackingDetails();
+                revealPlanArea(true);
+                return;
+            }
+            if (res.status === 409 && data.code) {
+                // No longer editable (a payment is being processed, reconciliation needed, …).
+                closePlanEditor();
+                planState.plan = Object.assign({}, plan, { editable: false, reason_code: data.code, reason: data.message || null });
+                renderPlanChangeControls(planState.plan);
+                if (PLAN_REASONS_SHOWN.indexOf(data.code) === -1) $('#planChangeReason').text(data.message || 'Your payment plan can no longer be changed online.').show();
+                window.notificationService.showWarning('Payment Plan', data.message || 'Your payment plan can\'t be changed right now.');
+                revealPlanArea(false);
+                return;
+            }
+            builder.showNotice(data.message || 'We could not update your payment plan. Please try again.');
+        } catch (e) {
+            builder.showNotice('Network error. Please check your connection and try again.');
+        } finally {
+            planState.saving = false;
+            $('#btnCancelPlan').prop('disabled', false);
+            $btn.html(origHtml);
+            if (planState.changeBuilder === builder) {
+                builder.setBusy(false);
+                refreshSaveBtn();
+            }
+        }
+    });
 
     $('#trackBtn').on('click', async function() {
         var id = $('#trackId').val().trim();
@@ -2388,14 +2864,7 @@ $(document).ready(function() {
             var data = await res.json();
 
             if (data && data.code === 'TOKEN_REQUIRED') {
-                clearCachedToken(currentBookingId);
-                currentAccessToken = null;
-                $('#trackingDetails').hide();
-                $('#trackId').val(currentBookingId);
-                $('#trackEmail').val(currentBookingEmail || '');
-                $('#trackingCodeEntry').hide();
-                $('#trackingAuth').show();
-                $err.text('Your verification session expired. Please verify your booking again.').show();
+                handleTokenExpired();
                 return;
             }
 
@@ -2405,7 +2874,16 @@ $(document).ready(function() {
                 var bStatus = (b.status || '').toUpperCase();
                 var bPay = (b.payment_status || 'UNPAID').toUpperCase();
 
-                // Show payment return alert if returning from PayFast
+                // A reload replaces whatever plan UI was open: its context is now stale.
+                closePlanEditor();
+                planState.plan = data.payment_plan || null;
+                planState.schedule = Array.isArray(data.payment_schedule) ? data.payment_schedule : [];
+                planState.contract = data.contract || null;
+                planState.view = { status: bStatus, isQuotedOrActive: false, amountPaid: 0, totalScope: 0 };
+
+                // Show payment return alert if returning from PayFast (once: a reload after a plan
+                // change or an acceptance must not stack a second banner on top of the first).
+                $('#trackingDetails > .trk-return-alert').remove();
                 var payParam = urlParams.get('payment');
                 if (payParam === 'success' && urlParams.get('track') === id) {
                     $('#trackingDetails').prepend('<div class="trk-return-alert success"><i class="fa-solid fa-circle-check" style="margin-right:8px;"></i>Payment submitted! It may take a moment for verification to complete. Refresh to see the latest status.</div>');
@@ -2464,27 +2942,10 @@ $(document).ready(function() {
 
                     // Accept Quote button (when QUOTED)
                     if (bStatus === 'QUOTED') {
-                        var rawQuotePreview = b.quote_amount ? parseFloat(b.quote_amount.replace(/[^0-9.]/g, '')) : 0;
-                        // Client-selectable installment plans: only offer the choice when nothing has
-                        // been decided yet (no admin-configured plan, no prior client choice on this cycle).
-                        var hasExistingSchedule = data.payment_schedule && data.payment_schedule.length > 0;
-                        var depPct = parseFloat(data.deposit_percentage);
-                        window.depositPercentage = isNaN(depPct) ? 50 : Math.min(100, Math.max(0, depPct));
-                        var balPct = Math.round((100 - window.depositPercentage) * 100) / 100;
-                        $('#installmentSplitLabel').text(window.depositPercentage >= 100 || window.depositPercentage <= 0
-                            ? '(single payment)' : '(' + window.depositPercentage + '/' + balPct + ')');
-                        $('#installmentChoiceSection').toggle(!hasExistingSchedule);
-                        if (hasExistingSchedule) {
-                            var firstMs = data.payment_schedule.find(function(s) { return s.status !== 'paid'; });
-                            var depositPreview = firstMs ? parseFloat(firstMs.expected_amount) : Math.round(rawQuotePreview * window.depositPercentage / 100 * 100) / 100;
-                            var balancePreview = rawQuotePreview - depositPreview;
-                            $('#payPreviewDeposit').text('R ' + depositPreview.toFixed(2));
-                            $('#payPreviewBalance').text('R ' + balancePreview.toFixed(2));
-                        } else if (rawQuotePreview > 0) {
-                            window.updateInstallmentPreview(rawQuotePreview);
-                        }
+                        // Client payment plans: the client designs their plan right here (or keeps the
+                        // one our team prepared), all from payment_plan.context.
                         $('#chkTermsAgree').prop('checked', false);
-                        $('#acceptQuoteBtn').prop('disabled', true).css({ opacity: '0.4', cursor: 'not-allowed' });
+                        setupAcceptPlan(data);
                         $('#revisionRequestForm').hide();
                         $('#btnRequestRevision').show();
                         // Show VAT field for company bookings; pre-fill if already stored
@@ -2497,6 +2958,7 @@ $(document).ready(function() {
                         }
                         $('#acceptQuoteSection').show();
                     } else {
+                        destroyAcceptPlan();
                         $('#acceptQuoteSection').hide();
                     }
 
@@ -2518,6 +2980,7 @@ $(document).ready(function() {
                     } else {
                         $('#financialLedger').hide();
                     }
+                    planState.view = { status: bStatus, isQuotedOrActive: isQuotedOrActive, amountPaid: amountPaid, totalScope: totalScope };
 
                     // Payment Buttons visibility logic tied to Ledger Engine
                     if (amountPaid >= totalScope && totalScope > 0) {
@@ -2555,6 +3018,7 @@ $(document).ready(function() {
                 } else {
                     $('#quoteSection').hide();
                     $('#financialLedger').hide();
+                    destroyAcceptPlan();
                     $('#acceptQuoteSection').hide();
                     $('#paymentSection').hide();
                     $('#paymentSuccess').hide();
@@ -2605,34 +3069,6 @@ $(document).ready(function() {
                     $('#quotePdfSection').hide();
                 }
 
-                // Payment schedule display (S4-2)
-                if (isQuotedOrActive && data.payment_schedule && data.payment_schedule.length > 0) {
-                    var schedRows = data.payment_schedule.map(function(s) {
-                        var isPaid = s.status === 'paid';
-                        var isOverdue = !isPaid && s.due_date < new Date().toISOString().slice(0, 10);
-                        var statusStyle = isPaid ? 'color:var(--success);' : isOverdue ? 'color:var(--error);' : 'color:var(--text-muted);';
-                        var statusLabel = isPaid ? '&#10003; Paid' : isOverdue ? 'Overdue' : 'Pending';
-                        return '<tr>' +
-                            '<td style="padding:8px 10px;border-bottom:1px solid var(--border-low);color:var(--text-secondary);font-size:12px;">' + s.description + '</td>' +
-                            '<td style="padding:8px 10px;border-bottom:1px solid var(--border-low);color:var(--text-secondary);font-size:12px;">' + s.due_date + '</td>' +
-                            '<td style="padding:8px 10px;border-bottom:1px solid var(--border-low);color:var(--y-base);font-size:12px;font-weight:600;">R ' + parseFloat(s.expected_amount).toFixed(2) + '</td>' +
-                            '<td style="padding:8px 10px;border-bottom:1px solid var(--border-low);font-size:12px;' + statusStyle + '">' + statusLabel + '</td>' +
-                            '</tr>';
-                    }).join('');
-                    $('#paymentScheduleBody').html(
-                        '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">' +
-                        '<thead><tr style="background:var(--bg-surface);">' +
-                        '<th style="padding:8px 10px;text-align:left;color:var(--y-base);font-size:10px;text-transform:uppercase;letter-spacing:.8px;">Item</th>' +
-                        '<th style="padding:8px 10px;text-align:left;color:var(--y-base);font-size:10px;text-transform:uppercase;letter-spacing:.8px;">Due Date</th>' +
-                        '<th style="padding:8px 10px;text-align:left;color:var(--y-base);font-size:10px;text-transform:uppercase;letter-spacing:.8px;">Amount</th>' +
-                        '<th style="padding:8px 10px;text-align:left;color:var(--y-base);font-size:10px;text-transform:uppercase;letter-spacing:.8px;">Status</th>' +
-                        '</tr></thead><tbody>' + schedRows + '</tbody></table>'
-                    );
-                    $('#paymentScheduleSection').show();
-                } else {
-                    $('#paymentScheduleSection').hide();
-                }
-
                 // Cancelled / Completed / Expired notices
                 $('#cancelledNotice').hide();
                 $('#cancelledRefundInfo').hide();
@@ -2668,39 +3104,10 @@ $(document).ready(function() {
                     $('#clientCancelSection').hide();
                 }
 
-                // Payment schedule — client-selectable installment plans: the earliest unpaid row
-                // gets its own "Pay Now" action (data-schedule-id), so each installment can be paid
-                // separately as it comes due rather than only ever DEPOSIT-then-everything-else.
-                // Later unpaid rows show no action — locked until their turn (strict due-order,
+                // Payment schedule (+ the "Change payment plan" controls). The earliest unpaid row
+                // gets its own "Pay Now" action; later rows wait their turn (strict due order,
                 // matching /pay's own server-side enforcement).
-                var sched = data.payment_schedule || [];
-                var payableCanPay = ['ACCEPTED', 'CONFIRMED'].includes(bStatus);
-                var nextPayableFound = false;
-                if (sched.length > 0) {
-                    var schedHtml = '<table style="width:100%;font-size:12px;color:var(--text-secondary);border-collapse:collapse;">';
-                    sched.forEach(function(s) {
-                        var sc = s.status === 'paid' ? 'var(--success)' : s.status === 'overdue' ? 'var(--error)' : 'var(--text-secondary)';
-                        var actionCell = '';
-                        if (payableCanPay && s.status !== 'paid' && !nextPayableFound) {
-                            nextPayableFound = true;
-                            actionCell = '<button class="pay-btn" data-schedule-id="' + s.id + '" style="background:var(--y-base);color:var(--text-inverse);border:none;border-radius:3px;padding:5px 10px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap;">Pay Now</button>';
-                        }
-                        schedHtml += '<tr style="border-bottom:1px solid rgba(255,255,255,0.05);">'
-                            + '<td style="padding:6px 0;">' + (s.description || '—') + '</td>'
-                            + '<td style="padding:6px 8px;white-space:nowrap;">' + (s.due_date || '—') + '</td>'
-                            + '<td style="text-align:right;color:var(--y-base);font-weight:700;padding:6px 0;white-space:nowrap;">R ' + parseFloat(s.expected_amount||0).toFixed(2) + '</td>'
-                            + '<td style="text-align:right;color:' + sc + ';font-size:11px;padding:6px 0 6px 8px;text-transform:uppercase;">' + (s.status || 'pending') + '</td>'
-                            + '<td style="text-align:right;padding:6px 0 6px 8px;">' + actionCell + '</td>'
-                            + '</tr>';
-                    });
-                    schedHtml += '</table>';
-                    $('#paymentScheduleBody').html(schedHtml);
-                    $('#paymentScheduleSection').show();
-                    // A schedule exists — the static DEPOSIT/FULL buttons below are superseded by
-                    // the per-row "Pay Now" actions above; they stay as the fallback only for the
-                    // pre-existing edge case of a booking with no schedule rows at all.
-                    if (payableCanPay && amountPaid < totalScope) $('#paymentSection').hide();
-                }
+                renderPaymentSchedule(data.payment_schedule, data.payment_plan);
 
                 $('#trackingDetails').hide().fadeIn(300);
 
@@ -2717,11 +3124,19 @@ $(document).ready(function() {
                     }, 300);
                 }
             } else {
+                // Also hide the details: a failed reload (e.g. the track rate limit after a plan
+                // change) must not leave the lookup screen and a stale booking both on show.
+                closePlanEditor();
+                destroyAcceptPlan();
+                $('#trackingDetails').hide();
                 $err.text(data.message || 'Booking not found.').show();
                 $('#trackingCodeEntry').hide();
                 $('#trackingAuth').show();
             }
         } catch (e) {
+            closePlanEditor();
+            destroyAcceptPlan();
+            $('#trackingDetails').hide();
             $err.text('Network error. Please ensure the server is running.').show();
             $('#trackingCodeEntry').hide();
             $('#trackingAuth').show();
@@ -2770,40 +3185,17 @@ $(document).ready(function() {
         }
     });
 
-    // Client-selectable installment plans: recompute the "Next Milestone" / "Remaining Balance"
-    // preview for whichever plan is currently selected. Only used pre-acceptance, when no real
-    // schedule exists yet — matches the deposit/balance or 30/30/40 split autoBuildDepositBalanceSchedule() will
-    // actually build server-side (lib/invoicing.js) so the preview never lies about what's coming.
-    window.updateInstallmentPreview = function(rawQuotePreview) {
-        var count = parseInt($('input[name="installmentChoice"]:checked').val(), 10) || 2;
-        var firstAmt, restAmt;
-        if (count === 3) {
-            firstAmt = Math.round(rawQuotePreview * 0.30 * 100) / 100;
-            restAmt = Math.round((rawQuotePreview - firstAmt) * 100) / 100;
-        } else {
-            // Deposit-percentage policy, as sent by the tracking endpoint; 0% means the whole
-            // amount is one payment on the balance date, so the next milestone is the full amount.
-            var pct = typeof window.depositPercentage === 'number' ? window.depositPercentage : 50;
-            firstAmt = Math.round(rawQuotePreview * (pct <= 0 ? 100 : pct) / 100 * 100) / 100;
-            restAmt = Math.round((rawQuotePreview - firstAmt) * 100) / 100;
-        }
-        $('#payPreviewDeposit').text('R ' + firstAmt.toFixed(2));
-        $('#payPreviewBalance').text('R ' + restAmt.toFixed(2));
-    };
-    $(document).on('change', 'input[name="installmentChoice"]', function() {
-        var rawQuotePreview = ($('#tdQuoteAmount').text() || '').replace(/[^0-9.]/g, '');
-        if (rawQuotePreview) window.updateInstallmentPreview(parseFloat(rawQuotePreview));
+    // S3-4: the Accept button needs the terms ticked AND, when the client is designing their own
+    // plan, a plan that passes every rule (refreshAcceptBtn).
+    $(document).on('change', '#chkTermsAgree', function() {
+        refreshAcceptBtn();
     });
 
-    // S3-4: Terms checkbox enables/disables accept button
-    $(document).on('change', '#chkTermsAgree', function() {
-        var checked = $(this).is(':checked');
-        $('#acceptQuoteBtn').prop('disabled', !checked).css({ opacity: checked ? '1' : '0.4', cursor: checked ? 'pointer' : 'not-allowed' });
-    });
+    var ACCEPT_BTN_HTML = '<i class="fa-solid fa-handshake"></i>Accept Quote';
 
     $(document).on('click', '#acceptQuoteBtn', async function() {
         var $btn = $(this);
-        if ($btn.prop('disabled')) return;
+        if ($btn.prop('disabled') || planState.accepting || planState.accepted) return;
         if (!currentAccessToken) { window.notificationService.showWarning('Session Expired', 'Please re-enter your booking details.'); return; }
         if (!$('#chkTermsAgree').is(':checked')) {
             window.notificationService.showWarning('Terms Required', 'Please agree to the Terms and Conditions before accepting.');
@@ -2822,31 +3214,65 @@ $(document).ready(function() {
             }
         }
 
+        // The client's own plan, when they used the builder. Not sent when the builder is closed
+        // (the plan our team prepared is kept, or the server builds the default one) or when it
+        // still matches the prepared plan exactly.
+        var builder = planState.acceptOpen ? planState.acceptBuilder : null;
+        if (planState.acceptOpen && (!builder || !builder.isValid())) {
+            if (builder) builder.focusErrors();
+            refreshAcceptBtn();
+            return;
+        }
+
+        planState.accepting = true;
+        if (builder) builder.setBusy(true);
+        $('#btnTogglePlanBuilder').prop('disabled', true);
         $btn.prop('disabled', true).css({ opacity: '0.7', cursor: 'not-allowed' }).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Accepting...');
         try {
             var acceptBody = { access_token: currentAccessToken, terms_agreed: true, vat_number: $('#acceptVatNumber').val().trim() || null };
-            if ($('#installmentChoiceSection').is(':visible')) {
-                acceptBody.installment_count = parseInt($('input[name="installmentChoice"]:checked').val(), 10);
-            }
+            if (builder && !builder.isUnchanged()) acceptBody.milestones = builder.getMilestones();
+            // bypassInterceptor: errors are shown here (plan errors inline next to the plan), not
+            // also as the interceptor's generic toast.
             var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/accept-quote', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(acceptBody)
+                body: JSON.stringify(acceptBody),
+                bypassInterceptor: true
             });
-            var data = await res.json();
-            if (data.success) {
-                setStatusBadge('ACCEPTED');
-                setTimeline('ACCEPTED');
+            var data = {};
+            try { data = (await res.json()) || {}; } catch (parseErr) { data = {}; }
+
+            if (res.status === 401 || data.code === 'TOKEN_REQUIRED') { handleTokenExpired(); return; }
+            if (res.ok && data.success) {
+                planState.accepted = true;
+                var newStatus = String(data.newStatus || 'ACCEPTED').toUpperCase();
+                setStatusBadge(newStatus);
+                setTimeline(newStatus);
                 $('#acceptQuoteSection').fadeOut(200);
-                window.notificationService.showSuccess('Quote Accepted', 'Your invoice and payment schedule have been emailed to you.');
+                window.notificationService.showSuccess('Quote Accepted', data.invoice_generated === false
+                    ? (data.message || 'Quote accepted. Our team will be in touch shortly with your invoice details.')
+                    : 'Your invoice and payment schedule have been emailed to you.');
                 setTimeout(loadTrackingDetails, 500);
-            } else {
-                window.notificationService.showError('Error', data.message || 'Failed to accept quote.');
-                $btn.prop('disabled', false).css({ opacity: '1', cursor: 'pointer' }).html('<i class="fa-solid fa-handshake" style="margin-right:6px;"></i>Accept Quote');
+                return;
             }
+            if (res.status === 429) {
+                window.notificationService.showWarning('Too Many Attempts', 'Too many attempts. Please wait 15 minutes or contact support.');
+                return;
+            }
+            if (data.code === 'INVALID_PLAN' && builder && planState.acceptBuilder === builder) {
+                builder.showServerErrors(data.errors, data.message);
+                return;
+            }
+            window.notificationService.showError('Error', data.message || 'Failed to accept quote.');
         } catch (e) {
             window.notificationService.showError('Network Error', 'Please check your connection and try again.');
-            $btn.prop('disabled', false).css({ opacity: '1', cursor: 'pointer' }).html('<i class="fa-solid fa-handshake" style="margin-right:6px;"></i>Accept Quote');
+        } finally {
+            planState.accepting = false;
+            $('#btnTogglePlanBuilder').prop('disabled', false);
+            $btn.html(ACCEPT_BTN_HTML);
+            if (builder && planState.acceptBuilder === builder) builder.setBusy(false);
+            if (planState.accepted) $btn.prop('disabled', true).css({ opacity: '0.4', cursor: 'not-allowed' });
+            else refreshAcceptBtn();
         }
     });
 
@@ -2999,6 +3425,22 @@ $(document).ready(function() {
         $('#trackCodeError').hide().text('');
         $('.pay-btn').prop('disabled', false);
         $('.trk-return-alert').remove();
+        // Client payment plans: drop both builders and everything they were built from, so unsaved
+        // edits never resurface on the next booking looked up in this drawer.
+        closePlanEditor();
+        destroyAcceptPlan();
+        $('#paymentScheduleBody').empty();
+        $('#btnChangePlan').hide();
+        $('#planChangeReason').hide().text('');
+        $('#chkTermsAgree').prop('checked', false);
+        $('#acceptQuoteBtn').html(ACCEPT_BTN_HTML).prop('disabled', true).css({ opacity: '0.4', cursor: 'not-allowed' });
+        planState.view = null;
+        planState.plan = null;
+        planState.schedule = [];
+        planState.contract = null;
+        planState.accepting = false;
+        planState.accepted = false;
+        planState.saving = false;
         currentAccessToken = null;
         pendingBookingId = null;
         pendingEmail = null;
