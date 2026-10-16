@@ -28,7 +28,7 @@ const { generatePayFastSignature } = require('../../lib/payfast-signature');
 const {
     syncBookingToCalendar, checkDateAvailability, hasCalendarConflict, isWithinWorkingHours
 } = require('../../lib/calendar-sync');
-const { autoBuildDepositBalanceSchedule, generateInvoice } = require('../../lib/invoicing');
+const { autoBuildDepositBalanceSchedule, generateInvoice, getDepositPercentage } = require('../../lib/invoicing');
 const { generateContract } = require('../../lib/contracts');
 const { dbGet, dbRun } = require('../../lib/db-helpers');
 // Phase 5: MUST stay the exact same singleton module.exports app.js and every other route file
@@ -335,7 +335,10 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                         WHERE bs.booking_id = ?`, [row.id], (e3, services) => {
                     getQuoteVersionInfoForTracking(row.id, (qvErr, qv) => {
                             getCancellationSummaryForTracking(row.id, (cErr, cancRow) => {
-                                    db.get("SELECT pdf_url, status, sent_to_client_at, signed_by_client_at, signed_by_comedian_at, is_frozen FROM contracts WHERE booking_id = ?", [row.id], (contractErr, contractRow) => {
+                                    db.get("SELECT pdf_url, status, sent_to_client_at, signed_by_client_at, signed_by_comedian_at, is_frozen FROM contracts WHERE booking_id = ?", [row.id], async (contractErr, contractRow) => {
+                                        // Lets the pre-acceptance payment preview show the same deposit/balance
+                                        // split autoBuildDepositBalanceSchedule() will build.
+                                        const depositPercentage = await getDepositPercentage();
                                         // SEC: build the public payload from an explicit allowlist rather than
                                         // spreading the full `bookings` row and denylisting a few gateway fields.
                                         // The denylist previously missed `admin_notes` — a free-text field admins
@@ -366,6 +369,7 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                             booking: publicBooking,
                                             invoice: inv || null,
                                             payment_schedule: schedule || [],
+                                            deposit_percentage: depositPercentage,
                                             services: services || [],
                                             quote_version: qv ? qv.version : null,
                                             quote_version_count: qv ? qv.total_versions : 0,
@@ -1092,7 +1096,7 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
                         VALUES ('bookings', ?, 'QUOTE_ACCEPTED', ?, ?, CURRENT_TIMESTAMP, ?)`,
                     [bookingId, JSON.stringify({ accepted_by: email, ip: clientIp, amount: row.quote_amount }), email, clientIp]);
 
-                // Auto-create the default 50/50 split only when there is no LIVE UNPAID plan.
+                // Auto-create the default deposit/balance split only when there is no LIVE UNPAID plan.
                 // F3: both rows must exist before generateInvoice() reads payment_schedules for the PDF.
                 //
                 // A surviving PAID row must NOT suppress creation. Re-quoting an ACCEPTED booking

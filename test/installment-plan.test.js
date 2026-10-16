@@ -87,7 +87,7 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, getTr
     const finalRows = await q('SELECT status FROM payment_schedules WHERE booking_id=? ORDER BY sequence ASC', [id]);
     check('all 3 rows marked paid', finalRows.every(r => r.status === 'paid'), JSON.stringify(finalRows));
 
-    // ── 2-way plan (the default) stays byte-identical to pre-feature behaviour ──
+    // ── 2-way plan (the default, at the default 50% deposit policy) ──
     const em2 = email();
     const created2 = await api('POST', '/api/admin/bookings', {
         name: 'Installments IT 2way', email: em2, cell: '+27821234567', event_date: future(955),
@@ -114,4 +114,41 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, getTr
         && Math.abs(parseFloat(rows2[1].expected_amount) - 500) < 0.01
         && rows2.every(r => r.source === 'client'),
         JSON.stringify(rows2));
+
+    // ── 2-way plan follows the Booking Policies deposit percentage ──
+    const prevPolicy = await one("SELECT policy_value FROM policies WHERE policy_key='deposit_percentage'");
+    await api('PUT', '/api/admin/policies', { policies: { deposit_percentage: '30' } });
+    try {
+        const em3 = email();
+        const created3 = await api('POST', '/api/admin/bookings', {
+            name: 'Installments IT 30pct', email: em3, cell: '+27821234567', event_date: future(960),
+            event_name: 'Installments Event 3', event_type: 'Corporate', event_location: 'Test Hall',
+            message: 'Integration-test booking, over ten characters.',
+            services: [{ service_id: SVC }], status: 'NEW', override_working_hours: true,
+        });
+        const id3 = created3.body && created3.body.booking_id;
+        await sleep(50);
+        const bk3 = await one('SELECT date FROM bookings WHERE id=?', [id3]);
+        const expiry3 = new Date(Date.parse(bk3.date) - 10 * 86400000).toISOString().slice(0, 10);
+        await api('POST', `/api/admin/bookings/${id3}/quote`, {
+            quote_expiry_date: expiry3, terms: 'T', apply_vat: false, discount: 0,
+            items: [{ service_id: SVC, description: 'Travel Buyout – Gauteng', quantity: 1, unit_price: AMOUNT }],
+        });
+        const token3 = await getTrackingToken(id3, em3);
+        const trackRes = await pub('POST', `/api/public/bookings/${id3}/track`, { access_token: token3 });
+        check('tracking returns deposit_percentage from policy', trackRes.body && trackRes.body.deposit_percentage === 30, JSON.stringify(trackRes.body && trackRes.body.deposit_percentage));
+        const accept3Res = await pub('POST', `/api/public/bookings/${id3}/accept-quote`, { access_token: token3, terms_agreed: true, installment_count: 2 });
+        check('accept-quote at 30% deposit policy -> 200', accept3Res.status === 200, JSON.stringify(accept3Res.body));
+        await sleep(100);
+        const rows3 = await q('SELECT description, expected_amount FROM payment_schedules WHERE booking_id=? ORDER BY sequence ASC', [id3]);
+        check('30% policy -> 2 rows, 30/70 split', rows3.length === 2
+            && Math.abs(parseFloat(rows3[0].expected_amount) - 300) < 0.01
+            && Math.abs(parseFloat(rows3[1].expected_amount) - 700) < 0.01,
+            JSON.stringify(rows3));
+        check('30% policy -> labels match the split', rows3.length === 2
+            && rows3[0].description === '30% Deposit' && rows3[1].description === '70% Balance',
+            JSON.stringify(rows3.map(r => r.description)));
+    } finally {
+        await api('PUT', '/api/admin/policies', { policies: { deposit_percentage: (prevPolicy && prevPolicy.policy_value) || '50' } });
+    }
 };
