@@ -12,7 +12,31 @@ const { getEmailFooterContext } = require('../../lib/email-context');
 const { sanitizeAboutHtml } = require('../../lib/html-sanitize');
 const { scheduledJobs } = require('../../lib/newsletter-scheduling');
 const { scheduleDirectEmailSend, sendDirectEmail } = require('../../lib/direct-emails');
+const { cleanAddressList } = require('../../lib/contact-validation');
+const { decodeStoredText } = require('../../lib/html-sanitize');
 const router = express.Router();
+
+const dbGet = (sql, params = []) => new Promise((resolve, reject) => db.get(sql, params, (e, r) => e ? reject(e) : resolve(r)));
+
+// Every address that reaches the mail server is validated HERE, whatever the composer sent: each entry must be exactly one mailbox address
+// (no lists inside an entry, no display names, no line breaks). For a reply to an inquiry the recipient is not up to the browser at all: it is
+// the inquiry's own sender. Returns { to, cc, bcc, replyTo } (plain, decoded) or { error }.
+function buildRecipients({ inquiry, to, cc, bcc, replyTo }) {
+    const toR = inquiry ? { ok: true, list: [decodeStoredText(inquiry.sender_email)] } : cleanAddressList(to);
+    if (!toR.ok) return { error: toR.error };
+    if (!toR.list.length) return { error: 'Recipient and body are required.' };
+    const ccR = cleanAddressList(cc), bccR = cleanAddressList(bcc);
+    if (!ccR.ok) return { error: ccR.error };
+    if (!bccR.ok) return { error: bccR.error };
+    if (toR.list.length + ccR.list.length + bccR.list.length > 20) return { error: 'Too many recipients (maximum 20).' };
+    let rt = null;
+    if (replyTo) {
+        const r = cleanAddressList([replyTo]);
+        if (!r.ok) return { error: 'The Reply-To address is not a valid email address.' };
+        rt = r.list[0];
+    }
+    return { to: toR.list, cc: ccR.list, bcc: bccR.list, replyTo: rt };
+}
 
 // Attachment upload for direct emails
 router.post('/api/admin/direct-emails/upload', requireAdmin, emailAttachUpload.single('file'), (req, res) => {
@@ -73,80 +97,101 @@ router.get('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
 });
 
 // Create draft or scheduled direct email
-router.post('/api/admin/direct-emails', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
-    const { inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body: rawBody, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
-    // Quill's HTML arrives unescaped (RAW_HTML_BODY_FIELDS in app.js) - strip scripts/handlers instead.
-    const body = sanitizeAboutHtml(rawBody);
-    
-    if (!to_emails || !body) {
-        return res.status(400).json({ error: 'Recipient and body are required.' });
-    }
+router.post('/api/admin/direct-emails', requireAdmin, requireRoleForInquiryEmail, async (req, res) => {
+    try {
+        const { inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body: rawBody, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
+        // Quill's HTML arrives unescaped (RAW_HTML_BODY_FIELDS in app.js) - strip scripts/handlers instead.
+        const body = sanitizeAboutHtml(rawBody);
+        if (!body) return res.status(400).json({ error: 'Recipient and body are required.' });
 
-    const emailStatus = status === 'scheduled' ? 'scheduled' : 'draft';
-    const cleanTo = Array.isArray(to_emails) ? JSON.stringify(to_emails) : JSON.stringify([to_emails]);
-    const cleanCc = cc_emails ? (Array.isArray(cc_emails) ? JSON.stringify(cc_emails) : JSON.stringify([cc_emails])) : '[]';
-    const cleanBcc = bcc_emails ? (Array.isArray(bcc_emails) ? JSON.stringify(bcc_emails) : JSON.stringify([bcc_emails])) : '[]';
-    const cleanAttachments = attachment_paths ? (typeof attachment_paths === 'string' ? attachment_paths : JSON.stringify(attachment_paths)) : '[]';
-
-    db.run(
-        `INSERT INTO direct_emails (inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [inquiry_id || null, cleanTo, cleanCc, cleanBcc, reply_to || null, subject || '', body, branding_option || 'logo', selected_banner_url || null, cleanAttachments, scheduled_at || null, emailStatus],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            const newId = this.lastID;
-            
-            db.get("SELECT * FROM direct_emails WHERE id = ?", [newId], (err2, row) => {
-                if (err2 || !row) return res.json({ success: true, id: newId });
-                if (row.status === 'scheduled') {
-                    scheduleDirectEmailSend(row);
-                }
-                res.json({ success: true, email: row });
-            });
+        // A reply must belong to a REAL inquiry (a forged or stale id is refused) and then goes to that inquiry's sender, whatever the request says.
+        let inquiry = null;
+        if (inquiry_id !== undefined && inquiry_id !== null && inquiry_id !== '') {
+            const inquiryId = Number(inquiry_id);
+            if (!Number.isInteger(inquiryId) || inquiryId < 1) return res.status(400).json({ error: 'Invalid inquiry.' });
+            inquiry = await dbGet('SELECT inquiry_id, sender_email FROM inquiries WHERE inquiry_id = ?', [inquiryId]);
+            if (!inquiry) return res.status(404).json({ error: 'That inquiry does not exist.' });
         }
-    );
+        const rec = buildRecipients({ inquiry, to: to_emails, cc: cc_emails, bcc: bcc_emails, replyTo: reply_to });
+        if (rec.error) return res.status(400).json({ error: rec.error });
+
+        const emailStatus = status === 'scheduled' ? 'scheduled' : 'draft';
+        const cleanAttachments = attachment_paths ? (typeof attachment_paths === 'string' ? attachment_paths : JSON.stringify(attachment_paths)) : '[]';
+        const cleanSubject = String(subject || '').replace(/[\r\n]+/g, ' ').trim();
+
+        db.run(
+            `INSERT INTO direct_emails (inquiry_id, to_emails, cc_emails, bcc_emails, reply_to, subject, body, branding_option, selected_banner_url, attachment_paths, scheduled_at, status, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [inquiry ? inquiry.inquiry_id : null, JSON.stringify(rec.to), JSON.stringify(rec.cc), JSON.stringify(rec.bcc), rec.replyTo, cleanSubject, body, branding_option || 'logo', selected_banner_url || null, cleanAttachments, scheduled_at || null, emailStatus, req.session.adminId || null],
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+                const newId = this.lastID;
+
+                db.get("SELECT * FROM direct_emails WHERE id = ?", [newId], (err2, row) => {
+                    if (err2 || !row) return res.json({ success: true, id: newId });
+                    if (row.status === 'scheduled') {
+                        scheduleDirectEmailSend(row);
+                    }
+                    res.json({ success: true, email: row });
+                });
+            }
+        );
+    } catch (e) {
+        console.error('direct-emails create failed:', e.message);
+        res.status(500).json({ error: 'The message could not be saved.' });
+    }
 });
 
 // Update draft or scheduled direct email
-router.put('/api/admin/direct-emails/:id', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
-    const { to_emails, cc_emails, bcc_emails, reply_to, subject, body: rawBody, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
-    const body = sanitizeAboutHtml(rawBody);
-    const { id } = req.params;
+router.put('/api/admin/direct-emails/:id', requireAdmin, requireRoleForInquiryEmail, async (req, res) => {
+    try {
+        const { to_emails, cc_emails, bcc_emails, reply_to, subject, body: rawBody, branding_option, selected_banner_url, attachment_paths, scheduled_at, status } = req.body;
+        const body = sanitizeAboutHtml(rawBody);
+        const { id } = req.params;
+        if (!body) return res.status(400).json({ error: 'Recipient and body are required.' });
 
-    if (!to_emails || !body) {
-        return res.status(400).json({ error: 'Recipient and body are required.' });
-    }
+        const existing = await dbGet('SELECT id, inquiry_id, status FROM direct_emails WHERE id = ?', [id]);
+        if (!existing) return res.status(404).json({ error: 'Email item not found' });
+        // Once handed to the outbox it is history: editing and re-saving it as a draft would let it be sent a second time.
+        if (existing.status === 'sent') return res.status(409).json({ error: 'This message has already been sent.' });
 
-    const emailStatus = status === 'scheduled' ? 'scheduled' : 'draft';
-    const cleanTo = Array.isArray(to_emails) ? JSON.stringify(to_emails) : JSON.stringify([to_emails]);
-    const cleanCc = cc_emails ? (Array.isArray(cc_emails) ? JSON.stringify(cc_emails) : JSON.stringify([cc_emails])) : '[]';
-    const cleanBcc = bcc_emails ? (Array.isArray(bcc_emails) ? JSON.stringify(bcc_emails) : JSON.stringify([bcc_emails])) : '[]';
-    const cleanAttachments = attachment_paths ? (typeof attachment_paths === 'string' ? attachment_paths : JSON.stringify(attachment_paths)) : '[]';
+        // inquiry_id never changes after creation (it is not read from the request); an inquiry reply keeps going to that inquiry's sender.
+        const inquiry = existing.inquiry_id ? await dbGet('SELECT inquiry_id, sender_email FROM inquiries WHERE inquiry_id = ?', [existing.inquiry_id]) : null;
+        const rec = buildRecipients({ inquiry, to: to_emails, cc: cc_emails, bcc: bcc_emails, replyTo: reply_to });
+        if (rec.error) return res.status(400).json({ error: rec.error });
 
-    // Cancel existing schedule if there is one
-    const jobKey = `direct_${id}`;
-    if (scheduledJobs[jobKey]) {
-        scheduledJobs[jobKey].cancel();
-        delete scheduledJobs[jobKey];
-    }
+        const emailStatus = status === 'scheduled' ? 'scheduled' : 'draft';
+        const cleanAttachments = attachment_paths ? (typeof attachment_paths === 'string' ? attachment_paths : JSON.stringify(attachment_paths)) : '[]';
+        const cleanSubject = String(subject || '').replace(/[\r\n]+/g, ' ').trim();
 
-    db.run(
-        `UPDATE direct_emails 
-         SET to_emails = ?, cc_emails = ?, bcc_emails = ?, reply_to = ?, subject = ?, body = ?, branding_option = ?, selected_banner_url = ?, attachment_paths = ?, scheduled_at = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [cleanTo, cleanCc, cleanBcc, reply_to || null, subject || '', body, branding_option || 'logo', selected_banner_url || null, cleanAttachments, scheduled_at || null, emailStatus, id],
-        function(err) {
-            if (err) return res.status(500).json({ error: err.message });
-            
-            db.get("SELECT * FROM direct_emails WHERE id = ?", [id], (err2, row) => {
-                if (err2 || !row) return res.json({ success: true });
-                if (row.status === 'scheduled') {
-                    scheduleDirectEmailSend(row);
-                }
-                res.json({ success: true, email: row });
-            });
+        // Cancel existing schedule if there is one
+        const jobKey = `direct_${id}`;
+        if (scheduledJobs[jobKey]) {
+            scheduledJobs[jobKey].cancel();
+            delete scheduledJobs[jobKey];
         }
-    );
+
+        db.run(
+            `UPDATE direct_emails
+             SET to_emails = ?, cc_emails = ?, bcc_emails = ?, reply_to = ?, subject = ?, body = ?, branding_option = ?, selected_banner_url = ?, attachment_paths = ?, scheduled_at = ?, status = ?, updated_at = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [JSON.stringify(rec.to), JSON.stringify(rec.cc), JSON.stringify(rec.bcc), rec.replyTo, cleanSubject, body, branding_option || 'logo', selected_banner_url || null, cleanAttachments, scheduled_at || null, emailStatus, id],
+            function(err) {
+                if (err) return res.status(500).json({ error: err.message });
+
+                db.get("SELECT * FROM direct_emails WHERE id = ?", [id], (err2, row) => {
+                    if (err2 || !row) return res.json({ success: true });
+                    if (row.status === 'scheduled') {
+                        scheduleDirectEmailSend(row);
+                    }
+                    res.json({ success: true, email: row });
+                });
+            }
+        );
+    } catch (e) {
+        console.error('direct-emails update failed:', e.message);
+        res.status(500).json({ error: 'The message could not be saved.' });
+    }
 });
 
 // Delete draft or cancel scheduled email
@@ -177,10 +222,11 @@ router.delete('/api/admin/direct-emails/:id', requireAdmin, (req, res) => {
     });
 });
 
-// Send direct email immediately
+// Send direct email immediately. "Sent" = handed to the outbox: the response says QUEUED, and for an inquiry reply the conversation
+// (GET /api/admin/inquiries/:id/messages) shows whether Microsoft 365 then accepted or refused it.
 router.post('/api/admin/direct-emails/:id/send', requireAdmin, requireRoleForInquiryEmail, (req, res) => {
     const { id } = req.params;
-    
+
     // Cancel schedule job if it exists
     const jobKey = `direct_${id}`;
     if (scheduledJobs[jobKey]) {
@@ -188,9 +234,14 @@ router.post('/api/admin/direct-emails/:id/send', requireAdmin, requireRoleForInq
         delete scheduledJobs[jobKey];
     }
 
-    sendDirectEmail(id)
-        .then(() => res.json({ success: true, message: 'Message sending initiated.' }))
-        .catch(e => res.status(500).json({ error: e.message }));
+    db.get('SELECT status FROM direct_emails WHERE id = ?', [id], (err, row) => {
+        if (err) return res.status(500).json({ error: err.message });
+        if (!row) return res.status(404).json({ error: 'Email item not found' });
+        if (row.status === 'sent') return res.status(409).json({ error: 'This message has already been sent.' });
+        sendDirectEmail(id, { id: req.session.adminId })
+            .then(() => res.json({ success: true, queued: true, message: 'Message queued for delivery.' }))
+            .catch(e => res.status(/already being sent/i.test(e.message) ? 409 : 500).json({ error: e.message }));
+    });
 });
 
 // Preview direct email html

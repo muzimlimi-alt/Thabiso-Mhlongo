@@ -9,6 +9,10 @@ try { rateLimit = require('express-rate-limit'); } catch(e) { rateLimit = null; 
 // Rate limiter for public booking submissions (5 per 15 minutes per IP)
 const bookingRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { success: false, message: 'Too many booking submissions from this device. Please wait 15 minutes and try again.' } }) : (req, res, next) => next();
 
+// Public Contact form (POST /send-email): its own budget, so a visitor's messages and a client's booking submissions do not use each other up.
+// Bypassed under NODE_ENV=test like its siblings; the per-address / duplicate rules in lib/contact-intake.js are DB-based and tested directly.
+const contactRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { success: false, message: 'Too many messages from this device. Please wait 15 minutes and try again, or contact us directly.' } }) : (req, res, next) => next();
+
 // Limits exports/sitemaps to prevent resource exhaustion
 const exportRateLimiter = rateLimit ? rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
@@ -188,7 +192,7 @@ const payfastItnRateLimiter = rateLimit ? rateLimit({
 }) : (req, res, next) => next();
 
 module.exports = {
-    bookingRateLimiter, exportRateLimiter, sitemapRateLimiter, trackRateLimiter,
+    bookingRateLimiter, contactRateLimiter, exportRateLimiter, sitemapRateLimiter, trackRateLimiter,
     otpRequestRateLimiter, mutateRateLimiter, adminRateLimiter, adminLoginRateLimiter,
     lookupRateLimiter, analyticsTrackLimiter, ipRateLimiter,
     PAYFAST_VALID_IPS, payfastItnRateLimiter,

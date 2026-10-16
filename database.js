@@ -179,6 +179,9 @@ function initializeDatabase() {
         db.run("ALTER TABLE inquiries ADD COLUMN updated_by INTEGER REFERENCES admins(id)", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.updated_by already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN updated_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.updated_at already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN updated_by_role TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.updated_by_role already exists or error: " + err.message); });
+        // Where the inquiry came from: 'web_form' (the Contact section; also what NULL on older rows means) or 'email' (a message that reached the
+        // booking mailbox with no inquiry to attach to - see lib/inbox-sync.js).
+        db.run("ALTER TABLE inquiries ADD COLUMN source TEXT DEFAULT 'web_form'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.source already exists or error: " + err.message); });
 
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_submitted_at ON inquiries(submitted_at)`);
@@ -1344,6 +1347,64 @@ function initializeDatabase() {
         )`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiry_notes_inquiry ON inquiry_notes(inquiry_id)`);
 
+        // The conversation on an inquiry, one row per e-mail: the admin's replies (direction 'out', each tied to its outbox row so the delivery state
+        // is the truth about THAT message) and the customer's answers read from the booking mailbox (direction 'in'). The original web-form message
+        // is the inquiries row itself. delivery_status: queued -> attempted (a try failed, it will retry) -> accepted (Microsoft 365 took it) | failed
+        // (gave up) | bounced (a delivery-failure notice came back); inbound rows are 'received'. 'accepted' is as far as anyone can honestly know -
+        // an e-mail system cannot prove it reached an inbox. message_id (RFC 5322) and graph_id are unique, so nothing is ever stored twice.
+        db.run(`CREATE TABLE IF NOT EXISTS inquiry_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            inquiry_id INTEGER NOT NULL REFERENCES inquiries(inquiry_id) ON DELETE CASCADE,
+            direction TEXT NOT NULL CHECK(direction IN ('out','in')),
+            source TEXT NOT NULL DEFAULT 'admin_reply' CHECK(source IN ('admin_reply','mailbox')),
+            message_id TEXT,
+            graph_id TEXT,
+            in_reply_to TEXT,
+            from_address TEXT,
+            to_addresses TEXT,
+            cc_addresses TEXT,
+            subject TEXT,
+            body_html TEXT,
+            body_text TEXT,
+            direct_email_id INTEGER REFERENCES direct_emails(id) ON DELETE SET NULL,
+            notification_id INTEGER REFERENCES notifications(id) ON DELETE SET NULL,
+            delivery_status TEXT NOT NULL DEFAULT 'queued' CHECK(delivery_status IN ('queued','attempted','accepted','failed','bounced','received')),
+            attempts INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            sent_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            sent_by_name TEXT,
+            occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            accepted_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            CHECK((direction = 'out' AND delivery_status <> 'received') OR (direction = 'in' AND delivery_status = 'received'))
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiry_messages_inquiry ON inquiry_messages(inquiry_id, occurred_at)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiry_messages_notification ON inquiry_messages(notification_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiry_messages_pending ON inquiry_messages(delivery_status) WHERE delivery_status IN ('queued','attempted')`);
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS uq_inquiry_messages_message_id ON inquiry_messages(message_id) WHERE message_id IS NOT NULL`);
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS uq_inquiry_messages_graph_id ON inquiry_messages(graph_id) WHERE graph_id IS NOT NULL`);
+
+        // Reading customer replies from the booking mailbox (lib/inbox-sync.js). One row, administrator-controlled, OFF until an administrator switches it on.
+        // delta_link is Microsoft Graph's own checkpoint ("everything after here"); it belongs to `mailbox`, and a different mailbox discards it. It lives here
+        // rather than in `settings` because that table's generic API is readable and writable by every admin role.
+        db.run(`CREATE TABLE IF NOT EXISTS inbox_sync_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+            mailbox TEXT,
+            delta_link TEXT,
+            baseline_at TEXT,
+            last_run_at TEXT,
+            last_success_at TEXT,
+            last_error TEXT,
+            last_error_category TEXT,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            retry_after TEXT,
+            last_stats TEXT,
+            enabled_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`INSERT OR IGNORE INTO inbox_sync_state (id) VALUES (1)`);
+
         // EXPENSES (SARS Mileage & Per Diem)
         db.run(`CREATE TABLE IF NOT EXISTS expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1545,6 +1606,8 @@ function initializeDatabase() {
         )`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_direct_emails_status ON direct_emails(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_direct_emails_inquiry ON direct_emails(inquiry_id)`, () => repairEncodedRichText('direct_emails', 'body'));
+        // Who wrote the draft - a scheduled send fires with no session, and the inquiry's reply history must still name the admin.
+        db.run("ALTER TABLE direct_emails ADD COLUMN created_by INTEGER REFERENCES admins(id) ON DELETE SET NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: direct_emails.created_by already exists or error: " + err.message); });
 
         // EMAIL BANNER REGISTRY (Prompt 5) — per-category banner images assignable to lifecycle
         // email templates. Independent of direct_emails.selected_banner_url (the separate Direct
@@ -2807,6 +2870,9 @@ function initializeDatabase() {
 
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (100, 'abandoned_booking_recovery_system')");
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (101, 'payment_schedules_sequence_and_source')");
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (102, 'inquiry_messages_conversation_and_delivery')");
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (103, 'inquiries_source_and_direct_emails_created_by')");
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (104, 'inbox_sync_state')");
 
         console.log('Database tables initialized successfully.');
     });

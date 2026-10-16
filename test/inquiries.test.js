@@ -258,7 +258,7 @@ module.exports = async function ({ check }) {
 
     // ── CP12: SLA / response-time tracking (purely derived, no background job) ──
     const slaEmail = 'sla.test.target@example.invalid';
-    await pub('POST', '/send-email', { name: 'SLA Test', email: slaEmail, message: 'sla test', subject: 'SLA test', category: 'General', popia_consent: true });
+    await pub('POST', '/send-email', { name: 'SLA Test', email: slaEmail, message: 'sla test message', subject: 'SLA test', category: 'General', popia_consent: true });
     const slaSeed = await one("SELECT inquiry_id FROM inquiries WHERE sender_email = ? ORDER BY inquiry_id DESC LIMIT 1", [slaEmail]);
     const slaInquiryId = slaSeed && slaSeed.inquiry_id;
 
@@ -275,17 +275,30 @@ module.exports = async function ({ check }) {
     check('CP12: seed first reply draft -> 200', reply1.status === 200 && !!reply1Id, JSON.stringify(reply1.body));
 
     if (reply1Id) {
-        await api('POST', `/api/admin/direct-emails/${reply1Id}/send`);
+        const sent1 = await api('POST', `/api/admin/direct-emails/${reply1Id}/send`);
+        // "Sent" used to be claimed the moment the mail was queued. A reply now marks the inquiry replied only once the outbox reports the
+        // mail ACCEPTED (the worker runs every 20 s), so: not yet right after the click, then replied once the outbox has delivered it.
+        const justAfter = await one("SELECT status, responded_at FROM inquiries WHERE inquiry_id = ?", [slaInquiryId]);
+        check('CP12: the send is reported as QUEUED, and the inquiry is NOT marked replied just because the mail was queued', sent1.status === 200 && sent1.body.queued === true && !!justAfter && justAfter.status !== 'replied' && !justAfter.responded_at, JSON.stringify([sent1.body, justAfter]));
+        // Normally the worker (every 20 s, behind everything else the suite has queued) flips the outbox row to 'sent'. Its real behaviour - against a fake
+        // SMTP server, including refusals and outages - is proven in inquiry-replies.test.js; here the outbox row is flipped directly so this test does not
+        // depend on how long the queue happens to be. Reading the conversation reconciles the reply with the outbox.
+        const accept = (draftId) => run("UPDATE notifications SET status = 'sent', sent_at = CURRENT_TIMESTAMP WHERE id = (SELECT notification_id FROM inquiry_messages WHERE direct_email_id = ?)", [draftId]);
+        await accept(reply1Id);
+        await api('GET', `/api/admin/inquiries/${slaInquiryId}/messages`);
         const afterReply1 = await one("SELECT status, responded_at FROM inquiries WHERE inquiry_id = ?", [slaInquiryId]);
-        check('CP12: responded_at set on first reply, status flips to replied', !!afterReply1 && afterReply1.status === 'replied' && !!afterReply1.responded_at, JSON.stringify(afterReply1));
+        check('CP12: responded_at set on first reply, status flips to replied (once the outbox has accepted it)', !!afterReply1 && afterReply1.status === 'replied' && !!afterReply1.responded_at, JSON.stringify(afterReply1));
         const firstRespondedAt = afterReply1.responded_at;
 
         const reply2 = await api('POST', '/api/admin/direct-emails', { inquiry_id: slaInquiryId, to_emails: slaEmail, subject: 'Re: SLA test (2)', body: 'second reply body' });
         const reply2Id = reply2.body && reply2.body.email && reply2.body.email.id;
         if (reply2Id) {
             await api('POST', `/api/admin/direct-emails/${reply2Id}/send`);
+            await accept(reply2Id);
+            await api('GET', `/api/admin/inquiries/${slaInquiryId}/messages`);
+            const reply2Msg = await one("SELECT delivery_status FROM inquiry_messages WHERE direct_email_id = ?", [reply2Id]);
             const afterReply2 = await one("SELECT responded_at FROM inquiries WHERE inquiry_id = ?", [slaInquiryId]);
-            check('CP12: responded_at NOT overwritten by a second reply (first-response only)', !!afterReply2 && afterReply2.responded_at === firstRespondedAt, JSON.stringify({ first: firstRespondedAt, second: afterReply2 && afterReply2.responded_at }));
+            check('CP12: responded_at NOT overwritten by a second reply (first-response only)', !!reply2Msg && reply2Msg.delivery_status === 'accepted' && !!afterReply2 && afterReply2.responded_at === firstRespondedAt, JSON.stringify({ first: firstRespondedAt, second: afterReply2 && afterReply2.responded_at, reply2Msg }));
         }
 
         const afterReplyList = await api('GET', '/api/admin/inquiries?limit=100');

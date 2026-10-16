@@ -248,6 +248,28 @@ input.inq-crm-select { cursor: text; }
 .inq-read-body::-webkit-scrollbar-track { background: transparent; }
 .inq-read-body::-webkit-scrollbar-thumb { background: var(--atl-line-strong); border-radius: 3px; }
 
+/* Conversation under the original message: our replies with their real delivery state, and the customer's answers */
+.inq-thread { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--atl-line); }
+.inq-thread-head { display: flex; align-items: center; gap: 8px; font-family: 'Outfit', sans-serif; font-size: 12px; font-weight: 700; color: var(--atl-muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px; }
+.inq-msg { background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: var(--atl-r-sm); padding: 10px 12px; margin-bottom: 10px; }
+.inq-msg--out { border-left: 3px solid var(--atl-amber); }
+.inq-msg--in { border-left: 3px solid var(--atl-sage); }
+.inq-msg-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 11px; color: var(--atl-muted-dim); margin-bottom: 6px; }
+.inq-msg-who { color: var(--atl-ink); font-weight: 600; }
+.inq-msg-subject { font-size: 12px; font-weight: 600; color: var(--atl-ink); margin-bottom: 4px; word-break: break-word; }
+.inq-msg-body { font-size: 13px; color: var(--atl-ink-dim); line-height: 1.6; word-break: break-word; }
+.inq-msg-error { font-size: 12px; color: var(--atl-clay); margin-top: 6px; }
+.inq-delivery { padding: 2px 8px; border-radius: var(--atl-r-pill); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+.inq-delivery--queued, .inq-delivery--attempted { background: var(--atl-amber-dim); color: var(--atl-amber); border: 1px solid var(--atl-amber-border); }
+.inq-delivery--accepted, .inq-delivery--received { background: color-mix(in srgb, var(--atl-sage) 15%, transparent); color: var(--atl-sage); border: 1px solid color-mix(in srgb, var(--atl-sage) 30%, transparent); }
+.inq-delivery--failed, .inq-delivery--bounced { background: color-mix(in srgb, var(--atl-clay) 12%, transparent); color: var(--atl-clay); border: 1px solid color-mix(in srgb, var(--atl-clay) 35%, transparent); }
+.inq-intake-line { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; font-size: 11px; color: var(--atl-muted-dim); margin-bottom: 12px; }
+.inq-intake-item { display: inline-flex; align-items: center; gap: 6px; }
+.inq-reply-failed-flag { color: var(--atl-clay); margin-right: 6px; font-size: 11px; }
+/* A reply's recipient is the inquiry's sender - shown, not editable */
+.inq-chip-input-container--locked { opacity: 0.85; }
+.inq-chip-input-container--locked .inq-chip-remove { display: none; }
+
 /* Compose view: recipient chip inputs (To/Cc/Bcc) */
 .inq-chip-input-container { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 10px; background: var(--atl-input-bg); border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); width: 100%; min-height: 40px; cursor: text; transition: border-color var(--atl-t-base); }
 .inq-chip-input-container:focus-within { border-color: var(--atl-amber); box-shadow: 0 0 0 2px var(--atl-amber-dim); }

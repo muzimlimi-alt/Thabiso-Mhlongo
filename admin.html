@@ -5997,6 +5997,30 @@
                                             <p class="um-section-desc" id="stSmtpTestResult" role="status" aria-live="polite" style="margin:0;"></p>
                                         </div>
                                     </div>
+                                    <div class="um-divider" style="margin:18px 0;"></div>
+                                    <div id="stInboxBlock">
+                                        <h5 class="um-section-label" style="margin:0 0 4px;">Customer replies (inbox)</h5>
+                                        <p class="um-section-desc" style="margin:0 0 10px;">Reads this mailbox (read-only: nothing is ever moved, marked or deleted) so customers&rsquo; answers to your replies appear under each inquiry in Inquiries. Needs a one-time Microsoft 365 permission for the app (Mail.Read, limited to this mailbox). Only mail received after you switch it on is read.</p>
+                                        <p class="um-section-desc" id="stInboxStatus" role="status" aria-live="polite" style="margin:0 0 10px;"></p>
+                                        <div class="row" style="align-items:center;">
+                                            <div class="col-md-4">
+                                                <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stInboxToggleBtn" onclick="toggleInboxSync()">
+                                                    <i class="fa-solid fa-power-off" style="margin-right:5px;"></i><span>Switch on</span>
+                                                </button>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stInboxTestBtn" onclick="testInboxAccess()">
+                                                    <i class="fa-solid fa-inbox" style="margin-right:5px;"></i>Test inbox access
+                                                </button>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stInboxRunBtn" onclick="runInboxSync()">
+                                                    <i class="fa-solid fa-rotate" style="margin-right:5px;"></i>Check for replies now
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div id="stInboxResult" role="status" aria-live="polite" class="um-section-desc" style="margin:10px 0 0; white-space:pre-line;"></div>
+                                    </div>
                                 </div>
 
                                 <!-- Card: Notifications -->
@@ -8316,7 +8340,7 @@
         // Phase 6 (HOUSEKEEPING-NOTES.md): the "INQUIRIES — EMAIL CLIENT" block moved to
         // js/admin/inquiries.js — see that file's header comment for full detail.
     </script>
-    <script src="js/admin/inquiries.js"></script>
+    <script src="js/admin/inquiries.js?v=2"></script>
     <script>
 
 
@@ -12879,7 +12903,7 @@
     <script src="js/admin/policies.js"></script>
     <script src="js/admin/branding.js?v=3"></script>
     <script src="js/admin/security-audit.js"></script>
-    <script src="js/admin/system-settings.js?v=smtp2"></script>
+    <script src="js/admin/system-settings.js?v=smtp3"></script>
     <script src="js/admin/financials.js"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================

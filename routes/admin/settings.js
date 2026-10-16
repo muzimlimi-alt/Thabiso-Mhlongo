@@ -5,6 +5,7 @@ const { requireRole } = require('../../middleware/rbac');
 const { bookingConfig } = require('../../lib/booking-config');
 const smtpConfig = require('../../lib/smtp-config');
 const emailService = require('../../js/emailService');
+const m365Graph = require('../../lib/m365-graph');
 const { logAudit } = require('../../lib/audit-log');
 const {
     getMinBookingGapSetting, getTypeBuffersSetting, saveMinBookingGapMinutes, saveTypeBuffers,
@@ -370,6 +371,18 @@ router.post('/api/admin/settings/smtp/test-connection', requireAdmin, requireRol
     } catch (e) {
         console.error('smtp test-connection failed:', e.message);
         res.status(500).json({ success: false, message: 'The connection test could not be run.' });
+    }
+});
+
+// Reading customer replies from the shared mailbox needs Microsoft Graph access, which SMTP sign-in does not give. This checks the SAVED
+// settings only (no form values, so no secret travels in the request): Graph sign-in, then the inbox folder's counters - never a message.
+// A failed check is a normal result (HTTP 200, ok:false), exactly like Test Connection.
+router.post('/api/admin/settings/m365/test-mailbox-read', requireAdmin, requireRole(['administrator']), async (req, res) => {
+    try {
+        res.json({ success: true, ...(await m365Graph.diagnose()) });
+    } catch (e) {
+        console.error('m365 mailbox-read test failed:', e.message);
+        res.status(500).json({ success: false, message: 'The mailbox read test could not be run.' });
     }
 });
 

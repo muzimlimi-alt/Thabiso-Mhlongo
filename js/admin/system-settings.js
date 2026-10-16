@@ -205,7 +205,71 @@ function stApplySmtp(m) {
     $('#stSmtpSecret').val('').attr('placeholder', m.secretSet ? dots : 'secret VALUE');
     stToggleAuth();
     $('#stSmtpStatus').text(stSmtpStatusText(m));
+    loadInboxSyncStatus();
 }
+
+// ---- Customer replies (inbox): administrator-only controls for lib/inbox-sync.js ----
+var _inboxEnabled = false;
+function stInboxStatusText(s) {
+    if (!s) return 'The status could not be loaded.';
+    function when(iso) { return iso ? new Date(iso).toLocaleString() : 'never'; }
+    if (!s.enabled) return 'Off. Customers\u2019 answers to your replies stay in Outlook only.';
+    var t = 'On \u2014 last checked ' + when(s.lastRunAt) + (s.lastStats ? ' (' + s.lastStats.replies + ' repl' + (s.lastStats.replies === 1 ? 'y' : 'ies') + ', ' + s.lastStats.new_inquiries + ' new inquir' + (s.lastStats.new_inquiries === 1 ? 'y' : 'ies') + ', ' + s.lastStats.bounces + ' bounced)' : '') + '.';
+    if (s.lastError) t += ' Last problem: ' + s.lastError + (s.retryAfter ? ' Trying again after ' + when(s.retryAfter) + '.' : '');
+    return t;
+}
+function renderInboxSync(s) {
+    _inboxEnabled = !!(s && s.enabled);
+    $('#stInboxStatus').text(stInboxStatusText(s)).css('color', s && s.lastError ? 'var(--atl-clay)' : '');
+    $('#stInboxToggleBtn span').text(_inboxEnabled ? 'Switch off' : 'Switch on');
+    $('#stInboxRunBtn').prop('disabled', !_inboxEnabled);
+}
+window.loadInboxSyncStatus = async function() {
+    if (window.currentUserRole !== 'administrator') return;
+    try {
+        const res = await fetch('/api/admin/inbox-sync', { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) { $('#stInboxBlock').toggle(res.status !== 404); return; }   // an older server without the feature: hide the block quietly
+        $('#stInboxBlock').show();
+        renderInboxSync(await res.json());
+    } catch (e) { /* the rest of the card still works */ }
+};
+function stInboxSteps(steps) { return (steps || []).map(function (s) { return (s.ok ? '\u2713 ' : '\u2717 ') + s.label + ': ' + s.message; }).join('\n'); }
+window.toggleInboxSync = async function() {
+    const $btn = $('#stInboxToggleBtn'), orig = $btn.html(), $out = $('#stInboxResult');
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Checking...');
+    $out.text('').css('color', '');
+    try {
+        const res = await fetch('/api/admin/inbox-sync', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !_inboxEnabled }) });
+        const r = await res.json();
+        if (res.ok && r.success) { renderInboxSync(r); window.notificationService.showSuccess(r.enabled ? 'Customer replies will now be read from the mailbox.' : 'Reading customer replies is switched off.'); }
+        else { $out.text((r.message || 'The setting was not changed.') + (r.steps ? '\n' + stInboxSteps(r.steps) : '')).css('color', 'var(--atl-clay)'); }
+    } catch (e) { $out.text('The setting could not be changed. Please try again.').css('color', 'var(--atl-clay)'); }
+    finally { $btn.prop('disabled', false).html(orig); renderInboxSync({ enabled: _inboxEnabled }); loadInboxSyncStatus(); }
+};
+window.testInboxAccess = async function() {
+    const $btn = $('#stInboxTestBtn'), orig = $btn.html(), $out = $('#stInboxResult');
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Testing...');
+    $out.text('').css('color', '');
+    try {
+        const r = await apiCall('/api/admin/settings/m365/test-mailbox-read', 'POST');
+        // textContent only: the messages can quote Microsoft's replies
+        $out.text(stInboxSteps(r.steps)).css('color', r.ok ? 'var(--atl-sage)' : 'var(--atl-clay)');
+    } catch (e) { /* apiCall has already shown the reason */ }
+    finally { $btn.prop('disabled', false).html(orig); }
+};
+window.runInboxSync = async function() {
+    const $btn = $('#stInboxRunBtn'), orig = $btn.html(), $out = $('#stInboxResult');
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Checking...');
+    $out.text('').css('color', '');
+    try {
+        const r = await apiCall('/api/admin/inbox-sync/run', 'POST');
+        const x = r.result || {};
+        if (x.ok && x.stats) $out.text('Checked the inbox: ' + x.stats.seen + ' message(s) seen, ' + x.stats.replies + ' repl' + (x.stats.replies === 1 ? 'y' : 'ies') + ' added, ' + x.stats.new_inquiries + ' new inquir' + (x.stats.new_inquiries === 1 ? 'y' : 'ies') + ', ' + x.stats.bounces + ' bounced.').css('color', 'var(--atl-sage)');
+        else $out.text(x.skipped ? x.skipped : ('The check failed: ' + (x.error || 'unknown problem'))).css('color', x.skipped ? '' : 'var(--atl-clay)');
+        if (r.status) renderInboxSync(r.status);
+    } catch (e) { /* apiCall has already shown the reason */ }
+    finally { $btn.prop('disabled', false).html(orig); renderInboxSync({ enabled: _inboxEnabled }); loadInboxSyncStatus(); }
+};
 
 window.loadSystemSettings = async function() {
     var _pl = qs('#prefLoading'); if (_pl) _pl.style.display = 'block';

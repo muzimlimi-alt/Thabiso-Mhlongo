@@ -333,9 +333,9 @@ function markBookingPendingAfterRespond(bookingId, callback) {
 }
 // Legacy POST /send-email — the sibling 'isBooking' branch of what the inquiries domain already
 // extracted for this same route's inquiry branch.
-function insertLegacyBookingFromContactForm(name, email, cell, category, messageText, callback) {
-    db.run(`INSERT INTO bookings (name, email, cell, date, event_type, message, status, popia_consent, consent_timestamp) VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 1, CURRENT_TIMESTAMP)`,
-        [name, email, cell, 'TBD', category, messageText], callback);
+function insertLegacyBookingFromContactForm(name, email, cell, category, messageText, callback, sourceInquiryId) {
+    db.run(`INSERT INTO bookings (name, email, cell, date, event_type, message, status, popia_consent, consent_timestamp, source_inquiry_id) VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 1, CURRENT_TIMESTAMP, ?)`,
+        [name, email, cell, 'TBD', category, messageText, sourceInquiryId || null], callback);
 }
 // Legacy migration tooling (POST /api/admin/migrate, POST /api/admin/system/migrate-legacy-data)
 function getAllBookingsForMigration(callback) {

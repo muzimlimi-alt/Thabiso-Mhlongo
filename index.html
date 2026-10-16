@@ -595,6 +595,12 @@
 			<form id="contactForm" class="tm-form tm-reveal" novalidate>
 				<div id="formAlert" class="tm-form-status" role="alert"></div>
 
+				<!-- Spam trap: people never see or fill this; bots do. The server quietly discards a submission that has it filled in. -->
+				<div aria-hidden="true" style="position:absolute; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden;">
+					<label for="contactHp">Leave this field empty</label>
+					<input type="text" id="contactHp" name="contact_hp" tabindex="-1" autocomplete="off" value="">
+				</div>
+
 				<div class="row">
 					<div class="col-md-6 tm-form-group">
 						<label for="contactName">Full Name <span class="bk-required" aria-hidden="true">*</span></label>
@@ -2062,7 +2068,7 @@
 	<!-- Shared location-search utilities (2026-09-29 consolidation audit) — used by the booking
 	     wizard's venue combobox below (parseAddressComponents / cityOrState). -->
 	<script src="js/shared/location-utils.js?v=1"></script>
-	<script src="js/myscript.js?v=1.9.6"></script>
+	<script src="js/myscript.js?v=1.9.7"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather

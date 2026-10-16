@@ -109,6 +109,7 @@ $(function() {
     });
 
     // 3. Form Validation and Submission (Nodemailer Backend)
+    var contactFormStartedAt = Date.now();
     $('#contactForm').on('submit', async function(e) {
         e.preventDefault();
         
@@ -157,14 +158,8 @@ $(function() {
 
         $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i>Sending...');
 
-        // Fetch config to check if an override delivery email was saved by the admin
-        var adminEmail = 'thabiso@example.com'; 
-        var contactData = localStorage.getItem('tm_contact_data');
-        if (contactData) {
-            var parsed = JSON.parse(contactData);
-            if (parsed.email) adminEmail = parsed.email;
-        }
-
+        // The server decides where the message goes (Admin > Contact Details, else the booking mailbox); the browser sends no recipient.
+        // contact_hp is the hidden spam-trap field (empty for people); form_started_at lets the server spot a submit no human could make.
         var payload = {
             name: $('#contactName').val().trim(),
             email: em,
@@ -172,8 +167,9 @@ $(function() {
             category: $('#contactCategory').val() || 'General Inquiry',
             subject: $('#contactSubject').val().trim(),
             message: $('#contactMessage').val().trim(),
-            recipientEmail: adminEmail,
-            popia_consent: $('#contactPopia').is(':checked')
+            popia_consent: $('#contactPopia').is(':checked'),
+            contact_hp: $('#contactHp').val() || '',
+            form_started_at: contactFormStartedAt
         };
 
         try {
@@ -182,17 +178,21 @@ $(function() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const result = await response.json();
-            
+            const result = await response.json().catch(function() { return {}; });
+
             if (result.success) {
-                window.notificationService.showSuccess('Your message has been sent. Thank you for getting in touch.');
+                window.notificationService.showSuccess((result.message || 'Your message has been sent. Thank you for getting in touch.') + (result.reference ? ' Your reference is ' + result.reference + '.' : ''));
                 this.reset();
+                contactFormStartedAt = Date.now();
             } else {
-                throw new Error(result.message || 'Server rejected message.');
+                // The server's reason (invalid input, too many messages, could not save) only ever describes the visitor's own input.
+                var rejected = new Error(result.message || 'Server rejected message.');
+                rejected.fromServer = !!result.message;
+                throw rejected;
             }
         } catch (err) {
             console.error("Email Error:", err);
-            window.notificationService.showError('Could not send email. Please try again later or contact us directly.');
+            window.notificationService.showError(err && err.fromServer ? err.message : 'Could not send email. Please try again later or contact us directly.');
         }
 
         // Restore button state
