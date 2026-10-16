@@ -1082,7 +1082,7 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
     const vat_number = asBookingText(req.body.vat_number);
     if (vat_number.length > 30) return res.status(400).json({ success: false, message: 'VAT number must be under 30 characters.' });
 
-    const bookingId = req.params.id;
+    const bookingId = parseInt(req.params.id, 10);
     const clientIp = req.ip || 'unknown';
 
     try {

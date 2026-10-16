@@ -576,4 +576,43 @@ async function runAll({ check, api, pub, one, q, future, sleep, getTrackingToken
             st.status === 'CANCELLED' && res.status === 409 && res.body && res.body.code === 'NOT_ACCEPTED',
             `${cancel.status} status=${st.status} ${res.status} ${J(res.body)}`);
     }
+
+    // Non-canonical URL ids are refused before any route sees them. SQLite compares '1.5e1' / '015'
+    // to an INTEGER id by value (booking #15) while the token check's parseInt reads '1.5e1' as 1 —
+    // so a token for booking #1 must never reach a route with the id spelled that way.
+    const X = await makeQuoted('url-id', 1022, 4000);
+    if (X) {
+        const spellings = [`0${X.id}`, `${X.id}.0`, `${X.id}e0`, `${X.id}abc`];
+        const results = [];
+        for (const sp of spellings) {
+            const r = await pub('POST', `/api/public/bookings/${sp}/accept-quote`, { access_token: X.token, terms_agreed: true });
+            results.push(`${sp}:${r.status}`);
+        }
+        const after = await one('SELECT status FROM bookings WHERE id=?', [X.id]);
+        check('plans: accept-quote with a non-canonical booking id (leading zero, decimal, exponent, suffix) -> 401, booking untouched',
+            results.every(s => s.endsWith(':401')) && after && after.status === 'QUOTED' && (await liveRows(X.id)).length === 0,
+            `${results.join(' ')} status=${after && after.status}`);
+    }
+
+    // A paid row whose label this feature generated is renumbered when the client changes the plan,
+    // so the schedule never shows "Payment 1 of 3" (paid) above "Payment 2 of 4".
+    const L = await makeQuoted('relabel', 1023, 6000);
+    if (L) {
+        const acc = await accept(L, { milestones: [p(3000, addDays(T, 3)), p(1500, addDays(T, 20)), p(1500, L.E2)] });
+        const first = await liveRows(L.id);
+        check('plans: custom 3-payment plan gets the generated labels',
+            acc.status === 200 && J(first.map(r => r.description)) === J([`Deposit ${DASH} Payment 1 of 3`, 'Payment 2 of 3', `Final Payment ${DASH} Payment 3 of 3`]),
+            `${acc.status} ${brief(first)}`);
+        if (first.length === 3) {
+            await payTo(L.id, 3000, first[0].id);
+            const res = await changePlan(L, { plan_version: await planVersionOf(L.id),
+                milestones: [p(1000, addDays(T, 21)), p(1000, addDays(T, 30)), p(1000, L.E2)] });
+            const live = await liveRows(L.id);
+            check('plans: after a change the paid deposit is renumbered with the new total; amount, date and status untouched',
+                res.status === 200 && live.length === 4
+                    && J(live.map(r => r.description)) === J([`Deposit ${DASH} Payment 1 of 4`, 'Payment 2 of 4', 'Payment 3 of 4', `Final Payment ${DASH} Payment 4 of 4`])
+                    && live[0].id === first[0].id && live[0].status === 'paid' && cents(live[0].expected_amount) === 300000 && live[0].due_date === first[0].due_date,
+                `${res.status} ${J(res.body && res.body.message)} ${brief(live)}`);
+        }
+    }
 }

@@ -9,7 +9,12 @@ const { hashAccessToken } = require('../lib/booking-tracking');
 const { getBookingAccessTokenByHash, touchBookingAccessToken } = require('../database/repositories/bookings.repository');
 
 function requireBookingAccessToken(req, res, next) {
-    const bookingId = parseInt(req.params.id, 10);
+    // The URL id must be a plain positive integer. Routes behind this check pass req.params.id
+    // straight into SQL, and SQLite compares numeric-looking text to an INTEGER column by value —
+    // so '1.5e1' (or '015', ' 15') matches booking #15, while parseInt('1.5e1') is 1. Without this,
+    // a token verified for booking #1 would let those routes read and change booking #15.
+    const rawId = String(req.params.id || '');
+    const bookingId = /^[1-9]\d{0,15}$/.test(rawId) ? Number(rawId) : 0;
     const token = (req.body && req.body.access_token) || req.query.access_token;
     if (!bookingId || !token) {
         return res.status(401).json({ success: false, message: 'Please verify your booking to continue.', code: 'TOKEN_REQUIRED' });
