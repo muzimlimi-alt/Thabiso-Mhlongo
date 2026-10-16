@@ -52,7 +52,7 @@ module.exports = async function (support) {
     }
 };
 
-async function runAll({ check, api, pub, one, q, future, sleep, getTrackingToken }, rw) {
+async function runAll({ check, api, pub, one, q, future, sleep, getTrackingToken, apiBinary, extractPdfText }, rw) {
     const run = (sql, params = []) => new Promise((res, rej) => rw.run(sql, params, function (e) { e ? rej(e) : res(this); }));
     const T = todaySast();
 
@@ -384,6 +384,13 @@ async function runAll({ check, api, pub, one, q, future, sleep, getTrackingToken
 
             const invBefore = await one("SELECT id, invoice_number, file_path, status FROM invoices WHERE booking_id=? AND UPPER(COALESCE(status,'')) NOT IN ('VOID','PAID') ORDER BY created_at DESC, id DESC LIMIT 1", [D.id]);
             const invCountBefore = await one('SELECT COUNT(*) AS n FROM invoices WHERE booking_id=?', [D.id]);
+            // The re-rendered PDF must keep the date the invoice was issued with. Pretend it was issued
+            // at 22:30 UTC three days ago — 00:30 SAST two days ago — with the UTC invoice_date the DB
+            // stores for that moment: the PDF must print the SAST date of created_at, not today's date
+            // and not invoice_date (a day early).
+            const issuedUtcDay = addDays(T, -3);
+            const issuedDocDate = moment.utc(addDays(T, -2), 'YYYY-MM-DD').format('DD MMM YYYY');
+            if (invBefore) await run('UPDATE invoices SET created_at = ?, invoice_date = ? WHERE id = ?', [`${issuedUtcDay} 22:30:00`, issuedUtcDay, invBefore.id]);
             const contractBefore = await one('SELECT status, uploaded_by, is_frozen, signed_by_client_at FROM contracts WHERE booking_id=?', [D.id]);
 
             const newPlan = [p(1000, addDays(D.date, -3)), p(1000, addDays(T, 10)), p(1000, addDays(T, 50))];
@@ -436,6 +443,12 @@ async function runAll({ check, api, pub, one, q, future, sleep, getTrackingToken
                 !!invBefore && !!invAfter && invAfter.invoice_number === invBefore.invoice_number && invAfter.status === invBefore.status
                     && invAfter.file_path !== invBefore.file_path && invCountAfter.n === invCountBefore.n,
                 J({ invBefore, invAfter, before: invCountBefore.n, after: invCountAfter.n }));
+            const invPdf = await apiBinary('GET', `/api/admin/bookings/${D.id}/invoice/download`);
+            const invText = invPdf.status === 200 ? extractPdfText(invPdf.buffer) : '';
+            const docDate = invText.match(/DOC DATE:?\s*(\d{1,2} [A-Z][a-z]{2} \d{4})/);
+            check('plans: the re-rendered invoice PDF keeps its issue date (DOC DATE) and number, not today\'s date',
+                !!invBefore && !!docDate && docDate[1] === issuedDocDate && invText.includes(invBefore.invoice_number),
+                J({ status: invPdf.status, docDate: docDate && docDate[1], expected: issuedDocDate, number: !!invBefore && invText.includes(invBefore.invoice_number) }));
 
             const adminMail = await queued(`Payment Plan Changed – Booking #${D.id}`);
             check('plans: admin "Payment Plan Changed" email queued with the previous and new plan',
@@ -592,6 +605,38 @@ async function runAll({ check, api, pub, one, q, future, sleep, getTrackingToken
         check('plans: accept-quote with a non-canonical booking id (leading zero, decimal, exponent, suffix) -> 401, booking untouched',
             results.every(s => s.endsWith(':401')) && after && after.status === 'QUOTED' && (await liveRows(X.id)).length === 0,
             `${results.join(' ')} status=${after && after.status}`);
+
+        // Access is handed out under the same id rule the token check enforces. When request-code and
+        // verify-code used parseInt, '0<id>' got a code emailed and a token issued that every guarded
+        // route then refused, so the tracker looped on "session expired".
+        const codeSubject = "subject LIKE 'Your verification code:%'";
+        const codesBefore = await one(`SELECT COUNT(*) AS n FROM notifications WHERE recipient_email = ? AND ${codeSubject}`, [X.em]);
+        const reqResults = [];
+        for (const sp of spellings) {
+            const r = await pub('POST', `/api/public/bookings/${sp}/track/request-code`, { email: X.em });
+            reqResults.push(`${sp}:${r.status}:${!!(r.body && /booking number/.test(r.body.message || ''))}`);
+        }
+        await sleep(300);
+        const codesAfter = await one(`SELECT COUNT(*) AS n FROM notifications WHERE recipient_email = ? AND ${codeSubject}`, [X.em]);
+        check('plans: track/request-code with a non-canonical booking id -> 400 asking for the plain booking number, no code emailed',
+            reqResults.every(s => s.endsWith(':400:true')) && codesAfter.n === codesBefore.n,
+            `${reqResults.join(' ')} codes ${codesBefore.n}->${codesAfter.n}`);
+
+        // A live code for the booking, then verify-code under the padded id: refused before the code
+        // is looked at (no token, no attempt used), and the same code still works under the plain id.
+        const sent = await pub('POST', `/api/public/bookings/${X.id}/track/request-code`, { email: X.em });
+        const notif = await waitFor(() => one(`SELECT body FROM notifications WHERE recipient_email = ? AND ${codeSubject} ORDER BY id DESC LIMIT 1`, [X.em]), 3000);
+        let code = null;
+        try { code = (((JSON.parse((notif && notif.body) || '{}').htmlContent) || '').match(/\b(\d{6})\b/) || [])[1] || null; } catch (e) { code = null; }
+        const tokensBefore = await one('SELECT COUNT(*) AS n FROM booking_access_tokens WHERE booking_id = ?', [X.id]);
+        const padded = await pub('POST', `/api/public/bookings/0${X.id}/track/verify-code`, { email: X.em, code: code || '000000' });
+        const tokensAfter = await one('SELECT COUNT(*) AS n FROM booking_access_tokens WHERE booking_id = ?', [X.id]);
+        const plain = await pub('POST', `/api/public/bookings/${X.id}/track/verify-code`, { email: X.em, code: code || '000000' });
+        check('plans: track/verify-code with a padded booking id -> 400, no token issued; the code still verifies under the plain id',
+            !!(sent.body && sent.body.success) && !!code && padded.status === 400 && !(padded.body && padded.body.access_token)
+                && /booking number/.test((padded.body && padded.body.message) || '') && tokensAfter.n === tokensBefore.n
+                && plain.status === 200 && !!(plain.body && plain.body.access_token),
+            J({ sent: sent.status, code: !!code, padded: [padded.status, padded.body && padded.body.message], tokens: [tokensBefore.n, tokensAfter.n], plain: plain.status }));
     }
 
     // A paid row whose label this feature generated is renumbered when the client changes the plan,

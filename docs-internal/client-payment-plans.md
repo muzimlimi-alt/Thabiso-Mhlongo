@@ -224,6 +224,22 @@ Middleware is the same as accept-quote: `mutateRateLimiter, ipRateLimiter, requi
 The tracker offers "Change payment plan" only while the plan is editable. Otherwise it shows the reason as a muted
 line for `NEEDS_ADMIN`, `NO_SLOTS` and `PAYMENT_IN_PROGRESS`, and nothing for the other codes.
 
+### Tracker details
+
+- **Booking number.** The tracker turns what the client typed into the plain number before any request: `#42`,
+  `0042` (invoice and contract numbers pad the id: `INV-2026-0042`) and `42.` all become `42`. On the server,
+  `track/request-code`, `track/verify-code` and `requireBookingAccessToken` share `parseBookingIdParam`
+  (`lib/booking-tracking.js`, `^[1-9]\d{0,15}$`). The two code routes answer 400 "Please enter your booking number
+  as shown in your emails" to any other spelling, so no code is emailed and no token issued for an id that every
+  token-guarded route would refuse (that used to end in a "session expired" loop).
+- **Card order.** The builder re-sorts the cards by due date when the client leaves a date field, never while they
+  type in it. When focus leaves because a mouse button went down inside the builder (on another card's ×, say),
+  the re-sort waits until the button is released: re-rendering in between would detach the pressed button, so
+  the browser would drop the click and the cards would move under the pointer.
+- **Submitting.** Accept and Save call `builder.settleOrder()` before `getMilestones()`, so the milestones go out in
+  date order. A tap on the button is handled before the pending re-sort's timer, and without this a 400's
+  `errors[].index` would point at cards that a later re-sort moves.
+
 ## Writing a plan (`writeClientPlanInTx`)
 
 It must run inside an open `BEGIN IMMEDIATE` (inside `withDbTransaction`), with the context built in that same
@@ -266,6 +282,9 @@ row that was just superseded, and live rows would then sum to more than the tota
 2. **Invoice.** `refreshInvoicePdf(id)` re-renders the live invoice (the newest one that is not VOID or PAID) **in
    place**:
    - same number, status, totals and line items; new file name, then `invoices.file_path` is updated;
+   - same **issue date**: the PDF's DOC DATE is the SAST date of the invoice's `created_at` (falling back to
+     `invoice_date`, which is a UTC date), passed to `pdfService` as `opts.docDate`. Without it the PDF would print
+     the refresh date, so one invoice number would carry a new issue date after every plan change;
    - no email, no new invoice number;
    - a no-op when no live invoice exists;
    - refused (`totals-changed`) when the recomputed total no longer matches the issued invoice. The admin email then
@@ -378,8 +397,14 @@ row that was just superseded, and live rows would then sum to more than the tota
     while QUOTED/CANCELLED;
   - admin Setup Milestones after a client change (the override and the former FK failure);
   - an admin pre-built plan kept when the client accepts without designing one, the invoice PDF re-rendered in
-    place (same number and status, new file), short-notice events (event in 4 and 5 days), and the minimum
-    instalment policy being validated, stored to the cent and enforced.
+    place (same number and status, new file, and the DOC DATE it was issued with, checked against a `created_at`
+    of 00:30 SAST whose UTC `invoice_date` is a day earlier), short-notice events (event in 4 and 5 days), and the
+    minimum instalment policy being validated, stored to the cent and enforced;
+  - non-canonical booking ids (`0<id>`, `<id>.0`, `<id>e0`, `<id>abc`): 401 from accept-quote, 400 from
+    `track/request-code` with no code emailed, and 400 from `track/verify-code` with no token issued and the code
+    left usable under the plain id.
+- The builder's card order (the deferred re-sort and `settleOrder`) needs a real browser and is not covered by
+  `npm test`.
 - `test/installment-plan.test.js`: the 3-payment preset is now deposit-first / equal split. The 3-payment and the
   30%-deposit fixtures use R2000, so every payment of the split can satisfy the R500 minimum.
 - `test/smoke.js` requests every row of `docs-internal/routes.md`, including `POST /api/public/bookings/:id/payment-plan`.

@@ -128,7 +128,9 @@ class PDFService {
         const valW   = cardW - 86; // width available for event value text
 
         const validDays = parseInt(process.env.QUOTE_VALIDITY_DAYS) || 14;
-        const docDate   = moment().format('DD MMM YYYY');
+        // opts.docDate: a re-render of an already issued invoice (refreshInvoicePdf) passes the date it
+        // was issued with, pre-formatted; a new document is dated today.
+        const docDate   = opts.docDate || moment().format('DD MMM YYYY');
         const expDate   = moment().add(validDays, 'days').format('DD MMM YYYY');
 
         const eventRows = [

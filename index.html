@@ -2095,7 +2095,7 @@
 	     validates a plan with (routes/public/bookings.js) — and the plan builder built on it. Both must
 	     load before the tracking script below. -->
 	<script src="js/shared/payment-plan-rules.js?v=1"></script>
-	<script src="js/public/payment-plan-builder.js?v=1"></script>
+	<script src="js/public/payment-plan-builder.js?v=2"></script>
 </body>
 <!-- UI Dependencies -->
 <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
@@ -2672,9 +2672,11 @@ $(document).ready(function() {
 
         var origHtml = $btn.html();
         planState.saving = true;
+        builder.settleOrder();
         builder.setBusy(true);
-        // Read the plan only now, with the builder locked: the cards cannot be re-ordered between
-        // this and the response, so a 400's error indices still point at the right cards.
+        // Read the plan only now, in date order and with the builder locked: the cards cannot be
+        // re-ordered between this and the response, so a 400's error indices still point at the
+        // right cards.
         var milestones = builder.getMilestones();
         $('#btnCancelPlan').prop('disabled', true);
         $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving…');
@@ -2733,7 +2735,12 @@ $(document).ready(function() {
     });
 
     $('#trackBtn').on('click', async function() {
-        var id = $('#trackId').val().trim();
+        // The server accepts the booking number only as the plain number ("42"), but clients type it
+        // as emails show it ("#42"), as invoice and contract numbers pad it ("0042" in INV-2026-0042)
+        // or pasted with a full stop ("42."). Canonicalised once here, so the token cache, both code
+        // requests and every call after verification use the same id (also for the ?track= link).
+        var id = $('#trackId').val().trim().replace(/^#\s*/, '').replace(/\.$/, '');
+        if (/^\d+$/.test(id)) id = id.replace(/^0+(?=\d)/, '');
         var email = $('#trackEmail').val().trim();
         var $err = $('#trackError');
         $err.hide();
@@ -3224,6 +3231,10 @@ $(document).ready(function() {
             return;
         }
 
+        // Apply a pending date re-sort before the plan is read. On a touch tap this click arrives
+        // before the re-sort that leaving a date field schedules; a plan sent in unsorted card order
+        // would leave the error highlights of a 400 on the wrong cards once that re-sort ran.
+        if (builder) builder.settleOrder();
         planState.accepting = true;
         if (builder) builder.setBusy(true);
         $('#btnTogglePlanBuilder').prop('disabled', true);

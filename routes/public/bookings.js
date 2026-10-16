@@ -16,7 +16,7 @@ const { resolveDocsPath, docsWriteDir } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
 const {
     asBookingText, OTP_TTL_MINUTES, OTP_MAX_ATTEMPTS, ACCESS_TOKEN_TTL_MINUTES,
-    generateOtpCode, hashAccessToken
+    generateOtpCode, hashAccessToken, parseBookingIdParam, BOOKING_ID_FORMAT_MESSAGE
 } = require('../../lib/booking-tracking');
 const { MIN_ADVANCE_HOURS, CURRENT_POLICY_VERSION } = require('../../lib/booking-policy');
 const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-utils');
@@ -224,9 +224,13 @@ router.post('/api/public/bookings/draft/:resumeToken/optout', ipRateLimiter, (re
 // /api/admin/forgot-password. Only a real match actually queues an email.
 router.post('/api/public/bookings/:id/track/request-code', ipRateLimiter, otpRequestRateLimiter, (req, res) => {
     const email = asBookingText(req.body.email);
-    const bookingId = parseInt(req.params.id, 10);
+    // The same id rule as requireBookingAccessToken (see parseBookingIdParam): a code emailed for
+    // '0015' would lead to a token every guarded route refuses. Saying so reveals nothing about which
+    // bookings exist — it depends only on how the id is spelled.
+    const bookingId = parseBookingIdParam(req.params.id);
     const generic = { success: true, message: 'If those details match a booking, a verification code has been sent to the email on file.' };
-    if (!email || !bookingId) return res.status(400).json({ success: false, message: 'Booking ID and email are required.' });
+    if (!email) return res.status(400).json({ success: false, message: 'Booking ID and email are required.' });
+    if (!bookingId) return res.status(400).json({ success: false, message: BOOKING_ID_FORMAT_MESSAGE });
 
     getBookingEmailForTracking(bookingId, async (err, row) => {
         if (err || !row || row.email.trim().toLowerCase() !== email.trim().toLowerCase()) {
@@ -270,8 +274,10 @@ router.post('/api/public/bookings/:id/track/request-code', ipRateLimiter, otpReq
 router.post('/api/public/bookings/:id/track/verify-code', ipRateLimiter, mutateRateLimiter, async (req, res) => {
     const email = asBookingText(req.body.email);
     const code = asBookingText(req.body.code);
-    const bookingId = parseInt(req.params.id, 10);
+    // Never issue a token for an id spelling requireBookingAccessToken refuses (see request-code).
+    const bookingId = parseBookingIdParam(req.params.id);
     if (!email || !code) return res.status(400).json({ success: false, message: 'Email and code are required.' });
+    if (!bookingId) return res.status(400).json({ success: false, message: BOOKING_ID_FORMAT_MESSAGE });
 
     try {
         const codeRow = await getActiveAccessCodeForVerification(bookingId, email);

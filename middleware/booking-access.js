@@ -5,7 +5,7 @@
 // `email` field, for ownership checks. The token itself is high-entropy (32 random bytes), so a
 // fast indexed sha256 lookup is appropriate here — unlike the low-entropy OTP code (see
 // lib/booking-tracking.js), which is bcrypt-hashed and rate-limited on attempts instead.
-const { hashAccessToken } = require('../lib/booking-tracking');
+const { hashAccessToken, parseBookingIdParam } = require('../lib/booking-tracking');
 const { getBookingAccessTokenByHash, touchBookingAccessToken } = require('../database/repositories/bookings.repository');
 
 function requireBookingAccessToken(req, res, next) {
@@ -13,8 +13,9 @@ function requireBookingAccessToken(req, res, next) {
     // straight into SQL, and SQLite compares numeric-looking text to an INTEGER column by value —
     // so '1.5e1' (or '015', ' 15') matches booking #15, while parseInt('1.5e1') is 1. Without this,
     // a token verified for booking #1 would let those routes read and change booking #15.
-    const rawId = String(req.params.id || '');
-    const bookingId = /^[1-9]\d{0,15}$/.test(rawId) ? Number(rawId) : 0;
+    // track/request-code and track/verify-code apply the same parser, so no token is ever issued for
+    // an id spelled in a way this check refuses.
+    const bookingId = parseBookingIdParam(req.params.id);
     const token = (req.body && req.body.access_token) || req.query.access_token;
     if (!bookingId || !token) {
         return res.status(401).json({ success: false, message: 'Please verify your booking to continue.', code: 'TOKEN_REQUIRED' });

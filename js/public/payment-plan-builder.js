@@ -29,6 +29,7 @@
  *   builder.isValid() / isUnchanged() / getMilestones() / describePlan()
  *   builder.showServerErrors(errors, message)  400 INVALID_PLAN: blocks isValid() until the next edit
  *   builder.showNotice(message)                any other failure: shown, cleared by the next edit
+ *   builder.settleOrder()                       apply a pending date re-sort now (call before getMilestones)
  *   builder.setBusy(bool) / focus() / focusErrors() / destroy()
  *   renderPlanList(listElement, items)         read-only list: [{description, due_date, amount_cents, paid}]
  */
@@ -188,6 +189,8 @@
         this.destroyed = false;
         this.errorTimer = null;
         this.sortTimer = null;
+        this.pointerDown = false;
+        this.sortPending = false;
         this.lastErrorSignature = null;
         this.lastEditedKey = null;
         this.presets = {};
@@ -350,10 +353,26 @@
         this.onChangeEvt = function (e) { self.handleChange(e); };
         this.onClick = function (e) { self.handleClick(e); };
         this.onFocusOut = function (e) { self.handleFocusOut(e); };
+        // A press inside the builder holds back the date re-sort until it is released (see
+        // handleFocusOut). The release is watched on the document: it can end outside the builder.
+        this.onPointerDown = function () { self.pointerDown = true; };
+        this.onPointerUp = function () {
+            if (!self.pointerDown) return;
+            self.pointerDown = false;
+            if (!self.sortPending) return;
+            self.sortPending = false;
+            clearTimeout(self.sortTimer);
+            // A click is dispatched in the same task as the pointerup before it, so this runs after
+            // the click has been handled (removeRow finds its card by key, then the rest is sorted).
+            self.sortTimer = setTimeout(function () { self.sortByDate(); }, 0);
+        };
         root.addEventListener('input', this.onInput);
         root.addEventListener('change', this.onChangeEvt);
         root.addEventListener('click', this.onClick);
         root.addEventListener('focusout', this.onFocusOut);
+        root.addEventListener('pointerdown', this.onPointerDown, true);
+        document.addEventListener('pointerup', this.onPointerUp, true);
+        document.addEventListener('pointercancel', this.onPointerUp, true);
     };
 
     // The rules in plain words, built from the same context the checks use.
@@ -571,7 +590,27 @@
         // in it: re-rendering mid-typing would throw away their place in the date segments). Deferred
         // so the element receiving focus is known and can be given focus back after the re-render.
         clearTimeout(this.sortTimer);
+        // Focus left because a mouse button went down inside the builder, e.g. on another card's ×.
+        // Re-rendering before it comes back up would detach the pressed button, so the browser
+        // would drop its click and the cards would move under the pointer: sort once it is released.
+        // (A touch tap releases before focus moves, so it never waits here.)
+        if (this.pointerDown) {
+            this.sortPending = true;
+            return;
+        }
         this.sortTimer = setTimeout(function () { self.sortByDate(); }, 0);
+    };
+
+    // Runs a re-sort that is still waiting (on its timer or on a pointer release) right away. The
+    // tracker calls it just before getMilestones(): a tap on its submit button is handled before
+    // that timer fires, and milestones sent in unsorted card order would leave a 400's error
+    // indices pointing at cards a later re-sort moves.
+    PlanBuilder.prototype.settleOrder = function () {
+        if (this.destroyed) return;
+        clearTimeout(this.sortTimer);
+        this.sortTimer = null;
+        this.sortPending = false;
+        this.sortByDate();
     };
 
     PlanBuilder.prototype.sortByDate = function () {
@@ -991,11 +1030,14 @@
         this.destroyed = true;
         clearTimeout(this.errorTimer);
         clearTimeout(this.sortTimer);
+        document.removeEventListener('pointerup', this.onPointerUp, true);
+        document.removeEventListener('pointercancel', this.onPointerUp, true);
         if (this.root) {
             this.root.removeEventListener('input', this.onInput);
             this.root.removeEventListener('change', this.onChangeEvt);
             this.root.removeEventListener('click', this.onClick);
             this.root.removeEventListener('focusout', this.onFocusOut);
+            this.root.removeEventListener('pointerdown', this.onPointerDown, true);
             if (this.root.parentNode) this.root.parentNode.removeChild(this.root);
         }
         this.opts = {};
