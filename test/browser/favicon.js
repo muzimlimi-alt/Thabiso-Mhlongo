@@ -35,15 +35,18 @@ const pngSize = (buf) => ({ w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) });
         await brandingDone;
         await sleep(1500);                                   // applyBranding's HEAD request + href swap
         const links = await p.evaluate(() => Array.from(document.querySelectorAll('link[rel~="icon"]')).map(l => l.getAttribute('href')));
+        const touch = await p.evaluate(() => { const l = document.querySelector('link[rel="apple-touch-icon"]'); return l && l.getAttribute('href'); });
         await ctx.close();
-        return { links, errs };
+        return { links, touch, errs };
     };
     const big = await firstIcon('images/icon/logo5.png');                  // 1536px, ~1.8 MB
     ok(big.links[0] === '/images/icon/mic-favicon-48.png', 'public: an oversized branding favicon (1.8 MB) is ignored - the small static icon stays first', JSON.stringify(big.links));
     ok(big.errs.length === 0, 'public: no page errors with an oversized branding favicon', big.errs.join(' | '));
     const small = await firstIcon('images/icon/mic-favicon-96.png');           // 12 KB
-    ok(small.links[0] === 'images/icon/mic-favicon-96.png', 'public: a small branding favicon is still applied (the admin\'s Branding setting keeps working)', JSON.stringify(small.links));
-    ok(small.links.length >= 4, 'public: the rest of the static favicon set is untouched', JSON.stringify(small.links));
+    // js/applyBranding.js (2026-10-16 favicon fix) replaces ALL the page's icon links with the branded one - swapping only
+    // the first left the browser free to keep picking a built-in mic icon - and makes its path root-relative.
+    ok(small.links.length === 1 && small.links[0] === '/images/icon/mic-favicon-96.png', 'public: a small branding favicon is applied as the page\'s only icon (the admin\'s Branding setting keeps working)', JSON.stringify(small.links));
+    ok(small.touch === '/images/icon/mic-apple-touch-icon.png', 'public: the iOS home-screen icon (apple-touch-icon, a separate rel) is left untouched', String(small.touch));
     await api('PUT', '/api/admin/branding', { settings: { site_logo: '', favicon: '', theme_font: '' } });
 
     // ══════════ admin: the favicon upload shrinks big images ══════════

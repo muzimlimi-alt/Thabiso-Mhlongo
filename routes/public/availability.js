@@ -5,6 +5,8 @@ const { MIN_ADVANCE_HOURS } = require('../../lib/booking-policy');
 const { checkDateAvailability, getFullDayDatesForMonth } = require('../../lib/calendar-sync');
 const { getMinBookingGapSetting } = require('../../database/repositories/settings.repository');
 const { getActiveHoldDatesForMonth } = require('../../database/repositories/calendar.repository');
+const places = require('../../lib/places');
+const { sendPlacesError } = places;
 const router = express.Router();
 
 // P2.4 — Date availability check (public, rate-limited)
@@ -155,66 +157,30 @@ router.get('/api/public/availability/month', ipRateLimiter, (req, res) => {
     );
 });
 
-// Public: venue autocomplete via Google Places API proxy
-router.get('/api/public/places/autocomplete', ipRateLimiter, (req, res) => {
-    const input = (req.query.input || '').trim();
-    if (input.length < 2) return res.json({ predictions: [] });
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
-    if (!apiKey) {
-        console.warn('[Places] GOOGLE_MAPS_API_KEY is not set — venue autocomplete will always return zero results until it is configured.');
-        return res.json({ predictions: [] });
+// Public: venue search for the booking drawer (js/myscript.js). Both routes are thin wrappers over the shared
+// Places service, lib/places.js (2026-10 Places audit), which the admin portal's searches use too. Response
+// shapes are unchanged for the drawer: { predictions: [...] } and { result: <legacy place shape> } - plus a
+// standardised `location`. What changed: a Google failure (key missing, API not enabled, billing, restriction,
+// quota) used to be answered as 200 { predictions: [] }, so visitors saw "No matching venues found" and the
+// real reason only reached the server log. It now answers with an error status + code, and the drawer shows
+// "Venue search isn't available right now - you can enter the address manually" (its existing error path).
+router.get('/api/public/places/autocomplete', ipRateLimiter, async (req, res) => {
+    try {
+        const predictions = await places.autocomplete(req.query.input, { sessionToken: req.query.sessionToken });
+        res.json({ predictions });
+    } catch (e) {
+        sendPlacesError(res, e, { predictions: [] });
     }
-    const url = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(input)}&key=${apiKey}`;
-
-    require('https').get(url, (r) => {
-        let body = '';
-        r.on('data', d => body += d);
-        r.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                if (data.status === 'OK') {
-                    const predictions = data.predictions.map(p => ({
-                        place_id: p.place_id,
-                        main_text: p.structured_formatting ? p.structured_formatting.main_text : p.description,
-                        secondary_text: p.structured_formatting ? p.structured_formatting.secondary_text : '',
-                        formatted_address: p.description
-                    }));
-                    res.json({ predictions });
-                } else {
-                    if (data.status !== 'ZERO_RESULTS') console.warn('[Places] autocomplete returned', data.status, data.error_message || '');
-                    res.json({ predictions: [] });
-                }
-            } catch(e) { res.json({ predictions: [] }); }
-        });
-    }).on('error', () => res.json({ predictions: [] }));
 });
 
-// Public: venue details via Google Places API proxy
-router.get('/api/public/places/details', ipRateLimiter, (req, res) => {
-    const place_id = req.query.place_id;
-    if (!place_id) return res.status(400).json({ error: 'place_id required' });
-    const apiKey = process.env.GOOGLE_MAPS_API_KEY || '';
-    if (!apiKey) {
-        console.warn('[Places] GOOGLE_MAPS_API_KEY is not set — venue details lookup cannot run.');
-        return res.status(404).json({ error: 'Place not found' });
+router.get('/api/public/places/details', ipRateLimiter, async (req, res) => {
+    if (!req.query.place_id) return res.status(400).json({ error: 'place_id required' });
+    try {
+        const d = await places.details(req.query.place_id, { sessionToken: req.query.sessionToken });
+        res.json({ result: d.result, location: d.location });
+    } catch (e) {
+        sendPlacesError(res, e);
     }
-    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place_id}&fields=address_components,formatted_address,name,geometry&key=${apiKey}`;
-
-    require('https').get(url, (r) => {
-        let body = '';
-        r.on('data', d => body += d);
-        r.on('end', () => {
-            try {
-                const data = JSON.parse(body);
-                if (data.status === 'OK' && data.result) {
-                    res.json({ result: data.result });
-                } else {
-                    if (data.status !== 'ZERO_RESULTS') console.warn('[Places] details returned', data.status, data.error_message || '');
-                    res.status(404).json({ error: 'Place not found' });
-                }
-            } catch(e) { res.status(500).json({ error: 'Server error' }); }
-        });
-    }).on('error', () => res.status(500).json({ error: 'Network error' }));
 });
 
 module.exports = router;

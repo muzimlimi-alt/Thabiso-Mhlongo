@@ -787,7 +787,7 @@
         var input = el('aclLocation');
         if (!input || !window.AdminPlacesAutocomplete) return;
         window.AdminPlacesAutocomplete.init(input, {
-            fields: ['name', 'formatted_address', 'address_components'],
+            detail: 'basic',   // name + address only: no coordinates are stored, and it is the cheaper lookup
             onPlace: function (loc) {
                 input.value = window.TMLocation ? window.TMLocation.cityOrState(loc) : (loc.city || loc.state || loc.name || '');
                 $(input).trigger('input');   // clears any validation error and refreshes the preview

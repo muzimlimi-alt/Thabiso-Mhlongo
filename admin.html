@@ -80,7 +80,7 @@
     <link rel="stylesheet" href="css/admin/07-components.css?v=1">
     <link rel="stylesheet" href="css/admin/08-finance-tiles-note.css">
     <link rel="stylesheet" href="css/admin/inquiries.css">
-    <link rel="stylesheet" href="css/admin/09-users-security.css">
+    <link rel="stylesheet" href="css/admin/09-users-security.css?v=3">
     <link rel="stylesheet" href="css/admin/calendar.css?v=m365-2">
     <link rel="stylesheet" href="css/admin/10-content-management.css">
     <link rel="stylesheet" href="css/admin/security-audit.css">
@@ -6078,17 +6078,36 @@
                                         </div>
                                     </div>
                                     <div class="um-divider"></div>
-                                    <div class="row">
-                                        <div class="col-md-8">
-                                            <div class="um-field-group"><label class="um-label" for="stNotificationEmail">Notifications Email <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(receives new booking alerts)</small></label><div class="um-input-wrap"><i class="fa-solid fa-envelope um-input-icon"></i><input type="email" class="um-input" id="stNotificationEmail" placeholder="admin@thabisomhlongo.com"></div></div>
-                                            <div class="atl-field-error" id="errStNotif" style="display:none;"></div>
-                                        </div>
-                                        <div class="col-md-4" style="display:flex;align-items:flex-end;padding-bottom:15px;">
-                                            <button type="button" class="atl-btn atl-btn--ghost btn-block" id="testNotifBtn" onclick="sendTestNotification()">
-                                                <i class="fa-solid fa-paper-plane" style="margin-right:5px;"></i>Send Test
+                                    <!-- The button sits on the input's own line (.um-inline-action) rather than in a separate Bootstrap
+                                         column: floated columns don't stretch to the row's height, so the old col-md-4 + flex-end
+                                         wrapper left "Send Test" level with the LABEL, ~30px above the email box, on desktop. -->
+                                    <div class="um-field-group"><label class="um-label" for="stNotificationEmail">Notifications Email <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(receives new booking alerts)</small></label>
+                                        <div class="um-inline-action">
+                                            <div class="um-input-wrap"><i class="fa-solid fa-envelope um-input-icon"></i><input type="email" class="um-input" id="stNotificationEmail" placeholder="admin@thabisomhlongo.com" aria-describedby="errStNotif"></div>
+                                            <button type="button" class="atl-btn atl-btn--ghost" id="testNotifBtn" onclick="sendTestNotification()">
+                                                <i class="fa-solid fa-paper-plane" style="margin-right:5px;" aria-hidden="true"></i>Send Test
                                             </button>
                                         </div>
+                                        <div class="atl-field-error" id="errStNotif" style="display:none;"></div>
                                     </div>
+                                </div>
+
+                                <!-- Card: Location search (Google Places) — 2026-10 Places audit. Read-only check: runs one real
+                                     venue search through lib/places.js and reports what Google said. The key itself lives
+                                     only in the server's .env (GOOGLE_MAPS_API_KEY) and is never shown here. -->
+                                <div class="atl-card um-settings-card">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-location-dot"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Location Search (Google Places)</h4>
+                                            <p class="um-section-desc">Powers venue search in the public booking form and in the admin's booking, event and accolade drawers. If venue suggestions stop appearing, run this check to see what Google is answering.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <button type="button" class="atl-btn atl-btn--ghost" id="testPlacesBtn" onclick="testPlacesConfig()">
+                                        <i class="fa-solid fa-stethoscope" style="margin-right:5px;" aria-hidden="true"></i>Test Google Places
+                                    </button>
+                                    <div id="stPlacesResult" class="um-section-desc um-places-result" role="status" aria-live="polite" style="margin:10px 0 0; white-space:pre-line;"></div>
                                 </div>
 
                                 <!-- Save bar (saves all three cards) -->
@@ -6294,14 +6313,14 @@
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-star"></i></div>
                                 <div>
                                     <h4 class="um-section-label">Favicon</h4>
-                                    <p class="um-section-desc">16×16 or 32×32 px icon shown in browser tabs.</p>
+                                    <p class="um-section-desc">Icon shown in browser tabs. PNG, ICO, SVG, JPG, WEBP or GIF, up to 5 MB &mdash; a square image works best.</p>
                                 </div>
                             </div>
                             <hr class="um-divider" style="margin-top:0;">
                             <label for="brandFaviconFile" class="um-upload-zone">
                                 <i class="fa-solid fa-cloud-arrow-up um-upload-icon"></i>
                                 <p class="um-upload-text">Drag &amp; drop or click to upload</p>
-                                <input type="file" id="brandFaviconFile" class="um-file-input" accept="image/*"
+                                <input type="file" id="brandFaviconFile" class="um-file-input" accept=".png,.ico,.svg,.jpg,.jpeg,.webp,.gif,image/png,image/x-icon,image/vnd.microsoft.icon,image/svg+xml,image/jpeg,image/webp,image/gif"
                                        onchange="uploadBrandingAsset('brandFaviconFile','brandFaviconUrl','brandFaviconPreview')">
                             </label>
                             <div style="text-align:center;margin-top:10px;">
@@ -7497,7 +7516,9 @@
          "Link a venue"), js/admin/events.js (Events venue search) and the inline Manual Booking
          script further down this file. -->
     <script src="js/shared/location-utils.js?v=1"></script>
-    <script src="js/admin/places-autocomplete.js?v=1"></script>
+    <!-- Shared location search client (2026-10 Places audit) — must load before places-autocomplete.js. -->
+    <script src="js/shared/places-client.js?v=1"></script>
+    <script src="js/admin/places-autocomplete.js?v=2"></script>
     <script src="js/admin/bookings-dealview.js?v=2"></script>
     <!-- Shared overlay stack — must load before drawer.js and notificationService.js, which both
          register with it. See js/overlay-stack.js for the defect it fixes. -->
@@ -8550,7 +8571,6 @@
                     loadFootprint();
                     loadTeam();
                     if (typeof window.loadAccolades === 'function') window.loadAccolades();
-                    if (typeof window.loadGoogleMaps === 'function') window.loadGoogleMaps();
                     loadTestimonials();
                     loadGallery();
                     renderSubscribersList();
@@ -8683,7 +8703,6 @@
                     loadFootprint();
                     loadTeam();
                     if (typeof window.loadAccolades === 'function') window.loadAccolades();
-                    if (typeof window.loadGoogleMaps === 'function') window.loadGoogleMaps();
                     loadTestimonials();
                     loadGallery();
                     renderSubscribersList();
@@ -11196,30 +11215,9 @@
 
     </div>
 
-    <!-- Google Places API for venue autocompletion -->
-    <script>
-        // Google Maps JS API (venue autocomplete + events map). The BROWSER key is not written in this file: it
-        // lives in .env (GOOGLE_MAPS_BROWSER_KEY) and GET /api/admin/maps-config hands it to a signed-in admin.
-        // loadGoogleMaps() is called once the admin session is established (see the two "Trigger data loads"
-        // blocks); until then / without a key the Maps-dependent inputs simply stay plain text boxes, which
-        // every caller already tolerates (they check window.google before using it).
-        window.loadGoogleMaps = function () {
-            if (window.__gmapsState) return;                       // requested, loading or loaded
-            window.__gmapsState = 'requesting';
-            fetch('/api/admin/maps-config', { credentials: 'same-origin', bypassInterceptor: true })
-                .then(function (r) { return r.ok ? r.json() : null; })
-                .then(function (cfg) {
-                    if (!cfg || !cfg.key) { window.__gmapsState = null; if (cfg) console.warn('Google Maps disabled: GOOGLE_MAPS_BROWSER_KEY is not set on the server.'); return; }
-                    var s = document.createElement('script');
-                    s.async = true; s.defer = true;
-                    s.src = 'https://maps.googleapis.com/maps/api/js?key=' + encodeURIComponent(cfg.key) + '&libraries=places&callback=initEventsMap';
-                    s.onerror = function () { window.__gmapsState = null; };
-                    window.__gmapsState = 'loading';
-                    document.head.appendChild(s);
-                })
-                .catch(function () { window.__gmapsState = null; });  // e.g. not signed in yet - retried after login
-        };
-    </script>
+    <!-- (The Google Maps JavaScript loader that used to sit here - window.loadGoogleMaps, fed by GET
+         /api/admin/maps-config with the browser key - was removed in the 2026-10 Places audit. Admin venue
+         search now goes through this server: js/shared/places-client.js -> /api/admin/places/* -> lib/places.js.) -->
 
 <!-- ==============================
      ADMIN — PRIVACY POLICY MODAL
@@ -12329,13 +12327,21 @@
             });
         }
 
-        // Google Places autocomplete for location (js/admin/places-autocomplete.js — shared with
-        // the Booking Pipeline's "Link a venue" search and the Events drawer's venue search;
-        // 2026-09-29 location-search consolidation).
+        // Venue search for location (js/admin/places-autocomplete.js — shared with the Booking Pipeline's
+        // "Link a venue" search, the Events venue search and Accolades; searches through this server,
+        // lib/places.js, since the 2026-10 Places audit). Full detail: the old field list left out
+        // coordinates, so #mbLatitude/#mbLongitude were never filled even though they are posted.
         var locInput = document.getElementById('mbLocation');
+        var mbPlaceFields = ['mbPlaceId', 'mbCity', 'mbAddress', 'mbCountry', 'mbState', 'mbPostalCode', 'mbLatitude', 'mbLongitude'];
         if (window.AdminPlacesAutocomplete) {
             window.AdminPlacesAutocomplete.init(locInput, {
-                fields: ['name', 'formatted_address', 'place_id', 'address_components'],
+                detail: 'full',
+                // Typing after picking a place means it no longer describes the field: drop the picked place's
+                // id/address/coordinates so a retyped venue is saved as entered, not with the old place's data.
+                onInput: function() {
+                    if (!document.getElementById('mbPlaceId').value) return;
+                    mbPlaceFields.forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+                },
                 onPlace: function(loc) {
                     if (loc.name) locInput.value = loc.name;
                     document.getElementById('mbPlaceId').value = loc.placeId;
@@ -12947,9 +12953,9 @@
          continuous closure. Order preserved (services before policies). -->
     <script src="js/admin/services.js"></script>
     <script src="js/admin/policies.js"></script>
-    <script src="js/admin/branding.js?v=3"></script>
+    <script src="js/admin/branding.js?v=4"></script>
     <script src="js/admin/security-audit.js"></script>
-    <script src="js/admin/system-settings.js?v=smtp3"></script>
+    <script src="js/admin/system-settings.js?v=smtp3-places1"></script>
     <script src="js/admin/financials.js"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================

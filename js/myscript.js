@@ -2432,6 +2432,9 @@ document.addEventListener("DOMContentLoaded", function() {
         var _venueCache = {};      // lower-cased query -> predictions
         var _venueReqSeq = 0;      // bumped on every keystroke; a response for an older seq is ignored
         var _venueXhr = null;
+        // Google billing session (2026-10 Places audit): one token covers the searches for a venue plus the
+        // details lookup of the one picked, then a fresh token starts the next search. js/shared/places-client.js.
+        var _venueSession = (window.TMPlaces && window.TMPlaces.newSessionToken) ? window.TMPlaces.newSessionToken() : '';
 
         function venueStatus(html, kind) {
             var $s = $('#venueStatus');
@@ -2499,12 +2502,14 @@ document.addEventListener("DOMContentLoaded", function() {
 
         function venueChoose(p, main) {
             var $input = $('#bookLocation');
+            var session = _venueSession;
+            if (window.TMPlaces && window.TMPlaces.newSessionToken) _venueSession = window.TMPlaces.newSessionToken();   // this pick ends the session
             venueClose();
             venueStatus('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Getting the address…');
             $.ajax({
                 url: '/api/public/places/details',
                 bypassInterceptor: true,   // failures are shown inline (venueStatus), not as an extra toast
-                data: { place_id: p.place_id },
+                data: session ? { place_id: p.place_id, sessionToken: session } : { place_id: p.place_id },
                 success: function(detailData) {
                     venueStatus('');
                     if (!detailData || !detailData.result) {
@@ -2575,7 +2580,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     _venueXhr = $.ajax({
                         url: '/api/public/places/autocomplete',
                         bypassInterceptor: true,   // failures are shown inline (venueStatus), not as an extra toast
-                        data: { input: q },
+                        data: _venueSession ? { input: q, sessionToken: _venueSession } : { input: q },
                         success: function(data) {
                             if (seq !== _venueReqSeq) return;          // the text has moved on
                             var predictions = (data && data.predictions) || [];

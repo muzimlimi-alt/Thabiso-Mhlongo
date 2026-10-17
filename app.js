@@ -495,6 +495,7 @@ app.use(session({
 app.use(require('./routes/admin/users'));
 app.use(require('./routes/admin/auth'));
 app.use(require('./routes/admin/settings'));
+app.use(require('./routes/admin/places'));           // shared Google Places search (lib/places.js)
 app.use(require('./routes/admin/site-content'));
 app.use(require('./routes/admin/content'));
 app.use(require('./routes/admin/team'));
