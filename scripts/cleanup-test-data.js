@@ -647,7 +647,9 @@ function printPlan(plan, ident) {
     say(`  PayFast hold (${plan.options.payfastHold}): ${k.payfastHeldBookings.length} booking(s) [${k.payfastHeldBookings.join(', ')}] and ${k.payfastHeldTx.length} PayFast transaction(s), with everything attached to them`);
     if (k.payfastToVerify.length || k.payfastTxNoGatewayId.length) {
         say('');
-        say('  CHECK THESE ON THE PAYFAST DASHBOARD before releasing the hold (numeric gateway ids; fixtures like PF-TEST-... are excluded):');
+        say(plan.options.payfastHold === 'release'
+            ? '  PAYFAST RECORDS THAT WILL BE DELETED - you confirmed none of this is real money (numeric gateway ids; hand-made PF-TEST-... fixtures are not listed):'
+            : '  CHECK THESE ON THE PAYFAST DASHBOARD before releasing the hold (numeric gateway ids; fixtures like PF-TEST-... are excluded):');
         say('    ' + 'pf_payment_id'.padEnd(15) + 'booking'.padEnd(9) + 'merchant'.padEnd(11) + 'amount (R)'.padEnd(13) + 'first seen'.padEnd(18) + 'what the app did');
         for (const p of k.payfastToVerify) say('    ' + String(p.pf_payment_id).padEnd(15) + String(p.booking_id).padEnd(9) + String(p.merchant_id).padEnd(11) + String(p.amount).padEnd(13) + String(p.first_seen).padEnd(18) + p.status);
         if (k.payfastTxNoGatewayId.length) say(`    + ${k.payfastTxNoGatewayId.length} transaction row(s) marked source=payfast with no gateway id on the row itself (ids ${k.payfastTxNoGatewayId.map(t => '#' + t.id).join(', ')}; booking ${[...new Set(k.payfastTxNoGatewayId.map(t => t.booking_id))].join(', ')})`);
@@ -670,7 +672,12 @@ function printPlan(plan, ident) {
     if (plan.upcomingBookings.length) say(`  upcoming-bookings  ${plan.upcomingBookings.length} ACCEPTED/CONFIRMED booking(s) dated in the future will be removed: ${plan.upcomingBookings.map(b => `#${b.id} ${b.date}`).join(', ')}`);
     say('');
     say('OUTSIDE THE DATABASE (not touched by this tool)');
-    say(`  Google Calendar: ${plan.googleEvents.length} removed row(s) carry a Google event id. Delete those events in Google Calendar, otherwise the 15-minute calendar sync re-imports future ones as blocking holds. (ids are in the manifest)`);
+    const today = new Date().toISOString().slice(0, 10);
+    const upcomingG = plan.googleEvents.filter(g => g.date >= today).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    say(`  Google Calendar: ${plan.googleEvents.length} removed row(s) have an event in Google Calendar (all ids are in the manifest). Only FUTURE-dated ones can come back:`);
+    if (!upcomingG.length) say('    none are in the future - nothing to delete in Google Calendar.');
+    for (const g of upcomingG) say(`    ${g.date}   ${g.tbl === 'bookings' ? `booking #${g.id}  (titled "[STATUS] Thabiso Mhlongo: <event type>")` : g.tbl === 'events' ? `public event #${g.id}  (titled "[PUBLIC] <event title>")` : `calendar block #${g.id}`}`);
+    if (upcomingG.length) say('    Delete these in Google Calendar BEFORE the real run; otherwise the 15-minute calendar sync re-imports them as blocking holds.');
     say(`  Files: ${plan.filesLeftInPlace.length} document/attachment reference(s) will be left on disk/object storage (listed in the manifest).`);
 }
 
