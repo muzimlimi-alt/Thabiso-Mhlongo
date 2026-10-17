@@ -1405,6 +1405,100 @@ function initializeDatabase() {
         )`);
         db.run(`INSERT OR IGNORE INTO inbox_sync_state (id) VALUES (1)`);
 
+        // ── Admin Calendar <-> Microsoft 365 (lib/calendar-m365.js, docs-internal/calendar-m365.md) ──
+        // One row of switches / checkpoint / health, like inbox_sync_state. OFF by default; the delta checkpoint (a URL) stays server-side.
+        db.run(`CREATE TABLE IF NOT EXISTS calendar_sync_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+            mailbox TEXT,
+            delta_link TEXT,
+            window_start TEXT,
+            window_end TEXT,
+            baseline_at TEXT,
+            last_run_at TEXT,
+            last_success_at TEXT,
+            last_error TEXT,
+            last_error_category TEXT,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            retry_after TEXT,
+            last_stats TEXT,
+            enabled_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`INSERT OR IGNORE INTO calendar_sync_state (id) VALUES (1)`);
+
+        // The ONLY mapping between a website record and its Microsoft event, and the recoverable queue: a row is written BEFORE anything is sent
+        // (create_token = the Graph transactionId), so a retry after a crash cannot create a second event. A website record is never deleted by the sync.
+        db.run(`CREATE TABLE IF NOT EXISTS calendar_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_type TEXT NOT NULL CHECK (source_type IN ('booking', 'event')),
+            source_id INTEGER NOT NULL,
+            graph_event_id TEXT,
+            create_token TEXT,
+            web_link TEXT,
+            sync_status TEXT NOT NULL DEFAULT 'pending' CHECK (sync_status IN ('pending', 'synced', 'error', 'conflict', 'external_deleted', 'removed')),
+            pushed_hash TEXT,
+            pushed_json TEXT,
+            change_key TEXT,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            next_attempt_at TEXT,
+            last_error TEXT,
+            last_error_category TEXT,
+            conflict_json TEXT,
+            last_pushed_at TEXT,
+            last_seen_at TEXT,
+            last_synced_at TEXT,
+            created_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            updated_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (source_type, source_id)
+        )`);
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_links_graph ON calendar_links(graph_event_id) WHERE graph_event_id IS NOT NULL`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_calendar_links_status ON calendar_links(sync_status, next_attempt_at)`);
+
+        // Other people's appointments from the shared calendar, read-only. Text is stored entity-encoded once (stored-text convention); Busy / Out-of-office
+        // events also hold the date through date_holds rows (block_type 'm365_sync', m365_event_id) so the public booking form cannot double-book that time.
+        db.run(`CREATE TABLE IF NOT EXISTS calendar_external_events (
+            graph_event_id TEXT PRIMARY KEY,
+            subject TEXT,
+            start_date TEXT NOT NULL,
+            start_time TEXT,
+            end_date TEXT NOT NULL,
+            end_time TEXT,
+            all_day INTEGER NOT NULL DEFAULT 0,
+            show_as TEXT,
+            location TEXT,
+            is_online INTEGER NOT NULL DEFAULT 0,
+            join_url TEXT,
+            web_link TEXT,
+            series_master_id TEXT,
+            change_key TEXT,
+            blocks INTEGER NOT NULL DEFAULT 0,
+            graph_modified_at TEXT,
+            first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_calendar_external_start ON calendar_external_events(start_date)`);
+        db.run("ALTER TABLE date_holds ADD COLUMN m365_event_id TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: date_holds.m365_event_id already exists or could not be added:", err.message); });
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_date_holds_m365 ON date_holds(m365_event_id, hold_date) WHERE m365_event_id IS NOT NULL`);
+
+        // What the sync did and why (who, what, outcome) - the trail an administrator reads when something looks wrong. No token, no secret, no client contact data.
+        db.run(`CREATE TABLE IF NOT EXISTS calendar_sync_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            direction TEXT NOT NULL,
+            action TEXT NOT NULL,
+            source_type TEXT,
+            source_id INTEGER,
+            graph_event_id TEXT,
+            outcome TEXT NOT NULL CHECK (outcome IN ('ok', 'error', 'skipped')),
+            category TEXT,
+            message TEXT,
+            actor_id INTEGER REFERENCES admins(id) ON DELETE SET NULL
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_calendar_sync_log_source ON calendar_sync_log(source_type, source_id, id)`);
+
         // EXPENSES (SARS Mileage & Per Diem)
         db.run(`CREATE TABLE IF NOT EXISTS expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2873,6 +2967,7 @@ function initializeDatabase() {
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (102, 'inquiry_messages_conversation_and_delivery')");
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (103, 'inquiries_source_and_direct_emails_created_by')");
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (104, 'inbox_sync_state')");
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (105, 'calendar_m365_sync')");
 
         console.log('Database tables initialized successfully.');
     });

@@ -32,14 +32,10 @@ module.exports = async function ({ check, api, pub, loginAs }) {
             let threw = false; try { graph.buildUrl(ctx, bad); } catch (e) { threw = true; }
             check(`buildUrl refuses ${JSON.stringify(bad)}`, threw, '');
         }
-        const root = `${g.origin}/v1.0/users/${encodeURIComponent(MAILBOX)}`;
-        check('a nextLink/deltaLink inside the same mailbox is accepted', graph.isOwnLink(ctx, root + '/mailFolders/inbox/messages/delta?$deltatoken=abc'), '');
-        check('...case-insensitively for the mailbox part', graph.isOwnLink(ctx, `${g.origin}/v1.0/users/${encodeURIComponent(MAILBOX).toUpperCase()}/mailFolders/inbox/messages/delta`), '');
-        check('a link for ANOTHER mailbox is refused', !graph.isOwnLink(ctx, `${g.origin}/v1.0/users/other%40example.invalid/mailFolders/inbox/messages/delta`), '');
-        check('a link that only starts with the same characters is refused (prefix trick)', !graph.isOwnLink(ctx, `${root}.evil/mailFolders`), '');
-        check('a link to another host is refused', !graph.isOwnLink(ctx, 'http://127.0.0.1:1/v1.0/users/' + encodeURIComponent(MAILBOX) + '/x') && !graph.isOwnLink(ctx, 'https://evil.example.invalid/v1.0/users/' + encodeURIComponent(MAILBOX) + '/x'), '');
-        check('a link with embedded credentials is refused', !graph.isOwnLink(ctx, `http://user:pw@${new URL(g.origin).host}/v1.0/users/${encodeURIComponent(MAILBOX)}/x`), '');
-        check('garbage is not a link', !graph.isOwnLink(ctx, 'not a url') && !graph.isOwnLink(ctx, undefined), '');
+        check("a link written the way real Graph writes them (users('<id>')/mailFolders('<id>')/...) is accepted - only its query is used", graph.isGraphLink(ctx, `${g.origin}/v1.0/users('7d1f2c3e-0a4b')/mailFolders('AAMk=')/messages/delta?$deltatoken=abc`), '');
+        check('a link to another host is refused', !graph.isGraphLink(ctx, 'http://127.0.0.1:1/v1.0/users/' + encodeURIComponent(MAILBOX) + '/x') && !graph.isGraphLink(ctx, 'https://evil.example.invalid/v1.0/users/' + encodeURIComponent(MAILBOX) + '/x'), '');
+        check('a link with embedded credentials is refused', !graph.isGraphLink(ctx, `http://user:pw@${new URL(g.origin).host}/v1.0/users/${encodeURIComponent(MAILBOX)}/x`), '');
+        check('garbage is not a link', !graph.isGraphLink(ctx, 'not a url') && !graph.isGraphLink(ctx, undefined), '');
 
         // Happy path
         fresh();
@@ -54,11 +50,17 @@ module.exports = async function ({ check, api, pub, loginAs }) {
         const smtpTok = await oauth.getAccessToken(ctx.oauth);
         check('the SMTP-audience token is cached separately (another sign-in, different scope)', g.tokenRequests.length === 2 && g.lastScope === oauth.SCOPE && smtpTok.token !== graphTok, g.tokenRequests.length + ' ' + g.lastScope);
 
-        // Foreign link: refused before any request
+        // Saved links: only the query is kept; the request is rebuilt on the pinned mailbox path
         fresh();
         const before = g.requests.length;
-        const foreign = await graph.graphGet(ctx, { url: `${g.origin}/v1.0/users/other%40example.invalid/mailFolders/inbox/messages/delta` }, fast);
-        check('following a link for another mailbox is refused without sending anything', !foreign.ok && foreign.category === 'invalid' && g.requests.length === before, JSON.stringify(foreign));
+        const noPath = await graph.graphGet(ctx, { url: `${g.origin}/v1.0/users('x')/mailFolders('y')/messages/delta?$deltatoken=0` }, fast);
+        check('a saved link followed WITHOUT the path it continues is refused, nothing sent', !noPath.ok && noPath.code === 'BadPath' && g.requests.length === before, JSON.stringify(noPath));
+        const evil = await graph.graphGet(ctx, { url: 'https://evil.example.invalid/v1.0/users/x/mailFolders/inbox/messages/delta?$deltatoken=0', path: '/mailFolders/inbox/messages/delta' }, fast);
+        check('a saved link to another host is refused, nothing sent', !evil.ok && evil.code === 'ForeignLink' && g.requests.length === before, JSON.stringify(evil));
+        const steer = await graph.graphGet(ctx, { url: `${g.origin}/v1.0/users/other%40example.invalid/mailFolders/inbox/messages/delta?$deltatoken=0`, path: '/mailFolders/inbox/messages/delta' }, fast);
+        const sent = g.graphRequests[g.graphRequests.length - 1];
+        check('a saved link naming ANOTHER mailbox cannot steer the call: it goes to the configured mailbox with only the token taken from the link',
+            steer.ok && g.graphRequests.length === 1 && sent.path.toLowerCase().startsWith(`/v1.0/users/${encodeURIComponent(MAILBOX)}/mailfolders/inbox/messages/delta?`.toLowerCase()) && sent.path.includes('$deltatoken=0') && !/other/i.test(sent.path), JSON.stringify(g.graphRequests));
 
         // Error classification
         fresh(); g.mode = '403';

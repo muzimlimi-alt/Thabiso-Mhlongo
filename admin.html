@@ -81,7 +81,7 @@
     <link rel="stylesheet" href="css/admin/08-finance-tiles-note.css">
     <link rel="stylesheet" href="css/admin/inquiries.css">
     <link rel="stylesheet" href="css/admin/09-users-security.css">
-    <link rel="stylesheet" href="css/admin/calendar.css">
+    <link rel="stylesheet" href="css/admin/calendar.css?v=m365-2">
     <link rel="stylesheet" href="css/admin/10-content-management.css">
     <link rel="stylesheet" href="css/admin/security-audit.css">
     <link rel="stylesheet" href="css/admin/11-services-cards.css">
@@ -2030,6 +2030,17 @@
                             <!-- Main Calendar Column -->
                             <div class="col-lg-8">
                                 <div id="cal-main-card" class="atl-card" style="min-height: 800px;">
+                                    <!-- Microsoft 365 shared calendar: status, sync now, details (js/admin/calendar-m365.js) -->
+                                    <div id="calM365Strip" class="cal-m365-strip" role="region" aria-label="Microsoft 365 calendar sharing" hidden>
+                                        <span class="cal-m365-strip__icon" aria-hidden="true"><i class="fa-brands fa-microsoft"></i></span>
+                                        <span id="calM365Text" class="cal-m365-strip__text" role="status" aria-live="polite">Checking Microsoft 365&hellip;</span>
+                                        <span class="cal-m365-strip__actions">
+                                            <button type="button" id="calM365Attention" class="cal-m365-strip__btn" hidden></button>
+                                            <button type="button" id="calM365Run" class="cal-m365-strip__btn cal-m365-manage" hidden><i class="fa-solid fa-rotate" aria-hidden="true"></i> Sync now</button>
+                                            <button type="button" id="calM365Toggle" class="cal-m365-strip__btn" aria-expanded="false" aria-controls="calM365Panel"><i class="fa-solid fa-gear" aria-hidden="true"></i> Details</button>
+                                        </span>
+                                    </div>
+                                    <div id="calM365Panel" class="cal-m365-panel" hidden></div>
                                     <!-- Calendar filter bar -->
                                     <div id="calFilterBar" class="cal-filter-bar" role="toolbar" aria-label="Calendar filters">
                                         <span class="cal-filter-label">Show:</span>
@@ -2045,6 +2056,19 @@
                                         <button class="cal-filter-btn active" data-filter="milestones" title="Toggle financial milestones (quote expiries, payments due)" aria-pressed="true">
                                             <span class="cal-filter-dot" style="background:var(--atl-orange);"></span>Milestones
                                         </button>
+                                        <button class="cal-filter-btn active" id="calFilterExternal" data-filter="external" title="Toggle appointments from the shared Microsoft 365 calendar" aria-pressed="true" hidden>
+                                            <span class="cal-filter-dot" style="background:var(--atl-m365, #7a93b8);"></span>Microsoft 365
+                                        </button>
+                                        <label class="cal-sync-filter" id="calSyncFilterWrap" hidden>
+                                            <span class="cal-filter-label">Sync:</span>
+                                            <select id="calSyncFilter" aria-label="Filter by Microsoft 365 sync status">
+                                                <option value="all">All entries</option>
+                                                <option value="synced">Synced</option>
+                                                <option value="pending">Waiting to sync</option>
+                                                <option value="attention">Needs attention</option>
+                                                <option value="website">Website only</option>
+                                            </select>
+                                        </label>
                                     </div>
                                     <div id="calendar" style="min-height: 700px;"></div>
 
@@ -2063,6 +2087,15 @@
                                             <div style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:var(--atl-sage);display:inline-block;"></span><span style="font-size:11px;color:var(--atl-muted);">Hold: Travel</span></div>
                                             <div style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:var(--atl-blue);display:inline-block;"></span><span style="font-size:11px;color:var(--atl-muted);">Public Event</span></div>
                                             <div style="display:flex;align-items:center;gap:5px;"><span style="width:9px;height:9px;border-radius:50%;background:var(--atl-orange);display:inline-block;"></span><span style="font-size:11px;color:var(--atl-muted);">Milestone</span></div>
+                                        </div>
+                                        <div id="calLegendM365" style="display:flex;gap:6px 12px;flex-wrap:wrap;align-items:center;margin-top:10px;">
+                                            <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--atl-muted-dim);margin-right:4px;white-space:nowrap;">Microsoft 365:</span>
+                                            <div style="display:flex;align-items:center;gap:5px;"><span class="fc-m365-badge fc-m365-badge--synced" style="margin:0;"><i class="fa-solid fa-check" aria-hidden="true"></i></span><span style="font-size:11px;color:var(--atl-muted);">Synced</span></div>
+                                            <div style="display:flex;align-items:center;gap:5px;"><span class="fc-m365-badge fc-m365-badge--pending" style="margin:0;"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i></span><span style="font-size:11px;color:var(--atl-muted);">Waiting</span></div>
+                                            <div style="display:flex;align-items:center;gap:5px;"><span class="fc-m365-badge fc-m365-badge--error" style="margin:0;"><i class="fa-solid fa-exclamation" aria-hidden="true"></i></span><span style="font-size:11px;color:var(--atl-muted);">Could not sync</span></div>
+                                            <div style="display:flex;align-items:center;gap:5px;"><span class="fc-m365-badge fc-m365-badge--conflict" style="margin:0;"><i class="fa-solid fa-code-compare" aria-hidden="true"></i></span><span style="font-size:11px;color:var(--atl-muted);">Changed there</span></div>
+                                            <div style="display:flex;align-items:center;gap:5px;"><span class="fc-m365-badge fc-m365-badge--external_deleted" style="margin:0;"><i class="fa-solid fa-link-slash" aria-hidden="true"></i></span><span style="font-size:11px;color:var(--atl-muted);">Deleted there</span></div>
+                                            <div style="display:flex;align-items:center;gap:5px;"><span class="fc-m365-badge fc-m365-badge--External" style="margin:0;"><i class="fa-brands fa-microsoft" aria-hidden="true"></i></span><span style="font-size:11px;color:var(--atl-muted);">Appointment from Outlook</span></div>
                                         </div>
                                     </div>
                                 </div>
@@ -2186,6 +2219,18 @@
                                         <li class="can"><i class="fa-solid fa-check"></i> The <strong style="color:var(--atl-ink);">Schedule</strong> sidebar tab configures working hours per day of the week</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> The booking gap setting adds buffer time between events on the public form</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> Non-working days are automatically marked unavailable on the public booking calendar</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-brands fa-microsoft" style="color:var(--atl-amber);"></i> Microsoft 365 calendar</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Confirmed</strong> bookings and public events appear on the shared Microsoft 365 calendar (accepted ones as tentative); enquiries and quotes never do</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> The small icon on an item shows whether it is synced, waiting, failed or changed in Outlook &mdash; click the item for details and actions</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Other people&rsquo;s busy appointments from that calendar are shown and block the booking form</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> A change made in Outlook never edits a booking, quote or payment &mdash; it is flagged for you to decide</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Do not also subscribe that calendar to the iCalendar feed below &mdash; every booking would appear twice</li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -11345,7 +11390,8 @@
         $('#finTabBar .atl-tab-btn[data-um-tab="finInvoices"]').click();
     }
 </script>
-    <script src="js/admin/calendar.js"></script>
+    <script src="js/admin/calendar.js?v=m365-1"></script>
+    <script src="js/admin/calendar-m365.js?v=2"></script>
 <script>
 (function() {
     'use strict';

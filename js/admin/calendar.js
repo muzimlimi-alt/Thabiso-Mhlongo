@@ -36,7 +36,7 @@
 let adminCalendar = null;
 
 // Calendar filter state — controls which event types are visible
-var _calFilterState = { bookings: true, holds: true, events: true, milestones: true };
+var _calFilterState = { bookings: true, holds: true, events: true, milestones: true, external: true };
 
 /* Global helper used by inline onclick — switches main calendar to list view */
 window._calSwitchToList = function() {
@@ -50,6 +50,13 @@ function _applyCalFilter() {
     el.classList.toggle('fc-cal--hide-holds',     !_calFilterState.holds);
     el.classList.toggle('fc-cal--hide-events',    !_calFilterState.events);
     el.classList.toggle('fc-cal--hide-milestones',!_calFilterState.milestones);
+    el.classList.toggle('fc-cal--hide-external',  !_calFilterState.external);
+}
+
+/* Text that did not come from this site (a title read from a Google / Microsoft calendar) must never reach innerHTML as markup. escHtml decodes the stored form first. */
+function _esc(s) {
+    if (window.escHtml) return window.escHtml(s);
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; });
 }
 
 window.handleRemoveHold = async function(dbId) {
@@ -91,7 +98,7 @@ function showCalEventPopup(info) {
             '<button onclick="document.getElementById(\'calEventPopup\').remove()" style="background:none;border:none;color:var(--atl-muted);font-size:18px;cursor:pointer;line-height:1;">&times;</button>' +
             '</div>' +
             '<div style="font-size:13px;line-height:1.75;color:var(--atl-ink-dim);">' +
-            '<div style="margin-bottom:4px;"><strong style="color:var(--atl-ink);">' + info.event.title + '</strong></div>' +
+            '<div style="margin-bottom:4px;"><strong style="color:var(--atl-ink);">' + _esc(info.event.title) + '</strong></div>' +
             '<div>Date: <span style="color:var(--atl-ink);">' + (info.event.startStr || '').split('T')[0] + '</span></div>' +
             '<div>Status: <span style="color:' + statusColor + ';font-weight:700;">' + (props.status || '—') + '</span></div>' +
             '<div>Payment: <span style="color:var(--atl-muted);">' + (props.payment || '—') + '</span></div>' +
@@ -121,7 +128,7 @@ function showCalEventPopup(info) {
             '<button onclick="document.getElementById(\'calEventPopup\').remove()" style="background:none;border:none;color:var(--atl-muted);font-size:18px;cursor:pointer;line-height:1;">&times;</button>' +
             '</div>' +
             '<div style="font-size:13px;line-height:1.75;color:var(--atl-ink-dim);">' +
-            '<div style="margin-bottom:4px;"><strong style="color:var(--atl-ink);">' + info.event.title + '</strong></div>' +
+            '<div style="margin-bottom:4px;"><strong style="color:var(--atl-ink);">' + _esc(info.event.title) + '</strong></div>' +
             '<div>Date: <span style="color:' + (isOverdue ? 'var(--atl-clay)' : 'var(--atl-ink)') + ';font-weight:' + (isOverdue ? '700' : 'normal') + ';">' + (info.event.startStr || '').split('T')[0] + (isOverdue ? ' — OVERDUE' : '') + '</span></div>' +
             (mAmount ? '<div>Amount: <span style="color:' + mColor + ';font-weight:700;">' + mAmount + '</span></div>' : '') +
             '</div>' +
@@ -132,20 +139,26 @@ function showCalEventPopup(info) {
             '<button onclick="document.getElementById(\'calEventPopup\').remove()" style="background:none;border:none;color:var(--atl-muted);font-size:18px;cursor:pointer;line-height:1;">&times;</button>' +
             '</div>' +
             '<div style="font-size:13px;line-height:1.75;color:var(--atl-ink-dim);">' +
-            '<div style="margin-bottom:4px;"><strong style="color:var(--atl-ink);">' + info.event.title.replace('[EVENT] ', '') + '</strong></div>' +
+            '<div style="margin-bottom:4px;"><strong style="color:var(--atl-ink);">' + _esc(info.event.title.replace('[EVENT] ', '')) + '</strong></div>' +
             '<div>Date: <span style="color:var(--atl-ink);">' + (info.event.startStr || '').split('T')[0] + '</span></div>' +
             (props.venue ? '<div>Venue: <span style="color:var(--atl-muted);">' + props.venue + '</span></div>' : '') +
             '</div>' +
             '<div style="margin-top:14px;">' +
             '<button onclick="switchTab(\'eventsAdmin\'); setTimeout(() => { if(typeof window.openEvtEditDrawer===\'function\'){ window.openEvtEditDrawer(' + props.dbId + '); var $c=$(\'.atl-event-card[data-id=&quot;' + props.dbId + '&quot;]\'); if($c.length) $(\'html,body\').animate({scrollTop:$c.offset().top-70},400); } document.getElementById(\'calEventPopup\').remove(); }, 300);" style="width:100%;background:var(--atl-amber);color:var(--atl-on-amber);border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:700;cursor:pointer;"><i class="fa-solid fa-pen-to-square"></i> Edit Event</button>' +
             '</div>';
+    } else if (props.type === 'external' && window.calM365ExternalPopupHtml) {
+        popup.innerHTML = window.calM365ExternalPopupHtml(info, props);
     } else {
         popup.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-            '<strong style="color:var(--atl-blue);font-size:13px;">' + info.event.title + '</strong>' +
+            '<strong style="color:var(--atl-blue);font-size:13px;">' + _esc(info.event.title) + '</strong>' +
             '<button onclick="document.getElementById(\'calEventPopup\').remove()" style="background:none;border:none;color:var(--atl-muted);font-size:18px;cursor:pointer;line-height:1;">&times;</button>' +
             '</div>';
     }
 
+    if (window.calM365PopupSection) {
+        try { var m365Sec = window.calM365PopupSection(props, info); if (m365Sec) popup.appendChild(m365Sec); }
+        catch (secErr) { console.error('Microsoft 365 section failed:', secErr); }
+    }
     document.body.appendChild(popup);
     setTimeout(() => { document.addEventListener('click', function dismiss(e) { if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('click', dismiss); } }); }, 50);
 }
@@ -296,6 +309,7 @@ function initAdminCalendar() {
                 var props = arg.event.extendedProps || {};
                 var type  = props.type;
                 if (type) arg.el.classList.add('fc-event--type-' + type);
+                if (window.calM365Badge && !props.isBgFill) { try { window.calM365Badge(arg, props); } catch (badgeErr) { /* a badge must never break the calendar */ } }
                 var color = null;
                 if (type === 'booking') {
                     var s = (props.status || '').toUpperCase();
@@ -314,6 +328,8 @@ function initAdminCalendar() {
                     else                           color = 'var(--atl-clay)';
                 } else if (type === 'milestone') {
                     color = props.isOverdue ? 'var(--atl-clay)' : 'var(--atl-orange)';
+                } else if (type === 'external') {
+                    color = 'var(--atl-m365, #7a93b8)';
                 }
                 if (color) {
                     arg.el.style.setProperty('background-color', color);
@@ -339,6 +355,7 @@ function initAdminCalendar() {
     initMiniCalendar();
     renderWorkingSchedule();
     if (typeof window.loadWorkingHours === 'function') window.loadWorkingHours();
+    if (window.calM365Init) window.calM365Init();
 }
 
 /* ---- Calendar sidebar tab switching ---- */
@@ -520,6 +537,8 @@ async function renderWorkingSchedule() {
                     else                           dotColor = 'var(--atl-clay)';
                 } else if (ev.extendedProps.type === 'event' || ev.extendedProps.type === 'public_event') {
                     dotColor = 'var(--atl-blue)';
+                } else if (ev.extendedProps.type === 'external') {
+                    dotColor = 'var(--atl-m365, #7a93b8)';
                 } else if (ev.extendedProps.type === 'milestone') {
                     dotColor = ev.extendedProps.isOverdue ? 'var(--atl-clay)' : 'var(--atl-orange)';
                 }
@@ -529,10 +548,10 @@ async function renderWorkingSchedule() {
                 <li class="schedule-item ${isClickable ? 'clickable' : ''}" ${onclickAttr}>
                     <div class="schedule-item-header">
                         <span class="schedule-item-dot" style="background: ${dotColor};"></span>
-                        <span class="schedule-item-title">${ev.title}</span>
+                        <span class="schedule-item-title">${_esc(ev.title)}</span>
                     </div>
                     <div class="schedule-item-time">${dateStr} • ${timeStr}</div>
-                    <div class="schedule-item-meta">${ev.extendedProps ? (ev.extendedProps.type || 'Event').toUpperCase() : 'EVENT'}</div>
+                    <div class="schedule-item-meta">${ev.extendedProps ? (ev.extendedProps.type === 'external' ? 'MICROSOFT 365' : (ev.extendedProps.type || 'Event').toUpperCase()) : 'EVENT'}</div>
                 </li>
             `;
         }).join('');
@@ -568,6 +587,7 @@ if (btnRefreshCalendar) {
         if (typeof renderWorkingSchedule === 'function') {
             await renderWorkingSchedule();
         }
+        if (window.calM365RefreshStrip) window.calM365RefreshStrip();
         if (icon) icon.classList.remove('fa-spin');
         btnRefreshCalendar.disabled = false;
     };

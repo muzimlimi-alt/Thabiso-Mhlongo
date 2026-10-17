@@ -43,6 +43,7 @@ const {
     processManualPayment, alignMilestonePayments, deriveBookingStatusAfterPayment, deriveManualPaymentStatus, updateBookingMilestones
 } = require('../../lib/payment-processing');
 const { applyStatusChange } = require('../../lib/booking-status');
+const { rescheduleBooking } = require('../../lib/booking-reschedule');
 const { generateInvoice } = require('../../lib/invoicing');
 const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
@@ -1152,98 +1153,11 @@ router.patch('/api/admin/bookings/:id/date', requireAdmin, async (req, res) => {
         return res.status(400).json({ success: false, message: 'time must be HH:MM.' });
     }
     try {
-        const row = await getBookingByIdAsync(req.params.id);
-        if (!row) return res.status(404).json({ success: false, message: 'Booking not found.' });
-
-        const oldDate = row.date;
-        const oldTime = row.event_start_time;
-
-        // Determine effective start/end times for conflict checking
-        const effectiveTime = time !== undefined ? time : row.event_start_time;
-        if (effectiveTime) {
-            const durationMins = row.performance_end_time
-                ? (() => {
-                    const [eh, em] = row.performance_end_time.split(':').map(Number);
-                    const [sh, sm] = row.event_start_time.split(':').map(Number);
-                    return Math.max((eh * 60 + em) - (sh * 60 + sm), 30);
-                  })()
-                : parseDurationToMinutes(row.performance_duration);
-            const newStartISO = moment(`${date} ${effectiveTime}`).toISOString();
-            const newEndISO   = moment(newStartISO).add(durationMins, 'minutes').toISOString();
-            const busy = await hasCalendarConflict(newStartISO, newEndISO, parseInt(req.params.id));
-            if (busy) {
-                return res.status(409).json({ success: false, message: `The new time slot on ${date} conflicts with an existing booking or block. Choose a different date/time.` });
-            }
-        } else {
-            // No time on this booking (an "All Day / Custom Hours" request) and none supplied in
-            // the move — it occupies the whole destination day, so ANY existing hold/event/booking
-            // there is a conflict. This branch used to be skipped entirely whenever effectiveTime
-            // was falsy, so an untimed booking could be dragged onto an already-fully-booked day
-            // with no warning.
-            const destAvail = await new Promise((resolve, reject) =>
-                checkDateAvailability(date, (e, r) => e ? reject(e) : resolve(r), parseInt(req.params.id)));
-            if (!destAvail.available || (destAvail.busy_ranges && destAvail.busy_ranges.length > 0)) {
-                return res.status(409).json({ success: false, message: `${date} already has a booking or block on it and is not available for a full-day booking. Choose a different date.` });
-            }
-        }
-
-        // Build update
-        let newQuoteExpiry = row.quote_expiry_date;
-        if (row.quote_expiry_date) {
-            const eventMoment = moment(date);
-            const currentExpiry = moment(row.quote_expiry_date);
-            if (currentExpiry.isSameOrAfter(eventMoment)) {
-                const proposed = eventMoment.clone().subtract(14, 'days');
-                const minExpiry = moment().add(3, 'days');
-                if (proposed.isBefore(minExpiry)) {
-                    newQuoteExpiry = eventMoment.diff(moment(), 'days') > 3 ? minExpiry.format('YYYY-MM-DD') : null;
-                } else {
-                    newQuoteExpiry = proposed.format('YYYY-MM-DD');
-                }
-            }
-        }
-
-        // Compute new performance_end_time if time changed
-        let newPerfEnd = row.performance_end_time;
-        if (time !== undefined && time) {
-            const dMins = parseDurationToMinutes(row.performance_duration) || 120;
-            newPerfEnd = addMinutesToTime(time, dMins);
-        }
-
-        const setClauses = ['date = ?', 'quote_expiry_date = ?', 'modified_on = CURRENT_TIMESTAMP'];
-        const params = [date, newQuoteExpiry];
-        if (time !== undefined) {
-            setClauses.push('event_start_time = ?');
-            params.push(time || null);
-            setClauses.push('performance_start_time = ?');
-            params.push(time || null);
-            setClauses.push('performance_end_time = ?');
-            params.push(newPerfEnd || null);
-        }
-        params.push(req.params.id);
-
-        await updateBookingDateAndTimeFields(setClauses.join(', '), params);
-
-        db.run(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values) VALUES ('bookings', ?, 'UPDATE', ?, ?)`,
-            [req.params.id, JSON.stringify({ date: oldDate, time: oldTime }), JSON.stringify({ date, time })]);
-        updateDateHoldDateForBooking(date, req.params.id);
-
-        // Sync linked event datetime when booking date changes
-        if (row.event_id) {
-            const effectiveStartTime = (time !== undefined ? time : row.event_start_time) || '00:00';
-            const newEventDatetime = date + 'T' + effectiveStartTime;
-            updateEventDatetime(newEventDatetime, row.event_id,
-                (evErr) => { if (evErr) console.error('[Date Change] Event datetime sync failed:', evErr.message); }
-            );
-        }
-
-        getBookingById(req.params.id, async (e, updated) => {
-            if (!e && updated) syncBookingToCalendar(updated).catch(e => console.error('[Date Change] Calendar sync failed:', e.message));
-        });
-
-        sendDateChangedEmail(row, oldDate, date).catch(e => console.error('[Date Change] Client email failed:', e.message));
-
-        res.json({ success: true, newDate: date, newTime: time !== undefined ? time : row.event_start_time });
+        // The rules (conflict check, quote-expiry, holds and linked event follow the date, audit row, calendar re-sync, client e-mail) live in lib/booking-reschedule.js so
+        // that "use the Microsoft 365 time" on the calendar applies exactly the same ones.
+        const out = await rescheduleBooking({ bookingId: req.params.id, date, time, actorId: req.session && req.session.adminId });
+        if (!out.ok) return res.status(out.status).json({ success: false, message: out.message });
+        res.json({ success: true, newDate: out.newDate, newTime: out.newTime });
     } catch (err) {
         console.error('[PATCH booking date]', err);
         res.status(500).json({ success: false, message: 'Server error updating booking date.' });

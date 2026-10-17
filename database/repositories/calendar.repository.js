@@ -105,7 +105,7 @@ function getActiveDateHoldsForCalendarGrid(callback) {
     db.all(`SELECT id, hold_date, notes, start_time, end_time, block_type FROM date_holds WHERE status = 'active'`, [], callback);
 }
 function getActiveDateHoldsForIcsFeed(callback) {
-    db.all(`SELECT hold_date, notes, start_time, end_time FROM date_holds WHERE status = 'active'`, [], callback);
+    db.all(`SELECT hold_date, notes, start_time, end_time FROM date_holds WHERE status = 'active' AND (block_type IS NULL OR block_type != 'm365_sync')`, [], callback);
 }
 
 // ── Admin hold CRUD (POST/DELETE/PATCH /api/admin/calendar/hold...) ──
