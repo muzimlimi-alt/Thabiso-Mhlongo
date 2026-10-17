@@ -188,10 +188,30 @@ const TOUCHED_TABLES = {
     bank_statement_lines: ['matched_booking_id', 'matched_transaction_id', 'match_note'],
 };
 
+// Tables that NEWER versions of the app add. A database from an older deploy (production at the time of writing has no
+// inquiry_messages: that table belongs to the Microsoft 365 contact-form work) simply lacks them. For each one that is
+// absent, an empty TEMP stand-in exists for the length of this connection - it is never written to the database file -
+// so the same SQL runs and matches nothing. Anything the app needs that is NOT in this list must exist, and a missing
+// one stops the run before anything is changed.
+const OPTIONAL_TABLES = {
+    inquiry_messages: 'inquiry_id INTEGER, direction TEXT, notification_id INTEGER, direct_email_id INTEGER',
+};
+
+async function ensureStandIns(db) {
+    const standIns = [];
+    for (const [name, cols] of Object.entries(OPTIONAL_TABLES)) {
+        await run(db, `DROP TABLE IF EXISTS temp."${name}"`);
+        const inMain = await scalar(db, `SELECT count(*) FROM main.sqlite_master WHERE type='table' AND name='${name}'`);
+        if (!inMain) { await run(db, `CREATE TEMP TABLE "${name}" (${cols})`); standIns.push(name); }
+    }
+    return standIns;
+}
+
 // Every set is a TEMP table, so the source database stays untouched (even when opened read-only).
 async function buildSets(db, o) {
     const ctx = { cutoff: o.cutoff };
     const hold = o.payfastHold === 'keep';
+    o._standIns = await ensureStandIns(db);
     const sets = [
         'cl_pf_booking', 'cl_pf_tx', 'cl_held_booking', 'cl_held_tx', 'cl_held_invoice', 'cl_del_booking', 'cl_del_invoice',
         'cl_del_tx', 'cl_del_quotation', 'cl_del_contract', 'cl_del_cancellation', 'cl_del_schedule', 'cl_del_expense',
@@ -440,7 +460,8 @@ async function ids(db, set) { return (await all(db, `SELECT id FROM ${set} ORDER
 async function buildPlan(db, o, dbRealPath) {
     await buildSets(db, o);
     const plan = { tool: TOOL_VERSION, db: dbRealPath, cutoff: o.cutoffIso, options: {
-        payfastHold: o.payfastHold, logsScope: o.logsScope, includeStandaloneEvents: !!o.includeStandaloneEvents, includeCalendarSync: !!o.includeCalendarSync } };
+        payfastHold: o.payfastHold, logsScope: o.logsScope, includeStandaloneEvents: !!o.includeStandaloneEvents, includeCalendarSync: !!o.includeCalendarSync },
+        olderLayout: (o._standIns || []).slice() };
     const sets = {};
     for (const s of ['cl_del_booking', 'cl_del_invoice', 'cl_del_tx', 'cl_del_quotation', 'cl_del_contract', 'cl_del_cancellation', 'cl_del_schedule', 'cl_del_expense',
         'cl_del_event', 'cl_del_hold', 'cl_del_abandoned', 'cl_del_paylog', 'cl_del_finlog', 'cl_del_email', 'cl_del_notif', 'cl_del_login', 'cl_del_audit']) sets[s] = await ids(db, s);
@@ -631,6 +652,7 @@ function printPlan(plan, ident) {
     say(`           ${ident.admins} admin user(s), ${ident.bookings} booking(s), newest booking created ${ident.newestBooking || 'n/a'}`);
     say(`Cutoff   : rows created on/before ${plan.cutoff} are in scope; anything newer is kept`);
     say(`Options  : PayFast hold=${plan.options.payfastHold}  logs-scope=${plan.options.logsScope}  standalone events=${plan.options.includeStandaloneEvents ? 'DELETE' : 'keep'}  Google-mirrored holds=${plan.options.includeCalendarSync ? 'DELETE' : 'keep'}`);
+    if (plan.olderLayout.length) say(`Layout   : this database is from an older version of the app - table(s) ${plan.olderLayout.join(', ')} do not exist here, so there is nothing to clean in them (the tool changes nothing about that).`);
     say('');
     say('NEWEST ROW IN EACH DELETE SET (sanity check - these should all be old test data):');
     for (const [k, v] of Object.entries(plan.newest)) say(`  ${k.padEnd(13)} ${v || '-'}`);

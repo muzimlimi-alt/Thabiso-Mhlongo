@@ -359,6 +359,21 @@ module.exports = async function ({ check, TEST_DB }) {
         check('cutoff: a cutoff before every record puts nothing in scope (bookings, finance, calendar, logs)',
             rc.code === 0 && mc.plan.sets.cl_del_booking.length === 0 && mc.plan.sets.cl_del_tx.length === 0 && mc.plan.sets.cl_del_event.length === 0 && mc.plan.sets.cl_del_email.length === 0 && mc.plan.sets.cl_del_login.length === 0, JSON.stringify(Object.fromEntries(Object.entries(mc.plan.sets).map(([k, v]) => [k, v.length]))));
 
+        // 4e. an older database layout: production runs the deployed code, which predates the Microsoft 365 contact-form
+        // work, so it has no inquiry_messages table. The tool once failed there ("no such table") - it must cope.
+        const so2 = fresh();
+        const dbo = await open(so2.db);
+        await run(dbo, 'DROP TABLE inquiry_messages');
+        await close(dbo);
+        const ro2 = runForReal(so2);
+        check('older layout: a database without inquiry_messages is planned and cleaned normally (and says so)',
+            ro2.dry.code === 0 && /older version of the app/.test(ro2.dry.out) && ro2.real.code === 0 && /COMMITTED/.test(ro2.real.out) &&
+            (await qdb(so2.db, 'SELECT id FROM bookings ORDER BY id')).map(x => x.id).join() === '1003,1004,1005,1007', ro2.dry.out.slice(0, 300) + ro2.real.out.slice(-300));
+        check('older layout: the stand-in for the missing table is never written into the database file',
+            (await n(so2.db, "SELECT count(*) FROM sqlite_master WHERE name = 'inquiry_messages'")) === 0, '');
+        check('older layout: protections that do not depend on that table still hold (inquiry-related notification rules, held PayFast bookings)',
+            (await has(so2.db, 'bookings', 'id IN (1005,1007)')) && (await has(so2.db, 'inquiries', "sender_email = 'sender@example.invalid'")), '');
+
         // ══════════ 5. atomicity ══════════
         const sx = fresh();
         const preX = await tableHashes(sx.db);
