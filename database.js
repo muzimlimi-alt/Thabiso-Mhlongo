@@ -1014,6 +1014,8 @@ function initializeDatabase() {
         addCol('item_category',      "TEXT DEFAULT 'DIEN'");
         addCol('tax_category',       "TEXT DEFAULT NULL");
         addCol('fulfillment_type',   "TEXT DEFAULT 'on_site'");
+        // Rate card 2026: price type / range / unit / featured / display group (lib/rate-card-2026.js)
+        require('./lib/rate-card-2026').NEW_COLUMNS.forEach(([c, d]) => addCol(c, d));
 
 
 
@@ -1596,12 +1598,7 @@ function initializeDatabase() {
             db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('services_eyebrow', 'What I do')`);
             db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('services_heading', 'From the mic to the <em>moment</em>')`);
             db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('services_items', ?)`,
-                [JSON.stringify([
-                    { title: 'Stand-Up', description: 'Solo sets, festivals & comedy nights', image: '' },
-                    { title: 'MC & Host', description: 'Galas, weddings & corporate events', image: '' },
-                    { title: 'TV, Podcast & Film', description: 'Acting, presenting & writing', image: '' },
-                    { title: 'Voice-Over', description: 'Radio & TV ads', image: '' }
-                ])]);
+                [JSON.stringify(require('./lib/homepage-service-cards').NEW_DEFAULT_CARDS)]);
         });
 
 
@@ -1952,6 +1949,9 @@ function initializeDatabase() {
         // (unlike invoices/contracts/payment_schedules/quotations above), so a bad literal from any of
         // the several write paths that bypass the app-level whitelist (see server.js) would persist silently.
         statusGuard('events', 'event_status', ['upcoming', 'draft', 'live', 'completed', 'cancelled', 'postponed', 'sold_out']);
+        // Rate card 2026: the pricing-type vocabulary (mirrors PRICE_TYPES / PRICE_UNITS in lib/service-pricing.js).
+        statusGuard('services', 'price_type', ['fixed', 'range', 'from', 'enquire', 'enquire_min']);
+        statusGuard('services', 'price_unit', ['minute', 'hour', 'month', 'session', 'draft']);
 
         // Seed initial schema_migrations entries (idempotent)
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (1, 'initial_tables')`);
@@ -2968,6 +2968,17 @@ function initializeDatabase() {
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (103, 'inquiries_source_and_direct_emails_created_by')");
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (104, 'inbox_sync_state')");
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (105, 'calendar_m365_sync')");
+
+        // Homepage "What I do" cards follow the five rate-card categories (version 107): replaced only while still the shipped
+        // defaults, once. See lib/homepage-service-cards.js for the rules.
+        {
+            const homeCards = require('./lib/homepage-service-cards');
+            db.run(homeCards.UPDATE_SQL, homeCards.updateParams());
+            db.run(homeCards.MARKER_SQL);
+        }
+
+        // Official 2026 rate card — run-once data migration (version 106), after all schema/seed work above.
+        require('./lib/rate-card-2026').applyOnce(db);
 
         console.log('Database tables initialized successfully.');
     });

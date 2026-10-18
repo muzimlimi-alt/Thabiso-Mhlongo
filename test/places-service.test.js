@@ -111,6 +111,9 @@ module.exports = async function ({ check }) {
         ['no key', { env: {} }, {}, 'NO_KEY'],
         ['invalid key', {}, { newAuto: [400, { error: { code: 400, status: 'INVALID_ARGUMENT', message: 'API key not valid. Please pass a valid API key.', details: [{ reason: 'API_KEY_INVALID' }] } }] }, 'KEY_INVALID'],
         ['referrer-restricted key used server-side', {}, { newAuto: [403, { error: { code: 403, status: 'PERMISSION_DENIED', message: 'Requests from referer <empty> are blocked.', details: [{ reason: 'API_KEY_HTTP_REFERRER_BLOCKED' }] } }] }, 'KEY_RESTRICTED'],
+        ['IP-restricted key called from an unlisted IP', {}, { newAuto: [403, { error: { code: 403, status: 'PERMISSION_DENIED', message: 'The provided API key has an IP address restriction. The originating IP address of the call (203.0.113.9) violates this restriction.', details: [{ reason: 'API_KEY_IP_ADDRESS_BLOCKED' }] } }] }, 'KEY_RESTRICTED'],
+        // the live 2026-10-17 failure: a bare refusal with no reason must not be reported as a referrer/IP restriction
+        ['bare "caller does not have permission"', {}, { newAuto: [403, { error: { code: 403, status: 'PERMISSION_DENIED', message: 'The caller does not have permission' } }] }, 'ACCESS_DENIED'],
         ['billing disabled', {}, { newAuto: [403, { error: { code: 403, status: 'PERMISSION_DENIED', message: 'This API method requires billing to be enabled.', details: [{ reason: 'BILLING_DISABLED' }] } }] }, 'BILLING'],
         ['quota', {}, { newAuto: [429, { error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded' } }] }, 'QUOTA'],
         ['network down', {}, { newAuto: 'NETWORK' }, 'NETWORK'],

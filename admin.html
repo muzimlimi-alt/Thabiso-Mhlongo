@@ -28,8 +28,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Thabiso Mhlongo | Admin Portal</title>
-    <link rel="icon" type="image/png" sizes="48x48" href="/images/icon/mic-favicon-48.png">
-    <link rel="icon" href="/favicon.ico?v=2" sizes="any">
+    <link rel="icon" href="/favicon.ico?v=3">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="css/vendor/bootstrap.min.css?v=2" rel="stylesheet">
 
@@ -98,7 +97,7 @@
 
     <link rel="stylesheet" href="css/admin/14-finance.css">
     <link rel="stylesheet" href="css/admin/email-logs-2.css">
-    <link rel="stylesheet" href="css/admin/15-services-catalogue.css">
+    <link rel="stylesheet" href="css/admin/15-services-catalogue.css?v=3">
     <link rel="stylesheet" href="css/admin/legal-compliance.css">
     <link rel="stylesheet" href="css/admin/16-users-security-upload.css">
     <link rel="stylesheet" href="css/admin/about.css">
@@ -1523,7 +1522,7 @@
                     </section>
 
                     <!-- A3: bulk pipeline actions -->
-                    <link rel="stylesheet" href="css/admin/18-components-pipeline.css">
+                    <link rel="stylesheet" href="css/admin/18-components-pipeline.css?v=2">
                     <div id="bkBulkBar" class="bk-bulk-bar" style="display:none;">
                         <span class="bk-bulk-count"><span id="bkBulkCount">0</span> selected</span>
                         <label class="bk-bulk-selectall"><input type="checkbox" id="bkSelectAll"> Select all shown</label>
@@ -2924,6 +2923,23 @@
                     </div>
 
                     <div id="servicesConfigPanel" class="um-panel active">
+                    <!-- Rate card: validity of the published rates. The date is printed (with the other pricing conditions) on every
+                         quotation and quotation email, so it is editable here; filled by js/admin/services.js. -->
+                    <div id="svcRateCardBanner" class="svc-ratecard" style="display:none;" role="status">
+                        <div class="svc-ratecard__main">
+                            <i class="fa-solid fa-calendar-check" aria-hidden="true"></i>
+                            <div>
+                                <strong id="svcRcTitle">Rate card</strong>
+                                <div id="svcRcStatus" class="svc-ratecard__status"></div>
+                            </div>
+                        </div>
+                        <div class="svc-ratecard__edit">
+                            <label for="svcRcValidUntil">Rates valid until</label>
+                            <input type="date" id="svcRcValidUntil" class="um-input">
+                            <button type="button" class="atl-btn atl-btn--ghost" id="svcRcSaveBtn" onclick="saveRateCardValidity()">Save</button>
+                        </div>
+                        <p class="svc-ratecard__note"><i class="fa-solid fa-file-signature" aria-hidden="true"></i> Prices are never shown to the public. A client first sees an amount in the quotation, which carries these conditions: amounts in ZAR, VAT, travel / accommodation / rider exclusions and this validity date.</p>
+                    </div>
                     <!-- Stat Tiles -->
                     <div class="row" id="svcStatRow" style="margin-bottom:20px;">
                         <div class="col-xs-6 col-md-3" style="margin-bottom:12px;">
@@ -2956,26 +2972,11 @@
                         </div>
                     </div>
 
-                    <!-- Category Pipeline Pills -->
-                    <div id="svcCategoryPipeline" class="atl-pipeline" role="group" aria-label="Filter by category" style="margin-bottom:12px;">
-                        <button type="button" class="atl-pill svc-cat-pill active" data-cat="">
+                    <!-- Group pipeline pills: rebuilt by js/admin/services.js from /api/admin/services/meta
+                         (the rate-card groups, then "Add-ons & other"); the static "All" pill keeps the bar from collapsing while it loads. -->
+                    <div id="svcCategoryPipeline" class="atl-pipeline" role="group" aria-label="Filter by service group" style="margin-bottom:12px;">
+                        <button type="button" class="atl-pill svc-cat-pill active" data-group="">
                             All <span class="atl-pill-count" id="svcPill-All">0</span>
-                        </button>
-                        <button type="button" class="atl-pill svc-cat-pill" data-cat="Performance">
-                            <span class="atl-pill-dot" style="background:var(--atl-amber);"></span>
-                            Performance <span class="atl-pill-count" id="svcPill-Performance">0</span>
-                        </button>
-                        <button type="button" class="atl-pill svc-cat-pill" data-cat="Travel">
-                            <span class="atl-pill-dot" style="background:var(--atl-blue);"></span>
-                            Travel <span class="atl-pill-count" id="svcPill-Travel">0</span>
-                        </button>
-                        <button type="button" class="atl-pill svc-cat-pill" data-cat="Production">
-                            <span class="atl-pill-dot" style="background:var(--atl-sage);"></span>
-                            Production <span class="atl-pill-count" id="svcPill-Production">0</span>
-                        </button>
-                        <button type="button" class="atl-pill svc-cat-pill" data-cat="Other">
-                            <span class="atl-pill-dot" style="background:var(--atl-muted);"></span>
-                            Other <span class="atl-pill-count" id="svcPill-Other">0</span>
                         </button>
                     </div>
 
@@ -2985,8 +2986,11 @@
                             <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
                             <input type="search" id="svcSearchInput" class="um-input" placeholder="Search services…" autocomplete="off" oninput="filterServicesTable()">
                         </div>
-                        <select id="svcModelFilter" class="atl-filter-select" onchange="filterServicesTable()">
-                            <option value="">All Models</option>
+                        <select id="svcPriceTypeFilter" class="atl-filter-select" onchange="filterServicesTable()" aria-label="Filter by price type">
+                            <option value="">All Price Types</option>
+                        </select>
+                        <select id="svcModelFilter" class="atl-filter-select" onchange="filterServicesTable()" aria-label="Filter by quantity basis">
+                            <option value="">All Quantity Bases</option>
                             <option value="flat_fee">Flat Fee</option>
                             <option value="per_minute">Per Minute</option>
                             <option value="per_hour">Per Hour</option>
@@ -3036,11 +3040,13 @@
                                 </div>
                                 <div class="um-role-info">
                                     <div class="um-role-info__head">
-                                        <span class="um-feature-title"><i class="fa-solid fa-coins" style="color:var(--atl-amber);"></i> Pricing models</span>
+                                        <span class="um-feature-title"><i class="fa-solid fa-coins" style="color:var(--atl-amber);"></i> Price types</span>
                                     </div>
                                     <ul class="um-role-list">
-                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Flat Fee</strong> &mdash; one fixed price</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Per Minute / Per Hour</strong> &mdash; price &times; quantity, with min/max limits</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Fixed price</strong> &mdash; one fee; new bookings and quotes are pre-filled with it</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Range / From / Enquire</strong> &mdash; a published band, starting price or minimum; you enter the agreed amount on each quote</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Quantity basis</strong> &mdash; flat fee, or per minute / per hour (price &times; quantity, with min/max limits) for fixed prices</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> Prices are never shown to the public &mdash; a client first sees an amount in the quotation</li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -3074,7 +3080,7 @@
 
                             <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
-                                <li><strong style="color:var(--atl-ink);">Add a service</strong> &mdash; click <strong style="color:var(--atl-ink);">Add Service</strong>, set the name, category, pricing model and price, then save. It's active by default.</li>
+                                <li><strong style="color:var(--atl-ink);">Add a service</strong> &mdash; click <strong style="color:var(--atl-ink);">Add Service</strong>, set the name, price type, amount(s) and rate-card group, then save. It's active by default.</li>
                                 <li><strong style="color:var(--atl-ink);">Retire a service</strong> &mdash; set it <strong style="color:var(--atl-ink);">Inactive</strong> to hide it from new quotes, or <strong style="color:var(--atl-ink);">Archive</strong> it to remove it reversibly.</li>
                                 <li><strong style="color:var(--atl-ink);">Reprice</strong> &mdash; edit the price; quotes that already used the old price are left untouched.</li>
                             </ol>
@@ -3143,25 +3149,80 @@
                                     </div>
                                 </div>
                             </div>
+                            <!-- Pricing: the price type decides which amount fields apply (see lib/service-pricing.js). The type / unit /
+                                 group lists are filled from /api/admin/services/meta; only "Fixed price" is here as a fallback. -->
+                            <p class="svc-drawer__section-label">Pricing</p>
                             <div class="um-form-grid">
                                 <div class="um-field-group">
-                                    <label class="um-label" for="svcPricingModel">Pricing Model</label>
+                                    <label class="um-label" for="svcPriceType">Price Type</label>
                                     <div class="um-input-wrap">
-                                        <i class="fa-solid fa-coins um-input-icon"></i>
-                                        <select id="svcPricingModel" class="um-input" onchange="window.togglePricingFields()">
-                                            <option value="flat_fee">Flat Fee</option>
-                                            <option value="per_minute">Per Minute</option>
-                                            <option value="per_hour">Per Hour</option>
+                                        <i class="fa-solid fa-tags um-input-icon"></i>
+                                        <select id="svcPriceType" class="um-input" onchange="window.togglePricingFields()">
+                                            <option value="fixed">Fixed price</option>
                                         </select>
                                     </div>
                                 </div>
-                                <div class="um-field-group">
+                                <div class="um-field-group" id="svcPriceUnitField">
+                                    <label class="um-label" for="svcPriceUnit">Billed Per</label>
+                                    <div class="um-input-wrap">
+                                        <i class="fa-solid fa-hourglass-half um-input-icon"></i>
+                                        <select id="svcPriceUnit" class="um-input">
+                                            <option value="">— not applicable —</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <p id="svcPriceTypeHint" class="svc-drawer__hint"></p>
+                            <div class="um-form-grid">
+                                <div class="um-field-group" id="svcFixedPriceField">
                                     <label class="um-label" for="svcPrice" id="svcPriceLabel">Flat Price (R) <span class="atl-req">*</span></label>
                                     <div class="um-input-wrap">
                                         <i class="fa-solid fa-circle-dollar-to-slot um-input-icon"></i>
                                         <input type="number" id="svcPrice" class="um-input" placeholder="5000" min="0" step="0.01">
                                     </div>
                                 </div>
+                                <div class="um-field-group" id="svcPriceMinField" style="display:none;">
+                                    <label class="um-label" for="svcPriceMin" id="svcPriceMinLabel">From (R) <span class="atl-req">*</span></label>
+                                    <div class="um-input-wrap">
+                                        <i class="fa-solid fa-arrow-down-wide-short um-input-icon"></i>
+                                        <input type="number" id="svcPriceMin" class="um-input" placeholder="12000" min="0" step="0.01">
+                                    </div>
+                                </div>
+                                <div class="um-field-group" id="svcPriceMaxField" style="display:none;">
+                                    <label class="um-label" for="svcPriceMax">To (R) <span class="atl-req">*</span></label>
+                                    <div class="um-input-wrap">
+                                        <i class="fa-solid fa-arrow-up-wide-short um-input-icon"></i>
+                                        <input type="number" id="svcPriceMax" class="um-input" placeholder="25000" min="0" step="0.01">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="um-form-grid">
+                                <div class="um-field-group" id="svcModelField">
+                                    <label class="um-label" for="svcPricingModel">Quantity Basis</label>
+                                    <div class="um-input-wrap">
+                                        <i class="fa-solid fa-coins um-input-icon"></i>
+                                        <select id="svcPricingModel" class="um-input" onchange="window.onPricingModelChange()">
+                                            <option value="flat_fee">Flat fee (one unit)</option>
+                                            <option value="per_minute">Per minute</option>
+                                            <option value="per_hour">Per hour</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="um-field-group">
+                                    <label class="um-label" for="svcGroup">Rate-Card Group</label>
+                                    <div class="um-input-wrap">
+                                        <i class="fa-solid fa-layer-group um-input-icon"></i>
+                                        <select id="svcGroup" class="um-input">
+                                            <option value="">— none (add-on / other) —</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="padding:2px 0 10px;">
+                                <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--atl-ink);cursor:pointer;margin:0;">
+                                    <input type="checkbox" id="svcFeatured" style="width:15px;height:15px;"> Most Booked
+                                </label>
+                                <small style="display:block;margin-top:3px;color:var(--atl-muted);font-size:10px;line-height:1.4;">Marks this service's group "Most Booked" in the booking form's service list.</small>
                             </div>
                             <div class="um-field-group">
                                 <label class="um-label" for="svcDesc">Description</label>
@@ -3177,29 +3238,30 @@
 
                             <!-- Time-Based Pricing -->
                             <div id="svcTimeFields" style="display:none;">
-                                <p class="svc-drawer__section-label">Time-Based Pricing</p>
+                                <p class="svc-drawer__section-label">Quantity Limits</p>
                                 <div class="um-form-grid">
                                     <div class="um-field-group">
-                                        <label class="um-label" for="svcMinQty">Min Quantity (mins)</label>
+                                        <label class="um-label" for="svcMinQty" id="svcMinQtyLabel">Min Quantity (mins)</label>
                                         <div class="um-input-wrap">
                                             <i class="fa-solid fa-down-left-and-up-right-to-center um-input-icon"></i>
                                             <input type="number" id="svcMinQty" class="um-input" value="15" min="1">
                                         </div>
                                     </div>
                                     <div class="um-field-group">
-                                        <label class="um-label" for="svcMaxQty">Max Quantity (mins)</label>
+                                        <label class="um-label" for="svcMaxQty" id="svcMaxQtyLabel">Max Quantity (mins)</label>
                                         <div class="um-input-wrap">
                                             <i class="fa-solid fa-up-right-and-down-left-from-center um-input-icon"></i>
                                             <input type="number" id="svcMaxQty" class="um-input" value="1440" min="1">
                                         </div>
                                     </div>
                                 </div>
-                                <div class="um-field-group">
-                                    <label class="um-label" for="svcBasePrice">Cost Price / Unit (R) <span style="font-weight:400;font-size:10px;color:var(--atl-muted);">optional — internal only</span></label>
+                                <div class="um-field-group" id="svcBasePriceField">
+                                    <label class="um-label" for="svcBasePrice">Booking Rate Override (R) <span style="font-weight:400;font-size:10px;color:var(--atl-muted);">optional — rarely needed</span></label>
                                     <div class="um-input-wrap">
                                         <i class="fa-solid fa-receipt um-input-icon"></i>
-                                        <input type="number" id="svcBasePrice" class="um-input" placeholder="Leave blank to use sell price" min="0" step="0.01">
+                                        <input type="number" id="svcBasePrice" class="um-input" placeholder="Leave blank to use the price above" min="0" step="0.01">
                                     </div>
+                                    <small style="color:var(--atl-muted);font-size:10px;">If set, new bookings use this rate instead of the price above &mdash; it is not a cost price.</small>
                                 </div>
                             </div>
 
@@ -7096,7 +7158,7 @@
     <script src="js/shared/stored-text.js"></script>
     <script src="js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="js/myscript.js?v=15"></script>
+    <script src="js/myscript.js?v=16"></script>
     <script>document.getElementById('admin-year') && (document.getElementById('admin-year').textContent = new Date().getFullYear());</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
     <script>
@@ -7516,10 +7578,12 @@
          "Link a venue"), js/admin/events.js (Events venue search) and the inline Manual Booking
          script further down this file. -->
     <script src="js/shared/location-utils.js?v=1"></script>
+    <!-- Quote / invoice money math: the same file the server runs (lib/document-totals.js), so the Quote Builder preview is the stored total. -->
+    <script src="js/shared/document-totals.js?v=1"></script>
     <!-- Shared location search client (2026-10 Places audit) — must load before places-autocomplete.js. -->
     <script src="js/shared/places-client.js?v=1"></script>
     <script src="js/admin/places-autocomplete.js?v=2"></script>
-    <script src="js/admin/bookings-dealview.js?v=2"></script>
+    <script src="js/admin/bookings-dealview.js?v=5"></script>
     <!-- Shared overlay stack — must load before drawer.js and notificationService.js, which both
          register with it. See js/overlay-stack.js for the defect it fixes. -->
     <script src="js/overlay-stack.js?v=2"></script>
@@ -7543,7 +7607,7 @@
         // window.atlActivateDrawerTab and uploadFileToServer are called from the moved code but
         // NOT moved — both shared Phase 7 "Shared candidates".
     </script>
-    <script src="js/admin/about.js?v=2"></script>
+    <script src="js/admin/about.js?v=3"></script>
     <script>
 
         // Phase 6 (HOUSEKEEPING-NOTES.md): the "Website Sections" block (SECTION_REGISTRY/
@@ -8415,10 +8479,10 @@
         // log block (Newsletter) moved to js/admin/newsletter.js — see that file's header
         // comment for full detail.
     </script>
-    <script src="js/admin/bookings-pipeline.js"></script>
+    <script src="js/admin/bookings-pipeline.js?v=5"></script>
     <script src="js/admin/bookings-contracts.js"></script>
-    <script src="js/admin/bookings-finance.js?v=2"></script>
-    <script src="js/admin/bookings-quote.js"></script>
+    <script src="js/admin/bookings-finance.js?v=3"></script>
+    <script src="js/admin/bookings-quote.js?v=5"></script>
     <script src="js/admin/bookings-actions.js"></script>
     <script src="js/admin/newsletter.js"></script>
     <script>
@@ -11934,9 +11998,22 @@
         const container = document.getElementById('mbServicesContainer');
         const rowId = 'mb_svc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
         
+        // Grouped as on the rate card, each option showing the price as published ("R28,000", "R12,000 – R25,000",
+        // "From R50,000", "Enquire …"). A range / "from" / enquiry service is booked with NO amount: it is quoted later.
+        const mbEsc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         let optionsHtml = '<option value="">— Select service —</option>';
+        const mbGroupOrder = [], mbGroups = {};
         allServices.forEach(s => {
-            optionsHtml += `<option value="${s.id}" ${s.id == selectedServiceId ? 'selected' : ''}>${s.name} (${s.pricing_model === 'flat' || s.pricing_model === 'flat_fee' ? 'Flat' : s.pricing_model})</option>`;
+            const g = s.service_group_label || 'Add-ons & other';
+            if (!mbGroups[g]) { mbGroups[g] = []; mbGroupOrder.push(g); }
+            mbGroups[g].push(s);
+        });
+        mbGroupOrder.forEach(g => {
+            optionsHtml += `<optgroup label="${mbEsc(g)}">`;
+            mbGroups[g].forEach(s => {
+                optionsHtml += `<option value="${s.id}" ${s.id == selectedServiceId ? 'selected' : ''}>${s.name} — ${mbEsc(s.price_label || (s.pricing_model === 'flat_fee' ? 'Flat' : s.pricing_model))}</option>`;
+            });
+            optionsHtml += '</optgroup>';
         });
 
         const rowHtml = `
@@ -11987,6 +12064,7 @@
         let totalDuration = 0;
         let totalPrice = 0;
         let hasSelected = false;
+        let quotedLater = 0;   // services with no catalogue amount (range / from / enquire): priced when the quote is built
 
         $('.mb-service-row').each(function() {
             const svcId = $(this).find('.mb-service-select').val();
@@ -12007,6 +12085,7 @@
             }
             totalDuration = Math.max(totalDuration, rowMins);
 
+            if (svc.quote_required) { quotedLater++; return; }   // no amount to add up: it is quoted, never counted as R0
             const unitPrice = parseFloat(svc.base_price != null ? svc.base_price : (svc.default_price ?? 0));
             let rowPrice = 0;
             if (svc.pricing_model === 'flat' || svc.pricing_model === 'flat_fee') {
@@ -12025,7 +12104,10 @@
         if (hasSelected) {
             displayEl.style.display = 'block';
             document.getElementById('mbEstDuration').textContent = totalDuration + ' mins';
-            document.getElementById('mbEstPrice').textContent = 'R ' + totalPrice.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            // Services priced individually are not in the sum (they would read as R0); the note says so.
+            const fixedPart = 'R ' + totalPrice.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('mbEstPrice').textContent = quotedLater === 0 ? fixedPart
+                : (totalPrice > 0 ? fixedPart + ' + ' : '') + quotedLater + ' service' + (quotedLater === 1 ? '' : 's') + ' priced on the quote';
         } else {
             displayEl.style.display = 'none';
         }
@@ -12951,12 +13033,12 @@
     <!-- Phase 6 (HOUSEKEEPING-NOTES.md) FIX: relocated here (from mid-way through the
          Finance module's own script block below) so that block could be reunited into one
          continuous closure. Order preserved (services before policies). -->
-    <script src="js/admin/services.js"></script>
+    <script src="js/admin/services.js?v=2"></script>
     <script src="js/admin/policies.js"></script>
     <script src="js/admin/branding.js?v=4"></script>
     <script src="js/admin/security-audit.js"></script>
     <script src="js/admin/system-settings.js?v=smtp3-places1"></script>
-    <script src="js/admin/financials.js"></script>
+    <script src="js/admin/financials.js?v=2"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================
      FINANCE MODULE — JavaScript Engine

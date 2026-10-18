@@ -10,6 +10,7 @@ const { unescapeHtml, SECTION_KEYS } = require('../../lib/html-sanitize');
 const { listPublicMembers } = require('../../lib/team');
 const { listPublicAccolades } = require('../../lib/accolades');
 const { getSettingsByKeys } = require('../../database/repositories/settings.repository');
+const { PUBLIC_SERVICE_COLUMNS, publicServiceList } = require('../../lib/service-pricing');
 const router = express.Router();
 
 // Uses its own fixed-destination storage (not the shared `storage` in app.js, which picks a folder
@@ -57,23 +58,18 @@ const SITE_CONTENT_KEYS = ['announcement_text', 'announcement_enabled', 'announc
 // ==========================================
 // PUBLIC GET SERVICES
 // ==========================================
+// NO PRICES: a client first sees an amount in the quotation. The payload is an allowlist (lib/service-pricing.js
+// PUBLIC_SERVICE_COLUMNS) in rate-card order with the group label, so the booking drawer can show the services
+// grouped as on the rate card with "Most Booked" on Corporate & Events - and never learns what anything costs.
 router.get('/api/public/services', (req, res) => {
-    db.all(`SELECT id, name, description, pricing_model, default_price,
-                   COALESCE(base_price, default_price) as base_price,
-                   min_quantity, max_quantity, display_unit,
-                   (pricing_model = 'flat' OR pricing_model = 'flat_fee') AS is_flat,
-                   setup_time_minutes, performance_length_minutes, service_type,
-                   pricing_group, travel_included, availability_rule, booking_lead_time_days,
-                   financial_category, revenue_gl_code, crew_required,
-                   fulfillment_type, tax_category, external_note
+    db.all(`SELECT ${PUBLIC_SERVICE_COLUMNS.join(', ')}
             FROM services
             WHERE COALESCE(is_active, 1) = 1
               AND COALESCE(is_deleted, 0) = 0
               AND (valid_from IS NULL OR valid_from <= date('now'))
-              AND (valid_to   IS NULL OR valid_to   >= date('now'))
-            ORDER BY category, name`, [], (err, rows) => {
+              AND (valid_to   IS NULL OR valid_to   >= date('now'))`, [], (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
+        res.json(publicServiceList(rows));
     });
 });
 

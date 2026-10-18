@@ -11,6 +11,7 @@ const {
     updateDateHoldDate, getDateHoldsForDateConflict
 } = require('../../database/repositories/calendar.repository');
 const { getBookingsOnDateForHoldConflict } = require('../../database/repositories/bookings.repository');
+const { agreedAmountSql } = require('../../lib/booking-amounts');
 const router = express.Router();
 
 // Shared by POST /calendar/hold (create) and PATCH /calendar/hold/:id/date (move) — a hold
@@ -95,7 +96,8 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                        b.status, b.total_amount, b.payment_status,
                        b.amount_paid, b.amount_outstanding, b.quote_expiry_date,
                        b.cell, COALESCE(v.name, b.event_location) AS venue_name, b.city,
-                       e.event_title AS linked_event_title, b.event_id
+                       e.event_title AS linked_event_title, b.event_id,
+                       CASE WHEN ${agreedAmountSql('b')} THEN 1 ELSE 0 END AS amount_agreed
                 FROM bookings b
                 LEFT JOIN clients c ON b.client_id = c.id
                 LEFT JOIN events e ON b.event_id = e.event_id
@@ -130,7 +132,10 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                         venueName: b.venue_name || null,
                         city: b.city || null,
                         clientPhone: b.cell || null,
-                        amountOutstanding: b.amount_outstanding != null ? b.amount_outstanding : (b.total_amount != null ? b.total_amount - (b.amount_paid || 0) : null),
+                        // An enquiry that was never quoted holds only the catalogue ESTIMATE in these columns (lib/booking-amounts.js):
+                        // it is not an amount owed, so the event popover gets nothing to show until a quotation exists.
+                        amountOutstanding: !b.amount_agreed ? null
+                            : (b.amount_outstanding != null ? b.amount_outstanding : (b.total_amount != null ? b.total_amount - (b.amount_paid || 0) : null)),
                         quoteExpiryDate: b.quote_expiry_date || null
                     }
                 };

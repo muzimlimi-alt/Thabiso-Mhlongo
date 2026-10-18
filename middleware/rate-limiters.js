@@ -26,7 +26,10 @@ const sitemapRateLimiter = rateLimit ? rateLimit({
     message: "Generating sitemaps too frequently. Please wait a while."
 }) : (req, res, next) => next();
 
-const trackRateLimiter = rateLimit ? rateLimit({
+// Public booking tracking / document downloads: 10 per 15 minutes per address. Bypassed under NODE_ENV=test like its siblings above:
+// every test file shares one server and one address, and a full run makes more than 10 of these calls - the 11th got a 429 and crashed
+// service-visibility.test.js, skipping every file after it (test/rate-limiters.test.js checks production still enforces the limit).
+const trackRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
     windowMs: 15 * 60 * 1000, // 15 mins
     max: 10,
     standardHeaders: true,

@@ -75,6 +75,11 @@ async function spawnAndWait() {
             // Sandbox so the PayFast ITN accepts synthetic notifications (lenient signature/IP).
             PAYFAST_URL: 'https://sandbox.payfast.co.za',
             PAYFAST_MERCHANT_ID: '10000100',
+            // PayFast's public SANDBOX test account (merchant 10000100, this key, no passphrase). Set explicitly because dotenv never
+            // overrides a variable that is already set (empty included): without these the local .env's LIVE key and passphrase would
+            // reach every test server.
+            PAYFAST_MERCHANT_KEY: '46f0cd694581a',
+            PAYFAST_PASSPHRASE: '',
             // Real EMAIL_USER/PASS and GOOGLE_REFRESH_TOKEN now both work (2026-07-16) — without these
             // overrides, every test run would send real Gmail messages to the business's real inbox
             // and write real events onto its real Google Calendar for every fake test booking. SMTP_MOCK
@@ -129,6 +134,16 @@ async function start() {
     await new Promise((res, rej) => {
         const db = new sqlite3.Database(TEST_DB);
         db.run("DELETE FROM date_holds WHERE block_type = 'calendar_sync'", e => db.close(() => e ? rej(e) : res()));
+    });
+    // A test server must NEVER be configured for a real payment gateway. Admin > Settings stores payfast_url / merchant id / key /
+    // passphrase in `settings`, and app.js copies those over process.env at startup - OVERRIDING the sandbox values passed in
+    // spawnAndWait(). Since the owner saved live PayFast settings into the source DB (2026-10-16) every test server was
+    // running as "production" with a live merchant id: the ITN tests failed (a production ITN with the wrong merchant id and a bad
+    // signature is rightly dropped) and anything that built a payment would have targeted the live PayFast host. Dropping the rows
+    // from the THROWAWAY copy (never the real database) lets the sandbox environment below stand.
+    await new Promise((res, rej) => {
+        const db = new sqlite3.Database(TEST_DB);
+        db.run("DELETE FROM settings WHERE LOWER(setting_key) IN ('payfast_url', 'payfast_merchant_id', 'payfast_merchant_key', 'payfast_passphrase')", e => db.close(() => e ? rej(e) : res()));
     });
     await seedAdmin();
     await spawnAndWait();
@@ -188,7 +203,7 @@ async function api(method, urlPath, body) {
 async function apiBinary(method, urlPath) {
     const r = await fetch(BASE + urlPath, { method, headers: { Cookie: cookie } });
     const buffer = Buffer.from(await r.arrayBuffer());
-    return { status: r.status, buffer, contentType: r.headers.get('content-type') };
+    return { status: r.status, buffer, contentType: r.headers.get('content-type'), disposition: r.headers.get('content-disposition') };
 }
 
 // PDF string escapes: \n \r \t \( \) \\ and up to 3-digit octal (PDF spec 7.3.4.2).

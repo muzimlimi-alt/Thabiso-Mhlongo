@@ -16,10 +16,11 @@ const { resolveDocsPath, docsWriteDir } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
 const {
     asBookingText, OTP_TTL_MINUTES, OTP_MAX_ATTEMPTS, ACCESS_TOKEN_TTL_MINUTES,
-    generateOtpCode, hashAccessToken
+    generateOtpCode, hashAccessToken, pricesRevealed
 } = require('../../lib/booking-tracking');
 const { MIN_ADVANCE_HOURS, CURRENT_POLICY_VERSION } = require('../../lib/booking-policy');
 const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-utils');
+const { catalogueUnitPrice } = require('../../lib/service-pricing');
 const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/client-venue');
 const { calculateCancellationRefund } = require('../../lib/cancellation-refund');
 const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
@@ -45,13 +46,14 @@ const {
 } = require('../../database/repositories/bookings.repository');
 const {
     getInvoiceForTracking, getQuoteVersionInfoForTracking, getLatestQuoteFileForPublicDownload,
-    voidInvoicesForCancelledBookingAsync, markQuotationAcceptedAsync
+    voidInvoicesForCancelledBookingAsync, markQuotationAcceptedAsync, getActiveQuoteForInvoiceGen
 } = require('../../database/repositories/invoices-quotations.repository');
 const {
     getPaymentSchedulesForTracking, getCancellationSummaryForTracking,
     insertCancellationForPublicCancel, cancelPendingPaymentSchedulesAsync,
-    getPaymentSchedulesForPayfastInit, getNextPayableScheduleRow, insertPaymentIntent
+    getPaymentSchedulesForPayfastInit, getNextPayableScheduleRow, insertPaymentIntent, getStandingAdjustmentRows
 } = require('../../database/repositories/finance.repository');
+const { applyAdjustments } = require('../../lib/booking-adjustments');
 const {
     releaseDateHoldsForBookingAsync, getEventByBookingId, demoteEventForCancelledBookingByBookingIdAsync,
     clearEventGoogleCalendarIdAsync
@@ -70,13 +72,14 @@ async function estimateDraftValue(services) {
         if (!ids.length) return 0;
         const placeholders = ids.map(() => '?').join(',');
         const rows = await new Promise(resolve =>
-            db.all(`SELECT id, base_price, default_price FROM services WHERE id IN (${placeholders})`, ids,
+            db.all(`SELECT id, base_price, default_price, price_type FROM services WHERE id IN (${placeholders})`, ids,
                 (err, r) => resolve(err ? [] : (r || []))));
         let total = 0;
         for (const s of services) {
             const row = rows.find(r => r.id === parseInt(s.service_id));
             if (!row) continue;
-            const price = parseFloat(row.base_price != null ? row.base_price : (row.default_price || 0)) || 0;
+            // Fixed-price services only: a range / "from" / enquiry has no amount to estimate with.
+            const price = catalogueUnitPrice(row);
             const qty = parseInt(s.quantity || s.quantity_minutes || 1) || 1;
             total += price * qty;
         }
@@ -344,6 +347,11 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                         // exposed in the JSON response to anyone tracking that booking. This
                                         // table gains new columns constantly, so a denylist rots; an allowlist
                                         // of exactly what the tracking UI reads does not.
+                                        // PRICES: a client only sees amounts once a quotation has been sent. Before
+                                        // then the stored figures are just the working estimate from the catalogue
+                                        // (0 for services priced individually), so they are withheld here, not merely
+                                        // hidden by the page.
+                                        const revealed = pricesRevealed({ status: row.status, quoteVersionCount: qv ? qv.total_versions : 0 });
                                         const publicBooking = {
                                             id: row.id,
                                             status: row.status,
@@ -351,22 +359,24 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                             event_name: row.event_name,
                                             event_type: row.event_type,
                                             date: row.date,
-                                            quote_amount: row.quote_amount,
-                                            quote_details: row.quote_details,
-                                            quote_expiry_date: row.quote_expiry_date,
+                                            quote_amount: revealed ? row.quote_amount : null,
+                                            quote_details: revealed ? row.quote_details : null,
+                                            quote_expiry_date: revealed ? row.quote_expiry_date : null,
                                             company: row.company,
                                             vat_number: row.vat_number,
-                                            total_amount: row.total_amount,
+                                            total_amount: revealed ? row.total_amount : null,
                                             amount_paid: row.amount_paid,
-                                            amount_outstanding: row.amount_outstanding
+                                            amount_outstanding: revealed ? row.amount_outstanding : null
                                         };
+                                        const publicServices = (services || []).map(s => revealed ? s
+                                            : { service_name: s.service_name, pricing_model: s.pricing_model, quantity_minutes: s.quantity_minutes });
 
                                         res.json({
                                             success: true,
                                             booking: publicBooking,
                                             invoice: inv || null,
                                             payment_schedule: schedule || [],
-                                            services: services || [],
+                                            services: publicServices,
                                             quote_version: qv ? qv.version : null,
                                             quote_version_count: qv ? qv.total_versions : 0,
                                             cancellation: cancRow || null,
@@ -767,8 +777,12 @@ router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, re
             }
 
             // Server-side amount calculation — query payment_schedules for milestone-aware amounts
-            let baseAmt = 0;
-            if (row.quote_amount) {
+            // What is payable is the booking's CURRENT total: the quotation plus any manual adjustment logged since it was issued
+            // (lib/booking-adjustments.js). Taking it from the quotation alone sent a client with a R1,000 credit to PayFast for the
+            // quoted R5,000 and overpaid the booking by the credit. With no adjustment the total IS the quoted total; an older record
+            // with no total falls back to the quotation, exactly as before.
+            let baseAmt = parseFloat(row.total_amount);
+            if (!(baseAmt > 0) && row.quote_amount) {
                 baseAmt = parseFloat(row.quote_amount.replace(/[^0-9.]/g, ''));
             }
             if (isNaN(baseAmt) || baseAmt <= 0) {
@@ -1107,7 +1121,16 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
                 //
                 // Invariant: SUM(expected_amount) over live (non-superseded, non-cancelled) rows == total_amount.
                 // Shared with the admin QUOTED→ACCEPTED path (applyStatusChange) so the two never diverge.
-                const totalAmount = quotedTotal || parseFloat(row.total_amount) || 0;
+                let totalAmount = quotedTotal || parseFloat(row.total_amount) || 0;
+                // Manual adjustments logged since this quotation was issued are part of what the client now owes, and the invoice generated
+                // right after this carries them (lib/booking-adjustments.js) - so the plan the client is given adds up to the same figure.
+                // With none logged this is exactly the quoted total, as before; a failed lookup falls back to the quoted total.
+                try {
+                    const standing = await getActiveQuoteForInvoiceGen(bookingId);
+                    totalAmount = applyAdjustments(totalAmount, await getStandingAdjustmentRows(bookingId, standing ? standing.created_at : null)).total;
+                } catch (adjErr) {
+                    console.error(`[Accept-Quote] Adjustments lookup failed for booking #${bookingId}; using the quoted total:`, adjErr.message);
+                }
                 await autoBuildDepositBalanceSchedule(bookingId, totalAmount, row.date || row.event_date, installmentCount, { source: 'client' });
 
                 // Read back what the CASE above actually resolved to, so the response and the client
@@ -1413,7 +1436,9 @@ router.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (re
                 qtyMinutes = 1; // Default to 1 unit for flat fee if not specified
             }
 
-            const unitPrice = parseFloat(srv.base_price != null ? srv.base_price : (srv.default_price ?? 0));
+            // Only a fixed catalogue price is snapshotted; range / from / enquire services carry NO amount
+            // (0) until an administrator quotes them — never their minimum, maximum or midpoint.
+            const unitPrice = catalogueUnitPrice(srv);
             const lineTotal = isFlat ? unitPrice : (unitPrice * qtyMinutes); 
             
             calculatedBaseScope += lineTotal;

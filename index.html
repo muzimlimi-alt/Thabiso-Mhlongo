@@ -49,15 +49,11 @@
 	}
 	</script>
 
-	<!-- Favicon set. Google's favicon crawler wants a square image whose side is a multiple of 48px at a stable, crawlable
-	     URL (the old tag declared a 1536px / 1.8 MB PNG as a 16x16 GIF); /favicon.ico is what browsers and crawlers ask for by
-	     default. js/applyBranding.js replaces ALL of these icon links with the admin's Branding favicon, unless that file is oversized or missing.
-	     The icon is a bold gold microphone on purpose: line art of a hand holding a mic turns to mush at 16px. Icons are cached for a
-	     year, so a new design gets new file names (and ?v=) rather than overwriting these. -->
-	<link rel="icon" type="image/png" sizes="48x48" href="/images/icon/mic-favicon-48.png">
-	<link rel="icon" type="image/png" sizes="96x96" href="/images/icon/mic-favicon-96.png">
-	<link rel="icon" type="image/png" sizes="192x192" href="/images/icon/mic-favicon-192.png">
-	<link rel="icon" href="/favicon.ico?v=2" sizes="any">
+	<!-- Favicon: ONE icon on every page - images/icon/favicon.ico (the owner's file), which app.js also serves at the default /favicon.ico
+	     that browsers and crawlers ask for. Bump the ?v= whenever the icon changes: browsers keep icons far longer than any header says.
+	     Google prefers a multiple of 48px and this file is 16px, so Google may show it soft. js/applyBranding.js replaces this link with
+	     the admin's Branding favicon, unless that file is oversized or missing. -->
+	<link rel="icon" href="/favicon.ico?v=3">
 	<link rel="apple-touch-icon" href="/images/icon/mic-apple-touch-icon.png">
 	
 	<!-- Core Stylesheets -->
@@ -67,7 +63,7 @@
 	
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
-	<link rel="stylesheet" href="css/public/redesign.css?v=19">
+	<link rel="stylesheet" href="css/public/redesign.css?v=22">
 	<link rel="stylesheet" href="css/public/tracking-modal.css">
 	<link rel="stylesheet" href="css/components/notifications.css">
 	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
@@ -256,7 +252,7 @@
 		</div>
 
 		<div class="tm-services__grid">
-			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal" data-bk-source="service-standup">
+			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal" data-bk-source="service-club-theatre">
 				<div class="tm-service__bg tm-service__bg--1"></div>
 				<div class="tm-service__overlay"></div>
 				<div class="tm-service__icon">
@@ -264,47 +260,61 @@
 				</div>
 				<div class="tm-service__content">
 					<span class="tm-service__label">01</span>
-					<h3 class="tm-service__title">Stand-Up</h3>
-					<p class="tm-service__desc">Solo sets, festivals &amp; comedy nights</p>
+					<h3 class="tm-service__title">Club &amp; Theatre</h3>
+					<p class="tm-service__desc">Guest spots, support sets, headline shows &amp; club nights</p>
 				</div>
 			</a>
 
-			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal tm-reveal--d1" data-bk-source="service-mc-host">
+			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal tm-reveal--d1" data-bk-source="service-corporate-events">
 				<div class="tm-service__bg tm-service__bg--2"></div>
 				<div class="tm-service__overlay"></div>
+				<span class="tm-service__tag">Most Booked</span>
 				<div class="tm-service__icon">
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
 				</div>
 				<div class="tm-service__content">
 					<span class="tm-service__label">02</span>
-					<h3 class="tm-service__title">MC &amp; Host</h3>
-					<p class="tm-service__desc">Galas, weddings &amp; corporate events</p>
+					<h3 class="tm-service__title">Corporate &amp; Events</h3>
+					<p class="tm-service__desc">Comedic performances &amp; MC duties for conferences, galas &amp; corporate days</p>
 				</div>
 			</a>
 
-			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal tm-reveal--d2" data-bk-source="service-tv-film">
+			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal tm-reveal--d2" data-bk-source="service-private-functions">
 				<div class="tm-service__bg tm-service__bg--3"></div>
+				<div class="tm-service__overlay"></div>
+				<div class="tm-service__icon">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+				</div>
+				<div class="tm-service__content">
+					<span class="tm-service__label">03</span>
+					<h3 class="tm-service__title">Private Functions, Weddings &amp; Year-End Events</h3>
+					<p class="tm-service__desc">MC, performance &amp; hosting for private celebrations</p>
+				</div>
+			</a>
+
+			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal tm-reveal--d3" data-bk-source="service-writing-creative">
+				<div class="tm-service__bg tm-service__bg--4"></div>
+				<div class="tm-service__overlay"></div>
+				<div class="tm-service__icon">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+				</div>
+				<div class="tm-service__content">
+					<span class="tm-service__label">04</span>
+					<h3 class="tm-service__title">Writing &amp; Creative Services</h3>
+					<p class="tm-service__desc">Copywriting, joke &amp; roast writing, scripts and script editing</p>
+				</div>
+			</a>
+
+			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal tm-reveal--d4" data-bk-source="service-acting-voice-brand">
+				<div class="tm-service__bg tm-service__bg--5"></div>
 				<div class="tm-service__overlay"></div>
 				<div class="tm-service__icon">
 					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
 				</div>
 				<div class="tm-service__content">
-					<span class="tm-service__label">03</span>
-					<h3 class="tm-service__title">TV, Podcast &amp; Film</h3>
-					<p class="tm-service__desc">Acting, presenting &amp; writing</p>
-				</div>
-			</a>
-
-			<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal tm-reveal--d3" data-bk-source="service-voiceover">
-				<div class="tm-service__bg tm-service__bg--4"></div>
-				<div class="tm-service__overlay"></div>
-				<div class="tm-service__icon">
-					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M3 18v-6a9 9 0 0118 0v6"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z"/></svg>
-				</div>
-				<div class="tm-service__content">
-					<span class="tm-service__label">04</span>
-					<h3 class="tm-service__title">Voice-Over</h3>
-					<p class="tm-service__desc">Radio &amp; TV ads</p>
+					<span class="tm-service__label">05</span>
+					<h3 class="tm-service__title">Acting, Voice-Over &amp; Brand Campaigns</h3>
+					<p class="tm-service__desc">Screen acting, voice-over &amp; brand content campaigns</p>
 				</div>
 			</a>
 		</div>
@@ -2070,7 +2080,7 @@
 	<script src="js/shared/location-utils.js?v=1"></script>
 	<!-- Shared location-search client (2026-10 Places audit) - the booking wizard uses its session tokens. -->
 	<script src="js/shared/places-client.js?v=1"></script>
-	<script src="js/myscript.js?v=1.9.9"></script>
+	<script src="js/myscript.js?v=1.9.10"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather
@@ -2083,7 +2093,7 @@
 <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
 
 <!-- Apply saved branding (favicon, accent color, site logo, theme font) -->
-<script src="js/applyBranding.js?v=3"></script>
+<script src="js/applyBranding.js?v=4"></script>
 
 <!-- UI Bridge & Animations Logic -->
 <script>

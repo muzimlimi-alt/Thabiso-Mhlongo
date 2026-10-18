@@ -13,7 +13,7 @@
 (function () {
     // A favicon is shown at 16-48px. One uploaded straight from a logo can be a 1536px, 1.8 MB PNG: every visitor
     // downloads it for a tab icon, and Google's favicon crawler doesn't want it. Anything over this size is ignored in
-    // favour of the small static icons in the page <head>; the admin's favicon upload now shrinks new files itself.
+    // favour of the small static icon in the page <head> (/favicon.ico); the admin's favicon upload now shrinks new files itself.
     var MAX_FAVICON_BYTES = 200 * 1024;
 
     var ICON_TYPES = { png: 'image/png', ico: 'image/x-icon', svg: 'image/svg+xml', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
@@ -28,9 +28,9 @@
         if (!href) return;
         href = toSiteUrl(href);
         var use = function () {
-            // The page <head> declares several icons (48/96/192px PNGs + /favicon.ico "any"). Browsers pick the best match
-            // from ALL of them, so replacing only the first one - as this used to - left the built-in mic showing. Remove
-            // every icon link and add one for the branded file. apple-touch-icon (iOS home screen) is a separate rel and stays.
+            // The page <head> declares the static site icon (/favicon.ico?v=N). Remove every icon link - a browser picks the best
+            // match from ALL of them, so replacing only the first would leave a built-in one showing - and add one for the branded
+            // file. apple-touch-icon (iOS home screen) is a separate rel and stays.
             document.querySelectorAll("link[rel~='icon']").forEach(function (l) { l.parentNode.removeChild(l); });
             var link = document.createElement('link');
             link.rel = 'icon';
@@ -39,7 +39,9 @@
             link.href = href;
             document.head.appendChild(link);
         };
-        fetch(href, { method: 'HEAD' }).then(function (r) {
+        // bypassInterceptor: js/notificationService.js wraps fetch() and turns ANY non-API 404 into a full-page "Page Not Found"
+        // overlay. A missing favicon file must only mean "keep the default icon", never cover the whole page.
+        fetch(href, { method: 'HEAD', bypassInterceptor: true }).then(function (r) {
             if (!r.ok) {
                 console.info('[branding] favicon not applied: ' + href + ' returned ' + r.status + ' - keeping the default icons.');
                 return;

@@ -218,10 +218,12 @@ function renderTransactions(list) {
         </tr>`;
     }).join(''));
 
-    // Grand total of visible rows
+    // Grand total of visible rows: money received - payments less refunds. A manual adjustment (credit / debit) changes what is owed,
+    // not what was received, so it adds nothing here (it used to be summed as if it were a payment).
     const total = list.reduce((s, t) => {
-        const isRefund = (t.transaction_type || '').toLowerCase() === 'refund';
-        return s + (isRefund ? -parseFloat(t.amount || 0) : parseFloat(t.amount || 0));
+        const type = (t.transaction_type || '').toLowerCase();
+        if (type === 'adjustment') return s;
+        return s + (type === 'refund' ? -parseFloat(t.amount || 0) : parseFloat(t.amount || 0));
     }, 0);
     $('#txGrandTotal').text(`Showing ${list.length} transaction(s) · Net: ${fmtCurr(total)}`);
     const isFiltered = list.length < _allTransactionsCache.length;

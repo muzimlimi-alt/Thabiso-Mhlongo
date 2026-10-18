@@ -302,6 +302,7 @@ a:hover,a:focus{ color:var(--y-hover); text-decoration:none; }
 .tm-reveal--d1{ transition-delay:.1s; }
 .tm-reveal--d2{ transition-delay:.2s; }
 .tm-reveal--d3{ transition-delay:.3s; }
+.tm-reveal--d4{ transition-delay:.4s; }
 
 /* Scrollbar */
 ::-webkit-scrollbar{ width:10px; height:10px; }
@@ -902,8 +903,22 @@ header .navbar {
   grid-template-columns:1fr;
   gap:18px;
 }
+/* Five cards, one per rate-card category. Two across on tablets with the odd fifth card full width; a centred 3 + 2 on small
+   desktops (a six-column grid, each card two wide); all five in one row once the container is wide enough for them. */
 @media (min-width:640px){ .tm-services__grid{ grid-template-columns:repeat(2,1fr); } }
-@media (min-width:1024px){ .tm-services__grid{ grid-template-columns:repeat(4,1fr); } }
+@media (min-width:640px) and (max-width:1023px){
+  .tm-service:last-child:nth-child(odd){ grid-column:1 / -1; aspect-ratio:16/9; }
+}
+@media (min-width:1024px){
+  .tm-services__grid{ grid-template-columns:repeat(6,1fr); }
+  .tm-service{ grid-column:span 2; }
+  .tm-service:nth-child(4){ grid-column:2 / span 2; }
+  .tm-service:nth-child(5){ grid-column:4 / span 2; }
+}
+@media (min-width:1280px){
+  .tm-services__grid{ grid-template-columns:repeat(5,1fr); }
+  .tm-service, .tm-service:nth-child(4), .tm-service:nth-child(5){ grid-column:auto; }
+}
 .tm-service{
   position:relative;
   aspect-ratio:3/4;
@@ -919,11 +934,22 @@ header .navbar {
   background-position:center;
   transition:transform var(--t-slow) var(--ease);
 }
-.tm-service__bg--1{ background-image: url('../../images/services/services-01.jpg'); }
-.tm-service__bg--2{ background-image: url('../../images/services/services-02.jpg'); }
-.tm-service__bg--3{ background-image: url('../../images/services/services-03.jpg'); }
-.tm-service__bg--4{ background-image: url('../../images/services/services-04.jpg'); }
+/* Default photos, one per rate-card category (the admin can set a card's own image: About Me > Homepage content). Only four
+   photos exist, so the fifth card re-uses the stage shot mirrored. */
+.tm-service__bg--1{ background-image: url('../../images/services/services-04.jpg'); }   /* Club & Theatre */
+.tm-service__bg--2{ background-image: url('../../images/services/services-02.jpg'); }   /* Corporate & Events */
+.tm-service__bg--3{ background-image: url('../../images/services/services-01.jpg'); }   /* Private Functions, Weddings & Year-End Events */
+.tm-service__bg--4{ background-image: url('../../images/services/services-03.jpg'); }   /* Writing & Creative Services */
+.tm-service__bg--5{ background-image: url('../../images/services/services-04.jpg'); transform:scaleX(-1); }   /* Acting, Voice-Over & Brand Campaigns */
 .tm-service:hover .tm-service__bg{ transform:scale(1.06); }
+.tm-service:hover .tm-service__bg--5{ transform:scaleX(-1) scale(1.06); }
+/* "Most Booked": the rate card's designation of its Corporate & Events group. */
+.tm-service__tag{
+  position:absolute; top:22px; left:18px; z-index:2;
+  background:var(--y-base); color:#111;
+  font-size:.62rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  padding:5px 10px; border-radius:999px;
+}
 .tm-service__overlay{
   position:absolute; inset:0;
   background:linear-gradient(180deg, rgba(0,0,0,.15), rgba(0,0,0,.65));
@@ -960,6 +986,13 @@ header .navbar {
   color:rgba(255,255,255,.72);
   margin:0;
   line-height:1.6;
+}
+/* Five across (container wide enough): the cards are ~229px wide, so the type steps down - after the base rules above, which
+   would otherwise win on source order. "Private Functions, Weddings & Year-End Events" is the longest title and must still fit. */
+@media (min-width:1280px){
+  .tm-service__title{ font-size:1.12rem; line-height:1.2; }
+  .tm-service__content{ padding:22px 18px; }
+  .tm-service__desc{ font-size:.78rem; }
 }
 
 /* ---------- ABOUT (brand-story) ---------- */

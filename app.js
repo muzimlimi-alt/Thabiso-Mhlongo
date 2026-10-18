@@ -349,6 +349,17 @@ app.get('/sitemap.xml', (req, res) => {
     res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>https://www.thabisomhlongo.com/</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n');
 });
 
+// The site icon is images/icon/favicon.ico - the owner's file; it used to be favicon.ico in the project root, which no longer exists. Browsers and
+// crawlers still ask for /favicon.ico by default and every page's <head> links to /favicon.ico?v=N, so that one URL answers with it. Registered
+// before express.static so nothing shadows it. Cached for a day, not the static server's immutable year: the URL is fixed, so a future icon change
+// has to be able to reach visitors (bump the ?v= in the page heads too - browsers keep icons far longer than any header says).
+const FAVICON_FILE = path.join(__dirname, 'images', 'icon', 'favicon.ico');
+app.get('/favicon.ico', (req, res) => {
+    res.type('image/x-icon');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.sendFile(FAVICON_FILE, (err) => { if (err && !res.headersSent) res.status(err.status || 404).end(); });
+});
+
 // Production-readiness pass (2026-10-12): liveness/readiness probe for the hosting platform
 // (Render) and any external uptime monitor. Actually touches the DB (not just "the process is
 // alive") so a wedged/corrupted sqlite handle shows as unhealthy instead of a false-positive 200 —

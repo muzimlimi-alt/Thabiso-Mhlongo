@@ -188,7 +188,7 @@ function markBookingOverdueReminded(bookingId) {
 
 // runQuoteFollowUpJob()
 function getBookingsForQuoteFollowUp(cutoffStr, callback) {
-    db.all(`SELECT id, name, email, event_type, date, quote_amount, quote_expiry_date
+    db.all(`SELECT id, name, email, event_type, date, quote_amount, quote_expiry_date, quote_details
             FROM bookings
             WHERE status = 'QUOTED'
               AND DATE(quoted_at) <= ?

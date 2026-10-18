@@ -17,6 +17,7 @@ router.get('/api/admin/financials/analytics', requireAdmin, requireRole(['admini
         JOIN bookings b ON t.booking_id = b.id
         LEFT JOIN clients c ON b.client_id = c.id
         WHERE t.status = 'completed' AND COALESCE(t.is_duplicate, 0) = 0
+          AND COALESCE(t.transaction_type, '') <> 'adjustment'
         GROUP BY client_id, client_name
         ORDER BY total_spent DESC
         LIMIT 5
@@ -41,6 +42,7 @@ router.get('/api/admin/financials/analytics', requireAdmin, requireRole(['admini
         FROM transactions t
         JOIN bookings b ON t.booking_id = b.id
         WHERE t.status = 'completed' AND COALESCE(t.is_duplicate, 0) = 0
+          AND COALESCE(t.transaction_type, '') <> 'adjustment'
         GROUP BY category
         ORDER BY revenue DESC
         LIMIT 8
@@ -137,16 +139,21 @@ router.get('/api/admin/financials/stats', requireAdmin, requireRole(['administra
                     (e4, expRow) => {
                         const periodExpenses = parseFloat(expRow ? expRow.period_expenses : 0);
 
-                        // Pending quotes value — real data from quotations table (SENT/unsent, not yet accepted)
+                        // Pending quotes value — the STANDING quotation of every booking waiting on its client (status QUOTED).
+                        // A revision archives the quotation before it, and a voided/archived one no longer stands, so a booking counts once.
+                        // The money column is total_amount: this query used to ask for `q.total`, which does not exist, and the error was
+                        // swallowed - the dashboard showed R0.00 / 0 quotes however many were awaiting a client.
                         db.get(
-                            `SELECT COALESCE(SUM(q.total), 0) AS pending_quotes_value,
+                            `SELECT COALESCE(SUM(q.total_amount), 0) AS pending_quotes_value,
                                     COUNT(*) AS pending_quotes_count
                              FROM quotations q
                              JOIN bookings b ON q.booking_id = b.id
                              WHERE q.archived = 0
+                               AND LOWER(COALESCE(q.status, '')) NOT IN ('void', 'archived')
                                AND b.status = 'QUOTED'`,
                             [],
                             (e5, qRow) => {
+                                if (e5) console.error('[financials] pending quotes query failed:', e5.message);
                                 // Overdue invoices (SENT status with a due_date in the past)
                                 getOverdueInvoicesSummary(
                                     (e6, overdueRow) => {

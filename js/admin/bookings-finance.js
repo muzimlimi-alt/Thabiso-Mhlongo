@@ -636,11 +636,11 @@
                             <div style="font-size:11px;color: var(--atl-muted);">${r.event_name || ''}</div>
                         </td>
                         <td style="font-size:12px;" data-label="Date">${r.event_date ? new Date(r.event_date).toLocaleDateString('en-ZA') : '—'}</td>
-                        <td style="font-weight:600;" data-label="Quoted">${R_FMT(r.quoted_amount)}</td>
+                        <td style="font-weight:600;" data-label="Quoted">${r.amount_basis === 'none' ? '<span style="color:var(--atl-muted);font-weight:400;font-style:italic;" title="No quotation has been issued yet: the booking only carries the service-catalogue estimate, which is a published rate, not a quoted amount.">Not quoted</span>' : R_FMT(r.quoted_amount)}</td>
                         <td style="color:#2196F3;" data-label="PayFast">${R_FMT(r.payfast_total)}</td>
                         <td style="color:#9C27B0;" data-label="Manual">${R_FMT(r.manual_total)}</td>
                         <td style="color:${effectiveColor};font-weight:700;" data-label="Effective">${R_FMT(r.effective_received)}</td>
-                        <td style="color:var(--atl-orange);" data-label="Outstanding">${R_FMT(r.outstanding)}</td>
+                        <td style="color:var(--atl-orange);" data-label="Outstanding">${r.amount_basis === 'none' ? '<span style="color:var(--atl-muted);">—</span>' : R_FMT(r.outstanding)}</td>
                         <td data-label="Status"><span style="color:${psColor};font-size:11px;font-weight:700;">${r.payment_status || '—'}</span></td>
                         <td data-label="Warning">${warnBadge}</td>
                     </tr>

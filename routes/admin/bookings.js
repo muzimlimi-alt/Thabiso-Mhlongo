@@ -39,6 +39,10 @@ const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-uti
 const { deleteGoogleEvent } = require('../../lib/google-calendar');
 const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
 const { CURRENT_POLICY_VERSION } = require('../../lib/booking-policy');
+const { catalogueUnitPrice, checkQuoteLinePricing, needsIndividualQuote, describePrice } = require('../../lib/service-pricing');
+const { withStoredDescriptions } = require('../../lib/booking-lines');
+const { agreedAmountSql, receivedAmountSql } = require('../../lib/booking-amounts');
+const { getQuotationConditions } = require('../../lib/pricing-conditions');
 const {
     processManualPayment, alignMilestonePayments, deriveBookingStatusAfterPayment, deriveManualPaymentStatus, updateBookingMilestones
 } = require('../../lib/payment-processing');
@@ -65,7 +69,7 @@ const {
 } = require('../../database/repositories/bookings.repository');
 const {
     getQuoteHistoryForBooking, getQuoteForBookingFinancials, getInvoiceForBookingFinancials,
-    getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload, getLatestQuoteFileForResend, markQuotationResent,
+    getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload, getQuoteFileForAdminDownloadById, getLatestQuoteFileForResend, markQuotationResent,
     getQuoteNumberCollisionCount, voidInvoiceForRequote, archivePreviousQuotations, getNextQuoteVersion,
     insertQuotation, insertQuoteLineItem,
     voidInvoicesForCancelledBookingAsync, getActiveQuoteStatusForInvoiceGuard, markInvoicePaidIfOpen,
@@ -88,6 +92,20 @@ const {
 } = require('../../database/repositories/calendar.repository');
 const { linkInquiryToBooking } = require('../../database/repositories/inquiries.repository');
 const router = express.Router();
+
+// Quote state for the admin booking list / detail queries (rate card 2026, Phase 5).
+// `bookings.quote_amount` holds the catalogue ESTIMATE ('R 5000.00', or 'R 0.00' when the services
+// are individually priced) until a quotation is issued, so its truthiness is NOT a "quote issued"
+// signal. These two columns are:
+//   has_quote       1 when a quotation row stands for the booking, or the booking was ever stamped quoted_at
+//   unpriced_lines  lines whose service needs an individual quote and still carries no agreed amount
+// Needs the `b` (bookings) and `lq` (latest quotation) aliases in the host query. Ends with a comma.
+const QUOTE_STATE_SQL = `CASE WHEN lq.id IS NOT NULL OR b.quoted_at IS NOT NULL THEN 1 ELSE 0 END AS has_quote,
+        (SELECT COUNT(*) FROM booking_services bsu
+           JOIN services su ON su.id = bsu.service_id
+          WHERE bsu.booking_id = b.id
+            AND COALESCE(su.price_type, 'fixed') != 'fixed'
+            AND COALESCE(bsu.unit_price, 0) <= 0) AS unpriced_lines,`;
 
 // PUT /api/admin/bookings/:id/disposition — booking triage (soft-decline). Deliberately NOT
 // routed through applyStatusChange/ALLOWED_TRANSITIONS: disposition is an orthogonal axis (same
@@ -287,11 +305,17 @@ router.delete('/api/admin/bookings/:id/notes/:noteId', requireAdmin, (req, res) 
 router.get('/api/admin/bookings/:id/details', requireAdmin, (req, res) => {
     const id = req.params.id;
     // Prefer booking_services if available, fallback to booking_line_items for legacy data
-    db.all(`SELECT bs.*, bs.quantity_minutes as quantity, s.name as service_name, s.display_unit 
-            FROM booking_services bs 
-            LEFT JOIN services s ON bs.service_id = s.id 
-            WHERE bs.booking_id = ?`, [id], (e1, servicesItems) => {
-        
+    db.all(`SELECT bs.*, bs.quantity_minutes as quantity, s.name as service_name, s.display_unit,
+                   s.pricing_model, s.default_price, s.base_price, s.price_type, s.price_min, s.price_max, s.price_unit
+            FROM booking_services bs
+            LEFT JOIN services s ON bs.service_id = s.id
+            WHERE bs.booking_id = ?
+            ORDER BY bs.id`, [id], (e1, servicesRaw) => {
+      // `service_name` above is the service's name TODAY; line_description is what the line was called when it was booked / quoted (a
+      // rate-card update renamed three re-used services, so a historical booking must not read as a different offering - lib/booking-lines.js).
+      db.all('SELECT service_id, description FROM booking_line_items WHERE booking_id = ? ORDER BY id', [id], (eL, storedLines) => {
+        const servicesItems = servicesRaw ? withStoredDescriptions(servicesRaw, eL ? [] : storedLines) : servicesRaw;
+
         getCancellationDetailForBooking(id, (e3, cancellation) => {
             const sendResponse = (items, txs) => {
                 res.json({
@@ -302,8 +326,15 @@ router.get('/api/admin/bookings/:id/details', requireAdmin, (req, res) => {
             };
 
             if (servicesItems && servicesItems.length > 0) {
+                // A line whose service is priced individually and carries no agreed amount yet is "to be quoted",
+                // not a R0 fee — the Deal View says so instead of printing R0.00 (rate card 2026).
+                const priced = servicesItems.map(it => ({
+                    ...it,
+                    ...describePrice(it),
+                    unpriced: needsIndividualQuote(it) && !(parseFloat(it.unit_price) > 0)
+                }));
                 getTransactionsForBooking(id, (e2, transactions) => {
-                    sendResponse(servicesItems, transactions);
+                    sendResponse(priced, transactions);
                 });
             } else {
                 // Legacy fallback
@@ -314,6 +345,7 @@ router.get('/api/admin/bookings/:id/details', requireAdmin, (req, res) => {
                 });
             }
         });
+      });
     });
 });
 
@@ -321,9 +353,11 @@ router.get('/api/admin/bookings/:id/quote-history', requireAdmin, (req, res) => 
     getQuoteHistoryForBooking(
         req.params.id, (err, rows) => {
             if (err) return res.status(500).json({ error: err.message });
+            // pdf_url must be a URL that OPENS: the stored files are behind the blocked /docs/ path, so link to the authenticated
+            // per-version download (the Files tab chip and the history list both use this field as their href).
             res.json((rows || []).map(r => ({
                 ...r,
-                pdf_url: r.file_path ? `/docs/quotes/${r.file_path}` : null
+                pdf_url: r.file_path ? `/api/admin/bookings/${req.params.id}/quote/${r.id}/download` : null
             })));
         }
     );
@@ -335,14 +369,21 @@ router.get('/api/admin/bookings/:id/expenses', requireAdmin, requireRole(['admin
     getExpensesForBooking(bookingId, (err, expenses) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
         const totalExpenses = (expenses || []).reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
-        // Fetch the booking's quote total for P&L
+        // The booking's revenue for P&L is its AGREED amount: the quotation that currently stands (a revision archives the one before it),
+        // else the amount on the booking itself for one entered straight at CONFIRMED. Until a quotation exists bookings.total_amount holds
+        // only the catalogue ESTIMATE (lib/booking-amounts.js) - a published rate, not revenue - so an unquoted enquiry reads R0.00.
+        // This used to select `q.total`, a column that does not exist; the error was swallowed and every booking read R0.00.
         db.get(
-            `SELECT COALESCE(q.total, b.total_amount, 0) AS gross
+            `SELECT CASE WHEN ${agreedAmountSql('b')} THEN COALESCE(
+                        (SELECT q.total_amount FROM quotations q
+                          WHERE q.booking_id = b.id AND q.archived = 0 AND LOWER(COALESCE(q.status, '')) NOT IN ('void', 'archived')
+                          ORDER BY q.version DESC, q.id DESC LIMIT 1),
+                        b.total_amount, 0)
+                    ELSE 0 END AS gross
              FROM bookings b
-             LEFT JOIN quotations q ON q.booking_id = b.id
-             WHERE b.id = ?
-             ORDER BY q.created_at DESC LIMIT 1`,
+             WHERE b.id = ?`,
             [bookingId], (e2, fin) => {
+                if (e2) return res.status(500).json({ success: false, message: e2.message });   // never present a failed lookup as R0.00 revenue
                 const gross = fin ? parseFloat(fin.gross || 0) : 0;
                 res.json({
                     success: true,
@@ -367,7 +408,7 @@ router.get('/api/admin/bookings/:id/financials', requireAdmin, requireRole(['adm
             result.quote = {
                 id: quote.id,
                 quote_number: quote.quote_number,
-                pdf_url: `/docs/quotes/${quote.file_path}`,
+                pdf_url: `/api/admin/bookings/${bookingId}/quote/${quote.id}/download`,   // not /docs/ - that path is blocked
                 created_at: quote.created_at
             };
         }
@@ -377,7 +418,7 @@ router.get('/api/admin/bookings/:id/financials', requireAdmin, requireRole(['adm
                 result.invoice = {
                     id: invoice.id,
                     invoice_number: invoice.invoice_number,
-                    pdf_url: `/docs/invoices/${invoice.file_path}`,
+                    pdf_url: `/api/admin/bookings/${bookingId}/invoice/download`,   // the live invoice, through the authenticated route
                     status: invoice.status,
                     total_amount: invoice.total_amount
                 };
@@ -483,6 +524,22 @@ router.get('/api/admin/bookings/:id/quote/download', requireAdmin, (req, res) =>
         if (!doc) return res.status(404).send('Physical PDF file not found on server.');
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=Quote_${row.quote_number}.pdf`);
+        if (doc.stream) doc.stream.pipe(res); else res.sendFile(doc.diskPath);
+    });
+});
+
+// 2d. View ONE quotation version (Admin Authorized). The quote files sit behind the site's blocked /docs/ path (app.js refuses every
+// /docs/ URL), so a link straight to /docs/quotes/<file>.pdf can never open - that is what the Files tab chip and the quote history
+// list used to point at. They link here instead, and the PDF opens inline in the browser tab. The id must belong to the booking in the URL.
+router.get('/api/admin/bookings/:id/quote/:quoteId/download', requireAdmin, (req, res) => {
+    if (!/^\d+$/.test(String(req.params.quoteId))) return res.status(404).send('Quotation not found');
+    getQuoteFileForAdminDownloadById(req.params.id, req.params.quoteId, async (err, row) => {
+        if (err || !row) return res.status(404).send('Quotation not found');
+
+        const doc = await objectStorage.resolveDocument('quotes', row.file_path);
+        if (!doc) return res.status(404).send('Physical PDF file not found on server.');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="Quote_${row.quote_number}_v${row.version || 1}.pdf"`);
         if (doc.stream) doc.stream.pipe(res); else res.sendFile(doc.diskPath);
     });
 });
@@ -1236,6 +1293,8 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
 
             let quote_amount, quote_details, quote_expiry_date, finalTotal = 0;
             let items = [];
+            let priceWarnings = []; // rate-card advisories (lib/service-pricing) returned with the success response
+            let individuallyQuoted = false; // true when a line is for a service priced individually (adds a note to the conditions)
 
             if (isStructured) {
                 const { quote_expiry_date: expiry, terms, items: bodyItems, discount, apply_vat } = req.body;
@@ -1257,6 +1316,23 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
                 bodyItems.forEach(i => {
                     i.quantity_minutes = parseFloat(i.quantity_minutes) || parseFloat(i.quantity) || 1; // normalization
                 });
+
+                // Rate-card pricing check (lib/service-pricing.js). A line for a range / "from" / enquiry
+                // service has no catalogue amount, so it MUST carry an explicit agreed price — the quote is
+                // never allowed to go out with a R0 line or a guessed minimum / maximum / midpoint. Lines
+                // priced outside the published band only produce a warning: a tailored quote may differ.
+                const quoteServiceIds = [...new Set(bodyItems.map(i => parseInt(i.service_id)).filter(n => !isNaN(n)))];
+                if (quoteServiceIds.length) {
+                    const quoteServices = await new Promise(resolve => {
+                        db.all(`SELECT id, name, pricing_model, price_type, price_min, price_max, price_unit FROM services WHERE id IN (${quoteServiceIds.map(() => '?').join(',')})`,
+                            quoteServiceIds, (err, rows) => resolve(rows || []));
+                    });
+                    const lineCheck = checkQuoteLinePricing(bodyItems, quoteServices);
+                    if (lineCheck.error) return res.status(400).json({ success: false, message: lineCheck.error });
+                    priceWarnings = lineCheck.warnings;
+                    const quotedSvcById = new Map(quoteServices.map(s => [s.id, s]));
+                    individuallyQuoted = bodyItems.some(i => { const s = quotedSvcById.get(parseInt(i.service_id)); return !!s && needsIndividualQuote(s); });
+                }
 
                 // Conflict check
                 if (!req.body.override_conflict && booking.date) {
@@ -1330,7 +1406,9 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
                 items = bodyItems;
 
                 quote_amount = finalTotal.toFixed(2);
-                quote_details = JSON.stringify({ terms, items, discount: dp, apply_vat, finalTotal, subtotal, vat });
+                // vat_rate: the rate this quotation was issued at. The invoice and the contract reproduce THIS rate (lib/approved-quote.js),
+                // so a later change to the national rate cannot move an amount the client approved.
+                quote_details = JSON.stringify({ terms, items, discount: dp, apply_vat, finalTotal, subtotal, vat, vat_rate: vatRate });
                 quote_expiry_date = expiry;
                 booking.discount = dp;
                 booking.vat_rate = vatRate; // FIN-1/2: quote PDF uses the same rate as the calc
@@ -1385,10 +1463,19 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
             // Pass apply_vat to booking object for pdfService
             booking.apply_vat = req.body.apply_vat;
 
+            // The rate card's pricing conditions travel with the quotation (prices are never public; the quotation is
+            // where a client first sees one). One set of lines feeds the PDF and the email so they cannot disagree.
+            const pricingConditions = await getQuotationConditions({
+                applyVat: !!booking.apply_vat,
+                vatRate: booking.vat_rate != null ? booking.vat_rate : await getVatRate(),
+                individuallyQuoted
+            });
+
             try {
                 // quoteNumber is passed through so the number on the client's PDF is the number stored in
                 // `quotations.quote_number`, as invoices now do.
-                const pdfResult = await pdfService.generateDocument('Quote', booking, items, pdfPath, [], quoteNumber);
+                // quoteExpiry: the document says "valid until" the expiry chosen for THIS quote (the date the tracker enforces).
+                const pdfResult = await pdfService.generateDocument('Quote', booking, items, pdfPath, [], quoteNumber, { pricingConditions, quoteExpiry: quote_expiry_date });
                 await objectStorage.syncFileToStorage(pdfPath);
 
                 // Archive the old quotation, restamp the booking, insert the new versioned quotation
@@ -1477,7 +1564,7 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
                             [bookingId, JSON.stringify({ version: nextVersion, amount: finalTotal, expiry: quote_expiry_date }), req.session.adminId || 'admin']);
 
                         await dbRun("COMMIT");
-                        return { ok: true, nextVersion };
+                        return { ok: true, nextVersion, quotationId };
                     } catch (txErr) {
                         await dbRun("ROLLBACK").catch(() => {});
                         console.error("[Quote] Generation failed — rolled back, quote not issued:", txErr.message);
@@ -1496,12 +1583,15 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
 
                 // ---- Side effects, after the commit ----
                 syncBookingToCalendar(booking).catch(e => console.error('[Quote] Calendar sync failed:', e.message));
-                sendQuoteEmail(booking, quote_amount, pdfPath, pdfFileName, items).catch(e => console.error("Quote email error:", e));
+                sendQuoteEmail(booking, quote_amount, pdfPath, pdfFileName, items, { pricingConditions }).catch(e => console.error("Quote email error:", e));
                 sendAdminQuoteSentNotification(booking, quote_amount).catch(e => console.error('[Quote] Admin notif failed:', e.message));
 
                 // Per-day availability warning (non-blocking for admins)
                 const perDaySvcIds = items.filter(i => i.service_id).map(i => i.service_id);
-                const sendResponse = (warnings) => res.json({ success: true, message: 'Quote generated and sent.', status: nextStatus, pdfUrl: `/docs/quotes/${pdfFileName}`, version: nextVersion, warnings: warnings.length ? warnings : undefined });
+                const sendResponse = (warnings) => {
+                    const all = [...priceWarnings, ...warnings];
+                    res.json({ success: true, message: 'Quote generated and sent.', status: nextStatus, pdfUrl: `/api/admin/bookings/${bookingId}/quote/${quoteResult.quotationId}/download`, version: nextVersion, warnings: all.length ? all : undefined });
+                };
                 if (perDaySvcIds.length && !req.body.override_conflict) {
                     db.all(`SELECT name FROM services WHERE id IN (${perDaySvcIds.map(() => '?').join(',')}) AND availability_rule = 'per_day'`, perDaySvcIds, (_, perDayRows) => {
                         sendResponse((perDayRows || []).map(s => `"${s.name}" is limited to one booking per day — verify no date conflicts exist.`));
@@ -1563,6 +1653,7 @@ router.get('/api/admin/bookings/full', requireAdmin, (req, res) => {
              THEN printf('%.2f', lq.total_amount)
              ELSE b.quote_amount
         END AS quote_amount,
+        ${QUOTE_STATE_SQL}
         (SELECT status FROM invoices WHERE booking_id = b.id AND UPPER(status) != 'VOID'
          ORDER BY created_at DESC LIMIT 1) AS invoice_status,
         (SELECT invoice_number FROM invoices WHERE booking_id = b.id AND UPPER(status) != 'VOID'
@@ -1665,24 +1756,32 @@ router.post('/api/admin/bookings', requireAdmin, requireRole(['administrator', '
             const isPerHour = model === 'per_hour';
             
             const qtyMinutes = parseInt(inputSvc.quantity_minutes) || 1;
-            const unitPrice = parseFloat(srv.base_price != null ? srv.base_price : (srv.default_price ?? 0));
+            // Only a fixed catalogue price is snapshotted; range / from / enquire services carry no amount
+            // (0) until the quote gives them an explicit one.
+            const unitPrice = catalogueUnitPrice(srv);
             let lineTotal = 0;
-            
+            // The manual-booking form sends MINUTES for both per_minute and per_hour rows. What is STORED
+            // as the billable quantity must match every reader (public intake, Quote Builder prefill,
+            // PDFs, emails): minutes for per_minute, but whole HOURS for per_hour. Storing the raw minutes
+            // here made an hourly line read "60 hr × R2,500" — a 60x over-statement when it prefilled the quote.
+            let billableQty = qtyMinutes;
+
             if (isFlat) {
                 lineTotal = unitPrice;
             } else if (isPerMinute) {
                 lineTotal = unitPrice * qtyMinutes;
             } else if (isPerHour) {
-                lineTotal = unitPrice * Math.ceil(qtyMinutes / 60);
+                billableQty = Math.ceil(qtyMinutes / 60);
+                lineTotal = unitPrice * billableQty;
             } else {
                 lineTotal = unitPrice * qtyMinutes;
             }
-            
+
             calculatedBaseScope += lineTotal;
             selectedServices.push({
                 service_id: srv.id,
                 name: srv.name,
-                quantity_minutes: isFlat ? 1 : qtyMinutes,
+                quantity_minutes: isFlat ? 1 : billableQty,
                 unit_price: unitPrice,
                 total_price: lineTotal,
                 pricing_model: model
@@ -1915,6 +2014,7 @@ router.get('/api/admin/bookings', requireAdmin, (req, res) => {
                  THEN printf('%.2f', lq.total_amount)
                  ELSE b.quote_amount
             END AS quote_amount,
+            ${QUOTE_STATE_SQL}
             v.green_room_notes,
             v.notes AS venue_notes,
             v.negotiated_rates AS venue_negotiated_rates,
@@ -1959,6 +2059,7 @@ router.get('/api/admin/bookings/:id', requireAdmin, (req, res) => {
              THEN printf('%.2f', lq.total_amount)
              ELSE b.quote_amount
         END AS quote_amount,
+        ${QUOTE_STATE_SQL}
         v.green_room_notes,
         v.notes AS venue_notes,
         v.negotiated_rates AS venue_negotiated_rates,
@@ -1986,13 +2087,29 @@ router.get('/api/admin/bookings/:id', requireAdmin, (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
         if (!row) return res.status(404).json({ error: "Booking not found" });
 
-        db.all(`SELECT s.id AS service_id, s.name AS service_name, s.pricing_model, s.default_price, bs.quantity_minutes, bs.unit_price,
+        // `unit_price` is the booking's own snapshot (what was agreed or estimated when the line was added);
+        // the catalogue fields beside it describe how the service is priced TODAY so the Quote Builder and
+        // the booking screens can tell "no amount agreed yet" from a genuine R0 and never fall back to today's fee.
+        db.all(`SELECT s.id AS service_id, s.name AS service_name, s.pricing_model, s.default_price, s.base_price,
+                       s.price_type, s.price_min, s.price_max, s.price_unit, s.tax_class, s.display_unit,
+                       s.min_quantity, s.max_quantity, s.performance_length_minutes, s.external_note,
+                       bs.quantity_minutes, bs.unit_price,
                        (bs.unit_price * bs.quantity_minutes) AS line_total
                 FROM booking_services bs
                 JOIN services s ON bs.service_id = s.id
-                WHERE bs.booking_id = ?`, [req.params.id], (err2, services) => {
-            row.services = services || [];
-            res.json(row);
+                WHERE bs.booking_id = ?
+                ORDER BY bs.id`, [req.params.id], (err2, services) => {
+            // service_name is the service's name TODAY; line_description is what the line was called when it was booked / quoted
+            // (the Quote Builder revises a quotation under the latter - lib/booking-lines.js).
+            db.all('SELECT service_id, description FROM booking_line_items WHERE booking_id = ? ORDER BY id', [req.params.id], (err3, storedLines) => {
+                row.services = withStoredDescriptions(services || [], err3 ? [] : storedLines).map(svc => ({
+                    ...svc,
+                    ...describePrice(svc),
+                    catalogue_unit_price: catalogueUnitPrice(svc),
+                    unpriced: needsIndividualQuote(svc) && !(parseFloat(svc.unit_price) > 0)
+                }));
+                res.json(row);
+            });
         });
     });
 });
@@ -2844,14 +2961,16 @@ router.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['adminis
         await insertRefundTransaction(bookingId, amt, refund_reference || null, notes || `Refund for cancellation of Booking #${bookingId}`)
             .catch(tErr => console.error('[Refund] Transaction log failed:', tErr.message));
 
+        // receivedAmountSql: payments minus refunds / chargebacks, and NO manual adjustments - an adjustment changes what is owed, not what
+        // was paid, and counting it here inflated amount_paid after a cancellation refund.
         await dbRun(`UPDATE bookings SET
                 amount_paid = MAX(0, (
-                    SELECT COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)
+                    SELECT COALESCE(SUM(${receivedAmountSql('t')}), 0)
                     FROM transactions t WHERE t.booking_id = bookings.id
                       AND t.is_duplicate = 0 AND (t.status = 'completed' OR t.status IS NULL)
                 )),
                 amount_outstanding = MAX(0, COALESCE(total_amount, 0) - MAX(0, (
-                    SELECT COALESCE(SUM(CASE WHEN t.transaction_type IN ('refund','chargeback') THEN -t.amount ELSE t.amount END), 0)
+                    SELECT COALESCE(SUM(${receivedAmountSql('t')}), 0)
                     FROM transactions t WHERE t.booking_id = bookings.id
                       AND t.is_duplicate = 0 AND (t.status = 'completed' OR t.status IS NULL)
                 )))

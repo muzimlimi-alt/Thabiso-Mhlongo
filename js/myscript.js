@@ -1749,8 +1749,22 @@ document.addEventListener("DOMContentLoaded", function() {
                 var $dd = $('#bkServiceDropdown');
                 if (!$dd.length) return;
                 $dd.empty().append('<option value="">&#8212; Quick add from catalogue &#8212;</option>');
+                // Grouped as on the rate card (the API already sorts group by group); the Corporate & Events group
+                // carries the "Most Booked" mark. NO prices are sent to or shown on the public site - a client first
+                // sees an amount in the quotation.
+                var groups = [], byLabel = {};
                 services.forEach(function(s) {
-                    $dd.append('<option value="' + s.id + '">' + s.name + '</option>');
+                    var label = s.service_group_label || 'Add-ons & extras';
+                    if (!byLabel[label]) { byLabel[label] = { label: label, featured: false, items: [] }; groups.push(byLabel[label]); }
+                    if (s.is_featured) byLabel[label].featured = true;
+                    byLabel[label].items.push(s);
+                });
+                groups.forEach(function(g) {
+                    var $og = $('<optgroup>').attr('label', g.label + (g.featured ? ' — Most Booked' : ''));
+                    g.items.forEach(function(s) {
+                        $og.append('<option value="' + s.id + '">' + s.name + '</option>');
+                    });
+                    $dd.append($og);
                 });
 
 
@@ -1856,7 +1870,8 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         }
 
-        function bkAddServiceRow(svcId, svcName, unitPrice, qty, model, minQty, unit, svcMeta) {
+        // No price is passed in or stored on the row: the public site never knows what a service costs.
+        function bkAddServiceRow(svcId, svcName, qty, model, minQty, unit, svcMeta) {
             model   = model   || 'flat_fee';
             minQty  = minQty  || 1;
             unit    = unit    || '';
@@ -1904,7 +1919,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 : '';
 
             var $row = $(
-                '<tr data-svc-id="' + svcId + '" data-unit-price="' + unitPrice + '" data-model="' + model + '" data-min-qty="' + minQty + '" data-perf-mins="' + perfMins + '">'
+                '<tr data-svc-id="' + svcId + '" data-model="' + model + '" data-min-qty="' + minQty + '" data-perf-mins="' + perfMins + '">'
                 + '<td style="padding:10px 12px; border:none; color:#ddd;">'
                 +   '<div style="display:flex; align-items:center;">'
                 +     '<i class="fa-solid fa-grip-lines" style="color:#333; margin-right:10px; font-size:10px;"></i>'
@@ -1967,7 +1982,7 @@ document.addEventListener("DOMContentLoaded", function() {
             } else {
                 startQty = 1;
             }
-            bkAddServiceRow(svc.id, svc.name, parseFloat(svc.default_price) || 0, startQty, svc.pricing_model, svc.min_quantity, svc.display_unit, svc);
+            bkAddServiceRow(svc.id, svc.name, startQty, svc.pricing_model, svc.min_quantity, svc.display_unit, svc);
             $dd.val('');
             $('#bkSvcPreview').fadeOut(200);
             bkSyncDurationSelect();
@@ -2754,7 +2769,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     draft.services.push({
                         id:         svcId,
                         name:       catalogueEntry.name || $row.find('td:first div div div:first').text().trim(),
-                        unitPrice:  parseFloat($row.data('unit-price')) || 0,
                         qty:        parseInt($row.find('.bk-svc-qty').val()) || 1,
                         model:      $row.data('model') || 'flat_fee',
                         minQty:     parseInt($row.data('min-qty')) || 1,
@@ -2876,7 +2890,6 @@ document.addEventListener("DOMContentLoaded", function() {
                             if (!cat) return;
                             services.push({
                                 id: cat.id, name: cat.name,
-                                unitPrice: parseFloat(cat.base_price != null ? cat.base_price : cat.default_price) || 0,
                                 qty: parseInt(s.quantity) || 1, model: cat.pricing_model || 'flat_fee',
                                 minQty: parseInt(cat.min_quantity) || 1, unit: cat.display_unit || '',
                                 meta: {
@@ -3414,24 +3427,8 @@ $bookingForm.on('blur', '#bookName', function() {
             isSubmitting = true;
             $('#bookingFormError').hide();
 
-            // Re-fetch service prices and warn if any changed since the form was opened
-            try {
-                var freshSvcs = await fetch('/api/public/services').then(function(r) { return r.json(); });
-                if (Array.isArray(freshSvcs)) {
-                    var priceChanged = freshSvcs.some(function(s) {
-                        var cached = _bkServicesCatalogue.find(function(c) { return c.id === s.id; });
-                        return cached && parseFloat(cached.default_price) !== parseFloat(s.default_price);
-                    });
-                    if (priceChanged) {
-                        _bkServicesCatalogue = freshSvcs;
-                        isSubmitting = false;
-                        $submitBtn.prop('disabled', false);
-                        $label.text('Submit Booking Request');
-                        window.notificationService.showWarning('Prices Updated', 'Service prices have changed since you opened this form. Please review the updated total before submitting.');
-                        return;
-                    }
-                }
-            } catch(priceErr) { /* non-blocking — proceed with cached prices */ }
+            // (There used to be a "prices changed since you opened this form" check here. The public site no longer
+            // knows or shows any price - the quotation is where a client first sees one - so there is nothing to compare.)
 
             var srvItems = [];
             $('#bkServicesTableBody tr').each(function() {
@@ -3690,11 +3687,15 @@ $bookingForm.on('blur', '#bookName', function() {
         // C1: when a visitor books from a specific service card, pre-add the matching
         // catalogue service so they don't re-pick it. Best-effort keyword match; safe
         // no-op when there's no confident match (they just add manually, as today).
+        // Matches are by service name. Each homepage card is now a whole rate-card CATEGORY (club, corporate, private functions,
+        // writing, acting / voice-over / brand) and every category holds several tiers or services, so no card has ONE confident
+        // match: none pre-selects anything and visitors pick from the grouped list. Listed so a card's source is recognised.
         var _bkSourceKeywords = {
-            'service-standup':   ['stand-up', 'standup', 'stand up', 'stand'],
-            'service-mc-host':   ['mc /', 'mc/', 'hosting', 'compere', 'master of cere', ' host'],
-            'service-tv-film':   ['tv', 'podcast', 'film', 'present', 'acting', 'screen'],
-            'service-voiceover': ['voice', 'narration']
+            'service-club-theatre':       [],
+            'service-corporate-events':   [],
+            'service-private-functions':  [],
+            'service-writing-creative':   [],
+            'service-acting-voice-brand': []
         };
         function bkPreselectServiceFromSource() {
             try {
@@ -3712,7 +3713,7 @@ $bookingForm.on('blur', '#bookName', function() {
                 var startQty = svc.pricing_model === 'per_minute'
                     ? (perfMins || parseInt(svc.min_quantity) || 60)
                     : (svc.pricing_model === 'per_hour' ? Math.ceil((perfMins || 60) / 60) : 1);
-                bkAddServiceRow(svc.id, svc.name, parseFloat(svc.default_price) || 0, startQty, svc.pricing_model, svc.min_quantity, svc.display_unit, svc);
+                bkAddServiceRow(svc.id, svc.name, startQty, svc.pricing_model, svc.min_quantity, svc.display_unit, svc);
                 if (typeof bkSyncDurationSelect === 'function') bkSyncDurationSelect();
             } catch (e) { /* non-fatal — visitor selects manually */ }
         }
@@ -3792,7 +3793,6 @@ $bookingForm.on('blur', '#bookName', function() {
                                 bkAddServiceRow(
                                     s.id,
                                     s.name,
-                                    parseFloat(s.unitPrice) || 0,
                                     parseInt(s.qty) || 1,
                                     s.model || 'flat_fee',
                                     parseInt(s.minQty) || 1,
