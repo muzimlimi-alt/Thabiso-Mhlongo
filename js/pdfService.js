@@ -45,7 +45,9 @@ class PDFService {
         this._drawWordmark(doc, 20, 15, 220, 70);
 
         // Document type — right side of gold bar (aligned to the right margin of 584)
-        const label = isTaxInvoice ? 'TAX INVOICE' : type.toUpperCase();
+        // Plainly INVOICE (or QUOTE) - the owner's decision, 2026-10-19. It used to read TAX INVOICE for any invoice of R5,000 or more, or one
+        // carrying a client VAT number, whether or not VAT was charged (see isTaxInvoice in generateDocument for what that flag still does).
+        const label = type.toUpperCase();
         doc.fillColor(DARK).font('Helvetica-Bold').fontSize(22)
            .text(label, 250, 24, { width: 334, align: 'right' });
 
@@ -283,7 +285,9 @@ class PDFService {
             const stream = fs.createWriteStream(outputPath);
             doc.pipe(stream);
 
-            // Determine TAX INVOICE
+            // isTaxInvoice: an invoice of R5,000 or more, or for a client who gave a VAT number. It NO LONGER changes what the document is called
+            // (it reads plainly INVOICE, and the "valid Tax Invoice" sentence is gone). It still decides two things, exactly as before: our VAT
+            // registration number in the header, and - when we have one (COMPANY_VAT_NUMBER) - that VAT is applied (see applyVat below).
             const lineTotal = lineItems.reduce((s, i) => {
                 const tot = parseFloat(i.total_price);
                 if (!isNaN(tot)) return s + tot;
@@ -578,6 +582,43 @@ class PDFService {
                 }
             }
 
+            // 5b. Pay by EFT - invoices only, and only when Manual EFT was switched on and banking details existed when THIS invoice was issued
+            // (lib/invoicing.js passes them in). The details are a snapshot of the version in force at that moment: an invoice already issued is
+            // never redrawn when the banking details change later, so what a client holds is what they were told. docs-internal/eft-payments.md.
+            if (type === 'Invoice' && opts.eft) {
+                const e = opts.eft;
+                const detailRows = [
+                    ['Account holder', e.accountHolder], ['Bank', e.bankName], ['Account number', e.accountNumber],
+                    ['Account type', e.accountType], ['Branch code', e.branchCode]
+                ];
+                if (e.swiftCode) detailRows.push(['SWIFT / BIC', e.swiftCode]);
+                // what is being paid and against what: the same figures the invoice above carries (subtotal holds the grand total by now)
+                detailRows.push(['Invoice number', docNumber], ['Booking reference', `#${booking.id}`], ['Amount payable', `R ${(Number(subtotal) || 0).toFixed(2)}`]);
+                detailRows.push(['Payment reference', e.reference]);
+                const notes = [e.referenceNote, e.paymentInstructions,
+                    'After you have paid, upload your proof of payment on your booking page. Payment is subject to verification and confirmation of cleared funds in our bank account.'].filter(Boolean).join('\n');
+                const rowH = 16;
+                const notesH = doc.font('Helvetica').fontSize(8).heightOfString(notes, { width: 536, lineGap: 1.5 });
+                const blockH = 15 + detailRows.length * rowH + notesH + 18;
+                currentY += 10;
+                if (currentY + blockH > 740) { doc.addPage(); currentY = 50; }
+                doc.rect(28, currentY, 556, 15).fillColor(DARK).fill();
+                doc.fillColor(GOLD).font('Helvetica-Bold').fontSize(7)
+                   .text('PAY BY EFT (BANK TRANSFER)', 38, currentY + 4, { characterSpacing: 1.2 });
+                currentY += 15;
+                detailRows.forEach((r, i) => {
+                    const rowY = currentY + i * rowH;
+                    const isRef = r[0] === 'Payment reference';
+                    doc.rect(28, rowY, 556, rowH).fillColor(i % 2 === 0 ? LIGHT_GREY : WHITE).fill();
+                    doc.font('Helvetica').fontSize(8).fillColor(GREY).text(r[0], 38, rowY + 4, { width: 150 });
+                    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(isRef ? GOLD : DARK).text(String(r[1] == null ? '' : r[1]), 200, rowY + 4, { width: 372 });
+                });
+                currentY += detailRows.length * rowH;
+                doc.rect(28, currentY, 556, notesH + 12).fillColor(LIGHT_GREY).fill();
+                doc.font('Helvetica').fontSize(8).fillColor(GREY).text(notes, 38, currentY + 6, { width: 536, lineGap: 1.5 });
+                currentY += notesH + 18;
+            }
+
             if (currentY > 710) { doc.addPage(); currentY = 50; }
 
             const terms = booking.terms || 'Standard cancellation policy applies.';
@@ -593,14 +634,8 @@ class PDFService {
                .text(terms, 38, currentY + 7, { width: 536 });
             currentY += termsH + 20;
 
-            if (type === 'Invoice' && isTaxInvoice) {
-                if (currentY > 700) { doc.addPage(); currentY = 50; }
-                doc.font('Helvetica').fontSize(7.5).fillColor('#999999')
-                   .text(
-                       'This is a valid Tax Invoice for VAT purposes in terms of section 20 of the Value-Added Tax Act 89 of 1991.',
-                       38, currentY, { width: 536 }
-                   );
-            }
+            // (The "valid Tax Invoice for VAT purposes in terms of section 20" sentence that used to close the invoice is gone with the
+            // TAX INVOICE title: the document is simply an invoice.)
 
             // 6. Footer
             this._drawFooter(doc, type, opts);

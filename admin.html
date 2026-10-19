@@ -44,6 +44,7 @@
     <link href="css/public/redesign.css?v=12" rel="stylesheet">
     <link href="css/admin/team.css?v=2" rel="stylesheet">
     <link href="css/admin/accolades.css?v=1" rel="stylesheet">
+    <link href="css/admin/eft.css?v=2" rel="stylesheet">
     <link href="css/admin/redesign-admin.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
     <link rel="stylesheet" href="css/components/notifications.css">
@@ -2409,6 +2410,7 @@
                                 <button class="atl-tab-btn" data-um-tab="finInvoices" role="tab" aria-selected="false">All Invoices</button>
                                 <button class="atl-tab-btn" data-um-tab="finExpenses" role="tab" aria-selected="false"><i class="fa-solid fa-receipt" style="margin-right:5px; color:var(--atl-clay);"></i>Expenses</button>
                                 <button class="atl-tab-btn" data-um-tab="finReconciliation" role="tab" aria-selected="false"><i class="fa-solid fa-scale-balanced" style="margin-right:5px; color: var(--atl-amber);"></i>Reconciliation</button>
+                                <button class="atl-tab-btn" data-um-tab="finEft" id="finEftTabBtn" role="tab" aria-selected="false"><i class="fa-solid fa-building-columns" style="margin-right:5px; color: var(--atl-blue);"></i>EFT Payments<span class="eft-pending-badge" id="eftPendingBadge" style="display:none;" title="Proofs of payment waiting for review">0</span></button>
                                 <button class="atl-tab-btn" data-um-tab="finReminders" role="tab" aria-selected="false"><i class="fa-solid fa-bell" style="margin-right:5px; color:var(--atl-purple);"></i>Reminders</button>
                                 <button class="atl-tab-btn" data-um-tab="finAnalytics" role="tab" aria-selected="false"><i class="fa-solid fa-chart-pie" style="margin-right:5px; color:var(--atl-sage);"></i>Analytics &amp; Reports</button>
                                 <button class="atl-tab-btn" data-um-tab="finAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info" style="margin-right:5px;"></i>About</button>
@@ -2665,6 +2667,31 @@
                                 </div>
 
                                 <!-- Analytics & Reports Tab -->
+                                <!-- Manual EFT: proofs of payment clients have uploaded, waiting for an administrator or manager to verify them against the bank
+                                     account (js/admin/eft.js, docs-internal/eft-payments.md). Nothing here is money until it is approved. -->
+                                <div role="tabpanel" class="um-panel" id="finEft">
+                                    <div class="eft-queue-bar">
+                                        <div class="eft-queue-bar__left">
+                                            <select id="eftStatusFilter" class="atl-input" aria-label="Filter proofs by status" style="width:auto;font-size:13px;background:var(--atl-card);color:var(--atl-ink);border-color:var(--atl-line);">
+                                                <option value="pending">Waiting for review</option>
+                                                <option value="">All proofs</option>
+                                                <option value="approved">Approved</option>
+                                                <option value="rejected">Rejected</option>
+                                                <option value="replacement_requested">New proof requested</option>
+                                            </select>
+                                            <span id="eftCountBadge" style="font-size:11px;color:var(--atl-muted);white-space:nowrap;"></span>
+                                        </div>
+                                        <button type="button" id="eftRefreshBtn" class="atl-btn atl-btn--ghost" style="font-size:13px;white-space:nowrap;"><i class="fa-solid fa-rotate-right" style="margin-right:5px;"></i>Refresh</button>
+                                    </div>
+                                    <p class="eft-queue-note">A proof of payment is a client's claim, not money. Check the amount and reference against the bank statement, then approve it to record the payment on the booking.</p>
+                                    <div class="table-responsive">
+                                        <table class="table eft-table">
+                                            <thead><tr><th>Sent</th><th>Client / booking</th><th>Claimed</th><th>Invoice</th><th>Balance</th><th>Status</th><th></th></tr></thead>
+                                            <tbody id="eftQueueBody"><tr><td colspan="7" class="eft-empty">Open this tab to load proofs of payment.</td></tr></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
                                 <div role="tabpanel" class="um-panel" id="finAnalytics">
                                     <div style="padding:10px 0 12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between;">
                                         <div style="color: var(--atl-muted); font-size:12px;">Financial intelligence, monthly revenue trend, outstanding debt aging, and top client insights.</div>
@@ -6027,6 +6054,56 @@
                                     </div>
                                 </div>
 
+                                <!-- Card: Manual EFT & banking details (administrators only; hidden until js/admin/eft.js has been allowed to read it) -->
+                                <div class="atl-card um-settings-card" id="stEftCard" style="display:none;">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-building-columns"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Manual EFT &amp; banking details</h4>
+                                            <p class="um-section-desc">Lets clients pay by bank transfer and send a proof of payment. The details below are printed on every invoice issued from now on and shown to a client who has verified their booking. Changing them creates a new version &mdash; invoices already sent keep the details they went out with.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <p class="um-section-desc" id="eftCardStatus" role="status" style="margin:0 0 14px;"></p>
+                                    <div class="eft-switch-row">
+                                        <label class="eft-check" for="eftEnabled"><input type="checkbox" id="eftEnabled"> Offer Manual EFT to clients</label>
+                                        <div class="um-field-group" style="margin:0;min-width:200px;">
+                                            <label class="um-label" for="eftMaxMb">Largest proof file (MB)</label>
+                                            <div class="um-input-wrap"><i class="fa-solid fa-file-arrow-up um-input-icon"></i><input type="number" class="um-input" id="eftMaxMb" min="1" max="15" step="1" value="5"></div>
+                                        </div>
+                                        <button type="button" class="atl-btn atl-btn--ghost" id="eftSaveSettingsBtn"><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save switches</button>
+                                    </div>
+                                    <div class="um-divider" style="margin-top:18px;"></div>
+                                    <div class="row">
+                                        <div class="col-md-6"><div class="um-field-group"><label class="um-label" for="eftHolder">Account holder</label><div class="um-input-wrap"><i class="fa-solid fa-user um-input-icon"></i><input type="text" class="um-input" id="eftHolder" maxlength="100" autocomplete="off"></div><div class="atl-field-error" id="errEftHolder" style="display:none;"></div></div></div>
+                                        <div class="col-md-6"><div class="um-field-group"><label class="um-label" for="eftBank">Bank</label><div class="um-input-wrap"><i class="fa-solid fa-building-columns um-input-icon"></i><input type="text" class="um-input" id="eftBank" maxlength="60" autocomplete="off"></div><div class="atl-field-error" id="errEftBank" style="display:none;"></div></div></div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftAccount">Account number</label><div class="um-input-wrap"><i class="fa-solid fa-hashtag um-input-icon"></i><input type="text" class="um-input" id="eftAccount" inputmode="numeric" maxlength="24" autocomplete="off"></div><div class="atl-field-error" id="errEftAccount" style="display:none;"></div></div></div>
+                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftType">Account type</label><div class="um-input-wrap"><i class="fa-solid fa-list um-input-icon"></i><select class="um-input" id="eftType"></select></div><div class="atl-field-error" id="errEftType" style="display:none;"></div></div></div>
+                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftBranch">Branch code</label><div class="um-input-wrap"><i class="fa-solid fa-code-branch um-input-icon"></i><input type="text" class="um-input" id="eftBranch" inputmode="numeric" maxlength="12" autocomplete="off"></div><div class="atl-field-error" id="errEftBranch" style="display:none;"></div></div></div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftSwift">SWIFT / BIC <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(optional)</small></label><div class="um-input-wrap"><i class="fa-solid fa-globe um-input-icon"></i><input type="text" class="um-input" id="eftSwift" maxlength="11" autocomplete="off"></div><div class="atl-field-error" id="errEftSwift" style="display:none;"></div></div></div>
+                                        <div class="col-md-8"><div class="um-field-group"><label class="um-label" for="eftRefNote">Reference note <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(optional, shown with the details)</small></label><div class="um-input-wrap"><i class="fa-solid fa-tag um-input-icon"></i><input type="text" class="um-input" id="eftRefNote" maxlength="200" autocomplete="off" placeholder="e.g. Use your invoice number as the reference"></div><div class="atl-field-error" id="errEftRefNote" style="display:none;"></div></div></div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-12"><div class="um-field-group"><label class="um-label" for="eftInstructions">Payment instructions <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(optional)</small></label><div class="um-input-wrap"><textarea class="um-input" id="eftInstructions" rows="2" maxlength="500" style="padding-left:12px;"></textarea></div><div class="atl-field-error" id="errEftInstructions" style="display:none;"></div></div></div>
+                                    </div>
+                                    <div class="eft-preview" id="eftPreview">
+                                        <div class="eft-preview__hd"><i class="fa-solid fa-eye"></i> Preview &mdash; how these details will appear on invoices and to clients (updates as you type; sample invoice figures)</div>
+                                        <div id="eftPreviewBody"></div>
+                                    </div>
+                                    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                                        <button type="button" class="atl-btn atl-btn--primary" id="eftSaveDetailsBtn"><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save banking details</button>
+                                        <span id="eftDetailsMsg" style="font-size:12px;color:var(--atl-muted);" role="status"></span>
+                                    </div>
+                                    <div id="eftVersionsWrap" style="margin-top:18px;display:none;">
+                                        <h6 class="um-section-label" style="margin-bottom:2px;">Version history</h6>
+                                        <table class="eft-versions"><thead><tr><th>Version</th><th>Bank / account</th><th>Active from</th><th>Retired</th><th>Invoices</th></tr></thead><tbody id="eftVersionsBody"></tbody></table>
+                                    </div>
+                                </div>
+
                                 <!-- Card: Email (SMTP) -->
                                 <div class="atl-card um-settings-card" id="stSmtpCard">
                                     <div class="um-icon-header">
@@ -8479,9 +8556,9 @@
         // log block (Newsletter) moved to js/admin/newsletter.js — see that file's header
         // comment for full detail.
     </script>
-    <script src="js/admin/bookings-pipeline.js?v=5"></script>
+    <script src="js/admin/bookings-pipeline.js?v=6"></script>
     <script src="js/admin/bookings-contracts.js"></script>
-    <script src="js/admin/bookings-finance.js?v=3"></script>
+    <script src="js/admin/bookings-finance.js?v=4"></script>
     <script src="js/admin/bookings-quote.js?v=5"></script>
     <script src="js/admin/bookings-actions.js"></script>
     <script src="js/admin/newsletter.js"></script>
@@ -11099,6 +11176,18 @@
         </div>
     </div>
 
+    <!-- eftReviewDrawer: verify one client proof of payment (js/admin/eft.js) -->
+    <div id="eftReviewDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('eftReviewDrawer')"></div>
+    <div id="eftReviewDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="eftReviewDrawerLabel" aria-modal="true">
+        <div class="atl-drawer__header">
+            <h5 id="eftReviewDrawerLabel">Review proof of payment</h5>
+            <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('eftReviewDrawer')" aria-label="Close">×</button>
+        </div>
+        <div class="atl-drawer__body">
+            <div id="eftReviewBody" class="eft-review"></div>
+        </div>
+    </div>
+
     <!-- Quote Builder Drawer -->
     <div id="qbDrawerBackdrop" class="qb-drawer-backdrop" onclick="closeQuoteDrawer()"></div>
 
@@ -13039,6 +13128,7 @@
     <script src="js/admin/security-audit.js"></script>
     <script src="js/admin/system-settings.js?v=smtp3-places1"></script>
     <script src="js/admin/financials.js?v=2"></script>
+    <script src="js/admin/eft.js?v=2"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================
      FINANCE MODULE — JavaScript Engine

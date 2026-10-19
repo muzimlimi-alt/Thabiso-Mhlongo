@@ -8,7 +8,7 @@ const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { mutateRateLimiter } = require('../../middleware/rate-limiters');
-const { resolveDocsPath, docsWriteDir, PROJECT_ROOT } = require('../../lib/runtime-paths');
+const { resolveDocsPath, docsWriteDir, PROJECT_ROOT, DOCS_PATH } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
 const { sanitizeAboutHtml } = require('../../lib/html-sanitize');
 // Phase 5 housekeeping fix: dbGet was called at 5 sites below (all in the contract cluster moved in
@@ -41,7 +41,7 @@ const { sendCancellationEmail } = require('../../lib/booking-cancellation-email'
 const { CURRENT_POLICY_VERSION } = require('../../lib/booking-policy');
 const { catalogueUnitPrice, checkQuoteLinePricing, needsIndividualQuote, describePrice } = require('../../lib/service-pricing');
 const { withStoredDescriptions } = require('../../lib/booking-lines');
-const { agreedAmountSql, receivedAmountSql } = require('../../lib/booking-amounts');
+const { agreedAmountSql, receivedAmountSql, revenueRowsSql } = require('../../lib/booking-amounts');
 const { getQuotationConditions } = require('../../lib/pricing-conditions');
 const {
     processManualPayment, alignMilestonePayments, deriveBookingStatusAfterPayment, deriveManualPaymentStatus, updateBookingMilestones
@@ -129,6 +129,11 @@ const BOOKING_DISPOSITIONS = ['active', 'not_a_fit', 'archived'];
 // row it points at is removed (bookings.event_id and events.booking_id reference each other).
 const BOOKING_DELETE_PURGE = [
     "UPDATE bookings SET event_id = NULL WHERE id = ?",
+    // Manual EFT proofs (lib/eft.js) point at the booking's invoices and transactions, so they go first. A booking with money on it cannot be
+    // deleted at all (the route refuses), so an approved proof never reaches here - only unreviewed / rejected ones. Their files are removed
+    // after the commit.
+    "DELETE FROM eft_submission_events WHERE submission_id IN (SELECT id FROM eft_payment_submissions WHERE booking_id = ?)",
+    "DELETE FROM eft_payment_submissions WHERE booking_id = ?",
     "DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE booking_id = ?)",
     "DELETE FROM quote_line_items WHERE quotation_id IN (SELECT id FROM quotations WHERE booking_id = ?)",
     "DELETE FROM quotations WHERE booking_id = ?",
@@ -373,24 +378,29 @@ router.get('/api/admin/bookings/:id/expenses', requireAdmin, requireRole(['admin
         // else the amount on the booking itself for one entered straight at CONFIRMED. Until a quotation exists bookings.total_amount holds
         // only the catalogue ESTIMATE (lib/booking-amounts.js) - a published rate, not revenue - so an unquoted enquiry reads R0.00.
         // This used to select `q.total`, a column that does not exist; the error was swallowed and every booking read R0.00.
+        // Money that went back OUT - refunds and chargebacks (completed, not flagged as duplicates) - comes off the net: a refund leaves the account.
         db.get(
             `SELECT CASE WHEN ${agreedAmountSql('b')} THEN COALESCE(
                         (SELECT q.total_amount FROM quotations q
                           WHERE q.booking_id = b.id AND q.archived = 0 AND LOWER(COALESCE(q.status, '')) NOT IN ('void', 'archived')
                           ORDER BY q.version DESC, q.id DESC LIMIT 1),
                         b.total_amount, 0)
-                    ELSE 0 END AS gross
+                    ELSE 0 END AS gross,
+                    COALESCE((SELECT SUM(t.amount) FROM transactions t
+                               WHERE t.booking_id = b.id AND t.transaction_type IN ('refund', 'chargeback') AND ${revenueRowsSql('t')}), 0) AS refunded
              FROM bookings b
              WHERE b.id = ?`,
             [bookingId], (e2, fin) => {
                 if (e2) return res.status(500).json({ success: false, message: e2.message });   // never present a failed lookup as R0.00 revenue
                 const gross = fin ? parseFloat(fin.gross || 0) : 0;
+                const refunded = fin ? parseFloat(fin.refunded || 0) : 0;
                 res.json({
                     success: true,
                     expenses: expenses || [],
                     total_expenses: totalExpenses,
                     gross_revenue: gross,
-                    net_profit: gross - totalExpenses
+                    refunded,
+                    net_profit: gross - refunded - totalExpenses
                 });
             }
         );
@@ -2568,6 +2578,7 @@ router.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrat
         if (parseFloat(booking.amount_paid) > 0) {
             return res.status(400).json({ success: false, message: 'Cannot delete a booking with recorded payments. Cancel it instead to preserve the financial audit trail.' });
         }
+        const eftProofFiles = (await dbAll('SELECT proof_filename FROM eft_payment_submissions WHERE booking_id = ?', [id])).map(r => r.proof_filename);
 
         const outcome = await withDbTransaction(async () => {
             try {
@@ -2577,8 +2588,10 @@ router.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrat
                 return { status: 500, body: { success: false, error: 'Database busy. Please retry.' } };
             }
             try {
-                for (const sql of BOOKING_DELETE_PURGE) await dbRun(sql, [id]);
-                for (const sql of BOOKING_DELETE_UNLINK) await dbRun(sql, [id]);
+                // The failing statement is named in the error: SQLite's own "FOREIGN KEY constraint failed" does not say which table.
+                const runStep = async (sql) => { try { await dbRun(sql, [id]); } catch (stepErr) { stepErr.message += ' [at: ' + sql.slice(0, 90) + ']'; throw stepErr; } };
+                for (const sql of BOOKING_DELETE_PURGE) await runStep(sql);
+                for (const sql of BOOKING_DELETE_UNLINK) await runStep(sql);
 
                 // Inside the transaction: a failed delete must not leave an audit_log row claiming
                 // the booking was deleted. This previously ran before the transaction even opened.
@@ -2608,6 +2621,8 @@ router.delete('/api/admin/bookings/:id', requireAdmin, requireRole(['administrat
         if (booking.google_event_id) {
             deleteGoogleEvent(booking.google_event_id).catch(e => console.error('[Delete] GCal cleanup failed:', e.message));
         }
+        // the proof files of the submissions that went with it - personal financial documents must not outlive their booking
+        for (const f of eftProofFiles) objectStorage.deleteFile(path.join(DOCS_PATH, 'payment_proofs', f)).catch(e => console.error('[Delete] EFT proof cleanup failed:', e.message));
         res.json({ success: true });
     } catch (e) {
         console.error('[Delete] Booking delete failed:', e);

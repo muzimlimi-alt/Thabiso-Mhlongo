@@ -4,7 +4,7 @@ const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { exportRateLimiter } = require('../../middleware/rate-limiters');
 const { getTransactionRevenueByPeriod, getExpensesByPeriod } = require('../../database/repositories/finance.repository');
-const { agreedAmountSql, AMOUNT_BASIS_LABEL } = require('../../lib/booking-amounts');
+const { agreedAmountSql, AMOUNT_BASIS_LABEL, revenueRowsSql } = require('../../lib/booking-amounts');
 const router = express.Router();
 
 // --- Financial CSV Export ---
@@ -75,8 +75,9 @@ router.get('/api/admin/finance/pl', requireAdmin, requireRole(['administrator', 
     const fromFilter = date_from ? `AND date >= ${db.prepare ? '?' : JSON.stringify(date_from)}` : '';
     const toFilter   = date_to   ? `AND date <= ${db.prepare ? '?' : JSON.stringify(date_to)}`   : '';
     const revenueParams = []; const expenseParams = [];
-    // 'adjustment' is left out with refunds and chargebacks: a credit / debit changes what is owed, it is not money received.
-    let revWhere = 'WHERE t.status = \'completed\' AND (t.transaction_type IS NULL OR t.transaction_type NOT IN (\'refund\',\'chargeback\',\'adjustment\'))';
+    // Revenue = money received MINUS refunds and chargebacks (they leave the account: the repository sums them with receivedAmountSql). Left out
+    // altogether: a manual adjustment (a credit / debit changes what is owed, it is not money) and a payment flagged as a duplicate.
+    let revWhere = `WHERE ${revenueRowsSql('t')} AND COALESCE(t.transaction_type, '') <> 'adjustment'`;
     let expWhere = 'WHERE 1=1';
     if (date_from) { revWhere += ' AND t.transaction_date >= ?'; revenueParams.push(date_from); expWhere += ' AND e.expense_date >= ?'; expenseParams.push(date_from); }
     if (date_to)   { revWhere += ' AND t.transaction_date <= ?'; revenueParams.push(date_to);   expWhere += ' AND e.expense_date <= ?'; expenseParams.push(date_to);   }

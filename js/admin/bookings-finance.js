@@ -121,8 +121,9 @@
         try {
             const d = await apiCall(`/api/admin/bookings/${bookingId}/expenses`, 'GET');
             const gross = parseFloat(d.gross_revenue || 0);
+            const refunded = parseFloat(d.refunded || 0);        // a refund leaves the account: it comes off the net (shown only when there is one)
             const exp = parseFloat(d.total_expenses || 0);
-            const net = gross - exp;
+            const net = gross - refunded - exp;
             const netColor = net >= 0 ? 'var(--atl-green)' : 'var(--atl-clay)';
             $(`#bkPLCard-${bookingId}`).html(`
                 <div style="font-size:11px;color: var(--atl-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;"><i class="fa-solid fa-chart-pie" style="margin-right:5px;color: var(--atl-amber);"></i>Profit & Loss</div>
@@ -130,6 +131,10 @@
                     <span style="color:#aaa;">Gross Revenue:</span>
                     <span style="color:var(--atl-green);font-weight:600;">R ${gross.toLocaleString('en-ZA',{minimumFractionDigits:2})}</span>
                 </div>
+                ${refunded > 0 ? `<div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                    <span style="color:#aaa;">Refunded:</span>
+                    <span style="color:var(--atl-clay);font-weight:600;">- R ${refunded.toLocaleString('en-ZA',{minimumFractionDigits:2})}</span>
+                </div>` : ''}
                 <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
                     <span style="color:#aaa;">Expenses:</span>
                     <span style="color:var(--atl-clay);font-weight:600;">R ${exp.toLocaleString('en-ZA',{minimumFractionDigits:2})}</span>

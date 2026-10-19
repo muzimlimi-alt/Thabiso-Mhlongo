@@ -10,7 +10,9 @@ const { getBookingAccessTokenByHash, touchBookingAccessToken } = require('../dat
 
 function requireBookingAccessToken(req, res, next) {
     const bookingId = parseInt(req.params.id, 10);
-    const token = (req.body && req.body.access_token) || req.query.access_token;
+    // A multipart upload (proof of payment) is authenticated BEFORE multer reads a single byte of the file, so its body is not parsed yet:
+    // those requests send the token in a header instead.
+    const token = (req.body && req.body.access_token) || req.query.access_token || req.get('x-booking-access-token');
     if (!bookingId || !token) {
         return res.status(401).json({ success: false, message: 'Please verify your booking to continue.', code: 'TOKEN_REQUIRED' });
     }

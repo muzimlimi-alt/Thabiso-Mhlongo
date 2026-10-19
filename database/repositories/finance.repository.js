@@ -13,6 +13,7 @@
 // Found by a live grep sweep of every FROM/INTO/UPDATE hit against these six tables in
 // server.js — no prior catalog existed for this domain.
 const db = require('../../database');
+const { receivedAmountSql, revenueRowsSql } = require('../../lib/booking-amounts');   // pure SQL fragments: revenue = payments MINUS refunds / chargebacks
 
 function promised(sql, params) {
     return new Promise((resolve, reject) => {
@@ -307,11 +308,11 @@ function getStandingAdjustmentRows(bookingId, sinceTimestamp) {
 function getTransactionRevenueTrend(callback) {
     db.all(
         `
-        SELECT strftime('%Y-%m', transaction_date) AS month, SUM(amount) AS total_revenue
-        FROM transactions
-        WHERE status = 'completed' AND COALESCE(is_duplicate, 0) = 0
-          AND COALESCE(transaction_type, '') <> 'adjustment'   -- an adjustment changes what is owed; it is not money received
-          AND transaction_date >= DATE('now', '-12 months')
+        SELECT strftime('%Y-%m', t.transaction_date) AS month, SUM(${receivedAmountSql('t')}) AS total_revenue
+        FROM transactions t
+        WHERE ${revenueRowsSql('t')}
+          AND COALESCE(t.transaction_type, '') <> 'adjustment'   -- an adjustment changes what is owed; it is not money received
+          AND t.transaction_date >= DATE('now', '-12 months')
         GROUP BY month
         ORDER BY month ASC
     `,
@@ -322,8 +323,8 @@ function getTransactionRevenueTrend(callback) {
 // already-built clause, moved.
 function getTransactionRevenueByPeriod(groupFormat, whereClause, params, callback) {
     db.all(
-        `SELECT strftime('${groupFormat}', transaction_date) AS period,
-                COALESCE(SUM(amount), 0) AS revenue
+        `SELECT strftime('${groupFormat}', t.transaction_date) AS period,
+                COALESCE(SUM(${receivedAmountSql('t')}), 0) AS revenue
          FROM transactions t
          ${whereClause}
          GROUP BY period ORDER BY period ASC`,
@@ -333,10 +334,9 @@ function getTransactionRevenueByPeriod(groupFormat, whereClause, params, callbac
 function getPeriodRevenue(periodFrom, periodTo, callback) {
     db.get(
         `
-        SELECT COALESCE(SUM(t.amount), 0) AS period_revenue
+        SELECT COALESCE(SUM(${receivedAmountSql('t')}), 0) AS period_revenue
         FROM transactions t
-        WHERE t.status = 'completed'
-          AND COALESCE(t.is_duplicate, 0) = 0
+        WHERE ${revenueRowsSql('t')}
           AND COALESCE(t.transaction_type, '') <> 'adjustment'   -- an adjustment changes what is owed; it is not money received
           AND DATE(t.transaction_date) >= ?
           AND DATE(t.transaction_date) <= ?

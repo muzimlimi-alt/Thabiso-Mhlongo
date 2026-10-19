@@ -285,6 +285,10 @@ app.use((req, res, next) => {
     // per-field in their handlers instead of being blanket entity-escaped here.
     if (req.body && req.path !== '/api/admin/about-me' && req.path !== '/api/admin/site-content' && req.path !== '/api/admin/newsletter/birthday-settings') {
         const raw = RAW_HTML_BODY_FIELDS.find(r => r.path.test(req.path));
+        // PayFast's notification is SIGNED over the exact values it posted, and PayFast's server-confirmation call compares them again, so the ITN route
+        // must see them as posted - before the encoding below turns D'Souza into D&#x27;Souza and a name with "&" into "&amp;". It keeps a copy for
+        // exactly that; everything else in the route still works on the encoded body, as before.
+        if (req.path === '/api/payment/webhook/payfast') req.pfRawBody = { ...req.body };
         deepEscapeBody(req.body, raw && raw.keys);
     }
     next();
@@ -533,10 +537,12 @@ app.use(require('./routes/admin/email-templates'));
 app.use(require('./routes/admin/reminders'));
 app.use(require('./routes/admin/finance'));
 app.use(require('./routes/admin/financials'));
+app.use(require('./routes/admin/eft'));              // Manual EFT: banking details, proof-of-payment review queue (lib/eft*.js)
 app.use(require('./routes/admin/dashboard'));
 app.use(require('./routes/admin/bookings'));
 app.use(require('./routes/admin/events'));
 app.use(require('./routes/public/bookings'));
+app.use(require('./routes/public/eft'));             // Manual EFT: a client uploads / reads back their proof of payment
 app.use(require('./routes/public/site-content'));
 app.use(require('./routes/public/availability'));
 app.use(require('./routes/admin/misc'));

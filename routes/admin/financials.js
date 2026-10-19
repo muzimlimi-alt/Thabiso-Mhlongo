@@ -5,18 +5,21 @@ const { requireRole } = require('../../middleware/rbac');
 const { getTransactionRevenueTrend, getExpenseTrend, getPeriodRevenue, getPeriodExpenses, getTotalTransactionCount } = require('../../database/repositories/finance.repository');
 const { getInvoiceAgingSummary, getOverdueInvoicesSummary, getDueSoonInvoicesSummary } = require('../../database/repositories/invoices-quotations.repository');
 const { getOutstandingTotal, getBookingStatusCounts } = require('../../database/repositories/bookings.repository');
+const { receivedAmountSql, revenueRowsSql } = require('../../lib/booking-amounts');
 const router = express.Router();
 
 // 3.7 Financial Analytics API (Admin)
 // GET /api/admin/financials/analytics
+// Every revenue figure here is money received MINUS refunds and chargebacks (they leave the account), never a manual adjustment, never a
+// payment flagged as a duplicate - the same rule as the dashboard revenue and the P&L (lib/booking-amounts.js).
 router.get('/api/admin/financials/analytics', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const clientQuery = `
         SELECT c.id AS client_id, COALESCE(c.full_name, b.name) AS client_name, c.company_name,
-               SUM(t.amount) AS total_spent, COUNT(DISTINCT b.id) AS booking_count
+               SUM(${receivedAmountSql('t')}) AS total_spent, COUNT(DISTINCT b.id) AS booking_count
         FROM transactions t
         JOIN bookings b ON t.booking_id = b.id
         LEFT JOIN clients c ON b.client_id = c.id
-        WHERE t.status = 'completed' AND COALESCE(t.is_duplicate, 0) = 0
+        WHERE ${revenueRowsSql('t')}
           AND COALESCE(t.transaction_type, '') <> 'adjustment'
         GROUP BY client_id, client_name
         ORDER BY total_spent DESC
@@ -37,11 +40,11 @@ router.get('/api/admin/financials/analytics', requireAdmin, requireRole(['admini
     // engagements (live shows, corporate, comedy, virtual …) earn the most.
     const categoryQuery = `
         SELECT COALESCE(NULLIF(b.event_type, ''), 'Other') AS category,
-               SUM(t.amount)          AS revenue,
+               SUM(${receivedAmountSql('t')}) AS revenue,
                COUNT(DISTINCT b.id)   AS bookings
         FROM transactions t
         JOIN bookings b ON t.booking_id = b.id
-        WHERE t.status = 'completed' AND COALESCE(t.is_duplicate, 0) = 0
+        WHERE ${revenueRowsSql('t')}
           AND COALESCE(t.transaction_type, '') <> 'adjustment'
         GROUP BY category
         ORDER BY revenue DESC

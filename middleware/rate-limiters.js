@@ -56,6 +56,18 @@ const mutateRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateL
     message: { success: false, message: 'Too many attempts. Please wait 15 minutes and try again.' }
 }) : (req, res, next) => next();
 
+// Proof-of-payment uploads (POST /api/public/bookings/:id/eft/proof): files are the expensive thing to accept, so this has its own budget -
+// 10 per hour per address, apart from the 5-per-15-minutes mutate limiter that accepting a quote or paying uses up. A client who photographs
+// the wrong screen and uploads again must not be locked out for fifteen minutes. Bypassed under NODE_ENV=test like its siblings (the
+// per-booking caps in lib/eft.js are enforced in the database and tested there; test/rate-limiters.test.js checks this one in production mode).
+const popUploadRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many uploads from this device. Please wait an hour and try again, or email us your proof of payment.' }
+}) : (req, res, next) => next();
+
 // Limiter for all authenticated admin routes (per IP) — bypassed in test mode, matching
 // bookingRateLimiter/mutateRateLimiter above: the integration suite runs many admin requests from
 // one IP across dozens of test files in the same 1-minute window, well beyond real admin usage.
@@ -197,6 +209,6 @@ const payfastItnRateLimiter = rateLimit ? rateLimit({
 module.exports = {
     bookingRateLimiter, contactRateLimiter, exportRateLimiter, sitemapRateLimiter, trackRateLimiter,
     otpRequestRateLimiter, mutateRateLimiter, adminRateLimiter, adminLoginRateLimiter,
-    lookupRateLimiter, analyticsTrackLimiter, ipRateLimiter,
+    lookupRateLimiter, analyticsTrackLimiter, ipRateLimiter, popUploadRateLimiter,
     PAYFAST_VALID_IPS, payfastItnRateLimiter,
 };

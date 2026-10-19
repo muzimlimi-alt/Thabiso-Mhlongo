@@ -10,7 +10,7 @@ const {
     bookingRateLimiter
 } = require('../../middleware/rate-limiters');
 const { requireBookingAccessToken } = require('../../middleware/booking-access');
-const { encodeUserHtml } = require('../../lib/html-sanitize');
+const { encodeUserHtml, decodeStoredText } = require('../../lib/html-sanitize');
 const { getEmailFooterContext } = require('../../lib/email-context');
 const { resolveDocsPath, docsWriteDir } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
@@ -25,12 +25,13 @@ const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/cl
 const { calculateCancellationRefund } = require('../../lib/cancellation-refund');
 const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
 const { sendQuoteAcceptedEmail, sendBookingReceivedEmail } = require('../../lib/booking-notifications');
-const { generatePayFastSignature } = require('../../lib/payfast-signature');
+const { generatePayFastSignature, payfastBaseUrl } = require('../../lib/payfast-signature');
 const {
     syncBookingToCalendar, checkDateAvailability, hasCalendarConflict, isWithinWorkingHours
 } = require('../../lib/calendar-sync');
 const { autoBuildDepositBalanceSchedule, generateInvoice } = require('../../lib/invoicing');
 const { generateContract } = require('../../lib/contracts');
+const eftData = require('../../lib/eft');
 const { dbGet, dbRun } = require('../../lib/db-helpers');
 // Phase 5: MUST stay the exact same singleton module.exports app.js and every other route file
 // import — see lib/db-transaction.js's own header comment.
@@ -338,7 +339,11 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                         WHERE bs.booking_id = ?`, [row.id], (e3, services) => {
                     getQuoteVersionInfoForTracking(row.id, (qvErr, qv) => {
                             getCancellationSummaryForTracking(row.id, (cErr, cancRow) => {
-                                    db.get("SELECT pdf_url, status, sent_to_client_at, signed_by_client_at, signed_by_comedian_at, is_frozen FROM contracts WHERE booking_id = ?", [row.id], (contractErr, contractRow) => {
+                                    db.get("SELECT pdf_url, status, sent_to_client_at, signed_by_client_at, signed_by_comedian_at, is_frozen FROM contracts WHERE booking_id = ?", [row.id], async (contractErr, contractRow) => {
+                                        // Manual EFT (lib/eft.js): the banking details, reference and the client's own proofs - null when EFT is off and they
+                                        // have sent none. A failure here must never stop the booking from loading.
+                                        let eftPanel = null;
+                                        try { eftPanel = await eftData.panelForBooking(row); } catch (eftErr) { console.error('[EFT] Tracking panel failed for booking #' + row.id + ':', eftErr.message); }
                                         // SEC: build the public payload from an explicit allowlist rather than
                                         // spreading the full `bookings` row and denylisting a few gateway fields.
                                         // The denylist previously missed `admin_notes` — a free-text field admins
@@ -380,7 +385,8 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                             quote_version: qv ? qv.version : null,
                                             quote_version_count: qv ? qv.total_versions : 0,
                                             cancellation: cancRow || null,
-                                            contract: contractRow || null
+                                            contract: contractRow || null,
+                                            eft: eftPanel
                                         });
                                     });
                                 });
@@ -669,13 +675,16 @@ function buildAndSendPfData(row, amt, milestoneDesc, mPaymentId, req, res) {
     try {
         // Derive the public base URL so PayFast's ITN callback always reaches this server.
         // Set BASE_URL in .env for production (e.g. https://thabisomhlongo.com).
-        // When tunnelling locally (ngrok / cloudflared) the forwarded host header is used automatically.
-        const proto = req.get('x-forwarded-proto') || req.protocol;
-        const host  = req.get('x-forwarded-host')  || req.get('host');
-        const baseUrl = (process.env.BASE_URL || `${proto}://${host}`).replace(/\/$/, '');
+        // PAYFAST_BASE_URL overrides it for PayFast only (a local sandbox run: http://localhost:3000 or an ngrok URL), because a
+        // developer's BASE_URL names the live site - and a sandbox notification must never be sent there.
+        // When tunnelling locally (ngrok / cloudflared) the forwarded host header is used automatically if neither is set.
+        const baseUrl = payfastBaseUrl(req);
 
         const isPortal = req.body.return_path === 'portal';
-        const clientName = row.name || 'Client';
+        // The database holds names entity-encoded (O&#x27;Brien, Smith &amp; Sons); PayFast shows what it is sent on its payment page and in the buyer's
+        // receipt e-mail, so it is sent as people wrote it (lib/html-sanitize.js decodeStoredText).
+        const plain = (v) => decodeStoredText(v == null ? '' : String(v));
+        const clientName = plain(row.name) || 'Client';
         const amount = parseFloat(amt);
 
         const pfData = {
@@ -686,10 +695,11 @@ function buildAndSendPfData(row, amt, milestoneDesc, mPaymentId, req, res) {
             notify_url: `${baseUrl}/api/payment/webhook/payfast`,
             name_first: (clientName.split(' ')[0] || '').substring(0, 100),
             name_last: (clientName.split(' ').slice(1).join(' ') || '').substring(0, 100),
-            email_address: row.email,
+            email_address: plain(row.email),
             m_payment_id: mPaymentId,
             amount: amount.toFixed(2),
-            item_name: `Booking ${row.id} - ${row.event_name || row.event_type || 'Event'} - ${milestoneDesc}`.substring(0, 100).replace(/[^a-zA-Z0-9.\- ]/g, '').replace(/\s+/g, ' ')
+            // (a "%" is kept - "50% Deposit" - now that the signature encodes it the way PayFast does; it used to be stripped to "50 Deposit")
+            item_name: `Booking ${row.id} - ${plain(row.event_name) || plain(row.event_type) || 'Event'} - ${milestoneDesc}`.substring(0, 100).replace(/[^a-zA-Z0-9.\-% ]/g, '').replace(/\s+/g, ' ')
         };
 
         // Remove empty or null values to ensure signature matches submitted form data

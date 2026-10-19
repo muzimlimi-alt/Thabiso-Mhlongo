@@ -477,6 +477,15 @@ longer exist. Suites on the final code: see "Final pass" below.
   pristine checkout of GitHub's `main` that has only the `applyBranding.js` fix. Without that fix the same files die earlier behind the overlay, and in
   the previous full run `calendar.js` (2 checks) and `public-sections.js` (13) failed too; they pass now.
 
+### Follow-up requests of 2026-10-19 - PayFast sandbox, refunds, "INVOICE"
+
+- **Local site switched to PayFast's sandbox** (it held the LIVE merchant in `.env` and in the settings table, and `BASE_URL` pointed PayFast's callbacks at the live
+  site), with the owner's own sandbox account. Nothing live is configured on the machine any more; the live lines stay in `.env` as comments. See `docs-internal/payfast.md`.
+- **PayFast tested against the real sandbox** (an isolated copy of the app on a synthetic database, reached by PayFast through a tunnel, then deleted): it found that the
+  ITN check dropped blank fields (every genuine payment would have been rejected in production), that names with `' ( ) * ! ~` were refused at checkout, and that the request
+  sanitiser corrupted the notification before it was verified. All fixed and tested (`test/payfast-*.test.js`); details and evidence in `docs-internal/payfast.md`.
+- **Refunds are a subtraction** and **the invoice reads INVOICE** - see "Known pre-existing issues" (both FIXED).
+
 ## Known pre-existing issues found (not part of this work)
 
 Entries marked **FIXED** were fixed afterwards at the owner's request - see "Phase 6 follow-up" above.
@@ -490,13 +499,16 @@ Entries marked **FIXED** were fixed afterwards at the owner's request - see "Pha
   `amount_paid` from the doubled rows. **Any payment already logged this way in a real database still has its twin** (a `transactions` row with
   `reference LIKE 'MANUAL-%'`, `payment_method = 'payfast'` beside a row with the admin's reference, same booking and amount): count them before
   deciding on a one-off clean-up.
-- **Found, verified by running it, NOT fixed (owner to decide) - a REFUND adds to the dashboard revenue.** Refunds are stored as positive
-  amounts, and `getPeriodRevenue` / `getTransactionRevenueTrend` / the analytics queries sum `amount` with no refund handling: after a R2,000
-  payment and a R400 refund the dashboard and the 12-month trend read +R2,400 (net would be +R1,600), while the P&L ignores refunds and reads
-  +R2,000. The accountant CSV's `Effective_Received` has the same refund problem; the reconciliation screen's row query nets refunds correctly.
-- **Observed in the rendered PDFs, not investigated:** an invoice for a quotation WITHOUT VAT still carries the "TAX INVOICE" title and the
-  sentence "This is a valid Tax Invoice for VAT purposes in terms of section 20..." (`isTaxInvoice` in `js/pdfService.js` depends on the amount,
-  not on whether VAT is charged).
+- **FIXED 2026-10-19 (owner: "refunds leave my account, so shouldn't that be a subtraction") - a REFUND added to the dashboard revenue.** Refunds are stored as
+  positive amounts, and `getPeriodRevenue` / `getTransactionRevenueTrend` / the analytics queries summed `amount` with no refund handling: after a R2,000
+  payment and a R400 refund the dashboard and the 12-month trend read +R2,400 (net is +R1,600), while the P&L ignored refunds and read +R2,000. Every revenue figure
+  now uses one rule (`receivedAmountSql` + `revenueRowsSql` in `lib/booking-amounts.js`): payments MINUS refunds, no adjustments, no payments flagged as duplicates
+  (the P&L used to count those). A booking's own P&L keeps the agreed amount as Revenue and shows the refund as its own line that comes off Net Profit.
+  `test/refund-revenue.test.js` (36), `test/browser/refund-pl.js` (6). (The reconciliation screen and CSV already netted refunds; the Transactions tab Net did too.)
+- **FIXED 2026-10-19 (owner: "the invoice should just read invoice").** An invoice of R5,000 or more, or for a client with a VAT number, was titled "TAX INVOICE" and
+  closed with "This is a valid Tax Invoice for VAT purposes in terms of section 20...", whether or not VAT was charged. It now reads plainly INVOICE and the sentence is
+  gone (`js/pdfService.js`; `test/invoice-title.test.js`). What decides whether VAT is applied is unchanged. NOTE for the accountant: under the VAT Act a VAT-registered
+  supplier's invoice that charges VAT has to carry the words "Tax Invoice" - say if those should read that way again.
 
 - **FIXED.** **Dashboard "Pending quotes" is always R0 / 0, and the Financial Controls P&L "gross revenue" is always R0**: both queries
   (`routes/admin/financials.js`, `GET /api/admin/bookings/:id/expenses` in `routes/admin/bookings.js`) read `quotations.total`, a column that

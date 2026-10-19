@@ -183,6 +183,7 @@ const TOUCHED_TABLES = {
     consent_audit: null, contracts: null, expenses: null, reminders_log: null, payfast_payment_intents: null,
     payment_logs: null, payment_schedules: null, transactions: null, invoices: null, invoice_line_items: null,
     quotations: null, quote_line_items: null, events: null, date_holds: null, abandoned_bookings: null,
+    eft_payment_submissions: null, eft_submission_events: null,
     email_logs: null, notifications: null, audit_log: null, financial_audit_log: null, admin_login_logs: null,
     inquiries: ['converted_booking_id'],
     bank_statement_lines: ['matched_booking_id', 'matched_transaction_id', 'match_note'],
@@ -195,6 +196,9 @@ const TOUCHED_TABLES = {
 // one stops the run before anything is changed.
 const OPTIONAL_TABLES = {
     inquiry_messages: 'inquiry_id INTEGER, direction TEXT, notification_id INTEGER, direct_email_id INTEGER',
+    // Manual EFT proofs of payment (lib/eft.js, migration 108): a database from before that deploy lacks them.
+    eft_payment_submissions: 'id INTEGER, booking_id INTEGER, invoice_id INTEGER, transaction_id INTEGER, proof_filename TEXT',
+    eft_submission_events: 'submission_id INTEGER',
 };
 
 async function ensureStandIns(db) {
@@ -363,6 +367,9 @@ function steps() {
         del('payfast_payment_intents', `booking_id IN ${B}`),
         del('cancellations', `id IN (SELECT id FROM cl_del_cancellation)`),
         del('contracts', `id IN (SELECT id FROM cl_del_contract)`),
+        // Manual EFT proofs (lib/eft.js) point at the booking, the invoice AND the transaction removed below, so they go first.
+        del('eft_submission_events', `submission_id IN (SELECT id FROM eft_payment_submissions WHERE booking_id IN ${B} OR transaction_id IN (SELECT id FROM cl_del_tx) OR invoice_id IN (SELECT id FROM cl_del_invoice))`),
+        del('eft_payment_submissions', `booking_id IN ${B} OR transaction_id IN (SELECT id FROM cl_del_tx) OR invoice_id IN (SELECT id FROM cl_del_invoice)`),
         del('transactions', `id IN (SELECT id FROM cl_del_tx)`),
         del('payment_schedules', `id IN (SELECT id FROM cl_del_schedule)`),
         del('invoice_line_items', `invoice_id IN (SELECT id FROM cl_del_invoice)`),
@@ -391,7 +398,7 @@ const MODULE_OF = {
     abandoned_bookings: 'Bookings', inquiries: 'Bookings (link only)', events: 'Calendar & Events', date_holds: 'Calendar & Events',
     cancellations: 'Finance', contracts: 'Finance', transactions: 'Finance', payment_schedules: 'Finance', invoices: 'Finance',
     invoice_line_items: 'Finance', quotations: 'Finance', quote_line_items: 'Finance', expenses: 'Finance',
-    reminders_log: 'Finance', payfast_payment_intents: 'Finance', bank_statement_lines: 'Finance (unmatch only)',
+    reminders_log: 'Finance', payfast_payment_intents: 'Finance', eft_payment_submissions: 'Finance', eft_submission_events: 'Finance', bank_statement_lines: 'Finance (unmatch only)',
     payment_logs: 'Logs', financial_audit_log: 'Logs', email_logs: 'Logs', notifications: 'Logs', admin_login_logs: 'Logs', audit_log: 'Logs',
 };
 
@@ -519,6 +526,7 @@ async function buildPlan(db, o, dbRealPath) {
     ];
     const fileCols = [['invoices', 'file_path', 'id IN (SELECT id FROM cl_del_invoice)'], ['quotations', 'file_path', 'id IN (SELECT id FROM cl_del_quotation)'],
         ['contracts', 'pdf_url', 'id IN (SELECT id FROM cl_del_contract)'], ['transactions', 'proof_of_payment_path', 'id IN (SELECT id FROM cl_del_tx)'],
+        ['eft_payment_submissions', 'proof_filename', `(booking_id IN (SELECT id FROM cl_del_booking) OR transaction_id IN (SELECT id FROM cl_del_tx) OR invoice_id IN (SELECT id FROM cl_del_invoice))`],
         ['expenses', 'receipt_url', 'id IN (SELECT id FROM cl_del_expense)'], ['advancing_packs', 'pdf_url', 'booking_id IN (SELECT id FROM cl_del_booking)'],
         ['bookings', 'attachment_files', `id IN (SELECT id FROM cl_del_booking) AND attachment_files <> '[]'`], ['notifications', 'attachment_paths', `id IN (SELECT id FROM cl_del_notif) AND attachment_paths <> '[]'`]];
     plan.filesLeftInPlace = [];

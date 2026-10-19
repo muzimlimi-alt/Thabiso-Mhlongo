@@ -1996,8 +1996,9 @@
             $('#bf-pl-card').html('<i class="fa-solid fa-spinner fa-spin" style="color: var(--atl-muted);"></i> Loading P&L…');
             apiCall('/api/admin/bookings/' + bookingId + '/expenses', 'GET').then(d => {
                 const gross = parseFloat(d.gross_revenue || 0);
+                const refunded = parseFloat(d.refunded || 0);        // a refund leaves the account: it comes off the net (shown only when there is one)
                 const exp = parseFloat(d.total_expenses || 0);
-                const net = gross - exp;
+                const net = gross - refunded - exp;
                 const netClr = net >= 0 ? 'var(--atl-green)' : 'var(--atl-clay)';
                 let expRows = '';
                 if (d.expenses && d.expenses.length) {
@@ -2010,6 +2011,7 @@
                 $('#bf-pl-card').html(
                     '<div style="font-size:11px;color: var(--atl-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;"><i class="fa-solid fa-chart-pie" style="margin-right:5px;color: var(--atl-amber);"></i>Profit & Loss</div>'
                     + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span style="color: var(--atl-muted);">Revenue</span><span style="color:var(--atl-green);font-weight:700;">R ' + gross.toFixed(2) + '</span></div>'
+                    + (refunded > 0 ? '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span style="color: var(--atl-muted);">Refunded</span><span style="color:var(--atl-clay);font-weight:700;">- R ' + refunded.toFixed(2) + '</span></div>' : '')
                     + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span style="color: var(--atl-muted);">Expenses</span><span style="color:var(--atl-clay);font-weight:700;">R ' + exp.toFixed(2) + '</span></div>'
                     + expRows
                     + '<div style="display:flex;justify-content:space-between;font-size:14px;padding-top:8px;border-top:1px solid rgba(212,175,55,.2);margin-top:8px;"><span style="color: var(--atl-amber);font-weight:700;">Net Profit</span><span style="color:' + netClr + ';font-weight:700;">R ' + net.toFixed(2) + '</span></div>'

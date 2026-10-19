@@ -2969,6 +2969,87 @@ function initializeDatabase() {
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (104, 'inbox_sync_state')");
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (105, 'calendar_m365_sync')");
 
+        // ── Manual EFT payments and proof-of-payment review (lib/eft.js, docs-internal/eft-payments.md) — migration 108 ──
+        // The banking details are VERSIONED, never edited in place: a change retires the active row and inserts a new one, so an invoice
+        // keeps pointing at the details it was issued with (invoices.bank_details_id). They live in their own table rather than `settings`
+        // because that table's generic API is readable by every admin role and is copied into process.env at boot.
+        db.run(`CREATE TABLE IF NOT EXISTS bank_details (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            version INTEGER NOT NULL,
+            account_holder TEXT NOT NULL,
+            bank_name TEXT NOT NULL,
+            account_number TEXT NOT NULL,
+            account_type TEXT NOT NULL,
+            branch_code TEXT NOT NULL,
+            swift_code TEXT,
+            reference_note TEXT,
+            payment_instructions TEXT,
+            is_active INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1)),
+            created_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            retired_at DATETIME,
+            retired_by INTEGER REFERENCES admins(id) ON DELETE SET NULL
+        )`);
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS uq_bank_details_one_active ON bank_details(is_active) WHERE is_active = 1`);
+        // One row of switches, administrator-controlled, OFF until an administrator turns Manual EFT on.
+        db.run(`CREATE TABLE IF NOT EXISTS eft_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+            max_upload_mb INTEGER NOT NULL DEFAULT 5 CHECK (max_upload_mb BETWEEN 1 AND 15),
+            updated_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`INSERT OR IGNORE INTO eft_settings (id) VALUES (1)`);
+        // A client's proof of payment. Uploading one NEVER credits anything: the booking is credited only when an admin approves it, and
+        // that approval writes one transactions row (source 'manual', method 'bank_transfer') and links it back through transaction_id.
+        db.run(`CREATE TABLE IF NOT EXISTS eft_payment_submissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            booking_id INTEGER NOT NULL REFERENCES bookings(id),
+            invoice_id INTEGER REFERENCES invoices(id),
+            schedule_id INTEGER,
+            claimed_amount DECIMAL(10,2) NOT NULL,
+            claimed_date DATE,
+            claimed_reference TEXT,
+            client_note TEXT,
+            proof_filename TEXT NOT NULL,
+            proof_original_name TEXT,
+            proof_mime TEXT NOT NULL,
+            proof_size INTEGER NOT NULL,
+            proof_sha256 TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'replacement_requested')),
+            bank_details_id INTEGER REFERENCES bank_details(id),
+            submitted_by_email TEXT,
+            submitted_ip TEXT,
+            verified_amount DECIMAL(10,2),
+            verified_reference TEXT,
+            verified_date DATE,
+            review_note TEXT,
+            reviewed_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            reviewed_at DATETIME,
+            transaction_id INTEGER REFERENCES transactions(id),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_eft_submissions_booking ON eft_payment_submissions(booking_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_eft_submissions_status ON eft_payment_submissions(status, created_at)`);
+        // A submission can become at most one ledger row, and a ledger row belongs to at most one submission - the database refuses a second.
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS uq_eft_submissions_transaction ON eft_payment_submissions(transaction_id) WHERE transaction_id IS NOT NULL`);
+        db.run(`CREATE TABLE IF NOT EXISTS eft_submission_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            submission_id INTEGER NOT NULL REFERENCES eft_payment_submissions(id),
+            action TEXT NOT NULL,
+            actor_type TEXT NOT NULL CHECK (actor_type IN ('client', 'admin', 'system')),
+            actor_id INTEGER,
+            from_status TEXT,
+            to_status TEXT,
+            note TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_eft_events_submission ON eft_submission_events(submission_id)`);
+        // The banking details an invoice was issued with. NULL on every invoice issued before this migration (and while EFT is off).
+        db.run("ALTER TABLE invoices ADD COLUMN bank_details_id INTEGER REFERENCES bank_details(id)", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: invoices.bank_details_id: ' + err.message); });
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (108, 'eft_manual_payments_and_proof_of_payment')");
+
         // Homepage "What I do" cards follow the five rate-card categories (version 107): replaced only while still the shipped
         // defaults, once. See lib/homepage-service-cards.js for the rules.
         {

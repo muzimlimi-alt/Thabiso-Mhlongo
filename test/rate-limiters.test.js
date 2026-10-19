@@ -18,7 +18,8 @@ function runChild(nodeEnv) {
         child.on('close', () => {
             clearTimeout(timer);
             const line = out.split('\n').find((l) => l.startsWith('STATUSES:'));
-            resolve({ statuses: line ? JSON.parse(line.slice(9)) : null, out });
+            const popLine = out.split('\n').find((l) => l.startsWith('POP_STATUSES:'));
+            resolve({ statuses: line ? JSON.parse(line.slice(9)) : null, pop: popLine ? JSON.parse(popLine.slice(13)) : null, out });
         });
     });
 }
@@ -28,7 +29,12 @@ module.exports = async function ({ check }) {
     check('production: the first 10 tracking lookups from one address pass and the 11th and 12th are refused (429)',
         !!prod.statuses && prod.statuses.slice(0, 10).every((s) => s === 200) && prod.statuses.slice(10).every((s) => s === 429), prod.statuses ? JSON.stringify(prod.statuses) : prod.out.slice(-800));
 
+    check('production: proof-of-payment uploads are limited too - the first 10 from one address pass, the 11th and 12th are refused (429)',
+        !!prod.pop && prod.pop.slice(0, 10).every((s) => s === 200) && prod.pop.slice(10).every((s) => s === 429), prod.pop ? JSON.stringify(prod.pop) : prod.out.slice(-800));
+
     const test = await runChild('test');
     check('test mode: the tracking limiter is switched off - 12 lookups from one address all pass (the suite shares one address)',
         !!test.statuses && test.statuses.length === 12 && test.statuses.every((s) => s === 200), test.statuses ? JSON.stringify(test.statuses) : test.out.slice(-800));
+    check('test mode: the upload limiter is off as well (the suite shares one address; the per-booking caps are enforced in the database)',
+        !!test.pop && test.pop.length === 12 && test.pop.every((s) => s === 200), test.pop ? JSON.stringify(test.pop) : test.out.slice(-800));
 };

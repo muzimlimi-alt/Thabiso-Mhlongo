@@ -64,7 +64,7 @@
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
 	<link rel="stylesheet" href="css/public/redesign.css?v=22">
-	<link rel="stylesheet" href="css/public/tracking-modal.css">
+	<link rel="stylesheet" href="css/public/tracking-modal.css?v=3">
 	<link rel="stylesheet" href="css/components/notifications.css">
 	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
 	     reuses. Must load before booking-form.css (below), which documents its own need to
@@ -1543,6 +1543,15 @@
 								<div id="paymentScheduleBody"></div>
 							</div>
 
+							<!-- Pay by EFT: our banking details, the reference to use, and a place to send the proof of payment.
+							     Filled by renderEftPanel() from the `eft` block of the tracking response (docs-internal/eft-payments.md). -->
+							<div id="eftSection" class="trk-eft" style="display:none;">
+								<div class="trk-eft-title">
+									<i class="fa-solid fa-building-columns"></i>Pay by EFT (bank transfer)
+								</div>
+								<div id="eftBody"></div>
+							</div>
+
 							<!-- Payment Success -->
 							<div id="paymentSuccess" class="trk-pay-success">
 								<i class="fa-solid fa-circle-check"></i>
@@ -1643,7 +1652,7 @@
 									</div>
 								</div>
 								<div id="vatFieldGroup" style="display:none;margin:12px 0;">
-									<label class="bk-label" style="font-size:11px;">VAT Number <span style="color:var(--text-muted);font-weight:400;">(optional &mdash; enables Tax Invoice)</span></label>
+									<label class="bk-label" style="font-size:11px;">VAT Number <span style="color:var(--text-muted);font-weight:400;">(optional &mdash; printed on your invoice)</span></label>
 									<div class="bk-field">
 										<i class="fa-solid fa-hashtag bk-field-ico"></i>
 										<input type="text" id="acceptVatNumber" class="bk-input form-control bk-ico-input" placeholder="e.g. 4010123456" style="font-size:13px;">
@@ -2715,6 +2724,9 @@ $(document).ready(function() {
                     if (payableCanPay && amountPaid < totalScope) $('#paymentSection').hide();
                 }
 
+                // Pay by EFT: banking details + proof-of-payment upload (hidden unless an administrator switched Manual EFT on)
+                renderEftPanel(data.eft, data.payment_schedule);
+
                 $('#trackingDetails').hide().fadeIn(300);
 
                 // Deep-link to the Accept button when ?action=accept was in the URL (quote-sent
@@ -2779,6 +2791,117 @@ $(document).ready(function() {
             }
         } catch (e) {
             window.notificationService.showError('Connection Error', 'Gateway connection error.');
+            $btn.prop('disabled', false).html(orig);
+        }
+    });
+
+    // ── Pay by EFT (docs-internal/eft-payments.md) ──
+    // `eft` is the block the tracking response carries: our banking details and the reference to quote (only while the booking can still be
+    // paid), the client's own earlier proofs, and whether another may be sent. Sending a proof of payment NEVER confirms a payment - the
+    // booking changes only when our team has checked it against the bank account - and the wording here says so every time.
+    var EFT_STATUS_LABEL = { pending: 'Awaiting verification', approved: 'Verified', rejected: 'Not accepted', replacement_requested: 'New proof needed' };
+    function eftMoney(n) { return 'R ' + (parseFloat(n) || 0).toFixed(2); }   // the public site's own format (R 2500.00), as in the schedule above
+
+    function renderEftPanel(eft, schedule) {
+        var $sec = $('#eftSection');
+        var $body = $('#eftBody').empty();
+        var subs = (eft && eft.submissions) || [];
+        if (!eft || (!eft.bank_details && !subs.length)) { $sec.hide(); return; }
+
+        if (eft.bank_details) {
+            var d = eft.bank_details;
+            $body.append($('<p class="trk-eft-intro">').text('Prefer a bank transfer? Pay into the account below using your reference, then send us your proof of payment. Your payment is confirmed only once we have checked it against our bank account.'));
+            var $dl = $('<dl class="trk-eft-details">');
+            var rows = [['Account holder', d.accountHolder], ['Bank', d.bankName], ['Account number', d.accountNumber], ['Account type', d.accountType], ['Branch code', d.branchCode]];
+            if (d.swiftCode) rows.push(['SWIFT / BIC', d.swiftCode]);
+            rows.forEach(function (r) { $dl.append($('<dt>').text(r[0]), $('<dd>').text(r[1])); });
+            var $ref = $('<dd class="trk-eft-ref">').text(d.reference);
+            $ref.append($('<button type="button" class="trk-eft-copy">').attr('data-copy', d.reference).text('Copy'));
+            $dl.append($('<dt>').text('Payment reference'), $ref);
+            $body.append($dl);
+            if (eft.details_changed) {
+                $body.append($('<p class="trk-eft-note trk-eft-warn">').text('These are our current banking details. The invoice you received earlier shows an older set - please pay into the account above.'));
+            }
+            if (d.referenceNote) $body.append($('<p class="trk-eft-note">').text(d.referenceNote));
+            if (d.paymentInstructions) $body.append($('<p class="trk-eft-note">').text(d.paymentInstructions));
+
+            if (eft.can_upload) {
+                var nextRow = (schedule || []).filter(function (s) { return s.status !== 'paid'; })[0];
+                var suggested = Math.min(parseFloat(eft.outstanding) || 0, nextRow ? parseFloat(nextRow.expected_amount) || 0 : Infinity);
+                var today = new Date().toISOString().slice(0, 10);
+                var $form = $('<form id="eftUploadForm" class="trk-eft-form" novalidate>');
+                $form.append($('<h4>').text('Already paid? Send us your proof of payment'));
+                $form.append($('<p class="trk-eft-note">').text('PDF, JPG or PNG, up to ' + eft.max_upload_mb + ' MB. This does not confirm your payment - we will email you once we have verified it.'));
+                if (nextRow) $form.append($('<input type="hidden" name="schedule_id">').val(nextRow.id));
+                $form.append($('<div class="trk-eft-row">').append(
+                    $('<div>').append($('<label for="eftAmount">').text('Amount you paid (R)'), $('<input type="text" id="eftAmount" name="amount" inputmode="decimal" autocomplete="off" required>').val(suggested > 0 ? suggested.toFixed(2) : '')),
+                    $('<div>').append($('<label for="eftDate">').text('Date you paid'), $('<input type="date" id="eftDate" name="payment_date">').attr('max', today).val(today))
+                ));
+                $form.append($('<div style="margin-bottom:10px;">').append($('<label for="eftReference">').text('Your bank\'s reference (optional)'), $('<input type="text" id="eftReference" name="reference" maxlength="100" autocomplete="off">')));
+                $form.append($('<div style="margin-bottom:10px;">').append($('<label for="eftFile">').text('Proof of payment'), $('<input type="file" id="eftFile" name="proof" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required>')));
+                $form.append($('<button type="submit" id="eftUploadBtn" class="trk-eft-submit">').html('<i class="fa-solid fa-paper-plane" style="margin-right:6px;"></i>Send proof of payment'));
+                $form.data('maxMb', eft.max_upload_mb);
+                $body.append($form);
+            } else {
+                $body.append($('<p class="trk-eft-note trk-eft-warn">').text('You already have ' + (eft.pending_count || 0) + ' proofs of payment waiting for review. We will be in touch once they have been checked.'));
+            }
+        }
+
+        if (subs.length) {
+            var $list = $('<ul class="trk-eft-list">');
+            subs.forEach(function (s) {
+                var $li = $('<li>');
+                var $line = $('<div class="trk-eft-line">');
+                $line.append($('<span>').append($('<strong>').text(eftMoney(s.status === 'approved' && s.verified_amount != null ? s.verified_amount : s.claimed_amount)),
+                    document.createTextNode(' · sent ' + String(s.submitted_at || '').slice(0, 10))));
+                $line.append($('<span class="trk-eft-badge ' + s.status + '">').text(EFT_STATUS_LABEL[s.status] || s.status));
+                $li.append($line);
+                if (s.file_name) $li.append($('<div class="trk-eft-file">').text(s.file_name));
+                if (s.review_note) $li.append($('<div class="trk-eft-reason">').text(s.review_note));
+                if (s.status === 'pending') $li.append($('<div class="trk-eft-reason">').text('Proof of payment submitted – awaiting verification. We will check it against our bank account and email you; this is not yet a confirmation of payment.'));
+                if (s.status === 'rejected' || s.status === 'replacement_requested') $li.append($('<div class="trk-eft-reason">').text(eft.can_upload ? 'You can send a new proof of payment using the form above, or pay by card instead.' : 'You can pay by card instead, or contact us if you believe this is a mistake.'));
+                if (s.status === 'approved') $li.append($('<div class="trk-eft-reason">').text('Payment verified and applied to your booking.'));
+                $list.append($li);
+            });
+            $body.append($list);
+        }
+        $sec.show();
+    }
+
+    $(document).on('click', '.trk-eft-copy', function () {
+        var text = $(this).attr('data-copy');
+        var $b = $(this);
+        function done() { $b.text('Copied'); setTimeout(function () { $b.text('Copy'); }, 1500); }
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () {});
+    });
+
+    $(document).on('submit', '#eftUploadForm', async function (e) {
+        e.preventDefault();
+        var form = this, $btn = $('#eftUploadBtn');
+        var file = form.proof.files && form.proof.files[0];
+        var maxMb = $(form).data('maxMb') || 5;
+        if (!file) { window.notificationService.showWarning('Choose a file', 'Attach your proof of payment (PDF, JPG or PNG).'); return; }
+        if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) { window.notificationService.showWarning('Wrong file type', 'Only PDF, JPG or PNG files can be sent.'); return; }
+        if (file.size > maxMb * 1024 * 1024) { window.notificationService.showWarning('File too large', 'The limit is ' + maxMb + ' MB.'); return; }
+        if (!currentAccessToken) { window.notificationService.showWarning('Session Expired', 'Please re-enter your booking details.'); return; }
+        var orig = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Sending...');
+        try {
+            var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/eft/proof', {
+                method: 'POST',
+                headers: { 'x-booking-access-token': currentAccessToken },   // sent as a header: the token is checked before the file is read
+                body: new FormData(form)
+            });
+            var data = await res.json();
+            if (data.success) {
+                window.notificationService.showSuccess('Proof of payment received', data.message);
+                await loadTrackingDetails();
+            } else {
+                window.notificationService.showError('We could not send your proof', data.message || ('Status: ' + res.status));
+                $btn.prop('disabled', false).html(orig);
+            }
+        } catch (err) {
+            window.notificationService.showError('Connection Error', 'We could not reach the server. Please try again.');
             $btn.prop('disabled', false).html(orig);
         }
     });
