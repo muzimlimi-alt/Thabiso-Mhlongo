@@ -187,7 +187,7 @@
 
 	<div class="tm-hero__content">
 		<p class="tm-hero__tagline">Officially funny since 2014</p>
-		<h2 class="tm-hero__title" id="heroTitle">Live. <em>Laugh.</em> <span id="typed-text"></span></h2>
+		<h2 class="tm-hero__title" id="heroTitle">Live <em>&</em> <span id="typed-text"></span></h2>
 		<!--<h2 class="tm-hero__title" id="heroTitle">A <em><span id="typed-text"></span></em></h2>-->
 
 		<p class="tm-hero__subtitle">
@@ -2112,10 +2112,29 @@ $(function() {
         if ($('#typed-text').length && typeof Typed !== 'undefined') {
             new Typed('#typed-text', {
                 strings: [
-                    'Repeat.',
+                    'Laugh.',
+					'Love.',
+					'Learn.',
+					'Grow.',
+					'Thrive.',
+					'Shine.',
+					'Explore.',
+					'Dream.',
+					'Evolve.',
+					'Flourish.',
+					'Create.',
+					'Conquer.',
+					'Inspire.',
+					'Discover.',
+					'Celebrate.',
+					'Believe.',
+					'Experience.',
+					'Ascend.',
+					'Prosper.',
+					'Transform.',
                 ],
-                typeSpeed: 50,
-                backSpeed: 30,
+                typeSpeed: 100,
+                backSpeed: 50,
                 backDelay: 2000,
                 loop: true,
                 showCursor: true,
@@ -2404,6 +2423,47 @@ $(document).ready(function() {
         $('#trackCodeError').hide().text('');
     });
 
+    // Returning from PayFast with ?payment=success: state 'checking' (asking PayFast whether the payment has been received), 'recorded' (the booking
+    // now shows it) or 'waiting' (PayFast has not reported it yet; the notification may still arrive on its own).
+    var pfReturn = { id: null, state: null, timer: null };
+    function showPfReturnAlert() {
+        $('.trk-return-alert').remove();
+        var recorded = pfReturn.state === 'recorded', checking = pfReturn.state === 'checking';
+        var text = recorded ? 'Payment received. Thank you! Your booking has been updated.'
+            : checking ? 'Payment submitted. We are confirming it with PayFast now, this usually takes a few seconds.'
+            : 'Payment submitted! It may take a moment for verification to complete. Refresh to see the latest status.';
+        $('#trackingDetails').prepend('<div class="trk-return-alert success"><i class="fa-solid ' + (checking ? 'fa-spinner fa-spin' : 'fa-circle-check') + '" style="margin-right:8px;"></i>' + text + '</div>');
+    }
+    function pfConfirmPayment(id) {
+        var delays = [0, 35000, 55000];                       // right away, then about 35 s and 90 s after the buyer arrived
+        var i = 0;
+        pfReturn = { id: id, state: 'checking', timer: null };
+        function done(state) {
+            if (pfReturn.id !== id) return;
+            pfReturn.state = state;
+            loadTrackingDetails();                            // shows the payment on the booking and the final message
+        }
+        function next() {
+            if (pfReturn.id !== id) return;
+            if (++i >= delays.length) { pfReturn.state = 'waiting'; showPfReturnAlert(); return; }
+            pfReturn.timer = setTimeout(attempt, delays[i]);
+        }
+        function attempt() {
+            if (pfReturn.id !== id || !currentAccessToken) return;
+            fetch('/api/public/bookings/' + encodeURIComponent(id) + '/payment-check', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: currentAccessToken })
+            }).then(function(r) { return r.json(); }).then(function(d) {
+                if (d && d.status === 'recorded') return done('recorded');
+                // 'nothing' after the first look: the notification arrived by itself in the meantime, so show what it recorded
+                if (d && d.status === 'nothing' && i > 0) return done('recorded');
+                next();
+            }).catch(next);
+        }
+        pfReturn.timer = setTimeout(attempt, delays[0]);
+    }
+
     async function loadTrackingDetails() {
         var $err = $('#trackError');
         try {
@@ -2434,10 +2494,18 @@ $(document).ready(function() {
 
                 // Show payment return alert if returning from PayFast
                 var payParam = urlParams.get('payment');
+                $('.trk-return-alert').remove();
                 if (payParam === 'success' && urlParams.get('track') === id) {
-                    $('#trackingDetails').prepend('<div class="trk-return-alert success"><i class="fa-solid fa-circle-check" style="margin-right:8px;"></i>Payment submitted! It may take a moment for verification to complete. Refresh to see the latest status.</div>');
+                    // PayFast tells the site about a payment by a separate server-to-server notification. If that notification is lost, the
+                    // buyer's own return is the moment to ask PayFast directly (the server only ever records a payment PayFast itself reports).
+                    pfConfirmPayment(id);
+                    showPfReturnAlert();
+                    urlParams.delete('payment');                  // handled: a later search in this page view must not start it again
+                } else if (pfReturn.id === id && pfReturn.state) {
+                    showPfReturnAlert();                          // this booking is reloaded while (or after) PayFast is being asked
                 } else if (payParam === 'cancel' && urlParams.get('track') === id) {
                     $('#trackingDetails').prepend('<div class="trk-return-alert cancel"><i class="fa-solid fa-triangle-exclamation" style="margin-right:8px;"></i>Payment was cancelled. No charges were made. You can try again below.</div>');
+                    urlParams.delete('payment');
                 }
 
                 // Clear the payParam from URL so it doesn't show again on subsequent manual searches
@@ -3132,6 +3200,8 @@ $(document).ready(function() {
         $('#trackCodeError').hide().text('');
         $('.pay-btn').prop('disabled', false);
         $('.trk-return-alert').remove();
+        clearTimeout(pfReturn.timer);
+        pfReturn = { id: null, state: null, timer: null };
         currentAccessToken = null;
         pendingBookingId = null;
         pendingEmail = null;

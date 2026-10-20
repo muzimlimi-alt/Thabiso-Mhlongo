@@ -3050,6 +3050,45 @@ function initializeDatabase() {
         db.run("ALTER TABLE invoices ADD COLUMN bank_details_id INTEGER REFERENCES bank_details(id)", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: invoices.bank_details_id: ' + err.message); });
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (108, 'eft_manual_payments_and_proof_of_payment')");
 
+        // ── PayFast safety net (lib/payfast-reconcile.js, docs-internal/payfast.md) — migration 109 ──
+        // Finds payments PayFast says it received whose notification (ITN) never reached us, by asking PayFast's own transaction history, and records
+        // the ones that match a pending payment attempt exactly. One row of health for the admin screen (like inbox_sync_state)...
+        db.run(`CREATE TABLE IF NOT EXISTS payfast_reconcile_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            last_run_at DATETIME,
+            last_success_at DATETIME,
+            last_error TEXT,
+            last_error_category TEXT,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            retry_after DATETIME,
+            failure_alerted INTEGER NOT NULL DEFAULT 0,
+            last_stats TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`INSERT OR IGNORE INTO payfast_reconcile_state (id) VALUES (1)`);
+        // ...and one row per PayFast payment the safety net had something to say about. UNIQUE on PayFast's own payment id: a payment is reported
+        // once however many times the check runs. 'recovered' = recorded automatically; the others need a person.
+        db.run(`CREATE TABLE IF NOT EXISTS payfast_reconcile_findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pf_payment_id TEXT NOT NULL UNIQUE,
+            m_payment_id TEXT,
+            booking_id INTEGER REFERENCES bookings(id),
+            kind TEXT NOT NULL CHECK (kind IN ('recovered', 'mismatch', 'duplicate_payment', 'blocked')),
+            gross_amount DECIMAL(10,2),
+            paid_at TEXT,
+            detail TEXT,
+            status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+            transaction_id INTEGER,
+            first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            notified_at DATETIME,
+            resolved_at DATETIME,
+            resolved_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            resolution_note TEXT
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_pf_findings_status ON payfast_reconcile_findings(status, first_seen_at)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_pf_findings_booking ON payfast_reconcile_findings(booking_id)`);
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (109, 'payfast_reconcile_safety_net')");
+
         // Homepage "What I do" cards follow the five rate-card categories (version 107): replaced only while still the shipped
         // defaults, once. See lib/homepage-service-cards.js for the rules.
         {

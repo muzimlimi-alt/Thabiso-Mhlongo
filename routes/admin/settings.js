@@ -226,8 +226,9 @@ router.get('/api/admin/settings', requireAdmin, (req, res) => {
     getAllSettings(async (err, rows) => {
         if (err) { console.error('load settings failed:', err); return res.status(500).json({ success: false, message: 'Could not load settings. Please try again.' }); }
         const obj = {};
-        // smtp_* never travels in this map (smtp_pass is a secret); administrators get the safe view in "smtp" below.
-        (rows || []).forEach(r => { if (!String(r.setting_key).startsWith('smtp_')) obj[r.setting_key] = r.setting_value; });
+        // smtp_* never travels in this map (smtp_pass is a secret); administrators get the safe view in "smtp" below. google_cal_* (the Google Calendar
+        // client secret and sign-in) has its own routes in routes/admin/google-calendar.js.
+        (rows || []).forEach(r => { if (!String(r.setting_key).startsWith('smtp_') && !/^google_cal_/i.test(String(r.setting_key))) obj[r.setting_key] = r.setting_value; });
         // Merge env-only keys so the frontend can read them (read-only exposure)
         if (process.env.CALENDAR_FEED_SECRET) obj.CALENDAR_FEED_SECRET = process.env.CALENDAR_FEED_SECRET;
         const out = { success: true, settings: obj };
@@ -249,6 +250,8 @@ router.put('/api/admin/settings', requireAdmin, async (req, res) => {
     };
     const keys = Object.keys(settings);
     if (keys.length === 0) return res.json({ success: true });
+    // google_cal_* holds an encrypted client secret and sign-in: only routes/admin/google-calendar.js may write it (it validates, encrypts and re-points the Google client).
+    if (keys.some(k => /^google_cal_/i.test(k))) return res.status(400).json({ success: false, message: 'Use the Google Calendar card to change the Google connection.' });
     const smtpKeys = keys.filter(k => k.startsWith('smtp_'));
     const otherKeys = keys.filter(k => !k.startsWith('smtp_'));
 

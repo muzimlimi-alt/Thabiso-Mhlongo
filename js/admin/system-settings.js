@@ -296,6 +296,7 @@ window.loadSystemSettings = async function() {
                     : stSmtpFromLegacyApi(s);
             }
             stApplySmtp(smtpView);
+            if (window.loadGoogleCalendarCard) window.loadGoogleCalendarCard();   // js/admin/google-calendar.js - its own card, its own endpoint
             if (s.notification_email) $('#stNotificationEmail').val(s.notification_email);
         }
     } catch(e) {

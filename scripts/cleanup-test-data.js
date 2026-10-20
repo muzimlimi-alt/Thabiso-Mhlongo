@@ -183,7 +183,7 @@ const TOUCHED_TABLES = {
     consent_audit: null, contracts: null, expenses: null, reminders_log: null, payfast_payment_intents: null,
     payment_logs: null, payment_schedules: null, transactions: null, invoices: null, invoice_line_items: null,
     quotations: null, quote_line_items: null, events: null, date_holds: null, abandoned_bookings: null,
-    eft_payment_submissions: null, eft_submission_events: null,
+    eft_payment_submissions: null, eft_submission_events: null, payfast_reconcile_findings: null,
     email_logs: null, notifications: null, audit_log: null, financial_audit_log: null, admin_login_logs: null,
     inquiries: ['converted_booking_id'],
     bank_statement_lines: ['matched_booking_id', 'matched_transaction_id', 'match_note'],
@@ -199,6 +199,8 @@ const OPTIONAL_TABLES = {
     // Manual EFT proofs of payment (lib/eft.js, migration 108): a database from before that deploy lacks them.
     eft_payment_submissions: 'id INTEGER, booking_id INTEGER, invoice_id INTEGER, transaction_id INTEGER, proof_filename TEXT',
     eft_submission_events: 'submission_id INTEGER',
+    // PayFast safety net findings (lib/payfast-reconcile.js, migration 109).
+    payfast_reconcile_findings: 'id INTEGER, booking_id INTEGER, transaction_id INTEGER',
 };
 
 async function ensureStandIns(db) {
@@ -370,6 +372,8 @@ function steps() {
         // Manual EFT proofs (lib/eft.js) point at the booking, the invoice AND the transaction removed below, so they go first.
         del('eft_submission_events', `submission_id IN (SELECT id FROM eft_payment_submissions WHERE booking_id IN ${B} OR transaction_id IN (SELECT id FROM cl_del_tx) OR invoice_id IN (SELECT id FROM cl_del_invoice))`),
         del('eft_payment_submissions', `booking_id IN ${B} OR transaction_id IN (SELECT id FROM cl_del_tx) OR invoice_id IN (SELECT id FROM cl_del_invoice)`),
+        // PayFast safety net findings point at the booking (and the transaction) removed below.
+        del('payfast_reconcile_findings', `booking_id IN ${B} OR transaction_id IN (SELECT id FROM cl_del_tx)`),
         del('transactions', `id IN (SELECT id FROM cl_del_tx)`),
         del('payment_schedules', `id IN (SELECT id FROM cl_del_schedule)`),
         del('invoice_line_items', `invoice_id IN (SELECT id FROM cl_del_invoice)`),
@@ -398,7 +402,7 @@ const MODULE_OF = {
     abandoned_bookings: 'Bookings', inquiries: 'Bookings (link only)', events: 'Calendar & Events', date_holds: 'Calendar & Events',
     cancellations: 'Finance', contracts: 'Finance', transactions: 'Finance', payment_schedules: 'Finance', invoices: 'Finance',
     invoice_line_items: 'Finance', quotations: 'Finance', quote_line_items: 'Finance', expenses: 'Finance',
-    reminders_log: 'Finance', payfast_payment_intents: 'Finance', eft_payment_submissions: 'Finance', eft_submission_events: 'Finance', bank_statement_lines: 'Finance (unmatch only)',
+    reminders_log: 'Finance', payfast_payment_intents: 'Finance', eft_payment_submissions: 'Finance', eft_submission_events: 'Finance', payfast_reconcile_findings: 'Finance', bank_statement_lines: 'Finance (unmatch only)',
     payment_logs: 'Logs', financial_audit_log: 'Logs', email_logs: 'Logs', notifications: 'Logs', admin_login_logs: 'Logs', audit_log: 'Logs',
 };
 

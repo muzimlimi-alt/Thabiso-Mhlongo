@@ -106,7 +106,8 @@ getAllSettings((err, rows) => {
             const val = r.setting_value;
             // SMTP settings (the password above all) are read straight from the table by lib/smtp-config.js on every send;
             // the generic fall-through below must not copy them into process.env.
-            if (key.startsWith('smtp_')) return;
+            // google_cal_* (the Google Calendar client secret and sign-in, encrypted) is likewise read straight from the table by lib/google-config.js.
+            if (key.startsWith('smtp_') || key.startsWith('google_cal_')) return;
             if (val !== null && val !== undefined && val !== '') {
                 if (key === 'min_booking_gap_minutes') {
                     const parsed = parseInt(val);
@@ -538,11 +539,13 @@ app.use(require('./routes/admin/reminders'));
 app.use(require('./routes/admin/finance'));
 app.use(require('./routes/admin/financials'));
 app.use(require('./routes/admin/eft'));              // Manual EFT: banking details, proof-of-payment review queue (lib/eft*.js)
+app.use(require('./routes/admin/payfast-reconcile')); // PayFast safety net: status, findings, "check PayFast now" (lib/payfast-reconcile.js)
 app.use(require('./routes/admin/dashboard'));
 app.use(require('./routes/admin/bookings'));
 app.use(require('./routes/admin/events'));
 app.use(require('./routes/public/bookings'));
 app.use(require('./routes/public/eft'));             // Manual EFT: a client uploads / reads back their proof of payment
+app.use(require('./routes/public/payfast-check'));   // a buyer back from PayFast asks to have their own payment confirmed now
 app.use(require('./routes/public/site-content'));
 app.use(require('./routes/public/availability'));
 app.use(require('./routes/admin/misc'));
@@ -1156,6 +1159,9 @@ const { registerLedgerReconciliationJob } = require('./lib/ledger-reconciliation
 registerLedgerReconciliationJob();
 const { registerPayFastPendingTimeoutJob } = require('./lib/payfast-pending-timeout-job');
 registerPayFastPendingTimeoutJob();
+// The safety net for a lost PayFast notification: asks PayFast's own history and records an exactly-matching payment (lib/payfast-reconcile.js).
+const { registerPayFastReconcileJob } = require('./lib/payfast-reconcile');
+registerPayFastReconcileJob();
 
 // C9: Prevent sandbox PayFast config from silently disabling payment validation in production
 if (process.env.NODE_ENV === 'production' && (process.env.PAYFAST_URL || '').includes('sandbox')) {

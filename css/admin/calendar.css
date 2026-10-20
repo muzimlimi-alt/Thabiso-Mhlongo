@@ -169,6 +169,7 @@ body:not(.role-administrator) .cal-m365-admin { display: none !important; }
 .cal-m365-strip--bad { border-left-color: var(--atl-clay); }
 .cal-m365-strip--off { border-left-color: var(--atl-line); }
 .cal-m365-strip__icon { color: var(--atl-m365); font-size: 15px; }
+#calGoogleStrip .cal-m365-strip__icon { color: var(--atl-google, #4285f4); }   /* the Google Calendar strip (js/admin/google-calendar.js) reuses the Microsoft strip's layout */
 .cal-m365-strip__text { flex: 1 1 240px; min-width: 0; }
 .cal-m365-strip__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
 .cal-m365-strip__btn { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border: 1px solid var(--atl-line); border-radius: 6px; background: var(--atl-card); color: var(--atl-ink-dim) !important; font: inherit; font-size: 12px; text-decoration: none !important; cursor: pointer; }

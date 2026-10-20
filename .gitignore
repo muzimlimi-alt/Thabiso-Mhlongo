@@ -58,6 +58,9 @@ test/test-uploads/
 # Temporary and test files directory
 TBC/
 
+# Business documents directory
+business_docs/
+
 # OS-generated files
 .DS_Store
 Thumbs.db

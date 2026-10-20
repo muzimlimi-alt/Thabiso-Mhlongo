@@ -134,6 +134,9 @@ const BOOKING_DELETE_PURGE = [
     // after the commit.
     "DELETE FROM eft_submission_events WHERE submission_id IN (SELECT id FROM eft_payment_submissions WHERE booking_id = ?)",
     "DELETE FROM eft_payment_submissions WHERE booking_id = ?",
+    // PayFast safety net findings reference the booking (and a transaction); a booking with money on it cannot be deleted, so these are only ever the open
+    // "needs a person" notes of an unpaid one.
+    "DELETE FROM payfast_reconcile_findings WHERE booking_id = ?",
     "DELETE FROM invoice_line_items WHERE invoice_id IN (SELECT id FROM invoices WHERE booking_id = ?)",
     "DELETE FROM quote_line_items WHERE quotation_id IN (SELECT id FROM quotations WHERE booking_id = ?)",
     "DELETE FROM quotations WHERE booking_id = ?",

@@ -45,6 +45,7 @@
     <link href="css/admin/team.css?v=2" rel="stylesheet">
     <link href="css/admin/accolades.css?v=1" rel="stylesheet">
     <link href="css/admin/eft.css?v=2" rel="stylesheet">
+    <link href="css/admin/payfast-reconcile.css?v=1" rel="stylesheet">
     <link href="css/admin/redesign-admin.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
     <link rel="stylesheet" href="css/components/notifications.css">
@@ -81,7 +82,7 @@
     <link rel="stylesheet" href="css/admin/08-finance-tiles-note.css">
     <link rel="stylesheet" href="css/admin/inquiries.css">
     <link rel="stylesheet" href="css/admin/09-users-security.css?v=3">
-    <link rel="stylesheet" href="css/admin/calendar.css?v=m365-2">
+    <link rel="stylesheet" href="css/admin/calendar.css?v=m365-3">
     <link rel="stylesheet" href="css/admin/10-content-management.css">
     <link rel="stylesheet" href="css/admin/security-audit.css">
     <link rel="stylesheet" href="css/admin/11-services-cards.css">
@@ -161,7 +162,7 @@
                 <!-- Main Login Card -->
                 <div class="login-card-wrapped" id="loginCard">
                     <div class="login-header">
-                        <h1>Mnaka, you back?</h1>
+                        <h1>Uyaphi?</h1>
                         <p>Sign in to manage bookings, events, and content.</p>
                     </div>
 
@@ -2041,6 +2042,14 @@
                                         </span>
                                     </div>
                                     <div id="calM365Panel" class="cal-m365-panel" hidden></div>
+                                    <!-- Google Calendar: connection status and a way to set it up (js/admin/google-calendar.js; the card is in System Settings) -->
+                                    <div id="calGoogleStrip" class="cal-m365-strip" role="region" aria-label="Google Calendar connection" hidden>
+                                        <span class="cal-m365-strip__icon" aria-hidden="true"><i class="fa-brands fa-google"></i></span>
+                                        <span id="calGoogleText" class="cal-m365-strip__text" role="status" aria-live="polite">Checking Google&hellip;</span>
+                                        <span class="cal-m365-strip__actions">
+                                            <button type="button" id="calGoogleSetup" class="cal-m365-strip__btn" hidden><i class="fa-solid fa-gear" aria-hidden="true"></i> <span>Set up</span></button>
+                                        </span>
+                                    </div>
                                     <!-- Calendar filter bar -->
                                     <div id="calFilterBar" class="cal-filter-bar" role="toolbar" aria-label="Calendar filters">
                                         <span class="cal-filter-label">Show:</span>
@@ -2231,6 +2240,17 @@
                                         <li class="can"><i class="fa-solid fa-check"></i> Other people&rsquo;s busy appointments from that calendar are shown and block the booking form</li>
                                         <li class="cannot"><i class="fa-solid fa-xmark"></i> A change made in Outlook never edits a booking, quote or payment &mdash; it is flagged for you to decide</li>
                                         <li class="cannot"><i class="fa-solid fa-xmark"></i> Do not also subscribe that calendar to the iCalendar feed below &mdash; every booking would appear twice</li>
+                                    </ul>
+                                </div>
+                                <div class="um-role-info">
+                                    <div class="um-role-info__head">
+                                        <span class="um-feature-title"><i class="fa-brands fa-google" style="color:var(--atl-amber);"></i> Google Calendar</span>
+                                    </div>
+                                    <ul class="um-role-list">
+                                        <li class="can"><i class="fa-solid fa-check"></i> The strip above the calendar shows whether Google Calendar is connected, and to which account</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Administrators set it up, test it or disconnect it under <strong style="color:var(--atl-ink);">System Settings &rarr; Google Calendar</strong> (the <strong style="color:var(--atl-ink);">Set up</strong> button on the strip goes straight there)</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Once connected, confirmed bookings and public events are added to that Google account&rsquo;s main calendar, and its appointments block the same times on the booking form</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> It is separate from the Microsoft 365 calendar above &mdash; each is connected on its own</li>
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -2552,6 +2572,23 @@
 
                                 <!-- Reconciliation Tab -->
                                 <div role="tabpanel" class="um-panel" id="finReconciliation">
+
+                                    <!-- PayFast safety net: finds a card payment PayFast received but whose notification never reached the site (js/admin/payfast-reconcile.js, docs-internal/payfast.md) -->
+                                    <div class="pfs-panel" id="pfSafetyPanel">
+                                        <div class="pfs-head">
+                                            <div>
+                                                <div class="pfs-title"><i class="fa-solid fa-life-ring"></i>PayFast safety net <span id="pfsMode" class="atl-badge" style="display:none; margin-left:6px;"></span></div>
+                                                <div class="pfs-sub">If PayFast received a payment but its notification never reached the website, the payment is found in PayFast's own records and recorded. Anything that does not match exactly is only reported here, never credited.</div>
+                                            </div>
+                                            <div class="pfs-actions">
+                                                <button type="button" id="pfsDryBtn" class="atl-btn atl-btn--ghost" style="font-size:12px;" title="Look at PayFast and say what would be recorded, without changing anything"><i class="fa-solid fa-magnifying-glass" style="margin-right:5px;"></i>Preview</button>
+                                                <button type="button" id="pfsRunBtn" class="atl-btn atl-btn--primary" style="font-size:12px;"><i class="fa-solid fa-rotate" style="margin-right:5px;"></i>Check PayFast now</button>
+                                            </div>
+                                        </div>
+                                        <div class="pfs-status" id="pfsStatus">Loading…</div>
+                                        <div class="pfs-result" id="pfsResult" role="status" aria-live="polite"></div>
+                                        <div class="pfs-findings" id="pfsFindings"></div>
+                                    </div>
 
                                     <!-- Bank Statement Import Panel -->
                                     <div style="background:var(--atl-surface2);border:1px solid var(--atl-line);border-radius:8px;padding:16px;margin-bottom:18px;">
@@ -6207,6 +6244,49 @@
                                     </div>
                                 </div>
 
+                                <!-- Card: Google Calendar -->
+                                <div class="atl-card um-settings-card" id="stGoogleCard" style="display:none;">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-brands fa-google"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Google Calendar</h4>
+                                            <p class="um-section-desc">The Google account whose calendar the website keeps in step &mdash; confirmed bookings and public events are added to it, and what you put on it blocks those times on the booking calendar.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <p class="um-section-desc" id="stGoogleStatus" role="status" aria-live="polite" style="margin:0 0 14px;"></p>
+                                    <div class="row">
+                                        <div class="col-md-7">
+                                            <div class="um-field-group"><label class="um-label" for="stGoogleClientId">OAuth client ID</label><div class="um-input-wrap"><i class="fa-solid fa-id-card um-input-icon"></i><input type="text" class="um-input" id="stGoogleClientId" placeholder="123456789012-abc123.apps.googleusercontent.com" autocomplete="off" spellcheck="false"></div></div>
+                                            <div class="atl-field-error" id="errStGoogleClient" style="display:none;"></div>
+                                        </div>
+                                        <div class="col-md-5">
+                                            <div class="um-field-group"><label class="um-label" for="stGoogleSecret">Client secret</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stGoogleSecret" placeholder="GOCSPX-&hellip;" autocomplete="new-password"></div></div>
+                                            <div class="atl-field-error" id="errStGoogleSecret" style="display:none;"></div>
+                                        </div>
+                                    </div>
+                                    <!-- The button sits on the input's own line (.um-inline-action), as in the Notifications card: a separate column would leave it level with the label. -->
+                                    <div class="um-field-group"><label class="um-label" for="stGoogleRedirect">Redirect address <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(register this exact address at Google)</small></label>
+                                        <div class="um-inline-action">
+                                            <div class="um-input-wrap"><i class="fa-solid fa-arrow-right-to-bracket um-input-icon"></i><input type="text" class="um-input" id="stGoogleRedirect" readonly spellcheck="false"></div>
+                                            <button type="button" class="atl-btn atl-btn--ghost" id="stGoogleCopyBtn"><i class="fa-regular fa-copy" style="margin-right:5px;" aria-hidden="true"></i>Copy</button>
+                                        </div>
+                                    </div>
+                                    <p class="um-section-desc" style="margin:0 0 14px;"><i class="fa-solid fa-circle-info" style="margin-right:6px; color:var(--atl-amber);"></i>This needs a one-time setup in Google Cloud &mdash; the steps are under <strong style="color:var(--atl-ink);">About</strong> on this page. The address above must be listed under <em>Authorized redirect URIs</em> of the OAuth client.</p>
+                                    <div class="row" style="align-items:center;">
+                                        <div class="col-md-4" style="margin-bottom:8px;">
+                                            <button type="button" class="atl-btn atl-btn--primary btn-block" id="stGoogleConnectBtn"><i class="fa-brands fa-google" style="margin-right:5px;"></i><span>Save &amp; connect Google</span></button>
+                                        </div>
+                                        <div class="col-md-4" style="margin-bottom:8px;">
+                                            <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stGoogleTestBtn"><i class="fa-solid fa-plug-circle-check" style="margin-right:5px;"></i>Test connection</button>
+                                        </div>
+                                        <div class="col-md-4" style="margin-bottom:8px;">
+                                            <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stGoogleDisconnectBtn"><i class="fa-solid fa-link-slash" style="margin-right:5px;"></i>Disconnect</button>
+                                        </div>
+                                    </div>
+                                    <div id="stGoogleResult" role="status" aria-live="polite" class="um-section-desc" style="margin:10px 0 0; white-space:pre-line;"></div>
+                                </div>
+
                                 <!-- Card: Notifications -->
                                 <div class="atl-card um-settings-card">
                                     <div class="um-icon-header">
@@ -6347,6 +6427,29 @@
                                             <li>Keep <strong style="color:var(--atl-ink);">Authenticated SMTP</strong> enabled for the mailbox and the organisation. Allow 15&ndash;30 minutes, enter the three values here, press <strong style="color:var(--atl-ink);">Test Connection</strong>, then <strong style="color:var(--atl-ink);">Save</strong>.</li>
                                         </ol>
                                         <ul class="um-role-list" style="margin-top:8px;">
+                                    </div>
+
+                                    <!-- Google Calendar -->
+                                    <div class="um-role-info" style="margin-bottom:16px;">
+                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-brands fa-google" style="color:var(--atl-amber);"></i> Google Calendar</p>
+                                        <p class="um-role-info__desc">Connects the website to the Google account that owns your calendar. Confirmed bookings and public events are added to its <strong style="color:var(--atl-ink);">main calendar</strong>, and appointments you put on it block those times on the booking calendar. Only administrators see this card.</p>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">OAuth client ID &amp; Client secret</strong> &mdash; from your Google Cloud project (below). The secret is stored encrypted and is never shown again; leave it blank to keep the saved one.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Redirect address</strong> &mdash; where Google sends you back after you allow access. It must be listed, exactly as shown, on the OAuth client in Google Cloud.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Save &amp; connect Google</strong> &mdash; saves the client, then opens Google. Sign in with the account that owns the calendar and allow access; you land back here, connected. No technical values to copy.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Test connection</strong> &mdash; signs in to Google again with what is saved and reads the calendar, then reports each step. Run it after any change on the Google side.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Disconnect</strong> &mdash; forgets the saved sign-in and asks Google to revoke it. The client ID and secret stay, so reconnecting is one click.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> Values the server already has in its environment (<code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REFRESH_TOKEN</code>) keep working. Anything saved here takes precedence.</li>
+                                        </ul>
+                                        <p class="um-section-label" style="margin:14px 0 6px;">One-time Google Cloud setup</p>
+                                        <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.8;">
+                                            <li>In <strong style="color:var(--atl-ink);">console.cloud.google.com</strong> choose (or create) a project, then <strong style="color:var(--atl-ink);">APIs &amp; Services &rarr; Library &rarr; Google Calendar API &rarr; Enable</strong>.</li>
+                                            <li><strong style="color:var(--atl-ink);">OAuth consent screen</strong> (Google Auth platform): user type <em>External</em>, app name and your email. While testing, add the calendar&rsquo;s Google account as a <em>Test user</em>. When it works, set the publishing status to <strong style="color:var(--atl-ink);">In production</strong> &mdash; while it says &ldquo;Testing&rdquo;, Google cancels the sign-in every 7 days and the sync silently stops.</li>
+                                            <li><strong style="color:var(--atl-ink);">Credentials &rarr; Create credentials &rarr; OAuth client ID &rarr; Web application</strong>. Under <strong style="color:var(--atl-ink);">Authorized redirect URIs</strong> add the <em>Redirect address</em> shown in the card (press Copy). Save, then copy the Client ID and Client secret.</li>
+                                            <li>Paste both into the card and press <strong style="color:var(--atl-ink);">Save &amp; connect Google</strong>. Google may say <em>&ldquo;Google hasn&rsquo;t verified this app&rdquo;</em> &mdash; it is your own app: choose <strong style="color:var(--atl-ink);">Advanced &rarr; Go to (your app)</strong> and allow calendar access.</li>
+                                            <li>Back here, press <strong style="color:var(--atl-ink);">Test connection</strong>. Three green ticks mean the website can add and change events on that calendar.</li>
+                                        </ol>
+                                        <p class="um-role-info__desc" style="margin:8px 0 0;"><i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-right:6px;"></i>If a booking or event stops appearing on Google Calendar, run <strong style="color:var(--atl-ink);">Test connection</strong> first &mdash; it says whether Google has cancelled the sign-in (then press <em>Reconnect Google</em>) or the Calendar API has been switched off.</p>
                                     </div>
 
                                     <!-- Notifications -->
@@ -13126,9 +13229,11 @@
     <script src="js/admin/policies.js"></script>
     <script src="js/admin/branding.js?v=4"></script>
     <script src="js/admin/security-audit.js"></script>
-    <script src="js/admin/system-settings.js?v=smtp3-places1"></script>
+    <script src="js/admin/system-settings.js?v=smtp3-places1-g1"></script>
+    <script src="js/admin/google-calendar.js?v=1"></script>
     <script src="js/admin/financials.js?v=2"></script>
     <script src="js/admin/eft.js?v=2"></script>
+    <script src="js/admin/payfast-reconcile.js?v=1"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================
      FINANCE MODULE — JavaScript Engine

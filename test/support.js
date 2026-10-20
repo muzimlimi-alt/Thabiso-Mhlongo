@@ -80,6 +80,10 @@ async function spawnAndWait() {
             // reach every test server.
             PAYFAST_MERCHANT_KEY: '46f0cd694581a',
             PAYFAST_PASSPHRASE: '',
+            // PayFast's merchant API (transaction history, used by the safety net for a lost notification - lib/payfast-reconcile.js) must NEVER reach the
+            // real PayFast from a test: it points at test/fake-payfast-api.js (port 3198), which only exists while a test that uses it runs.
+            PAYFAST_API_URL: 'http://127.0.0.1:3198',
+            PAYFAST_RECONCILE_MIN_GAP_MS: '0',
             // Real EMAIL_USER/PASS and GOOGLE_REFRESH_TOKEN now both work (2026-07-16) — without these
             // overrides, every test run would send real Gmail messages to the business's real inbox
             // and write real events onto its real Google Calendar for every fake test booking. SMTP_MOCK
@@ -145,6 +149,22 @@ async function start() {
         const db = new sqlite3.Database(TEST_DB);
         db.run("DELETE FROM settings WHERE LOWER(setting_key) IN ('payfast_url', 'payfast_merchant_id', 'payfast_merchant_key', 'payfast_passphrase')", e => db.close(() => e ? rej(e) : res()));
     });
+    // Same rule for Google: Admin > System Settings > Google Calendar stores the client, its secret and the connected account's sign-in in `settings`
+    // (google_cal_*), and they take precedence over the GOOGLE_REFRESH_TOKEN passed to the test server below. A source DB that has the real calendar
+    // connected would otherwise let every fake test booking write real events onto the owner's real Google Calendar. Dropped from the THROWAWAY copy only.
+    await new Promise((res, rej) => {
+        const db = new sqlite3.Database(TEST_DB);
+        db.run("DELETE FROM settings WHERE LOWER(setting_key) LIKE 'google\\_cal\\_%' ESCAPE '\\'", e => db.close(() => e ? rej(e) : res()));
+    });
+    // And for Manual EFT: the source DB may have it switched ON with the owner's real banking details (and proofs from trying it out). Tests assume a fresh
+    // installation (EFT off, no details, invoices without a banking block), so the throwaway copy is reset - never the real database. A source DB from before
+    // the EFT migration has none of these tables/columns yet: those statements fail harmlessly and the server creates them, empty, at boot.
+    for (const sql of ['UPDATE invoices SET bank_details_id = NULL', 'DELETE FROM eft_submission_events', 'DELETE FROM eft_payment_submissions', 'DELETE FROM bank_details', "DELETE FROM sqlite_sequence WHERE name IN ('bank_details', 'eft_payment_submissions', 'eft_submission_events')", "DELETE FROM audit_log WHERE table_name IN ('eft_payment_submissions', 'bank_details', 'eft_settings')", 'UPDATE eft_settings SET enabled = 0']) {
+        await new Promise((res) => {
+            const db = new sqlite3.Database(TEST_DB);
+            db.run(sql, () => db.close(() => res()));
+        });
+    }
     await seedAdmin();
     await spawnAndWait();
 

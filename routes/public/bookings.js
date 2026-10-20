@@ -25,7 +25,7 @@ const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/cl
 const { calculateCancellationRefund } = require('../../lib/cancellation-refund');
 const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
 const { sendQuoteAcceptedEmail, sendBookingReceivedEmail } = require('../../lib/booking-notifications');
-const { generatePayFastSignature, payfastBaseUrl } = require('../../lib/payfast-signature');
+const { generatePayFastSignature, payfastBaseUrl, payfastNotifyBaseUrl } = require('../../lib/payfast-signature');
 const {
     syncBookingToCalendar, checkDateAvailability, hasCalendarConflict, isWithinWorkingHours
 } = require('../../lib/calendar-sync');
@@ -692,7 +692,8 @@ function buildAndSendPfData(row, amt, milestoneDesc, mPaymentId, req, res) {
             merchant_key: process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a',
             return_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success` : `${baseUrl}/?track=${row.id}&payment=success`,
             cancel_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel`  : `${baseUrl}/?track=${row.id}&payment=cancel`,
-            notify_url: `${baseUrl}/api/payment/webhook/payfast`,
+            // PAYFAST_NOTIFY_BASE_URL (a local sandbox run only) sends just the notification through a tunnel; unset, this is baseUrl as before.
+            notify_url: `${payfastNotifyBaseUrl(req)}/api/payment/webhook/payfast`,
             name_first: (clientName.split(' ')[0] || '').substring(0, 100),
             name_last: (clientName.split(' ').slice(1).join(' ') || '').substring(0, 100),
             email_address: plain(row.email),

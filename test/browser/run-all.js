@@ -2,7 +2,7 @@
 // Usage: npm run test:browser
 const { spawnSync } = require('child_process');
 const path = require('path');
-const files = ['slots.js', 'calendar.js', 'date-status.js', 'form.js', 'public-sections.js', 'admin-venue-autocomplete.js', 'accolades.js', 'career-highlights.js', 'stored-text.js', 'favicon.js', 'contact-inquiries.js', 'calendar-m365.js', 'service-pricing.js', 'quote-builder.js', 'transactions-net.js', 'refund-pl.js', 'eft.js'];
+const files = ['slots.js', 'calendar.js', 'date-status.js', 'form.js', 'public-sections.js', 'admin-venue-autocomplete.js', 'accolades.js', 'career-highlights.js', 'stored-text.js', 'favicon.js', 'contact-inquiries.js', 'calendar-m365.js', 'google-calendar.js', 'service-pricing.js', 'quote-builder.js', 'transactions-net.js', 'refund-pl.js', 'eft.js', 'payfast-reconcile.js'];
 let failed = 0;
 for (const f of files) {
     console.log('\nâ•â•â•â•â•â• ' + f + ' â•â•â•â•â•â•');
