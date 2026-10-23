@@ -475,14 +475,14 @@ async function waitForApi(fn, what, ms = 15000) {
     ok(madm.overflow <= 0 && madm.cards > 0, 'admin mobile: the section fits without sideways scrolling', JSON.stringify(madm));
     await admin.setViewport({ width: 1440, height: 1000 });
 
-    // ══════════ 16. Settings → Website Sections switch hides the whole section ══════════
+    // ══════════ 16. Site Appearance → Homepage Sections switch hides the whole section ══════════
     const before = (await (await fetch(`${BASE}/api/public/site-content`)).json()).sections;
     await api('PUT', `/api/admin/accolades/${B}`, { status: 'active' });
     // Through the real Settings UI: the new row exists, is on, and switching it off + saving works.
-    await admin.evaluate(() => window.switchTab('preferencesAdmin'));
-    await domClick(admin, '[data-um-tab="prefPanelSections"]');
+    await admin.evaluate(() => window.switchTab('brandingAdmin'));
+    await domClick(admin, '[data-um-tab="brandPanelHomepage"]');
     const rowOn = await admin.waitForFunction(() => { const t = document.getElementById('secToggle-accolades'); return t && t.getAttribute('aria-checked') === 'true'; }, { timeout: 15000 }).then(() => true, () => false);
-    ok(rowOn, 'Settings → Website Sections lists "Accolades & Recognition", on by default', '');
+    ok(rowOn, 'Site Appearance → Homepage Sections lists "Accolades & Recognition", on by default', '');
     await domClick(admin, '#secToggle-accolades');
     await domClick(admin, '#btnSaveSections');
     await admin.waitForSelector('#tm-modal-confirm', { visible: true, timeout: 5000 });

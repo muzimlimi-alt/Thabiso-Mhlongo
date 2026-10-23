@@ -42,15 +42,15 @@
     }
     var REASONS = {
         permission: "The website isn't allowed to change the Microsoft 365 calendar yet. An administrator needs to grant it calendar access (Details > Test calendar access explains how).",
-        auth: 'Signing in to Microsoft 365 failed. An administrator needs to check the Microsoft 365 app secret in Settings > Email.',
-        config: "Microsoft 365 isn't set up for the website yet (Settings > Email).",
+        auth: 'Signing in to Microsoft 365 failed. An administrator needs to check the Microsoft 365 app secret in System > Email > Email Setup.',
+        config: "Microsoft 365 isn't set up for the website yet (System > Email > Email Setup).",
         connection: 'Microsoft 365 could not be reached. The website will try again automatically.',
         server: 'Microsoft 365 had a temporary problem. The website will try again automatically.',
         throttled: 'Microsoft 365 asked the website to slow down. It will try again automatically.',
         invalid: 'Microsoft 365 refused this entry. Check its date, time and venue, then retry.',
         notfound: 'This entry was deleted in Microsoft 365.',
         conflict: 'It was changed in Microsoft 365.',
-        mailbox: 'The shared calendar could not be found. An administrator should check the mailbox address in Settings > Email.',
+        mailbox: 'The shared calendar could not be found. An administrator should check the mailbox address in System > Email > Email Setup.',
         internal: 'The sync hit an unexpected problem. It will try again automatically.'
     };
     function reason(cat) { return REASONS[cat] || 'The sync did not complete. It will try again automatically.'; }
@@ -126,7 +126,7 @@
         if (!p || !status) return;
         var l = status.links || {};
         var rows = [];
-        rows.push('<div><dt>Shared calendar</dt><dd>' + esc(status.mailbox || 'the booking mailbox (set in Settings > Email)') + '</dd></div>');
+        rows.push('<div><dt>Shared calendar</dt><dd>' + esc(status.mailbox || 'the booking mailbox (set in System > Email > Email Setup)') + '</dd></div>');
         rows.push('<div><dt>Time zone</dt><dd>' + esc(status.businessTimeZone || '') + '</dd></div>');
         rows.push('<div><dt>Last successful sync</dt><dd>' + esc(ago(status.lastSuccessAt)) + '</dd></div>');
         rows.push('<div><dt>Last attempt</dt><dd>' + esc(ago(status.lastRunAt)) + '</dd></div>');

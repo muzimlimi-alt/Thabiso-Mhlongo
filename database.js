@@ -3089,6 +3089,18 @@ function initializeDatabase() {
         db.run(`CREATE INDEX IF NOT EXISTS idx_pf_findings_booking ON payfast_reconcile_findings(booking_id)`);
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (109, 'payfast_reconcile_safety_net')");
 
+        // Business profile (version 110): who issues our quotations and invoices + which SARS registrations apply (lib/business-profile-core.js).
+        // One row, seeded once with CIPC-public facts only; both registration switches start OFF. issuer_snapshot freezes what a document said about us.
+        {
+            const bp = require('./lib/business-profile-schema');
+            db.run(bp.CREATE_SQL);
+            const seed = bp.insertParams(bp.seedRow());
+            db.run(seed.sql, seed.params);
+            db.run("ALTER TABLE quotations ADD COLUMN issuer_snapshot TEXT", () => {});   // duplicate-column error on later boots is expected and ignored
+            db.run("ALTER TABLE invoices ADD COLUMN issuer_snapshot TEXT", () => {});
+            db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)", [bp.MIGRATION_VERSION, bp.MIGRATION_NAME]);
+        }
+
         // Homepage "What I do" cards follow the five rate-card categories (version 107): replaced only while still the shipped
         // defaults, once. See lib/homepage-service-cards.js for the rules.
         {

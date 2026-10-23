@@ -41,3 +41,10 @@ Under **Site Content → Accolades**. External recognition only — wins, nomina
 
 ---
 *For technical support, contact the Dev-Beast support team.*
+
+## 🏢 Business Profile, tax and VAT (Business > Business Profile)
+- **One place** for the legal name, registration numbers, addresses and contact details printed on every quotation and invoice. Banking stays in the Manual EFT card (Revenue > Payment Setup > Bank Transfer & Banking Details).
+- **Two separate tick boxes.** "Registered for tax with SARS" is your income-tax registration. "Registered for VAT" is the VAT vendor registration. Ticking the first never switches VAT on.
+- **VAT only works after you confirm the VAT number with SARS** (tick "I have confirmed this VAT number with SARS"). Until then the Quote Builder cannot add VAT and invoices are titled INVOICE; once active, an invoice that charges VAT is titled TAX INVOICE.
+- Every card has its own Save button (and Discard): saving one card never touches unsaved edits in another. Changing a registration setting asks you to confirm, is saved only when you press that card's Save, and never changes a quotation or invoice that was already issued.
+- Use **Preview quotation / Preview invoice** to see the letterhead with the values on screen before saving.

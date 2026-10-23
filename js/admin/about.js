@@ -2,7 +2,7 @@
 // block, minus its middle "Website Sections" sub-block (admin.html ~13855-13979:
 // SECTION_REGISTRY/secEsc/renderSectionsUI/secSetToggle/loadSectionVisibility/secFilter/
 // saveSectionVisibility), which stayed behind in admin.html — despite sitting physically inside
-// this labeled block, it genuinely belongs to a future System Settings (`preferencesAdmin`)
+// this labeled block, it genuinely belongs to the (since split) Admin Settings page (`preferencesAdmin`, now Site Appearance > Homepage Sections)
 // extraction: its own tab (`prefPanelSections`) and a static onclick="saveSectionVisibility(this)"
 // both live in System Settings' own markup, not About Me's. Confirmed via the section's own tab
 // markup that the rest of this file — bio/profile AND the Hero/Services/Features/Announcement

@@ -174,6 +174,14 @@ async function start() {
     const sc = lr.headers.get('set-cookie');
     if (lr.status !== 200 || !sc) throw new Error('admin login failed: ' + lr.status);
     cookie = sc.split(';')[0];
+
+    // The business profile ships with income-tax and VAT registration OFF (migration 110), and a quotation can only carry VAT while the business is
+    // VAT-registered with a confirmed number. Many suites quote WITH VAT, so the throwaway DB is a VAT vendor (made-up number); business-profile.test.js
+    // changes these on purpose and puts them back. The server reads the row per request, so this takes effect at once.
+    await new Promise((res) => {
+        const db = new sqlite3.Database(TEST_DB);
+        db.run("UPDATE business_profile SET legal_name = 'MTV CREATIVES (PTY) LTD', contact_phone = '', is_tax_registered = 1, income_tax_reference = '9000000001', is_vat_registered = 1, vat_number = '4123456789', vat_number_verified = 1 WHERE id = 1", () => db.close(() => res()));
+    });
 }
 
 // Kills the current child WITHOUT touching TEST_DB (unlike start(), which always re-copies the
@@ -220,8 +228,8 @@ async function api(method, urlPath, body) {
 }
 
 // Authenticated request expecting a binary body (PDF downloads etc), returned as a Buffer.
-async function apiBinary(method, urlPath) {
-    const r = await fetch(BASE + urlPath, { method, headers: { Cookie: cookie } });
+async function apiBinary(method, urlPath, body) {
+    const r = await fetch(BASE + urlPath, { method, headers: body ? { 'Content-Type': 'application/json', Cookie: cookie } : { Cookie: cookie }, body: body ? JSON.stringify(body) : undefined });
     const buffer = Buffer.from(await r.arrayBuffer());
     return { status: r.status, buffer, contentType: r.headers.get('content-type'), disposition: r.headers.get('content-disposition') };
 }

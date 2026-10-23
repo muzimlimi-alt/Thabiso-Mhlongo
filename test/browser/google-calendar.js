@@ -1,4 +1,4 @@
-// Admin -> System Settings -> Google Calendar (the card) and Admin -> Calendar (the Google strip), driven through the REAL admin.html on an isolated DB copy
+// System > Integrations -> Google Calendar (the card) and Admin -> Calendar (the Google strip), driven through the REAL admin.html on an isolated DB copy
 // (test/support.js: SMTP mocked, the real database and Google are never touched). The server's answers are SIMULATED per scenario (puppeteer request interception on
 // /api/admin/google-calendar*) so every connection state can be shown; the real routes and libraries are covered by test/google-calendar.test.js against a fake Google.
 // This test is about what the administrator sees and can do: each state's wording and buttons, validation, saving + connecting, a failed save keeping what was typed,
@@ -57,7 +57,7 @@ async function openAdmin(browser, cookie, { width = 1440, height = 1100, query =
     await p.waitForFunction(() => typeof window.switchTab === 'function' && !!window.currentUserRole, { timeout: 30000 });
     return p;
 }
-const goSettings = async (p) => { await p.evaluate(() => window.switchTab('preferencesAdmin')); await p.waitForFunction(() => { const c = document.getElementById('stGoogleCard'); return c && getComputedStyle(c).display !== 'none'; }, { timeout: 15000 }); await p.evaluate(() => document.getElementById('stGoogleCard').scrollIntoView({ block: 'start' })); await sleep(300); };
+const goSettings = async (p) => { await p.evaluate(() => window.admNav.go('integrationsAdmin', { tab: 'intPanelGoogle' })); await p.waitForFunction(() => { const c = document.getElementById('stGoogleCard'); return c && getComputedStyle(c).display !== 'none'; }, { timeout: 15000 }); await p.evaluate(() => document.getElementById('stGoogleCard').scrollIntoView({ block: 'start' })); await sleep(300); };
 const goCalendar = async (p) => { await p.evaluate(() => window.switchTab('calendarAdmin')); await p.waitForFunction(() => { const s = document.getElementById('calGoogleStrip'); return s && !s.hidden; }, { timeout: 30000 }); await sleep(200); };
 const reload = async (p) => { await p.evaluate(() => window.loadGoogleCalendarCard()); await sleep(250); };
 const card = (p) => p.evaluate(() => {
@@ -120,8 +120,8 @@ const typeInto = async (p, sel, text) => { await p.click(sel, { clickCount: 3 })
         await p.evaluate(() => window.calGoogleRefreshStrip()); await sleep(300);
         await p.click('#calGoogleSetup');
         await p.waitForFunction(() => { const c = document.getElementById('stGoogleCard'); return c && getComputedStyle(c).display !== 'none' && c.getBoundingClientRect().height > 100; }, { timeout: 15000 });
-        const onSettings = await p.evaluate(() => { const sec = document.getElementById('preferencesAdmin'); return !!sec && getComputedStyle(sec).display !== 'none'; });
-        ok(onSettings, '"Set up" on the strip takes the administrator straight to System Settings with the Google card showing', '');
+        const onSettings = await p.evaluate(() => { const sec = document.getElementById('integrationsAdmin'); return !!sec && getComputedStyle(sec).display !== 'none'; });
+        ok(onSettings, '"Set up" on the strip takes the administrator straight to System > Integrations with the Google card showing', '');
         await p.close();
     }
 
@@ -131,7 +131,7 @@ const typeInto = async (p, sel, text) => { await p.click(sel, { clickCount: 3 })
         await goCalendar(p);
         const s = await strip(p);
         ok(/administrator/i.test(s.text) && !s.btnShown, 'an assistant sees the Google strip, is told an administrator can connect it, and is offered no button', JSON.stringify(s));
-        await p.evaluate(() => window.switchTab('preferencesAdmin')); await sleep(600);
+        await p.evaluate(() => window.switchTab('integrationsAdmin')); await sleep(600);
         ok(await p.evaluate(() => getComputedStyle(document.getElementById('stGoogleCard')).display === 'none'), 'an assistant never sees the Google settings card', '');
         ok(p.errs.length === 0, 'no script errors for an assistant', p.errs.join(' | '));
         await p.close();

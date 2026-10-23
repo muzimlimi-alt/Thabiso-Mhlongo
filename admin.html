@@ -45,6 +45,7 @@
     <link href="css/admin/team.css?v=2" rel="stylesheet">
     <link href="css/admin/accolades.css?v=1" rel="stylesheet">
     <link href="css/admin/eft.css?v=2" rel="stylesheet">
+    <link href="css/admin/business-profile.css?v=8" rel="stylesheet">
     <link href="css/admin/payfast-reconcile.css?v=1" rel="stylesheet">
     <link href="css/admin/redesign-admin.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
@@ -296,7 +297,7 @@
                         <ul class="atl-nav-sub sh-nav-sub" id="navRevenue" data-title="Revenue">
                             <li><a href="#financeAdmin" class="tm-nav-link" title="Quotes, invoices &amp; payments"><span class="tm-nav-text">Finance</span></a></li>
                             <li><a href="#servicesAdmin" class="tm-nav-link" title="Services catalogue &amp; rates"><span class="tm-nav-text">Services</span></a></li>
-                            <li><a href="#policiesAdmin" class="tm-nav-link" title="Booking &amp; cancellation policies"><span class="tm-nav-text">Policies</span></a></li>
+                            <li><a href="#paymentSetupAdmin" class="tm-nav-link" title="PayFast, bank transfer &amp; banking details"><span class="tm-nav-text">Payment Setup</span></a></li>
                         </ul>
                     </li>
                     <li class="tm-sidebar-group-title sh-nav-label" role="presentation"><span>Audience</span></li>
@@ -328,16 +329,32 @@
                     <li class="sh-nav-group">
                         <a href="#brandingAdmin" class="tm-nav-link sh-nav-item" title="Logo, favicon, fonts &amp; banners for the PUBLIC site"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></svg></span><span class="tm-nav-text sh-lbl">Site Appearance</span></a>
                     </li>
-                    <li class="tm-sidebar-group-title sh-nav-label" role="presentation"><span>Administration</span></li>
+                    <li class="tm-sidebar-group-title sh-nav-label" role="presentation"><span>Business</span></li>
                     <li class="sh-nav-group">
-                        <a href="#preferencesAdmin" class="tm-nav-link sh-nav-item" title="Admin appearance, payments, email &amp; section visibility"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span><span class="tm-nav-text sh-lbl">Admin Settings</span></a>
+                        <a href="#businessAdmin" class="tm-nav-link sh-nav-item" title="Company identity, tax &amp; VAT registration, addresses and the letterhead"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg></span><span class="tm-nav-text sh-lbl">Business Profile</span></a>
+                    </li>
+                    <li class="sh-nav-group">
+                        <a href="#policiesAdmin" class="tm-nav-link sh-nav-item" title="Privacy, terms, consent, booking policies and contracts"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></svg></span><span class="tm-nav-text sh-lbl">Legal &amp; Compliance</span></a>
+                    </li>
+                    <li class="tm-sidebar-group-title sh-nav-label" role="presentation"><span>System</span></li>
+                    <li class="sh-nav-group atl-nav-group">
+                        <button type="button" class="atl-nav-parent sh-nav-item" aria-expanded="false" aria-controls="navEmail"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span><span class="tm-nav-text sh-lbl">Email</span><span class="atl-nav-chev sh-chev"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span></button>
+                        <ul class="atl-nav-sub sh-nav-sub" id="navEmail" data-title="Email">
+                            <li><a href="#emailSetupAdmin" class="tm-nav-link" title="Outgoing mail, customer replies &amp; alert address"><span class="tm-nav-text">Email Setup</span></a></li>
+                            <li><a href="#emailLogsAdmin" class="tm-nav-link" title="Every email the system sent, and whether it was delivered"><span class="tm-nav-text">Delivery Log</span></a></li>
+                        </ul>
+                    </li>
+                    <li class="sh-nav-group">
+                        <a href="#integrationsAdmin" class="tm-nav-link sh-nav-item" title="Google Calendar and location search"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"/><path d="m2 22 3-3"/><path d="M7.5 13.5 10 11"/><path d="M10.5 16.5 13 14"/><path d="m18 3-4 4h6l-4 4"/></svg></span><span class="tm-nav-text sh-lbl">Integrations</span></a>
+                    </li>
+                    <li class="sh-nav-group">
+                        <a href="#adminPortalAdmin" class="tm-nav-link sh-nav-item" title="Admin appearance and the sign-in page background"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/></svg></span><span class="tm-nav-text sh-lbl">Admin Portal</span></a>
                     </li>
                     <li class="sh-nav-group atl-nav-group">
                         <button type="button" class="atl-nav-parent sh-nav-item" aria-expanded="false" aria-controls="navAccess"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span><span class="tm-nav-text sh-lbl">People &amp; Access</span><span class="atl-nav-chev sh-chev"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span></button>
                         <ul class="atl-nav-sub sh-nav-sub" id="navAccess" data-title="People &amp; Access">
                             <li><a href="#usersAdmin" class="tm-nav-link" title="User management &amp; roles"><span class="tm-nav-text">Users</span></a></li>
                             <li><a href="#securityAdmin" class="tm-nav-link" title="Security &amp; audit trail"><span class="tm-nav-text">Security &amp; Audit</span></a></li>
-                            <li><a href="#emailLogsAdmin" class="tm-nav-link" title="Email delivery logs"><span class="tm-nav-text">Email Logs</span></a></li>
                         </ul>
                     </li>
                 </ul>
@@ -427,10 +444,10 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z"/><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/></svg> Appearance
                                 <span class="sh-menu-hint" id="atlAppearanceHint">Obsidian &middot; Gold</span>
                             </button>
-                            <a role="menuitem" class="sh-menu-item" href="#preferencesAdmin" data-menu-nav="preferencesAdmin">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M10 8h4"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M17 16h4"/><path d="M19 12V3"/><path d="M19 21v-5"/><path d="M3 14h4"/><path d="M5 10V3"/><path d="M5 21v-7"/></svg> Account settings
+                            <a role="menuitem" class="sh-menu-item" href="#usersAdmin" data-menu-nav="usersAdmin" data-menu-tab="umPanelProfile">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M10 8h4"/><path d="M12 21v-9"/><path d="M12 8V3"/><path d="M17 16h4"/><path d="M19 12V3"/><path d="M19 21v-5"/><path d="M3 14h4"/><path d="M5 10V3"/><path d="M5 21v-7"/></svg> My profile
                             </a>
-                            <a role="menuitem" class="sh-menu-item" href="#usersAdmin" data-menu-nav="usersAdmin">
+                            <a role="menuitem" class="sh-menu-item" href="#usersAdmin" data-menu-nav="usersAdmin" data-menu-tab="umPanelUsers">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/></svg> Team &amp; roles
                             </a>
 
@@ -1113,7 +1130,7 @@
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i> Manage bookings, inquiries, events, content and newsletter campaigns</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> Full Finance access: invoices, payments and refunds</li>
-                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> No User Management or System Settings</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> No User Management, Integrations or Admin Portal</li>
                                         <li class="cannot"><i class="fa-solid fa-xmark"></i> Cannot delete records or void invoices</li>
                                     </ul>
                                 </div>
@@ -1127,7 +1144,7 @@
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i> View and manage bookings, inquiries, events and content</li>
                                         <li class="cannot"><i class="fa-solid fa-xmark"></i> No Finance: cannot invoice, record payments or refunds</li>
-                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> No User Management or System Settings</li>
+                                        <li class="cannot"><i class="fa-solid fa-xmark"></i> No User Management, Integrations or Admin Portal</li>
                                         <li class="cannot"><i class="fa-solid fa-xmark"></i> Cannot delete records or void invoices</li>
                                     </ul>
                                 </div>
@@ -2042,7 +2059,7 @@
                                         </span>
                                     </div>
                                     <div id="calM365Panel" class="cal-m365-panel" hidden></div>
-                                    <!-- Google Calendar: connection status and a way to set it up (js/admin/google-calendar.js; the card is in System Settings) -->
+                                    <!-- Google Calendar: connection status and a way to set it up (js/admin/google-calendar.js; the card is in System > Integrations) -->
                                     <div id="calGoogleStrip" class="cal-m365-strip" role="region" aria-label="Google Calendar connection" hidden>
                                         <span class="cal-m365-strip__icon" aria-hidden="true"><i class="fa-brands fa-google"></i></span>
                                         <span id="calGoogleText" class="cal-m365-strip__text" role="status" aria-live="polite">Checking Google&hellip;</span>
@@ -2248,7 +2265,7 @@
                                     </div>
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i> The strip above the calendar shows whether Google Calendar is connected, and to which account</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Administrators set it up, test it or disconnect it under <strong style="color:var(--atl-ink);">System Settings &rarr; Google Calendar</strong> (the <strong style="color:var(--atl-ink);">Set up</strong> button on the strip goes straight there)</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Administrators set it up, test it or disconnect it under <strong style="color:var(--atl-ink);">System &rarr; Integrations &rarr; Google Calendar</strong> (the <strong style="color:var(--atl-ink);">Set up</strong> button on the strip goes straight there)</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> Once connected, confirmed bookings and public events are added to that Google account&rsquo;s main calendar, and its appointments block the same times on the booking form</li>
                                         <li class="cannot"><i class="fa-solid fa-xmark"></i> It is separate from the Microsoft 365 calendar above &mdash; each is connected on its own</li>
                                     </ul>
@@ -3511,12 +3528,270 @@
                 </div>
             </div>
 
+            <!-- ===== Revenue > Payment Setup (was inside Admin Settings) ===== -->
+            <div class="admin-section" id="paymentSetupAdmin">
+                <div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">Revenue</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-credit-card"></i> Payment Setup</h2>
+                            <p class="atl-section-sub">How clients pay: the PayFast card gateway, and bank transfer with the banking details printed on invoices.</p>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="atl-tab-bar" role="tablist">
+                                <button class="atl-tab-btn active" data-um-tab="payPanelPayfast" role="tab" aria-selected="true"><i class="fa-solid fa-credit-card"></i> PayFast</button>
+                                <button class="atl-tab-btn" data-um-tab="payPanelBank" role="tab" aria-selected="false"><i class="fa-solid fa-building-columns"></i> Bank Transfer &amp; Banking Details</button>
+                                <button class="atl-tab-btn" data-um-tab="payPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
+                            </div>
+                            <div class="um-panel active" id="payPanelPayfast">
+                                <div id="payLoading" style="display:none; text-align:center; padding:24px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i> Loading payment settings…</div>
+
+                                <!-- Card: PayFast -->
+                                <div class="atl-card um-settings-card">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-credit-card"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">PayFast</h4>
+                                            <p class="um-section-desc">Payment gateway credentials for the public booking flow. Use the sandbox URL for testing and the live URL in production.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="stPayfastId">Merchant ID</label><div class="um-input-wrap"><i class="fa-solid fa-id-badge um-input-icon"></i><input type="text" class="um-input" id="stPayfastId" placeholder="10000100"></div></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="stPayfastKey">Merchant Key</label><div class="um-input-wrap"><i class="fa-solid fa-key um-input-icon"></i><input type="text" class="um-input" id="stPayfastKey" placeholder="46f0cd694581a"></div></div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="stPayfastPass">Passphrase</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stPayfastPass" placeholder="(leave blank if none)"></div></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="stPayfastUrl">Gateway URL</label><div class="um-input-wrap"><i class="fa-solid fa-link um-input-icon"></i><input type="text" class="um-input" id="stPayfastUrl" placeholder="https://sandbox.payfast.co.za/eng/process"></div></div>
+                                        </div>
+                                    </div>
+                                    <div class="um-settings-save" style="margin-top:18px;">
+                                        <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Saved values take effect immediately &mdash; no restart needed. A blank Passphrase keeps the saved one.</span>
+                                        <button id="btnSavePayfast" class="atl-btn atl-btn--primary" onclick="savePayfastSettings(this)">
+                                            <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save PayFast settings
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="um-panel" id="payPanelBank">
+                                <!-- Card: Manual EFT & banking details (administrators only; hidden until js/admin/eft.js has been allowed to read it) - Revenue > Payment Setup > Bank Transfer -->
+                                <div class="atl-card um-settings-card" id="stEftCard" style="display:none;">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-building-columns"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Manual EFT &amp; banking details</h4>
+                                            <p class="um-section-desc">Lets clients pay by bank transfer and send a proof of payment. The details below are printed on every invoice issued from now on and shown to a client who has verified their booking. Changing them creates a new version &mdash; invoices already sent keep the details they went out with.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <p class="um-section-desc" id="eftCardStatus" role="status" style="margin:0 0 14px;"></p>
+                                    <div class="eft-switch-row">
+                                        <label class="eft-check" for="eftEnabled"><input type="checkbox" id="eftEnabled"> Offer Manual EFT to clients</label>
+                                        <div class="um-field-group" style="margin:0;min-width:200px;">
+                                            <label class="um-label" for="eftMaxMb">Largest proof file (MB)</label>
+                                            <div class="um-input-wrap"><i class="fa-solid fa-file-arrow-up um-input-icon"></i><input type="number" class="um-input" id="eftMaxMb" min="1" max="15" step="1" value="5"></div>
+                                        </div>
+                                        <button type="button" class="atl-btn atl-btn--ghost" id="eftSaveSettingsBtn"><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save switches</button>
+                                    </div>
+                                    <div class="um-divider" style="margin-top:18px;"></div>
+                                    <div class="row">
+                                        <div class="col-md-6"><div class="um-field-group"><label class="um-label" for="eftHolder">Account holder</label><div class="um-input-wrap"><i class="fa-solid fa-user um-input-icon"></i><input type="text" class="um-input" id="eftHolder" maxlength="100" autocomplete="off"></div><div class="atl-field-error" id="errEftHolder" style="display:none;"></div></div></div>
+                                        <div class="col-md-6"><div class="um-field-group"><label class="um-label" for="eftBank">Bank</label><div class="um-input-wrap"><i class="fa-solid fa-building-columns um-input-icon"></i><input type="text" class="um-input" id="eftBank" maxlength="60" autocomplete="off"></div><div class="atl-field-error" id="errEftBank" style="display:none;"></div></div></div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftAccount">Account number</label><div class="um-input-wrap"><i class="fa-solid fa-hashtag um-input-icon"></i><input type="text" class="um-input" id="eftAccount" inputmode="numeric" maxlength="24" autocomplete="off"></div><div class="atl-field-error" id="errEftAccount" style="display:none;"></div></div></div>
+                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftType">Account type</label><div class="um-input-wrap"><i class="fa-solid fa-list um-input-icon"></i><select class="um-input" id="eftType"></select></div><div class="atl-field-error" id="errEftType" style="display:none;"></div></div></div>
+                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftBranch">Branch code</label><div class="um-input-wrap"><i class="fa-solid fa-code-branch um-input-icon"></i><input type="text" class="um-input" id="eftBranch" inputmode="numeric" maxlength="12" autocomplete="off"></div><div class="atl-field-error" id="errEftBranch" style="display:none;"></div></div></div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftSwift">SWIFT / BIC <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(optional)</small></label><div class="um-input-wrap"><i class="fa-solid fa-globe um-input-icon"></i><input type="text" class="um-input" id="eftSwift" maxlength="11" autocomplete="off"></div><div class="atl-field-error" id="errEftSwift" style="display:none;"></div></div></div>
+                                        <div class="col-md-8"><div class="um-field-group"><label class="um-label" for="eftRefNote">Reference note <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(optional, shown with the details)</small></label><div class="um-input-wrap"><i class="fa-solid fa-tag um-input-icon"></i><input type="text" class="um-input" id="eftRefNote" maxlength="200" autocomplete="off" placeholder="e.g. Use your invoice number as the reference"></div><div class="atl-field-error" id="errEftRefNote" style="display:none;"></div></div></div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-12"><div class="um-field-group"><label class="um-label" for="eftInstructions">Payment instructions <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(optional)</small></label><div class="um-input-wrap"><textarea class="um-input" id="eftInstructions" rows="2" maxlength="500" style="padding-left:12px;"></textarea></div><div class="atl-field-error" id="errEftInstructions" style="display:none;"></div></div></div>
+                                    </div>
+                                    <div class="eft-preview" id="eftPreview">
+                                        <div class="eft-preview__hd"><i class="fa-solid fa-eye"></i> Preview &mdash; how these details will appear on invoices and to clients (updates as you type; sample invoice figures)</div>
+                                        <div id="eftPreviewBody"></div>
+                                    </div>
+                                    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                                        <button type="button" class="atl-btn atl-btn--primary" id="eftSaveDetailsBtn"><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save banking details</button>
+                                        <span id="eftDetailsMsg" style="font-size:12px;color:var(--atl-muted);" role="status"></span>
+                                    </div>
+                                    <div id="eftVersionsWrap" style="margin-top:18px;display:none;">
+                                        <h6 class="um-section-label" style="margin-bottom:2px;">Version history</h6>
+                                        <table class="eft-versions"><thead><tr><th>Version</th><th>Bank / account</th><th>Active from</th><th>Retired</th><th>Invoices</th></tr></thead><tbody id="eftVersionsBody"></tbody></table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="um-panel" id="payPanelAbout">
+                                <div class="atl-card">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">About Payment Setup</h4>
+                                            <p class="um-section-desc">The two ways a client can pay an invoice, and where each is set up.</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="um-divider"></div>
+
+                                    <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                        Each tab saves on its own and takes effect immediately &mdash; no restart. To review payments that have come in, use <strong style="color:var(--atl-ink);">Finance</strong> (<strong style="color:var(--atl-ink);">Recent Transactions</strong>, <strong style="color:var(--atl-ink);">EFT Payments</strong> and <strong style="color:var(--atl-ink);">Reconciliation</strong>).
+                                    </p>
+
+                                    <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+
+                                    <!-- PayFast -->
+                                    <div class="um-role-info" style="margin-bottom:16px;">
+                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-credit-card" style="color:var(--atl-amber);"></i> PayFast</p>
+                                        <p class="um-role-info__desc">Connects the public booking flow to the <strong style="color:var(--atl-ink);">PayFast</strong> gateway so clients can pay deposits and invoices online. If these are wrong or empty, online card payments won't go through.</p>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Merchant ID</strong> &amp; <strong style="color:var(--atl-ink);">Merchant Key</strong> &mdash; your PayFast account credentials (PayFast dashboard &rarr; Settings &rarr; Integration).</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Passphrase</strong> &mdash; an optional security salt that signs each transaction. It is never shown back for safety &mdash; the field stays blank with a &ldquo;set&rdquo; hint; leave it blank to keep the current one, or type a new value to replace it.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Gateway URL</strong> &mdash; use the <em>sandbox</em> URL (<code>sandbox.payfast.co.za</code>) while testing, and switch to the <em>live</em> URL (<code>www.payfast.co.za</code>) when you go live.</li>
+                                        </ul>
+                                        <p class="um-role-info__desc" style="margin:8px 0 0;"><i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-right:6px;"></i>Always test in sandbox first &mdash; a mismatched key or passphrase makes payments fail PayFast's signature check.</p>
+                                    </div>
+
+                                    <!-- Bank transfer -->
+                                    <div class="um-role-info" style="margin-bottom:16px;">
+                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-building-columns" style="color:var(--atl-amber);"></i> Bank Transfer &amp; Banking Details</p>
+                                        <p class="um-role-info__desc">Lets a client pay an invoice by bank transfer and upload a proof of payment. <strong style="color:var(--atl-ink);">A proof of payment is a claim, not money:</strong> nothing is credited to a booking until an administrator has checked it against the bank statement and approved it under <strong style="color:var(--atl-ink);">Finance &rarr; EFT Payments</strong>.</p>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Switch</strong> &mdash; turns bank-transfer payment on or off. It stays off until banking details have been saved.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Upload limit</strong> &mdash; the largest proof-of-payment file a client may upload.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Banking details</strong> &mdash; account holder, bank, account number, type, branch code, optional SWIFT / BIC, a reference note and extra instructions. Saving creates a new <em>version</em>: invoices already sent keep the details they went out with, so a change never rewrites a document a client already holds.</li>
+                                        </ul>
+                                        <p class="um-role-info__desc" style="margin:8px 0 0;"><i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-right:6px;"></i>Check that the <strong style="color:var(--atl-ink);">account holder</strong> matches the registered business name in <strong style="color:var(--atl-ink);">Business Profile</strong> &mdash; the profile page warns when it does not.</p>
+                                    </div>
+
+                                    <h4 class="um-section-label" style="margin: 20px 0 12px;">Common tasks</h4>
+                                    <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                        <li><strong style="color:var(--atl-ink);">Connect PayFast</strong> &mdash; paste your Merchant ID, Merchant Key and (optionally) passphrase, set the sandbox URL to test, then switch to the live URL and press <strong style="color:var(--atl-ink);">Save PayFast settings</strong>.</li>
+                                        <li><strong style="color:var(--atl-ink);">Accept bank transfers</strong> &mdash; on the Bank Transfer tab enter the banking details and switch bank transfer on.</li>
+                                        <li><strong style="color:var(--atl-ink);">Change bank account</strong> &mdash; save the new details (a new version); invoices already issued are not changed.</li>
+                                    </ol>
+
+                                    <div class="um-security-tips" style="margin-top:14px;">
+                                        <i class="fa-solid fa-circle-info"></i>
+                                        <ul>
+                                            <li>Each tab saves on its own and applies immediately &mdash; no server restart.</li>
+                                            <li>Only <strong>Administrators</strong> can open Payment Setup.</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== Business > Business Profile (was a tab inside Admin Settings). The cards are built by js/admin/business-profile.js into the
+                 static tab panels below (tab bars must be static HTML: js/admin/user-management.js initTabs binds them at DOMContentLoaded). ===== -->
+            <div class="admin-section" id="businessAdmin">
+                <div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">Business</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-building"></i> Business Profile</h2>
+                            <p class="atl-section-sub">Who issues your quotations and invoices, which SARS registrations apply, and the details printed on every document.</p>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div id="bpRoot">
+                                <div id="bpLoading" style="display:none; text-align:center; padding:24px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i> Loading business profile…</div>
+                                <div class="bp-status" id="bpStatus" role="status" aria-live="polite"></div>
+                                <div id="bpFail"></div>
+                                <div id="bpTabs">
+                                    <div class="atl-tab-bar" role="tablist">
+                                        <button class="atl-tab-btn active" data-um-tab="bpPanelCompany" role="tab" aria-selected="true"><i class="fa-solid fa-building"></i> Company</button>
+                                        <button class="atl-tab-btn" data-um-tab="bpPanelTax" role="tab" aria-selected="false"><i class="fa-solid fa-file-invoice-dollar"></i> Tax &amp; VAT</button>
+                                        <button class="atl-tab-btn" data-um-tab="bpPanelAddr" role="tab" aria-selected="false"><i class="fa-solid fa-location-dot"></i> Addresses &amp; Contact</button>
+                                        <button class="atl-tab-btn" data-um-tab="bpPanelBbbee" role="tab" aria-selected="false"><i class="fa-solid fa-award"></i> B-BBEE &amp; Compliance</button>
+                                        <button class="atl-tab-btn" data-um-tab="bpPanelLetterhead" role="tab" aria-selected="false"><i class="fa-solid fa-file-pdf"></i> Letterhead Preview</button>
+                                        <button class="atl-tab-btn" data-um-tab="bpPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
+                                    </div>
+                                    <div class="um-panel active" id="bpPanelCompany"><div class="bp-mount" data-mount="company"></div></div>
+                                    <div class="um-panel" id="bpPanelTax"><div class="bp-mount" data-mount="tax"></div></div>
+                                    <div class="um-panel" id="bpPanelAddr"><div class="bp-mount" data-mount="addr"></div></div>
+                                    <div class="um-panel" id="bpPanelBbbee"><div class="bp-mount" data-mount="bbbee"></div></div>
+                                    <div class="um-panel" id="bpPanelLetterhead"><div class="bp-mount" data-mount="letterhead"></div></div>
+                                    <div class="um-panel" id="bpPanelAbout">
+                                        <div class="atl-card">
+                                            <div class="um-icon-header">
+                                                <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                                <div>
+                                                    <h4 class="um-section-label" style="margin-bottom:4px;">About Business Profile</h4>
+                                                    <p class="um-section-desc">One record that every quotation and invoice reads its letterhead and tax treatment from.</p>
+                                                </div>
+                                            </div>
+
+                                            <div class="um-divider"></div>
+
+                                            <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                                Each card on the tabs saves on its own with its own <strong style="color:var(--atl-ink);">Save</strong> button, and a card you have not saved is marked on its tab. Administrators can edit; managers can view (the income-tax reference is masked). Banking details are not stored here &mdash; they live under <strong style="color:var(--atl-ink);">Revenue &rarr; Payment Setup</strong>, and the Company tab shows a read-only summary of them.
+                                            </p>
+
+                                            <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+
+                                            <div class="um-role-info" style="margin-bottom:16px;">
+                                                <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-file-invoice-dollar" style="color:var(--atl-amber);"></i> Tax &amp; VAT are two separate registrations</p>
+                                                <ul class="um-role-list">
+                                                    <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Registered for tax with SARS</strong> is your income-tax registration. It does <em>not</em> make you a VAT vendor.</li>
+                                                    <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Registered for VAT</strong> needs a VAT number <em>and</em> your confirmation that SARS issued it. Until both are in place, quotations cannot carry VAT and invoices are titled INVOICE; afterwards an invoice that charges VAT is titled TAX INVOICE and shows your VAT number.</li>
+                                                    <li class="can"><i class="fa-solid fa-check"></i> Changing a registration asks you to confirm and never changes a quotation or invoice that has already been issued. Unticking a box deletes nothing.</li>
+                                                </ul>
+                                            </div>
+
+                                            <div class="um-role-info" style="margin-bottom:16px;">
+                                                <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-file-pdf" style="color:var(--atl-amber);"></i> Letterhead Preview</p>
+                                                <p class="um-role-info__desc">Shows a real quotation or invoice built from the values currently on screen (saved or not), with made-up sample items. Nothing is saved or sent.</p>
+                                            </div>
+
+                                            <div class="um-security-tips" style="margin-top:14px;">
+                                                <i class="fa-solid fa-circle-info"></i>
+                                                <ul>
+                                                    <li>The director&rsquo;s ID number, if you store one, is encrypted, never printed on a document, and shown only on request (the request is logged).</li>
+                                                    <li>Every save is recorded in the audit trail.</li>
+                                                </ul>
+                                            </div>
+
+                                            <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                                <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Payment Setup</strong> for banking details, <strong style="color:var(--atl-ink);">Finance</strong> for quotations and invoices, and <strong style="color:var(--atl-ink);">Contact Details</strong> for what the public website shows.</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Booking Policies -->
             <div class="admin-section" id="policiesAdmin" style="display:none;">
                 <div>
                     <div class="atl-section-hd">
                         <div>
-                            <p class="atl-section-eyebrow">Legal</p>
+                            <p class="atl-section-eyebrow">Business</p>
                             <h2 class="atl-section-heading"><i class="fa-solid fa-scale-balanced"></i> Legal &amp; Compliance</h2>
                             <p class="atl-section-sub">Manage legal documents, consent records, booking policies, and contract history.</p>
                         </div>
@@ -6016,7 +6291,7 @@
 
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Branding</strong> for the brand style wrapped around every email; <strong style="color:var(--atl-ink);">System Settings</strong> for the SMTP mail server that delivers them; and <strong style="color:var(--atl-ink);">Inquiries</strong> for interested contacts to add.</span>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Site Appearance</strong> for the brand style wrapped around every email; <strong style="color:var(--atl-ink);">Email Setup</strong> for the mail server that delivers them; and <strong style="color:var(--atl-ink);">Inquiries</strong> for interested contacts to add.</span>
                             </p>
                         </div>
                     </div>
@@ -6024,226 +6299,31 @@
                 </div>
             </div>
 
-            <!-- 8. Preferences (now System Settings) -->
-            <div class="admin-section" id="preferencesAdmin">
+
+                        <!-- Booking Schedule moved to Calendar section → Schedule tab -->
+
+
+
+            <!-- ===== System > Integrations (Google Calendar and Location Search were cards inside Admin Settings) ===== -->
+            <div class="admin-section" id="integrationsAdmin">
                 <div>
                     <div class="atl-section-hd">
                         <div>
-                            <p class="atl-section-eyebrow">Configuration</p>
-                            <h2 class="atl-section-heading"><i class="fa-solid fa-sliders"></i> System Settings</h2>
-                            <p class="atl-section-sub">Configure gateway credentials, SMTP mail server settings, and system parameters.</p>
+                            <p class="atl-section-eyebrow">System</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-plug"></i> Integrations</h2>
+                            <p class="atl-section-sub">Connections to services outside the website: the calendar bookings are added to, and the location search used on booking forms.</p>
                         </div>
                     </div>
                     <div class="atl-section-rule"></div>
 
                     <div class="row">
                         <div class="col-md-12">
-                            <!-- System Settings -->
                             <div class="atl-tab-bar" role="tablist">
-                                <button class="atl-tab-btn active" data-um-tab="prefPanelSettings" role="tab" aria-selected="true"><i class="fa-solid fa-sliders"></i> System Settings</button>
-                                <button class="atl-tab-btn" data-um-tab="prefPanelSections" role="tab" aria-selected="false"><i class="fa-solid fa-table-cells-large"></i> Website Sections</button>
-                                <button class="atl-tab-btn" data-um-tab="prefPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
+                                <button class="atl-tab-btn active" data-um-tab="intPanelGoogle" role="tab" aria-selected="true"><i class="fa-brands fa-google"></i> Calendar</button>
+                                <button class="atl-tab-btn" data-um-tab="intPanelPlaces" role="tab" aria-selected="false"><i class="fa-solid fa-location-dot"></i> Location Search</button>
+                                <button class="atl-tab-btn" data-um-tab="intPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
                             </div>
-                            <div class="um-panel active" id="prefPanelSettings">
-                                <div id="prefLoading" style="display:none; text-align:center; padding:24px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i> Loading settings…</div>
-
-                                <!-- Card: Appearance — the SAME panel the header control opens.
-                                     js/appearance.js builds both from one definition and keeps
-                                     them in sync, so changing an axis in either is reflected in
-                                     the other immediately. -->
-                                <div class="atl-card um-settings-card">
-                                    <div class="um-icon-header">
-                                        <div class="um-icon-header__icon"><i class="fa-solid fa-palette"></i></div>
-                                        <div>
-                                            <h4 class="um-section-label" style="margin-bottom:4px;">Appearance</h4>
-                                            <p class="um-section-desc">Finish, house accent and layout density. Applies instantly and is saved to this browser — it does not affect other admins.</p>
-                                        </div>
-                                    </div>
-                                    <div class="um-divider"></div>
-                                    <div id="atlAppearancePanelPrefs"></div>
-                                </div>
-
-                                <!-- Card: PayFast -->
-                                <div class="atl-card um-settings-card">
-                                    <div class="um-icon-header">
-                                        <div class="um-icon-header__icon"><i class="fa-solid fa-credit-card"></i></div>
-                                        <div>
-                                            <h4 class="um-section-label" style="margin-bottom:4px;">PayFast</h4>
-                                            <p class="um-section-desc">Payment gateway credentials for the public booking flow. Use the sandbox URL for testing and the live URL in production.</p>
-                                        </div>
-                                    </div>
-                                    <div class="um-divider"></div>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="um-field-group"><label class="um-label" for="stPayfastId">Merchant ID</label><div class="um-input-wrap"><i class="fa-solid fa-id-badge um-input-icon"></i><input type="text" class="um-input" id="stPayfastId" placeholder="10000100"></div></div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="um-field-group"><label class="um-label" for="stPayfastKey">Merchant Key</label><div class="um-input-wrap"><i class="fa-solid fa-key um-input-icon"></i><input type="text" class="um-input" id="stPayfastKey" placeholder="46f0cd694581a"></div></div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="um-field-group"><label class="um-label" for="stPayfastPass">Passphrase</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stPayfastPass" placeholder="(leave blank if none)"></div></div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="um-field-group"><label class="um-label" for="stPayfastUrl">Gateway URL</label><div class="um-input-wrap"><i class="fa-solid fa-link um-input-icon"></i><input type="text" class="um-input" id="stPayfastUrl" placeholder="https://sandbox.payfast.co.za/eng/process"></div></div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Card: Manual EFT & banking details (administrators only; hidden until js/admin/eft.js has been allowed to read it) -->
-                                <div class="atl-card um-settings-card" id="stEftCard" style="display:none;">
-                                    <div class="um-icon-header">
-                                        <div class="um-icon-header__icon"><i class="fa-solid fa-building-columns"></i></div>
-                                        <div>
-                                            <h4 class="um-section-label" style="margin-bottom:4px;">Manual EFT &amp; banking details</h4>
-                                            <p class="um-section-desc">Lets clients pay by bank transfer and send a proof of payment. The details below are printed on every invoice issued from now on and shown to a client who has verified their booking. Changing them creates a new version &mdash; invoices already sent keep the details they went out with.</p>
-                                        </div>
-                                    </div>
-                                    <div class="um-divider"></div>
-                                    <p class="um-section-desc" id="eftCardStatus" role="status" style="margin:0 0 14px;"></p>
-                                    <div class="eft-switch-row">
-                                        <label class="eft-check" for="eftEnabled"><input type="checkbox" id="eftEnabled"> Offer Manual EFT to clients</label>
-                                        <div class="um-field-group" style="margin:0;min-width:200px;">
-                                            <label class="um-label" for="eftMaxMb">Largest proof file (MB)</label>
-                                            <div class="um-input-wrap"><i class="fa-solid fa-file-arrow-up um-input-icon"></i><input type="number" class="um-input" id="eftMaxMb" min="1" max="15" step="1" value="5"></div>
-                                        </div>
-                                        <button type="button" class="atl-btn atl-btn--ghost" id="eftSaveSettingsBtn"><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save switches</button>
-                                    </div>
-                                    <div class="um-divider" style="margin-top:18px;"></div>
-                                    <div class="row">
-                                        <div class="col-md-6"><div class="um-field-group"><label class="um-label" for="eftHolder">Account holder</label><div class="um-input-wrap"><i class="fa-solid fa-user um-input-icon"></i><input type="text" class="um-input" id="eftHolder" maxlength="100" autocomplete="off"></div><div class="atl-field-error" id="errEftHolder" style="display:none;"></div></div></div>
-                                        <div class="col-md-6"><div class="um-field-group"><label class="um-label" for="eftBank">Bank</label><div class="um-input-wrap"><i class="fa-solid fa-building-columns um-input-icon"></i><input type="text" class="um-input" id="eftBank" maxlength="60" autocomplete="off"></div><div class="atl-field-error" id="errEftBank" style="display:none;"></div></div></div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftAccount">Account number</label><div class="um-input-wrap"><i class="fa-solid fa-hashtag um-input-icon"></i><input type="text" class="um-input" id="eftAccount" inputmode="numeric" maxlength="24" autocomplete="off"></div><div class="atl-field-error" id="errEftAccount" style="display:none;"></div></div></div>
-                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftType">Account type</label><div class="um-input-wrap"><i class="fa-solid fa-list um-input-icon"></i><select class="um-input" id="eftType"></select></div><div class="atl-field-error" id="errEftType" style="display:none;"></div></div></div>
-                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftBranch">Branch code</label><div class="um-input-wrap"><i class="fa-solid fa-code-branch um-input-icon"></i><input type="text" class="um-input" id="eftBranch" inputmode="numeric" maxlength="12" autocomplete="off"></div><div class="atl-field-error" id="errEftBranch" style="display:none;"></div></div></div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-4"><div class="um-field-group"><label class="um-label" for="eftSwift">SWIFT / BIC <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(optional)</small></label><div class="um-input-wrap"><i class="fa-solid fa-globe um-input-icon"></i><input type="text" class="um-input" id="eftSwift" maxlength="11" autocomplete="off"></div><div class="atl-field-error" id="errEftSwift" style="display:none;"></div></div></div>
-                                        <div class="col-md-8"><div class="um-field-group"><label class="um-label" for="eftRefNote">Reference note <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(optional, shown with the details)</small></label><div class="um-input-wrap"><i class="fa-solid fa-tag um-input-icon"></i><input type="text" class="um-input" id="eftRefNote" maxlength="200" autocomplete="off" placeholder="e.g. Use your invoice number as the reference"></div><div class="atl-field-error" id="errEftRefNote" style="display:none;"></div></div></div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-12"><div class="um-field-group"><label class="um-label" for="eftInstructions">Payment instructions <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(optional)</small></label><div class="um-input-wrap"><textarea class="um-input" id="eftInstructions" rows="2" maxlength="500" style="padding-left:12px;"></textarea></div><div class="atl-field-error" id="errEftInstructions" style="display:none;"></div></div></div>
-                                    </div>
-                                    <div class="eft-preview" id="eftPreview">
-                                        <div class="eft-preview__hd"><i class="fa-solid fa-eye"></i> Preview &mdash; how these details will appear on invoices and to clients (updates as you type; sample invoice figures)</div>
-                                        <div id="eftPreviewBody"></div>
-                                    </div>
-                                    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-                                        <button type="button" class="atl-btn atl-btn--primary" id="eftSaveDetailsBtn"><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save banking details</button>
-                                        <span id="eftDetailsMsg" style="font-size:12px;color:var(--atl-muted);" role="status"></span>
-                                    </div>
-                                    <div id="eftVersionsWrap" style="margin-top:18px;display:none;">
-                                        <h6 class="um-section-label" style="margin-bottom:2px;">Version history</h6>
-                                        <table class="eft-versions"><thead><tr><th>Version</th><th>Bank / account</th><th>Active from</th><th>Retired</th><th>Invoices</th></tr></thead><tbody id="eftVersionsBody"></tbody></table>
-                                    </div>
-                                </div>
-
-                                <!-- Card: Email (SMTP) -->
-                                <div class="atl-card um-settings-card" id="stSmtpCard">
-                                    <div class="um-icon-header">
-                                        <div class="um-icon-header__icon"><i class="fa-solid fa-envelopes-bulk"></i></div>
-                                        <div>
-                                            <h4 class="um-section-label" style="margin-bottom:4px;">Email (SMTP)</h4>
-                                            <p class="um-section-desc">Outgoing mail server that drives every system email &mdash; quotes, booking confirmations, password resets and invitations.</p>
-                                        </div>
-                                    </div>
-                                    <div class="um-divider"></div>
-                                    <p class="um-section-desc" id="stSmtpStatus" role="status" style="margin:0 0 14px;"></p>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpHost">SMTP Host</label><div class="um-input-wrap"><i class="fa-solid fa-server um-input-icon"></i><input type="text" class="um-input" id="stSmtpHost" placeholder="smtp.office365.com" autocomplete="off" spellcheck="false"></div></div>
-                                            <div class="atl-field-error" id="errStHost" style="display:none;"></div>
-                                        </div>
-                                        <div class="col-md-2">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpPort">Port</label><div class="um-input-wrap"><i class="fa-solid fa-ethernet um-input-icon"></i><input type="number" class="um-input" id="stSmtpPort" placeholder="587"></div></div>
-                                            <div class="atl-field-error" id="errStPort" style="display:none;"></div>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpSecure">Encryption</label><div class="um-input-wrap"><i class="fa-solid fa-shield-halved um-input-icon"></i><select class="um-input" id="stSmtpSecure"><option value="starttls">STARTTLS (587, recommended)</option><option value="ssl">SSL/TLS (465)</option></select></div></div>
-                                            <div class="atl-field-error" id="errStSecure" style="display:none;"></div>
-                                        </div>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-4">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpAuth">Sign-in method</label><div class="um-input-wrap"><i class="fa-solid fa-key um-input-icon"></i><select class="um-input" id="stSmtpAuth"><option value="password">Mailbox password</option><option value="oauth">Microsoft 365 OAuth (recommended)</option></select></div></div>
-                                            <div class="atl-field-error" id="errStAuth" style="display:none;"></div>
-                                        </div>
-                                        <div class="col-md-8">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpUser">SMTP User <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(the mailbox)</small></label><div class="um-input-wrap"><i class="fa-solid fa-user um-input-icon"></i><input type="text" class="um-input" id="stSmtpUser" placeholder="bookings@thabisomhlongo.com" autocomplete="off" spellcheck="false"></div></div>
-                                            <div class="atl-field-error" id="errStUser" style="display:none;"></div>
-                                        </div>
-                                    </div>
-                                    <div class="row" id="stSmtpPassGroup">
-                                        <div class="col-md-12">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpPass">SMTP Password</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stSmtpPass" placeholder="mailbox password" autocomplete="new-password"></div></div>
-                                        </div>
-                                    </div>
-                                    <div id="stSmtpOauthGroup" style="display:none;">
-                                        <div class="row">
-                                            <div class="col-md-4">
-                                                <div class="um-field-group"><label class="um-label" for="stSmtpTenant">Directory (tenant) ID</label><div class="um-input-wrap"><i class="fa-solid fa-building um-input-icon"></i><input type="text" class="um-input" id="stSmtpTenant" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></div></div>
-                                                <div class="atl-field-error" id="errStTenant" style="display:none;"></div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="um-field-group"><label class="um-label" for="stSmtpClient">Application (client) ID</label><div class="um-input-wrap"><i class="fa-solid fa-id-card um-input-icon"></i><input type="text" class="um-input" id="stSmtpClient" placeholder="from the app registration" autocomplete="off" spellcheck="false"></div></div>
-                                                <div class="atl-field-error" id="errStClient" style="display:none;"></div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="um-field-group"><label class="um-label" for="stSmtpSecret">Client secret</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stSmtpSecret" placeholder="secret VALUE" autocomplete="new-password"></div></div>
-                                                <div class="atl-field-error" id="errStSecret" style="display:none;"></div>
-                                            </div>
-                                        </div>
-                                        <p class="um-section-desc" style="margin:0 0 14px;"><i class="fa-solid fa-circle-info" style="margin-right:6px; color:var(--atl-amber);"></i>No mailbox password is used. This needs a one-time setup in Microsoft Entra and Exchange &mdash; the steps are under <strong style="color:var(--atl-ink);">About</strong> on this page.</p>
-                                    </div>
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpFrom">From Address</label><div class="um-input-wrap"><i class="fa-solid fa-envelope um-input-icon"></i><input type="email" class="um-input" id="stSmtpFrom" placeholder="bookings@thabisomhlongo.com" autocomplete="off"></div></div>
-                                            <div class="atl-field-error" id="errStFrom" style="display:none;"></div>
-                                        </div>
-                                        <div class="col-md-6">
-                                            <div class="um-field-group"><label class="um-label" for="stSmtpFromName">Sender Name</label><div class="um-input-wrap"><i class="fa-solid fa-signature um-input-icon"></i><input type="text" class="um-input" id="stSmtpFromName" placeholder="Thabiso Mhlongo" maxlength="100" autocomplete="off"></div></div>
-                                            <div class="atl-field-error" id="errStFromName" style="display:none;"></div>
-                                        </div>
-                                    </div>
-                                    <div class="row" style="align-items:center;">
-                                        <div class="col-md-4">
-                                            <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stSmtpTestBtn" onclick="testSmtpConnection()">
-                                                <i class="fa-solid fa-plug-circle-check" style="margin-right:5px;"></i>Test Connection
-                                            </button>
-                                        </div>
-                                        <div class="col-md-8">
-                                            <p class="um-section-desc" id="stSmtpTestResult" role="status" aria-live="polite" style="margin:0;"></p>
-                                        </div>
-                                    </div>
-                                    <div class="um-divider" style="margin:18px 0;"></div>
-                                    <div id="stInboxBlock">
-                                        <h5 class="um-section-label" style="margin:0 0 4px;">Customer replies (inbox)</h5>
-                                        <p class="um-section-desc" style="margin:0 0 10px;">Reads this mailbox (read-only: nothing is ever moved, marked or deleted) so customers&rsquo; answers to your replies appear under each inquiry in Inquiries. Needs a one-time Microsoft 365 permission for the app (Mail.Read, limited to this mailbox). Only mail received after you switch it on is read.</p>
-                                        <p class="um-section-desc" id="stInboxStatus" role="status" aria-live="polite" style="margin:0 0 10px;"></p>
-                                        <div class="row" style="align-items:center;">
-                                            <div class="col-md-4">
-                                                <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stInboxToggleBtn" onclick="toggleInboxSync()">
-                                                    <i class="fa-solid fa-power-off" style="margin-right:5px;"></i><span>Switch on</span>
-                                                </button>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stInboxTestBtn" onclick="testInboxAccess()">
-                                                    <i class="fa-solid fa-inbox" style="margin-right:5px;"></i>Test inbox access
-                                                </button>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stInboxRunBtn" onclick="runInboxSync()">
-                                                    <i class="fa-solid fa-rotate" style="margin-right:5px;"></i>Check for replies now
-                                                </button>
-                                            </div>
-                                        </div>
-                                        <div id="stInboxResult" role="status" aria-live="polite" class="um-section-desc" style="margin:10px 0 0; white-space:pre-line;"></div>
-                                    </div>
-                                </div>
-
+                            <div class="um-panel active" id="intPanelGoogle">
                                 <!-- Card: Google Calendar -->
                                 <div class="atl-card um-settings-card" id="stGoogleCard" style="display:none;">
                                     <div class="um-icon-header">
@@ -6287,30 +6367,24 @@
                                     <div id="stGoogleResult" role="status" aria-live="polite" class="um-section-desc" style="margin:10px 0 0; white-space:pre-line;"></div>
                                 </div>
 
-                                <!-- Card: Notifications -->
+                                <!-- Card: Microsoft 365 calendar (information + shortcuts; its controls live on the Calendar page) -->
                                 <div class="atl-card um-settings-card">
                                     <div class="um-icon-header">
-                                        <div class="um-icon-header__icon"><i class="fa-solid fa-bell"></i></div>
+                                        <div class="um-icon-header__icon"><i class="fa-brands fa-microsoft"></i></div>
                                         <div>
-                                            <h4 class="um-section-label" style="margin-bottom:4px;">Notifications</h4>
-                                            <p class="um-section-desc">The inbox where new-booking alerts are delivered. Use &ldquo;Send Test&rdquo; to confirm SMTP is working.</p>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Microsoft 365 Calendar</h4>
+                                            <p class="um-section-desc">Two-way sync with the shared Microsoft 365 calendar is switched on and monitored from the Calendar page. It signs in with the same Microsoft 365 app as email, which is set up under Email Setup.</p>
                                         </div>
                                     </div>
                                     <div class="um-divider"></div>
-                                    <!-- The button sits on the input's own line (.um-inline-action) rather than in a separate Bootstrap
-                                         column: floated columns don't stretch to the row's height, so the old col-md-4 + flex-end
-                                         wrapper left "Send Test" level with the LABEL, ~30px above the email box, on desktop. -->
-                                    <div class="um-field-group"><label class="um-label" for="stNotificationEmail">Notifications Email <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(receives new booking alerts)</small></label>
-                                        <div class="um-inline-action">
-                                            <div class="um-input-wrap"><i class="fa-solid fa-envelope um-input-icon"></i><input type="email" class="um-input" id="stNotificationEmail" placeholder="admin@thabisomhlongo.com" aria-describedby="errStNotif"></div>
-                                            <button type="button" class="atl-btn atl-btn--ghost" id="testNotifBtn" onclick="sendTestNotification()">
-                                                <i class="fa-solid fa-paper-plane" style="margin-right:5px;" aria-hidden="true"></i>Send Test
-                                            </button>
-                                        </div>
-                                        <div class="atl-field-error" id="errStNotif" style="display:none;"></div>
+                                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                        <button type="button" class="atl-btn atl-btn--ghost" data-nav-go="calendarAdmin"><i class="fa-solid fa-calendar-days" style="margin-right:6px;"></i>Open Calendar</button>
+                                        <button type="button" class="atl-btn atl-btn--ghost" data-nav-go="emailSetupAdmin"><i class="fa-solid fa-envelopes-bulk" style="margin-right:6px;"></i>Open Email Setup</button>
                                     </div>
                                 </div>
+                            </div>
 
+                            <div class="um-panel" id="intPanelPlaces">
                                 <!-- Card: Location search (Google Places) — 2026-10 Places audit. Read-only check: runs one real
                                      venue search through lib/places.js and reports what Google said. The key itself lives
                                      only in the server's .env (GOOGLE_MAPS_API_KEY) and is never shown here. -->
@@ -6328,106 +6402,25 @@
                                     </button>
                                     <div id="stPlacesResult" class="um-section-desc um-places-result" role="status" aria-live="polite" style="margin:10px 0 0; white-space:pre-line;"></div>
                                 </div>
-
-                                <!-- Save bar (saves all three cards) -->
-                                <div class="um-settings-save">
-                                    <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Saved values take effect immediately &mdash; no restart needed.</span>
-                                    <button id="btnSaveSystemSettings" class="atl-btn atl-btn--primary" onclick="saveSystemSettings(this)">
-                                        <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save System Settings
-                                    </button>
-                                </div>
                             </div>
 
-                            <!-- ===== PANEL: Website Sections (public homepage visibility) ===== -->
-                            <div class="um-panel" id="prefPanelSections">
-                                <div class="atl-card">
-                                    <div class="um-icon-header">
-                                        <div class="um-icon-header__icon"><i class="fa-solid fa-table-cells-large"></i></div>
-                                        <div style="flex:1;">
-                                            <h4 class="um-section-label" style="margin-bottom:4px;">Website Sections</h4>
-                                            <p class="um-section-desc">Show or hide sections of the public homepage. Changes publish to the live site the moment you save &mdash; the layout, navigation and animations adjust automatically.</p>
-                                        </div>
-                                    </div>
-                                    <div class="um-divider"></div>
-
-                                    <!-- Toolbar: search + bulk actions -->
-                                    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:18px;">
-                                        <div class="um-input-wrap" style="flex:1 1 220px;">
-                                            <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
-                                            <input type="text" id="secSearch" class="um-input" placeholder="Search sections…" aria-label="Search sections">
-                                        </div>
-                                        <button type="button" class="atl-btn atl-btn--ghost" id="secEnableAll"><i class="fa-solid fa-eye" style="margin-right:6px;"></i>Enable All</button>
-                                        <button type="button" class="atl-btn atl-btn--ghost" id="secDisableAll"><i class="fa-solid fa-eye-slash" style="margin-right:6px;"></i>Disable All</button>
-                                        <button type="button" class="atl-btn atl-btn--ghost" id="secReset"><i class="fa-solid fa-rotate-left" style="margin-right:6px;"></i>Reset to Default</button>
-                                    </div>
-
-                                    <div id="secLoading" style="display:none; text-align:center; padding:24px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i> Loading sections…</div>
-                                    <div id="secEmpty" style="display:none; text-align:center; padding:18px; color:var(--atl-muted);">No sections match your search.</div>
-                                    <div id="sectionsList" role="group" aria-label="Website section visibility"></div>
-
-                                    <!-- Save bar -->
-                                    <div class="um-settings-save" style="margin-top:20px;">
-                                        <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Changes go live on the public site the moment you save.</span>
-                                        <button id="btnSaveSections" class="atl-btn atl-btn--primary" onclick="saveSectionVisibility(this)">
-                                            <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Changes
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="um-panel" id="prefPanelAbout">
+                            <div class="um-panel" id="intPanelAbout">
                                 <div class="atl-card">
                                     <div class="um-icon-header">
                                         <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
                                         <div>
-                                            <h4 class="um-section-label" style="margin-bottom:4px;">About System Settings</h4>
-                                            <p class="um-section-desc">Gateway, mail-server and notification settings that power online payments and every system email.</p>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">About Integrations</h4>
+                                            <p class="um-section-desc">The outside services the website talks to besides payments and email.</p>
                                         </div>
                                     </div>
 
                                     <div class="um-divider"></div>
 
                                     <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
-                                        The <strong style="color:var(--atl-ink);">Settings</strong> tab is organised into three cards &mdash; <strong style="color:var(--atl-ink);">PayFast</strong>, <strong style="color:var(--atl-ink);">Email (SMTP)</strong> and <strong style="color:var(--atl-ink);">Notifications</strong>. Everything saves together with the single <strong style="color:var(--atl-ink);">Save System Settings</strong> button and takes effect immediately &mdash; no restart. Leaving a field blank keeps its current saved value. Below is what every field does and how to fill it in.
+                                        Payments are set up under <strong style="color:var(--atl-ink);">Revenue &rarr; Payment Setup</strong> and email under <strong style="color:var(--atl-ink);">System &rarr; Email</strong>. This page holds the <strong style="color:var(--atl-ink);">Google Calendar</strong> connection and the <strong style="color:var(--atl-ink);">Location Search</strong> check. Changes take effect immediately &mdash; no restart. Only administrators can open it.
                                     </p>
 
                                     <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
-
-                                    <!-- PayFast -->
-                                    <div class="um-role-info" style="margin-bottom:16px;">
-                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-credit-card" style="color:var(--atl-amber);"></i> PayFast</p>
-                                        <p class="um-role-info__desc">Connects the public booking flow to the <strong style="color:var(--atl-ink);">PayFast</strong> gateway so clients can pay deposits and invoices online. If these are wrong or empty, online card payments won't go through.</p>
-                                        <ul class="um-role-list">
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Merchant ID</strong> &amp; <strong style="color:var(--atl-ink);">Merchant Key</strong> &mdash; your PayFast account credentials (PayFast dashboard &rarr; Settings &rarr; Integration).</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Passphrase</strong> &mdash; an optional security salt that signs each transaction. It is never shown back for safety &mdash; the field stays blank with a &ldquo;set&rdquo; hint; leave it blank to keep the current one, or type a new value to replace it.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Gateway URL</strong> &mdash; use the <em>sandbox</em> URL (<code>sandbox.payfast.co.za</code>) while testing, and switch to the <em>live</em> URL (<code>www.payfast.co.za</code>) when you go live.</li>
-                                        </ul>
-                                        <p class="um-role-info__desc" style="margin:8px 0 0;"><i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-right:6px;"></i>Always test in sandbox first &mdash; a mismatched key or passphrase makes payments fail PayFast's signature check.</p>
-                                    </div>
-
-                                    <!-- Email (SMTP) -->
-                                    <div class="um-role-info" style="margin-bottom:16px;">
-                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-envelopes-bulk" style="color:var(--atl-amber);"></i> Email (SMTP)</p>
-                                        <p class="um-role-info__desc">The outgoing mail server used for <strong style="color:var(--atl-ink);">every</strong> system email &mdash; quotes, booking confirmations, payment receipts, password resets and the new <strong style="color:var(--atl-ink);">user invitation</strong> emails. If email stops working, this is the first place to check.</p>
-                                        <ul class="um-role-list">
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">SMTP Host</strong> &mdash; your mail provider's server, e.g. <code>smtp.office365.com</code> for Microsoft 365.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Port &amp; Encryption</strong> &mdash; <code>587</code> with <strong style="color:var(--atl-ink);">STARTTLS</strong> (Microsoft 365 and most providers) or <code>465</code> with SSL. Mail is never sent unencrypted.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">From Address &amp; Sender Name</strong> &mdash; what recipients see. With Microsoft 365 the From address must be the signed-in mailbox (or one it has &ldquo;Send As&rdquo; permission for).</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">SMTP User</strong> &amp; <strong style="color:var(--atl-ink);">Password</strong> &mdash; the mailbox login. The password is stored encrypted and never shown again; leave it blank to keep the saved one. Microsoft 365 needs <strong style="color:var(--atl-ink);">Authenticated SMTP</strong> enabled for the mailbox (and the tenant). Gmail needs an <strong style="color:var(--atl-ink);">App Password</strong>.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Test Connection</strong> &mdash; signs in with the values on screen (saved or not) without sending an email. Saving changed connection details runs the same check first and refuses to overwrite working settings with ones that fail.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Sign-in method</strong> &mdash; <strong style="color:var(--atl-ink);">Microsoft 365 OAuth</strong> signs in as an app instead of with the mailbox password, so security defaults, MFA and the password-SMTP shutdown do not get in the way. It needs a one-time setup (below).</li>
-                                        </ul>
-                                        <p class="um-section-label" style="margin:14px 0 6px;">One-time Microsoft 365 setup for OAuth</p>
-                                        <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.8;">
-                                            <li>Entra admin center &rarr; <strong style="color:var(--atl-ink);">App registrations &rarr; New registration</strong> (single tenant). Copy the <strong style="color:var(--atl-ink);">Application (client) ID</strong> and <strong style="color:var(--atl-ink);">Directory (tenant) ID</strong>.</li>
-                                            <li><strong style="color:var(--atl-ink);">API permissions &rarr; Add a permission &rarr; APIs my organization uses &rarr; Office 365 Exchange Online &rarr; Application permissions &rarr; SMTP.SendAsApp</strong>, then <strong style="color:var(--atl-ink);">Grant admin consent</strong>.</li>
-                                            <li><strong style="color:var(--atl-ink);">Certificates &amp; secrets &rarr; New client secret</strong>. Copy the secret <strong style="color:var(--atl-ink);">Value</strong> immediately (not the Secret ID) and note its expiry date.</li>
-                                            <li>Entra &rarr; <strong style="color:var(--atl-ink);">Enterprise applications</strong> &rarr; your app &rarr; copy its <strong style="color:var(--atl-ink);">Object ID</strong> (not the one on the App registration page).</li>
-                                            <li>In PowerShell: <code>Connect-ExchangeOnline -Organization &lt;tenant ID&gt;</code>, then <code>New-ServicePrincipal -AppId &lt;client ID&gt; -ObjectId &lt;enterprise-app Object ID&gt;</code>, then <code>Add-MailboxPermission -Identity "bookings@thabisomhlongo.com" -User &lt;enterprise-app Object ID&gt; -AccessRights FullAccess</code>.</li>
-                                            <li>Keep <strong style="color:var(--atl-ink);">Authenticated SMTP</strong> enabled for the mailbox and the organisation. Allow 15&ndash;30 minutes, enter the three values here, press <strong style="color:var(--atl-ink);">Test Connection</strong>, then <strong style="color:var(--atl-ink);">Save</strong>.</li>
-                                        </ol>
-                                        <ul class="um-role-list" style="margin-top:8px;">
-                                    </div>
 
                                     <!-- Google Calendar -->
                                     <div class="um-role-info" style="margin-bottom:16px;">
@@ -6452,40 +6445,14 @@
                                         <p class="um-role-info__desc" style="margin:8px 0 0;"><i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-right:6px;"></i>If a booking or event stops appearing on Google Calendar, run <strong style="color:var(--atl-ink);">Test connection</strong> first &mdash; it says whether Google has cancelled the sign-in (then press <em>Reconnect Google</em>) or the Calendar API has been switched off.</p>
                                     </div>
 
-                                    <!-- Notifications -->
                                     <div class="um-role-info" style="margin-bottom:8px;">
-                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-bell" style="color:var(--atl-amber);"></i> Notifications</p>
-                                        <p class="um-role-info__desc">Where the system's internal alerts are delivered.</p>
-                                        <ul class="um-role-list">
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Notifications Email</strong> &mdash; the inbox that receives new-booking alerts, overdue-payment warnings and other admin notices.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Send Test</strong> &mdash; sends a real test message to that address through your SMTP server and shows the mail server's actual answer. Success means the server <em>accepted</em> it &mdash; check the inbox too, as acceptance does not prove delivery. Use it whenever you change the Email (SMTP) card.</li>
-                                        </ul>
-                                    </div>
-
-                                    <h4 class="um-section-label" style="margin: 20px 0 12px;">Common tasks</h4>
-                                    <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
-                                        <li><strong style="color:var(--atl-ink);">Connect PayFast</strong> &mdash; paste your Merchant ID, Merchant Key and (optionally) passphrase, set the sandbox URL to test, then switch to the live URL and <strong style="color:var(--atl-ink);">Save System Settings</strong>.</li>
-                                        <li><strong style="color:var(--atl-ink);">Set up email</strong> &mdash; enter the SMTP host, port, encryption, sender and login, press <strong style="color:var(--atl-ink);">Test Connection</strong>, save, then use <strong style="color:var(--atl-ink);">Send Test</strong> to confirm a real message is accepted.</li>
-                                        <li><strong style="color:var(--atl-ink);">Route admin alerts</strong> &mdash; set the Notifications Email so new-booking and overdue-payment notices reach the right inbox.</li>
-                                    </ol>
-
-                                    <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
-                                        <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                        <span>After changing the <strong style="color:var(--atl-ink);">Email (SMTP)</strong> card, always click <strong style="color:var(--atl-ink);">Send Test</strong> &mdash; a silent mis-configuration here stops quotes, receipts and password resets from ever arriving.</span>
-                                    </p>
-
-                                    <div class="um-security-tips" style="margin-top:14px;">
-                                        <i class="fa-solid fa-circle-info"></i>
-                                        <ul>
-                                            <li>All three cards are saved together by the single <strong>Save System Settings</strong> button, and changes apply immediately &mdash; no server restart.</li>
-                                            <li>Leaving a field blank keeps its current saved value; it won't be wiped.</li>
-                                            <li>Only <strong>Administrators</strong> can open System Settings.</li>
-                                        </ul>
+                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-location-dot" style="color:var(--atl-amber);"></i> Location Search</p>
+                                        <p class="um-role-info__desc">Powers venue search in the public booking form and in the booking, event and accolade drawers. <strong style="color:var(--atl-ink);">Test Google Places</strong> runs one real search and says what Google answered, or exactly what to fix in Google Cloud. The key itself lives only on the server and is never shown here.</p>
                                     </div>
 
                                     <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
                                         <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                        <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Finance</strong>, where PayFast payments are recorded; <strong style="color:var(--atl-ink);">Newsletter</strong> and <strong style="color:var(--atl-ink);">User Management</strong>, which rely on the SMTP server to send mail; and <strong style="color:var(--atl-ink);">Email Logs</strong> to confirm what actually went out.</span>
+                                        <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Calendar</strong>, where the Google and Microsoft 365 sync status is shown, and <strong style="color:var(--atl-ink);">Email Setup</strong> for the Microsoft 365 app.</span>
                                     </p>
                                 </div>
                             </div>
@@ -6494,26 +6461,142 @@
                 </div>
             </div>
 
-                        <!-- Booking Schedule moved to Calendar section → Schedule tab -->
+            <!-- ===== System > Admin Portal (the Appearance card was inside Admin Settings; the login background inside Site Appearance) ===== -->
+            <div class="admin-section" id="adminPortalAdmin">
+                <div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">System</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-display"></i> Admin Portal</h2>
+                            <p class="atl-section-sub">How this admin area looks on your screen, and what the admin sign-in page shows.</p>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
 
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="atl-tab-bar" role="tablist">
+                                <button class="atl-tab-btn active" data-um-tab="apPanelAppearance" role="tab" aria-selected="true"><i class="fa-solid fa-palette"></i> Appearance</button>
+                                <button class="atl-tab-btn" data-um-tab="apPanelLogin" role="tab" aria-selected="false"><i class="fa-solid fa-right-to-bracket"></i> Sign-in Page</button>
+                                <button class="atl-tab-btn" data-um-tab="apPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
+                            </div>
+                            <div class="um-panel active" id="apPanelAppearance">
+                                <!-- Card: Appearance — the SAME panel the header control opens.
+                                     js/appearance.js builds both from one definition and keeps
+                                     them in sync, so changing an axis in either is reflected in
+                                     the other immediately. -->
+                                <div class="atl-card um-settings-card">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-palette"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Appearance</h4>
+                                            <p class="um-section-desc">Finish, house accent and layout density. Applies instantly and is saved to this browser — it does not affect other admins.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <div id="atlAppearancePanelPrefs"></div>
+                                </div>
+                            </div>
 
+                            <div class="um-panel" id="apPanelLogin">
+                        <!-- Admin Login Background Card -->
+                        <div class="atl-card" style="margin-bottom:20px;">
+                            <div class="um-icon-header" style="margin-bottom:16px;">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-image"></i></div>
+                                <div>
+                                    <h4 class="um-section-label">Admin Login Background</h4>
+                                    <p class="um-section-desc">Full-screen image shown behind the admin sign-in screen. A landscape photo around 1920&times;1080 works best. It is saved on the server, so it applies to everyone who opens the sign-in page.</p>
+                                </div>
+                            </div>
+                            <hr class="um-divider" style="margin-top:0;">
+                            <label for="brandLoginBgFile" class="um-upload-zone">
+                                <i class="fa-solid fa-cloud-arrow-up um-upload-icon"></i>
+                                <p class="um-upload-text">Drag &amp; drop or click to upload</p>
+                                <input type="file" id="brandLoginBgFile" class="um-file-input" accept="image/*"
+                                       onchange="uploadBrandingAsset('brandLoginBgFile','brandLoginBgUrl','brandLoginBgPreview')">
+                            </label>
+                            <div style="text-align:center;margin-top:12px;">
+                                <img id="brandLoginBgPreview" src="" alt="Login background preview"
+                                     style="display:none;max-width:100%;max-height:200px;object-fit:cover;border-radius:8px;border:1px solid var(--atl-line);">
+                            </div>
+                            <div class="um-input-wrap" style="margin-top:10px;">
+                                <i class="fa-solid fa-link um-input-icon"></i>
+                                <input type="text" id="brandLoginBgUrl" class="um-input"
+                                       placeholder="Or enter image URL…" style="padding-left:34px;"
+                                       oninput="updateBrandPreview('brandLoginBgUrl','brandLoginBgPreview')">
+                            </div>
+                            <div style="margin-top:10px; text-align:right;">
+                                <button type="button" id="brandLoginBgResetBtn" onclick="resetLoginBackground()" class="um-btn um-btn--ghost um-btn--sm" title="Clear the login background back to the default" style="color:var(--atl-muted); font-size:12px;">
+                                    <i class="fa-solid fa-rotate-left" style="margin-right:5px;"></i>Restore default
+                                </button>
+                            </div>
+                            <p class="um-section-desc" style="margin-top:4px; font-size:12px; display:flex; align-items:flex-start; gap:6px;">
+                                <i class="fa-solid fa-circle-info" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                <span>Click <strong style="color:var(--atl-ink);">Save login background</strong> to apply. <strong style="color:var(--atl-ink);">Restore default</strong> clears it back to the sign-in screen's built-in background.</span>
+                            </p>
+                        </div>
+
+                        <!-- Save login background dock -->
+                        <div class="atl-save-dock">
+                            <span class="atl-save-dock__hint">Changes apply to the admin sign-in screen after saving.</span>
+                            <button type="button" class="atl-btn atl-btn--primary" onclick="saveBranding('site')">
+                                <i class="fa-solid fa-floppy-disk"></i> Save login background
+                            </button>
+                        </div>
+                            </div>
+
+                            <div class="um-panel" id="apPanelAbout">
+                                <div class="atl-card">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">About Admin Portal</h4>
+                                            <p class="um-section-desc">Two things that belong to the admin area itself rather than to the public website.</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="um-divider"></div>
+
+                                    <div class="um-role-info" style="margin-bottom:16px;">
+                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-palette" style="color:var(--atl-amber);"></i> Appearance &mdash; this browser only</p>
+                                        <p class="um-role-info__desc">Finish, house accent and layout density. It applies instantly and is remembered by this browser only, so it never changes what other admins see. The same controls are in the account menu (top right &rarr; Appearance) for every role.</p>
+                                    </div>
+
+                                    <div class="um-role-info" style="margin-bottom:16px;">
+                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-right-to-bracket" style="color:var(--atl-amber);"></i> Sign-in Page &mdash; everyone, administrators only</p>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Admin Login Background</strong> &mdash; the full-screen image behind the admin sign-in screen. It is saved on the server, so everyone who opens the sign-in page sees it; it is hidden once you are inside the dashboard.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> Click <strong style="color:var(--atl-ink);">Restore default</strong> (or clear the URL field) and <strong style="color:var(--atl-ink);">Save login background</strong> &mdash; the sign-in screen returns to its default background.</li>
+                                        </ul>
+                                    </div>
+
+                                    <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                        <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                        <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Site Appearance</strong> for the public website&rsquo;s logo, favicon, fonts and homepage sections.</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <!-- Branding -->
             <div class="admin-section" id="brandingAdmin">
                 <div>
                     <div class="atl-section-hd">
                         <div>
-                            <p class="atl-section-eyebrow">Visual Identity</p>
-                            <h2 class="atl-section-heading"><i class="fa-solid fa-palette"></i> Branding</h2>
-                            <p class="atl-section-sub">Control the visual identity of the website and all outgoing communications.</p>
+                            <p class="atl-section-eyebrow">Public Site</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-palette"></i> Site Appearance</h2>
+                            <p class="atl-section-sub">The public website&rsquo;s logo, favicon and font, which homepage sections show, and the banners used in outgoing emails.</p>
                         </div>
                     </div>
                     <div class="atl-section-rule"></div>
 
                     <div class="atl-tab-bar" role="tablist">
                         <button class="atl-tab-btn active" data-um-tab="brandPanelIdentity" role="tab" aria-selected="true"><i class="fa-solid fa-fingerprint"></i> Identity</button>
-                        <button class="atl-tab-btn" data-um-tab="brandPanelEmail" role="tab" aria-selected="false"><i class="fa-solid fa-panorama"></i> Banners</button>
-                        <button class="atl-tab-btn" data-um-tab="brandPanelSite" role="tab" aria-selected="false"><i class="fa-solid fa-globe"></i> Site</button>
+                        <button class="atl-tab-btn" data-um-tab="brandPanelHomepage" role="tab" aria-selected="false"><i class="fa-solid fa-table-cells-large"></i> Homepage Sections</button>
+                        <button class="atl-tab-btn" data-um-tab="brandPanelEmail" role="tab" aria-selected="false"><i class="fa-solid fa-panorama"></i> Email Banners</button>
                         <button class="atl-tab-btn" data-um-tab="brandPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
                     </div>
 
@@ -6753,53 +6836,43 @@
 
                     </div>
 
-                    <div class="um-panel" id="brandPanelSite">
-                        <!-- Admin Login Background Card -->
-                        <div class="atl-card" style="margin-bottom:20px;">
-                            <div class="um-icon-header" style="margin-bottom:16px;">
-                                <div class="um-icon-header__icon"><i class="fa-solid fa-image"></i></div>
-                                <div>
-                                    <h4 class="um-section-label">Admin Login Background</h4>
-                                    <p class="um-section-desc">Full-screen image shown behind the admin sign-in screen. A landscape photo around 1920&times;1080 works best.</p>
+                    <!-- ===== PANEL: Homepage Sections (public homepage visibility; was Settings > Website Sections, before the Admin Settings page was split up) ===== -->
+                    <div class="um-panel" id="brandPanelHomepage">
+                        <div class="atl-card">
+                            <div class="um-icon-header">
+                                <div class="um-icon-header__icon"><i class="fa-solid fa-table-cells-large"></i></div>
+                                <div style="flex:1;">
+                                    <h4 class="um-section-label" style="margin-bottom:4px;">Homepage Sections</h4>
+                                    <p class="um-section-desc">Show or hide sections of the public homepage. Changes publish to the live site the moment you save &mdash; the layout, navigation and animations adjust automatically.</p>
                                 </div>
                             </div>
-                            <hr class="um-divider" style="margin-top:0;">
-                            <label for="brandLoginBgFile" class="um-upload-zone">
-                                <i class="fa-solid fa-cloud-arrow-up um-upload-icon"></i>
-                                <p class="um-upload-text">Drag &amp; drop or click to upload</p>
-                                <input type="file" id="brandLoginBgFile" class="um-file-input" accept="image/*"
-                                       onchange="uploadBrandingAsset('brandLoginBgFile','brandLoginBgUrl','brandLoginBgPreview')">
-                            </label>
-                            <div style="text-align:center;margin-top:12px;">
-                                <img id="brandLoginBgPreview" src="" alt="Login background preview"
-                                     style="display:none;max-width:100%;max-height:200px;object-fit:cover;border-radius:8px;border:1px solid var(--atl-line);">
+                            <div class="um-divider"></div>
+
+                            <!-- Toolbar: search + bulk actions -->
+                            <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:18px;">
+                                <div class="um-input-wrap" style="flex:1 1 220px;">
+                                    <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                                    <input type="text" id="secSearch" class="um-input" placeholder="Search sections…" aria-label="Search sections">
+                                </div>
+                                <button type="button" class="atl-btn atl-btn--ghost" id="secEnableAll"><i class="fa-solid fa-eye" style="margin-right:6px;"></i>Enable All</button>
+                                <button type="button" class="atl-btn atl-btn--ghost" id="secDisableAll"><i class="fa-solid fa-eye-slash" style="margin-right:6px;"></i>Disable All</button>
+                                <button type="button" class="atl-btn atl-btn--ghost" id="secReset"><i class="fa-solid fa-rotate-left" style="margin-right:6px;"></i>Reset to Default</button>
                             </div>
-                            <div class="um-input-wrap" style="margin-top:10px;">
-                                <i class="fa-solid fa-link um-input-icon"></i>
-                                <input type="text" id="brandLoginBgUrl" class="um-input"
-                                       placeholder="Or enter image URL…" style="padding-left:34px;"
-                                       oninput="updateBrandPreview('brandLoginBgUrl','brandLoginBgPreview')">
-                            </div>
-                            <div style="margin-top:10px; text-align:right;">
-                                <button type="button" id="brandLoginBgResetBtn" onclick="resetLoginBackground()" class="um-btn um-btn--ghost um-btn--sm" title="Clear the login background back to the default" style="color:var(--atl-muted); font-size:12px;">
-                                    <i class="fa-solid fa-rotate-left" style="margin-right:5px;"></i>Restore default
+
+                            <div id="secLoading" style="display:none; text-align:center; padding:24px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i> Loading sections…</div>
+                            <div id="secEmpty" style="display:none; text-align:center; padding:18px; color:var(--atl-muted);">No sections match your search.</div>
+                            <div id="sectionsList" role="group" aria-label="Website section visibility"></div>
+
+                            <!-- Save bar -->
+                            <div class="um-settings-save" style="margin-top:20px;">
+                                <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Changes go live on the public site the moment you save.</span>
+                                <button id="btnSaveSections" class="atl-btn atl-btn--primary" onclick="saveSectionVisibility(this)">
+                                    <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Changes
                                 </button>
                             </div>
-                            <p class="um-section-desc" style="margin-top:4px; font-size:12px; display:flex; align-items:flex-start; gap:6px;">
-                                <i class="fa-solid fa-circle-info" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span>Click <strong style="color:var(--atl-ink);">Save Site Settings</strong> to apply. <strong style="color:var(--atl-ink);">Restore default</strong> clears it back to the sign-in screen's built-in background.</span>
-                            </p>
                         </div>
-
-                        <!-- Save Site Settings dock -->
-                        <div class="atl-save-dock">
-                            <span class="atl-save-dock__hint">Changes apply to the admin sign-in screen after saving.</span>
-                            <button type="button" class="atl-btn atl-btn--primary" onclick="saveBranding('site')">
-                                <i class="fa-solid fa-floppy-disk"></i> Save Site Settings
-                            </button>
-                        </div>
-
                     </div>
+
 
                     <div class="um-panel" id="brandPanelAbout">
                         <div class="atl-card">
@@ -6814,7 +6887,7 @@
                             <div class="um-divider"></div>
 
                             <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
-                                Branding is grouped into a few sets of settings. Upload an image (or paste a URL) and a <strong style="color:var(--atl-ink);">preview</strong> appears straight away &mdash; then click that tab's <strong style="color:var(--atl-ink);">Save</strong> button (<strong style="color:var(--atl-ink);">Save Identity</strong> or <strong style="color:var(--atl-ink);">Save Site Settings</strong>) to apply. Saved values live on the server, so they're identical on every device and take effect immediately.
+                                Branding is grouped into a few sets of settings. Upload an image (or paste a URL) and a <strong style="color:var(--atl-ink);">preview</strong> appears straight away &mdash; then click <strong style="color:var(--atl-ink);">Save Identity</strong> to apply. Saved values live on the server, so they're identical on every device and take effect immediately.
                             </p>
 
                             <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
@@ -6833,25 +6906,25 @@
                             <div class="um-role-info" style="margin-bottom:16px;">
                                 <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-panorama" style="color:var(--atl-amber);"></i> Email Banners</p>
                                 <ul class="um-role-list">
-                                    <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Banner Library</strong> (under the <strong style="color:var(--atl-ink);">Banners</strong> tab) manages a per-category banner image system &mdash; one image can be assigned to any number of email templates (quotes, confirmations, invoices, and more), and updates every email using it the moment you save.</li>
-                                    <li class="can"><i class="fa-solid fa-check"></i> See the Banners tab's own <strong style="color:var(--atl-ink);">About</strong> view for the full picture: categories, image specs, and how assignment works.</li>
+                                    <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Banner Library</strong> (under the <strong style="color:var(--atl-ink);">Email Banners</strong> tab) manages a per-category banner image system &mdash; one image can be assigned to any number of email templates (quotes, confirmations, invoices, and more), and updates every email using it the moment you save.</li>
+                                    <li class="can"><i class="fa-solid fa-check"></i> See the Email Banners tab's own <strong style="color:var(--atl-ink);">About</strong> view for the full picture: categories, image specs, and how assignment works.</li>
                                 </ul>
                             </div>
 
-                            <!-- Site -->
+                            <!-- Homepage Sections -->
                             <div class="um-role-info" style="margin-bottom:8px;">
-                                <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-globe" style="color:var(--atl-amber);"></i> Site</p>
+                                <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-table-cells-large" style="color:var(--atl-amber);"></i> Homepage Sections</p>
                                 <ul class="um-role-list">
-                                    <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Admin Login Background</strong> &mdash; the full-screen image behind the admin sign-in screen. It is saved on the server, so everyone who opens the login page sees it; it is automatically hidden once you're inside the dashboard.</li>
-                                    <li class="can"><i class="fa-solid fa-check"></i> Click <strong style="color:var(--atl-ink);">Restore default</strong> (or clear the URL field) and <strong style="color:var(--atl-ink);">Save Site Settings</strong> &mdash; the sign-in screen returns to its default background.</li>
+                                    <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Show or hide</strong> each section of the public homepage. The page layout, navigation and animations adjust automatically.</li>
+                                    <li class="can"><i class="fa-solid fa-check"></i> Changes go live on the public site the moment you press <strong style="color:var(--atl-ink);">Save Changes</strong>. A section with nothing published stays hidden by itself.</li>
                                 </ul>
                             </div>
 
                             <h4 class="um-section-label" style="margin: 20px 0 12px;">Common tasks</h4>
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
                                 <li><strong style="color:var(--atl-ink);">Swap the logo</strong> &mdash; under <strong style="color:var(--atl-ink);">Identity</strong>, upload the header logo (or paste a URL), check the preview, and <strong style="color:var(--atl-ink);">Save Identity</strong>.</li>
-                                <li><strong style="color:var(--atl-ink);">Brand your emails</strong> &mdash; under <strong style="color:var(--atl-ink);">Banners</strong>, create a banner and assign it to one or more email templates.</li>
-                                <li><strong style="color:var(--atl-ink);">Change the login screen</strong> &mdash; under <strong style="color:var(--atl-ink);">Site</strong>, set the Admin Login Background (clear the field to reset it), then save.</li>
+                                <li><strong style="color:var(--atl-ink);">Brand your emails</strong> &mdash; under <strong style="color:var(--atl-ink);">Email Banners</strong>, create a banner and assign it to one or more email templates.</li>
+                                <li><strong style="color:var(--atl-ink);">Show or hide a homepage section</strong> &mdash; under <strong style="color:var(--atl-ink);">Homepage Sections</strong>, switch it off or on and save.</li>
                             </ol>
 
                             <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
@@ -6863,14 +6936,14 @@
                                 <i class="fa-solid fa-circle-info"></i>
                                 <ul>
                                     <li>Uploads show a live preview here in the panel; the change goes live only after that tab's <strong>Save</strong> button.</li>
-                                    <li>Branding applies to the public website and the admin dashboard; only the Login Background is admin-only.</li>
+                                    <li>Branding applies to the public website and the admin dashboard; only administrators can open Site Appearance. The sign-in page background is under <strong>System &rarr; Admin Portal</strong>.</li>
                                     <li>Only <strong>Administrators</strong> can change branding.</li>
                                 </ul>
                             </div>
 
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">About Me</strong> and <strong style="color:var(--atl-ink);">Home Slider</strong> for the public content this styles; <strong style="color:var(--atl-ink);">Newsletter</strong>, which wraps campaigns in this brand; and <strong style="color:var(--atl-ink);">System Settings</strong> for the mail server behind branded emails.</span>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">About Me</strong> and <strong style="color:var(--atl-ink);">Home Slider</strong> for the public content this styles; <strong style="color:var(--atl-ink);">Newsletter</strong>, which wraps campaigns in this brand; and <strong style="color:var(--atl-ink);">Email Setup</strong> for the mail server behind branded emails.</span>
                             </p>
                         </div>
                     </div>
@@ -6878,13 +6951,288 @@
             </div>
 
 
+            <!-- ===== System > Email > Email Setup (was inside Admin Settings) ===== -->
+            <div class="admin-section" id="emailSetupAdmin">
+                <div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">System &middot; Email</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-envelopes-bulk"></i> Email Setup</h2>
+                            <p class="atl-section-sub">The mailbox the website sends from, where customers&rsquo; replies are read, and where new-booking alerts go.</p>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
+
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="atl-tab-bar" role="tablist">
+                                <button class="atl-tab-btn active" data-um-tab="emPanelSetup" role="tab" aria-selected="true"><i class="fa-solid fa-sliders"></i> Setup</button>
+                                <button class="atl-tab-btn" data-um-tab="emPanelAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info"></i> About</button>
+                            </div>
+                            <div class="um-panel active" id="emPanelSetup">
+                                <div id="emLoading" style="display:none; text-align:center; padding:24px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i> Loading email settings…</div>
+
+                                <!-- Card: Email (SMTP) -->
+                                <div class="atl-card um-settings-card" id="stSmtpCard">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-envelopes-bulk"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Outgoing Mail (Microsoft 365 / SMTP)</h4>
+                                            <p class="um-section-desc">Outgoing mail server that drives every system email &mdash; quotes, booking confirmations, password resets and invitations.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <p class="um-section-desc" id="stSmtpStatus" role="status" style="margin:0 0 14px;"></p>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpHost">SMTP Host</label><div class="um-input-wrap"><i class="fa-solid fa-server um-input-icon"></i><input type="text" class="um-input" id="stSmtpHost" placeholder="smtp.office365.com" autocomplete="off" spellcheck="false"></div></div>
+                                            <div class="atl-field-error" id="errStHost" style="display:none;"></div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpPort">Port</label><div class="um-input-wrap"><i class="fa-solid fa-ethernet um-input-icon"></i><input type="number" class="um-input" id="stSmtpPort" placeholder="587"></div></div>
+                                            <div class="atl-field-error" id="errStPort" style="display:none;"></div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpSecure">Encryption</label><div class="um-input-wrap"><i class="fa-solid fa-shield-halved um-input-icon"></i><select class="um-input" id="stSmtpSecure"><option value="starttls">STARTTLS (587, recommended)</option><option value="ssl">SSL/TLS (465)</option></select></div></div>
+                                            <div class="atl-field-error" id="errStSecure" style="display:none;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpAuth">Sign-in method</label><div class="um-input-wrap"><i class="fa-solid fa-key um-input-icon"></i><select class="um-input" id="stSmtpAuth"><option value="password">Mailbox password</option><option value="oauth">Microsoft 365 OAuth (recommended)</option></select></div></div>
+                                            <div class="atl-field-error" id="errStAuth" style="display:none;"></div>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpUser">SMTP User <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(the mailbox)</small></label><div class="um-input-wrap"><i class="fa-solid fa-user um-input-icon"></i><input type="text" class="um-input" id="stSmtpUser" placeholder="bookings@thabisomhlongo.com" autocomplete="off" spellcheck="false"></div></div>
+                                            <div class="atl-field-error" id="errStUser" style="display:none;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="row" id="stSmtpPassGroup">
+                                        <div class="col-md-12">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpPass">SMTP Password</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stSmtpPass" placeholder="mailbox password" autocomplete="new-password"></div></div>
+                                        </div>
+                                    </div>
+                                    <div id="stSmtpOauthGroup" style="display:none;">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="um-field-group"><label class="um-label" for="stSmtpTenant">Directory (tenant) ID</label><div class="um-input-wrap"><i class="fa-solid fa-building um-input-icon"></i><input type="text" class="um-input" id="stSmtpTenant" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></div></div>
+                                                <div class="atl-field-error" id="errStTenant" style="display:none;"></div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="um-field-group"><label class="um-label" for="stSmtpClient">Application (client) ID</label><div class="um-input-wrap"><i class="fa-solid fa-id-card um-input-icon"></i><input type="text" class="um-input" id="stSmtpClient" placeholder="from the app registration" autocomplete="off" spellcheck="false"></div></div>
+                                                <div class="atl-field-error" id="errStClient" style="display:none;"></div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="um-field-group"><label class="um-label" for="stSmtpSecret">Client secret</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="stSmtpSecret" placeholder="secret VALUE" autocomplete="new-password"></div></div>
+                                                <div class="atl-field-error" id="errStSecret" style="display:none;"></div>
+                                            </div>
+                                        </div>
+                                        <p class="um-section-desc" style="margin:0 0 14px;"><i class="fa-solid fa-circle-info" style="margin-right:6px; color:var(--atl-amber);"></i>No mailbox password is used. This needs a one-time setup in Microsoft Entra and Exchange &mdash; the steps are under <strong style="color:var(--atl-ink);">About</strong> on this page.</p>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpFrom">From Address</label><div class="um-input-wrap"><i class="fa-solid fa-envelope um-input-icon"></i><input type="email" class="um-input" id="stSmtpFrom" placeholder="bookings@thabisomhlongo.com" autocomplete="off"></div></div>
+                                            <div class="atl-field-error" id="errStFrom" style="display:none;"></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="stSmtpFromName">Sender Name</label><div class="um-input-wrap"><i class="fa-solid fa-signature um-input-icon"></i><input type="text" class="um-input" id="stSmtpFromName" placeholder="Thabiso Mhlongo" maxlength="100" autocomplete="off"></div></div>
+                                            <div class="atl-field-error" id="errStFromName" style="display:none;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="row" style="align-items:center;">
+                                        <div class="col-md-4">
+                                            <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stSmtpTestBtn" onclick="testSmtpConnection()">
+                                                <i class="fa-solid fa-plug-circle-check" style="margin-right:5px;"></i>Test Connection
+                                            </button>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <p class="um-section-desc" id="stSmtpTestResult" role="status" aria-live="polite" style="margin:0;"></p>
+                                        </div>
+                                    </div>
+                                    <div class="um-settings-save" style="margin-top:18px;">
+                                        <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Changed connection details are tested first; if the test fails nothing is saved.</span>
+                                        <button id="btnSaveSmtp" class="atl-btn atl-btn--primary" onclick="saveEmailSettings(this)">
+                                            <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save email settings
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Card: Customer replies (inbox) -->
+                                <div class="atl-card um-settings-card" id="stInboxBlock">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-inbox"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Customer Replies (inbox)</h4>
+                                            <p class="um-section-desc">Reads this mailbox (read-only: nothing is ever moved, marked or deleted) so customers&rsquo; answers to your replies appear under each inquiry in Inquiries. Needs a one-time Microsoft 365 permission for the app (Mail.Read, limited to this mailbox). Only mail received after you switch it on is read.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <p class="um-section-desc" id="stInboxStatus" role="status" aria-live="polite" style="margin:0 0 10px;"></p>
+                                    <div class="row" style="align-items:center;">
+                                        <div class="col-md-4">
+                                            <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stInboxToggleBtn" onclick="toggleInboxSync()">
+                                                <i class="fa-solid fa-power-off" style="margin-right:5px;"></i><span>Switch on</span>
+                                            </button>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stInboxTestBtn" onclick="testInboxAccess()">
+                                                <i class="fa-solid fa-inbox" style="margin-right:5px;"></i>Test inbox access
+                                            </button>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stInboxRunBtn" onclick="runInboxSync()">
+                                                <i class="fa-solid fa-rotate" style="margin-right:5px;"></i>Check for replies now
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div id="stInboxResult" role="status" aria-live="polite" class="um-section-desc" style="margin:10px 0 0; white-space:pre-line;"></div>
+                                </div>
+
+                                <!-- Card: Notifications -->
+                                <div class="atl-card um-settings-card" id="stNotifCard">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-bell"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Alert Address</h4>
+                                            <p class="um-section-desc">The inbox where new-booking alerts are delivered. Save the address, then use &ldquo;Send Test&rdquo; to confirm email is working.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <!-- The button sits on the input's own line (.um-inline-action) rather than in a separate Bootstrap
+                                         column: floated columns don't stretch to the row's height, so the old col-md-4 + flex-end
+                                         wrapper left "Send Test" level with the LABEL, ~30px above the email box, on desktop. -->
+                                    <div class="um-field-group"><label class="um-label" for="stNotificationEmail">Notifications Email <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(receives new booking alerts)</small></label>
+                                        <div class="um-inline-action">
+                                            <div class="um-input-wrap"><i class="fa-solid fa-envelope um-input-icon"></i><input type="email" class="um-input" id="stNotificationEmail" placeholder="admin@thabisomhlongo.com" aria-describedby="errStNotif"></div>
+                                            <button type="button" class="atl-btn atl-btn--ghost" id="testNotifBtn" onclick="sendTestNotification()">
+                                                <i class="fa-solid fa-paper-plane" style="margin-right:5px;" aria-hidden="true"></i>Send Test
+                                            </button>
+                                        </div>
+                                        <div class="atl-field-error" id="errStNotif" style="display:none;"></div>
+                                    </div>
+                                    <div class="um-settings-save" style="margin-top:18px;">
+                                        <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Saved values take effect immediately &mdash; no restart needed.</span>
+                                        <button id="btnSaveAlertEmail" class="atl-btn atl-btn--primary" onclick="saveAlertEmail(this)">
+                                            <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save alert address
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Card: Email banners live with the site's look -->
+                                <div class="atl-card um-settings-card">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-image"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">Email Banners</h4>
+                                            <p class="um-section-desc">The banner images used at the top of outgoing emails are managed with the rest of the site&rsquo;s look, under Site Appearance.</p>
+                                        </div>
+                                    </div>
+                                    <div class="um-divider"></div>
+                                    <button type="button" class="atl-btn atl-btn--ghost" data-nav-go="brandingAdmin" data-nav-tab="brandPanelEmail"><i class="fa-solid fa-arrow-right" style="margin-right:6px;"></i>Open Email Banners</button>
+                                </div>
+                            </div>
+
+                            <div class="um-panel" id="emPanelAbout">
+                                <div class="atl-card">
+                                    <div class="um-icon-header">
+                                        <div class="um-icon-header__icon"><i class="fa-solid fa-circle-info"></i></div>
+                                        <div>
+                                            <h4 class="um-section-label" style="margin-bottom:4px;">About Email Setup</h4>
+                                            <p class="um-section-desc">The mail server that sends every system email, the mailbox customers&rsquo; replies are read from, and the inbox that receives alerts.</p>
+                                        </div>
+                                    </div>
+
+                                    <div class="um-divider"></div>
+
+                                    <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
+                                        The <strong style="color:var(--atl-ink);">Setup</strong> tab has three cards &mdash; <strong style="color:var(--atl-ink);">Outgoing Mail</strong>, <strong style="color:var(--atl-ink);">Customer Replies</strong> and <strong style="color:var(--atl-ink);">Alert Address</strong> &mdash; and each has its own Save button, so saving one never touches the others. Changes take effect immediately, with no restart. Leaving a field blank keeps its current saved value. To see what actually went out, open <strong style="color:var(--atl-ink);">Delivery Log</strong>.
+                                    </p>
+
+                                    <h4 class="um-section-label" style="margin: 4px 0 14px;">How it works</h4>
+
+                                    <!-- Email (SMTP) -->
+                                    <div class="um-role-info" style="margin-bottom:16px;">
+                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-envelopes-bulk" style="color:var(--atl-amber);"></i> Email (SMTP)</p>
+                                        <p class="um-role-info__desc">The outgoing mail server used for <strong style="color:var(--atl-ink);">every</strong> system email &mdash; quotes, booking confirmations, payment receipts, password resets and the new <strong style="color:var(--atl-ink);">user invitation</strong> emails. If email stops working, this is the first place to check.</p>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">SMTP Host</strong> &mdash; your mail provider's server, e.g. <code>smtp.office365.com</code> for Microsoft 365.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Port &amp; Encryption</strong> &mdash; <code>587</code> with <strong style="color:var(--atl-ink);">STARTTLS</strong> (Microsoft 365 and most providers) or <code>465</code> with SSL. Mail is never sent unencrypted.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">From Address &amp; Sender Name</strong> &mdash; what recipients see. With Microsoft 365 the From address must be the signed-in mailbox (or one it has &ldquo;Send As&rdquo; permission for).</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">SMTP User</strong> &amp; <strong style="color:var(--atl-ink);">Password</strong> &mdash; the mailbox login. The password is stored encrypted and never shown again; leave it blank to keep the saved one. Microsoft 365 needs <strong style="color:var(--atl-ink);">Authenticated SMTP</strong> enabled for the mailbox (and the tenant). Gmail needs an <strong style="color:var(--atl-ink);">App Password</strong>.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Test Connection</strong> &mdash; signs in with the values on screen (saved or not) without sending an email. Saving changed connection details runs the same check first and refuses to overwrite working settings with ones that fail.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Sign-in method</strong> &mdash; <strong style="color:var(--atl-ink);">Microsoft 365 OAuth</strong> signs in as an app instead of with the mailbox password, so security defaults, MFA and the password-SMTP shutdown do not get in the way. It needs a one-time setup (below).</li>
+                                        </ul>
+                                        <p class="um-section-label" style="margin:14px 0 6px;">One-time Microsoft 365 setup for OAuth</p>
+                                        <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.8;">
+                                            <li>Entra admin center &rarr; <strong style="color:var(--atl-ink);">App registrations &rarr; New registration</strong> (single tenant). Copy the <strong style="color:var(--atl-ink);">Application (client) ID</strong> and <strong style="color:var(--atl-ink);">Directory (tenant) ID</strong>.</li>
+                                            <li><strong style="color:var(--atl-ink);">API permissions &rarr; Add a permission &rarr; APIs my organization uses &rarr; Office 365 Exchange Online &rarr; Application permissions &rarr; SMTP.SendAsApp</strong>, then <strong style="color:var(--atl-ink);">Grant admin consent</strong>.</li>
+                                            <li><strong style="color:var(--atl-ink);">Certificates &amp; secrets &rarr; New client secret</strong>. Copy the secret <strong style="color:var(--atl-ink);">Value</strong> immediately (not the Secret ID) and note its expiry date.</li>
+                                            <li>Entra &rarr; <strong style="color:var(--atl-ink);">Enterprise applications</strong> &rarr; your app &rarr; copy its <strong style="color:var(--atl-ink);">Object ID</strong> (not the one on the App registration page).</li>
+                                            <li>In PowerShell: <code>Connect-ExchangeOnline -Organization &lt;tenant ID&gt;</code>, then <code>New-ServicePrincipal -AppId &lt;client ID&gt; -ObjectId &lt;enterprise-app Object ID&gt;</code>, then <code>Add-MailboxPermission -Identity "bookings@thabisomhlongo.com" -User &lt;enterprise-app Object ID&gt; -AccessRights FullAccess</code>.</li>
+                                            <li>Keep <strong style="color:var(--atl-ink);">Authenticated SMTP</strong> enabled for the mailbox and the organisation. Allow 15&ndash;30 minutes, enter the three values here, press <strong style="color:var(--atl-ink);">Test Connection</strong>, then <strong style="color:var(--atl-ink);">Save</strong>.</li>
+                                        </ol>
+                                    </div>
+
+                                    <!-- Customer replies -->
+                                    <div class="um-role-info" style="margin-bottom:16px;">
+                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-inbox" style="color:var(--atl-amber);"></i> Customer Replies</p>
+                                        <p class="um-role-info__desc">Reads the same Microsoft 365 mailbox (read-only: nothing is ever moved, marked or deleted) so customers&rsquo; answers to your replies appear under each inquiry in <strong style="color:var(--atl-ink);">Inquiries</strong>. It needs a one-time Microsoft 365 permission for the app (<code>Mail.Read</code>, limited to this mailbox) and only reads mail received after you switch it on.</p>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Switch on / off</strong> &mdash; turns the reading on or off. Switching on first checks that the permission works.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Test inbox access</strong> &mdash; checks each step (sign-in, permission, mailbox) and says which one fails.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Check for replies now</strong> &mdash; reads the mailbox immediately instead of waiting for the next automatic check.</li>
+                                        </ul>
+                                    </div>
+
+                                    <!-- Notifications -->
+                                    <div class="um-role-info" style="margin-bottom:8px;">
+                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-bell" style="color:var(--atl-amber);"></i> Notifications</p>
+                                        <p class="um-role-info__desc">Where the system's internal alerts are delivered. Everything you change on the Setup tab saves with that card's own Save button.</p>
+                                        <ul class="um-role-list">
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Notifications Email</strong> &mdash; the inbox that receives new-booking alerts, overdue-payment warnings and other admin notices.</li>
+                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Send Test</strong> &mdash; sends a real test message to that address through your SMTP server and shows the mail server's actual answer. Success means the server <em>accepted</em> it &mdash; check the inbox too, as acceptance does not prove delivery. Use it whenever you change the Outgoing Mail card.</li>
+                                        </ul>
+                                    </div>
+
+                                    <h4 class="um-section-label" style="margin: 20px 0 12px;">Common tasks</h4>
+                                    <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
+                                        <li><strong style="color:var(--atl-ink);">Set up email</strong> &mdash; enter the host, port, encryption, sender and login on the Outgoing Mail card, press <strong style="color:var(--atl-ink);">Test Connection</strong>, press <strong style="color:var(--atl-ink);">Save email settings</strong>, then use <strong style="color:var(--atl-ink);">Send Test</strong> on the Alert Address card to confirm a real message is accepted.</li>
+                                        <li><strong style="color:var(--atl-ink);">Read customer replies</strong> &mdash; once Outgoing Mail uses Microsoft 365, switch on <strong style="color:var(--atl-ink);">Customer Replies</strong>.</li>
+                                        <li><strong style="color:var(--atl-ink);">Route admin alerts</strong> &mdash; set the Alert Address so new-booking and overdue-payment notices reach the right inbox, and save it.</li>
+                                    </ol>
+
+                                    <p class="um-section-desc" style="margin-top:22px; display:flex; gap:8px; align-items:flex-start;">
+                                        <i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                        <span>After changing <strong style="color:var(--atl-ink);">Outgoing Mail</strong>, always click <strong style="color:var(--atl-ink);">Send Test</strong> &mdash; a silent mis-configuration here stops quotes, receipts and password resets from ever arriving.</span>
+                                    </p>
+
+                                    <div class="um-security-tips" style="margin-top:14px;">
+                                        <i class="fa-solid fa-circle-info"></i>
+                                        <ul>
+                                            <li>Each card saves on its own and applies immediately &mdash; no server restart.</li>
+                                            <li>A failed connection test never overwrites working email settings.</li>
+                                            <li>Only <strong>Administrators</strong> can open Email Setup.</li>
+                                        </ul>
+                                    </div>
+
+                                    <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
+                                        <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
+                                        <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Delivery Log</strong> to confirm what actually went out; <strong style="color:var(--atl-ink);">Newsletter</strong> and <strong style="color:var(--atl-ink);">Users</strong>, which rely on this mail server; and <strong style="color:var(--atl-ink);">Site Appearance &rarr; Email Banners</strong> for the look of outgoing email.</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 9. Email Logs -->
             <div class="admin-section" id="emailLogsAdmin">
                 <div>
                     <div class="atl-section-hd">
                         <div>
-                            <p class="atl-section-eyebrow">Auditing</p>
-                            <h2 class="atl-section-heading"><i class="fa-solid fa-list-check"></i> Email Delivery Logs</h2>
+                            <p class="atl-section-eyebrow">System &middot; Email</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-list-check"></i> Delivery Log</h2>
                             <p class="atl-section-sub">Monitor all outgoing system communications, delivery status, and error reports.</p>
                         </div>
                         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
@@ -7031,7 +7379,7 @@
                             <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
                                 <li><strong style="color:var(--atl-ink);">Trace a message</strong> &mdash; use the search box (recipient or subject) together with the status and event filters, then sort by date.</li>
-                                <li><strong style="color:var(--atl-ink);">Investigate a failure</strong> &mdash; filter by <strong style="color:var(--atl-ink);">Failed</strong> to see what didn't deliver, then check <strong style="color:var(--atl-ink);">System Settings &rarr; Email (SMTP)</strong>.</li>
+                                <li><strong style="color:var(--atl-ink);">Investigate a failure</strong> &mdash; filter by <strong style="color:var(--atl-ink);">Failed</strong> to see what didn't deliver, then check <strong style="color:var(--atl-ink);">System &rarr; Email Setup</strong>.</li>
                                 <li><strong style="color:var(--atl-ink);">Confirm a send</strong> &mdash; filter by event type (e.g. a quote or password reset) and read the status column.</li>
                             </ol>
 
@@ -7042,7 +7390,7 @@
 
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start;">
                                 <i class="fa-solid fa-diagram-project" style="color:var(--atl-amber); margin-top:2px;"></i>
-                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">System Settings</strong> for the SMTP server that sends these emails; <strong style="color:var(--atl-ink);">Newsletter</strong>, <strong style="color:var(--atl-ink);">Bookings</strong> and <strong style="color:var(--atl-ink);">Finance</strong>, which trigger most of them; and <strong style="color:var(--atl-ink);">Security</strong> for the wider change audit trail.</span>
+                                <span><strong style="color:var(--atl-ink);">Related:</strong> <strong style="color:var(--atl-ink);">Email Setup</strong> for the mail server that sends these emails; <strong style="color:var(--atl-ink);">Newsletter</strong>, <strong style="color:var(--atl-ink);">Bookings</strong> and <strong style="color:var(--atl-ink);">Finance</strong>, which trigger most of them; and <strong style="color:var(--atl-ink);">Security</strong> for the wider change audit trail.</span>
                             </p>
                         </div>
                     </div>
@@ -7684,12 +8032,12 @@
                     if (first) first.focus();
                 });
             }
-            // "Account settings" / "Team & roles" — in-app destinations, routed through switchTab.
+            // "My profile" / "Team & roles" — in-app destinations (a page, optionally on a tab), routed through admNav.go.
             document.querySelectorAll('#admProfileMenu [data-menu-nav]').forEach(function(a) {
                 a.addEventListener('click', function(e) {
                     e.preventDefault();
                     atlCloseAccountMenu();
-                    if (typeof window.switchTab === 'function') window.switchTab(a.getAttribute('data-menu-nav'));
+                    window.admNav.go(a.getAttribute('data-menu-nav'), { tab: a.getAttribute('data-menu-tab') || '' });
                 });
             });
         })();
@@ -7899,10 +8247,10 @@
     <script src="js/admin/gallery.js"></script>
     <!-- Same renderer the public site uses for team members (js/team-view.js) — drives the live preview. -->
     <script src="js/team-view.js?v=2"></script>
-    <script src="js/admin/team.js?v=3"></script>
+    <script src="js/admin/team.js?v=4"></script>
     <!-- Accolades & Recognition: the public renderer (drives the live preview) + the admin controller. -->
     <script src="js/accolades-view.js?v=3"></script>
-    <script src="js/admin/accolades.js?v=1"></script>
+    <script src="js/admin/accolades.js?v=2"></script>
     <script>
 
         // ============================================================
@@ -8662,7 +9010,7 @@
     <script src="js/admin/bookings-pipeline.js?v=6"></script>
     <script src="js/admin/bookings-contracts.js"></script>
     <script src="js/admin/bookings-finance.js?v=4"></script>
-    <script src="js/admin/bookings-quote.js?v=5"></script>
+    <script src="js/admin/bookings-quote.js?v=7"></script>
     <script src="js/admin/bookings-actions.js"></script>
     <script src="js/admin/newsletter.js"></script>
     <script>
@@ -8691,15 +9039,16 @@
             .catch(function() {});
     })();
     </script>
+    <script src="js/admin/nav-config.js?v=4"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function(event) {
             // Restore last active section (scroll position is always top; no restore needed)
             var activeSection = sessionStorage.getItem('admin_active_section') || sessionStorage.getItem('admin_active_tab');
             if (activeSection) {
-                activeSection = activeSection.replace('#', '');
+                activeSection = window.ADMIN_NAV.resolve(activeSection);
                 // Defer until after auth check shows the dashboard wrapper
                 setTimeout(function() {
-                    if (typeof switchTab === 'function' && document.getElementById(activeSection)) {
+                    if (typeof switchTab === 'function' && document.getElementById(activeSection) && window.ADMIN_NAV.canAccess(window.currentUserRole || 'manager', activeSection)) {
                         switchTab(activeSection);
                     }
                 }, 600);
@@ -8710,7 +9059,7 @@
         // (bundled together with the Dashboard Analytics module below it in the document —
         // see that file's header comment for full detail). Loaded once, here.
     </script>
-    <script src="js/admin/dashboard.js?v=2"></script>
+    <script src="js/admin/dashboard.js?v=3"></script>
     <script>
 
         // ==========================================
@@ -8721,49 +9070,11 @@
             const effectiveRole = role || 'manager';
             window.currentUserRole = effectiveRole;
 
-            const isAssistant = effectiveRole === 'assistant';
-            const isManager = effectiveRole === 'manager';
-
             document.body.className = document.body.className.replace(/\brole-\S+/g, '');
             document.body.classList.add('role-' + effectiveRole);
 
-            const restrictedSidebar = [
-                'a[href="#brandingAdmin"]',
-                'a[href="#preferencesAdmin"]',
-                'a[href="#usersAdmin"]',
-                'a[href="#securityAdmin"]',
-                'a[href="#emailLogsAdmin"]'
-            ];
-            const restrictedTiles = [];
-
-            if (isAssistant) {
-                restrictedSidebar.push('a[href="#financeAdmin"]', 'a[href="#newsletterAdmin"]');
-                restrictedTiles.push('financeAdmin', 'newsletterAdmin');
-
-                // Hide Finance group title
-                const financeHeaders = Array.from(document.querySelectorAll('.tm-sidebar-group-title')).filter(el => el.textContent.includes('Finance'));
-                financeHeaders.forEach(el => el.style.display = 'none');
-            }
-
-            if (isAssistant || isManager) {
-                // Hide System Settings group title
-                const systemHeaders = Array.from(document.querySelectorAll('.tm-sidebar-group-title')).filter(el => el.textContent.includes('System Settings'));
-                systemHeaders.forEach(el => el.style.display = 'none');
-
-                // Hide Restricted Sidebar Items (System Settings group, plus Finance for assistant).
-                // Guarded so administrators keep their System Settings links.
-                restrictedSidebar.forEach(sel => {
-                    const a = document.querySelector(sel);
-                    if (a && a.parentElement) a.parentElement.style.display = 'none';
-                });
-            }
-
-            // Hide Restricted Dashboard Tiles
-            restrictedTiles.forEach(id => {
-                const el = document.getElementById('dashStat-' + id);
-                const card = el && el.closest('.db-stat-card');
-                if (card) card.style.display = 'none';
-            });
+            // Which sidebar links, groups, headings, dashboard tiles and account-menu items this role sees: js/admin/nav-config.js.
+            window.admNav.applyRole(effectiveRole);
         }
 
         // ==========================================
@@ -11389,9 +11700,13 @@
                             <label style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; color:var(--atl-muted); display:block; margin-bottom:6px;"><i class="fa-solid fa-percent" style="margin-right:4px;"></i>Deposit (%)</label>
                             <input type="number" id="qbDepositPercentage" class="atl-input" style="background:var(--atl-input-bg); color:var(--atl-ink); width:100%;" value="50" min="0" max="100">
                         </div>
-                        <div style="display:flex; align-items:center; gap:8px; padding-bottom:3px;">
-                            <input type="checkbox" id="qbApplyVat" style="accent-color:var(--atl-sage); width:16px; height:16px; cursor:pointer; flex-shrink:0;">
-                            <label for="qbApplyVat" style="font-size:13px; color:var(--atl-ink); cursor:pointer; margin:0; white-space:nowrap; user-select:none;">Apply VAT (15%)</label>
+                        <div style="padding-bottom:3px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <input type="checkbox" id="qbApplyVat" style="accent-color:var(--atl-sage); width:16px; height:16px; cursor:pointer; flex-shrink:0;">
+                                <label for="qbApplyVat" id="qbApplyVatLabel" style="font-size:13px; color:var(--atl-ink); cursor:pointer; margin:0; white-space:nowrap; user-select:none;">Apply VAT (15%)</label>
+                            </div>
+                            <!-- Filled by qbSyncVatBox (js/admin/bookings-quote.js): VAT can only be charged while Business > Business Profile says the business is VAT-registered and the number is confirmed. -->
+                            <div id="qbVatHint" style="display:none; font-size:11px; color:var(--atl-muted); margin-top:4px; max-width:260px; line-height:1.35;"></div>
                         </div>
                     </div>
 
@@ -11645,7 +11960,7 @@
     }
 </script>
     <script src="js/admin/calendar.js?v=m365-1"></script>
-    <script src="js/admin/calendar-m365.js?v=2"></script>
+    <script src="js/admin/calendar-m365.js?v=3"></script>
 <script>
 (function() {
     'use strict';
@@ -11958,16 +12273,10 @@
        scrollTop on it always works, regardless of scroll-behavior on html.
     ------------------------------------------------------------------ */
     window.switchTab = function(sectionId) {
-        // Gating route check
+        // A page that moved keeps working under its old id (js/admin/nav-config.js aliases), then the role check
+        sectionId = window.ADMIN_NAV.resolve(sectionId);
         const role = window.currentUserRole || 'manager';
-        const restricted = [];
-        if (role === 'manager' || role === 'assistant') {
-            restricted.push('brandingAdmin', 'preferencesAdmin', 'usersAdmin', 'securityAdmin', 'emailLogsAdmin');
-        }
-        if (role === 'assistant') {
-            restricted.push('financeAdmin', 'newsletterAdmin');
-        }
-        if (restricted.includes(sectionId)) {
+        if (!window.ADMIN_NAV.canAccess(role, sectionId)) {
             window.notificationService && window.notificationService.showError('Access denied: You do not have permission to view this section.');
             sectionId = 'dashboardAdmin';
         }
@@ -11990,8 +12299,8 @@
         var mainEl = qs('.tm-admin-main');
         if (mainEl) mainEl.scrollTop = 0;
 
-        // Update breadcrumb & active sidebar state
-        if (typeof updateBreadcrumb === 'function') updateBreadcrumb(sectionId);
+        // Browser-tab title + active sidebar state
+        window.admNav.setTitle(sectionId);
 
         var items = qsa('.admin-sidebar li');
         items.forEach(function(li) { li.classList.remove('active'); });
@@ -12067,49 +12376,6 @@
                 if (btn) btn.click();
             }, 100);
         });
-    }
-
-    /* ---- Breadcrumb updater ---- */
-    var sectionMap = {
-        dashboardAdmin:   { label: 'Dashboard',        icon: 'fa-gauge-high' },
-        homeAdmin:        { label: 'Home Slider',       icon: 'fa-images' },
-        aboutAdmin:       { label: 'About Me',          icon: 'fa-user-astronaut' },
-        careerAdmin:      { label: 'Career',            icon: 'fa-star' },
-        footprintAdmin:   { label: 'Footprint',         icon: 'fa-earth-africa' },
-        teamAdmin:        { label: 'Management Team',   icon: 'fa-user-tie' },
-        accoladesAdmin:   { label: 'Accolades & Recognition', icon: 'fa-award' },
-        testimonialsAdmin:{ label: 'Testimonials',      icon: 'fa-quote-left' },
-        galleryAdmin:     { label: 'Gallery',           icon: 'fa-image' },
-        socialAdmin:      { label: 'Socials',           icon: 'fa-share-nodes' },
-        eventsAdmin:      { label: 'Events',            icon: 'fa-masks-theater' },
-        contactAdmin:     { label: 'Contact',           icon: 'fa-address-book' },
-        inquiriesAdmin:   { label: 'Inquiries',         icon: 'fa-envelope-open-text' },
-        bookingsAdmin:    { label: 'Bookings',          icon: 'fa-calendar-check' },
-        calendarAdmin:    { label: 'Calendar',          icon: 'fa-calendar-days' },
-        newsletterAdmin:  { label: 'Newsletter',        icon: 'fa-envelopes-bulk' },
-        emailLogsAdmin:   { label: 'System Logs',       icon: 'fa-clock-rotate-left' },
-        securityAdmin:    { label: 'Security & Audit',  icon: 'fa-shield-halved' },
-        preferencesAdmin: { label: 'Settings',          icon: 'fa-sliders' },
-        usersAdmin:       { label: 'User Management',   icon: 'fa-users-gear' },
-        financeAdmin:     { label: 'Finance',           icon: 'fa-file-invoice-dollar' },
-        servicesAdmin:    { label: 'Services',          icon: 'fa-list-check' },
-        policiesAdmin:    { label: 'Policies',          icon: 'fa-file-contract' },
-        brandingAdmin:    { label: 'Branding',          icon: 'fa-palette' },
-    };
-
-    function updateBreadcrumb(tabId) {
-        var bc = qs('#admBreadcrumb');
-        if (!bc) return;
-        var info = sectionMap[tabId];
-        if (!info) return;
-        if (tabId === 'dashboardAdmin') {
-            bc.innerHTML = '<span class="adm-breadcrumb__root"><i class="fa-solid fa-gauge-high" aria-hidden="true"></i><span>Dashboard</span></span>';
-        } else {
-            bc.innerHTML =
-                '<span class="adm-breadcrumb__root"><i class="fa-solid fa-gauge-high" aria-hidden="true"></i><span>Dashboard</span></span>' +
-                '<i class="fa-solid fa-chevron-right adm-breadcrumb__sep" aria-hidden="true"></i>' +
-                '<span class="adm-breadcrumb__current"><i class="fa-solid ' + info.icon + '" style="margin-right:5px;" aria-hidden="true"></i>' + info.label + '</span>';
-        }
     }
 
     // Sidebar navigation — intercept .tm-nav-link clicks, delegate to switchTab()
@@ -13229,10 +13495,11 @@
     <script src="js/admin/policies.js"></script>
     <script src="js/admin/branding.js?v=4"></script>
     <script src="js/admin/security-audit.js"></script>
-    <script src="js/admin/system-settings.js?v=smtp3-places1-g1"></script>
-    <script src="js/admin/google-calendar.js?v=1"></script>
+    <script src="js/admin/system-settings.js?v=nav5"></script>
+    <script src="js/admin/business-profile.js?v=8"></script>
+    <script src="js/admin/google-calendar.js?v=2"></script>
     <script src="js/admin/financials.js?v=2"></script>
-    <script src="js/admin/eft.js?v=2"></script>
+    <script src="js/admin/eft.js?v=3"></script>
     <script src="js/admin/payfast-reconcile.js?v=1"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================
@@ -13689,8 +13956,17 @@
             if (typeof loadLegalOverview === 'function') loadLegalOverview();
         });
         $('a[href="#bookingsAdmin"]').on('shown.bs.tab', function() { loadBookings(); });
-        $('a[href="#preferencesAdmin"]').on('shown.bs.tab', function() {
-            loadSystemSettings();
+        $('a[href="#integrationsAdmin"]').on('shown.bs.tab', function() {
+            loadIntegrations();
+        });
+        $('a[href="#adminPortalAdmin"]').on('shown.bs.tab', function() {
+            loadBrandingSettings();   // fills the sign-in page background
+        });
+        $('a[href="#paymentSetupAdmin"]').on('shown.bs.tab', function() {
+            loadPaymentSetup();
+        });
+        $('a[href="#emailSetupAdmin"]').on('shown.bs.tab', function() {
+            loadEmailSetup();
         });
         $('a[href="#brandingAdmin"]').on('shown.bs.tab', function() {
             loadBrandingSettings();

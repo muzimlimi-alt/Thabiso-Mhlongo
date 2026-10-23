@@ -18,12 +18,12 @@ window.tmThumbFallback = function (imgEl) {
     }
 };
 
-// The Website Sections switch (Settings) hides the whole Team section on the public site, whatever
+// The Homepage Sections switch (Site Appearance) hides the whole Team section on the public site, whatever
 // its members' own status — say so here, or a fully populated list would sit next to an empty page.
 function renderTeamSectionNotice() {
     var $n = $('#teamSectionNotice');
     if (window.teamSectionVisible === false) {
-        $n.html('<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>The <strong>Team</strong> section is switched off in <strong>Settings &rarr; Website Sections</strong>, so nothing below is shown on the public site until it is switched back on.</span>').prop('hidden', false);
+        $n.html('<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>The <strong>Team</strong> section is switched off in <strong>Site Appearance &rarr; Homepage Sections</strong>, so nothing below is shown on the public site until it is switched back on.</span>').prop('hidden', false);
     } else {
         $n.prop('hidden', true).empty();
     }

@@ -51,7 +51,7 @@ const THEMES = (process.env.PARITY_THEMES || 'dark,light').split(',');
 const ALL_ADMIN_SECTIONS = [
     'dashboardAdmin', 'bookingsAdmin', 'inquiriesAdmin', 'financeAdmin', 'eventsAdmin',
     'calendarAdmin', 'newsletterAdmin', 'emailLogsAdmin', 'usersAdmin', 'securityAdmin',
-    'brandingAdmin', 'preferencesAdmin', 'policiesAdmin', 'servicesAdmin', 'galleryAdmin',
+    'brandingAdmin', 'integrationsAdmin', 'adminPortalAdmin', 'emailSetupAdmin', 'paymentSetupAdmin', 'businessAdmin', 'policiesAdmin', 'servicesAdmin', 'galleryAdmin',
     'socialAdmin', 'testimonialsAdmin', 'footprintAdmin', 'careerAdmin', 'contactAdmin',
     'aboutAdmin', 'homeAdmin',
 ];

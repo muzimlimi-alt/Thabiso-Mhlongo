@@ -17,7 +17,7 @@ administrator verifies against the bank statement before it becomes a payment.
 
 | Who | Sees |
 |---|---|
-| Administrator | Settings -> **Manual EFT & banking details** (switch, upload limit, banking details, version history); Finance -> **EFT Payments** (queue + review drawer) |
+| Administrator | Revenue -> **Payment Setup** -> Bank Transfer & Banking Details tab (Manual EFT card) (switch, upload limit, banking details, version history); Finance -> **EFT Payments** (queue + review drawer) |
 | Manager | Finance -> EFT Payments (review, approve, reject). Cannot read or change the banking details or the switches |
 | Assistant | Nothing (403 on every EFT endpoint) |
 | Client (verified with the e-mailed code) | A **Pay by EFT** panel in the tracking drawer: banking details, the reference to quote, an upload form, the status of their proofs. Only while the booking can still be paid |
@@ -70,7 +70,7 @@ branch code, SWIFT if any, invoice number, booking reference, amount payable, pa
 amount - its payment schedule sits just above). The client's booking page is the "invoice page": it shows the same block with an upload form. A quotation never carries banking details.
 The block flows onto a new page when it does not fit.
 
-**The admin preview.** Settings -> Manual EFT shows, as you type and before anything is saved, how the details will appear on an invoice (sample invoice number and amount).
+**The admin preview.** Payment Setup -> Bank Transfer & Banking Details shows, as you type and before anything is saved, how the details will appear on an invoice (sample invoice number and amount).
 
 **The client sends a proof** (`POST /api/public/bookings/:id/eft/proof`, multipart):
 - the booking access token (the e-mailed-code session) is checked FIRST, from the `x-booking-access-token` header, before multer reads a byte of the file;

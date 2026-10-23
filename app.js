@@ -520,6 +520,7 @@ app.use(require('./routes/admin/places'));           // shared Google Places sea
 app.use(require('./routes/admin/site-content'));
 app.use(require('./routes/admin/content'));
 app.use(require('./routes/admin/team'));
+app.use(require('./routes/admin/business-profile'));   // who issues our documents + SARS/VAT registration (lib/business-profile.js)
 app.use(require('./routes/admin/accolades'));
 app.use(require('./routes/admin/home-social'));
 app.use(require('./routes/admin/newsletter-subscribers'));

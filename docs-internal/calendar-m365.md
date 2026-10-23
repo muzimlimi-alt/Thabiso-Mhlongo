@@ -100,7 +100,7 @@ Every status except CANCELLED and EXPIRED holds the date (`bookings.repository.j
 
 1. In Exchange Online PowerShell (same session pattern as the Mail.Read grant): `New-ManagementRoleAssignment -App <service principal> -Role "Application Calendars.ReadWrite" -CustomResourceScope "Website mailbox only"` (exact command and the 30 min - 2 h cache delay are documented in Phase 2).
 2. Make sure the Microsoft 365 calendar named in Settings is the one the team actually uses, and **do not** also subscribe it to the website ICS feed.
-3. After Phase 3: switch the sync on in Admin -> System Settings (it refuses until the live check passes).
+3. After Phase 3: switch the sync on in Admin -> Calendar -> Details -> "Switch sharing on" (it refuses until the live check passes).
 
 Open questions for the owner (defaults above stand until answered): keep the Google sync running alongside, or retire it once Microsoft sync is proven; whether ACCEPTED (client accepted, deposit pending) should appear as tentative.
 
@@ -111,7 +111,7 @@ Open questions for the owner (defaults above stand until answered): keep the Goo
 ### 3.1 Decisions
 
 * **Designated account / calendar:** `bookings@thabisomhlongo.com` (the same mailbox that sends and receives the site's mail; its address is the SMTP user in
-  Admin -> System Settings -> Email (SMTP)). The calendar used is that mailbox's **default calendar**.
+  Admin -> System -> Email Setup). The calendar used is that mailbox's **default calendar**.
 * **OAuth flow:** OAuth 2.0 **client credentials** (app-only), because the sync runs in the background with nobody signed in. A delegated flow would need a person's
   refresh token that expires or is revoked with their password/MFA. This reuses the existing app registration, tenant id, application id and client secret and the
   existing token cache (`lib/smtp-oauth.js`, token audience `https://graph.microsoft.com/.default`). **No second auth system was added.**
@@ -297,7 +297,7 @@ Known limits / decisions to be aware of:
 ## 9. Deployment and handover
 
 ### 9.1 Already in place
-Entra app registration, tenant, client id and client secret (Admin > System Settings > Email), the `bookings@` mailbox, SMTP.SendAsApp + FullAccess, the Exchange management scope "Website mailbox only" and the `Application Mail.Read` role. **No new environment variable.** (`BASE_URL` is used only for the link back to the admin; `M365_GRAPH_BASE_URL` / `SMTP_OAUTH_AUTHORITY` exist for tests and are ignored in production.)
+Entra app registration, tenant, client id and client secret (Admin > System > Email Setup), the `bookings@` mailbox, SMTP.SendAsApp + FullAccess, the Exchange management scope "Website mailbox only" and the `Application Mail.Read` role. **No new environment variable.** (`BASE_URL` is used only for the link back to the admin; `M365_GRAPH_BASE_URL` / `SMTP_OAUTH_AUTHORITY` exist for tests and are ignored in production.)
 
 ### 9.2 Owner steps
 1. **Exchange Online PowerShell** - grant the calendar role (section 3.3). Wait up to 2 hours (`Test-ServicePrincipalAuthorization` bypasses the cache).
@@ -320,8 +320,8 @@ Entra app registration, tenant, client id and client secret (Admin > System Sett
 | Symptom | Likely cause | What to do |
 |---|---|---|
 | Strip: "can't sync right now - ... isn't allowed" (permission) | the Exchange calendar role is missing, not yet applied, or Read only | grant `Application Calendars.ReadWrite` (3.3), wait, *Test calendar access* |
-| ... "Signing in failed" (auth) | client secret expired / changed | save the new secret (Settings > Email); sync resumes by itself |
-| ... "isn't set up" (config) | no OAuth settings (or the site is in mail mock mode) | Settings > Email |
+| ... "Signing in failed" (auth) | client secret expired / changed | save the new secret (System > Email Setup); sync resumes by itself |
+| ... "isn't set up" (config) | no OAuth settings (or the site is in mail mock mode) | System > Email Setup |
 | ... "could not be reached" / "temporary problem" / "slow down" | Microsoft outage / throttling | nothing: automatic retries with back-off |
 | One item shows "Couldn't sync" | that entry failed (reason in its popup, technical text under it, and in Details > Recent activity) | fix the cause, then **Retry sync** on the item (or wait) |
 | Item shows **Changed in Microsoft 365** | someone edited it in Outlook | open it, compare, choose |

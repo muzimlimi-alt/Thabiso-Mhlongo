@@ -1,5 +1,5 @@
 /* Manual EFT payments - admin side (docs-internal/eft-payments.md).
-   (A) Settings -> "Manual EFT & banking details" card (administrators only): the on/off switch, the upload limit, the banking details and their version history.
+   (A) Revenue -> Payment Setup -> "Bank Transfer & Banking Details" tab (the Manual EFT card) (administrators only): the on/off switch, the upload limit, the banking details and their version history.
    (B) Finance -> "EFT Payments" tab: the queue of proofs of payment clients have uploaded.
    (C) The review drawer: look at the proof, enter what the BANK shows (amount, reference, date), then approve it (which records the payment on the booking),
        reject it, or ask for a clearer one.
@@ -316,7 +316,7 @@
     $(document).on('input change', '#eftHolder, #eftBank, #eftAccount, #eftType, #eftBranch, #eftSwift, #eftRefNote, #eftInstructions', renderPreview);
     $(document).on('click', '#eftSaveSettingsBtn', saveSettings);
     $(document).on('click', '#eftSaveDetailsBtn', saveDetails);
-    $(document).on('shown.bs.tab', 'a[href="#preferencesAdmin"]', loadEftCard);
+    $(document).on('shown.bs.tab', 'a[href="#paymentSetupAdmin"]', loadEftCard);
     $(document).on('shown.bs.tab', 'a[href="#financeAdmin"]', refreshEftBadge);
     $(document).on('hidden.bs.modal', function () { revokeProof(); });
 

@@ -381,7 +381,7 @@ Inbox sync (OFF by default; administrator switch, verify-before-enable) -> Graph
 
 | # | Where | Action | Needed for |
 |---|---|---|---|
-| 1 | Live admin > System Settings > Email (SMTP) | Choose **Microsoft 365 OAuth**, enter mailbox, tenant ID, application ID and a **new** client secret (the earlier one was pasted in chat - create a new one, delete the old), Test Connection, Save, Send Test. Until this is saved, live mail still uses the legacy Gmail pair. | everything that sends |
+| 1 | Live admin > System > Email Setup | Choose **Microsoft 365 OAuth**, enter mailbox, tenant ID, application ID and a **new** client secret (the earlier one was pasted in chat - create a new one, delete the old), Test Connection, Save, Send Test. Until this is saved, live mail still uses the legacy Gmail pair. | everything that sends |
 | 2 | Live admin > Contact Details | Set the email to **bookings@thabisomhlongo.com** (the website alert goes to this address; if it is empty or invalid the site falls back to the Microsoft 365 mailbox, then `admin@thabisomhlongo.com`). | alerts to the booking mailbox |
 | 3 | Calendar | Put the client secret's **expiry date** in a calendar (when it expires all mail stops; the card says "client secret has expired"). | continuity |
 | 4 | Exchange Online PowerShell (only if you want customer replies in the portal) | The four commands in section 2.4 (management scope for `bookings@` only, `Application Mail.Read` role assignment to the existing service principal, `Test-ServicePrincipalAuthorization`). **Do not** add `Mail.Read` in Entra API permissions. Wait up to 2 hours. | inbox sync |

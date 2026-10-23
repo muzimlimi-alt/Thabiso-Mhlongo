@@ -8,11 +8,11 @@ unchanged). For the Microsoft 365 calendar see `docs-internal/calendar-m365.md`;
 The website has always kept a Google Calendar in step with bookings and public events (booking -> event, event -> event, and the account's other
 appointments pulled in as date holds that block the booking form). But the only way to give it a Google account was to edit `.env` on the server
 (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`) and run `scripts/get-google-refresh-token.js` by hand. Microsoft 365 had a card
-in **System Settings -> Email**; Google had nothing, so an expired sign-in (`invalid_grant` in the log) could only be fixed by a developer.
+in **System -> Email Setup**; Google had nothing, so an expired sign-in (`invalid_grant` in the log) could only be fixed by a developer.
 
 ## 2. What an administrator sees
 
-* **Admin -> System Settings -> Google Calendar** (administrators only): OAuth client ID, client secret, the exact **redirect address** to register at
+* **Admin -> System -> Integrations -> Google Calendar** (administrators only): OAuth client ID, client secret, the exact **redirect address** to register at
   Google (with Copy), and the buttons **Save & connect Google** (becomes *Connect Google* / *Reconnect Google*), **Test connection**, **Disconnect**.
 * **Admin -> Calendar**: a strip under the Microsoft one says whether Google is connected and to which account; administrators get a button that jumps to
   the card. Other roles see the status only.

@@ -354,7 +354,7 @@ a:hover,a:focus{ color:var(--y-hover); text-decoration:none; }
 .tm-announcement.no-rotate{ justify-content:center; }
 .tm-announcement.no-rotate .tm-announce-marquee{ animation:none; padding-left:0; }
 
-/* Admin-controlled section visibility (Settings → Website Sections). Removed from flow, no gap. */
+/* Admin-controlled section visibility (Site Appearance → Homepage Sections). Removed from flow, no gap. */
 .tm-section-hidden{ display:none !important; }
 @media (prefers-reduced-motion: reduce){
   .tm-announce-marquee{ animation:none; padding-left:0; }

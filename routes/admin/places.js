@@ -32,7 +32,7 @@ router.get('/api/admin/places/details', requireAdmin, async (req, res) => {
     }
 });
 
-// "Test Google Places" (System Settings): runs one real search and reports what Google answered - the
+// "Test Google Places" (System -> Integrations): runs one real search and reports what Google answered - the
 // configuration problem in plain words, never the key. Administrator-only, since it spends a Google request.
 router.get('/api/admin/places/status', requireAdmin, requireRole(['administrator']), async (req, res) => {
     res.set('Cache-Control', 'no-store');

@@ -8,6 +8,7 @@ const {
     GROUPS, FEATURED_GROUP, PRICE_TYPES, PRICE_UNITS, PRICE_TYPE_INFO, PRICE_UNIT_LABELS
 } = require('../../lib/service-pricing');
 const { getVatRate } = require('../../lib/document-totals');
+const businessProfile = require('../../lib/business-profile');
 const { requireRole } = require('../../middleware/rbac');
 const { getSettingsByKeys, upsertSetting } = require('../../database/repositories/settings.repository');
 const moment = require('moment-timezone');
@@ -65,7 +66,9 @@ router.get('/api/admin/services/meta', requireAdmin, (req, res) => {
             rate_card: rateCardView(settingsMap(rows)),
             // The VAT rate the server charges (lib/document-totals getVatRate) — the Quote Builder previews with
             // this instead of its own hard-coded 15%, so the preview cannot disagree with the saved quote.
-            vat_rate: await getVatRate()
+            vat_rate: await getVatRate(),
+            // Whether VAT may be charged at all: the business is VAT-registered AND has confirmed its VAT number (Business > Business Profile).
+            vat_active: (await businessProfile.loadIssuer()).vatRegistered
         });
     });
 });

@@ -301,6 +301,6 @@ router.patch('/api/admin/calendar/hold/:id/date', requireAdmin, (req, res) => {
 
 // Microsoft 365 calendar integration controls (lib/calendar-m365.js)
 router.use(require('./calendar-sync'));
-router.use(require('./google-calendar'));   // Google Calendar connection (System Settings -> Google Calendar card)
+router.use(require('./google-calendar'));   // Google Calendar connection (System -> Integrations -> Google Calendar card)
 
 module.exports = router;

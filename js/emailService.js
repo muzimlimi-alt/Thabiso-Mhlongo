@@ -158,7 +158,7 @@ async function sendEmail({
     htmlContent,
     plainTextAlternative = null,
     attachments = [],
-    fromName = null,   // null = the configured sender name (Admin -> System Settings -> Email (SMTP)); a caller may still pass its own
+    fromName = null,   // null = the configured sender name (Admin -> System -> Email Setup); a caller may still pass its own
     replyTo = null,
     skipBrandAttachments = false,
     titleOverride = null,

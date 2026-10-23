@@ -3,9 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const moment = require('moment-timezone');
 const { decodeStoredDeep } = require('../lib/html-sanitize');
-
-const TAX_INVOICE_THRESHOLD = 5000;
-const OUR_VAT_REG = process.env.COMPANY_VAT_NUMBER || '';
+// Pure rules only (no database): this module stays importable on its own. Callers hand in `opts.issuer` (lib/business-profile.js
+// loadIssuer(), or the snapshot frozen on the quotation); without one the identity printed before the business profile existed is used.
+const { documentTitle, legacyIssuer } = require('../lib/business-profile-core');
 
 const GOLD       = '#D4AF37';
 const GOLD_LIGHT = '#FDF8E6';
@@ -22,16 +22,11 @@ const WORDMARK_FONT_REGULAR = path.join(__dirname, '..', 'fonts', 'CormorantGara
 const WORDMARK_FONT_ITALIC  = path.join(__dirname, '..', 'fonts', 'CormorantGaramond-Italic.ttf');
 
 class PDFService {
-    constructor() {
-        this.companyInfo = {
-            name:    process.env.COMPANY_NAME    || "Thabiso Mhlongo Management",
-            address: process.env.COMPANY_ADDRESS || "Johannesburg, South Africa",
-            email:   process.env.COMPANY_EMAIL   || "bookings@thabisomhlongo.com",
-            website: process.env.COMPANY_WEBSITE || "www.thabisomhlongo.com"
-        };
-    }
-
-    _drawHeader(doc, type, number, isTaxInvoice) {
+    // The shared letterhead: brand bar + title, then the issuer band (legal name, registration / VAT numbers, address, contact). Quotation, invoice,
+    // agreement and advancing pack all come through here. Returns the Y of the band's bottom edge so the page content can start below it.
+    // `issuer` = lib/business-profile-core issuerView() / a snapshot of it; `vatCharged` = VAT is charged on THIS document (decides TAX INVOICE).
+    _drawHeader(doc, type, number, issuer, vatCharged) {
+        issuer = issuer || legacyIssuer();
         // Gold bar
         doc.rect(0, 0, 612, 100).fillColor(GOLD).fill();
 
@@ -44,31 +39,40 @@ class PDFService {
 
         this._drawWordmark(doc, 20, 15, 220, 70);
 
-        // Document type — right side of gold bar (aligned to the right margin of 584)
-        // Plainly INVOICE (or QUOTE) - the owner's decision, 2026-10-19. It used to read TAX INVOICE for any invoice of R5,000 or more, or one
-        // carrying a client VAT number, whether or not VAT was charged (see isTaxInvoice in generateDocument for what that flag still does).
-        const label = type.toUpperCase();
+        // Document title — right side of gold bar (aligned to the right margin of 584).
+        // QUOTATION for a quotation. An invoice reads TAX INVOICE only when we are VAT-registered AND confirmed with SARS AND VAT is charged on
+        // it; otherwise it is plainly INVOICE and never implies VAT was charged (lib/business-profile-core documentTitle).
+        const label = documentTitle(type, issuer, vatCharged);
         doc.fillColor(DARK).font('Helvetica-Bold').fontSize(22)
            .text(label, 250, 24, { width: 334, align: 'right' });
 
         doc.font('Helvetica').fontSize(9).fillColor(DARK)
            .text(`# ${number}`, 250, 52, { width: 334, align: 'right' });
 
-        if (isTaxInvoice && OUR_VAT_REG) {
-            doc.fontSize(8).text(`VAT Reg: ${OUR_VAT_REG}`, 250, 65, { width: 334, align: 'right' });
-        }
-
-        // Dark company sub-band
-        doc.rect(0, 100, 612, 32).fillColor(DARK).fill();
-
-        doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(8.5)
-           .text(this.companyInfo.name, 28, 108);
-
-        doc.font('Helvetica').fontSize(7.5).fillColor('#AAAAAA')
-           .text(
-               `${this.companyInfo.email}  ·  ${this.companyInfo.website}  ·  ${this.companyInfo.address}`,
-               28, 120, { width: 556 }
-           );
+        // Issuer band. Companies always show the registration number (Companies Act s32); the VAT number only when VAT is active (registered AND confirmed).
+        const ids = [];
+        if (issuer.registrationNumber) ids.push(`Reg No: ${issuer.registrationNumber}`);
+        if (issuer.vatRegistered && issuer.vatNumber) ids.push(`VAT No: ${issuer.vatNumber}`);
+        const contact = [issuer.email, issuer.phone, issuer.website].filter(Boolean).join('  ·  ');
+        const lines = [
+            { t: issuer.legalName + (issuer.tradingName ? `  t/a ${issuer.tradingName}` : ''), ids: ids.join('   ·   '), font: 'Helvetica-Bold', size: 9, color: WHITE },
+            issuer.registeredOffice ? { t: issuer.registeredOffice, font: 'Helvetica', size: 7.5, color: '#AAAAAA' } : null,
+            contact ? { t: contact, font: 'Helvetica', size: 7.5, color: '#AAAAAA' } : null
+        ].filter(Boolean);
+        const bandH = 14 + lines.length * 11;
+        doc.rect(0, 100, 612, bandH).fillColor(DARK).fill();
+        let by = 108;
+        lines.forEach(l => {
+            if (l.ids) {   // legal name, then the registration / VAT numbers on the same line
+                doc.fillColor(l.color).font(l.font).fontSize(l.size).text(l.t, 28, by, { width: 556, lineBreak: false });
+                const w = doc.widthOfString(l.t);
+                doc.fillColor('#D8D8D8').font('Helvetica').fontSize(7.5).text(l.ids, 28 + w + 14, by + 1, { width: Math.max(60, 556 - w - 14), height: 12, ellipsis: true });
+            } else {
+                doc.fillColor(l.color).font(l.font).fontSize(l.size).text(l.t, 28, by, { width: 556, height: 12, ellipsis: true });
+            }
+            by += l.size > 8 ? 12 : 11;
+        });
+        return 100 + bandH;
     }
 
     // Draws "Thabiso" (regular) + "Mhlongo" (italic, gold) as native PDF text,
@@ -129,8 +133,7 @@ class PDFService {
     }
 
     // Returns the Y coordinate of the bottom of the cards
-    _drawInfoSection(doc, booking, clientVat, type, opts = {}) {
-        const topY   = 148;
+    _drawInfoSection(doc, booking, clientVat, type, opts = {}, topY = 148) {
         const cardW  = 270;
         const leftX  = 28;
         const rightX = 314;
@@ -146,8 +149,16 @@ class PDFService {
             ['EVENT',  booking.event_name || 'N/A'],
             ['DATE',   booking.date],
             ['VENUE',  booking.event_location || 'TBD'],
-            type === 'Quote' ? ['VALID UNTIL', expDate] : ['DOC DATE', docDate],
         ];
+        // A quotation says when it was issued and exactly when it lapses; an invoice says when it was issued, when it falls due and which quotation it came from.
+        if (type === 'Quote') {
+            eventRows.push(['QUOTE DATE', docDate], ['VALID UNTIL', expDate]);
+        } else {
+            eventRows.push(['INVOICE DATE', docDate]);
+            const due = opts.dueDate ? moment(opts.dueDate, 'YYYY-MM-DD', true) : null;
+            if (due && due.isValid()) eventRows.push(['PAYMENT DUE', due.format('DD MMM YYYY')]);
+            if (type === 'Invoice' && opts.quoteNumber) eventRows.push(['QUOTE REF', opts.quoteNumber]);
+        }
         // Opportunistic cross-reference: only present when a contract already existed at the time
         // this invoice was generated (see generateInvoice in server.js) — older/earlier invoices
         // simply omit the row, same optional-citation pattern as the contract's quote citation.
@@ -158,7 +169,7 @@ class PDFService {
         // Pre-measure each event row so we know exact heights before drawing
         const rowHeights = eventRows.map(([, val]) => {
             const measured = doc.font('Helvetica').fontSize(8.5).heightOfString(val, { width: valW });
-            return Math.max(14, measured) + 3;
+            return Math.max(14, measured) + 2;
         });
 
         // Total content height for each card
@@ -173,6 +184,10 @@ class PDFService {
         let billBodyH = 14; // name
         if (booking.company) billBodyH += 12;
         if (clientVat)       billBodyH += 11;
+        // The customer's postal address, when we hold one (a full tax invoice needs it). Never invented.
+        const clientAddress = String(opts.clientAddress || '').split('\n').map(s => s.trim()).filter(Boolean).join(', ');
+        const addrH = clientAddress ? doc.font('Helvetica').fontSize(8).heightOfString(clientAddress, { width: cardW - 16 }) + 2 : 0;
+        billBodyH += addrH;
         billBodyH += 11 + 11; // email + cell
         const billCardH = labelBarH + topPad + billBodyH + bottomPad;
 
@@ -197,6 +212,10 @@ class PDFService {
             doc.font('Helvetica').fontSize(7.5).fillColor(GREY)
                .text(`VAT No: ${clientVat}`, leftX + 8, ly);
             ly += 11;
+        }
+        if (clientAddress) {
+            doc.font('Helvetica').fontSize(8).fillColor(GREY).text(clientAddress, leftX + 8, ly, { width: cardW - 16 });
+            ly += addrH;
         }
         doc.font('Helvetica').fontSize(8.5).fillColor(GREY)
            .text(booking.email, leftX + 8, ly);
@@ -247,14 +266,24 @@ class PDFService {
         // The footer sits inside the page's bottom margin (28pt) and PDFKit starts a new page for any line that ends below
         // that margin, so the last footer line used to spill onto an otherwise blank second page of every quote and
         // invoice. Lifting the margin while these three lines are drawn keeps the document to the pages its content needs.
+        // Footer identity (same issuer as the header): legal name, registration / VAT numbers, registered office, contact. A company
+        // always carries its registration number; "Not registered for VAT" is printed only when the profile says so outright.
+        const issuer = opts.issuer || legacyIssuer();
+        const idBits = [issuer.legalName];
+        if (issuer.registrationNumber) idBits.push(`Reg No ${issuer.registrationNumber}`);
+        if (issuer.vatRegistered && issuer.vatNumber) idBits.push(`VAT No ${issuer.vatNumber}`);
+        else if (issuer.notVatRegistered) idBits.push('Not registered for VAT');
+        const contact = [issuer.email, issuer.website, issuer.phone].filter(Boolean).join('  ·  ');
+        const footLines = [
+            thanks,
+            idBits.join('  ·  '),
+            issuer.registeredOffice ? `Registered office: ${issuer.registeredOffice}` : '',
+            contact
+        ].filter(Boolean);
         const bottomMargin = doc.page.margins.bottom;
         doc.page.margins.bottom = 0;
-        doc.fillColor(GREY).font('Helvetica').fontSize(7.5)
-           .text(thanks, 28, bottom + 8, { align: 'center', width: 556 })
-           .text(`${this.companyInfo.name}  ·  ${this.companyInfo.email}  ·  ${this.companyInfo.website}`,
-               28, bottom + 20, { align: 'center', width: 556 })
-           .text('Generated by Thabiso Mhlongo Official Booking System',
-               28, bottom + 32, { align: 'center', width: 556 });
+        doc.fillColor(GREY).font('Helvetica').fontSize(7.5);
+        footLines.forEach((t, i) => doc.text(t, 28, bottom + 6 + i * 11, { align: 'center', width: 556, height: 10, ellipsis: true }));
         doc.page.margins.bottom = bottomMargin;
     }
 
@@ -285,34 +314,25 @@ class PDFService {
             const stream = fs.createWriteStream(outputPath);
             doc.pipe(stream);
 
-            // isTaxInvoice: an invoice of R5,000 or more, or for a client who gave a VAT number. It NO LONGER changes what the document is called
-            // (it reads plainly INVOICE, and the "valid Tax Invoice" sentence is gone). It still decides two things, exactly as before: our VAT
-            // registration number in the header, and - when we have one (COMPANY_VAT_NUMBER) - that VAT is applied (see applyVat below).
-            const lineTotal = lineItems.reduce((s, i) => {
-                const tot = parseFloat(i.total_price);
-                if (!isNaN(tot)) return s + tot;
-                const qty   = parseFloat(i.quantity || i.quantity_minutes || 1);
-                // Only the line's own stored price - never today's catalogue fee, or a regenerated historical document
-                // would quietly re-price a line that was agreed (or quoted) at another amount, R0 included.
-                const price = parseFloat(i.unit_price) || 0;
-                const isFlat = i.pricing_model === 'flat' || i.pricing_model === 'flat_fee' || i.is_flat;
-                return s + ((isFlat && !(qty > 1)) ? price : qty * price);
-            }, 0);
+            // The business identity on this document. Callers pass the issuer (lib/business-profile.js loadIssuer(), or the snapshot frozen on
+            // the quotation an invoice came from); with none, the legacy identity is printed. VAT is charged ONLY when the document says so
+            // (booking.apply_vat - the quotation's own choice, kept on its stored basis); nothing here decides VAT from an amount or an env var.
+            const issuer       = opts.issuer || legacyIssuer();
+            const vatCharged   = !!booking.apply_vat;
             const clientVat    = booking.vat_number || booking.client_vat_number || '';
-            const isTaxInvoice = type === 'Invoice' && (lineTotal >= TAX_INVOICE_THRESHOLD || !!clientVat);
 
             const docNumber = docNumberOverride || (type === 'Quote'
                 ? `QT-${booking.id}-${moment().format('YYMMDDHHmmss')}`
                 : `INV-${booking.id}-${moment().format('YYMM')}`);
 
             // 1. Header
-            this._drawHeader(doc, type, docNumber, isTaxInvoice);
+            const bandBottom = this._drawHeader(doc, type, docNumber, issuer, vatCharged);
 
             // 2. Info cards — returns bottom Y so table starts below cards
-            const cardsBottomY = this._drawInfoSection(doc, booking, clientVat, type, opts);
+            const cardsBottomY = this._drawInfoSection(doc, booking, clientVat, type, opts, bandBottom + 12);
 
             // 3. Line items table — starts 14px below the cards
-            let currentY = this._drawTableHeader(doc, cardsBottomY + 14);
+            let currentY = this._drawTableHeader(doc, cardsBottomY + 10);
             let subtotal        = 0;
             let vatableSubtotal = 0;
             let exemptSubtotal  = 0;
@@ -432,7 +452,7 @@ class PDFService {
             const totalsX = 370;
             const totalsW = 214;
             const discount = parseFloat(booking.discount) || 0;
-            const applyVat = booking.apply_vat || (isTaxInvoice && OUR_VAT_REG);
+            const applyVat = vatCharged;
 
             let vatableBase = vatableSubtotal;
             let exemptBase  = exemptSubtotal;
@@ -501,6 +521,8 @@ class PDFService {
                 const vat     = Math.round(vatableBase * vatRate * 100) / 100;
                 const total   = Math.round((vatableBase + exemptBase + vat) * 100) / 100;
 
+                // A VAT document shows the amount before VAT as well as the VAT itself (a discount already printed the Subtotal row above).
+                if (!(discount > 0)) drawTotalsRow('Subtotal (excl. VAT)', `R ${subtotal.toFixed(2)}`, false, false);
                 if (discount > 0) {
                     drawTotalsRow('Net Taxable', `R ${vatableBase.toFixed(2)}`, false, false);
                 }
@@ -517,6 +539,14 @@ class PDFService {
                 const grand = drawAdjustments(total);
                 drawTotalsRow('TOTAL AMOUNT', `R ${grand.toFixed(2)}`, true, true);
                 subtotal = grand;
+            }
+
+            // What has already been received when the invoice is issued (e.g. a deposit paid before the invoice was regenerated), and what is
+            // still owed. A snapshot at issue: later payments show on the booking page and the ledger, not on this file.
+            const paidAtIssue = type === 'Invoice' ? (parseFloat(booking.amount_paid) || 0) : 0;
+            if (paidAtIssue > 0) {
+                drawTotalsRow('Paid to date', `- R ${Math.min(paidAtIssue, subtotal).toFixed(2)}`, false, false);
+                drawTotalsRow('BALANCE DUE', `R ${Math.max(0, Math.round((subtotal - paidAtIssue) * 100) / 100).toFixed(2)}`, true, false);
             }
 
             // Outer border around totals block
@@ -538,7 +568,7 @@ class PDFService {
             if (type === 'Quote' && Array.isArray(opts.pricingConditions) && opts.pricingConditions.length) {
                 const condText = opts.pricingConditions.map(l => '•  ' + l).join('\n');
                 const condH = doc.font('Helvetica').fontSize(8.5).heightOfString(condText, { width: 536, lineGap: 2 });
-                currentY += 22;
+                currentY += 14;
                 if (currentY + condH + 40 > 740) { doc.addPage(); currentY = 50; }
                 doc.rect(28, currentY, 556, 15).fillColor(DARK).fill();
                 doc.fillColor(GOLD).font('Helvetica-Bold').fontSize(7)
@@ -551,7 +581,7 @@ class PDFService {
             }
 
             // 5. Terms & Policies
-            currentY += 28;
+            currentY += 20;
             if (currentY > 710) { doc.addPage(); currentY = 50; }
 
             if (type === 'Invoice') {
@@ -619,9 +649,15 @@ class PDFService {
                 currentY += notesH + 18;
             }
 
-            if (currentY > 710) { doc.addPage(); currentY = 50; }
-
             const terms = booking.terms || 'Standard cancellation policy applies.';
+            // How to accept - quotations only, as the first line of the terms (no extra block, so a quotation still fits on one page). The accept
+            // button lives on the client's booking page (the link in the email that carried this quotation) and acceptance is refused after the expiry.
+            const until = type === 'Quote' ? this._chosenExpiry(opts) : null;
+            const acceptLine = type === 'Quote' ? `To accept this quotation, choose Accept on your booking page (link in the email it came with)${until ? ` on or before ${until}` : ''}.` : '';
+            const acceptH = acceptLine ? doc.font('Helvetica-Bold').fontSize(8.5).heightOfString(acceptLine, { width: 536 }) + 4 : 0;
+            const termsNeed = 15 + acceptH + doc.font('Helvetica').fontSize(8.5).heightOfString(terms, { width: 536 }) + 14;
+            if (currentY > 710 || currentY + termsNeed > 722) { doc.addPage(); currentY = 50; }
+
             doc.rect(28, currentY, 556, 15).fillColor(DARK).fill();
             doc.fillColor(GOLD).font('Helvetica-Bold').fontSize(7)
                .text('TERMS & CONDITIONS', 38, currentY + 4, { characterSpacing: 1.2 });
@@ -629,16 +665,17 @@ class PDFService {
 
             const termsH = doc.font('Helvetica').fontSize(8.5)
                               .heightOfString(terms, { width: 536 });
-            doc.rect(28, currentY, 556, termsH + 14).fillColor(LIGHT_GREY).fill();
+            doc.rect(28, currentY, 556, acceptH + termsH + 14).fillColor(LIGHT_GREY).fill();
+            if (acceptLine) doc.font('Helvetica-Bold').fontSize(8.5).fillColor(DARK).text(acceptLine, 38, currentY + 7, { width: 536 });
             doc.font('Helvetica').fontSize(8.5).fillColor(GREY)
-               .text(terms, 38, currentY + 7, { width: 536 });
-            currentY += termsH + 20;
+               .text(terms, 38, currentY + 7 + acceptH, { width: 536 });
+            currentY += acceptH + termsH + 20;
 
             // (The "valid Tax Invoice for VAT purposes in terms of section 20" sentence that used to close the invoice is gone with the
             // TAX INVOICE title: the document is simply an invoice.)
 
             // 6. Footer
-            this._drawFooter(doc, type, opts);
+            this._drawFooter(doc, type, Object.assign({}, opts, { issuer }));
 
             doc.end();
             stream.on('finish', () => resolve({ path: outputPath, number: docNumber, total: subtotal }));
@@ -681,7 +718,8 @@ class PDFService {
                 const clientLine = `${booking.name || ''}${booking.company ? ' / ' + booking.company : ''}`;
 
                 // Header (reused)
-                this._drawHeader(doc, 'Agreement', contractNo, false);
+                const issuer = opts.issuer || legacyIssuer();
+                const bandBottom = this._drawHeader(doc, 'Agreement', contractNo, issuer, false);
 
                 const pageBreakGuard = () => { if (doc.y > doc.page.height - 110) doc.addPage(); };
                 let sectionNum = 1;
@@ -705,13 +743,13 @@ class PDFService {
                 };
 
                 // Title
-                doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Performance Engagement Agreement', LEFT, 150, { width: WIDTH });
+                doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Performance Engagement Agreement', LEFT, bandBottom + 18, { width: WIDTH });
                 doc.font('Helvetica').fontSize(9).fillColor(GREY).text(`Agreement ${contractNo}  ·  Prepared ${moment().format('DD MMMM YYYY')}${sourceQuoteNumber ? '  ·  Per accepted quote ' + sourceQuoteNumber : ''}`, LEFT, doc.y + 2, { width: WIDTH });
                 doc.moveDown(0.5);
                 para('This Agreement records the terms on which the Artist will provide the engagement described below to the Client. It becomes binding once signed by both parties.', { color: GREY, size: 8.5 });
 
                 sectionTitle('Parties');
-                kv('The Artist', `${this.companyInfo.name}  (${this.companyInfo.email})`);
+                kv('The Artist', `${issuer.legalName}${issuer.registrationNumber ? '  (Reg No ' + issuer.registrationNumber + ')' : ''}  (${issuer.email})`);
                 kv('The Client', `${clientLine}  (${booking.email || ''}${booking.cell ? ' · ' + booking.cell : ''})`);
                 if (booking.vat_number || booking.client_vat_number) kv('Client VAT No', booking.vat_number || booking.client_vat_number);
 
@@ -779,13 +817,13 @@ class PDFService {
                     doc.text('Name / Date', x, sigY + 84, { width: colW });
                 };
                 sigBlock(LEFT, 'The Client', clientLine);
-                sigBlock(LEFT + colW + 40, 'The Artist', this.companyInfo.name);
+                sigBlock(LEFT + colW + 40, 'The Artist', issuer.legalName);
 
                 // Contract footer (dedicated — the shared footer is quote-worded)
                 const bottom = doc.page.height - 66;
                 doc.rect(28, bottom, 556, 1.5).fillColor(GOLD).fill();
                 doc.fillColor(GREY).font('Helvetica').fontSize(7.5)
-                   .text(`${this.companyInfo.name}  ·  ${this.companyInfo.email}  ·  ${this.companyInfo.website}`, 28, bottom + 8, { align: 'center', width: 556 })
+                   .text(`${issuer.legalName}${issuer.registrationNumber ? '  ·  Reg No ' + issuer.registrationNumber : ''}  ·  ${issuer.email}  ·  ${issuer.website}`, 28, bottom + 8, { align: 'center', width: 556 })
                    .text('This document was generated by the Thabiso Mhlongo Official Booking System.', 28, bottom + 19, { align: 'center', width: 556 });
 
                 doc.end();
@@ -801,7 +839,7 @@ class PDFService {
     // caller-supplied snapshot (auto-sourced + extras already merged) — this method just renders
     // whatever it's given. `pack.internal_notes` is intentionally never rendered here — it's
     // office-only and must not leak into a document sent to the client or venue.
-    async generateAdvancingPack(booking, pack, rosItems, contacts, outputPath) {
+    async generateAdvancingPack(booking, pack, rosItems, contacts, outputPath, opts = {}) {
         return new Promise((resolve, reject) => {
             try {
                 const doc = new PDFDocument({ margin: 28 });
@@ -811,7 +849,8 @@ class PDFService {
                 const LEFT = 28, WIDTH = 556;
                 const packNo = `ADV-${booking.id}`;
 
-                this._drawHeader(doc, 'Advancing Pack', packNo, false);
+                const issuer = opts.issuer || legacyIssuer();
+                const bandBottom = this._drawHeader(doc, 'Advancing Pack', packNo, issuer, false);
 
                 const pageBreakGuard = () => { if (doc.y > doc.page.height - 110) doc.addPage(); };
                 const sectionTitle = (t) => {
@@ -833,7 +872,7 @@ class PDFService {
                     doc.font('Helvetica').fillColor('#333333').text(String(v == null || v === '' ? 'TBC' : v));
                 };
 
-                doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Advancing Pack', LEFT, 150, { width: WIDTH });
+                doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Advancing Pack', LEFT, bandBottom + 18, { width: WIDTH });
                 doc.font('Helvetica').fontSize(9).fillColor(GREY).text(`${packNo}  ·  Prepared ${moment().format('DD MMMM YYYY')}`, LEFT, doc.y + 2, { width: WIDTH });
                 doc.moveDown(0.5);
 
@@ -892,7 +931,7 @@ class PDFService {
                 const bottom = doc.page.height - 66;
                 doc.rect(28, bottom, 556, 1.5).fillColor(GOLD).fill();
                 doc.fillColor(GREY).font('Helvetica').fontSize(7.5)
-                   .text(`${this.companyInfo.name}  ·  ${this.companyInfo.email}  ·  ${this.companyInfo.website}`, 28, bottom + 8, { align: 'center', width: 556 })
+                   .text(`${issuer.legalName}${issuer.registrationNumber ? '  ·  Reg No ' + issuer.registrationNumber : ''}  ·  ${issuer.email}  ·  ${issuer.website}`, 28, bottom + 8, { align: 'center', width: 556 })
                    .text('This document was generated by the Thabiso Mhlongo Official Booking System.', 28, bottom + 19, { align: 'center', width: 556 });
 
                 doc.end();

@@ -1,3 +1,5 @@
+> **SUPERSEDED (2026-10-23).** The sidebar, page names and tab layout changed in the navigation reorganisation (`preferencesAdmin` / "Admin Settings" no longer exists). The line numbers and the page list below are historical. Current map: `docs-internal/admin-nav-map.md` (generated: `node scripts/gen-admin-nav-map.js`).
+
 # admin.html Structural Map (Phase 1 — Read-Only Reconnaissance)
 
 Generated as part of a housekeeping effort on `admin.html` (repo root), a single-page admin console.

@@ -260,7 +260,7 @@
                 $('#quoteModalExpiry').val(draftObj.expiry);
                 $('#qbDiscount').val(draftObj.discount);
                 $('#qbDepositPercentage').val(draftObj.depositPercentage);
-                $('#qbApplyVat').prop('checked', draftObj.applyVat);
+                $('#qbApplyVat').prop('checked', !!draftObj.applyVat && !!window.qbVatActive);
 
                 // Restore terms source radio
                 const termsSource = draftObj.termsSource || 'global';
@@ -358,17 +358,33 @@
         calcQuoteTotal();                    // immediately inject current dynamic values
     });
 
+    // The "Apply VAT" box follows the business profile: greyed out and unticked when VAT cannot be charged, with the reason beside it.
+    function qbSyncVatBox() {
+        const on = !!window.qbVatActive;
+        const pct = Math.round((window.qbVatRate || 0.15) * 1000) / 10;
+        $('#qbApplyVatLabel').text('Apply VAT (' + pct + '%)');
+        $('#qbApplyVat').prop('disabled', !on).css('cursor', on ? 'pointer' : 'not-allowed');
+        if (!on) $('#qbApplyVat').prop('checked', false);
+        $('#qbVatHint').text(on ? '' : 'VAT is off: the business is not set up as VAT-registered with a confirmed VAT number (Business > Business Profile).').toggle(!on);
+    }
+    window.qbSyncVatBox = qbSyncVatBox;
+
     async function fetchServicesForQuote() {
 
         const $sel = $('#qbServiceSelector');
         if (!$sel.length) return;
         // The VAT rate the SERVER will charge, so the live preview matches the stored quote (not a hard-coded 15%).
         window.qbVatRate = 0.15;
+        // Whether the business may charge VAT at all (Business > Business Profile: VAT-registered AND number confirmed). Unknown = not allowed:
+        // the server refuses a VAT quote from a business that is not set up for it, so never offer what will be refused.
+        window.qbVatActive = false;
         try {
             const m = await (await fetch('/api/admin/services/meta')).json();
             const rate = parseFloat(m && m.vat_rate);
             if (isFinite(rate) && rate >= 0) window.qbVatRate = rate;
+            window.qbVatActive = !!(m && m.vat_active);
         } catch (eMeta) { console.warn('Could not load the VAT rate for the Quote Builder preview; using 15%.', eMeta); }
+        qbSyncVatBox();
         try {
             // Load ONLY active services
             const r = await fetch('/api/admin/services?active_only=1');

@@ -1,6 +1,6 @@
 // Manual EFT through the REAL pages in headless Chrome on an isolated DB copy (test/support.js - the real database is never touched):
 //   the client's "Pay by EFT" panel in the tracking drawer (banking details, reference, upload, status) and
-//   the administrator's side - the Banking details card in Settings, the EFT Payments queue in Finance, and the review drawer.
+//   the administrator's side - the Bank Transfer & Banking Details tab in Revenue > Payment Setup, the EFT Payments queue in Finance, and the review drawer.
 // The behaviour that matters (an upload never credits anything, one approval = one ledger payment, versioning) is proven against the API in
 // test/eft-flow.test.js; this file proves the pages actually offer it, say the right things, and fit a phone.
 // Not part of `npm test`: run it with `npm run test:browser` (needs PUPPETEER_EXECUTABLE_PATH on this machine).
@@ -186,11 +186,11 @@ async function acceptedBooking(tag, days) {
         await p.waitForFunction(() => /Rejected/.test(document.getElementById('eftQueueBody').innerText) && /Approved/.test(document.getElementById('eftQueueBody').innerText), { timeout: 10000 });
         ok(true, 'the "All proofs" filter shows the approved and the rejected proof', '');
 
-        // Settings -> Manual EFT & banking details
-        await p.evaluate(() => $('a[href="#preferencesAdmin"]').first().tab('show'));
+        // Revenue > Payment Setup > Bank Transfer & Banking Details
+        await p.evaluate(() => { window.switchTab('paymentSetupAdmin'); document.querySelector('[data-um-tab="payPanelBank"]').click(); });
         await p.waitForFunction(() => { const c = document.getElementById('stEftCard'); return c && c.offsetParent !== null && document.getElementById('eftHolder').value && document.getElementById('eftCardStatus').textContent; }, { timeout: 20000 });
         const card = await p.evaluate(() => ({ holder: document.getElementById('eftHolder').value, bank: document.getElementById('eftBank').value, acct: document.getElementById('eftAccount').value, type: document.getElementById('eftType').value, on: document.getElementById('eftEnabled').checked, status: document.getElementById('eftCardStatus').textContent }));
-        ok(card.holder === 'Thabiso Mhlongo Entertainment' && card.bank === 'First National Bank' && card.acct === ACCT && card.type === 'current' && card.on === true && /ON/.test(card.status), 'the Settings card loads the current banking details and the switch', JSON.stringify(card));
+        ok(card.holder === 'Thabiso Mhlongo Entertainment' && card.bank === 'First National Bank' && card.acct === ACCT && card.type === 'current' && card.on === true && /ON/.test(card.status), 'the Payment Setup card loads the current banking details and the switch', JSON.stringify(card));
         const preview1 = await p.evaluate(() => document.getElementById('eftPreviewBody').innerText.replace(/\s+/g, ' '));
         ok(/First National Bank/.test(preview1) && preview1.includes(ACCT) && /Invoice number\s+INV-2026-0042/.test(preview1) && /Amount payable/.test(preview1) && /Payment reference\s+INV-2026-0042/.test(preview1) && /cleared funds/.test(preview1),
             'the card previews exactly how the details appear on an invoice (sample invoice number and amount, the verification note)', preview1);

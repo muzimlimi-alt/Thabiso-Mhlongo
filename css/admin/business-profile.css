@@ -1,0 +1,72 @@
+/* =====================================================================
+   ADMIN - SETTINGS > BUSINESS PROFILE (js/admin/business-profile.js, docs-internal/business-profile-2026.md)
+   Mobile first: everything is one column until the grid breakpoint, controls are at least 44px tall, and the save bar sticks to the
+   bottom of the viewport. Platform tokens only (--atl-*); every selector is new (.bp-*), so load order does not matter.
+   ===================================================================== */
+
+/* a tab that holds a card with unsaved changes says so */
+.atl-tab-btn.bp-tab-dirty::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 7px; border-radius: 50%; background: var(--atl-amber); vertical-align: middle; }
+
+.bp-status { display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px; }
+.bp-updated { margin: 0; }
+.bp-note { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--atl-r-md); border: 1px solid var(--atl-line); background: var(--atl-surface2); font-size: 13px; color: var(--atl-ink); }
+.bp-note i { margin-top: 2px; }
+.bp-note--warn { border-color: var(--atl-amber); }
+.bp-note--warn i { color: var(--atl-amber); }
+.bp-note--info i { color: var(--atl-blue); }
+
+/* the admin shell forces min-height:40px !important on every input (07-components.css); phones get a 44px touch target on top of that */
+@media (max-width: 767px) {
+    body.admin-body .bp-card .um-input, body.admin-body .bp-card select.um-input,
+    body.admin-body .bp-card input.um-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not(.adm-search__input) { min-height: 44px !important; }
+}
+body.admin-body .bp-card textarea.bp-textarea { min-height: 88px !important; resize: vertical; line-height: 1.4; }
+.bp-hint { margin: 4px 0 0; font-size: 12px; }
+.bp-sub { margin: 18px 0 8px; }
+.bp-card .is-invalid { border-color: var(--atl-clay, #c0392b) !important; }
+
+/* the two registration tick boxes: big, labelled, explained */
+.bp-check { padding: 12px 0 4px; }
+.bp-check__row { display: flex; align-items: center; gap: 12px; min-height: 44px; margin: 0; cursor: pointer; font-weight: 600; color: var(--atl-ink); font-size: 14px; }
+.bp-check__box { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--atl-sage); cursor: pointer; }
+.bp-check__text { margin: 2px 0 6px 34px; }
+.bp-reveal { margin: 4px 0 12px 0; padding: 12px 12px 2px; border-left: 3px solid var(--atl-line); background: var(--atl-surface2); border-radius: 0 var(--atl-r-md) var(--atl-r-md) 0; }
+
+/* live "what this means" panel */
+.bp-effect { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); background: var(--atl-surface2); font-size: 13px; line-height: 1.5; color: var(--atl-ink); }
+.bp-effect--on { border-color: var(--atl-sage); }
+.bp-effect__title { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--atl-muted); font-weight: 600; margin-bottom: 6px; }
+.bp-effect__fine { margin-top: 6px; font-size: 12px; color: var(--atl-muted); }
+
+/* directors */
+.bp-director { display: grid; grid-template-columns: 1fr; gap: 8px; margin-bottom: 10px; padding: 10px; border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); }
+.bp-director .um-input { width: 100%; }
+.bp-dirid__row { display: flex; gap: 8px; align-items: stretch; flex-wrap: wrap; }
+.bp-dirid__row .um-input-wrap { flex: 1 1 200px; }
+
+.bp-chip { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--atl-line); }
+.bp-chip--ok { color: var(--atl-sage); border-color: var(--atl-sage); }
+.bp-chip--warn { color: var(--atl-amber); border-color: var(--atl-amber); }
+.bp-chip--bad { color: var(--atl-clay, #c0392b); border-color: var(--atl-clay, #c0392b); }
+.bp-chip--muted { color: var(--atl-muted); }
+.bp-bbbee-chip { margin-bottom: 12px; }
+
+.bp-preview-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.bp-preview-btns .atl-btn, #bpGoBank { min-height: 44px; }
+
+/* each editable card has its own footer: unsaved indicator + Discard + Save. In normal flow at the bottom of the card (like the other settings save docks), never floating over fields. */
+.bp-cardbar { display: flex; flex-direction: column; gap: 10px; align-items: stretch; margin-top: 18px; padding: 12px 16px; background: var(--atl-surface2); border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); }
+.bp-cardbar__btns { display: flex; gap: 10px; flex-wrap: nowrap; }
+.bp-cardbar__btns .atl-btn { flex: 1 1 0; min-height: 44px; padding-left: 10px; padding-right: 10px; white-space: nowrap; }
+@media (max-width: 767px) { .bp-cardbar { padding: 8px 12px; gap: 6px; } .bp-cardbar__msg { font-size: 12px; } }
+
+@media (min-width: 768px) {
+    .bp-director { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center; }
+    .bp-cardbar { flex-direction: row; align-items: center; justify-content: space-between; }
+    .bp-cardbar__btns .atl-btn { flex: 0 0 auto; }
+}
+
+/* the admin shell pins buttons to 40px; the Save / Discard / preview buttons are the controls people tap most on a phone */
+@media (max-width: 767px) {
+    body.admin-body .bp-cardbar__btns .atl-btn, body.admin-body .bp-preview-btns .atl-btn, body.admin-body #bpGoBank { min-height: 44px !important; height: auto !important; }
+}

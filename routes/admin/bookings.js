@@ -24,6 +24,7 @@ const { escapeEmailFields } = require('../../lib/email-escape');
 const { getEmailFooterContext } = require('../../lib/email-context');
 const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/client-venue');
 const { resolveLineTaxClasses, getVatRate, computeDocumentTotals } = require('../../lib/document-totals');
+const businessProfile = require('../../lib/business-profile');
 const {
     DEFAULT_CONTRACT_CLAUSES, CONTRACT_ELIGIBLE_STATUSES,
     resolveContractFeeData, assembleContractHtml, generateContract
@@ -1304,6 +1305,15 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
             }
 
 
+            // WHO issues this quotation (lib/business-profile.js). It is frozen onto the quotation row below, so an invoice built from it later
+            // keeps this identity and this VAT status even if the business profile changes in between.
+            const issuer = await businessProfile.loadIssuer();
+            // VAT may only be charged by a business that is VAT-registered AND has confirmed its VAT number with SARS (Business > Business Profile).
+            // The Quote Builder greys the box out; this is the server saying the same thing to any other caller.
+            if (req.body.apply_vat && !issuer.vatRegistered) {
+                return res.status(400).json({ success: false, code: 'VAT_NOT_ACTIVE', message: 'VAT cannot be added: the business is not set up as VAT-registered with a confirmed VAT number. Update Business > Business Profile first, or send the quotation without VAT.' });
+            }
+
             let quote_amount, quote_details, quote_expiry_date, finalTotal = 0;
             let items = [];
             let priceWarnings = []; // rate-card advisories (lib/service-pricing) returned with the success response
@@ -1488,7 +1498,7 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
                 // quoteNumber is passed through so the number on the client's PDF is the number stored in
                 // `quotations.quote_number`, as invoices now do.
                 // quoteExpiry: the document says "valid until" the expiry chosen for THIS quote (the date the tracker enforces).
-                const pdfResult = await pdfService.generateDocument('Quote', booking, items, pdfPath, [], quoteNumber, { pricingConditions, quoteExpiry: quote_expiry_date });
+                const pdfResult = await pdfService.generateDocument('Quote', booking, items, pdfPath, [], quoteNumber, { pricingConditions, quoteExpiry: quote_expiry_date, issuer });
                 await objectStorage.syncFileToStorage(pdfPath);
 
                 // Archive the old quotation, restamp the booking, insert the new versioned quotation
@@ -1554,6 +1564,7 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
                         // 3. Insert new versioned Quotation
                         const qIns = await insertQuotation(bookingId, quoteNumber, booking.client_id, quote_expiry_date, finalTotal, pdfFileName, nextVersion);
                         const quotationId = qIns.lastID;
+                        await dbRun('UPDATE quotations SET issuer_snapshot = ? WHERE id = ?', [businessProfile.snapshotOf(issuer), quotationId]);
 
                         // 4. Refresh line items (current snapshot)
                         await deleteBookingLineItems(bookingId);

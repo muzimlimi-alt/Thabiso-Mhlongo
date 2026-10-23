@@ -1,4 +1,4 @@
-/* Google Calendar connection (docs-internal/google-calendar.md): the System Settings card (OAuth client ID + secret, Connect Google, Test connection, Disconnect) and the
+/* Google Calendar connection (docs-internal/google-calendar.md): the System > Integrations card (OAuth client ID + secret, Connect Google, Test connection, Disconnect) and the
    status strip on the admin Calendar. Loaded after js/admin/system-settings.js, which calls window.loadGoogleCalendarCard() once the settings are loaded, and wraps
    window.calM365Init so the strip refreshes whenever the calendar opens.
 
@@ -54,7 +54,7 @@
         return 'Not set up. Enter the OAuth client from your Google Cloud project and press "Save & connect Google". The one-time Google Cloud steps are under About.';
     }
 
-    /* ---- the System Settings card ---- */
+    /* ---- the System > Integrations card ---- */
     function fieldError(id, msg) { var e = $(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } }
     function result(text, kind) {
         var el = $('stGoogleResult');
@@ -197,7 +197,7 @@
         }).catch(function () { /* the calendar works without it */ });
     }
     function openSettings() {
-        if (typeof window.switchTab === 'function') window.switchTab('preferencesAdmin');
+        if (window.admNav) window.admNav.go('integrationsAdmin', { tab: 'intPanelGoogle' });
         setTimeout(function () {
             var card = $('stGoogleCard');
             if (!card) return;
@@ -219,7 +219,7 @@
             if (typeof window.switchTab !== 'function' || !window.currentUserRole) return;   // still loading, or signing in
             clearInterval(timer);
             var sentence = OUTCOMES[outcome] || OUTCOMES.google;
-            window.switchTab('preferencesAdmin');
+            window.admNav.go('integrationsAdmin', { tab: 'intPanelGoogle' });
             setTimeout(function () {
                 window.loadGoogleCalendarCard().then(function () {
                     result(sentence, outcome === 'connected' ? 'ok' : 'bad');

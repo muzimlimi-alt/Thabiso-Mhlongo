@@ -1,3 +1,6 @@
+// (2026-10-23, business profile: an invoice can now read TAX INVOICE - but only when the business is VAT-registered AND has confirmed its VAT number AND
+// VAT is charged on that document; see test/business-profile.test.js. What this file pins is unchanged: with NO issuer handed in, the amount of the invoice
+// or a client's VAT number never decide the title, and a quotation reads QUOTATION.)
 // The invoice just reads INVOICE (owner, 2026-10-19). The PDF used to be titled "TAX INVOICE" - and to print "This is a valid Tax Invoice for VAT
 // purposes in terms of section 20 of the Value-Added Tax Act" - for every invoice of R5,000 or more, or one carrying a client VAT number, whether or
 // not any VAT was charged. Now the title is the plain document type and the legal sentence is gone. Money is untouched: what makes an invoice
@@ -36,7 +39,7 @@ module.exports = async function ({ check }) {
         check('a small invoice reads INVOICE (as before)', /\bINVOICE\b/.test(small) && !/TAX INVOICE/i.test(small), small.slice(0, 300));
 
         const quote = await render('Quote', booking(), line(7500), 'quote');
-        check('a quotation is not an invoice: it reads QUOTE and never INVOICE', /\bQUOTE\b/.test(quote) && !/\bINVOICE\b/.test(quote), quote.slice(0, 300));
+        check('a quotation is not an invoice: it reads QUOTATION and never INVOICE', /\bQUOTATION\b/.test(quote) && !/\bINVOICE\b/.test(quote), quote.slice(0, 300));
     } finally {
         try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {}
     }

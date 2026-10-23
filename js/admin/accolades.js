@@ -118,7 +118,7 @@
         var $n = $('#aclSectionNotice');
         var live = state.items.filter(function (a) { return a.is_public; }).length;
         if (!state.sectionVisible) {
-            $n.removeClass('acl-notice--info').html('<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>The <strong>Accolades &amp; Recognition</strong> section is switched off in <strong>Settings &rarr; Website Sections</strong>, so nothing below is shown on the public site until it is switched back on.</span>').prop('hidden', false);
+            $n.removeClass('acl-notice--info').html('<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>The <strong>Accolades &amp; Recognition</strong> section is switched off in <strong>Site Appearance &rarr; Homepage Sections</strong>, so nothing below is shown on the public site until it is switched back on.</span>').prop('hidden', false);
         } else if (state.items.length && !live) {
             $n.addClass('acl-notice--info').html('<i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>Nothing is published yet, so the section is hidden on the website. Switch an accolade to <strong>Active</strong> to show it.</span>').prop('hidden', false);
         } else {
