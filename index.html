@@ -2089,7 +2089,7 @@
 	<script src="js/shared/location-utils.js?v=1"></script>
 	<!-- Shared location-search client (2026-10 Places audit) - the booking wizard uses its session tokens. -->
 	<script src="js/shared/places-client.js?v=1"></script>
-	<script src="js/myscript.js?v=1.9.10"></script>
+	<script src="js/myscript.js?v=1.9.11"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather
@@ -3607,16 +3607,37 @@ $(document).on('click', '.trk-lookup-row', function() {
                 var indicators = document.getElementById('featuredIndicators');
                 if (!inner || !items || !items.length) return;
 
-                inner.innerHTML = '';
-                indicators.innerHTML = '';
-
+                var indicatorsHtml = '';
+                var slidesHtml = '';
                 items.forEach(function(item, idx) {
                     var activeClass = idx === 0 ? ' active' : '';
-                    indicators.innerHTML += '<li data-target="#featured" data-slide-to="' + idx + '" class="' + activeClass.trim() + '"></li>';
-                    inner.innerHTML += '<div class="item' + activeClass + '"><img src="' + item.url + '" alt="' + (item.alt || 'Thabiso Mhlongo') + '"></div>';
+                    indicatorsHtml += '<li data-target="#featured" data-slide-to="' + idx + '" class="' + activeClass.trim() + '"></li>';
+                    // Only the first slide is fetched up front. The others keep their URL in data-src (loading="lazy"
+                    // is not enough: the crossfade CSS stacks the slides, so the browser treats them all as in view)
+                    // and are given a real src one at a time below.
+                    slidesHtml += '<div class="item' + activeClass + '"><img ' + (idx === 0 ? 'src' : 'data-src') + '="' + item.url + '" alt="' + (item.alt || 'Thabiso Mhlongo') + '"></div>';
                 });
+                inner.innerHTML = slidesHtml;
+                indicators.innerHTML = indicatorsHtml;
                 // Initialize carousel after items are loaded
                 $('#featured').carousel({ interval: 6000 });
+
+                // Bandwidth: request the NEXT slide's photo once the current one is showing, so a visitor
+                // downloads only what is about to be displayed instead of every slide at page open.
+                function loadSlideImage(slide) {
+                    var img = slide && slide.querySelector('img[data-src]');
+                    if (img) { img.src = img.getAttribute('data-src'); img.removeAttribute('data-src'); }
+                }
+                function warmNextSlide() {
+                    var slides = inner.querySelectorAll('.item');
+                    var current = inner.querySelector('.item.active');
+                    loadSlideImage(slides[(Array.prototype.indexOf.call(slides, current) + 1) % slides.length]);
+                }
+                $('#featured').on('slid.bs.carousel', warmNextSlide);
+                // A visitor who jumps straight to a slide (indicator dot / arrow) must not see an empty frame.
+                $('#featured').on('slide.bs.carousel', function (e) { loadSlideImage(e.relatedTarget); });
+                if (document.readyState === 'complete') warmNextSlide();
+                else window.addEventListener('load', warmNextSlide);
             })
             .catch(function() { /* keep the fallback slide that's already in the DOM */ });
     })();

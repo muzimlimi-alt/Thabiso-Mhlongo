@@ -561,7 +561,7 @@ $(function() {
                 var safeVenue = item.venue_name ? item.venue_name.replace(/"/g, '&quot;') : '';
                 var safePoster = item.poster_image_path ? item.poster_image_path : 'images/events/1.jpg';
 
-                var mediaHtml = `<img src="${safePoster}" alt="${safeTitle}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">`;
+                var mediaHtml = `<img src="${safePoster}" alt="${safeTitle}" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">`;
 
                 var encodedPayload = encodeURIComponent(JSON.stringify(item));
 
@@ -1090,7 +1090,7 @@ $(function() {
         var isMonogram = !item.image_path;
         var inner = isMonogram
             ? (item.name || '?').trim().charAt(0).toUpperCase()
-            : '<img src="' + item.image_path + '" alt="' + safeName + '" onerror="window.ctThumbFallback(this)">';
+            : '<img src="' + item.image_path + '" alt="' + safeName + '" loading="lazy" onerror="window.ctThumbFallback(this)">';
         return '<div class="ct-image-slot' + (isMonogram ? ' ct-monogram' : '') + '" data-pos="' + pos + '">' + inner + '</div>';
     }
 
