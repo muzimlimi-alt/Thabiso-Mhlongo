@@ -83,11 +83,26 @@ router.post('/upload', (req, res, next) => {
         else if (!(err instanceof multer.MulterError)) { status = 500; message = 'Upload failed on the server. Please try again.'; console.error('upload failed:', err); }
         res.status(status).json({ success: false, message });
     });
-}, (req, res) => {
+}, async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
-    
+
+    // Shrink oversized photos before the public site can serve them (bandwidth). Same name and format, so the
+    // returned path is unchanged; any failure leaves the original upload in place. Accolade/branding files are
+    // left alone (certificates, logos and the favicon must stay pixel-exact).
+    if (req.body.section !== 'branding' && req.body.section !== 'accolades') {
+        try {
+            const objectStorage = require('../../lib/object-storage');
+            const { optimizeImageBuffer } = require('../../lib/image-optimize');
+            const original = await objectStorage.readFile(req.file.path);
+            const result = await optimizeImageBuffer(original, req.file.filename);
+            if (result.optimised) await objectStorage.putBuffer(objectStorage.keyForDiskPath(req.file.path), result.buffer, req.file.mimetype);
+        } catch (err) {
+            console.error('image optimisation skipped:', err.message);
+        }
+    }
+
     // Construct the relative path string that the website expects (e.g. "images/gallery/photo.jpg")
     let folderPath = 'images/';
     const section = req.body.section;

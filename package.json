@@ -34,6 +34,7 @@
     "node-schedule": "^2.1.1",
     "nodemailer": "^8.0.1",
     "pdfkit": "^0.18.0",
+    "sharp": "^0.33.5",
     "sqlite3": "^5.1.7",
     "ua-parser-js": "^2.0.10"
   },
