@@ -331,4 +331,7 @@ router.get('/api/public/site-content', (req, res) => {
     });
 });
 
+// Standalone /privacy and /terms pages (text comes from the homepage pop-ups).
+router.use(require('./legal-pages'));
+
 module.exports = router;

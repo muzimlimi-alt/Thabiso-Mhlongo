@@ -105,7 +105,14 @@ consent screen's publishing status live there.
   real events onto the owner's real Google Calendar). Nothing in the tests reaches Google; a test server that is *not* given the fake still talks to real
   Google with the bogus `GOOGLE_REFRESH_TOKEN` the support module sets (pre-existing behaviour, always `invalid_grant`).
 
-## 9. Hazards
+## 9. Privacy policy and terms links (Google Cloud Branding page)
+
+Google's consent-screen Branding page (and app stores, payment providers) ask for a privacy-policy and a terms link. These are optional for an own-use app that is not submitted for
+verification. If entered, use the standalone pages added 2026-10-23: **https://www.thabisomhlongo.com/privacy** and **https://www.thabisomhlongo.com/terms**
+(`lib/legal-pages.js`, `routes/public/legal-pages.js`, tests in `test/legal-pages.test.js`). Their text is read from the homepage pop-ups in `index.html`, so editing the pop-up
+changes both. Aliases (`/privacy-policy`, `/terms-of-use`, ...) redirect. The policy text does not mention Google Calendar / Microsoft 365 - wording the owner must approve.
+
+## 10. Hazards
 
 * A developer's `database.sqlite` that has the owner's Google connection saved will make a **local** `npm start` act on the owner's real calendar (same hazard
   as live PayFast settings in the dev DB). Disconnect locally, or use a DB without `google_cal_*`.
