@@ -460,6 +460,11 @@ app.use(express.static(path.join(__dirname, '/'), {
         } else if (filePath.match(/\.(css|js)$/i)) {
             // CSS and JS - cache for 1 day
             res.setHeader('Cache-Control', 'public, max-age=86400');
+        } else if (path.basename(filePath).toLowerCase() === 'index.html') {
+            // The public homepage is a static, cookie-free, nonce-free file. "no-cache" still forces a
+            // revalidation on every view (so a deploy shows up immediately, same as no-store) but lets the
+            // browser answer from its copy with a tiny 304 via the ETag instead of re-downloading ~200 KB.
+            res.setHeader('Cache-Control', 'no-cache');
         } else if (ext === '.html' || ext === '.htm') {
             // NEVER cache HTML files to ensure updates propagate immediately
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
