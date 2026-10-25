@@ -338,6 +338,22 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, apiBi
         check('rules: a VAT number never reaches a document unless VAT is active', iss({ vat_number_verified: 0 }).vatNumber === '' && iss({}).vatNumber === '4123456789', '');
         const advice = core.taxInvoiceAdvice(iss({}), { total: 7250, vatCharged: true, clientName: 'A', clientAddress: '', clientVat: '', clientCompany: 'Acme' });
         check('rules: over R5,000 a VAT-registered issuer is ADVISED (not blocked) to capture the customer address and VAT number', advice.length === 2, JSON.stringify(advice));
+        check('client VAT number: spaces/dashes ignored, empty = none, anything but 10 digits starting with 4 is refused', core.normaliseClientVat(' 4010 123-456 ') === '4010123456' && core.normaliseClientVat('') === '' && core.normaliseClientVat(null) === '' && core.normaliseClientVat('3010123456') === null && core.normaliseClientVat('401012345') === null && core.normaliseClientVat('40101234567') === null && core.normaliseClientVat('4O10123456') === null, '');
+        // The quotation/invoice header's business name (2026-10-25): trading name when meaningfully set, else the legal name - never
+        // both, never a placeholder, never mangled (no auto "(PTY) LTD").
+        check('rules: documentBusinessName - the trading name leads when set (trimmed); the legal name is untouched either way',
+            core.documentBusinessName(iss({ trading_name: '  Thabiso Comedy  ' })) === 'Thabiso Comedy'
+            && core.documentBusinessName(iss({ trading_name: '' })) === 'MTV CREATIVES (PTY) LTD'
+            && core.documentBusinessName(iss({ trading_name: '   ' })) === 'MTV CREATIVES (PTY) LTD'   // whitespace-only counts as not set
+            && core.documentBusinessName({ tradingName: '', legalName: '' }) === null, '');            // neither configured - never invented
+        // A fixture of our own, never the live `original` row - an admin can (and, mid-session, did) retype the stored address as a
+        // single line through Settings, which would make this assert on whatever the owner currently has on file rather than on the rule.
+        const multiLineAddr = '59 Stone Crest, Frederick Street\nKengies / Stone Crest, Fourways\nGauteng, 0059';
+        check('rules: addressLines - the stored address split one component per line (never comma-joined, unlike registeredOffice), capped at 4',
+            JSON.stringify(core.issuerView(Object.assign({}, original, { registered_address: multiLineAddr, physical_address: '', postal_address: '' })).addressLines) === JSON.stringify(['59 Stone Crest, Frederick Street', 'Kengies / Stone Crest, Fourways', 'Gauteng, 0059'])
+            // registered/physical/postal all empty - the same fallback chain registeredOffice already uses - gives no lines, never a blank one
+            && JSON.stringify(core.issuerView(Object.assign({}, original, { registered_address: '', physical_address: '', postal_address: '' })).addressLines) === '[]'
+            && core.issuerView(Object.assign({}, original, { registered_address: 'a\nb\nc\nd\ne\nf' })).addressLines.length === 4, '');
         check('rules: no advice for small invoices, for non-VAT issuers or when VAT is not charged', core.taxInvoiceAdvice(iss({}), { total: 4000, vatCharged: true }).length === 0 && core.taxInvoiceAdvice(iss({ is_vat_registered: 0 }), { total: 9000, vatCharged: true }).length === 0 && core.taxInvoiceAdvice(iss({}), { total: 9000, vatCharged: false }).length === 0, '');
         check('rules: B-BBEE expiry states (valid / expiring in 60 days / expired / none)', core.bbbeeStatus({ bbbee_expiry_date: '2026-12-31' }, '2026-10-23').state === 'valid' && core.bbbeeStatus({ bbbee_expiry_date: '2026-11-18' }, '2026-10-23').state === 'expiring'
             && core.bbbeeStatus({ bbbee_expiry_date: '2026-10-22' }, '2026-10-23').state === 'expired' && core.bbbeeStatus({}, '2026-10-23').state === 'none', '');

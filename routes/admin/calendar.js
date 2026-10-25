@@ -97,6 +97,7 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                        b.amount_paid, b.amount_outstanding, b.quote_expiry_date,
                        b.cell, COALESCE(v.name, b.event_location) AS venue_name, b.city,
                        e.event_title AS linked_event_title, b.event_id,
+                       b.google_event_id, b.accepted_at, b.popia_consent, b.attachment_files,
                        CASE WHEN ${agreedAmountSql('b')} THEN 1 ELSE 0 END AS amount_agreed
                 FROM bookings b
                 LEFT JOIN clients c ON b.client_id = c.id
@@ -178,7 +179,7 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                 });
 
                 // 3. Get Public Site Events
-                db.all(`SELECT e.event_id, e.event_title, e.event_datetime, e.event_start_time, e.event_end_time, e.booking_id, e.event_status, v.name AS venue_name
+                db.all(`SELECT e.event_id, e.event_title, e.event_datetime, e.event_start_time, e.event_end_time, e.booking_id, e.event_status, e.google_calendar_event_id, v.name AS venue_name
                         FROM events e
                         LEFT JOIN venues v ON e.venue_id = v.id
                         WHERE e.event_status != 'draft'`, [], (err, siteEvents) => {
@@ -192,7 +193,7 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                                 end:   se.event_end_time   ? (se.event_datetime || '').split('T')[0] + 'T' + se.event_end_time   : undefined,
                                 color: '#17a2b8', // Teal
                                 allDay: !se.event_start_time,
-                                extendedProps: { type: 'public_event', dbId: se.event_id, venue: se.venue_name, m365Eligible: !!(m365Model.eventRule(se.event_status, null).showAs || m365Model.eventRule(se.event_status, null).keep) }
+                                extendedProps: { type: 'public_event', dbId: se.event_id, venue: se.venue_name, isCalSynced: !!se.google_calendar_event_id, m365Eligible: !!(m365Model.eventRule(se.event_status, null).showAs || m365Model.eventRule(se.event_status, null).keep) }
                             });
                         }
                     });

@@ -1,6 +1,7 @@
 // Administrator controls for the Google Calendar connection (lib/google-config.js). Mounted by routes/admin/calendar.js. Setup, the redirect address and
 // troubleshooting: docs-internal/google-calendar.md.
-//   read (any signed-in admin role)   whether Google is connected, and to which account
+//   read (any signed-in admin role)   whether Google is connected, to which account, how the last syncs went, and whether Microsoft 365 sharing is also on
+//   administrator or manager          Sync now (read Google's calendar into the website immediately)
 //   administrator                     see/save the OAuth client, connect, test, disconnect
 //   callback (NO session needed)      where Google sends the browser back - see the note on it below
 const express = require('express');
@@ -8,9 +9,11 @@ const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { adminRateLimiter } = require('../../middleware/rate-limiters');
 const { logAudit } = require('../../lib/audit-log');
+const db = require('../../database');
 const google = require('../../lib/google-config');
 const router = express.Router();
 const adminOnly = [requireAdmin, requireRole(['administrator'])];
+const managerUp = [requireAdmin, requireRole(['administrator', 'manager'])];
 const CALLBACK_PATH = '/api/admin/google-calendar/callback';
 const fail = (res, e, what) => {
     console.error('google-calendar ' + what + ' failed:', e && e.message);
@@ -29,15 +32,41 @@ function redirectUriFor(req) {
     return (local || !/^https?:\/\/[^/]+$/i.test(base) ? origin : base) + CALLBACK_PATH;
 }
 
+// How the last syncs went, and whether the Microsoft 365 calendar is ALSO switched on (then a confirmed booking can be on two calendars - the screens warn about it).
+// Safe for every signed-in role: plain-language text, no credentials.
+async function syncExtras(view) {
+    const sync = await google.getSyncStatus();
+    const m365Enabled = await new Promise((resolve) => db.get('SELECT enabled FROM calendar_sync_state WHERE id = 1', [], (err, row) => resolve(!err && !!row && Number(row.enabled) === 1)));
+    return { sync, m365Enabled, doubleEntryRisk: !!view.connected && m365Enabled };
+}
+
 router.get('/api/admin/google-calendar', requireAdmin, async (req, res) => {
     try {
         const view = await google.getStatus();
+        const extras = await syncExtras(view);
         if ((req.session.role || 'assistant') !== 'administrator') {
             // Everyone signed in may see whether the calendar is connected; the client ID and where the credentials come from are for administrators.
-            return res.json({ success: true, canManage: false, state: view.state, connected: view.connected, account: view.account });
+            return res.json({ success: true, canManage: false, state: view.state, connected: view.connected, account: view.account, ...extras });
         }
-        res.json({ success: true, canManage: true, redirectUri: redirectUriFor(req), ...view });
+        res.json({ success: true, canManage: true, redirectUri: redirectUriFor(req), ...view, ...extras });
     } catch (e) { fail(res, e, 'status'); }
+});
+
+// "Sync now": read Google's calendar into the website immediately (the same pull that runs every 15 minutes: appointments there block those times here, entries
+// that were removed there are removed here). Administrators and managers; one at a time.
+let syncing = false;
+router.post('/api/admin/google-calendar/sync', ...managerUp, async (req, res) => {
+    try {
+        const view = await google.getStatus();
+        if (!view.connected) return res.status(409).json({ success: false, message: 'Google Calendar is not connected.' });
+        if (syncing) return res.status(409).json({ success: false, message: 'A Google Calendar sync is already running. Try again in a moment.' });
+        syncing = true;
+        let result;
+        try { result = await require('../../lib/calendar-sync').syncCalendarHolds(); }
+        finally { syncing = false; }
+        const sync = await google.getSyncStatus();
+        res.json({ success: true, ok: !!(result && result.ok), sync, message: result && result.ok ? 'Google Calendar was read just now.' : (sync.lastError || 'Google Calendar could not be read.') });
+    } catch (e) { syncing = false; fail(res, e, 'sync'); }
 });
 
 // Save the OAuth client (client ID + client secret). The secret is stored encrypted and never returned; leaving it blank keeps the saved one.

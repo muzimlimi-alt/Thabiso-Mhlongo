@@ -25,6 +25,8 @@ const { getEmailFooterContext } = require('../../lib/email-context');
 const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/client-venue');
 const { resolveLineTaxClasses, getVatRate, computeDocumentTotals } = require('../../lib/document-totals');
 const businessProfile = require('../../lib/business-profile');
+const { normaliseClientVat, CLIENT_VAT_MESSAGE, PATTERNS } = require('../../lib/business-profile-core');
+const { asBookingText } = require('../../lib/booking-tracking');
 const {
     DEFAULT_CONTRACT_CLAUSES, CONTRACT_ELIGIBLE_STATUSES,
     resolveContractFeeData, assembleContractHtml, generateContract
@@ -2136,6 +2138,104 @@ router.get('/api/admin/bookings/:id', requireAdmin, (req, res) => {
             });
         });
     });
+});
+
+// Correct what the client gave us at booking time — name, email, cell, company, VAT number, billing address. These are the client's
+// OWN facts, not ours, so a typo or a changed number needs fixing here rather than on a fresh booking: a wrong cell number means a client
+// cannot be reached, a wrong email locks them out of their own tracking link, and a missing/garbled VAT number or address is exactly what
+// lib/business-profile-core.js's taxInvoiceAdvice() warns is needed before a qualifying tax invoice goes out.
+//
+// Partial update: only the fields present in the body are validated and changed. bookings.* stays the source of truth documents read
+// (same convention as everywhere else in this file — admin-typed text is stored as typed, not re-encoded); the linked client record is
+// then refreshed through the same findOrCreateClient() every other booking path uses, so a corrected e-mail re-resolves to the right
+// client (or creates one) instead of silently renaming someone else's.
+router.put('/api/admin/bookings/:id/contact', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+    try {
+        const bookingId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(bookingId)) return res.status(400).json({ success: false, message: 'Invalid booking id.' });
+        const existing = await dbGet('SELECT id, name, email, cell, company, vat_number, billing_address, client_id FROM bookings WHERE id = ?', [bookingId]);
+        if (!existing) return res.status(404).json({ success: false, message: 'Booking not found.' });
+
+        const body = req.body || {};
+        const FIELDS = ['name', 'email', 'cell', 'company', 'vat_number', 'billing_address'];
+        const present = FIELDS.filter((f) => Object.prototype.hasOwnProperty.call(body, f));
+        if (!present.length) return res.status(400).json({ success: false, message: 'Nothing to update.' });
+
+        const next = {};   // validated/normalised value for every PRESENT field only
+        const errors = {};
+        if (present.includes('name')) {
+            const v = asBookingText(body.name);
+            if (v.length < 2 || v.length > 150) errors.name = 'Name must be between 2 and 150 characters.';
+            else next.name = v;
+        }
+        if (present.includes('email')) {
+            const v = asBookingText(body.email).toLowerCase();
+            if (!PATTERNS.email.test(v) || v.length > 200) errors.email = 'Enter a valid email address.';
+            else next.email = v;
+        }
+        if (present.includes('cell')) {
+            const v = asBookingText(body.cell);
+            if (!PATTERNS.phone.test(v)) errors.cell = 'Enter a valid phone number.';
+            else next.cell = v;
+        }
+        if (present.includes('company')) {
+            const v = asBookingText(body.company);
+            if (v.length > 150) errors.company = 'Company name must be under 150 characters.';
+            else next.company = v || null;   // '' clears it — a client can stop being a company booking
+        }
+        if (present.includes('vat_number')) {
+            const cleanVat = normaliseClientVat(body.vat_number);
+            if (cleanVat === null) errors.vat_number = CLIENT_VAT_MESSAGE;
+            else next.vat_number = cleanVat || null;
+        }
+        if (present.includes('billing_address')) {
+            const v = asBookingText(body.billing_address);
+            if (v.length > 300) errors.billing_address = 'Billing address must be under 300 characters.';
+            else next.billing_address = v || null;
+        }
+        if (Object.keys(errors).length) return res.status(400).json({ success: false, message: 'Not saved: ' + Object.values(errors).join(' '), errors });
+
+        // The merged, effective state — what every field reads as once this save applies — used both for the UPDATE and for
+        // re-resolving the linked client record below.
+        const merged = Object.assign({}, existing, next);
+
+        const sets = Object.keys(next).map((f) => `${f} = ?`);
+        const params = Object.keys(next).map((f) => next[f]);
+        await dbRun(`UPDATE bookings SET ${sets.join(', ')} WHERE id = ?`, params.concat([bookingId]));
+
+        // The same identity resolution every booking path uses: finds the client row for this e-mail (or makes one) and mirrors
+        // name/company/VAT number onto it. A corrected e-mail therefore relinks the booking to the right client rather than
+        // renaming whoever currently holds the old e-mail.
+        let clientId = existing.client_id;
+        try {
+            clientId = await findOrCreateClient(merged.name, merged.email, merged.cell, merged.company, merged.vat_number);
+            if (clientId !== existing.client_id) await dbRun('UPDATE bookings SET client_id = ? WHERE id = ?', [clientId, bookingId]);
+            // billing_address and phone aren't part of findOrCreateClient's own contract (other callers don't supply them) — mirrored
+            // here directly so the client's own record stays in step for whichever OTHER booking reads it next.
+            await dbRun('UPDATE clients SET billing_address = COALESCE(?, billing_address), phone = ? WHERE id = ?', [merged.billing_address, merged.cell, clientId]);
+        } catch (e) {
+            console.error('[Booking Contact] Client record could not be refreshed for booking #' + bookingId + ':', e.message);
+            // The booking's own columns are already saved above — what documents and the admin screen read. The shared client
+            // record is a secondary, best-effort mirror; its failure is logged, not fatal to this save.
+        }
+
+        const diffOld = {}, diffNew = {};
+        for (const f of Object.keys(next)) {
+            const a = existing[f] == null ? '' : String(existing[f]);
+            const b = next[f] == null ? '' : String(next[f]);
+            if (a !== b) { diffOld[f] = a; diffNew[f] = b; }
+        }
+        if (Object.keys(diffNew).length) {
+            await dbRun(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
+                         VALUES ('bookings', ?, 'CONTACT_UPDATED', ?, ?, ?, CURRENT_TIMESTAMP)`,
+                [bookingId, JSON.stringify(diffOld), JSON.stringify(diffNew), req.session.adminId || 'admin']);
+        }
+
+        res.json({ success: true, message: 'Contact details updated.', updated: Object.keys(next) });
+    } catch (e) {
+        console.error('[Booking Contact] Update failed for booking #' + req.params.id + ':', e.message);
+        res.status(500).json({ success: false, message: 'Could not save these changes. Please try again.' });
+    }
 });
 
 // Shared status-change logic used by both PUT /bookings/:id and PUT /bookings/:id/status

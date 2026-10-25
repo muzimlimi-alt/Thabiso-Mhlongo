@@ -1659,6 +1659,10 @@
 									</div>
 									<small class="bk-step-hint">Leave blank if not VAT registered.</small>
 								</div>
+								<div id="billingAddressFieldGroup" style="display:none;margin:12px 0;">
+									<label class="bk-label" style="font-size:11px;">Billing Address <span style="color:var(--text-muted);font-weight:400;">(optional &mdash; needed on a tax invoice over R5,000)</span></label>
+									<textarea id="acceptBillingAddress" class="bk-input form-control bk-ico-input" rows="2" maxlength="300" placeholder="Street, suburb, city, postal code" style="font-size:13px;"></textarea>
+								</div>
 								<label id="chkTermsRow" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:12px 0;padding:12px;background:var(--bg-page);border:1px solid var(--border-default);border-radius:4px;">
 									<input type="checkbox" id="chkTermsAgree" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--y-base);margin-top:1px;">
 									<span style="font-size:12px;color:var(--text-secondary);line-height:1.5;">I have read and agree to the <a href="/terms" target="_blank" rel="noopener" style="color:var(--y-base);text-decoration:underline;">Terms and Conditions</a> and commit to making payments per the schedule above.</span>
@@ -2585,6 +2589,15 @@ $(document).ready(function() {
                         } else {
                             $('#vatFieldGroup').hide();
                         }
+                        // Billing address: shown for the same company bookings — a full tax invoice over R5,000 needs it (VAT Act
+                        // s20); asked for here so it is usually already on file by the time that applies, never required to accept.
+                        if (b.company) {
+                            $('#billingAddressFieldGroup').show();
+                            if (b.billing_address) { $('#acceptBillingAddress').val(b.billing_address).prop('readonly', true); }
+                            else { $('#acceptBillingAddress').val('').prop('readonly', false); }
+                        } else {
+                            $('#billingAddressFieldGroup').hide();
+                        }
                         $('#acceptQuoteSection').show();
                     } else {
                         $('#acceptQuoteSection').hide();
@@ -3025,7 +3038,7 @@ $(document).ready(function() {
 
         $btn.prop('disabled', true).css({ opacity: '0.7', cursor: 'not-allowed' }).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Accepting...');
         try {
-            var acceptBody = { access_token: currentAccessToken, terms_agreed: true, vat_number: $('#acceptVatNumber').val().trim() || null };
+            var acceptBody = { access_token: currentAccessToken, terms_agreed: true, vat_number: $('#acceptVatNumber').val().trim() || null, billing_address: $('#acceptBillingAddress').val().trim() || null };
             if ($('#installmentChoiceSection').is(':visible')) {
                 acceptBody.installment_count = parseInt($('input[name="installmentChoice"]:checked').val(), 10);
             }

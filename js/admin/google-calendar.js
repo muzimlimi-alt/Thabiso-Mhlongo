@@ -1,4 +1,4 @@
-/* Google Calendar connection (docs-internal/google-calendar.md): the System > Integrations card (OAuth client ID + secret, Connect Google, Test connection, Disconnect) and the
+/* Google Calendar connection (docs-internal/google-calendar.md): the Bookings > Calendar > Settings card (OAuth client ID + secret, Connect Google, Test connection, Disconnect) and the
    status strip on the admin Calendar. Loaded after js/admin/system-settings.js, which calls window.loadGoogleCalendarCard() once the settings are loaded, and wraps
    window.calM365Init so the strip refreshes whenever the calendar opens.
 
@@ -19,6 +19,24 @@
             .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; return d; }); });
     }
     function when(iso) { var t = Date.parse(iso); return isNaN(t) ? 'earlier' : new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }); }
+
+    function ago(iso) {
+        var s = Math.round((Date.now() - Date.parse(iso)) / 1000);
+        if (!iso || isNaN(s)) return 'never';
+        if (s < 45) return 'just now';
+        if (s < 3600) return Math.max(1, Math.round(s / 60)) + ' min ago';
+        if (s < 86400) return Math.round(s / 3600) + ' h ago';
+        return Math.round(s / 86400) + ' days ago';
+    }
+    var DOUBLE_ENTRY = "Both Google Calendar and Microsoft 365 sharing are switched on, so each confirmed booking and public event is copied to BOTH calendars. That is fine if they are separate calendars for different people; if anyone views both together (for example both added to one phone calendar), bookings will appear twice. Consider keeping just one of them switched on.";
+    function canSync() { return window.currentUserRole === 'administrator' || window.currentUserRole === 'manager'; }
+    // How the last syncs went, in the words the server recorded (plain language, no credentials).
+    function syncSentence(s) {
+        var y = s && s.sync;
+        if (!y) return '';
+        if (y.healthy === false && y.lastError) return ' Problem: ' + y.lastError + (y.lastOkAt ? ' Last good sync ' + ago(y.lastOkAt) + '.' : '');
+        return y.lastOkAt ? ' Google was last reached ' + ago(y.lastOkAt) + '.' : '';
+    }
 
     /* ---- wording ---- */
     // What the page says after Google sends the administrator back (the server redirects with one word from a fixed list).
@@ -45,7 +63,7 @@
         if (s.problems && s.problems.length) return s.problems.join('. ') + '.';
         if (s.state === 'connected') {
             if (s.tokenSource === 'environment') return 'Connected using the credentials supplied by the server environment. Press "Reconnect Google" to replace them with a sign-in saved here.';
-            return 'Connected' + (s.account ? ' as ' + s.account : '') + (s.connectedAt ? ' since ' + when(s.connectedAt) : '') + '. Bookings and public events are kept in step with this calendar.';
+            return 'Connected' + (s.account ? ' as ' + s.account : '') + (s.connectedAt ? ' since ' + when(s.connectedAt) : '') + '. Bookings and public events are kept in step with this calendar.' + syncSentence(s);
         }
         if (s.state === 'incomplete') {
             return s.secretSet ? 'The OAuth client is saved but Google is not connected yet. Press "Connect Google" and sign in with the Google account that owns the calendar.'
@@ -54,7 +72,7 @@
         return 'Not set up. Enter the OAuth client from your Google Cloud project and press "Save & connect Google". The one-time Google Cloud steps are under About.';
     }
 
-    /* ---- the System > Integrations card ---- */
+    /* ---- the Bookings > Calendar > Settings card ---- */
     function fieldError(id, msg) { var e = $(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } }
     function result(text, kind) {
         var el = $('stGoogleResult');
@@ -68,7 +86,7 @@
         if (!isAdmin() || !s || s.canManage === false) { card.style.display = 'none'; return; }
         card.style.display = '';
         $('stGoogleStatus').textContent = statusText(s);
-        $('stGoogleStatus').style.color = s.problems && s.problems.length ? 'var(--atl-clay)' : '';
+        $('stGoogleStatus').style.color = (s.problems && s.problems.length) || (s.sync && s.sync.healthy === false && s.state === 'connected') ? 'var(--atl-clay)' : '';
         $('stGoogleClientId').value = s.clientId || '';
         // Never render a secret - only a masked hint so the administrator knows one is saved (blank = keep it)
         var secret = $('stGoogleSecret');
@@ -180,14 +198,27 @@
         var admin = isAdmin();
         var connected = s.state === 'connected';
         strip.hidden = false;
-        strip.className = 'cal-m365-strip cal-m365-strip--' + (connected ? 'ok' : (s.state === 'incomplete' ? 'warn' : 'off'));
+        var failing = connected && !!s.sync && s.sync.healthy === false && !!s.sync.lastError;
+        strip.className = 'cal-m365-strip cal-m365-strip--' + (failing ? 'bad' : connected ? (s.doubleEntryRisk ? 'warn' : 'ok') : (s.state === 'incomplete' ? 'warn' : 'off'));
         var text;
-        if (connected) text = 'Google Calendar: connected' + (s.account ? ' as ' + s.account : '') + '. Bookings and public events are kept in step with it.';
+        if (failing) text = "Google Calendar: can't sync right now \u2014 " + s.sync.lastError + (s.sync.lastOkAt ? ' Last good sync ' + ago(s.sync.lastOkAt) + '.' : '');
+        else if (connected) text = 'Google Calendar: connected' + (s.account ? ' as ' + s.account : '') + (s.sync && s.sync.lastOkAt ? ' \u00b7 read ' + ago(s.sync.lastOkAt) : '') + '. Bookings and public events are kept in step with it.';
         else if (s.state === 'incomplete') text = 'Google Calendar: set up but not connected. Bookings and events are not being copied to it.' + (admin ? '' : ' An administrator needs to finish connecting it.');
         else text = 'Google Calendar is not connected. Bookings and events are not copied to it, and its appointments do not block times here.' + (admin ? '' : ' An administrator can connect it.');
         $('calGoogleText').textContent = text;
+        var warn = $('calGoogleWarn');
+        if (warn) { warn.hidden = !(connected && s.doubleEntryRisk); warn.textContent = connected && s.doubleEntryRisk ? DOUBLE_ENTRY : ''; }
+        var runBtn = $('calGoogleRun');
+        if (runBtn) runBtn.hidden = !(connected && canSync());
+        var fw = $('calGoogleFilterWrap');
+        if (fw) {
+            fw.hidden = !connected;
+            if (!connected && $('calGoogleFilter') && $('calGoogleFilter').value !== 'all') { $('calGoogleFilter').value = 'all'; applyGoogleFilter('all'); }
+        }
         var btn = $('calGoogleSetup');
         btn.hidden = !admin;
+        var tabBtn = $('calSettingsTabBtn');   // the Settings tab is for administrators only
+        if (tabBtn) tabBtn.style.display = admin ? '' : 'none';
         btn.querySelector('span').textContent = connected ? 'Settings' : (s.state === 'none' ? 'Set up' : 'Connect');
     }
     function loadStrip() {
@@ -196,8 +227,36 @@
             if (d && d.success) { status = Object.assign({}, status, d); renderStrip(d); renderButtons(status); }
         }).catch(function () { /* the calendar works without it */ });
     }
+    // "Sync now": read Google's calendar into the website right away (the same pull that runs every 15 minutes).
+    function onRunNow() {
+        var btn = $('calGoogleRun');
+        if (!btn || btn.disabled) return;
+        var orig = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Syncing\u2026';
+        call('POST', API + '/sync').then(function (d) {
+            if (d && d.success && d.ok) {
+                notify('showSuccess', 'Google Calendar was read just now.');
+                if (typeof adminCalendar !== 'undefined' && adminCalendar) adminCalendar.refetchEvents();
+            } else notify('showError', 'Google Calendar sync', (d && d.message) || 'The sync could not be run.');
+        }).catch(function () { notify('showError', 'Google Calendar sync', 'Could not reach the server. Please try again.'); })
+            .then(function () { btn.disabled = false; btn.innerHTML = orig; return loadStrip(); });
+    }
+
+    // The Google filter: every booking / public event is marked by calGoogleBadge; CSS hides the ones that do not match.
+    function applyGoogleFilter(mode) {
+        var el = $('calendar');
+        if (!el) return;
+        el.classList.remove('fc-cal--g-on', 'fc-cal--g-off');
+        if (mode === 'on' || mode === 'off') el.classList.add('fc-cal--g-' + mode);
+    }
+    window.calGoogleBadge = function (arg, props) {
+        if (props.type !== 'booking' && props.type !== 'public_event') return;
+        arg.el.classList.add(props.isCalSynced ? 'fc-event--gcal-yes' : 'fc-event--gcal-no');
+    };
+
     function openSettings() {
-        if (window.admNav) window.admNav.go('integrationsAdmin', { tab: 'intPanelGoogle' });
+        if (window.admNav) window.admNav.go('calendarAdmin', { tab: 'calPanelSettings' });
         setTimeout(function () {
             var card = $('stGoogleCard');
             if (!card) return;
@@ -219,7 +278,7 @@
             if (typeof window.switchTab !== 'function' || !window.currentUserRole) return;   // still loading, or signing in
             clearInterval(timer);
             var sentence = OUTCOMES[outcome] || OUTCOMES.google;
-            window.admNav.go('integrationsAdmin', { tab: 'intPanelGoogle' });
+            window.admNav.go('calendarAdmin', { tab: 'calPanelSettings' });
             setTimeout(function () {
                 window.loadGoogleCalendarCard().then(function () {
                     result(sentence, outcome === 'connected' ? 'ok' : 'bad');
@@ -233,18 +292,21 @@
 
     /* ---- wiring ---- */
     document.addEventListener('click', function (ev) {
-        var t = ev.target && ev.target.closest ? ev.target.closest('#stGoogleConnectBtn, #stGoogleTestBtn, #stGoogleDisconnectBtn, #stGoogleCopyBtn, #calGoogleSetup') : null;
+        var t = ev.target && ev.target.closest ? ev.target.closest('#stGoogleConnectBtn, #stGoogleTestBtn, #stGoogleDisconnectBtn, #stGoogleCopyBtn, #calGoogleSetup, #calGoogleRun') : null;
         if (!t) return;
         if (t.id === 'stGoogleConnectBtn') onConnect();
         else if (t.id === 'stGoogleTestBtn') onTest();
         else if (t.id === 'stGoogleDisconnectBtn') onDisconnect();
         else if (t.id === 'stGoogleCopyBtn') onCopy();
         else if (t.id === 'calGoogleSetup') openSettings();
+        else if (t.id === 'calGoogleRun') onRunNow();
     });
+    document.addEventListener('change', function (ev) { if (ev.target && ev.target.id === 'calGoogleFilter') applyGoogleFilter(ev.target.value); });
     var prevInit = window.calM365Init;
     window.calM365Init = function () {
         var r = typeof prevInit === 'function' ? prevInit.apply(this, arguments) : undefined;
         loadStrip();
+        if (isAdmin()) window.loadGoogleCalendarCard();   // the Settings tab's card lives on this page now
         return r;
     };
     setInterval(function () { var s = $('calGoogleStrip'); if (s && s.offsetParent !== null && document.visibilityState === 'visible') loadStrip(); }, 60000);

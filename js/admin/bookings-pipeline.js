@@ -99,6 +99,21 @@
             return window.DocumentTotals ? window.DocumentTotals.computeDocumentTotals(qd.items || [], { discount: discount, applyVat: true }).vat : 0;
         }
 
+        // The rate actually used on this quote (quote_details.vat_rate, stored alongside .vat since the VAT-active work) - never a
+        // hard-coded 15%, which would mislabel a record from a different rate. Only a quote from before that field existed falls back to it.
+        function bkVatPct(qd) {
+            var r = parseFloat(qd && qd.vat_rate);
+            return (isFinite(r) && r >= 0 ? r : 0.15) * 100;
+        }
+
+        // The rest of this panel renders row.name/email/cell straight into the markup unescaped - these columns already carry either
+        // admin-typed text (same trust level as the screen rendering it) or entity-encoded client text (safe as HTML already). The
+        // Client card's edit form below is the one place this file puts a value INSIDE a quoted attribute, where an admin's own
+        // apostrophe or quote would otherwise break the form - hence this one escape helper, used only there.
+        function bkAttrEsc(s) {
+            return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
         // Parse and format quote_details JSON into a readable HTML breakdown
         function formatQuoteDetails(quoteDetailsJson) {
             if (!quoteDetailsJson) return '';
@@ -115,7 +130,7 @@
             });
             html += '</table>';
             if (parseFloat(qd.discount) > 0) html += `<div style="text-align:right;font-size:11px;color:var(--atl-muted);margin-top:4px;">Discount: &minus;R ${parseFloat(qd.discount).toFixed(2)}</div>`;
-            if (qd.apply_vat) html += `<div style="text-align:right;font-size:11px;color:var(--atl-muted);">VAT (15%): R ${parseFloat(qd.vat || 0).toFixed(2)}</div>`;
+            if (qd.apply_vat) html += `<div style="text-align:right;font-size:11px;color:var(--atl-muted);">VAT (${bkVatPct(qd)}%): R ${parseFloat(qd.vat || 0).toFixed(2)}</div>`;
             if (qd.terms) html += `<div style="font-size:11px;color:var(--atl-muted-dim);margin-top:8px;border-top: 1px solid var(--atl-line);padding-top:6px;"><strong style="color: var(--atl-muted);">Terms:</strong> ${qd.terms}</div>`;
             return html;
         }
@@ -161,7 +176,7 @@
             }
             if (qd.apply_vat) {
                 tfoot += '<tr>'
-                    + '<td colspan="3" class="right" style="color:var(--atl-muted);">VAT (15%)</td>'
+                    + '<td colspan="3" class="right" style="color:var(--atl-muted);">VAT (' + bkVatPct(qd) + '%)</td>'
                     + '<td class="right atl-det-tabular">R ' + vatAmount.toFixed(2) + '</td>'
                     + '</tr>';
             }
@@ -249,7 +264,7 @@
             }
             if (qd.apply_vat) {
                 tfoot += '<tr>'
-                    + '<td colspan="3" class="right" style="color:var(--atl-muted);">VAT (15%)</td>'
+                    + '<td colspan="3" class="right" style="color:var(--atl-muted);">VAT (' + bkVatPct(qd) + '%)</td>'
                     + '<td class="right atl-det-tabular">R ' + vatAmount.toFixed(2) + '</td>'
                     + '</tr>';
             }
@@ -605,21 +620,55 @@
       <div class="atl-det-col">
           ${renderNextStepCallout(row)}
           <!-- Client Card -->
-          <div class="atl-det-card">
-            <h5 class="atl-det-title"><i class="fa-solid fa-user"></i>Client</h5>
-            <p class="atl-lead">
-              ${row.name}${row.company ? ` <span class="co">· ${row.company}</span>` : ''}
-            </p>
-            <p class="atl-sub">
-              <a href="mailto:${row.email}" class="atl-det-link">${row.email}</a>
-              ${row.cell ? ` · <a href="tel:${row.cell.replace(/\s/g,'')}" class="atl-det-link">${row.cell}</a>` : ''}
-            </p>
-            ${renderSubmissionAgeLine(row)}
-            <div class="atl-doc-actions-row" style="margin-top:8px;">
-              <button type="button" class="atl-btn atl-btn--ghost bk-view-client-history" data-email="${row.email}">
-                <i class="fa-solid fa-clock-rotate-left" style="margin-right:6px;"></i>View All Bookings
-              </button>
+          <div class="atl-det-card" id="bk-client-card-${row.id}">
+            <h5 class="atl-det-title" style="display:flex;align-items:center;justify-content:space-between;">
+              <span><i class="fa-solid fa-user"></i>Client</span>
+              ${(window.currentUserRole === 'administrator' || window.currentUserRole === 'manager')
+                ? `<button type="button" class="atl-btn atl-btn--ghost bk-client-edit-toggle" data-id="${row.id}" title="Correct the client's details" style="font-size:11px;padding:3px 9px;">
+                     <i class="fa-solid fa-pen" style="margin-right:4px;"></i>Edit</button>`
+                : ''}
+            </h5>
+            <div class="bk-client-view">
+              <p class="atl-lead">
+                ${row.name}${row.company ? ` <span class="co">· ${row.company}</span>` : ''}
+              </p>
+              <p class="atl-sub">
+                <a href="mailto:${row.email}" class="atl-det-link">${row.email}</a>
+                ${row.cell ? ` · <a href="tel:${row.cell.replace(/\s/g,'')}" class="atl-det-link">${row.cell}</a>` : ''}
+              </p>
+              ${row.vat_number ? `<p class="atl-sub">VAT No: ${row.vat_number}</p>` : ''}
+              ${row.billing_address ? `<p class="atl-sub" style="white-space:pre-line;">${row.billing_address}</p>` : ''}
+              ${renderSubmissionAgeLine(row)}
+              <div class="atl-doc-actions-row" style="margin-top:8px;">
+                <button type="button" class="atl-btn atl-btn--ghost bk-view-client-history" data-email="${row.email}">
+                  <i class="fa-solid fa-clock-rotate-left" style="margin-right:6px;"></i>View All Bookings
+                </button>
+              </div>
             </div>
+            <!-- Correcting what the CLIENT gave us (routes/admin/bookings.js PUT :id/contact) - a typo'd cell number, a changed e-mail, a
+                 VAT number/billing address they forgot at booking time. Hidden until Edit is clicked (js/admin/bookings-actions.js). -->
+            <form class="bk-client-edit-form" data-id="${row.id}" style="display:none;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Name</label>
+                  <input type="text" class="atl-input bk-ce-name" value="${bkAttrEsc(row.name)}" style="width:100%;"></div>
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Company</label>
+                  <input type="text" class="atl-input bk-ce-company" value="${bkAttrEsc(row.company || '')}" style="width:100%;"></div>
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">E-mail</label>
+                  <input type="email" class="atl-input bk-ce-email" value="${bkAttrEsc(row.email)}" style="width:100%;"></div>
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Cell</label>
+                  <input type="text" class="atl-input bk-ce-cell" value="${bkAttrEsc(row.cell || '')}" style="width:100%;"></div>
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">VAT Number</label>
+                  <input type="text" class="atl-input bk-ce-vat" value="${bkAttrEsc(row.vat_number || '')}" placeholder="e.g. 4010123456" style="width:100%;"></div>
+                <div style="grid-column:1/-1;"><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Billing Address</label>
+                  <textarea class="atl-input bk-ce-address" rows="2" style="width:100%;resize:vertical;">${bkAttrEsc(row.billing_address || '')}</textarea></div>
+              </div>
+              <div id="bk-client-edit-err-${row.id}" style="display:none;color:var(--atl-clay);font-size:12px;margin-bottom:8px;"></div>
+              <div class="atl-doc-actions-row">
+                <button type="button" class="atl-btn atl-btn--primary bk-client-edit-save" data-id="${row.id}">
+                  <i class="fa-solid fa-check" style="margin-right:6px;"></i>Save</button>
+                <button type="button" class="atl-btn atl-btn--ghost bk-client-edit-cancel" data-id="${row.id}">Cancel</button>
+              </div>
+            </form>
           </div>
 
           <!-- Event Card -->
@@ -2141,21 +2190,36 @@
             $btn.prop('disabled', false);
         });
 
+        // Who these canned replies sign off as — Business > Business Profile's trading name when the owner has set one (that field
+        // exists precisely so correspondence can use a public-facing name instead of the registered legal entity), otherwise the
+        // name these replies have always used. Read fresh at the moment a template is picked (never cached for the page's lifetime),
+        // so a profile edit is reflected in the very next reply sent, not just after a full page reload.
+        async function bkSignOffName() {
+            try {
+                const d = await (await fetch('/api/admin/business-profile')).json();
+                if (d && d.profile && d.profile.trading_name) return d.profile.trading_name;
+            } catch (e) { /* fall through to the default below */ }
+            return 'Thabiso Mhlongo Management';
+        }
+
         // Email template switcher for new modal
-        $(document).on('change', '#be-template', function() {
+        $(document).on('change', '#be-template', async function() {
             const tmpl = $(this).val();
             const booking = allBookingsCache.find(b => b.id == $('#be-booking-id').val());
             const clientName = booking ? (booking.name || '').split(' ')[0] || 'there' : 'there';
+            const signOff = await bkSignOffName();
             let text = '';
 
             if (tmpl === 'pricing') {
-                text = 'Hi ' + clientName + ',\n\nThank you for reaching out regarding Thabiso\'s availability for your event. Please find our standard rate card below:\n\n- Corporate Event (45 mins): R 35,000.00\n- Private Function (30 mins): R 20,000.00\n- Festival Appearance (15 mins): R 15,000.00\n*(Prices exclude VAT and travel/accommodation outside Gauteng)*\n\nPlease let us know if this aligns with your budget and we can proceed with a formal contract.\n\nBest Regards,\nThabiso Mhlongo Management';
+                // No prices here: the rate card changes independently of this template, and a hard-coded figure just goes stale
+                // again (it already had - see docs-internal/business-profile-2026.md). Quote from the Quote Builder instead.
+                text = 'Hi ' + clientName + ',\n\nThank you for reaching out regarding Thabiso\'s availability for your event. I will put together a formal quotation for your event and share it with you shortly.\n\nPlease let us know if you\'d like to proceed in the meantime and we can draw up a formal quotation.\n\nBest Regards,\n' + signOff;
             } else if (tmpl === 'available') {
-                text = 'Hi ' + clientName + ',\n\nGreat news! Thabiso is available on your requested date. We would love to be part of your event.\n\nPlease reply to this email to confirm you would like to proceed with the booking, and we will draw up the invoice and contract.\n\nBest Regards,\nThabiso Mhlongo Management';
+                text = 'Hi ' + clientName + ',\n\nGreat news! Thabiso is available on your requested date. We would love to be part of your event.\n\nPlease reply to this email to confirm you would like to proceed with the booking, and we will draw up the invoice and contract.\n\nBest Regards,\n' + signOff;
             } else if (tmpl === 'decline') {
-                text = 'Hi ' + clientName + ',\n\nThank you for considering Thabiso for your upcoming event. Unfortunately, he is already booked or unavailable on that specific date.\n\nWe appreciate the inquiry and hope to work together in the future!\n\nBest Regards,\nThabiso Mhlongo Management';
+                text = 'Hi ' + clientName + ',\n\nThank you for considering Thabiso for your upcoming event. Unfortunately, he is already booked or unavailable on that specific date.\n\nWe appreciate the inquiry and hope to work together in the future!\n\nBest Regards,\n' + signOff;
             } else if (tmpl === 'call') {
-                text = 'Hi ' + clientName + ',\n\nThank you for your inquiry. To best understand your event requirements and ensure Thabiso is the perfect fit, we would love to jump on a quick phone call.\n\nPlease let us know what time works best for you this week, or feel free to call our management number at +27 74 341 9681.\n\nBest Regards,\nThabiso Mhlongo Management';
+                text = 'Hi ' + clientName + ',\n\nThank you for your inquiry. To best understand your event requirements and ensure Thabiso is the perfect fit, we would love to jump on a quick phone call.\n\nPlease let us know what time works best for you this week, or feel free to call our management number at +27 74 341 9681.\n\nBest Regards,\n' + signOff;
             }
             if (beQuillInstance && text) {
                 beQuillInstance.setText(text.replace(/\\n/g, '\n'));

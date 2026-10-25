@@ -178,9 +178,18 @@ async function start() {
     // The business profile ships with income-tax and VAT registration OFF (migration 110), and a quotation can only carry VAT while the business is
     // VAT-registered with a confirmed number. Many suites quote WITH VAT, so the throwaway DB is a VAT vendor (made-up number); business-profile.test.js
     // changes these on purpose and puts them back. The server reads the row per request, so this takes effect at once.
+    // trading_name/registered_address/physical_address/postal_address are reset too - these are admin-editable through Settings on the
+    // REAL database.sqlite this copy is taken from, and several suites (incl. this file's own business-profile.test.js and
+    // browser/business-profile.js) assume the known defaults below rather than whatever the owner currently has on file. Found the hard
+    // way (2026-10-25): the owner set a trading name and flattened the stored address to one line through the live admin page while this
+    // throwaway copy's un-reset fields silently inherited it, breaking an "unsaved field was not sent" check and an addressLines test.
     await new Promise((res) => {
         const db = new sqlite3.Database(TEST_DB);
-        db.run("UPDATE business_profile SET legal_name = 'MTV CREATIVES (PTY) LTD', contact_phone = '', is_tax_registered = 1, income_tax_reference = '9000000001', is_vat_registered = 1, vat_number = '4123456789', vat_number_verified = 1 WHERE id = 1", () => db.close(() => res()));
+        db.run(`UPDATE business_profile SET legal_name = 'MTV CREATIVES (PTY) LTD', trading_name = '', contact_phone = '',
+                    registered_address = '59 Stone Crest, Frederick Street' || char(10) || 'Kengies / Stone Crest, Fourways' || char(10) || 'Gauteng, 0059',
+                    physical_address = '', postal_address = '59 Stone Crest, Frederick Street' || char(10) || 'Kengies / Stone Crest, Fourways' || char(10) || 'Gauteng, 0059',
+                    is_tax_registered = 1, income_tax_reference = '9000000001', is_vat_registered = 1, vat_number = '4123456789', vat_number_verified = 1
+                WHERE id = 1`, () => db.close(() => res()));
     });
 }
 
@@ -259,26 +268,54 @@ function hexToStr(hex) {
 // fonts, no embedded custom-encoded glyphs). Decompresses each Flate content stream and reads the
 // text-showing operators directly (both literal `(...)` and hex `<...>` string forms); this is
 // not a general-purpose PDF parser.
+//
+// A stream's bytes are found from its own `/Length N` (PDFKit always writes one, a direct integer,
+// right before `stream` — never searched for by the next literal "endstream": compressed binary
+// data occasionally contains that exact byte sequence by chance, more likely the bigger the stream,
+// which truncated a real stream — found via a client VAT number that pushed the BILL TO box's
+// content stream a few hundred bytes bigger than the golden fixture that had exercised this file
+// until then, with every text check after it silently coming back empty, not failing loudly).
+// `/Length` can instead be an indirect reference ("6 0 R", used for a stream — an embedded font
+// program — whose size is not known until after it is written); the delimiter search is the
+// fallback for exactly that case.
 function extractPdfText(buffer) {
     const raw = buffer.toString('latin1');
-    const streamRe = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+    const streamKwRe = /stream\r?\n/g;
     let text = '';
-    let m;
-    while ((m = streamRe.exec(raw))) {
-        let decoded;
-        try { decoded = zlib.inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'); }
-        catch (e) { continue; } // not Flate-compressed (e.g. an embedded image/font) — skip
-        const tjRe = /(\(((?:\\.|[^()\\])*)\)|<([0-9A-Fa-f\s]*)>)\s*Tj/g;
-        let t;
-        while ((t = tjRe.exec(decoded))) text += (t[2] !== undefined ? unescapePdfString(t[2]) : hexToStr(t[3])) + ' ';
-        const tjArrRe = /\[((?:[^\[\]])*)\]\s*TJ/g;
-        let arr;
-        while ((arr = tjArrRe.exec(decoded))) {
-            const partRe = /\(((?:\\.|[^()\\])*)\)|<([0-9A-Fa-f\s]*)>/g;
-            let p;
-            while ((p = partRe.exec(arr[1]))) text += (p[1] !== undefined ? unescapePdfString(p[1]) : hexToStr(p[2]));
-            text += ' ';
+    let sm;
+    while ((sm = streamKwRe.exec(raw))) {
+        const dataStart = sm.index + sm[0].length;
+        const dictWindow = raw.slice(Math.max(0, sm.index - 300), sm.index);
+        const lenRe = /\/Length\s+(\d+)(\s+\d+\s+R\b)?/g;
+        let lenMatch, lastLenMatch;
+        while ((lenMatch = lenRe.exec(dictWindow))) lastLenMatch = lenMatch;   // the one closest to this `stream` keyword
+        let dataEnd, streamBytes;
+        if (lastLenMatch && !lastLenMatch[2]) {
+            dataEnd = dataStart + parseInt(lastLenMatch[1], 10);
+            streamBytes = raw.slice(dataStart, dataEnd);
+        } else {
+            const endMatch = /\r?\nendstream/.exec(raw.slice(dataStart));
+            if (!endMatch) continue;
+            dataEnd = dataStart + endMatch.index;
+            streamBytes = raw.slice(dataStart, dataEnd);
         }
+        let decoded = null;
+        try { decoded = zlib.inflateSync(Buffer.from(streamBytes, 'latin1')).toString('latin1'); }
+        catch (e) { /* not Flate-compressed (e.g. an embedded image/font) — skip */ }
+        if (decoded !== null) {
+            const tjRe = /(\(((?:\\.|[^()\\])*)\)|<([0-9A-Fa-f\s]*)>)\s*Tj/g;
+            let t;
+            while ((t = tjRe.exec(decoded))) text += (t[2] !== undefined ? unescapePdfString(t[2]) : hexToStr(t[3])) + ' ';
+            const tjArrRe = /\[((?:[^\[\]])*)\]\s*TJ/g;
+            let arr;
+            while ((arr = tjArrRe.exec(decoded))) {
+                const partRe = /\(((?:\\.|[^()\\])*)\)|<([0-9A-Fa-f\s]*)>/g;
+                let p;
+                while ((p = partRe.exec(arr[1]))) text += (p[1] !== undefined ? unescapePdfString(p[1]) : hexToStr(p[2]));
+                text += ' ';
+            }
+        }
+        streamKwRe.lastIndex = dataEnd;   // past this stream's binary body — its bytes could otherwise fake a "stream\n" match
     }
     return text;
 }

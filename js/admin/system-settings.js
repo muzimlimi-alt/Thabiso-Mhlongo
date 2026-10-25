@@ -1,7 +1,7 @@
 /* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — the old Admin Settings page
    (preferencesAdmin). That page has since been split up (docs-internal/admin-nav-map.md): this file now serves
-   Revenue > Payment Setup, System > Email Setup, System > Integrations, Site Appearance > Homepage Sections and
-   System > Admin Portal. The history below is how it was assembled, from three pieces that were physically scattered: from three pieces that were physically scattered:
+   Revenue > Payment Setup, Email > Inquiries > Setup, System > Integrations, Site Appearance > Homepage Sections and
+   Site Appearance > Admin Appearance / Sign-in Page. The history below is how it was assembled, from three pieces that were physically scattered: from three pieces that were physically scattered:
    (A) the "Website Sections" carve-out left over from the About Me extraction
    (SECTION_REGISTRY/renderSectionsUI/loadSectionVisibility/saveSectionVisibility and their
    delegated handlers) — plain top-level code, not inside any IIFE;

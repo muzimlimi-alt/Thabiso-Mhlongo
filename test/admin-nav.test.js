@@ -56,7 +56,7 @@ module.exports = async function ({ check }) {
     check('every page heading is its registry title, and equals its sidebar label unless listed as a known difference', wrong.length === 0, wrong.join(' | '));
 
     // who may open what - written out by hand
-    const ADMIN_ONLY = ['brandingAdmin', 'integrationsAdmin', 'adminPortalAdmin', 'usersAdmin', 'securityAdmin', 'emailSetupAdmin', 'emailLogsAdmin', 'paymentSetupAdmin'];
+    const ADMIN_ONLY = ['brandingAdmin', 'integrationsAdmin', 'usersAdmin', 'securityAdmin', 'emailLogsAdmin', 'emailBannersAdmin', 'paymentSetupAdmin'];
     const NOT_ASSISTANT = ['financeAdmin', 'newsletterAdmin', 'businessAdmin'];
     const expect = (role, id) => role === 'administrator' ? true : role === 'manager' ? !ADMIN_ONLY.includes(id) : !ADMIN_ONLY.includes(id) && !NOT_ASSISTANT.includes(id);
     for (const role of ['administrator', 'manager', 'assistant']) {

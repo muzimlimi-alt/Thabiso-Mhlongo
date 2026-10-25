@@ -249,6 +249,9 @@
         // back up the active catalogue for a service that has since been deactivated, so re-quoting an older booking
         // still treats its lines correctly.
         window.qbBookingServices = booking.services || [];
+        // What's on file for this client — the tax-invoice advisory below checks these the moment "Apply VAT" would make them matter
+        // (lib/business-profile-core.js taxInvoiceAdvice(), never required to send the quote).
+        window.qbClientInfo = { name: booking.name || '', company: booking.company || '', vatNumber: booking.vat_number || '', billingAddress: booking.billing_address || '' };
 
         // Load services catalogue (properly awaited so servicesCache is populated)
         await fetchServicesForQuote();
@@ -369,6 +372,23 @@
     }
     window.qbSyncVatBox = qbSyncVatBox;
 
+    // Advisory only — never blocks sending the quote. Mirrors lib/business-profile-core.js taxInvoiceAdvice() exactly (same rule,
+    // same threshold, same wording), so the Quote Builder can warn live as the admin types without a round trip on every keystroke.
+    function qbSyncTaxInvoiceAdvice(total) {
+        const $box = $('#qbTaxInvoiceAdvice');
+        if (!$box.length) return;
+        const c = window.qbClientInfo || {};
+        const out = [];
+        if (window.qbVatActive && $('#qbApplyVat').is(':checked') && (parseFloat(total) || 0) > (window.qbFullTaxInvoiceOver || 5000)) {
+            if (!c.name) out.push('A full tax invoice needs the customer’s name.');
+            if (!c.billingAddress) out.push('A full tax invoice (over R' + (window.qbFullTaxInvoiceOver || 5000).toLocaleString('en-ZA') + ') needs the customer’s address — none is on record.');
+            if (c.company && !c.vatNumber) out.push('The customer is a company with no VAT number on record. If it is a VAT vendor its VAT number must appear on this tax invoice.');
+        }
+        if (!out.length) { $box.hide(); return; }
+        $box.html('<i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i>Before sending this as a tax invoice: ' + out.join(' ')).show();
+    }
+    window.qbSyncTaxInvoiceAdvice = qbSyncTaxInvoiceAdvice;
+
     async function fetchServicesForQuote() {
 
         const $sel = $('#qbServiceSelector');
@@ -378,11 +398,15 @@
         // Whether the business may charge VAT at all (Business > Business Profile: VAT-registered AND number confirmed). Unknown = not allowed:
         // the server refuses a VAT quote from a business that is not set up for it, so never offer what will be refused.
         window.qbVatActive = false;
+        // Above this total a VAT-charged invoice needs the customer's address etc. (VAT Act s20) — advisory only, see qbSyncTaxInvoiceAdvice().
+        window.qbFullTaxInvoiceOver = 5000;
         try {
             const m = await (await fetch('/api/admin/services/meta')).json();
             const rate = parseFloat(m && m.vat_rate);
             if (isFinite(rate) && rate >= 0) window.qbVatRate = rate;
             window.qbVatActive = !!(m && m.vat_active);
+            const over = parseFloat(m && m.full_tax_invoice_over);
+            if (isFinite(over) && over >= 0) window.qbFullTaxInvoiceOver = over;
         } catch (eMeta) { console.warn('Could not load the VAT rate for the Quote Builder preview; using 15%.', eMeta); }
         qbSyncVatBox();
         try {
@@ -597,6 +621,7 @@
         $('#qbSubtotal').text(subtotal.toFixed(2));
         $('#qbVatAmount').text(vat.toFixed(2));
         $('#qbFinalTotal').text(finalTotal.toFixed(2));
+        qbSyncTaxInvoiceAdvice(finalTotal);
 
         const depPct = parseFloat($('#qbDepositPercentage').val()) || 0;
         const depositAmount = (finalTotal * (depPct / 100)).toFixed(2);

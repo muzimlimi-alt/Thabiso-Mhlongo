@@ -158,7 +158,7 @@
 
 /* ===== Microsoft 365 calendar sharing (js/admin/calendar-m365.js, docs-internal/calendar-m365.md) ===== */
 :root { --atl-m365: #7a93b8; }
-.cal-m365-strip[hidden], .cal-m365-panel[hidden], .cal-m365-strip__btn[hidden], #calFilterExternal[hidden], #calSyncFilterWrap[hidden] { display: none !important; }
+.cal-m365-strip[hidden], .cal-m365-panel[hidden], .cal-m365-strip__btn[hidden], #calFilterExternal[hidden], #calSyncFilterWrap[hidden], #calGoogleFilterWrap[hidden], .cal-m365-strip__warn[hidden] { display: none !important; }
 /* what a person may do is enforced by the server; these only hide buttons that would be refused */
 body.role-assistant .cal-m365-manage { display: none !important; }
 body:not(.role-administrator) .cal-m365-admin { display: none !important; }
@@ -237,6 +237,10 @@ body:not(.role-administrator) .cal-m365-admin { display: none !important; }
 #calendar.fc-cal--sync-pending .fc-event:not(.fc-event--m365-pending),
 #calendar.fc-cal--sync-attention .fc-event:not(.fc-event--m365-attention),
 #calendar.fc-cal--sync-website .fc-event:not(.fc-event--m365-none) { display: none !important; }
+/* the Google filter (js/admin/google-calendar.js calGoogleBadge marks each booking / public event) */
+#calendar.fc-cal--g-on .fc-event:not(.fc-event--gcal-yes),
+#calendar.fc-cal--g-off .fc-event:not(.fc-event--gcal-no) { display: none !important; }
+.cal-m365-strip__warn { flex: 1 1 100%; margin: 2px 0 0; padding: 6px 10px; border: 1px solid var(--atl-orange); border-radius: 6px; font-size: 11.5px; line-height: 1.5; color: var(--atl-ink-dim); }
 .cal-sync-filter { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
 /* body.admin-body prefix: the admin form rules (css/admin/07-components.css) force every select to height:auto / min-height:40px with !important */
 body.admin-body .cal-sync-filter select { min-height: 32px; padding: 3px 8px; border: 1px solid var(--atl-line); border-radius: 6px; background: var(--atl-card); color: var(--atl-ink-dim); font: inherit; font-size: 12px; }

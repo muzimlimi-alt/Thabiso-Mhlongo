@@ -463,6 +463,7 @@ window.generateInvoice = async function(bookingId, btnEl) {
         const res = await apiCall(`/api/admin/bookings/${bookingId}/invoice/generate`, 'POST');
         if (res.success) {
             window.notificationService.showSuccess('Success: Invoice PDF generated and dispatched. Booking updated.');
+            (res.warnings || []).forEach(function (w) { window.notificationService.showWarning('Tax invoice', w); });
             $btn.html('<i class="fa-solid fa-check"></i> Regenerate Invoice').css('background','var(--atl-sage)').css('color', '#fff').prop('disabled', false);
             await loadBookings();
             if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(bookingId, true);

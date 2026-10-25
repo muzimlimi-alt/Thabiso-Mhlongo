@@ -5,7 +5,7 @@ const moment = require('moment-timezone');
 const { decodeStoredDeep } = require('../lib/html-sanitize');
 // Pure rules only (no database): this module stays importable on its own. Callers hand in `opts.issuer` (lib/business-profile.js
 // loadIssuer(), or the snapshot frozen on the quotation); without one the identity printed before the business profile existed is used.
-const { documentTitle, legacyIssuer } = require('../lib/business-profile-core');
+const { documentTitle, documentBusinessName, legacyIssuer } = require('../lib/business-profile-core');
 
 const GOLD       = '#D4AF37';
 const GOLD_LIGHT = '#FDF8E6';
@@ -27,17 +27,51 @@ class PDFService {
     // `issuer` = lib/business-profile-core issuerView() / a snapshot of it; `vatCharged` = VAT is charged on THIS document (decides TAX INVOICE).
     _drawHeader(doc, type, number, issuer, vatCharged) {
         issuer = issuer || legacyIssuer();
-        // Gold bar
-        doc.rect(0, 0, 612, 100).fillColor(GOLD).fill();
+        const isQuoteOrInvoice = type === 'Quote' || type === 'Invoice';
+        const TOP_NAME_WIDTH = 206;   // x=28 to x=234 — stops well short of the title block, which starts at x=250
 
-        // Dark/obsidian backing behind the wordmark. The brand mark is a light
-        // "Thabiso" + gold italic "Mhlongo" lockup designed for dark surfaces.
-        // A dark card keeps it legible and echoes the dark company band below.
-        // Sized larger (220x70, Y=15) to make the logo look prominent and premium.
-        doc.roundedRect(20, 15, 220, 70, 3).fillColor(DARK).fill();
-        doc.roundedRect(20, 15, 220, 70, 3).lineWidth(0.75).strokeColor(GOLD).stroke();
+        // The quotation/invoice header carries no logo — in its place, top-left of the gold bar, the business name the owner
+        // actually wants leading the document: the trading name when one is configured, else the registered company name
+        // (lib/business-profile-core documentBusinessName). The dark band below always names the REGISTERED company, never the
+        // trading name (_drawIssuerBandStacked) — the two rows answer different questions ("who you're dealing with" vs "who this
+        // legally is") and must not say the same thing only some of the time.
+        //
+        // Same size as the document title (22pt) and the same y — they read as one aligned row — for as long as the name actually
+        // fits on one line at that size; a longer name steps the size down (same shrink-to-fit idea _drawWordmark already uses for
+        // the wordmark) rather than overlapping the title or wrapping to an unreadably small multi-line block.
+        const topName = isQuoteOrInvoice ? documentBusinessName(issuer) : null;
+        let topNameSize = 22, topNameH = 0;
+        if (topName) {
+            doc.font('Helvetica-Bold');
+            for (; topNameSize > 11; topNameSize--) {
+                if (doc.fontSize(topNameSize).widthOfString(topName) <= TOP_NAME_WIDTH) break;
+            }
+            topNameH = doc.fontSize(topNameSize).heightOfString(topName, { width: TOP_NAME_WIDTH });
+        }
 
-        this._drawWordmark(doc, 20, 15, 220, 70);
+        // The gold bar only needs to hold the 70px wordmark card on the agreement/advancing-pack header; the quotation/invoice
+        // header has no card to hold (no logo), so it is normally shorter there, just tall enough for the title + number — and
+        // only taller when the name above still needs a second line even at the smallest size, up to a cap (a quote/invoice with a
+        // 3-line address spilled a blank page at the first, uncapped version of this — test/quote-flow.test.js).
+        const goldH = isQuoteOrInvoice ? Math.min(100, Math.max(68, 24 + topNameH + 10)) : 100;
+        doc.rect(0, 0, 612, goldH).fillColor(GOLD).fill();
+
+        if (topName) {
+            doc.fillColor(DARK).font('Helvetica-Bold').fontSize(topNameSize)
+               .text(topName, 28, 24, { width: TOP_NAME_WIDTH, height: goldH - 24 - 6, ellipsis: true });
+        }
+
+        // The agreement/advancing-pack header is unchanged: same dark/obsidian wordmark card as before.
+        if (!isQuoteOrInvoice) {
+            // Dark/obsidian backing behind the wordmark. The brand mark is a light
+            // "Thabiso" + gold italic "Mhlongo" lockup designed for dark surfaces.
+            // A dark card keeps it legible and echoes the dark company band below.
+            // Sized larger (220x70, Y=15) to make the logo look prominent and premium.
+            doc.roundedRect(20, 15, 220, 70, 3).fillColor(DARK).fill();
+            doc.roundedRect(20, 15, 220, 70, 3).lineWidth(0.75).strokeColor(GOLD).stroke();
+
+            this._drawWordmark(doc, 20, 15, 220, 70);
+        }
 
         // Document title — right side of gold bar (aligned to the right margin of 584).
         // QUOTATION for a quotation. An invoice reads TAX INVOICE only when we are VAT-registered AND confirmed with SARS AND VAT is charged on
@@ -49,7 +83,10 @@ class PDFService {
         doc.font('Helvetica').fontSize(9).fillColor(DARK)
            .text(`# ${number}`, 250, 52, { width: 334, align: 'right' });
 
-        // Issuer band. Companies always show the registration number (Companies Act s32); the VAT number only when VAT is active (registered AND confirmed).
+        if (isQuoteOrInvoice) return this._drawIssuerBandStacked(doc, issuer, goldH);
+
+        // Issuer band (agreement / advancing pack — unchanged). Companies always show the registration number (Companies Act s32);
+        // the VAT number only when VAT is active (registered AND confirmed).
         const ids = [];
         if (issuer.registrationNumber) ids.push(`Reg No: ${issuer.registrationNumber}`);
         if (issuer.vatRegistered && issuer.vatNumber) ids.push(`VAT No: ${issuer.vatNumber}`);
@@ -60,8 +97,8 @@ class PDFService {
             contact ? { t: contact, font: 'Helvetica', size: 7.5, color: '#AAAAAA' } : null
         ].filter(Boolean);
         const bandH = 14 + lines.length * 11;
-        doc.rect(0, 100, 612, bandH).fillColor(DARK).fill();
-        let by = 108;
+        doc.rect(0, goldH, 612, bandH).fillColor(DARK).fill();
+        let by = goldH + 8;
         lines.forEach(l => {
             if (l.ids) {   // legal name, then the registration / VAT numbers on the same line
                 doc.fillColor(l.color).font(l.font).fontSize(l.size).text(l.t, 28, by, { width: 556, lineBreak: false });
@@ -72,7 +109,35 @@ class PDFService {
             }
             by += l.size > 8 ? 12 : 11;
         });
-        return 100 + bandH;
+        return goldH + bandH;
+    }
+
+    // The quotation/invoice issuer band: the REGISTERED company name (never the trading name — that already led the gold bar
+    // above), then registration/VAT numbers, then the address, then the e-mail — each on its own left-aligned line (no field is
+    // printed with an empty value; a line with nothing to say is skipped, never blank).
+    // Line heights are deliberately tight (not the agreement header's roomier 11-12px) — this band can run to six or seven lines
+    // (a 3-line address plus both id lines) where the old one ever had three, and a quotation still has to fit on one page.
+    _drawIssuerBandStacked(doc, issuer, top) {
+        const name = issuer.legalName || null;
+        const idLines = [];
+        if (issuer.registrationNumber) idLines.push(`Reg No: ${issuer.registrationNumber}`);
+        if (issuer.vatRegistered && issuer.vatNumber) idLines.push(`VAT No: ${issuer.vatNumber}`);
+        const addrLines = Array.isArray(issuer.addressLines) ? issuer.addressLines.filter(Boolean) : (issuer.registeredOffice ? [issuer.registeredOffice] : []);
+        const lines = [
+            name ? { t: name, font: 'Helvetica-Bold', size: 10, color: WHITE } : null,
+            ...idLines.map(t => ({ t, font: 'Helvetica', size: 7.5, color: '#D8D8D8' })),
+            ...addrLines.map(t => ({ t, font: 'Helvetica', size: 7, color: '#AAAAAA' })),
+            issuer.email ? { t: issuer.email, font: 'Helvetica', size: 7, color: '#AAAAAA' } : null
+        ].filter(Boolean);
+        const lineH = (l) => (l.size >= 10 ? 13 : 9.5);
+        const bandH = 10 + lines.reduce((h, l) => h + lineH(l), 0);
+        doc.rect(0, top, 612, bandH).fillColor(DARK).fill();
+        let by = top + 7;
+        lines.forEach(l => {
+            doc.fillColor(l.color).font(l.font).fontSize(l.size).text(l.t, 28, by, { width: 556, height: 11, ellipsis: true });
+            by += lineH(l);
+        });
+        return top + bandH;
     }
 
     // Draws "Thabiso" (regular) + "Mhlongo" (italic, gold) as native PDF text,

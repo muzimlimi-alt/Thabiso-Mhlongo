@@ -303,6 +303,92 @@ const ENV_KEYS = ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TO
     s = await cfg.resolveGoogleConfig();
     rec('...with the right key again everything is back', s.clientSecret === SEC_A && s.problems.length === 0, JSON.stringify(cfg.publicView(s)));
 
+    // ═════ sync health, Sync now, the double-entry flag ═════
+    const calendarSync = require('../lib/calendar-sync');
+    const waitFor = async (fn, ms = 10000) => { const t0 = Date.now(); while (Date.now() - t0 < ms) { if (await fn()) return true; await sleep(100); } return false; };
+    await waitFor(async () => (await q('SELECT enabled FROM calendar_sync_state WHERE id = 1').catch(() => [])).length === 1, 20000);
+    await run("DELETE FROM settings WHERE setting_key LIKE 'google\\_cal\\_%' ESCAPE '\\'");   // a clean slate: nothing saved, nothing recorded
+    await cfg.resetSync();
+    await gc.reloadFromSettings();
+    const asRole = (role, m, u) => call(m, u, { role });
+    const stNone = await asRole('assistant', 'GET', base);
+    rec('status for EVERY role also says how the syncs went (nothing yet, healthy) and whether Microsoft 365 sharing is on',
+        stNone.status === 200 && !!stNone.json.sync && stNone.json.sync.lastRunAt === null && stNone.json.sync.lastOkAt === null && stNone.json.sync.healthy === true && stNone.json.sync.lastError === null
+        && stNone.json.m365Enabled === false && stNone.json.doubleEntryRisk === false, JSON.stringify(stNone.json));
+    const syncNone = await asRole('manager', 'POST', base + '/sync');
+    rec('Sync now with no Google account connected -> 409 "not connected"; nothing is recorded', syncNone.status === 409 && /not connected/i.test(syncNone.json.message) && (await cfg.getSyncStatus()).lastRunAt === null, JSON.stringify(syncNone.json));
+    await calendarSync.syncCalendarHolds();   // fails (no sign-in), exactly as the 15-minute timer would
+    rec('a sync attempt while no account is connected records nothing (the status already says "not connected")', (await cfg.getSyncStatus()).lastRunAt === null, JSON.stringify(await cfg.getSyncStatus()));
+
+    await save(CID_A, SEC_A);
+    const conn1 = await connectFlow();
+    rec('(set-up) Google connected again for the sync scenarios', conn1.cb.status === 200, conn1.cb.text.slice(0, 200));
+    rec('Sync now: unauthenticated -> 401, assistant -> 403 (administrator or manager only)', (await call('POST', base + '/sync')).status === 401 && (await asRole('assistant', 'POST', base + '/sync')).status === 403, '');
+    g.apiLog.length = 0;
+    const ok1 = await asRole('manager', 'POST', base + '/sync');
+    const stOk = await asRole('assistant', 'GET', base);
+    rec('Sync now (manager): reads Google\'s calendar right away, and every role then sees when Google was last reached and that all is well',
+        ok1.status === 200 && ok1.json.ok === true && /read just now/.test(ok1.json.message) && g.apiLog.some((x) => x.method === 'GET' && /\/calendars\/primary\/events$/.test(x.path))
+        && !!stOk.json.sync.lastOkAt && stOk.json.sync.healthy === true && stOk.json.sync.lastError === null, JSON.stringify([ok1.json, stOk.json.sync]));
+
+    g.behaviour.apiDisabled = true;
+    const bad1 = await asRole('administrator', 'POST', base + '/sync');
+    const stBad = await asRole('assistant', 'GET', base);
+    rec('when Google cannot be read, Sync now says why in plain words and the status keeps that reason for everyone (category, kind, count)',
+        bad1.status === 200 && bad1.json.ok === false && /Google Calendar API is switched off/.test(bad1.json.message) && stBad.json.sync.healthy === false && stBad.json.sync.errorKind === 'pull'
+        && stBad.json.sync.lastCategory === 'api' && stBad.json.sync.failures === 1 && /Google Calendar API is switched off/.test(stBad.json.sync.lastError), JSON.stringify([bad1.json, stBad.json.sync]));
+    await asRole('administrator', 'POST', base + '/sync');
+    rec('...a second failure raises the count (2), still one reason', (await cfg.getSyncStatus()).failures === 2, JSON.stringify(await cfg.getSyncStatus()));
+    g.behaviour.apiDisabled = false;
+    const ok2 = await asRole('administrator', 'POST', base + '/sync');
+    const stRec = await cfg.getSyncStatus();
+    rec('...and the next good read clears the problem (healthy again, no error, count 0)', ok2.json.ok === true && stRec.healthy === true && stRec.lastError === null && stRec.failures === 0, JSON.stringify(stRec));
+
+    // pushing (a booking / event -> Google) is tracked separately from pulling, so a good read can never hide a failed write
+    const evId = await run(`INSERT INTO events (event_title, event_datetime, event_status, venue_name) VALUES ('Sync Health Show', ?, 'upcoming', 'The Lyric')`, [new Date(Date.now() + 40 * 86400000).toISOString().slice(0, 10) + 'T19:30']);
+    g.behaviour.apiDisabled = true;
+    const pushBad = await calendarSync.syncEventToCalendar(evId);
+    rec('a failed push (event -> Google) is recorded as a PUSH problem, in plain words', pushBad === null && await waitFor(async () => (await cfg.getSyncStatus()).errorKind === 'push') && (await cfg.getSyncStatus()).lastCategory === 'api', JSON.stringify(await cfg.getSyncStatus()));
+    g.behaviour.apiDisabled = false;
+    const okPull = await asRole('administrator', 'POST', base + '/sync');
+    rec('...a good READ afterwards does not hide the failed WRITE (still unhealthy, still a push problem)', okPull.json.ok === true && (await cfg.getSyncStatus()).healthy === false && (await cfg.getSyncStatus()).errorKind === 'push', JSON.stringify(await cfg.getSyncStatus()));
+    const pushOk = await calendarSync.syncEventToCalendar(evId);
+    rec('...only a successful push clears it', !!pushOk && await waitFor(async () => (await cfg.getSyncStatus()).healthy === true), JSON.stringify(await cfg.getSyncStatus()));
+
+    // two calendars
+    await run('UPDATE calendar_sync_state SET enabled = 1 WHERE id = 1');
+    const stBoth = await asRole('assistant', 'GET', base);
+    rec('Google connected AND Microsoft 365 sharing on -> the status flags the double-entry risk (for every role)', stBoth.json.m365Enabled === true && stBoth.json.doubleEntryRisk === true, JSON.stringify(stBoth.json));
+    await run('UPDATE calendar_sync_state SET enabled = 0 WHERE id = 1');
+    const stOne = await asRole('assistant', 'GET', base);
+    rec('...and not when Microsoft 365 sharing is off', stOne.json.m365Enabled === false && stOne.json.doubleEntryRisk === false, JSON.stringify(stOne.json));
+
+    // a fresh start
+    g.behaviour.apiDisabled = true;
+    await asRole('administrator', 'POST', base + '/sync');
+    g.behaviour.apiDisabled = false;
+    await asAdmin('DELETE', base);
+    rec('disconnecting clears the sync record (a stale error would otherwise follow the next account around)', (await cfg.getSyncStatus()).lastRunAt === null && (await cfg.getSyncStatus()).healthy === true, JSON.stringify(await cfg.getSyncStatus()));
+    await connectFlow();
+    g.behaviour.apiDisabled = true;
+    await asRole('administrator', 'POST', base + '/sync');
+    g.behaviour.apiDisabled = false;
+    const failedBefore = (await cfg.getSyncStatus()).failures;
+    await connectFlow();   // reconnect WITHOUT disconnecting first
+    rec('reconnecting (without disconnecting first) also starts with a clean sync record', failedBefore === 1 && (await cfg.getSyncStatus()).lastRunAt === null && (await cfg.getSyncStatus()).failures === 0, JSON.stringify(await cfg.getSyncStatus()));
+    await asAdmin('DELETE', base);
+
+    // a dead sign-in during the 15-minute background sync
+    await connectFlow();
+    const deadToken = Array.from(g.refreshTokens.keys()).pop();
+    g.revoke(deadToken);
+    const logMark = logged.length;
+    const dead = await calendarSync.syncCalendarHolds();
+    const printed = logged.slice(logMark).join('\n');
+    rec('a revoked sign-in during the background sync is logged in plain words and recorded as the reason (auth)', dead.ok === false && /no longer accepts the saved sign-in/.test(printed) && (await cfg.getSyncStatus()).lastCategory === 'auth', printed.slice(0, 300));
+    rec('...and the log never contains the refresh token, the client secret or the request itself (the raw error object carries all of them)', !printed.includes(deadToken) && !printed.includes(SEC_A) && !/refresh_token/.test(printed) && !/grant_type/.test(printed), printed.slice(0, 500));
+    await asAdmin('DELETE', base);
+
     // ═════ I. nothing sensitive anywhere ═════
     const secrets = [SEC_A, SEC_B, SEC_C, ...Array.from(g.refreshTokens.keys()).filter((k) => k.startsWith('1//rt-')), ...Array.from(g.accessTokens.keys())];
     const auditAll = JSON.stringify(await q('SELECT * FROM audit_log'));

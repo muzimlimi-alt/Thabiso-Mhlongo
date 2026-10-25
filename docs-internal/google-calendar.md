@@ -12,7 +12,7 @@ in **System -> Email Setup**; Google had nothing, so an expired sign-in (`invali
 
 ## 2. What an administrator sees
 
-* **Admin -> System -> Integrations -> Google Calendar** (administrators only): OAuth client ID, client secret, the exact **redirect address** to register at
+* **Admin -> Bookings -> Calendar -> Settings (Google Calendar card)** (administrators only): OAuth client ID, client secret, the exact **redirect address** to register at
   Google (with Copy), and the buttons **Save & connect Google** (becomes *Connect Google* / *Reconnect Google*), **Test connection**, **Disconnect**.
 * **Admin -> Calendar**: a strip under the Microsoft one says whether Google is connected and to which account; administrators get a button that jumps to
   the card. Other roles see the status only.
@@ -112,7 +112,26 @@ verification. If entered, use the standalone pages added 2026-10-23: **https://w
 (`lib/legal-pages.js`, `routes/public/legal-pages.js`, tests in `test/legal-pages.test.js`). Their text is read from the homepage pop-ups in `index.html`, so editing the pop-up
 changes both. Aliases (`/privacy-policy`, `/terms-of-use`, ...) redirect. The policy text does not mention Google Calendar / Microsoft 365 - wording the owner must approve.
 
-## 10. Hazards
+## 10. Calendar and Events (2026-10-25)
+
+* **Sync health.** Every Google sync outcome is recorded (`lib/google-config.js` recordSync / getSyncStatus, one settings row `google_cal_sync_state`): the PULL (Google's calendar -> date holds,
+  every 15 minutes) and the PUSH (a booking / event -> Google) are tracked separately, so a good read never hides a failed write. The last error is the sanitised sentence from `classify()`.
+  Nothing is recorded while no account is connected; connecting or disconnecting starts a clean record. The status for EVERY role carries `sync`, `m365Enabled` and `doubleEntryRisk`.
+* **Calendar strip** (Bookings > Calendar): "read 2 min ago" when healthy; red with the recorded reason and "last good sync ..." when failing; amber with a plain-words warning when Google AND
+  Microsoft 365 sharing are both on (each confirmed booking / public event is copied to both calendars - harmless for separate calendars, a duplicate if someone views both together).
+  **Sync now** (administrator / manager) = `POST /api/admin/google-calendar/sync`, the same pull as the timer, one at a time.
+* **Google filter** on the Calendar (All / On Google / Not on Google): each booking and public event is marked by `calGoogleBadge` (hooked from calendar.js eventDidMount) from the feed's `isCalSynced`.
+  The feed used to read `google_event_id`, `accepted_at`, `popia_consent` and `attachment_files` without selecting them, so those four markers were always blank; it now selects them
+  (booleans only - never the Google event id or file names).
+* **Events form** (`js/admin/events.js`): "Sync to Google Calendar" follows the connection (off + "Set up Google Calendar" when not connected; a plain-text notice with the recorded reason when Google is
+  failing); a save Google did not take says why; "View Event" opens the event: `https://calendar.google.com/calendar/event?eid=` + base64(`<event id> <account email>`) without padding (the bare id opens
+  nothing); with no account recorded it opens calendar.google.com.
+* **Logging fix.** The sync code used to print the raw Google error object; on a failed sign-in that includes the request, i.e. the refresh token, in the server log. It now prints `describeGoogleError()`
+  (the same credential-free sentence). `test/google-calendar.child.js` guards it (revoke the sign-in, run the background sync, scan the log).
+* Tests: `test/google-calendar.child.js` (98 checks incl. health, Sync now, double-entry flag, log hygiene; mutation-checked), `test/google-calendar.test.js` (roles, feed flags for bookings and events),
+  browser `test/browser/calendar-google.js` (strip states, Sync now, filter over the real feed, roles, phone) and `test/browser/events-google.js` (event form).
+
+## 11. Hazards
 
 * A developer's `database.sqlite` that has the owner's Google connection saved will make a **local** `npm start` act on the owner's real calendar (same hazard
   as live PayFast settings in the dev DB). Disconnect locally, or use a DB without `google_cal_*`.

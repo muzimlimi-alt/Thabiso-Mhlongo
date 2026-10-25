@@ -310,6 +310,7 @@ function initAdminCalendar() {
                 var type  = props.type;
                 if (type) arg.el.classList.add('fc-event--type-' + type);
                 if (window.calM365Badge && !props.isBgFill) { try { window.calM365Badge(arg, props); } catch (badgeErr) { /* a badge must never break the calendar */ } }
+                if (window.calGoogleBadge && !props.isBgFill) { try { window.calGoogleBadge(arg, props); } catch (badgeErr) { /* the Google filter marker must never break the calendar */ } }
                 var color = null;
                 if (type === 'booking') {
                     var s = (props.status || '').toUpperCase();

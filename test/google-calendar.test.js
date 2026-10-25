@@ -128,6 +128,34 @@ module.exports = async function ({ check, api, pub, loginAs, q, one, getChildLog
     const dc = await api('DELETE', base);
     check('server: disconnect with nothing to disconnect -> 200, nothing revoked, the client stays saved', dc.status === 200 && dc.body.revoked === false && dc.body.secretSet === true && dc.body.clientId === CID, JSON.stringify(dc.body));
 
+    // sync health + Sync now: who may do what (the work itself is covered against the fake Google above)
+    check('server: Sync now without a session -> 401, as an assistant -> 403', (await pub('POST', base + '/sync')).status === 401 && (await asAssistant('POST', base + '/sync')).status === 403, '');
+    const asstStatus = await asAssistant('GET', base);
+    check('server: every role\'s status carries the sync record and the double-entry flags (and still no client ID for an assistant)',
+        asstStatus.status === 200 && !!asstStatus.body.sync && 'healthy' in asstStatus.body.sync && 'lastOkAt' in asstStatus.body.sync && typeof asstStatus.body.m365Enabled === 'boolean' && typeof asstStatus.body.doubleEntryRisk === 'boolean' && !('clientId' in asstStatus.body), JSON.stringify(asstStatus.body));
+
+    // the Calendar feed: the Google "synced" marker (and the other three) read columns the feed never selected, so they were always blank
+    const feedDay = new Date(Date.now() + 61 * 86400000).toISOString().slice(0, 10);
+    const mkBooking = (title, extra) => writeDb(`INSERT INTO bookings (name, email, cell, date, message, status, event_start_time, performance_end_time, event_name, event_type, event_location, city, total_amount, google_event_id, accepted_at, popia_consent, attachment_files) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ['Feed Client', `feed-${title.replace(/\W/g, '')}@example.invalid`, '+27820000000', feedDay, 'x', 'CONFIRMED', '18:00', '20:00', title, 'Corporate', 'Hall', 'Pretoria', 1000].concat(extra));
+    await mkBooking('GFeed Synced', ['gcal-event-secret-id-123', '2026-10-01 10:00:00', 1, '["a.pdf"]']);
+    await mkBooking('GFeed Plain', [null, null, 0, null]);
+    const feed = await api('GET', '/api/admin/calendar/events');
+    const feedItem = (t) => (Array.isArray(feed.body) ? feed.body : []).find((e) => String(e.title).includes(t));
+    const fs1 = feedItem('GFeed Synced'), fp1 = feedItem('GFeed Plain');
+    check('server: the Calendar feed marks a booking that is on Google (and accepted / POPIA-consented / with attachments)', !!fs1 && fs1.extendedProps.isCalSynced === true && fs1.extendedProps.isAccepted === true && fs1.extendedProps.isPopiaDone === true && fs1.extendedProps.hasAttachments === true, JSON.stringify(fs1 && fs1.extendedProps));
+    check('server: ...and leaves a plain booking unmarked', !!fp1 && fp1.extendedProps.isCalSynced === false && fp1.extendedProps.isAccepted === false && fp1.extendedProps.isPopiaDone === false && fp1.extendedProps.hasAttachments === false, JSON.stringify(fp1 && fp1.extendedProps));
+    check('server: the feed sends the browser a yes/no only - never the Google event id or the attachment file names', !JSON.stringify(feed.body).includes('gcal-event-secret-id-123') && !JSON.stringify(feed.body).includes('a.pdf'), '');
+    // public events carry the same yes/no (the Calendar's Google filter reads it)
+    const evDay = feedDay + 'T19:30';
+    await writeDb(`INSERT INTO events (event_title, event_datetime, event_status, venue_name, google_calendar_event_id) VALUES ('GFeed Show On', ?, 'upcoming', 'The Lyric', 'gcal-show-secret-id-9'), ('GFeed Show Off', ?, 'upcoming', 'The Lyric', NULL)`, [evDay, evDay]);
+    const feed2 = await api('GET', '/api/admin/calendar/events');
+    const evOn = (Array.isArray(feed2.body) ? feed2.body : []).find((e) => String(e.title).includes('GFeed Show On'));
+    const evOff = (Array.isArray(feed2.body) ? feed2.body : []).find((e) => String(e.title).includes('GFeed Show Off'));
+    check('server: public events say whether they are on Google too (and never reveal the Google event id)', !!evOn && !!evOff && evOn.extendedProps.isCalSynced === true && evOff.extendedProps.isCalSynced === false && !JSON.stringify(feed2.body).includes('gcal-show-secret-id-9'), JSON.stringify([evOn && evOn.extendedProps, evOff && evOff.extendedProps]));
+    await writeDb("DELETE FROM events WHERE event_title LIKE 'GFeed Show %'");
+    await writeDb("DELETE FROM bookings WHERE event_name LIKE 'GFeed %'");
+
     // leave the throwaway server as it was found
     await writeDb("DELETE FROM settings WHERE LOWER(setting_key) LIKE 'google\\_cal\\_%' ESCAPE '\\'");
     await restart();

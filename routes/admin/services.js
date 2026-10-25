@@ -9,6 +9,7 @@ const {
 } = require('../../lib/service-pricing');
 const { getVatRate } = require('../../lib/document-totals');
 const businessProfile = require('../../lib/business-profile');
+const { FULL_TAX_INVOICE_OVER } = require('../../lib/business-profile-core');
 const { requireRole } = require('../../middleware/rbac');
 const { getSettingsByKeys, upsertSetting } = require('../../database/repositories/settings.repository');
 const moment = require('moment-timezone');
@@ -68,7 +69,10 @@ router.get('/api/admin/services/meta', requireAdmin, (req, res) => {
             // this instead of its own hard-coded 15%, so the preview cannot disagree with the saved quote.
             vat_rate: await getVatRate(),
             // Whether VAT may be charged at all: the business is VAT-registered AND has confirmed its VAT number (Business > Business Profile).
-            vat_active: (await businessProfile.loadIssuer()).vatRegistered
+            vat_active: (await businessProfile.loadIssuer()).vatRegistered,
+            // Above this total a VAT-charged invoice needs the customer's name/address (+ VAT number if they are a vendor) — VAT Act
+            // s20. The Quote Builder uses this to advise (never block) while a quote is being built (lib/business-profile-core.js).
+            full_tax_invoice_over: FULL_TAX_INVOICE_OVER
         });
     });
 });

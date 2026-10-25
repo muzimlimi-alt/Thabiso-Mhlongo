@@ -409,6 +409,57 @@ $(document).on('click', '#cancelEventConfirmBtn', async function() {
 // single editing surface for both creating and updating events, mirroring the Banner Library's
 // drawer-only pattern (openBnrCreateDrawer/openBnrEditDrawer above). No inline accordion.
 
+// ---- Google Calendar follows the connection ----
+// The connection itself is set up under Bookings > Calendar (js/admin/google-calendar.js); this only reads its status so the form never offers a sync that cannot happen.
+var _gcalStatus = null, _gcalStatusAt = 0;
+function evtGcalStatus(force) {
+    if (!force && _gcalStatus && Date.now() - _gcalStatusAt < 30000) return Promise.resolve(_gcalStatus);
+    return fetch('/api/admin/google-calendar', { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && d.success) { _gcalStatus = d; _gcalStatusAt = Date.now(); } return _gcalStatus; })
+        .catch(function () { return _gcalStatus; });
+}
+// Google's "open this event" address needs the event id AND the calendar id together (base64, no padding). The raw id on its own opens nothing.
+function evtGcalViewUrl(eventId) {
+    var acct = _gcalStatus && _gcalStatus.account;
+    if (!acct) return 'https://calendar.google.com/calendar/r';
+    return 'https://calendar.google.com/calendar/event?eid=' + btoa(eventId + ' ' + acct).replace(/=+$/, '');
+}
+function evtApplyGcalState() {
+    return evtGcalStatus().then(function (st) {
+        var $cb = $('#eventsGcalSync');
+        if (!$cb.length) return;
+        var $hint = $('#eventsGcalHint');
+        if (!$hint.length) $hint = $('<div id="eventsGcalHint" role="status" style="display:none;margin:-4px 0 12px;padding:8px 12px;border-radius:6px;font-size:12px;border:1px solid var(--atl-line);color:var(--atl-muted);"></div>').insertAfter($cb.parent());
+        if (!st) { $hint.hide(); return; }   // status unavailable: leave the form as it was
+        var gid = $('#eventsGcalLink').data('gid');
+        if (gid) $('#eventsGcalLink').attr('href', evtGcalViewUrl(gid));
+        if (!st.connected) {
+            $cb.prop('checked', false).prop('disabled', true);
+            $hint.empty().css('border-color', 'var(--atl-line)').text("Google Calendar isn't connected, so this event won't be copied to it. ");
+            if (st.canManage) $hint.append($('<a href="#" id="eventsGcalSetup" style="color:var(--atl-amber);text-decoration:underline;">Set up Google Calendar</a>'));
+            else $hint.append(document.createTextNode('An administrator can connect it.'));
+            $hint.show();
+        } else {
+            $cb.prop('disabled', false);
+            if (st.sync && st.sync.healthy === false && st.sync.lastError) $hint.text('Google Calendar is not answering right now: ' + st.sync.lastError).css('border-color', 'var(--atl-orange)').show();
+            else $hint.hide();
+        }
+    });
+}
+$(document).on('click', '#eventsGcalSetup', function (e) {
+    e.preventDefault();
+    closeAtlDrawer('evtDrawer');
+    if (window.admNav && window.admNav.go) window.admNav.go('calendarAdmin', { tab: 'calPanelSettings' });
+    else if (window.switchTab) window.switchTab('calendarAdmin');
+});
+// A save went through but Google did not take it: say why, in the words the sync recorded (no technical text, no credentials).
+function evtGcalFailureToast(done) {
+    return evtGcalStatus(true).then(function (st) {
+        window.notificationService.showError(done + ', but Google Calendar sync failed' + (st && st.sync && st.sync.lastError ? ': ' + st.sync.lastError : '.'));
+    });
+}
+
 function applyEventToEditor(item) {
     $('#eventsId').val(item.event_id);
     $('#eventsTitle').val(item.event_title || '');
@@ -478,9 +529,10 @@ function applyEventToEditor(item) {
     }
 
     if (item.google_calendar_event_id) {
-        $('#eventsGcalLink').attr('href', 'https://calendar.google.com/calendar/r/eventedit/' + item.google_calendar_event_id);
+        $('#eventsGcalLink').data('gid', item.google_calendar_event_id).attr('href', evtGcalViewUrl(item.google_calendar_event_id));
         $('#eventsGcalLinkBadge').show();
     } else {
+        $('#eventsGcalLink').removeData('gid');
         $('#eventsGcalLinkBadge').hide();
     }
     $('#eventsGcalSync').prop('checked', true);
@@ -525,6 +577,7 @@ function resetEventForm() {
 window.openEvtCreateDrawer = function() {
     resetEventForm();
     openAtlDrawer('evtDrawer');
+    evtApplyGcalState();
     $('#eventsTitle').focus();
 };
 $('#eventsAddNewBtn').on('click', function() { window.openEvtCreateDrawer(); });
@@ -537,6 +590,7 @@ window.openEvtEditDrawer = function(eventId) {
     resetEventForm();
     openAtlDrawer('evtDrawer');
     applyEventToEditor(JSON.parse(decodeURIComponent(payload)));
+    evtApplyGcalState();
 };
 
 function cancelEventEdit() {
@@ -672,7 +726,7 @@ $(document).on('submit', '#eventsForm', async function (e) {
 
                 if (payload.sync_to_gcal) {
                     if (res.gcal_synced) window.notificationService.showSuccess((isEdit ? 'Event updated' : 'Event created') + ' and synced to Google Calendar.');
-                    else window.notificationService.showError((isEdit ? 'Event updated' : 'Event created') + ', but Google Calendar sync failed.');
+                    else evtGcalFailureToast(isEdit ? 'Event updated' : 'Event created');
                 } else {
                     window.notificationService.showSuccess(isEdit ? 'Event updated.' : 'Event created.');
                 }

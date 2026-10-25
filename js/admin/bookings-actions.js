@@ -319,6 +319,53 @@
         }, 300);
     });
 
+    // ─── Correct the client's own details (name/e-mail/cell/company/VAT number/billing address) from the Deal View's Client card.
+    // routes/admin/bookings.js PUT :id/contact. The read view and the form share the Client card (js/admin/bookings-pipeline.js
+    // buildOverviewPanel) and toggle visibility; Save re-fetches the booking through the existing refresh path so every other
+    // panel that shows these fields (Quote Builder, Overview, invoices) picks up the correction too. ───
+    $(document).off('click.bkceToggle').on('click.bkceToggle', '.bk-client-edit-toggle', function() {
+        const $card = $('#bk-client-card-' + $(this).data('id'));
+        $card.find('.bk-client-view').hide();
+        $card.find('.bk-client-edit-form').show().find('.bk-ce-name').trigger('focus');
+    });
+    $(document).off('click.bkceCancel').on('click.bkceCancel', '.bk-client-edit-cancel', function() {
+        const $card = $('#bk-client-card-' + $(this).data('id'));
+        $card.find('.bk-client-edit-form').hide();
+        $card.find('.bk-client-view').show();
+    });
+    $(document).off('click.bkceSave').on('click.bkceSave', '.bk-client-edit-save', async function() {
+        const id = $(this).data('id');
+        const $form = $(this).closest('.bk-client-edit-form');
+        const $err = $('#bk-client-edit-err-' + id).hide().text('');
+        const body = {
+            name: $form.find('.bk-ce-name').val().trim(),
+            email: $form.find('.bk-ce-email').val().trim(),
+            cell: $form.find('.bk-ce-cell').val().trim(),
+            company: $form.find('.bk-ce-company').val().trim(),
+            vat_number: $form.find('.bk-ce-vat').val().trim(),
+            billing_address: $form.find('.bk-ce-address').val().trim()
+        };
+        const $btn = $(this).prop('disabled', true);
+        try {
+            const res = await fetch('/api/admin/bookings/' + id + '/contact', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                $err.text(data.message || 'Could not save these changes.').show();
+                return;
+            }
+            // refreshDealView() re-fetches the booking and re-renders every panel (not just this card) — toasts its own
+            // confirmation, so this handler doesn't add a second one.
+            if (typeof window.refreshDealView === 'function') await window.refreshDealView();
+            else { $form.hide(); $form.closest('.atl-det-card').find('.bk-client-view').show(); }
+        } catch (e) {
+            $err.text('Could not reach the server. Please try again.').show();
+        } finally {
+            $btn.prop('disabled', false);
+        }
+    });
+
     // ─── Refresh email communication history for a booking ───
     $(document).off('click.bkcommsload').on('click.bkcommsload', '.bk-comms-load-btn', async function() {
         const id = $(this).data('id');

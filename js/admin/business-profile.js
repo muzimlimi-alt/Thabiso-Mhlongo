@@ -81,11 +81,11 @@
         var m = { company: '', tax: '', addr: '', bbbee: '', letterhead: '' };
 
         m.company += card('bpCardProfile', 'fa-building', 'Business Profile',
-            'Who issues your quotations and invoices. The name here is the legal name printed on every document.',
+            'Who issues your quotations and invoices.',
             select('business_type', 'Business type', [['company', 'Registered company or other legal entity'], ['individual', 'Individual or sole proprietor']], '', 'fa-id-card-clip') +
             '<div class="um-section-desc bp-hint" id="bpTypeNote"></div>' +
             row([[input('legal_name', '<span id="bpLegalNameLabel">Registered company name</span>', { icon: 'fa-signature', maxlength: 120, placeholder: 'MTV CREATIVES (PTY) LTD' }), 7],
-                 [input('trading_name', 'Trading name <small>(optional)</small>', { icon: 'fa-store', maxlength: 120, hint: 'Printed as "t/a ..." next to the legal name.' }), 5]]), 'profile');
+                 [input('trading_name', 'Trading name <small>(optional)</small>', { icon: 'fa-store', maxlength: 120, hint: 'Shown as the business name at the top of quotations and invoices. Leave blank to use the registered company name there instead.' }), 5]]), 'profile');
 
         m.company += '<div id="bpCompanyOnly">' + card('bpCardCipc', 'fa-landmark', 'CIPC and Directors',
             'The company\'s registration with the Companies and Intellectual Property Commission. Kept apart from every SARS number below - they are different registrations.',

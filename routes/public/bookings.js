@@ -22,6 +22,7 @@ const { MIN_ADVANCE_HOURS, CURRENT_POLICY_VERSION } = require('../../lib/booking
 const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-utils');
 const { catalogueUnitPrice } = require('../../lib/service-pricing');
 const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/client-venue');
+const { normaliseClientVat, CLIENT_VAT_MESSAGE } = require('../../lib/business-profile-core');
 const { calculateCancellationRefund } = require('../../lib/cancellation-refund');
 const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
 const { sendQuoteAcceptedEmail, sendBookingReceivedEmail } = require('../../lib/booking-notifications');
@@ -369,6 +370,7 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                             quote_expiry_date: revealed ? row.quote_expiry_date : null,
                                             company: row.company,
                                             vat_number: row.vat_number,
+                                            billing_address: row.billing_address,
                                             total_amount: revealed ? row.total_amount : null,
                                             amount_paid: row.amount_paid,
                                             amount_outstanding: revealed ? row.amount_outstanding : null
@@ -1049,8 +1051,17 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
 
     // Client-supplied and written straight to bookings.vat_number, which the admin panel renders.
     // Same treatment as every other public free-text field: bounded and output-encoded.
-    const vat_number = asBookingText(req.body.vat_number);
+    let vat_number = asBookingText(req.body.vat_number);
     if (vat_number.length > 30) return res.status(400).json({ success: false, message: 'VAT number must be under 30 characters.' });
+    // A customer VAT number is printed on the tax invoice, so a malformed one is refused here instead of reaching SARS-facing paperwork.
+    const cleanVat = normaliseClientVat(vat_number);
+    if (cleanVat === null) return res.status(400).json({ success: false, message: CLIENT_VAT_MESSAGE });
+    vat_number = cleanVat;
+
+    // Same treatment, for the address a full tax invoice over R5,000 needs (VAT Act s20) — advised by
+    // lib/business-profile-core.js taxInvoiceAdvice(), never required to accept the quote.
+    const billing_address = asBookingText(req.body.billing_address);
+    if (billing_address.length > 300) return res.status(400).json({ success: false, message: 'Billing address must be under 300 characters.' });
 
     const bookingId = req.params.id;
     const clientIp = req.ip || 'unknown';
@@ -1101,9 +1112,10 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
                     `UPDATE bookings SET
                             status = CASE WHEN COALESCE(amount_paid, 0) > 0 THEN 'CONFIRMED' ELSE 'ACCEPTED' END,
                             accepted_at = CURRENT_TIMESTAMP, acceptance_ip = ?,
-                            acceptance_agreed_at = CURRENT_TIMESTAMP, vat_number = COALESCE(?, vat_number)
+                            acceptance_agreed_at = CURRENT_TIMESTAMP, vat_number = COALESCE(?, vat_number),
+                            billing_address = COALESCE(?, billing_address)
                      WHERE id = ? AND status = 'QUOTED'`,
-                    [clientIp, encodeUserHtml(vat_number) || null, bookingId]
+                    [clientIp, encodeUserHtml(vat_number) || null, encodeUserHtml(billing_address) || null, bookingId]
                 );
                 if (upd.changes === 0) {
                     await dbRun("ROLLBACK").catch(() => {});
@@ -1269,6 +1281,7 @@ router.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (re
     content_notes = asBookingText(content_notes);
     heard_about = asBookingText(heard_about);
     message = asBookingText(message);         vat_number = asBookingText(vat_number);
+    { const cv = normaliseClientVat(vat_number); if (cv === null) return res.status(400).json({ success: false, message: CLIENT_VAT_MESSAGE }); vat_number = cv; }
     venuePlaceId = asBookingText(venuePlaceId);
     venue_state = asBookingText(venue_state); venue_postal_code = asBookingText(venue_postal_code);
     // Coordinates are the one non-text venue field — validated, not just length-capped. Absent or

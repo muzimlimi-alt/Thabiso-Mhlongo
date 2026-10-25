@@ -15,7 +15,7 @@ Reading the tree: **group** (sidebar heading) > page (sidebar link; a flyout par
   - **Pipeline** — `#bookingsAdmin`, everyone; page heading "Event Bookings"
     - tabs: Pipeline (`bkPanelPipeline`) · Archive (`bkPanelArchive`) · Booking Recovery 0 (`bkPanelRecovery`) · About (`bkPanelAbout`)
   - **Calendar** — `#calendarAdmin`, everyone
-    - tabs: Calendar (`calPanelCalendar`) · About (`calPanelAbout`)
+    - tabs: Calendar (`calPanelCalendar`) · Settings (`calPanelSettings`, administrators only: Google + Microsoft 365 connections) · About (`calPanelAbout`)
   - **Events** — `#eventsAdmin`, everyone; page heading "Events Management"
     - tabs: Upcoming Events (`evtPanelUpcoming`) · Past Events (`evtPanelPast`) · About (`evtPanelAbout`)
 - **Revenue** (flyout)
@@ -26,10 +26,16 @@ Reading the tree: **group** (sidebar heading) > page (sidebar link; a flyout par
   - **Payment Setup** — `#paymentSetupAdmin`, administrator only
     - tabs: PayFast (`payPanelPayfast`) · Bank Transfer & Banking Details (`payPanelBank`) · About (`payPanelAbout`)
 
+- **Email** (flyout)
+  - **Inquiries** — `#inquiriesAdmin`, everyone
+    - tabs: Inbox (`inqInboxPanel`) · Setup (`inqSetupPanel`, administrators only: outgoing mail, customer replies, alert address) · About (`inqAboutPanel`, also carries the Email Setup documentation)
+  - **Delivery Log** — `#emailLogsAdmin`, administrator only
+    - tabs: Communication History (`logPanelHistory`) · About (`logPanelAbout`)
+  - **Email Banners** — `#emailBannersAdmin`, administrator only
+    - the banner library, with its own Library / Preview / About views (no tabs)
+
 ## Audience
 
-- **Inquiries** — `#inquiriesAdmin`, everyone
-  - tabs: Inbox (`inqInboxPanel`) · About (`inqAboutPanel`)
 - **Outreach** (flyout)
   - **Newsletter** — `#newsletterAdmin`, administrator, manager
     - tabs: Compose (`newsletterComposePanel`) · Campaigns (`newsletterCampaignsPanel`) · Subscribers (`newsletterSubscribersPanel`) · Birthday (`newsletterBirthdayPanel`) · About (`newsletterAboutPanel`)
@@ -58,7 +64,7 @@ Reading the tree: **group** (sidebar heading) > page (sidebar link; a flyout par
   - **Gallery** — `#galleryAdmin`, everyone
     - tabs: Manage Media (`galleryConfigPanel`) · About (`galleryAboutPanel`)
 - **Site Appearance** — `#brandingAdmin`, administrator only
-  - tabs: Identity (`brandPanelIdentity`) · Homepage Sections (`brandPanelHomepage`) · Email Banners (`brandPanelEmail`) · About (`brandPanelAbout`)
+  - tabs: Identity (`brandPanelIdentity`) · Homepage Sections (`brandPanelHomepage`) · Admin Appearance (`apPanelAppearance`) · Sign-in Page (`apPanelLogin`) · About (`brandPanelAbout`)
 
 ## Business
 
@@ -69,15 +75,8 @@ Reading the tree: **group** (sidebar heading) > page (sidebar link; a flyout par
 
 ## System
 
-- **Email** (flyout)
-  - **Email Setup** — `#emailSetupAdmin`, administrator only
-    - tabs: Setup (`emPanelSetup`) · About (`emPanelAbout`)
-  - **Delivery Log** — `#emailLogsAdmin`, administrator only
-    - tabs: Communication History (`logPanelHistory`) · About (`logPanelAbout`)
 - **Integrations** — `#integrationsAdmin`, administrator only
-  - tabs: Calendar (`intPanelGoogle`) · Location Search (`intPanelPlaces`) · About (`intPanelAbout`)
-- **Admin Portal** — `#adminPortalAdmin`, administrator only
-  - tabs: Appearance (`apPanelAppearance`) · Sign-in Page (`apPanelLogin`) · About (`apPanelAbout`)
+  - tabs: Location Search (`intPanelPlaces`) · About (`intPanelAbout`)
 - **People & Access** (flyout)
   - **Users** — `#usersAdmin`, administrator only; page heading "User Management"
     - tabs: My Profile (`umPanelProfile`) · Change Password (`umPanelPassword`) · Manage Users (`umPanelUsers`) · Login Activity (`umPanelLogs`) · About (`umPanelAbout`)
@@ -86,7 +85,9 @@ Reading the tree: **group** (sidebar heading) > page (sidebar link; a flyout par
 
 ## Retired ids (still work through the alias map)
 
-- `preferencesAdmin` -> `adminPortalAdmin`
+- `emailSetupAdmin` → `inquiriesAdmin` (now its Setup tab)
+- `preferencesAdmin` -> `brandingAdmin`
+- `adminPortalAdmin` -> `brandingAdmin` (its Appearance and Sign-in Page became the Admin Appearance and Sign-in Page tabs)
 
 ## Not in the sidebar
 

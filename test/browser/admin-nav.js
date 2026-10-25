@@ -119,6 +119,8 @@ const sidebarState = (p) => p.evaluate(() => {
             ok(JSON.stringify(st.leaves.slice().sort()) === JSON.stringify(want), `${role}: sees exactly the ${want.length} links the registry gives it`, JSON.stringify({ got: st.leaves.slice().sort(), want }));
             ok(st.groups.every(g => g.shown > 0), `${role}: no group button is left with nothing in it`, JSON.stringify(st.groups));
             ok(st.labels.every(l => l.shown > 0), `${role}: no heading is left with nothing under it`, JSON.stringify(st.labels));
+            await p.evaluate(() => window.switchTab('inquiriesAdmin'));
+            ok(await p.evaluate(() => ['inqSetupTabBtn'].every(id => getComputedStyle(document.getElementById(id)).display === 'none')), `${role}: Inquiries offers no Setup tab`, '');
             const mm = await p.evaluate(() => [...document.querySelectorAll('#admProfileMenu [data-menu-nav]')].filter(a => a.style.display !== 'none').length);
             ok(mm === 0, `${role}: the account menu does not offer "My profile" / "Team & roles" (the user pages are administrator-only, they used to answer "Access denied")`, String(mm));
             const denied = ids.filter(id => !NAV.canAccess(role, id));
@@ -146,21 +148,25 @@ const sidebarState = (p) => p.evaluate(() => {
 
         // ── where each card lives (the page that owns it) ──
         const LIVES_IN = {
-            stSmtpCard: 'emailSetupAdmin', stSmtpHost: 'emailSetupAdmin', stInboxBlock: 'emailSetupAdmin', stInboxToggleBtn: 'emailSetupAdmin', stNotifCard: 'emailSetupAdmin', stNotificationEmail: 'emailSetupAdmin',
-            btnSaveSmtp: 'emailSetupAdmin', btnSaveAlertEmail: 'emailSetupAdmin', emailLogsBody: 'emailLogsAdmin',
-            bp_legal_name: 'businessAdmin', bp_vat_number: 'businessAdmin', bpCardBank: 'businessAdmin', secSearch: 'brandingAdmin', btnSaveSections: 'brandingAdmin', brandPanelHomepage: 'brandingAdmin', stGoogleCard: 'integrationsAdmin', testPlacesBtn: 'integrationsAdmin', atlAppearancePanelPrefs: 'adminPortalAdmin', brandLoginBgUrl: 'adminPortalAdmin', stPayfastId: 'paymentSetupAdmin', stPayfastUrl: 'paymentSetupAdmin', btnSavePayfast: 'paymentSetupAdmin', stEftCard: 'paymentSetupAdmin', eftHolder: 'paymentSetupAdmin', eftSaveDetailsBtn: 'paymentSetupAdmin'
+            stSmtpCard: 'inquiriesAdmin', stSmtpHost: 'inquiriesAdmin', stInboxBlock: 'inquiriesAdmin', stInboxToggleBtn: 'inquiriesAdmin', stNotifCard: 'inquiriesAdmin', stNotificationEmail: 'inquiriesAdmin',
+            btnSaveSmtp: 'inquiriesAdmin', btnSaveAlertEmail: 'inquiriesAdmin', emailLogsBody: 'emailLogsAdmin',
+            bp_legal_name: 'businessAdmin', bp_vat_number: 'businessAdmin', bpCardBank: 'businessAdmin', secSearch: 'brandingAdmin', btnSaveSections: 'brandingAdmin', brandPanelHomepage: 'brandingAdmin', stGoogleCard: 'calendarAdmin', testPlacesBtn: 'integrationsAdmin', atlAppearancePanelPrefs: 'brandingAdmin', brandLoginBgUrl: 'brandingAdmin', stPayfastId: 'paymentSetupAdmin', stPayfastUrl: 'paymentSetupAdmin', btnSavePayfast: 'paymentSetupAdmin', stEftCard: 'paymentSetupAdmin', eftHolder: 'paymentSetupAdmin', eftSaveDetailsBtn: 'paymentSetupAdmin'
         };
         const where = await admin.evaluate((m) => Object.keys(m).map(id => { const el = document.getElementById(id); return [id, el ? (el.closest('.admin-section') || {}).id : null]; }), LIVES_IN);
         const misplaced = where.filter(([id, sec]) => sec !== LIVES_IN[id]);
-        ok(misplaced.length === 0, 'every moved card / control lives on the page that owns it (email cards on Email Setup, the log on Delivery Log)', JSON.stringify(misplaced));
+        ok(misplaced.length === 0, 'every moved card / control lives on the page that owns it (email cards on Inquiries > Setup, the log on Delivery Log)', JSON.stringify(misplaced));
         ok(await admin.evaluate(() => !document.getElementById('preferencesAdmin') && !document.querySelector('[data-um-tab^="prefPanel"]') && !document.getElementById('brandPanelSite')), 'the old Admin Settings page and the Site Appearance "Site" tab are gone', '');
-        ok(await admin.evaluate(() => !document.getElementById('adminPortalAdmin').querySelector('#stSmtpCard, #stInboxBlock, #stNotifCard, #stNotificationEmail, #stPayfastId, #stEftCard, #btnSavePayfast, #bpRoot, #secSearch, #btnSaveSections, #stGoogleCard')), 'and none of the moved cards is left behind on Admin Portal', '');
-        // the real alias: an old id (and a stale remembered section) lands on Admin Portal
-        ok(await admin.evaluate(() => { window.switchTab('preferencesAdmin'); return document.getElementById('adminPortalAdmin').style.display === 'block' && sessionStorage.getItem('admin_active_section') === 'adminPortalAdmin'; }), 'the retired "Admin Settings" id still works: it opens Admin Portal', '');
+        ok(await admin.evaluate(() => !document.getElementById('brandingAdmin').querySelector('#stSmtpCard, #stInboxBlock, #stNotifCard, #stNotificationEmail, #stPayfastId, #stEftCard, #btnSavePayfast, #bpRoot, #stGoogleCard')), 'and none of the moved cards is left behind on Site Appearance', '');
+        // Email Banners is its own page in the Email group; opening it loads the banner library
+        await admin.evaluate(() => window.switchTab('emailBannersAdmin'));
+        await admin.waitForFunction(() => document.querySelectorAll('#bnrCategory option').length > 0 && getComputedStyle(document.getElementById('emailBannersAdmin')).display !== 'none', { timeout: 15000, polling: 200 });
+        ok(await admin.evaluate(() => !document.getElementById('brandingAdmin').querySelector('#bnrCategory, #brandPanelEmail') && !!document.querySelector('#navEmail a[href="#emailBannersAdmin"]')), 'Email Banners is a page under the Email group and is gone from Site Appearance', '');
+        // the real alias: an old id (and a stale remembered section) lands on Site Appearance
+        ok(await admin.evaluate(() => { window.switchTab('preferencesAdmin'); return document.getElementById('brandingAdmin').style.display === 'block' && sessionStorage.getItem('admin_active_section') === 'brandingAdmin'; }), 'the retired "Admin Settings" id still works: it opens Site Appearance', '');
         await admin.evaluate(() => { window.switchTab('dashboardAdmin'); sessionStorage.setItem('admin_active_section', 'preferencesAdmin'); });
         await admin.reload({ waitUntil: 'networkidle0' });
-        await admin.waitForFunction(() => document.getElementById('adminPortalAdmin') && document.getElementById('adminPortalAdmin').style.display === 'block', { timeout: 20000, polling: 200 });
-        ok(true, 'a stale remembered section ("Admin Settings") is followed to Admin Portal after a refresh', '');
+        await admin.waitForFunction(() => document.getElementById('brandingAdmin') && document.getElementById('brandingAdmin').style.display === 'block', { timeout: 20000, polling: 200 });
+        ok(true, 'a stale remembered section ("Admin Settings") is followed to Site Appearance after a refresh', '');
 
         // ── a moved card still loads and saves from its new page: PayFast sends ONLY its own four keys ──
         await admin.evaluate(() => { window.__puts = []; const of = window.fetch; window.fetch = function (u, o) { if (o && o.method === 'PUT' && /\/api\/admin\/settings$/.test(String(u))) window.__puts.push(o.body); return of.apply(this, arguments); }; });

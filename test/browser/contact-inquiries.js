@@ -188,7 +188,7 @@ const openRow = async (p, id) => {
     // ── 6b. the Email (SMTP) card's "Customer replies (inbox)" controls (administrator only; mock mode, so the connection check cannot pass) ──
     const adminCookie = await cookieFor('test.runner@example.invalid');
     const ad = await openAdmin(browser, adminCookie);
-    await ad.evaluate(() => window.switchTab('emailSetupAdmin'));
+    await ad.evaluate(() => window.admNav.go('inquiriesAdmin', { tab: 'inqSetupPanel' }));
     await sleep(400);
     await ad.evaluate(() => window.loadEmailSetup());
     await waitFor(() => ad.evaluate(() => /Off\./.test(document.getElementById('stInboxStatus').textContent)), 15000);

@@ -1,4 +1,4 @@
-// System > Email > Email Setup (Outgoing Mail card, Customer Replies, Alert Address): the card driven through the REAL admin.html UI on an isolated DB copy (test/support.js -
+// Email > Inquiries > Setup (Outgoing Mail card, Customer Replies, Alert Address): the card driven through the REAL admin.html UI on an isolated DB copy (test/support.js -
 // SMTP mocked, the real database and mail server are never touched). Covers: the card renders with the Microsoft 365 fields,
 // the password is masked and never comes back from the server, inline validation, Test Connection, Save, Send Test, reload,
 // and the card being hidden for non-administrators.
@@ -53,7 +53,7 @@ async function openAdmin(browser, cookie, { width = 1440, height = 1100, rewrite
     });
     await p.goto(BASE + '/admin.html', { waitUntil: 'networkidle0', timeout: 90000 });
     await p.waitForFunction(() => typeof window.loadEmailSetup === 'function' && typeof window.switchTab === 'function', { timeout: 30000 });
-    await p.evaluate(() => window.switchTab('emailSetupAdmin'));
+    await p.evaluate(() => window.admNav.go('inquiriesAdmin', { tab: 'inqSetupPanel' }));
     await sleep(300);
     await p.evaluate(() => window.loadEmailSetup());
     await sleep(600);
@@ -135,7 +135,7 @@ const shot = async (p, name) => { if (!SHOTS) return; await p.evaluate(() => { c
     // ── 5. reload: values come back, the password never does ──
     await p.reload({ waitUntil: 'networkidle0' });
     await p.waitForFunction(() => typeof window.switchTab === 'function', { timeout: 30000 });
-    await p.evaluate(() => window.switchTab('emailSetupAdmin')); await sleep(300);
+    await p.evaluate(() => window.admNav.go('inquiriesAdmin', { tab: 'inqSetupPanel' })); await sleep(300);
     await p.evaluate(() => window.loadEmailSetup()); await sleep(800);
     const re = await p.evaluate(() => ({ host: document.getElementById('stSmtpHost').value, user: document.getElementById('stSmtpUser').value, pw: document.getElementById('stSmtpPass').value, ph: document.getElementById('stSmtpPass').placeholder, html: document.documentElement.outerHTML }));
     ok(re.host === 'smtp.office365.com' && re.user === 'bookings@thabisomhlongo.com' && re.pw === '' && /saved/.test(re.ph), 'after a reload the saved values load and the password box stays empty', JSON.stringify({ h: re.host, u: re.user, pw: re.pw, ph: re.ph }));
@@ -175,7 +175,7 @@ const shot = async (p, name) => { if (!SHOTS) return; await p.evaluate(() => { c
     ok(oafter.secret === '' && /saved/.test(oafter.ph) && /using Microsoft 365 OAuth/.test(oafter.status) && /client secret saved \(encrypted\)/.test(oafter.status), 'after saving, the secret box is cleared and the status line says OAuth with a saved (encrypted) secret', JSON.stringify(oafter));
     await p.reload({ waitUntil: 'networkidle0' });
     await p.waitForFunction(() => typeof window.switchTab === 'function', { timeout: 30000 });
-    await p.evaluate(() => window.switchTab('emailSetupAdmin')); await sleep(300);
+    await p.evaluate(() => window.admNav.go('inquiriesAdmin', { tab: 'inqSetupPanel' })); await sleep(300);
     await p.evaluate(() => window.loadEmailSetup()); await sleep(800);
     const ore = await p.evaluate(() => ({
         auth: document.getElementById('stSmtpAuth').value, tenant: document.getElementById('stSmtpTenant').value, client: document.getElementById('stSmtpClient').value,

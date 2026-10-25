@@ -3101,6 +3101,12 @@ function initializeDatabase() {
             db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)", [bp.MIGRATION_VERSION, bp.MIGRATION_NAME]);
         }
 
+        // Client billing address (version 111): a full tax invoice over R5,000 needs the recipient's address (VAT Act s20) — captured the
+        // same way vat_number already is, as the booking's own column (what quotations/invoices read), editable by the client at
+        // accept-quote and by an administrator from the booking's Client card. lib/business-profile-core.js taxInvoiceAdvice() is the advisory.
+        db.run("ALTER TABLE bookings ADD COLUMN billing_address TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: billing_address already exists or error: " + err.message); });
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (111, 'booking_billing_address')");
+
         // Homepage "What I do" cards follow the five rate-card categories (version 107): replaced only while still the shipped
         // defaults, once. See lib/homepage-service-cards.js for the rules.
         {

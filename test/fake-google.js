@@ -12,7 +12,7 @@ async function startFakeGoogle({ clients } = {}) {
     const g = {
         clients: Object.assign({}, clients),
         behaviour: { accessRole: 'owner', apiDisabled: false, tokenFailure: null, revokeStatus: 200, accountEmail: 'owner@example.test' },
-        tokenLog: [], apiLog: [], revokeLog: [],
+        tokenLog: [], apiLog: [], revokeLog: [], events: [],   // events: what the calendar lists (items as Google returns them)
         codes: new Map(), refreshTokens: new Map(), revoked: new Set(), accessTokens: new Map()
     };
     let n = 0;
@@ -73,6 +73,7 @@ async function startFakeGoogle({ clients } = {}) {
             if (req.method === 'GET' && /\/users\/me\/calendarList\/primary$/.test(url.pathname)) {
                 return json(res, 200, { kind: 'calendar#calendarListEntry', id: g.behaviour.accountEmail, summary: g.behaviour.accountEmail, accessRole: g.behaviour.accessRole });
             }
+            if (req.method === 'GET' && /\/calendars\/primary\/events$/.test(url.pathname)) return json(res, 200, { kind: 'calendar#events', items: g.events });
             if (req.method === 'POST' && /\/calendars\/primary\/events$/.test(url.pathname)) return json(res, 200, Object.assign({ id: 'gev-' + (++n) }, safeJson(body) || {}));
             if (req.method === 'DELETE' && /\/calendars\/primary\/events\/[^/]+$/.test(url.pathname)) { res.writeHead(204); return res.end(); }
             return json(res, 404, { error: { code: 404, message: 'Not Found' } });

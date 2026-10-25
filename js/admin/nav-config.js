@@ -32,7 +32,7 @@
         financeAdmin:      { label: 'Finance',          title: 'Financial Ledger',          group: 'Revenue',      access: OPS },
         servicesAdmin:     { label: 'Services',         title: 'Services Catalogue',        group: 'Revenue',      access: ALL },
         paymentSetupAdmin: { label: 'Payment Setup',    title: 'Payment Setup',             group: 'Revenue',      access: ADMIN },
-        inquiriesAdmin:    { label: 'Inquiries',        title: 'Inquiries',                 group: 'Audience',     access: ALL },
+        inquiriesAdmin:    { label: 'Inquiries',        title: 'Inquiries',                 group: 'Email',        access: ALL },
         newsletterAdmin:   { label: 'Newsletter',       title: 'Newsletter',                group: 'Outreach',     access: OPS },
         socialAdmin:       { label: 'Social Media',     title: 'Social Media',              group: 'Outreach',     access: ALL },
         contactAdmin:      { label: 'Contact Details',  title: 'Contact',                   group: 'Outreach',     access: ALL },
@@ -48,16 +48,15 @@
         policiesAdmin:     { label: 'Legal & Compliance', title: 'Legal & Compliance',      group: 'Business',     access: ALL },
         brandingAdmin:     { label: 'Site Appearance',  title: 'Site Appearance',                  group: 'Public Site',  access: ADMIN },
         integrationsAdmin: { label: 'Integrations',     title: 'Integrations',              group: 'System',       access: ADMIN },
-        adminPortalAdmin:  { label: 'Admin Portal',     title: 'Admin Portal',              group: 'System',       access: ADMIN },
         usersAdmin:        { label: 'Users',            title: 'User Management',           group: 'People & Access', access: ADMIN },
         securityAdmin:     { label: 'Security & Audit', title: 'Security & Audit',          group: 'People & Access', access: ADMIN },
-        emailSetupAdmin:   { label: 'Email Setup',      title: 'Email Setup',               group: 'Email',        access: ADMIN },
-        emailLogsAdmin:    { label: 'Delivery Log',     title: 'Delivery Log',              group: 'Email',        access: ADMIN }
+        emailLogsAdmin:    { label: 'Delivery Log',     title: 'Delivery Log',              group: 'Email',        access: ADMIN },
+        emailBannersAdmin: { label: 'Email Banners',    title: 'Email Banners',             group: 'Email',        access: ADMIN }
     };
 
     // old page id -> the id that now holds that content. Used by switchTab, the remembered-section restore and admNav.go, so a stale
     // sessionStorage value or an older caller lands on the right page instead of nowhere.
-    var aliases = { preferencesAdmin: 'adminPortalAdmin' };   // "Admin Settings" was split up (Payment Setup, Email, Integrations, Business Profile, Admin Portal)
+    var aliases = { preferencesAdmin: 'brandingAdmin', adminPortalAdmin: 'brandingAdmin', emailSetupAdmin: 'inquiriesAdmin' };   // "Admin Settings" was split up (Payment Setup, Email, Integrations, Business Profile, Admin Portal); "Email Setup" became the Setup tab on Inquiries; "Admin Portal" became tabs of Site Appearance
 
     function has(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
     function resolve(id) {
