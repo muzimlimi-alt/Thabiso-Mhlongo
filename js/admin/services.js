@@ -23,6 +23,18 @@ function _svcGroupRank(s) {
     var i = _svcGroups().findIndex(function(g) { return g.value === s.service_group; });
     return i === -1 ? 999 : i;
 }
+// A thumb icon stands in for a photo (services have none) — one per rate-card group, matching
+// the shared .atl-edit-card list's thumb slot used by Events/Accolades/Career/etc.
+var SVC_GROUP_ICON = {
+    club_theatre: 'fa-masks-theater', corporate_events: 'fa-briefcase', private_functions: 'fa-champagne-glasses',
+    writing_creative: 'fa-pen-nib', acting_voice_brand: 'fa-microphone-lines'
+};
+var SVC_CATEGORY_ICON = { performance: 'fa-masks-theater', travel: 'fa-car-side', production: 'fa-clapperboard', other: 'fa-ellipsis' };
+function _svcThumbIcon(s) {
+    if (s.service_group) return SVC_GROUP_ICON[s.service_group] || 'fa-concierge-bell';
+    // ungrouped rows (Add-ons & other): fall back to the legacy category, else a generic add-on icon
+    return (s.category && SVC_CATEGORY_ICON[s.category.toLowerCase()]) || 'fa-layer-group';
+}
 
 // Pill click — filter by rate-card group
 $(document).on('click', '.svc-cat-pill', function() {
@@ -216,34 +228,42 @@ window.filterServicesTable = function() {
             const badge = s.service_group_label
                 ? `<span class="svc-card__cat-badge svc-cat--group">${_svcEsc(s.service_group_label)}</span>`
                 : `<span class="svc-card__cat-badge svc-cat--${(s.category||'Other').toLowerCase()}">${s.category||'Other'}</span>`;
-            return `<div class="svc-card${s.is_deleted ? ' svc-card--archived' : ''}" data-id="${s.id}">
-              <div class="svc-card__header">
-                ${badge}
-                ${statusBadge}
-              </div>
-              <h4 class="svc-card__name">${s.name}</h4>
-              ${s.description ? `<p class="svc-card__desc">${s.description}</p>` : ''}
-              <div class="svc-card__price${priceLabel.length > 22 ? ' svc-card__price--long' : ''}">
-                ${_svcEsc(priceLabel)}
-                <span class="svc-card__model-badge">${modelLabel}</span>
-              </div>
-              ${s.quote_required ? '<p class="svc-card__quote-note"><i class="fa-solid fa-file-signature"></i> Priced individually &mdash; enter the agreed amount on each quote</p>' : ''}
-              ${limitsHtml}
-              ${s.display_unit ? `<p class="svc-card__unit">${s.display_unit}</p>` : ''}
-              <div class="svc-card__tags">
-                ${s.is_featured ? '<span class="svc-tag svc-tag--featured"><i class="fa-solid fa-star"></i> Most Booked</span>' : ''}
-                ${s.travel_included ? '<span class="svc-tag svc-tag--travel"><i class="fa-solid fa-car-side"></i> Travel incl.</span>' : ''}
-                ${s.availability_rule === 'per_day' ? '<span class="svc-tag svc-tag--perday"><i class="fa-solid fa-calendar-day"></i> Per day</span>' : ''}
-                ${s.external_note ? `<span class="svc-tag svc-tag--note" title="${safeNote}"><i class="fa-solid fa-note-sticky"></i> Note</span>` : ''}
-              </div>
-              <div class="svc-card__footer">
-                ${s.is_deleted
-                  ? `<button class="atl-btn atl-btn--ghost svc-card__action" onclick="restoreService(${s.id})" style="font-size:11px;width:100%;"><i class="fa-solid fa-rotate-left" style="margin-right:4px;"></i>Restore</button>`
-                  : `<button class="atl-btn atl-btn--ghost svc-card__action btn-svc-edit" data-id="${s.id}"><i class="fa-solid fa-pen" style="margin-right:4px;"></i>Edit</button>
-                     <button class="atl-btn svc-card__action btn-svc-delete" data-id="${s.id}" style="background:rgba(248,113,113,0.08);color:var(--atl-clay);border:1px solid rgba(248,113,113,0.2);flex:0;padding:0 12px;" title="Archive"><i class="fa-solid fa-archive"></i></button>`
-                }
-              </div>
-            </div>`;
+            const safeName = _svcEsc(s.name || '');
+            // Same shared card shell as Events/Accolades/Career/etc. (.atl-edit-card): icon thumb (services
+            // have no photo) + a main column + a right-aligned icon action column, instead of the old
+            // bespoke vertical tile. Classes the browser suite reads (svc-card, svc-card__name,
+            // svc-card__price, svc-tag--featured) are unchanged; only the surrounding layout moved.
+            return `<article class="atl-edit-card svc-card${s.is_deleted ? ' svc-card--archived' : ''}" data-id="${s.id}">
+              <div class="atl-card-inner"><div class="atl-edit-card__header">
+                <div class="svc-card__thumb" aria-hidden="true"><i class="fa-solid ${_svcThumbIcon(s)}"></i></div>
+                <div class="svc-card__main">
+                  <h4 class="atl-edit-card__title svc-card__name">${s.name}</h4>
+                  <div class="svc-card__price${priceLabel.length > 22 ? ' svc-card__price--long' : ''}">
+                    ${_svcEsc(priceLabel)}
+                    <span class="svc-card__model-badge">${modelLabel}</span>
+                  </div>
+                  <div class="svc-card__badges">
+                    ${badge}
+                    ${statusBadge}
+                    ${s.is_featured ? '<span class="svc-tag svc-tag--featured"><i class="fa-solid fa-star"></i> Most Booked</span>' : ''}
+                    ${s.travel_included ? '<span class="svc-tag svc-tag--travel"><i class="fa-solid fa-car-side"></i> Travel incl.</span>' : ''}
+                    ${s.availability_rule === 'per_day' ? '<span class="svc-tag svc-tag--perday"><i class="fa-solid fa-calendar-day"></i> Per day</span>' : ''}
+                    ${s.external_note ? `<span class="svc-tag svc-tag--note" title="${safeNote}"><i class="fa-solid fa-note-sticky"></i> Note</span>` : ''}
+                  </div>
+                  ${s.description ? `<p class="atl-edit-card__desc svc-card__desc">${s.description}</p>` : ''}
+                  ${s.quote_required ? '<p class="svc-card__quote-note"><i class="fa-solid fa-file-signature"></i> Priced individually &mdash; enter the agreed amount on each quote</p>' : ''}
+                  ${limitsHtml}
+                  ${s.display_unit ? `<p class="svc-card__unit">${s.display_unit}</p>` : ''}
+                </div>
+                <div class="svc-card__actions">
+                  ${s.is_deleted
+                    ? `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="restoreService(${s.id})" title="Restore service" aria-label="Restore ${safeName}"><i class="fa-solid fa-rotate-left"></i></button>`
+                    : `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm btn-svc-edit" data-id="${s.id}" title="Edit service" aria-label="Edit ${safeName}"><i class="fa-solid fa-pen"></i></button>
+                       <button type="button" class="um-btn um-btn--danger um-btn--sm btn-svc-delete" data-id="${s.id}" title="Archive service" aria-label="Archive ${safeName}"><i class="fa-solid fa-archive"></i></button>`
+                  }
+                </div>
+              </div></div>
+            </article>`;
         }).join(''));
     }
     const total = allServicesCache.length;
