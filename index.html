@@ -3420,28 +3420,6 @@ $(document).ready(function() {
         }
     });
 
-    // Client-selectable installment plans: recompute the "Next Milestone" / "Remaining Balance"
-    // preview for whichever plan is currently selected. Only used pre-acceptance, when no real
-    // schedule exists yet — matches the 30/30/40 split autoBuildDepositBalanceSchedule() will
-    // actually build server-side (lib/invoicing.js) so the preview never lies about what's coming.
-    window.updateInstallmentPreview = function(rawQuotePreview) {
-        var count = parseInt($('input[name="installmentChoice"]:checked').val(), 10) || 2;
-        var firstAmt, restAmt;
-        if (count === 3) {
-            firstAmt = Math.round(rawQuotePreview * 0.30 * 100) / 100;
-            restAmt = Math.round((rawQuotePreview - firstAmt) * 100) / 100;
-        } else {
-            firstAmt = Math.round(rawQuotePreview * 0.5 * 100) / 100;
-            restAmt = Math.round((rawQuotePreview - firstAmt) * 100) / 100;
-        }
-        $('#payPreviewDeposit').text('R ' + firstAmt.toFixed(2));
-        $('#payPreviewBalance').text('R ' + restAmt.toFixed(2));
-    };
-    $(document).on('change', 'input[name="installmentChoice"]', function() {
-        var rawQuotePreview = ($('#tdQuoteAmount').text() || '').replace(/[^0-9.]/g, '');
-        if (rawQuotePreview) window.updateInstallmentPreview(parseFloat(rawQuotePreview));
-    });
-
     var ACCEPT_BTN_HTML = '<i class="fa-solid fa-handshake"></i>Accept Quote';
 
     $(document).on('click', '#acceptQuoteBtn', async function() {
@@ -3486,9 +3464,6 @@ $(document).ready(function() {
         try {
             var acceptBody = { access_token: currentAccessToken, terms_agreed: true, vat_number: $('#acceptVatNumber').val().trim() || null, billing_address: $('#acceptBillingAddress').val().trim() || null };
             if (builder && !builder.isUnchanged()) acceptBody.milestones = builder.getMilestones();
-            else if ($('#installmentChoiceSection').is(':visible')) {
-                acceptBody.installment_count = parseInt($('input[name="installmentChoice"]:checked').val(), 10);
-            }
             // bypassInterceptor: errors are shown here (plan errors inline next to the plan), not
             // also as the interceptor's generic toast.
             var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/accept-quote', {
