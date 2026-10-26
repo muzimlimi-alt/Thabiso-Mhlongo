@@ -86,29 +86,48 @@ module.exports = async function ({ check }) {
     check('index.html has WebSite markup with the brand as its name and the homepage as its url', !!site && site.name === 'Thabiso Mhlongo' && site.url === 'https://www.thabisomhlongo.com/', JSON.stringify(site));
     check('...and og:site_name agrees with it', /<meta property="og:site_name" content="Thabiso Mhlongo">/.test(html), '');
 
-    // ── favicon: Google's favicon crawler wants a square image, a multiple of 48px, crawlable, at a stable URL ──
-    // (The old tag declared a 1536px / 1.8 MB PNG as a 16x16 GIF and there was no /favicon.ico.)
+    // ── favicon: ONE icon on every page - images/icon/favicon.ico, the owner's file - also answered at the default /favicon.ico ──
+    // History: the favicon was a 1536px / 1.8 MB PNG declared as a 16x16 GIF with no /favicon.ico (Google showed a globe); it became a gold-
+    // microphone set (48/96/192 PNGs plus a root favicon.ico); the owner has since replaced it with images/icon/favicon.ico and the root file
+    // is gone, so app.js answers /favicon.ico from the new file and every <head> links to that one URL. Google prefers a multiple of 48px and
+    // the owner's file is 16px, so Google may show it soft - a trade-off the owner chose, not something this test should fail on.
     const pngSize = (buf) => (buf.length > 24 && buf.slice(1, 4).toString() === 'PNG') ? { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) } : null;
-    const iconTags = [...html.matchAll(/<link\s[^>]*rel="icon"[^>]*>/g)].map(m => m[0]);
-    const pngIcons = iconTags.filter(t => /type="image\/png"/.test(t)).map(t => ({ href: (/href="([^"]+)"/.exec(t) || [])[1], sizes: (/sizes="(\d+)x(\d+)"/.exec(t) || []) }));
-    check('index.html declares PNG favicons with their real sizes', pngIcons.length >= 2 && pngIcons.every(i => i.href && i.sizes[1]), iconTags.join(' | '));
-    const problems = [];
-    for (const i of pngIcons) {
-        const file = path.join(ROOT, i.href.replace(/^\//, ''));
-        const buf = fs.existsSync(file) ? fs.readFileSync(file) : null;
-        const dim = buf && pngSize(buf);
-        if (!dim) { problems.push(`${i.href}: missing or not a PNG`); continue; }
-        if (dim.w !== dim.h || dim.w % 48 !== 0) problems.push(`${i.href}: ${dim.w}x${dim.h} is not a square multiple of 48`);
-        if (String(dim.w) !== i.sizes[1] || String(dim.h) !== i.sizes[2]) problems.push(`${i.href}: declared ${i.sizes[1]}x${i.sizes[2]} but is ${dim.w}x${dim.h}`);
-        if (buf.length > 100 * 1024) problems.push(`${i.href}: ${buf.length} bytes is far too big for a favicon`);
-        if (!isAllowed(rules, i.href)) problems.push(`${i.href}: blocked by robots.txt`);
-    }
-    check('every declared favicon exists, is a square multiple of 48, matches its sizes="" attribute, is small and crawlable', problems.length === 0, problems.join('; '));
-    check('no icon link still mislabels an image/gif or points at the 1.8 MB logo', !iconTags.some(t => /image\/gif|logo5\.png/.test(t)), iconTags.join(' | '));
-    const icoRes = await fetch(`${support.BASE}/favicon.ico`);
+    const icoFile = path.join(ROOT, 'images', 'icon', 'favicon.ico');
+    const icoDisk = fs.existsSync(icoFile) ? fs.readFileSync(icoFile) : Buffer.alloc(0);
+    const icoProblems = (buf) => {            // a structurally valid .ico: header, at least one image, every image inside the file
+        if (buf.length < 22) return ['missing or too short'];
+        const problems = [];
+        if (buf.readUInt16LE(0) !== 0 || buf.readUInt16LE(2) !== 1) problems.push('not an icon header');
+        const count = buf.readUInt16LE(4);
+        if (count < 1) problems.push('holds no image');
+        for (let i = 0; i < count && 6 + 16 * i + 16 <= buf.length; i++) {
+            const size = buf.readUInt32LE(6 + 16 * i + 8), offset = buf.readUInt32LE(6 + 16 * i + 12);
+            if (size === 0 || offset + size > buf.length) problems.push(`image ${i} runs past the end of the file`);
+        }
+        return problems;
+    };
+    check('images/icon/favicon.ico is a valid icon and small enough for a favicon', icoProblems(icoDisk).length === 0 && icoDisk.length <= 100 * 1024, icoProblems(icoDisk).join('; ') || `${icoDisk.length} bytes`);
+
+    const pages = ['index.html', 'admin.html', 'confirm-subscription.html', 'unsubscribe.html', 'reset-password.html'];
+    const iconLinks = (name) => [...fs.readFileSync(path.join(ROOT, name), 'utf8').matchAll(/<link\s[^>]*rel="(?:shortcut )?icon"[^>]*>/g)].map(m => (/href="([^"]+)"/.exec(m[0]) || [])[1]);
+    const homeIcons = iconLinks('index.html');
+    check('index.html declares exactly one icon: the stable /favicon.ico URL with a ?v= cache-buster', homeIcons.length === 1 && /^\/favicon\.ico\?v=\d+$/.test(homeIcons[0]), JSON.stringify(homeIcons));
+    check('...and every other page declares that same icon (no page keeps an old or different one)', pages.every(p => JSON.stringify(iconLinks(p)) === JSON.stringify(homeIcons)), pages.map(p => `${p}: ${JSON.stringify(iconLinks(p))}`).join(' | '));
+
+    const icoRes = await fetch(`${support.BASE}${homeIcons[0] || '/favicon.ico'}`);          // exactly what the page links to, query string and all
     const ico = Buffer.from(await icoRes.arrayBuffer());
-    check('GET /favicon.ico serves 200 with a valid multi-size icon (16, 32 and 48 px)', icoRes.status === 200 && ico.readUInt16LE(2) === 1 && ico.readUInt16LE(4) === 3 && [ico[6], ico[22], ico[38]].join() === '16,32,48', `status=${icoRes.status} type=${icoRes.headers.get('content-type')} head=${ico.slice(0, 6).toString('hex')}`);
-    check('/favicon.ico and the icon folder are allowed by robots.txt', isAllowed(rules, '/favicon.ico') && isAllowed(rules, '/images/icon/mic-favicon-48.png'), robots);
+    const icoType = icoRes.headers.get('content-type') || '';
+    check('GET /favicon.ico?v=N serves 200 as an icon', icoRes.status === 200 && /^image\/(x-icon|vnd\.microsoft\.icon)/.test(icoType), `status=${icoRes.status} type=${icoType}`);
+    check('...and what it serves is exactly images/icon/favicon.ico (the owner\'s file)', icoDisk.length > 0 && Buffer.compare(ico, icoDisk) === 0 && icoProblems(ico).length === 0, `served ${ico.length} bytes, file ${icoDisk.length} bytes`);
+    const plainRes = await fetch(`${support.BASE}/favicon.ico`);
+    const plain = Buffer.from(await plainRes.arrayBuffer());
+    check('the bare /favicon.ico (what crawlers and browsers ask for by default) answers the same bytes', plainRes.status === 200 && icoDisk.length > 0 && Buffer.compare(plain, icoDisk) === 0, `status=${plainRes.status} bytes=${plain.length}`);
+    const headRes = await fetch(`${support.BASE}/favicon.ico`, { method: 'HEAD' });
+    check('HEAD /favicon.ico works too (crawlers probe with it)', headRes.status === 200 && Number(headRes.headers.get('content-length')) === icoDisk.length, `status=${headRes.status} length=${headRes.headers.get('content-length')}`);
+    const iconCache = plainRes.headers.get('cache-control') || '';
+    const iconAge = /max-age=(\d+)/.exec(iconCache);
+    check('/favicon.ico is cacheable but not "immutable": it is a fixed URL, so a future icon change must be able to reach visitors', /public/.test(iconCache) && !!iconAge && Number(iconAge[1]) > 0 && Number(iconAge[1]) <= 7 * 86400 && !/immutable/.test(iconCache), `cache-control: ${iconCache || '(none)'}`);
+    check('/favicon.ico and /images/icon/favicon.ico are allowed by robots.txt', isAllowed(rules, '/favicon.ico') && isAllowed(rules, '/images/icon/favicon.ico'), robots);
     const appleHref = (/rel="apple-touch-icon"[^>]*href="([^"]+)"/.exec(html) || [])[1];
     const appleTouch = appleHref && path.join(ROOT, appleHref.replace(/^\//, ''));
     check('the apple-touch-icon is declared, exists and is 180x180', !!appleTouch && fs.existsSync(appleTouch) && (() => { const d = pngSize(fs.readFileSync(appleTouch)); return d && d.w === 180 && d.h === 180; })(), String(appleHref));

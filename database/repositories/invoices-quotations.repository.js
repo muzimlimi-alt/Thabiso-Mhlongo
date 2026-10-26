@@ -305,10 +305,21 @@ function getInvoiceFileForAdminDownload(bookingId, callback) {
             ORDER BY i.created_at DESC, i.id DESC
             LIMIT 1`, [bookingId], callback);
 }
+// The booking's CURRENT quotation: the active one (archived = 0), newest version first. This used to have no ORDER BY, so a booking with
+// revisions served whichever row SQLite found first - the oldest, superseded quotation. Falls back to the newest version when none is active.
 function getQuoteFileForAdminDownload(bookingId, callback) {
     db.get(`SELECT q.file_path, q.quote_number
             FROM quotations q
-            WHERE q.booking_id = ?`, [bookingId], callback);
+            WHERE q.booking_id = ?
+            ORDER BY COALESCE(q.archived, 0) ASC, q.version DESC, q.id DESC
+            LIMIT 1`, [bookingId], callback);
+}
+// One specific quotation version of THIS booking (never another booking's, whatever id is asked for) - the Files tab and the quote history
+// list link to it, because the files themselves sit behind the blocked /docs/ path.
+function getQuoteFileForAdminDownloadById(bookingId, quoteId, callback) {
+    db.get(`SELECT q.file_path, q.quote_number, q.version
+            FROM quotations q
+            WHERE q.id = ? AND q.booking_id = ?`, [quoteId, bookingId], callback);
 }
 // Public self-download route — byte-distinct from getLatestQuoteFileForResend above (adds
 // quote_number to the column list, different "archived" spacing).
@@ -419,7 +430,7 @@ module.exports = {
     getLatestQuoteFileForResend, markQuotationResent,
     getQuoteNumberCollisionCount, voidInvoiceForRequote, archivePreviousQuotations, getNextQuoteVersion,
     insertQuotation, insertQuoteLineItem, getQuoteHistoryForBooking, getActiveQuoteStatusForInvoiceGuard,
-    getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload, getLatestQuoteFileForPublicDownload,
+    getInvoiceFileForAdminDownload, getQuoteFileForAdminDownload, getQuoteFileForAdminDownloadById, getLatestQuoteFileForPublicDownload,
     getQuoteForBookingFinancials, getInvoiceForBookingFinancials,
     getOpenInvoiceIdForAdjustmentRegen,
     countQuotationsForIds, countQuotationsForClientIds,

@@ -4,11 +4,14 @@ const { requireAdmin } = require('../../middleware/auth');
 const { resolveActor } = require('../../lib/actor');
 const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-utils');
 const { bookingConfig } = require('../../lib/booking-config');
+const calendarM365 = require('../../lib/calendar-m365');
+const m365Model = require('../../lib/calendar-m365-model');
 const {
     getActiveDateHoldsForCalendarGrid, insertDateHold, deleteDateHoldById, getDateHoldTimesById,
     updateDateHoldDate, getDateHoldsForDateConflict
 } = require('../../database/repositories/calendar.repository');
 const { getBookingsOnDateForHoldConflict } = require('../../database/repositories/bookings.repository');
+const { agreedAmountSql } = require('../../lib/booking-amounts');
 const router = express.Router();
 
 // Shared by POST /calendar/hold (create) and PATCH /calendar/hold/:id/date (move) — a hold
@@ -93,7 +96,9 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                        b.status, b.total_amount, b.payment_status,
                        b.amount_paid, b.amount_outstanding, b.quote_expiry_date,
                        b.cell, COALESCE(v.name, b.event_location) AS venue_name, b.city,
-                       e.event_title AS linked_event_title, b.event_id
+                       e.event_title AS linked_event_title, b.event_id,
+                       b.google_event_id, b.accepted_at, b.popia_consent, b.attachment_files,
+                       CASE WHEN ${agreedAmountSql('b')} THEN 1 ELSE 0 END AS amount_agreed
                 FROM bookings b
                 LEFT JOIN clients c ON b.client_id = c.id
                 LEFT JOIN events e ON b.event_id = e.event_id
@@ -119,6 +124,8 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                     color: color,
                     extendedProps: {
                         type: 'booking', dbId: b.id, status: b.status, payment: b.payment_status, event_id: b.event_id,
+                        // would the Microsoft 365 calendar show this booking at all (lib/calendar-m365-model.js)? enquiries are not published
+                        m365Eligible: !!(m365Model.bookingRule(b.status).showAs || m365Model.bookingRule(b.status).keep),
                         isCalSynced: !!b.google_event_id,
                         isAccepted:  !!b.accepted_at,
                         isPopiaDone: !!b.popia_consent,
@@ -126,7 +133,10 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                         venueName: b.venue_name || null,
                         city: b.city || null,
                         clientPhone: b.cell || null,
-                        amountOutstanding: b.amount_outstanding != null ? b.amount_outstanding : (b.total_amount != null ? b.total_amount - (b.amount_paid || 0) : null),
+                        // An enquiry that was never quoted holds only the catalogue ESTIMATE in these columns (lib/booking-amounts.js):
+                        // it is not an amount owed, so the event popover gets nothing to show until a quotation exists.
+                        amountOutstanding: !b.amount_agreed ? null
+                            : (b.amount_outstanding != null ? b.amount_outstanding : (b.total_amount != null ? b.total_amount - (b.amount_paid || 0) : null)),
                         quoteExpiryDate: b.quote_expiry_date || null
                     }
                 };
@@ -169,7 +179,7 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                 });
 
                 // 3. Get Public Site Events
-                db.all(`SELECT e.event_id, e.event_title, e.event_datetime, e.event_start_time, e.event_end_time, e.booking_id, v.name AS venue_name
+                db.all(`SELECT e.event_id, e.event_title, e.event_datetime, e.event_start_time, e.event_end_time, e.booking_id, e.event_status, e.google_calendar_event_id, v.name AS venue_name
                         FROM events e
                         LEFT JOIN venues v ON e.venue_id = v.id
                         WHERE e.event_status != 'draft'`, [], (err, siteEvents) => {
@@ -183,14 +193,16 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                                 end:   se.event_end_time   ? (se.event_datetime || '').split('T')[0] + 'T' + se.event_end_time   : undefined,
                                 color: '#17a2b8', // Teal
                                 allDay: !se.event_start_time,
-                                extendedProps: { type: 'public_event', dbId: se.event_id, venue: se.venue_name }
+                                extendedProps: { type: 'public_event', dbId: se.event_id, venue: se.venue_name, isCalSynced: !!se.google_calendar_event_id, m365Eligible: !!(m365Model.eventRule(se.event_status, null).showAs || m365Model.eventRule(se.event_status, null).keep) }
                             });
                         }
                     });
 
                     // Optionally append milestone events (quote expiries + payment due dates)
                     function sendEvents() {
-                        if (req.query.include !== 'milestones') return res.json(events);
+                        // adds the Microsoft 365 sync state of each booking / event and the Microsoft appointments (lib/calendar-m365.js); the calendar is served as it was if that fails
+                        const respond = () => calendarM365.decorateCalendarEvents(events).then((all) => res.json(all)).catch(() => res.json(events));
+                        if (req.query.include !== 'milestones') return respond();
                         db.all(`SELECT b.id, COALESCE(c.full_name, b.name) AS name, b.quote_expiry_date
                                 FROM bookings b LEFT JOIN clients c ON b.client_id = c.id
                                 WHERE b.status = 'QUOTED' AND b.quote_expiry_date IS NOT NULL`, [], (e2, quoteds) => {
@@ -213,7 +225,7 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                                         extendedProps: { type: 'milestone', milestoneType: 'payment_due', dbId: s.booking_id, isOverdue: overdue, amount: s.expected_amount }
                                     });
                                 });
-                                res.json(events);
+                                respond();
                             });
                         });
                     }
@@ -287,5 +299,9 @@ router.patch('/api/admin/calendar/hold/:id/date', requireAdmin, (req, res) => {
         });
     });
 });
+
+// Microsoft 365 calendar integration controls (lib/calendar-m365.js)
+router.use(require('./calendar-sync'));
+router.use(require('./google-calendar'));   // Google Calendar connection (System -> Integrations -> Google Calendar card)
 
 module.exports = router;

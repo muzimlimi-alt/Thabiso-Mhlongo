@@ -42,11 +42,52 @@ async function shrinkFavicon(file) {
     }
 }
 
+// What each Branding upload accepts. Mirrors the server's filter in lib/uploads.js (ICO is allowed for the favicon only).
+// The <input accept> only nudges the file picker - drag & drop and "All files" bypass it - so check again here.
+const BRANDING_UPLOAD_RULES = {
+    brandFaviconFile: { exts: ['png', 'ico', 'svg', 'jpg', 'jpeg', 'webp', 'gif'], label: 'PNG, ICO, SVG, JPG, WEBP or GIF', maxMb: 5 },
+    _default:         { exts: ['png', 'svg', 'jpg', 'jpeg', 'webp', 'gif'],        label: 'PNG, SVG, JPG, WEBP or GIF',      maxMb: 15 }
+};
+
+// Resolve true if the browser can actually render the file as an image (catches a renamed .txt/.pdf or a corrupt file).
+function canDecodeImage(file) {
+    return new Promise(function (resolve) {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = function () { URL.revokeObjectURL(url); resolve(img.naturalWidth > 0 || /svg/.test(file.type)); };
+        img.onerror = function () { URL.revokeObjectURL(url); resolve(false); };
+        img.src = url;
+    });
+}
+
+// Returns an error message, or '' when the file is fine to upload.
+async function validateBrandingFile(fileInputId, file) {
+    const rule = BRANDING_UPLOAD_RULES[fileInputId] || BRANDING_UPLOAD_RULES._default;
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!file.name.includes('.') || rule.exts.indexOf(ext) === -1) {
+        return '"' + file.name + '" is not a supported format. Please upload a ' + rule.label + ' image.';
+    }
+    if (file.size === 0) return '"' + file.name + '" is empty.';
+    if (file.size > rule.maxMb * 1024 * 1024) {
+        return '"' + file.name + '" is ' + (file.size / 1048576).toFixed(1) + ' MB. The limit is ' + rule.maxMb + ' MB.';
+    }
+    if (!(await canDecodeImage(file))) {
+        return '"' + file.name + '" could not be read as an image. It may be damaged or not really a ' + ext.toUpperCase() + ' file.';
+    }
+    return '';
+}
+
 window.uploadBrandingAsset = async function(fileInputId, targetInputId, previewImgId) {
     const fileInput = document.getElementById(fileInputId);
     if (!fileInput || !fileInput.files.length) return;
 
     let file = fileInput.files[0];
+    const problem = await validateBrandingFile(fileInputId, file);
+    if (problem) {
+        fileInput.value = '';   // so picking the same file again still fires onchange
+        window.notificationService.showError(problem);
+        return;
+    }
     if (fileInputId === 'brandFaviconFile') file = await shrinkFavicon(file);
     const formData = new FormData();
     formData.append('section', 'branding'); // must come before 'file' so Multer reads it before the destination callback fires
@@ -58,7 +99,12 @@ window.uploadBrandingAsset = async function(fileInputId, targetInputId, previewI
             body: formData,
             credentials: 'same-origin'
         });
-        const d = await r.json();
+        // A rejected upload used to come back as the HTML error page, so r.json() threw and every failure - wrong format,
+        // too big, signed out - was reported as "Network error". /upload now always answers JSON; still guard for HTML.
+        let d;
+        try { d = await r.json(); }
+        catch (_) { d = { success: false, message: 'Upload failed (server responded ' + r.status + '). Please try again.' }; }
+        fileInput.value = '';
         if (d.success) {
             // Store the relative path as-is (matches every other /upload consumer in this
             // codebase — gallery, events, footprint, testimonials, etc.). Prefixing with
@@ -93,8 +139,11 @@ window.updateBrandFontPreview = function() {
 };
 
 // Reflect the currently-chosen accent colour in the swatch + sample button.
+// The accent-colour inputs were removed from the Branding screen (see saveBranding). $(...).val() returns undefined for a
+// missing element, so the old `.val().trim()` threw a TypeError inside loadBrandingSettings - which caught it and showed
+// "Could not load branding settings" every time the tab opened (twice, as two listeners load it). Tolerate their absence.
 window.updateBrandColorPreview = function() {
-    const c = ($('#brandColorHex').val().trim() || $('#brandPrimaryColor').val() || '#D4AF37');
+    const c = (($('#brandColorHex').val() || '').trim() || $('#brandPrimaryColor').val() || '#D4AF37');
     $('#brandColorSwatch').css('background', c);
     $('#brandColorSample').css('background', c);
 };
@@ -123,13 +172,22 @@ window.resetLoginBackground = function() {
     if (window.notificationService) window.notificationService.showInfo('Login background cleared. Save Site Settings to apply.');
 };
 
-window.loadBrandingSettings = async function() {
-    var _bl = qs('#brandLoading'); if (_bl) _bl.style.display = 'block';
+// Opening the tab fires two listeners (the section switcher and the shown.bs.tab handler in admin.html), so one click ran
+// this twice in parallel - two requests and, on failure, two identical toasts. Share the in-flight load instead.
+var _brandingLoadInFlight = null;
+window.loadBrandingSettings = function() {
+    if (_brandingLoadInFlight) return _brandingLoadInFlight;
+    _brandingLoadInFlight = _loadBrandingSettings().finally(function () { _brandingLoadInFlight = null; });
+    return _brandingLoadInFlight;
+};
+
+async function _loadBrandingSettings() {
+    var _bl = document.querySelector('#brandLoading'); if (_bl) _bl.style.display = 'block';
     try {
         const r = await fetch('/api/public/branding', { credentials: 'same-origin', cache: 'no-store' });
         const data = await r.json();
-        if (!data.success) return;
-        const b = data.branding;
+        if (!r.ok || !data.success) throw new Error('HTTP ' + r.status + ' ' + (data.error || data.message || ''));
+        const b = data.branding || {};
         if (b.site_logo)     { $('#brandLogoUrl').val(b.site_logo);         updateBrandPreview('brandLogoUrl','brandLogoPreview'); }
         if (b.favicon)       { $('#brandFaviconUrl').val(b.favicon);         updateBrandPreview('brandFaviconUrl','brandFaviconPreview'); }
         if (b.primary_color) { $('#brandPrimaryColor').val(b.primary_color); $('#brandColorHex').val(b.primary_color); }
@@ -139,11 +197,12 @@ window.loadBrandingSettings = async function() {
         updateBrandFontPreview();
         updateBrandColorPreview();
     } catch(e) {
+        console.error('[branding] load failed:', e);
         if (window.notificationService) window.notificationService.showError('Could not load branding settings. Please refresh.');
     } finally {
         if (_bl) _bl.style.display = 'none';
     }
-};
+}
 
 window.saveBranding = async function(scope) {
     const settings = {};

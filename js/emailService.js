@@ -158,7 +158,7 @@ async function sendEmail({
     htmlContent,
     plainTextAlternative = null,
     attachments = [],
-    fromName = null,   // null = the configured sender name (Admin -> System Settings -> Email (SMTP)); a caller may still pass its own
+    fromName = null,   // null = the configured sender name (Admin -> System -> Email Setup); a caller may still pass its own
     replyTo = null,
     skipBrandAttachments = false,
     titleOverride = null,
@@ -168,7 +168,9 @@ async function sendEmail({
     preWrapped = false,
     cc = null,
     bcc = null,
-    branding = 'default'
+    branding = 'default',
+    messageId = null,   // an RFC 5322 Message-ID chosen by the caller (lib/inquiry-messages.js) so the sent mail can be matched when the customer answers
+    headers = null      // extra headers, e.g. { 'In-Reply-To': '<...>', 'X-TM-Inquiry-Id': '42' } - see safeHeaders()
 }) {
     try {
         // Attachments must survive the queue: every in-memory attachment is copied into notification_attachments (once per distinct file)
@@ -186,10 +188,12 @@ async function sendEmail({
             preWrapped,
             cc,
             bcc,
-            branding
+            branding,
+            messageId,
+            headers
         };
 
-        await new Promise((resolve, reject) => {
+        const notificationId = await new Promise((resolve, reject) => {
             db.run(
                 `INSERT INTO notifications (type, channel, status, recipient_email, recipient_name, subject, body, attachment_paths, related_entity, related_id)
                  VALUES ('email', 'email', 'pending', ?, ?, ?, ?, ?, ?, ?)`,
@@ -201,7 +205,7 @@ async function sendEmail({
             );
         });
 
-        return { success: true, message: 'Email queued successfully.' };
+        return { success: true, message: 'Email queued successfully.', notificationId };
     } catch (error) {
         console.error('❌ Failed to queue email:', error);
         return { success: false, error: error.message };
@@ -259,6 +263,21 @@ async function deliver(mailOptions, { to, subject, trigger_event, fromName }) {
     }
 }
 
+// Message-ID and threading headers a caller may set on one message. Only these are honoured, with CR/LF refused outright, so a stored value can
+// never smuggle in another header: X-TM-* (our own markers), In-Reply-To and References (threading); Message-ID must look like <local@domain>.
+const MESSAGE_ID_RE = /^<[A-Za-z0-9._%+=~-]{1,120}@[A-Za-z0-9.-]{1,120}>$/;
+function applyMessageIdentity(mailOptions, messageId, headers) {
+    if (typeof messageId === 'string' && MESSAGE_ID_RE.test(messageId)) mailOptions.messageId = messageId;
+    if (headers && typeof headers === 'object') {
+        const out = {};
+        for (const [name, value] of Object.entries(headers)) {
+            if (!/^(X-TM-[A-Za-z0-9-]{1,40}|In-Reply-To|References)$/i.test(name) || typeof value !== 'string' || /[\r\n]/.test(value) || value.length > 1000) continue;
+            out[name] = value;
+        }
+        if (Object.keys(out).length) mailOptions.headers = out;
+    }
+}
+
 /**
  * Internal direct email sender that connects to the SMTP transporter.
  */
@@ -276,7 +295,9 @@ async function sendEmailDirectly({
     preWrapped = false,
     cc = null,
     bcc = null,
-    branding = 'default'
+    branding = 'default',
+    messageId = null,
+    headers = null
 }) {
     const isOverhaulEnabled = process.env.EMAIL_OVERHAUL_ENABLED === 'true';
     const meta = { to, subject, trigger_event, fromName };
@@ -298,6 +319,7 @@ async function sendEmailDirectly({
             if (replyTo) mailOptions.replyTo = replyTo;
             if (cc) mailOptions.cc = cc;
             if (bcc) mailOptions.bcc = bcc;
+            applyMessageIdentity(mailOptions, messageId, headers);
             const merged = [...processedContent.attachments, ...attachments];
             if (merged.length > 0) mailOptions.attachments = merged;
         } catch (error) {
@@ -366,6 +388,7 @@ async function sendEmailDirectly({
         if (replyTo) mailOptions.replyTo = replyTo;
         if (cc) mailOptions.cc = cc;
         if (bcc) mailOptions.bcc = bcc;
+        applyMessageIdentity(mailOptions, messageId, headers);
     } catch (error) {
         console.error('❌ Premium Email Service Failed:', error.message);
         db.run("INSERT INTO email_logs (recipient_email, subject, trigger_event, status, error_message) VALUES (?, ?, ?, 'failed', ?)",

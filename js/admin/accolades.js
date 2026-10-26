@@ -118,7 +118,7 @@
         var $n = $('#aclSectionNotice');
         var live = state.items.filter(function (a) { return a.is_public; }).length;
         if (!state.sectionVisible) {
-            $n.removeClass('acl-notice--info').html('<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>The <strong>Accolades &amp; Recognition</strong> section is switched off in <strong>Settings &rarr; Website Sections</strong>, so nothing below is shown on the public site until it is switched back on.</span>').prop('hidden', false);
+            $n.removeClass('acl-notice--info').html('<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>The <strong>Accolades &amp; Recognition</strong> section is switched off in <strong>Site Appearance &rarr; Homepage Sections</strong>, so nothing below is shown on the public site until it is switched back on.</span>').prop('hidden', false);
         } else if (state.items.length && !live) {
             $n.addClass('acl-notice--info').html('<i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>Nothing is published yet, so the section is hidden on the website. Switch an accolade to <strong>Active</strong> to show it.</span>').prop('hidden', false);
         } else {
@@ -787,7 +787,7 @@
         var input = el('aclLocation');
         if (!input || !window.AdminPlacesAutocomplete) return;
         window.AdminPlacesAutocomplete.init(input, {
-            fields: ['name', 'formatted_address', 'address_components'],
+            detail: 'basic',   // name + address only: no coordinates are stored, and it is the cheaper lookup
             onPlace: function (loc) {
                 input.value = window.TMLocation ? window.TMLocation.cityOrState(loc) : (loc.city || loc.state || loc.name || '');
                 $(input).trigger('input');   // clears any validation error and refreshes the preview

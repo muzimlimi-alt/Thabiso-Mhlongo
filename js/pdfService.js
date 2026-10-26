@@ -3,9 +3,9 @@ const fs = require('fs');
 const path = require('path');
 const moment = require('moment-timezone');
 const { decodeStoredDeep } = require('../lib/html-sanitize');
-
-const TAX_INVOICE_THRESHOLD = 5000;
-const OUR_VAT_REG = process.env.COMPANY_VAT_NUMBER || '';
+// Pure rules only (no database): this module stays importable on its own. Callers hand in `opts.issuer` (lib/business-profile.js
+// loadIssuer(), or the snapshot frozen on the quotation); without one the identity printed before the business profile existed is used.
+const { documentTitle, documentBusinessName, legacyIssuer } = require('../lib/business-profile-core');
 
 const GOLD       = '#D4AF37';
 const GOLD_LIGHT = '#FDF8E6';
@@ -22,51 +22,122 @@ const WORDMARK_FONT_REGULAR = path.join(__dirname, '..', 'fonts', 'CormorantGara
 const WORDMARK_FONT_ITALIC  = path.join(__dirname, '..', 'fonts', 'CormorantGaramond-Italic.ttf');
 
 class PDFService {
-    constructor() {
-        this.companyInfo = {
-            name:    process.env.COMPANY_NAME    || "Thabiso Mhlongo Management",
-            address: process.env.COMPANY_ADDRESS || "Johannesburg, South Africa",
-            email:   process.env.COMPANY_EMAIL   || "bookings@thabisomhlongo.com",
-            website: process.env.COMPANY_WEBSITE || "www.thabisomhlongo.com"
-        };
-    }
+    // The shared letterhead: brand bar + title, then the issuer band (legal name, registration / VAT numbers, address, contact). Quotation, invoice,
+    // agreement and advancing pack all come through here. Returns the Y of the band's bottom edge so the page content can start below it.
+    // `issuer` = lib/business-profile-core issuerView() / a snapshot of it; `vatCharged` = VAT is charged on THIS document (decides TAX INVOICE).
+    _drawHeader(doc, type, number, issuer, vatCharged) {
+        issuer = issuer || legacyIssuer();
+        const isQuoteOrInvoice = type === 'Quote' || type === 'Invoice';
+        const TOP_NAME_WIDTH = 206;   // x=28 to x=234 — stops well short of the title block, which starts at x=250
 
-    _drawHeader(doc, type, number, isTaxInvoice) {
-        // Gold bar
-        doc.rect(0, 0, 612, 100).fillColor(GOLD).fill();
+        // The quotation/invoice header carries no logo — in its place, top-left of the gold bar, the business name the owner
+        // actually wants leading the document: the trading name when one is configured, else the registered company name
+        // (lib/business-profile-core documentBusinessName). The dark band below always names the REGISTERED company, never the
+        // trading name (_drawIssuerBandStacked) — the two rows answer different questions ("who you're dealing with" vs "who this
+        // legally is") and must not say the same thing only some of the time.
+        //
+        // Same size as the document title (22pt) and the same y — they read as one aligned row — for as long as the name actually
+        // fits on one line at that size; a longer name steps the size down (same shrink-to-fit idea _drawWordmark already uses for
+        // the wordmark) rather than overlapping the title or wrapping to an unreadably small multi-line block.
+        const topName = isQuoteOrInvoice ? documentBusinessName(issuer) : null;
+        let topNameSize = 22, topNameH = 0;
+        if (topName) {
+            doc.font('Helvetica-Bold');
+            for (; topNameSize > 11; topNameSize--) {
+                if (doc.fontSize(topNameSize).widthOfString(topName) <= TOP_NAME_WIDTH) break;
+            }
+            topNameH = doc.fontSize(topNameSize).heightOfString(topName, { width: TOP_NAME_WIDTH });
+        }
 
-        // Dark/obsidian backing behind the wordmark. The brand mark is a light
-        // "Thabiso" + gold italic "Mhlongo" lockup designed for dark surfaces.
-        // A dark card keeps it legible and echoes the dark company band below.
-        // Sized larger (220x70, Y=15) to make the logo look prominent and premium.
-        doc.roundedRect(20, 15, 220, 70, 3).fillColor(DARK).fill();
-        doc.roundedRect(20, 15, 220, 70, 3).lineWidth(0.75).strokeColor(GOLD).stroke();
+        // The gold bar only needs to hold the 70px wordmark card on the agreement/advancing-pack header; the quotation/invoice
+        // header has no card to hold (no logo), so it is normally shorter there, just tall enough for the title + number — and
+        // only taller when the name above still needs a second line even at the smallest size, up to a cap (a quote/invoice with a
+        // 3-line address spilled a blank page at the first, uncapped version of this — test/quote-flow.test.js).
+        const goldH = isQuoteOrInvoice ? Math.min(100, Math.max(68, 24 + topNameH + 10)) : 100;
+        doc.rect(0, 0, 612, goldH).fillColor(GOLD).fill();
 
-        this._drawWordmark(doc, 20, 15, 220, 70);
+        if (topName) {
+            doc.fillColor(DARK).font('Helvetica-Bold').fontSize(topNameSize)
+               .text(topName, 28, 24, { width: TOP_NAME_WIDTH, height: goldH - 24 - 6, ellipsis: true });
+        }
 
-        // Document type — right side of gold bar (aligned to the right margin of 584)
-        const label = isTaxInvoice ? 'TAX INVOICE' : type.toUpperCase();
+        // The agreement/advancing-pack header is unchanged: same dark/obsidian wordmark card as before.
+        if (!isQuoteOrInvoice) {
+            // Dark/obsidian backing behind the wordmark. The brand mark is a light
+            // "Thabiso" + gold italic "Mhlongo" lockup designed for dark surfaces.
+            // A dark card keeps it legible and echoes the dark company band below.
+            // Sized larger (220x70, Y=15) to make the logo look prominent and premium.
+            doc.roundedRect(20, 15, 220, 70, 3).fillColor(DARK).fill();
+            doc.roundedRect(20, 15, 220, 70, 3).lineWidth(0.75).strokeColor(GOLD).stroke();
+
+            this._drawWordmark(doc, 20, 15, 220, 70);
+        }
+
+        // Document title — right side of gold bar (aligned to the right margin of 584).
+        // QUOTATION for a quotation. An invoice reads TAX INVOICE only when we are VAT-registered AND confirmed with SARS AND VAT is charged on
+        // it; otherwise it is plainly INVOICE and never implies VAT was charged (lib/business-profile-core documentTitle).
+        const label = documentTitle(type, issuer, vatCharged);
         doc.fillColor(DARK).font('Helvetica-Bold').fontSize(22)
            .text(label, 250, 24, { width: 334, align: 'right' });
 
         doc.font('Helvetica').fontSize(9).fillColor(DARK)
            .text(`# ${number}`, 250, 52, { width: 334, align: 'right' });
 
-        if (isTaxInvoice && OUR_VAT_REG) {
-            doc.fontSize(8).text(`VAT Reg: ${OUR_VAT_REG}`, 250, 65, { width: 334, align: 'right' });
-        }
+        if (isQuoteOrInvoice) return this._drawIssuerBandStacked(doc, issuer, goldH);
 
-        // Dark company sub-band
-        doc.rect(0, 100, 612, 32).fillColor(DARK).fill();
+        // Issuer band (agreement / advancing pack — unchanged). Companies always show the registration number (Companies Act s32);
+        // the VAT number only when VAT is active (registered AND confirmed).
+        const ids = [];
+        if (issuer.registrationNumber) ids.push(`Reg No: ${issuer.registrationNumber}`);
+        if (issuer.vatRegistered && issuer.vatNumber) ids.push(`VAT No: ${issuer.vatNumber}`);
+        const contact = [issuer.email, issuer.phone, issuer.website].filter(Boolean).join('  ·  ');
+        const lines = [
+            { t: issuer.legalName + (issuer.tradingName ? `  t/a ${issuer.tradingName}` : ''), ids: ids.join('   ·   '), font: 'Helvetica-Bold', size: 9, color: WHITE },
+            issuer.registeredOffice ? { t: issuer.registeredOffice, font: 'Helvetica', size: 7.5, color: '#AAAAAA' } : null,
+            contact ? { t: contact, font: 'Helvetica', size: 7.5, color: '#AAAAAA' } : null
+        ].filter(Boolean);
+        const bandH = 14 + lines.length * 11;
+        doc.rect(0, goldH, 612, bandH).fillColor(DARK).fill();
+        let by = goldH + 8;
+        lines.forEach(l => {
+            if (l.ids) {   // legal name, then the registration / VAT numbers on the same line
+                doc.fillColor(l.color).font(l.font).fontSize(l.size).text(l.t, 28, by, { width: 556, lineBreak: false });
+                const w = doc.widthOfString(l.t);
+                doc.fillColor('#D8D8D8').font('Helvetica').fontSize(7.5).text(l.ids, 28 + w + 14, by + 1, { width: Math.max(60, 556 - w - 14), height: 12, ellipsis: true });
+            } else {
+                doc.fillColor(l.color).font(l.font).fontSize(l.size).text(l.t, 28, by, { width: 556, height: 12, ellipsis: true });
+            }
+            by += l.size > 8 ? 12 : 11;
+        });
+        return goldH + bandH;
+    }
 
-        doc.fillColor(WHITE).font('Helvetica-Bold').fontSize(8.5)
-           .text(this.companyInfo.name, 28, 108);
-
-        doc.font('Helvetica').fontSize(7.5).fillColor('#AAAAAA')
-           .text(
-               `${this.companyInfo.email}  ·  ${this.companyInfo.website}  ·  ${this.companyInfo.address}`,
-               28, 120, { width: 556 }
-           );
+    // The quotation/invoice issuer band: the REGISTERED company name (never the trading name — that already led the gold bar
+    // above), then registration/VAT numbers, then the address, then the e-mail — each on its own left-aligned line (no field is
+    // printed with an empty value; a line with nothing to say is skipped, never blank).
+    // Line heights are deliberately tight (not the agreement header's roomier 11-12px) — this band can run to six or seven lines
+    // (a 3-line address plus both id lines) where the old one ever had three, and a quotation still has to fit on one page.
+    _drawIssuerBandStacked(doc, issuer, top) {
+        const name = issuer.legalName || null;
+        const idLines = [];
+        if (issuer.registrationNumber) idLines.push(`Reg No: ${issuer.registrationNumber}`);
+        if (issuer.vatRegistered && issuer.vatNumber) idLines.push(`VAT No: ${issuer.vatNumber}`);
+        const addrLines = Array.isArray(issuer.addressLines) ? issuer.addressLines.filter(Boolean) : (issuer.registeredOffice ? [issuer.registeredOffice] : []);
+        const lines = [
+            name ? { t: name, font: 'Helvetica-Bold', size: 10, color: WHITE } : null,
+            ...idLines.map(t => ({ t, font: 'Helvetica', size: 7.5, color: '#D8D8D8' })),
+            ...addrLines.map(t => ({ t, font: 'Helvetica', size: 7, color: '#AAAAAA' })),
+            issuer.email ? { t: issuer.email, font: 'Helvetica', size: 7, color: '#AAAAAA' } : null
+        ].filter(Boolean);
+        const lineH = (l) => (l.size >= 10 ? 13 : 9.5);
+        const bandH = 10 + lines.reduce((h, l) => h + lineH(l), 0);
+        doc.rect(0, top, 612, bandH).fillColor(DARK).fill();
+        let by = top + 7;
+        lines.forEach(l => {
+            doc.fillColor(l.color).font(l.font).fontSize(l.size).text(l.t, 28, by, { width: 556, height: 11, ellipsis: true });
+            by += lineH(l);
+        });
+        return top + bandH;
     }
 
     // Draws "Thabiso" (regular) + "Mhlongo" (italic, gold) as native PDF text,
@@ -119,9 +190,15 @@ class PDFService {
            .text(surname, startX + w1 + gap, baselineY - asc2, { lineBreak: false });
     }
 
+    // The date a quotation is valid until: the expiry the administrator chose for it (YYYY-MM-DD - the same date the
+    // booking tracker enforces when the client accepts), formatted for the document. null when the caller passed none.
+    _chosenExpiry(opts) {
+        const m = opts && opts.quoteExpiry ? moment(opts.quoteExpiry, 'YYYY-MM-DD', true) : null;
+        return m && m.isValid() ? m.format('DD MMM YYYY') : null;
+    }
+
     // Returns the Y coordinate of the bottom of the cards
-    _drawInfoSection(doc, booking, clientVat, type, opts = {}) {
-        const topY   = 148;
+    _drawInfoSection(doc, booking, clientVat, type, opts = {}, topY = 148) {
         const cardW  = 270;
         const leftX  = 28;
         const rightX = 314;
@@ -131,15 +208,24 @@ class PDFService {
         // opts.docDate: a re-render of an already issued invoice (refreshInvoicePdf) passes the date it
         // was issued with, pre-formatted; a new document is dated today.
         const docDate   = opts.docDate || moment().format('DD MMM YYYY');
-        const expDate   = moment().add(validDays, 'days').format('DD MMM YYYY');
+        // "VALID UNTIL" is the expiry chosen on the quote. Only a caller that passes none gets the old "N days from today".
+        const expDate   = this._chosenExpiry(opts) || moment().add(validDays, 'days').format('DD MMM YYYY');
 
         const eventRows = [
             ['BOOKING REF', `#${booking.id}`],
             ['EVENT',  booking.event_name || 'N/A'],
             ['DATE',   booking.date],
             ['VENUE',  booking.event_location || 'TBD'],
-            type === 'Quote' ? ['VALID UNTIL', expDate] : ['DOC DATE', docDate],
         ];
+        // A quotation says when it was issued and exactly when it lapses; an invoice says when it was issued, when it falls due and which quotation it came from.
+        if (type === 'Quote') {
+            eventRows.push(['QUOTE DATE', docDate], ['VALID UNTIL', expDate]);
+        } else {
+            eventRows.push(['INVOICE DATE', docDate]);
+            const due = opts.dueDate ? moment(opts.dueDate, 'YYYY-MM-DD', true) : null;
+            if (due && due.isValid()) eventRows.push(['PAYMENT DUE', due.format('DD MMM YYYY')]);
+            if (type === 'Invoice' && opts.quoteNumber) eventRows.push(['QUOTE REF', opts.quoteNumber]);
+        }
         // Opportunistic cross-reference: only present when a contract already existed at the time
         // this invoice was generated (see generateInvoice in server.js) — older/earlier invoices
         // simply omit the row, same optional-citation pattern as the contract's quote citation.
@@ -150,7 +236,7 @@ class PDFService {
         // Pre-measure each event row so we know exact heights before drawing
         const rowHeights = eventRows.map(([, val]) => {
             const measured = doc.font('Helvetica').fontSize(8.5).heightOfString(val, { width: valW });
-            return Math.max(14, measured) + 3;
+            return Math.max(14, measured) + 2;
         });
 
         // Total content height for each card
@@ -165,6 +251,10 @@ class PDFService {
         let billBodyH = 14; // name
         if (booking.company) billBodyH += 12;
         if (clientVat)       billBodyH += 11;
+        // The customer's postal address, when we hold one (a full tax invoice needs it). Never invented.
+        const clientAddress = String(opts.clientAddress || '').split('\n').map(s => s.trim()).filter(Boolean).join(', ');
+        const addrH = clientAddress ? doc.font('Helvetica').fontSize(8).heightOfString(clientAddress, { width: cardW - 16 }) + 2 : 0;
+        billBodyH += addrH;
         billBodyH += 11 + 11; // email + cell
         const billCardH = labelBarH + topPad + billBodyH + bottomPad;
 
@@ -189,6 +279,10 @@ class PDFService {
             doc.font('Helvetica').fontSize(7.5).fillColor(GREY)
                .text(`VAT No: ${clientVat}`, leftX + 8, ly);
             ly += 11;
+        }
+        if (clientAddress) {
+            doc.font('Helvetica').fontSize(8).fillColor(GREY).text(clientAddress, leftX + 8, ly, { width: cardW - 16 });
+            ly += addrH;
         }
         doc.font('Helvetica').fontSize(8.5).fillColor(GREY)
            .text(booking.email, leftX + 8, ly);
@@ -225,18 +319,39 @@ class PDFService {
         return y + 20;
     }
 
-    _drawFooter(doc) {
+    _drawFooter(doc, type, opts = {}) {
         const bottom = doc.page.height - 65;
         doc.rect(28, bottom, 556, 1.5).fillColor(GOLD).fill();
 
         const validDays = parseInt(process.env.QUOTE_VALIDITY_DAYS) || 14;
-        doc.fillColor(GREY).font('Helvetica').fontSize(7.5)
-           .text(`Thank you for your business. Quotes are valid for ${validDays} days.`,
-               28, bottom + 8, { align: 'center', width: 556 })
-           .text(`${this.companyInfo.name}  ·  ${this.companyInfo.email}  ·  ${this.companyInfo.website}`,
-               28, bottom + 20, { align: 'center', width: 556 })
-           .text('Generated by Thabiso Mhlongo Official Booking System',
-               28, bottom + 32, { align: 'center', width: 556 });
+        const validUntil = type === 'Quote' ? this._chosenExpiry(opts) : null;
+        // The validity sentence belongs to the QUOTATION only. This footer is shared with the invoice, which used to print "Quotes are valid
+        // for 14 days." too; an invoice just thanks the client (no payment terms are invented here - those live on the invoice itself).
+        const thanks = validUntil
+            ? `Thank you for your business. This quotation is valid until ${validUntil}.`
+            : (type === 'Quote' ? `Thank you for your business. Quotes are valid for ${validDays} days.` : 'Thank you for your business.');
+        // The footer sits inside the page's bottom margin (28pt) and PDFKit starts a new page for any line that ends below
+        // that margin, so the last footer line used to spill onto an otherwise blank second page of every quote and
+        // invoice. Lifting the margin while these three lines are drawn keeps the document to the pages its content needs.
+        // Footer identity (same issuer as the header): legal name, registration / VAT numbers, registered office, contact. A company
+        // always carries its registration number; "Not registered for VAT" is printed only when the profile says so outright.
+        const issuer = opts.issuer || legacyIssuer();
+        const idBits = [issuer.legalName];
+        if (issuer.registrationNumber) idBits.push(`Reg No ${issuer.registrationNumber}`);
+        if (issuer.vatRegistered && issuer.vatNumber) idBits.push(`VAT No ${issuer.vatNumber}`);
+        else if (issuer.notVatRegistered) idBits.push('Not registered for VAT');
+        const contact = [issuer.email, issuer.website, issuer.phone].filter(Boolean).join('  ·  ');
+        const footLines = [
+            thanks,
+            idBits.join('  ·  '),
+            issuer.registeredOffice ? `Registered office: ${issuer.registeredOffice}` : '',
+            contact
+        ].filter(Boolean);
+        const bottomMargin = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
+        doc.fillColor(GREY).font('Helvetica').fontSize(7.5);
+        footLines.forEach((t, i) => doc.text(t, 28, bottom + 6 + i * 11, { align: 'center', width: 556, height: 10, ellipsis: true }));
+        doc.page.margins.bottom = bottomMargin;
     }
 
     formatDuration(mins) {
@@ -266,30 +381,25 @@ class PDFService {
             const stream = fs.createWriteStream(outputPath);
             doc.pipe(stream);
 
-            // Determine TAX INVOICE
-            const lineTotal = lineItems.reduce((s, i) => {
-                const tot = parseFloat(i.total_price);
-                if (!isNaN(tot)) return s + tot;
-                const qty   = parseFloat(i.quantity || i.quantity_minutes || 1);
-                const price = parseFloat(i.unit_price || i.default_price || 0);
-                const isFlat = i.pricing_model === 'flat' || i.pricing_model === 'flat_fee' || i.is_flat;
-                return s + (isFlat ? price : qty * price);
-            }, 0);
+            // The business identity on this document. Callers pass the issuer (lib/business-profile.js loadIssuer(), or the snapshot frozen on
+            // the quotation an invoice came from); with none, the legacy identity is printed. VAT is charged ONLY when the document says so
+            // (booking.apply_vat - the quotation's own choice, kept on its stored basis); nothing here decides VAT from an amount or an env var.
+            const issuer       = opts.issuer || legacyIssuer();
+            const vatCharged   = !!booking.apply_vat;
             const clientVat    = booking.vat_number || booking.client_vat_number || '';
-            const isTaxInvoice = type === 'Invoice' && (lineTotal >= TAX_INVOICE_THRESHOLD || !!clientVat);
 
             const docNumber = docNumberOverride || (type === 'Quote'
                 ? `QT-${booking.id}-${moment().format('YYMMDDHHmmss')}`
                 : `INV-${booking.id}-${moment().format('YYMM')}`);
 
             // 1. Header
-            this._drawHeader(doc, type, docNumber, isTaxInvoice);
+            const bandBottom = this._drawHeader(doc, type, docNumber, issuer, vatCharged);
 
             // 2. Info cards — returns bottom Y so table starts below cards
-            const cardsBottomY = this._drawInfoSection(doc, booking, clientVat, type, opts);
+            const cardsBottomY = this._drawInfoSection(doc, booking, clientVat, type, opts, bandBottom + 12);
 
             // 3. Line items table — starts 14px below the cards
-            let currentY = this._drawTableHeader(doc, cardsBottomY + 14);
+            let currentY = this._drawTableHeader(doc, cardsBottomY + 10);
             let subtotal        = 0;
             let vatableSubtotal = 0;
             let exemptSubtotal  = 0;
@@ -319,11 +429,14 @@ class PDFService {
                 const isPerHour   = item.pricing_model === 'per_hour';
 
                 const qty   = parseFloat(item.quantity) || parseFloat(item.quantity_minutes) || 0;
-                const price = parseFloat(item.unit_price || item.default_price || 0);
+                const price = parseFloat(item.unit_price) || 0;   // the line's own stored price, never today's catalogue fee
+                // A flat-fee line is the price alone only for a single unit. Two nights of a flat "per night" add-on is
+                // 2 x the price - the stored quote total, the email and the invoice all say so, and the PDF must too.
+                const flatSingle = isFlat && !(qty > 1);
 
                 let lineAmt = parseFloat(item.total_price);
                 if (isNaN(lineAmt)) {
-                    lineAmt = isFlat ? price : (qty * price);
+                    lineAmt = flatSingle ? price : (qty * price);
                 }
 
                 const unitLabel = item.display_unit || (isPerMinute ? 'min' : (isPerHour ? 'hr' : 'unit'));
@@ -344,9 +457,9 @@ class PDFService {
                 }
 
                 let subText = '';
-                if (qty > 0 && !isFlat) {
+                if (qty > 0 && !flatSingle) {
                     subText = `${qty} ${unitLabel} × R ${price.toFixed(2)}`;
-                } else if (isFlat) {
+                } else if (flatSingle) {
                     subText = 'Flat Fee';
                 }
 
@@ -406,7 +519,7 @@ class PDFService {
             const totalsX = 370;
             const totalsW = 214;
             const discount = parseFloat(booking.discount) || 0;
-            const applyVat = booking.apply_vat || (isTaxInvoice && OUR_VAT_REG);
+            const applyVat = vatCharged;
 
             let vatableBase = vatableSubtotal;
             let exemptBase  = exemptSubtotal;
@@ -436,6 +549,24 @@ class PDFService {
                 currentY += rh;
             };
 
+            // Manual adjustments (credit / debit) - invoices only. They are the booking's own post-quotation changes to the amount payable
+            // (lib/booking-adjustments.js): shown after VAT as rows of their own, never folded into a line, and the TOTAL includes them.
+            // `amount` is signed and is what was really applied, so the printed total equals the stored invoice total.
+            const adjustments = (type === 'Invoice' && Array.isArray(opts.adjustments))
+                ? opts.adjustments.filter(a => a && Number.isFinite(parseFloat(a.amount)) && parseFloat(a.amount) !== 0)
+                : [];
+            const drawAdjustments = (totalBefore) => {
+                if (!adjustments.length) return totalBefore;
+                drawTotalsRow('Total before adjustments', `R ${totalBefore.toFixed(2)}`, false, false);
+                let running = totalBefore;
+                adjustments.forEach(a => {
+                    const amt = parseFloat(a.amount);
+                    drawTotalsRow(a.label || 'Adjustment', `${amt < 0 ? '-' : '+'} R ${Math.abs(amt).toFixed(2)}`, false, false);
+                    running += amt;
+                });
+                return Math.round(running * 100) / 100;
+            };
+
             if (discount > 0) {
                 drawTotalsRow('Subtotal', `R ${subtotal.toFixed(2)}`, false, false);
                 drawTotalsRow('Discount', `- R ${discount.toFixed(2)}`, false, false);
@@ -452,9 +583,13 @@ class PDFService {
                 // FIN-1/2: use the rate the server calc used (passed on the booking) so the PDF total
                 // matches the stored invoice/quote total; fall back to env / 0.15 for legacy callers.
                 const vatRate = parseFloat(booking.vat_rate ?? process.env.VAT_RATE) || 0.15;
-                const vat     = vatableBase * vatRate;
-                const total   = vatableBase + exemptBase + vat;
+                // Rounded exactly as the stored total is (js/shared/document-totals.js): VAT to the cent, then the total
+                // to the cent - otherwise a half-cent case could print a total one cent away from the quotation record.
+                const vat     = Math.round(vatableBase * vatRate * 100) / 100;
+                const total   = Math.round((vatableBase + exemptBase + vat) * 100) / 100;
 
+                // A VAT document shows the amount before VAT as well as the VAT itself (a discount already printed the Subtotal row above).
+                if (!(discount > 0)) drawTotalsRow('Subtotal (excl. VAT)', `R ${subtotal.toFixed(2)}`, false, false);
                 if (discount > 0) {
                     drawTotalsRow('Net Taxable', `R ${vatableBase.toFixed(2)}`, false, false);
                 }
@@ -463,20 +598,57 @@ class PDFService {
                     `VAT (${(vatRate * 100).toFixed(0)}%)`,
                     `R ${vat.toFixed(2)}`, false, false
                 );
-                drawTotalsRow('TOTAL (incl. VAT)', `R ${total.toFixed(2)}`, true, true);
-                subtotal = total;
+                const grand = drawAdjustments(total);
+                drawTotalsRow('TOTAL (incl. VAT)', `R ${grand.toFixed(2)}`, true, true);
+                subtotal = grand;
             } else {
-                const total = vatableBase + exemptBase;
-                drawTotalsRow('TOTAL AMOUNT', `R ${total.toFixed(2)}`, true, true);
-                subtotal = total;
+                const total = Math.round((vatableBase + exemptBase) * 100) / 100;
+                const grand = drawAdjustments(total);
+                drawTotalsRow('TOTAL AMOUNT', `R ${grand.toFixed(2)}`, true, true);
+                subtotal = grand;
+            }
+
+            // What has already been received when the invoice is issued (e.g. a deposit paid before the invoice was regenerated), and what is
+            // still owed. A snapshot at issue: later payments show on the booking page and the ledger, not on this file.
+            const paidAtIssue = type === 'Invoice' ? (parseFloat(booking.amount_paid) || 0) : 0;
+            if (paidAtIssue > 0) {
+                drawTotalsRow('Paid to date', `- R ${Math.min(paidAtIssue, subtotal).toFixed(2)}`, false, false);
+                drawTotalsRow('BALANCE DUE', `R ${Math.max(0, Math.round((subtotal - paidAtIssue) * 100) / 100).toFixed(2)}`, true, false);
             }
 
             // Outer border around totals block
             doc.rect(totalsX, totalsBlockStartY, totalsW, currentY - totalsBlockStartY)
                .lineWidth(0.5).strokeColor(MID_GREY).stroke();
 
+            // The reason given for each adjustment, under the totals (the rows above stay short enough to sit beside their amounts)
+            const adjustmentNotes = adjustments.filter(a => a.note).map(a => `${a.label || 'Adjustment'}: ${a.note}`);
+            if (adjustmentNotes.length) {
+                const noteText = adjustmentNotes.join('\n');
+                const noteH = doc.font('Helvetica').fontSize(7.5).heightOfString(noteText, { width: totalsW });
+                doc.fillColor(GREY).font('Helvetica').fontSize(7.5).text(noteText, totalsX, currentY + 5, { width: totalsW, align: 'right' });
+                currentY += noteH + 5;
+            }
+
+            // 4b. Pricing conditions — quotations only. Prices are never public, so the rate card's conditions
+            // (currency, VAT, travel / accommodation / rider, rate validity) are printed where a client first
+            // sees an amount. The lines are built once by the quote route (lib/pricing-conditions.js).
+            if (type === 'Quote' && Array.isArray(opts.pricingConditions) && opts.pricingConditions.length) {
+                const condText = opts.pricingConditions.map(l => '•  ' + l).join('\n');
+                const condH = doc.font('Helvetica').fontSize(8.5).heightOfString(condText, { width: 536, lineGap: 2 });
+                currentY += 14;
+                if (currentY + condH + 40 > 740) { doc.addPage(); currentY = 50; }
+                doc.rect(28, currentY, 556, 15).fillColor(DARK).fill();
+                doc.fillColor(GOLD).font('Helvetica-Bold').fontSize(7)
+                   .text('PRICING CONDITIONS', 38, currentY + 4, { characterSpacing: 1.2 });
+                currentY += 15;
+                doc.rect(28, currentY, 556, condH + 14).fillColor(LIGHT_GREY).fill();
+                doc.font('Helvetica').fontSize(8.5).fillColor(GREY)
+                   .text(condText, 38, currentY + 7, { width: 536, lineGap: 2 });
+                currentY += condH + 14;
+            }
+
             // 5. Terms & Policies
-            currentY += 28;
+            currentY += 20;
             if (currentY > 710) { doc.addPage(); currentY = 50; }
 
             if (type === 'Invoice') {
@@ -507,9 +679,52 @@ class PDFService {
                 }
             }
 
-            if (currentY > 710) { doc.addPage(); currentY = 50; }
+            // 5b. Pay by EFT - invoices only, and only when Manual EFT was switched on and banking details existed when THIS invoice was issued
+            // (lib/invoicing.js passes them in). The details are a snapshot of the version in force at that moment: an invoice already issued is
+            // never redrawn when the banking details change later, so what a client holds is what they were told. docs-internal/eft-payments.md.
+            if (type === 'Invoice' && opts.eft) {
+                const e = opts.eft;
+                const detailRows = [
+                    ['Account holder', e.accountHolder], ['Bank', e.bankName], ['Account number', e.accountNumber],
+                    ['Account type', e.accountType], ['Branch code', e.branchCode]
+                ];
+                if (e.swiftCode) detailRows.push(['SWIFT / BIC', e.swiftCode]);
+                // what is being paid and against what: the same figures the invoice above carries (subtotal holds the grand total by now)
+                detailRows.push(['Invoice number', docNumber], ['Booking reference', `#${booking.id}`], ['Amount payable', `R ${(Number(subtotal) || 0).toFixed(2)}`]);
+                detailRows.push(['Payment reference', e.reference]);
+                const notes = [e.referenceNote, e.paymentInstructions,
+                    'After you have paid, upload your proof of payment on your booking page. Payment is subject to verification and confirmation of cleared funds in our bank account.'].filter(Boolean).join('\n');
+                const rowH = 16;
+                const notesH = doc.font('Helvetica').fontSize(8).heightOfString(notes, { width: 536, lineGap: 1.5 });
+                const blockH = 15 + detailRows.length * rowH + notesH + 18;
+                currentY += 10;
+                if (currentY + blockH > 740) { doc.addPage(); currentY = 50; }
+                doc.rect(28, currentY, 556, 15).fillColor(DARK).fill();
+                doc.fillColor(GOLD).font('Helvetica-Bold').fontSize(7)
+                   .text('PAY BY EFT (BANK TRANSFER)', 38, currentY + 4, { characterSpacing: 1.2 });
+                currentY += 15;
+                detailRows.forEach((r, i) => {
+                    const rowY = currentY + i * rowH;
+                    const isRef = r[0] === 'Payment reference';
+                    doc.rect(28, rowY, 556, rowH).fillColor(i % 2 === 0 ? LIGHT_GREY : WHITE).fill();
+                    doc.font('Helvetica').fontSize(8).fillColor(GREY).text(r[0], 38, rowY + 4, { width: 150 });
+                    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(isRef ? GOLD : DARK).text(String(r[1] == null ? '' : r[1]), 200, rowY + 4, { width: 372 });
+                });
+                currentY += detailRows.length * rowH;
+                doc.rect(28, currentY, 556, notesH + 12).fillColor(LIGHT_GREY).fill();
+                doc.font('Helvetica').fontSize(8).fillColor(GREY).text(notes, 38, currentY + 6, { width: 536, lineGap: 1.5 });
+                currentY += notesH + 18;
+            }
 
             const terms = booking.terms || 'Standard cancellation policy applies.';
+            // How to accept - quotations only, as the first line of the terms (no extra block, so a quotation still fits on one page). The accept
+            // button lives on the client's booking page (the link in the email that carried this quotation) and acceptance is refused after the expiry.
+            const until = type === 'Quote' ? this._chosenExpiry(opts) : null;
+            const acceptLine = type === 'Quote' ? `To accept this quotation, choose Accept on your booking page (link in the email it came with)${until ? ` on or before ${until}` : ''}.` : '';
+            const acceptH = acceptLine ? doc.font('Helvetica-Bold').fontSize(8.5).heightOfString(acceptLine, { width: 536 }) + 4 : 0;
+            const termsNeed = 15 + acceptH + doc.font('Helvetica').fontSize(8.5).heightOfString(terms, { width: 536 }) + 14;
+            if (currentY > 710 || currentY + termsNeed > 722) { doc.addPage(); currentY = 50; }
+
             doc.rect(28, currentY, 556, 15).fillColor(DARK).fill();
             doc.fillColor(GOLD).font('Helvetica-Bold').fontSize(7)
                .text('TERMS & CONDITIONS', 38, currentY + 4, { characterSpacing: 1.2 });
@@ -517,22 +732,17 @@ class PDFService {
 
             const termsH = doc.font('Helvetica').fontSize(8.5)
                               .heightOfString(terms, { width: 536 });
-            doc.rect(28, currentY, 556, termsH + 14).fillColor(LIGHT_GREY).fill();
+            doc.rect(28, currentY, 556, acceptH + termsH + 14).fillColor(LIGHT_GREY).fill();
+            if (acceptLine) doc.font('Helvetica-Bold').fontSize(8.5).fillColor(DARK).text(acceptLine, 38, currentY + 7, { width: 536 });
             doc.font('Helvetica').fontSize(8.5).fillColor(GREY)
-               .text(terms, 38, currentY + 7, { width: 536 });
-            currentY += termsH + 20;
+               .text(terms, 38, currentY + 7 + acceptH, { width: 536 });
+            currentY += acceptH + termsH + 20;
 
-            if (type === 'Invoice' && isTaxInvoice) {
-                if (currentY > 700) { doc.addPage(); currentY = 50; }
-                doc.font('Helvetica').fontSize(7.5).fillColor('#999999')
-                   .text(
-                       'This is a valid Tax Invoice for VAT purposes in terms of section 20 of the Value-Added Tax Act 89 of 1991.',
-                       38, currentY, { width: 536 }
-                   );
-            }
+            // (The "valid Tax Invoice for VAT purposes in terms of section 20" sentence that used to close the invoice is gone with the
+            // TAX INVOICE title: the document is simply an invoice.)
 
             // 6. Footer
-            this._drawFooter(doc);
+            this._drawFooter(doc, type, Object.assign({}, opts, { issuer }));
 
             doc.end();
             stream.on('finish', () => resolve({ path: outputPath, number: docNumber, total: subtotal }));
@@ -575,7 +785,8 @@ class PDFService {
                 const clientLine = `${booking.name || ''}${booking.company ? ' / ' + booking.company : ''}`;
 
                 // Header (reused)
-                this._drawHeader(doc, 'Agreement', contractNo, false);
+                const issuer = opts.issuer || legacyIssuer();
+                const bandBottom = this._drawHeader(doc, 'Agreement', contractNo, issuer, false);
 
                 const pageBreakGuard = () => { if (doc.y > doc.page.height - 110) doc.addPage(); };
                 let sectionNum = 1;
@@ -599,13 +810,13 @@ class PDFService {
                 };
 
                 // Title
-                doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Performance Engagement Agreement', LEFT, 150, { width: WIDTH });
+                doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Performance Engagement Agreement', LEFT, bandBottom + 18, { width: WIDTH });
                 doc.font('Helvetica').fontSize(9).fillColor(GREY).text(`Agreement ${contractNo}  ·  Prepared ${moment().format('DD MMMM YYYY')}${sourceQuoteNumber ? '  ·  Per accepted quote ' + sourceQuoteNumber : ''}`, LEFT, doc.y + 2, { width: WIDTH });
                 doc.moveDown(0.5);
                 para('This Agreement records the terms on which the Artist will provide the engagement described below to the Client. It becomes binding once signed by both parties.', { color: GREY, size: 8.5 });
 
                 sectionTitle('Parties');
-                kv('The Artist', `${this.companyInfo.name}  (${this.companyInfo.email})`);
+                kv('The Artist', `${issuer.legalName}${issuer.registrationNumber ? '  (Reg No ' + issuer.registrationNumber + ')' : ''}  (${issuer.email})`);
                 kv('The Client', `${clientLine}  (${booking.email || ''}${booking.cell ? ' · ' + booking.cell : ''})`);
                 if (booking.vat_number || booking.client_vat_number) kv('Client VAT No', booking.vat_number || booking.client_vat_number);
 
@@ -673,13 +884,13 @@ class PDFService {
                     doc.text('Name / Date', x, sigY + 84, { width: colW });
                 };
                 sigBlock(LEFT, 'The Client', clientLine);
-                sigBlock(LEFT + colW + 40, 'The Artist', this.companyInfo.name);
+                sigBlock(LEFT + colW + 40, 'The Artist', issuer.legalName);
 
                 // Contract footer (dedicated — the shared footer is quote-worded)
                 const bottom = doc.page.height - 66;
                 doc.rect(28, bottom, 556, 1.5).fillColor(GOLD).fill();
                 doc.fillColor(GREY).font('Helvetica').fontSize(7.5)
-                   .text(`${this.companyInfo.name}  ·  ${this.companyInfo.email}  ·  ${this.companyInfo.website}`, 28, bottom + 8, { align: 'center', width: 556 })
+                   .text(`${issuer.legalName}${issuer.registrationNumber ? '  ·  Reg No ' + issuer.registrationNumber : ''}  ·  ${issuer.email}  ·  ${issuer.website}`, 28, bottom + 8, { align: 'center', width: 556 })
                    .text('This document was generated by the Thabiso Mhlongo Official Booking System.', 28, bottom + 19, { align: 'center', width: 556 });
 
                 doc.end();
@@ -695,7 +906,7 @@ class PDFService {
     // caller-supplied snapshot (auto-sourced + extras already merged) — this method just renders
     // whatever it's given. `pack.internal_notes` is intentionally never rendered here — it's
     // office-only and must not leak into a document sent to the client or venue.
-    async generateAdvancingPack(booking, pack, rosItems, contacts, outputPath) {
+    async generateAdvancingPack(booking, pack, rosItems, contacts, outputPath, opts = {}) {
         return new Promise((resolve, reject) => {
             try {
                 const doc = new PDFDocument({ margin: 28 });
@@ -705,7 +916,8 @@ class PDFService {
                 const LEFT = 28, WIDTH = 556;
                 const packNo = `ADV-${booking.id}`;
 
-                this._drawHeader(doc, 'Advancing Pack', packNo, false);
+                const issuer = opts.issuer || legacyIssuer();
+                const bandBottom = this._drawHeader(doc, 'Advancing Pack', packNo, issuer, false);
 
                 const pageBreakGuard = () => { if (doc.y > doc.page.height - 110) doc.addPage(); };
                 const sectionTitle = (t) => {
@@ -727,7 +939,7 @@ class PDFService {
                     doc.font('Helvetica').fillColor('#333333').text(String(v == null || v === '' ? 'TBC' : v));
                 };
 
-                doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Advancing Pack', LEFT, 150, { width: WIDTH });
+                doc.font('Helvetica-Bold').fontSize(16).fillColor(DARK).text('Advancing Pack', LEFT, bandBottom + 18, { width: WIDTH });
                 doc.font('Helvetica').fontSize(9).fillColor(GREY).text(`${packNo}  ·  Prepared ${moment().format('DD MMMM YYYY')}`, LEFT, doc.y + 2, { width: WIDTH });
                 doc.moveDown(0.5);
 
@@ -786,7 +998,7 @@ class PDFService {
                 const bottom = doc.page.height - 66;
                 doc.rect(28, bottom, 556, 1.5).fillColor(GOLD).fill();
                 doc.fillColor(GREY).font('Helvetica').fontSize(7.5)
-                   .text(`${this.companyInfo.name}  ·  ${this.companyInfo.email}  ·  ${this.companyInfo.website}`, 28, bottom + 8, { align: 'center', width: 556 })
+                   .text(`${issuer.legalName}${issuer.registrationNumber ? '  ·  Reg No ' + issuer.registrationNumber : ''}  ·  ${issuer.email}  ·  ${issuer.website}`, 28, bottom + 8, { align: 'center', width: 556 })
                    .text('This document was generated by the Thabiso Mhlongo Official Booking System.', 28, bottom + 19, { align: 'center', width: 556 });
 
                 doc.end();

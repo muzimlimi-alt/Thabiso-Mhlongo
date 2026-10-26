@@ -179,6 +179,9 @@ function initializeDatabase() {
         db.run("ALTER TABLE inquiries ADD COLUMN updated_by INTEGER REFERENCES admins(id)", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.updated_by already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN updated_at DATETIME", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.updated_at already exists or error: " + err.message); });
         db.run("ALTER TABLE inquiries ADD COLUMN updated_by_role TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.updated_by_role already exists or error: " + err.message); });
+        // Where the inquiry came from: 'web_form' (the Contact section; also what NULL on older rows means) or 'email' (a message that reached the
+        // booking mailbox with no inquiry to attach to - see lib/inbox-sync.js).
+        db.run("ALTER TABLE inquiries ADD COLUMN source TEXT DEFAULT 'web_form'", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: inquiries.source already exists or error: " + err.message); });
 
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiries_submitted_at ON inquiries(submitted_at)`);
@@ -1011,6 +1014,8 @@ function initializeDatabase() {
         addCol('item_category',      "TEXT DEFAULT 'DIEN'");
         addCol('tax_category',       "TEXT DEFAULT NULL");
         addCol('fulfillment_type',   "TEXT DEFAULT 'on_site'");
+        // Rate card 2026: price type / range / unit / featured / display group (lib/rate-card-2026.js)
+        require('./lib/rate-card-2026').NEW_COLUMNS.forEach(([c, d]) => addCol(c, d));
 
 
 
@@ -1344,6 +1349,158 @@ function initializeDatabase() {
         )`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_inquiry_notes_inquiry ON inquiry_notes(inquiry_id)`);
 
+        // The conversation on an inquiry, one row per e-mail: the admin's replies (direction 'out', each tied to its outbox row so the delivery state
+        // is the truth about THAT message) and the customer's answers read from the booking mailbox (direction 'in'). The original web-form message
+        // is the inquiries row itself. delivery_status: queued -> attempted (a try failed, it will retry) -> accepted (Microsoft 365 took it) | failed
+        // (gave up) | bounced (a delivery-failure notice came back); inbound rows are 'received'. 'accepted' is as far as anyone can honestly know -
+        // an e-mail system cannot prove it reached an inbox. message_id (RFC 5322) and graph_id are unique, so nothing is ever stored twice.
+        db.run(`CREATE TABLE IF NOT EXISTS inquiry_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            inquiry_id INTEGER NOT NULL REFERENCES inquiries(inquiry_id) ON DELETE CASCADE,
+            direction TEXT NOT NULL CHECK(direction IN ('out','in')),
+            source TEXT NOT NULL DEFAULT 'admin_reply' CHECK(source IN ('admin_reply','mailbox')),
+            message_id TEXT,
+            graph_id TEXT,
+            in_reply_to TEXT,
+            from_address TEXT,
+            to_addresses TEXT,
+            cc_addresses TEXT,
+            subject TEXT,
+            body_html TEXT,
+            body_text TEXT,
+            direct_email_id INTEGER REFERENCES direct_emails(id) ON DELETE SET NULL,
+            notification_id INTEGER REFERENCES notifications(id) ON DELETE SET NULL,
+            delivery_status TEXT NOT NULL DEFAULT 'queued' CHECK(delivery_status IN ('queued','attempted','accepted','failed','bounced','received')),
+            attempts INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            sent_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            sent_by_name TEXT,
+            occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            accepted_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            CHECK((direction = 'out' AND delivery_status <> 'received') OR (direction = 'in' AND delivery_status = 'received'))
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiry_messages_inquiry ON inquiry_messages(inquiry_id, occurred_at)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiry_messages_notification ON inquiry_messages(notification_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_inquiry_messages_pending ON inquiry_messages(delivery_status) WHERE delivery_status IN ('queued','attempted')`);
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS uq_inquiry_messages_message_id ON inquiry_messages(message_id) WHERE message_id IS NOT NULL`);
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS uq_inquiry_messages_graph_id ON inquiry_messages(graph_id) WHERE graph_id IS NOT NULL`);
+
+        // Reading customer replies from the booking mailbox (lib/inbox-sync.js). One row, administrator-controlled, OFF until an administrator switches it on.
+        // delta_link is Microsoft Graph's own checkpoint ("everything after here"); it belongs to `mailbox`, and a different mailbox discards it. It lives here
+        // rather than in `settings` because that table's generic API is readable and writable by every admin role.
+        db.run(`CREATE TABLE IF NOT EXISTS inbox_sync_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+            mailbox TEXT,
+            delta_link TEXT,
+            baseline_at TEXT,
+            last_run_at TEXT,
+            last_success_at TEXT,
+            last_error TEXT,
+            last_error_category TEXT,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            retry_after TEXT,
+            last_stats TEXT,
+            enabled_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`INSERT OR IGNORE INTO inbox_sync_state (id) VALUES (1)`);
+
+        // ── Admin Calendar <-> Microsoft 365 (lib/calendar-m365.js, docs-internal/calendar-m365.md) ──
+        // One row of switches / checkpoint / health, like inbox_sync_state. OFF by default; the delta checkpoint (a URL) stays server-side.
+        db.run(`CREATE TABLE IF NOT EXISTS calendar_sync_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+            mailbox TEXT,
+            delta_link TEXT,
+            window_start TEXT,
+            window_end TEXT,
+            baseline_at TEXT,
+            last_run_at TEXT,
+            last_success_at TEXT,
+            last_error TEXT,
+            last_error_category TEXT,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            retry_after TEXT,
+            last_stats TEXT,
+            enabled_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`INSERT OR IGNORE INTO calendar_sync_state (id) VALUES (1)`);
+
+        // The ONLY mapping between a website record and its Microsoft event, and the recoverable queue: a row is written BEFORE anything is sent
+        // (create_token = the Graph transactionId), so a retry after a crash cannot create a second event. A website record is never deleted by the sync.
+        db.run(`CREATE TABLE IF NOT EXISTS calendar_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_type TEXT NOT NULL CHECK (source_type IN ('booking', 'event')),
+            source_id INTEGER NOT NULL,
+            graph_event_id TEXT,
+            create_token TEXT,
+            web_link TEXT,
+            sync_status TEXT NOT NULL DEFAULT 'pending' CHECK (sync_status IN ('pending', 'synced', 'error', 'conflict', 'external_deleted', 'removed')),
+            pushed_hash TEXT,
+            pushed_json TEXT,
+            change_key TEXT,
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            next_attempt_at TEXT,
+            last_error TEXT,
+            last_error_category TEXT,
+            conflict_json TEXT,
+            last_pushed_at TEXT,
+            last_seen_at TEXT,
+            last_synced_at TEXT,
+            created_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            updated_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (source_type, source_id)
+        )`);
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_calendar_links_graph ON calendar_links(graph_event_id) WHERE graph_event_id IS NOT NULL`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_calendar_links_status ON calendar_links(sync_status, next_attempt_at)`);
+
+        // Other people's appointments from the shared calendar, read-only. Text is stored entity-encoded once (stored-text convention); Busy / Out-of-office
+        // events also hold the date through date_holds rows (block_type 'm365_sync', m365_event_id) so the public booking form cannot double-book that time.
+        db.run(`CREATE TABLE IF NOT EXISTS calendar_external_events (
+            graph_event_id TEXT PRIMARY KEY,
+            subject TEXT,
+            start_date TEXT NOT NULL,
+            start_time TEXT,
+            end_date TEXT NOT NULL,
+            end_time TEXT,
+            all_day INTEGER NOT NULL DEFAULT 0,
+            show_as TEXT,
+            location TEXT,
+            is_online INTEGER NOT NULL DEFAULT 0,
+            join_url TEXT,
+            web_link TEXT,
+            series_master_id TEXT,
+            change_key TEXT,
+            blocks INTEGER NOT NULL DEFAULT 0,
+            graph_modified_at TEXT,
+            first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_calendar_external_start ON calendar_external_events(start_date)`);
+        db.run("ALTER TABLE date_holds ADD COLUMN m365_event_id TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: date_holds.m365_event_id already exists or could not be added:", err.message); });
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS idx_date_holds_m365 ON date_holds(m365_event_id, hold_date) WHERE m365_event_id IS NOT NULL`);
+
+        // What the sync did and why (who, what, outcome) - the trail an administrator reads when something looks wrong. No token, no secret, no client contact data.
+        db.run(`CREATE TABLE IF NOT EXISTS calendar_sync_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            direction TEXT NOT NULL,
+            action TEXT NOT NULL,
+            source_type TEXT,
+            source_id INTEGER,
+            graph_event_id TEXT,
+            outcome TEXT NOT NULL CHECK (outcome IN ('ok', 'error', 'skipped')),
+            category TEXT,
+            message TEXT,
+            actor_id INTEGER REFERENCES admins(id) ON DELETE SET NULL
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_calendar_sync_log_source ON calendar_sync_log(source_type, source_id, id)`);
+
         // EXPENSES (SARS Mileage & Per Diem)
         db.run(`CREATE TABLE IF NOT EXISTS expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1441,12 +1598,7 @@ function initializeDatabase() {
             db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('services_eyebrow', 'What I do')`);
             db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('services_heading', 'From the mic to the <em>moment</em>')`);
             db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('services_items', ?)`,
-                [JSON.stringify([
-                    { title: 'Stand-Up', description: 'Solo sets, festivals & comedy nights', image: '' },
-                    { title: 'MC & Host', description: 'Galas, weddings & corporate events', image: '' },
-                    { title: 'TV, Podcast & Film', description: 'Acting, presenting & writing', image: '' },
-                    { title: 'Voice-Over', description: 'Radio & TV ads', image: '' }
-                ])]);
+                [JSON.stringify(require('./lib/homepage-service-cards').NEW_DEFAULT_CARDS)]);
         });
 
 
@@ -1545,6 +1697,8 @@ function initializeDatabase() {
         )`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_direct_emails_status ON direct_emails(status)`);
         db.run(`CREATE INDEX IF NOT EXISTS idx_direct_emails_inquiry ON direct_emails(inquiry_id)`, () => repairEncodedRichText('direct_emails', 'body'));
+        // Who wrote the draft - a scheduled send fires with no session, and the inquiry's reply history must still name the admin.
+        db.run("ALTER TABLE direct_emails ADD COLUMN created_by INTEGER REFERENCES admins(id) ON DELETE SET NULL", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: direct_emails.created_by already exists or error: " + err.message); });
 
         // EMAIL BANNER REGISTRY (Prompt 5) — per-category banner images assignable to lifecycle
         // email templates. Independent of direct_emails.selected_banner_url (the separate Direct
@@ -1795,6 +1949,9 @@ function initializeDatabase() {
         // (unlike invoices/contracts/payment_schedules/quotations above), so a bad literal from any of
         // the several write paths that bypass the app-level whitelist (see server.js) would persist silently.
         statusGuard('events', 'event_status', ['upcoming', 'draft', 'live', 'completed', 'cancelled', 'postponed', 'sold_out']);
+        // Rate card 2026: the pricing-type vocabulary (mirrors PRICE_TYPES / PRICE_UNITS in lib/service-pricing.js).
+        statusGuard('services', 'price_type', ['fixed', 'range', 'from', 'enquire', 'enquire_min']);
+        statusGuard('services', 'price_unit', ['minute', 'hour', 'month', 'session', 'draft']);
 
         // Seed initial schema_migrations entries (idempotent)
         db.run(`INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (1, 'initial_tables')`);
@@ -2820,6 +2977,159 @@ function initializeDatabase() {
 
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (100, 'abandoned_booking_recovery_system')");
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (101, 'payment_schedules_sequence_and_source')");
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (102, 'inquiry_messages_conversation_and_delivery')");
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (103, 'inquiries_source_and_direct_emails_created_by')");
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (104, 'inbox_sync_state')");
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (105, 'calendar_m365_sync')");
+
+        // ── Manual EFT payments and proof-of-payment review (lib/eft.js, docs-internal/eft-payments.md) — migration 108 ──
+        // The banking details are VERSIONED, never edited in place: a change retires the active row and inserts a new one, so an invoice
+        // keeps pointing at the details it was issued with (invoices.bank_details_id). They live in their own table rather than `settings`
+        // because that table's generic API is readable by every admin role and is copied into process.env at boot.
+        db.run(`CREATE TABLE IF NOT EXISTS bank_details (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            version INTEGER NOT NULL,
+            account_holder TEXT NOT NULL,
+            bank_name TEXT NOT NULL,
+            account_number TEXT NOT NULL,
+            account_type TEXT NOT NULL,
+            branch_code TEXT NOT NULL,
+            swift_code TEXT,
+            reference_note TEXT,
+            payment_instructions TEXT,
+            is_active INTEGER NOT NULL DEFAULT 0 CHECK (is_active IN (0, 1)),
+            created_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            retired_at DATETIME,
+            retired_by INTEGER REFERENCES admins(id) ON DELETE SET NULL
+        )`);
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS uq_bank_details_one_active ON bank_details(is_active) WHERE is_active = 1`);
+        // One row of switches, administrator-controlled, OFF until an administrator turns Manual EFT on.
+        db.run(`CREATE TABLE IF NOT EXISTS eft_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+            max_upload_mb INTEGER NOT NULL DEFAULT 5 CHECK (max_upload_mb BETWEEN 1 AND 15),
+            updated_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`INSERT OR IGNORE INTO eft_settings (id) VALUES (1)`);
+        // A client's proof of payment. Uploading one NEVER credits anything: the booking is credited only when an admin approves it, and
+        // that approval writes one transactions row (source 'manual', method 'bank_transfer') and links it back through transaction_id.
+        db.run(`CREATE TABLE IF NOT EXISTS eft_payment_submissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            booking_id INTEGER NOT NULL REFERENCES bookings(id),
+            invoice_id INTEGER REFERENCES invoices(id),
+            schedule_id INTEGER,
+            claimed_amount DECIMAL(10,2) NOT NULL,
+            claimed_date DATE,
+            claimed_reference TEXT,
+            client_note TEXT,
+            proof_filename TEXT NOT NULL,
+            proof_original_name TEXT,
+            proof_mime TEXT NOT NULL,
+            proof_size INTEGER NOT NULL,
+            proof_sha256 TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'replacement_requested')),
+            bank_details_id INTEGER REFERENCES bank_details(id),
+            submitted_by_email TEXT,
+            submitted_ip TEXT,
+            verified_amount DECIMAL(10,2),
+            verified_reference TEXT,
+            verified_date DATE,
+            review_note TEXT,
+            reviewed_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            reviewed_at DATETIME,
+            transaction_id INTEGER REFERENCES transactions(id),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_eft_submissions_booking ON eft_payment_submissions(booking_id)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_eft_submissions_status ON eft_payment_submissions(status, created_at)`);
+        // A submission can become at most one ledger row, and a ledger row belongs to at most one submission - the database refuses a second.
+        db.run(`CREATE UNIQUE INDEX IF NOT EXISTS uq_eft_submissions_transaction ON eft_payment_submissions(transaction_id) WHERE transaction_id IS NOT NULL`);
+        db.run(`CREATE TABLE IF NOT EXISTS eft_submission_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            submission_id INTEGER NOT NULL REFERENCES eft_payment_submissions(id),
+            action TEXT NOT NULL,
+            actor_type TEXT NOT NULL CHECK (actor_type IN ('client', 'admin', 'system')),
+            actor_id INTEGER,
+            from_status TEXT,
+            to_status TEXT,
+            note TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_eft_events_submission ON eft_submission_events(submission_id)`);
+        // The banking details an invoice was issued with. NULL on every invoice issued before this migration (and while EFT is off).
+        db.run("ALTER TABLE invoices ADD COLUMN bank_details_id INTEGER REFERENCES bank_details(id)", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: invoices.bank_details_id: ' + err.message); });
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (108, 'eft_manual_payments_and_proof_of_payment')");
+
+        // ── PayFast safety net (lib/payfast-reconcile.js, docs-internal/payfast.md) — migration 109 ──
+        // Finds payments PayFast says it received whose notification (ITN) never reached us, by asking PayFast's own transaction history, and records
+        // the ones that match a pending payment attempt exactly. One row of health for the admin screen (like inbox_sync_state)...
+        db.run(`CREATE TABLE IF NOT EXISTS payfast_reconcile_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            last_run_at DATETIME,
+            last_success_at DATETIME,
+            last_error TEXT,
+            last_error_category TEXT,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            retry_after DATETIME,
+            failure_alerted INTEGER NOT NULL DEFAULT 0,
+            last_stats TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+        db.run(`INSERT OR IGNORE INTO payfast_reconcile_state (id) VALUES (1)`);
+        // ...and one row per PayFast payment the safety net had something to say about. UNIQUE on PayFast's own payment id: a payment is reported
+        // once however many times the check runs. 'recovered' = recorded automatically; the others need a person.
+        db.run(`CREATE TABLE IF NOT EXISTS payfast_reconcile_findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pf_payment_id TEXT NOT NULL UNIQUE,
+            m_payment_id TEXT,
+            booking_id INTEGER REFERENCES bookings(id),
+            kind TEXT NOT NULL CHECK (kind IN ('recovered', 'mismatch', 'duplicate_payment', 'blocked')),
+            gross_amount DECIMAL(10,2),
+            paid_at TEXT,
+            detail TEXT,
+            status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved')),
+            transaction_id INTEGER,
+            first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            notified_at DATETIME,
+            resolved_at DATETIME,
+            resolved_by INTEGER REFERENCES admins(id) ON DELETE SET NULL,
+            resolution_note TEXT
+        )`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_pf_findings_status ON payfast_reconcile_findings(status, first_seen_at)`);
+        db.run(`CREATE INDEX IF NOT EXISTS idx_pf_findings_booking ON payfast_reconcile_findings(booking_id)`);
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (109, 'payfast_reconcile_safety_net')");
+
+        // Business profile (version 110): who issues our quotations and invoices + which SARS registrations apply (lib/business-profile-core.js).
+        // One row, seeded once with CIPC-public facts only; both registration switches start OFF. issuer_snapshot freezes what a document said about us.
+        {
+            const bp = require('./lib/business-profile-schema');
+            db.run(bp.CREATE_SQL);
+            const seed = bp.insertParams(bp.seedRow());
+            db.run(seed.sql, seed.params);
+            db.run("ALTER TABLE quotations ADD COLUMN issuer_snapshot TEXT", () => {});   // duplicate-column error on later boots is expected and ignored
+            db.run("ALTER TABLE invoices ADD COLUMN issuer_snapshot TEXT", () => {});
+            db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (?, ?)", [bp.MIGRATION_VERSION, bp.MIGRATION_NAME]);
+        }
+
+        // Client billing address (version 111): a full tax invoice over R5,000 needs the recipient's address (VAT Act s20) — captured the
+        // same way vat_number already is, as the booking's own column (what quotations/invoices read), editable by the client at
+        // accept-quote and by an administrator from the booking's Client card. lib/business-profile-core.js taxInvoiceAdvice() is the advisory.
+        db.run("ALTER TABLE bookings ADD COLUMN billing_address TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: billing_address already exists or error: " + err.message); });
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (111, 'booking_billing_address')");
+
+        // Homepage "What I do" cards follow the five rate-card categories (version 107): replaced only while still the shipped
+        // defaults, once. See lib/homepage-service-cards.js for the rules.
+        {
+            const homeCards = require('./lib/homepage-service-cards');
+            db.run(homeCards.UPDATE_SQL, homeCards.updateParams());
+            db.run(homeCards.MARKER_SQL);
+        }
+
+        // Official 2026 rate card — run-once data migration (version 106), after all schema/seed work above.
+        require('./lib/rate-card-2026').applyOnce(db);
 
         console.log('Database tables initialized successfully.');
     });

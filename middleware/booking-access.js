@@ -16,7 +16,9 @@ function requireBookingAccessToken(req, res, next) {
     // track/request-code and track/verify-code apply the same parser, so no token is ever issued for
     // an id spelled in a way this check refuses.
     const bookingId = parseBookingIdParam(req.params.id);
-    const token = (req.body && req.body.access_token) || req.query.access_token;
+    // A multipart upload (proof of payment) is authenticated BEFORE multer reads a single byte of the file, so its body is not parsed yet:
+    // those requests send the token in a header instead.
+    const token = (req.body && req.body.access_token) || req.query.access_token || req.get('x-booking-access-token');
     if (!bookingId || !token) {
         return res.status(401).json({ success: false, message: 'Please verify your booking to continue.', code: 'TOKEN_REQUIRED' });
     }

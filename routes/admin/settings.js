@@ -5,6 +5,7 @@ const { requireRole } = require('../../middleware/rbac');
 const { bookingConfig } = require('../../lib/booking-config');
 const smtpConfig = require('../../lib/smtp-config');
 const emailService = require('../../js/emailService');
+const m365Graph = require('../../lib/m365-graph');
 const { logAudit } = require('../../lib/audit-log');
 const {
     getMinBookingGapSetting, getTypeBuffersSetting, saveMinBookingGapMinutes, saveTypeBuffers,
@@ -12,22 +13,9 @@ const {
 } = require('../../database/repositories/settings.repository');
 const router = express.Router();
 
-// Google Maps JS API key for the admin's Places autocomplete / events map. It lives in .env
-// (GOOGLE_MAPS_BROWSER_KEY) and is handed only to a signed-in admin, so it is not written into
-// admin.html - a public static file, in a public repo. It is a BROWSER key: it still travels to Google
-// from the admin's browser, so restrict it by HTTP referrer + API in Google Cloud. Deliberately
-// separate from GOOGLE_MAPS_API_KEY, the server-side key behind the public venue search (server
-// requests carry no referrer, so the two need different restrictions).
-let warnedNoMapsKey = false;
-router.get('/api/admin/maps-config', requireAdmin, (req, res) => {
-    res.set('Cache-Control', 'no-store');
-    const key = (process.env.GOOGLE_MAPS_BROWSER_KEY || '').trim();
-    if (!key && !warnedNoMapsKey) {
-        warnedNoMapsKey = true;
-        console.warn('[maps-config] GOOGLE_MAPS_BROWSER_KEY is not set - the admin Google Maps / Places features are disabled.');
-    }
-    res.json({ success: true, key });
-});
+// (GET /api/admin/maps-config - which handed the browser Maps key GOOGLE_MAPS_BROWSER_KEY to the admin page -
+// was removed in the 2026-10 Places audit: admin location search now goes through the server, see
+// routes/admin/places.js and lib/places.js, so no Google key is sent to any browser.)
 
 // Admin — read per-day working hours
 router.get('/api/admin/working-hours', requireAdmin, (req, res) => {
@@ -259,8 +247,9 @@ router.get('/api/admin/settings', requireAdmin, (req, res) => {
     getAllSettings(async (err, rows) => {
         if (err) { console.error('load settings failed:', err); return res.status(500).json({ success: false, message: 'Could not load settings. Please try again.' }); }
         const obj = {};
-        // smtp_* never travels in this map (smtp_pass is a secret); administrators get the safe view in "smtp" below.
-        (rows || []).forEach(r => { if (!String(r.setting_key).startsWith('smtp_')) obj[r.setting_key] = r.setting_value; });
+        // smtp_* never travels in this map (smtp_pass is a secret); administrators get the safe view in "smtp" below. google_cal_* (the Google Calendar
+        // client secret and sign-in) has its own routes in routes/admin/google-calendar.js.
+        (rows || []).forEach(r => { if (!String(r.setting_key).startsWith('smtp_') && !/^google_cal_/i.test(String(r.setting_key))) obj[r.setting_key] = r.setting_value; });
         // Merge env-only keys so the frontend can read them (read-only exposure)
         if (process.env.CALENDAR_FEED_SECRET) obj.CALENDAR_FEED_SECRET = process.env.CALENDAR_FEED_SECRET;
         const out = { success: true, settings: obj };
@@ -282,6 +271,8 @@ router.put('/api/admin/settings', requireAdmin, async (req, res) => {
     };
     const keys = Object.keys(settings);
     if (keys.length === 0) return res.json({ success: true });
+    // google_cal_* holds an encrypted client secret and sign-in: only routes/admin/google-calendar.js may write it (it validates, encrypts and re-points the Google client).
+    if (keys.some(k => /^google_cal_/i.test(k))) return res.status(400).json({ success: false, message: 'Use the Google Calendar card to change the Google connection.' });
     const smtpKeys = keys.filter(k => k.startsWith('smtp_'));
     const otherKeys = keys.filter(k => !k.startsWith('smtp_'));
 
@@ -391,6 +382,18 @@ router.post('/api/admin/settings/smtp/test-connection', requireAdmin, requireRol
     } catch (e) {
         console.error('smtp test-connection failed:', e.message);
         res.status(500).json({ success: false, message: 'The connection test could not be run.' });
+    }
+});
+
+// Reading customer replies from the shared mailbox needs Microsoft Graph access, which SMTP sign-in does not give. This checks the SAVED
+// settings only (no form values, so no secret travels in the request): Graph sign-in, then the inbox folder's counters - never a message.
+// A failed check is a normal result (HTTP 200, ok:false), exactly like Test Connection.
+router.post('/api/admin/settings/m365/test-mailbox-read', requireAdmin, requireRole(['administrator']), async (req, res) => {
+    try {
+        res.json({ success: true, ...(await m365Graph.diagnose()) });
+    } catch (e) {
+        console.error('m365 mailbox-read test failed:', e.message);
+        res.status(500).json({ success: false, message: 'The mailbox read test could not be run.' });
     }
 });
 

@@ -26,6 +26,30 @@
         // --- Bookings ---
         let allBookingsCache = [];
 
+        // Has a quotation been issued for this booking? NOT `!!row.quote_amount`: until a quote goes out,
+        // bookings.quote_amount holds the catalogue ESTIMATE ('R 5000.00', or 'R 0.00' when the services are
+        // individually priced), which is truthy for almost every booking. The server derives has_quote from the
+        // quotations table / quoted_at (QUOTE_STATE_SQL in routes/admin/bookings.js). The fallback only serves
+        // a response from a server that predates the field.
+        function bkHasQuote(row) {
+            if (!row) return false;
+            if (row.has_quote !== undefined && row.has_quote !== null) return !!Number(row.has_quote);
+            return !!(row.quoted_at || row.quote_amount);
+        }
+        // Does this booking carry an AGREED amount? total_amount / amount_outstanding hold the catalogue ESTIMATE until a quotation exists
+        // (the server applies the same rule to every export and report - lib/booking-amounts.js). An estimate is a published rate, not
+        // money owed, so a screen shows "not yet quoted" for it instead of an Outstanding balance.
+        function bkAmountAgreed(row) {
+            if (!row) return false;
+            return bkHasQuote(row) || ['QUOTED', 'ACCEPTED', 'CONFIRMED', 'COMPLETED'].indexOf(String(row.status || '').toUpperCase()) !== -1;
+        }
+        // The estimate is stored as a formatted string ("R 5000.00"), a quote total as a plain number —
+        // strip everything but digits/./- before parsing, or parseFloat gives NaN for the former.
+        function bkMoney(v) {
+            const n = v == null ? NaN : parseFloat(String(v).replace(/[^0-9.-]/g, ''));
+            return isFinite(n) ? n : null;
+        }
+
         async function loadBookings() {
             const $container = $('#bookingsListContainer');
             $container.html('<div class="bkr-empty" style="padding:40px 20px;"><i class="fa-solid fa-circle-notch fa-spin" style="font-size:28px;opacity:.4;display:block;margin-bottom:12px;"></i><p>Loading…</p></div>');
@@ -65,6 +89,31 @@
             }
         }
 
+        // VAT of an ISSUED quotation (or the invoice made from it): the amount the server stored with it (quote_details.vat). Only a record
+        // from before that field existed is recomputed - with the shared totals function (VAT-exempt lines excluded, cents kept), never
+        // with a flat 15% rounded to whole rand, which disagreed with the stored total whenever a line was exempt.
+        function bkStoredVat(qd, discount) {
+            if (!qd || !qd.apply_vat) return 0;
+            var v = parseFloat(qd.vat);
+            if (isFinite(v)) return v;
+            return window.DocumentTotals ? window.DocumentTotals.computeDocumentTotals(qd.items || [], { discount: discount, applyVat: true }).vat : 0;
+        }
+
+        // The rate actually used on this quote (quote_details.vat_rate, stored alongside .vat since the VAT-active work) - never a
+        // hard-coded 15%, which would mislabel a record from a different rate. Only a quote from before that field existed falls back to it.
+        function bkVatPct(qd) {
+            var r = parseFloat(qd && qd.vat_rate);
+            return (isFinite(r) && r >= 0 ? r : 0.15) * 100;
+        }
+
+        // The rest of this panel renders row.name/email/cell straight into the markup unescaped - these columns already carry either
+        // admin-typed text (same trust level as the screen rendering it) or entity-encoded client text (safe as HTML already). The
+        // Client card's edit form below is the one place this file puts a value INSIDE a quoted attribute, where an admin's own
+        // apostrophe or quote would otherwise break the form - hence this one escape helper, used only there.
+        function bkAttrEsc(s) {
+            return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
         // Parse and format quote_details JSON into a readable HTML breakdown
         function formatQuoteDetails(quoteDetailsJson) {
             if (!quoteDetailsJson) return '';
@@ -81,7 +130,7 @@
             });
             html += '</table>';
             if (parseFloat(qd.discount) > 0) html += `<div style="text-align:right;font-size:11px;color:var(--atl-muted);margin-top:4px;">Discount: &minus;R ${parseFloat(qd.discount).toFixed(2)}</div>`;
-            if (qd.apply_vat) html += `<div style="text-align:right;font-size:11px;color:var(--atl-muted);">VAT (15%): R ${parseFloat(qd.vat || 0).toFixed(2)}</div>`;
+            if (qd.apply_vat) html += `<div style="text-align:right;font-size:11px;color:var(--atl-muted);">VAT (${bkVatPct(qd)}%): R ${parseFloat(qd.vat || 0).toFixed(2)}</div>`;
             if (qd.terms) html += `<div style="font-size:11px;color:var(--atl-muted-dim);margin-top:8px;border-top: 1px solid var(--atl-line);padding-top:6px;"><strong style="color: var(--atl-muted);">Terms:</strong> ${qd.terms}</div>`;
             return html;
         }
@@ -112,7 +161,7 @@
             }).join('');
 
             var discount    = parseFloat(qd.discount || 0);
-            var vatAmount   = qd.apply_vat ? Math.round((subtotal - discount) * 0.15) : 0;
+            var vatAmount   = bkStoredVat(qd, discount);
             var displayTotal = parseFloat(totalAmount || 0) || (subtotal - discount + vatAmount);
 
             var tfoot = '<tr>'
@@ -127,7 +176,7 @@
             }
             if (qd.apply_vat) {
                 tfoot += '<tr>'
-                    + '<td colspan="3" class="right" style="color:var(--atl-muted);">VAT (15%)</td>'
+                    + '<td colspan="3" class="right" style="color:var(--atl-muted);">VAT (' + bkVatPct(qd) + '%)</td>'
                     + '<td class="right atl-det-tabular">R ' + vatAmount.toFixed(2) + '</td>'
                     + '</tr>';
             }
@@ -195,8 +244,13 @@
             }).join('');
 
             var discount    = parseFloat(qd.discount || 0);
-            var vatAmount   = qd.apply_vat ? Math.round((subtotal - discount) * 0.15) : 0;
+            var vatAmount   = bkStoredVat(qd, discount);
             var displayTotal = parseFloat(totalAmount || 0) || (subtotal - discount + vatAmount);
+            // Manual adjustments (credit / debit) logged since the quotation was issued: the booking total now carries them, the quoted
+            // lines above do not, so the difference is shown on its own row (VAT stays as quoted) and the card still adds up.
+            var approvedTotal = parseFloat(qd.finalTotal);
+            var adjustmentDelta = (isFinite(approvedTotal) && parseFloat(totalAmount || 0))
+                ? Math.round((displayTotal - approvedTotal) * 100) / 100 : 0;
 
             var tfoot = '<tr>'
                 + '<td colspan="3" class="right" style="color:var(--atl-muted);padding-top:8px;">Subtotal</td>'
@@ -210,8 +264,15 @@
             }
             if (qd.apply_vat) {
                 tfoot += '<tr>'
-                    + '<td colspan="3" class="right" style="color:var(--atl-muted);">VAT (15%)</td>'
+                    + '<td colspan="3" class="right" style="color:var(--atl-muted);">VAT (' + bkVatPct(qd) + '%)</td>'
                     + '<td class="right atl-det-tabular">R ' + vatAmount.toFixed(2) + '</td>'
+                    + '</tr>';
+            }
+            if (Math.abs(adjustmentDelta) >= 0.01) {
+                tfoot += '<tr>'
+                    + '<td colspan="3" class="right" style="color:var(--atl-muted);">Manual adjustments</td>'
+                    + '<td class="right atl-det-tabular"' + (adjustmentDelta < 0 ? ' style="color:var(--atl-clay);"' : '') + '>'
+                    + (adjustmentDelta < 0 ? '&ndash;' : '+') + 'R ' + Math.abs(adjustmentDelta).toFixed(2) + '</td>'
                     + '</tr>';
             }
             tfoot += '<tr>'
@@ -305,8 +366,8 @@
             const hint = (icon, color, bg, border, label, detail) => ({ icon, color, bg, border, label, detail });
 
             if (s === 'EXPIRED') return hint('fa-rotate-left', 'var(--atl-clay)', 'rgba(192,54,44,0.08)', 'rgba(192,54,44,0.25)', 'Reopen Booking', 'This enquiry has expired. Use Reopen Booking to restore it to Pending and prepare a fresh quote.');
-            if ((s === 'NEW' || s === 'PENDING') && !row.quote_amount) return hint('fa-file-invoice-dollar', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Quote', 'Review the enquiry details and use the Send Quote button to generate and email a formal quote to the client.');
-            if ((s === 'NEW' || s === 'PENDING') && row.quote_amount) return hint('fa-file-pen', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Revise Quote', 'A quote has already been sent. Review the booking and resend a revised quote if the client has not yet responded.');
+            if ((s === 'NEW' || s === 'PENDING') && !bkHasQuote(row)) return hint('fa-file-invoice-dollar', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Quote', 'Review the enquiry details and use the Send Quote button to generate and email a formal quote to the client.' + (Number(row.unpriced_lines) > 0 ? ' This booking includes services that are priced individually — enter the agreed amount for each one in the quote.' : ''));
+            if ((s === 'NEW' || s === 'PENDING') && bkHasQuote(row)) return hint('fa-file-pen', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Revise Quote', 'A quote has already been sent. Review the booking and resend a revised quote if the client has not yet responded.');
             if (s === 'QUOTED' && !row.accepted_at && quotedAgeDays >= 7) return hint('fa-bell', 'var(--atl-clay)', 'rgba(192,54,44,0.08)', 'rgba(192,54,44,0.25)', 'Follow Up', `The quote has been pending for over ${quotedAgeDays} days. Consider sending a follow-up email to prompt the client to respond.`);
             if (s === 'QUOTED' && !row.accepted_at) return hint('fa-hourglass-half', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Awaiting Client', "The quote has been sent. Waiting for the client to accept. No action needed unless you'd like to follow up.");
             if (s === 'ACCEPTED') {
@@ -559,21 +620,55 @@
       <div class="atl-det-col">
           ${renderNextStepCallout(row)}
           <!-- Client Card -->
-          <div class="atl-det-card">
-            <h5 class="atl-det-title"><i class="fa-solid fa-user"></i>Client</h5>
-            <p class="atl-lead">
-              ${row.name}${row.company ? ` <span class="co">· ${row.company}</span>` : ''}
-            </p>
-            <p class="atl-sub">
-              <a href="mailto:${row.email}" class="atl-det-link">${row.email}</a>
-              ${row.cell ? ` · <a href="tel:${row.cell.replace(/\s/g,'')}" class="atl-det-link">${row.cell}</a>` : ''}
-            </p>
-            ${renderSubmissionAgeLine(row)}
-            <div class="atl-doc-actions-row" style="margin-top:8px;">
-              <button type="button" class="atl-btn atl-btn--ghost bk-view-client-history" data-email="${row.email}">
-                <i class="fa-solid fa-clock-rotate-left" style="margin-right:6px;"></i>View All Bookings
-              </button>
+          <div class="atl-det-card" id="bk-client-card-${row.id}">
+            <h5 class="atl-det-title" style="display:flex;align-items:center;justify-content:space-between;">
+              <span><i class="fa-solid fa-user"></i>Client</span>
+              ${(window.currentUserRole === 'administrator' || window.currentUserRole === 'manager')
+                ? `<button type="button" class="atl-btn atl-btn--ghost bk-client-edit-toggle" data-id="${row.id}" title="Correct the client's details" style="font-size:11px;padding:3px 9px;">
+                     <i class="fa-solid fa-pen" style="margin-right:4px;"></i>Edit</button>`
+                : ''}
+            </h5>
+            <div class="bk-client-view">
+              <p class="atl-lead">
+                ${row.name}${row.company ? ` <span class="co">· ${row.company}</span>` : ''}
+              </p>
+              <p class="atl-sub">
+                <a href="mailto:${row.email}" class="atl-det-link">${row.email}</a>
+                ${row.cell ? ` · <a href="tel:${row.cell.replace(/\s/g,'')}" class="atl-det-link">${row.cell}</a>` : ''}
+              </p>
+              ${row.vat_number ? `<p class="atl-sub">VAT No: ${row.vat_number}</p>` : ''}
+              ${row.billing_address ? `<p class="atl-sub" style="white-space:pre-line;">${row.billing_address}</p>` : ''}
+              ${renderSubmissionAgeLine(row)}
+              <div class="atl-doc-actions-row" style="margin-top:8px;">
+                <button type="button" class="atl-btn atl-btn--ghost bk-view-client-history" data-email="${row.email}">
+                  <i class="fa-solid fa-clock-rotate-left" style="margin-right:6px;"></i>View All Bookings
+                </button>
+              </div>
             </div>
+            <!-- Correcting what the CLIENT gave us (routes/admin/bookings.js PUT :id/contact) - a typo'd cell number, a changed e-mail, a
+                 VAT number/billing address they forgot at booking time. Hidden until Edit is clicked (js/admin/bookings-actions.js). -->
+            <form class="bk-client-edit-form" data-id="${row.id}" style="display:none;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Name</label>
+                  <input type="text" class="atl-input bk-ce-name" value="${bkAttrEsc(row.name)}" style="width:100%;"></div>
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Company</label>
+                  <input type="text" class="atl-input bk-ce-company" value="${bkAttrEsc(row.company || '')}" style="width:100%;"></div>
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">E-mail</label>
+                  <input type="email" class="atl-input bk-ce-email" value="${bkAttrEsc(row.email)}" style="width:100%;"></div>
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Cell</label>
+                  <input type="text" class="atl-input bk-ce-cell" value="${bkAttrEsc(row.cell || '')}" style="width:100%;"></div>
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">VAT Number</label>
+                  <input type="text" class="atl-input bk-ce-vat" value="${bkAttrEsc(row.vat_number || '')}" placeholder="e.g. 4010123456" style="width:100%;"></div>
+                <div style="grid-column:1/-1;"><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Billing Address</label>
+                  <textarea class="atl-input bk-ce-address" rows="2" style="width:100%;resize:vertical;">${bkAttrEsc(row.billing_address || '')}</textarea></div>
+              </div>
+              <div id="bk-client-edit-err-${row.id}" style="display:none;color:var(--atl-clay);font-size:12px;margin-bottom:8px;"></div>
+              <div class="atl-doc-actions-row">
+                <button type="button" class="atl-btn atl-btn--primary bk-client-edit-save" data-id="${row.id}">
+                  <i class="fa-solid fa-check" style="margin-right:6px;"></i>Save</button>
+                <button type="button" class="atl-btn atl-btn--ghost bk-client-edit-cancel" data-id="${row.id}">Cancel</button>
+              </div>
+            </form>
           </div>
 
           <!-- Event Card -->
@@ -643,13 +738,17 @@
               <dt>Payment</dt>
               <dd>${payLbl[ps] || ps}</dd>
               <dt>Quoted total</dt>
-              <dd class="atl-det-tabular">R ${parseFloat(row.quote_amount||0).toFixed(2)}</dd>
+              ${bkHasQuote(row)
+                ? `<dd class="atl-det-tabular">R ${(bkMoney(row.quote_amount) || 0).toFixed(2)}</dd>`
+                : `<dd class="atl-det-tabular" style="color:var(--atl-muted);">Not yet quoted</dd>`}
               <dt>Paid</dt>
               <dd class="atl-det-tabular">R ${parseFloat(row.amount_paid||0).toFixed(2)}</dd>
               <dt>Outstanding</dt>
-              <dd class="atl-det-tabular ${parseFloat(row.amount_outstanding)>0 ? 'atl-det-negative' : 'atl-det-positive'}">
+              ${bkAmountAgreed(row)
+                ? `<dd class="atl-det-tabular ${parseFloat(row.amount_outstanding)>0 ? 'atl-det-negative' : 'atl-det-positive'}">
                 R ${parseFloat(row.amount_outstanding||0).toFixed(2)}
-              </dd>
+              </dd>`
+                : `<dd class="atl-det-tabular" style="color:var(--atl-muted);" title="Nothing is owed until a quotation has been agreed.">—</dd>`}
               ${row.payment_date
                 ? `<dt>Last payment</dt>
                    <dd>${new Date(row.payment_date).toLocaleDateString('en-ZA')}
@@ -797,7 +896,7 @@
           <!-- Quote Card -->
           <div class="atl-det-card">
             <h5 class="atl-det-title"><i class="fa-solid fa-file-pen"></i>Quote</h5>
-            ${row.quote_amount
+            ${bkHasQuote(row)
               ? `<div class="atl-det-table-wrap">${formatQuoteDetailsAtelier(row.quote_details, row.quote_amount, row.quote_expiry_date, row.id, row.quote_sent_at)}</div>`
               : `<p class="atl-det-empty" style="margin-bottom:10px;">No quote prepared yet.</p>
                  <div class="atl-doc-actions-row">
@@ -1275,10 +1374,10 @@
                 let nextStepHtml = '';
                 if (s === 'EXPIRED') {
                     nextStepHtml = `<span class="atl-status-badge" title="This enquiry has expired. Use Reopen Booking to restore it to Pending and prepare a fresh quote." aria-label="Next step: Reopen booking" style="background:rgba(192,54,44,0.08); color:var(--atl-clay); border:1px solid rgba(192,54,44,0.25);"><i class="fa-solid fa-rotate-left"></i> Reopen Booking</span>`;
-                } else if ((s === 'NEW' || s === 'PENDING') && !row.quote_amount) {
-                    nextStepHtml = `<span class="atl-status-badge" title="Review the enquiry details and use the Send Quote button below to generate and email a formal quote to the client." aria-label="Next step: Send a quote" style="background:rgba(96,165,250,0.1); color:var(--atl-blue); border:1px solid rgba(96,165,250,0.25);"><i class="fa-solid fa-file-invoice-dollar"></i> Send Quote</span>`;
-                } else if ((s === 'NEW' || s === 'PENDING') && row.quote_amount) {
-                    nextStepHtml = `<span class="atl-status-badge" title="A quote has already been sent. Review the booking and resend a revised quote if the client has not yet responded." aria-label="Next step: Revise the quote" style="background:rgba(212,175,55,0.08); color:var(--atl-amber); border:1px solid var(--atl-line);"><i class="fa-solid fa-file-pen"></i> Revise Quote</span>`;
+                } else if ((s === 'NEW' || s === 'PENDING') && !bkHasQuote(row)) {
+                    nextStepHtml =`<span class="atl-status-badge" title="Review the enquiry details and use the Send Quote button below to generate and email a formal quote to the client." aria-label="Next step: Send a quote" style="background:rgba(96,165,250,0.1); color:var(--atl-blue); border:1px solid rgba(96,165,250,0.25);"><i class="fa-solid fa-file-invoice-dollar"></i> Send Quote</span>`;
+                } else if ((s === 'NEW' || s === 'PENDING') && bkHasQuote(row)) {
+                    nextStepHtml =`<span class="atl-status-badge" title="A quote has already been sent. Review the booking and resend a revised quote if the client has not yet responded." aria-label="Next step: Revise the quote" style="background:rgba(212,175,55,0.08); color:var(--atl-amber); border:1px solid var(--atl-line);"><i class="fa-solid fa-file-pen"></i> Revise Quote</span>`;
                 } else if (s === 'QUOTED' && !row.accepted_at && quotedAgeDays >= 7) {
                     nextStepHtml = `<span class="atl-status-badge" title="The quote has been pending for over ${quotedAgeDays} days. Consider sending a follow-up email to prompt the client to respond." aria-label="Next step: Follow up with client — quote is stale" style="background:rgba(192,54,44,0.08); color:var(--atl-clay); border:1px solid rgba(192,54,44,0.25);"><i class="fa-solid fa-bell"></i> Follow Up</span>`;
                 } else if (s === 'QUOTED' && !row.accepted_at) {
@@ -1320,7 +1419,7 @@
                 }
 
                 // Quote panel display
-                const quoteDisplay = row.quote_amount ? `
+                const quoteDisplay = bkHasQuote(row) ? `
                 <div class="atl-sub-panel mb-4" style="border: 1px solid var(--atl-line); margin-top: 12px;">
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <span style="font-size:12px; font-weight:600; color:var(--atl-amber);"><i class="fa-solid fa-file-invoice-dollar" style="margin-right:6px;"></i>Quote Sent</span>
@@ -1339,11 +1438,11 @@
                 const moreConfirm  = `<button type="button" class="atl-actions-dropdown-item bk-action-status" data-id="${row.id}" data-status="CONFIRMED"><i class="fa-solid fa-circle-check" style="color:var(--atl-sage);width:14px;"></i> Confirm Booking</button>`;
                 const morePayment  = `<button type="button" class="atl-actions-dropdown-item bk-action-record-payment" data-id="${row.id}" data-quote="${row.quote_amount||''}"><i class="fa-solid fa-money-bill-wave" style="color:var(--atl-amber);width:14px;"></i> Record Payment</button>`;
                 const moreComplete = `<button type="button" class="atl-actions-dropdown-item bk-action-complete" data-id="${row.id}"><i class="fa-solid fa-flag-checkered" style="color:var(--atl-sage);width:14px;"></i> Mark Completed</button>`;
-                if ((s === 'NEW' || s === 'PENDING') && !row.quote_amount) {
-                    actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-quote" data-id="${row.id}"><i class="fa-solid fa-file-invoice-dollar" style="margin-right:6px;"></i>Send Quote</button>`;
+                if ((s === 'NEW' || s === 'PENDING') && !bkHasQuote(row)) {
+                    actionButtonsHtml +=`<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-quote" data-id="${row.id}"><i class="fa-solid fa-file-invoice-dollar" style="margin-right:6px;"></i>Send Quote</button>`;
                 }
-                if ((s === 'NEW' || s === 'PENDING') && row.quote_amount) {
-                    actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-quote" data-id="${row.id}"><i class="fa-solid fa-file-invoice-dollar" style="margin-right:6px;"></i>Revise &amp; Send Quote</button>`;
+                if ((s === 'NEW' || s === 'PENDING') && bkHasQuote(row)) {
+                    actionButtonsHtml +=`<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-quote" data-id="${row.id}"><i class="fa-solid fa-file-invoice-dollar" style="margin-right:6px;"></i>Revise &amp; Send Quote</button>`;
                 }
                 if (s === 'QUOTED') {
                     actionButtonsHtml += `<button type="button" class="atl-btn atl-btn--primary atl-primary-cta bk-action-status" data-id="${row.id}" data-status="ACCEPTED"><i class="fa-solid fa-handshake" style="margin-right:6px;"></i>Accept</button>`;
@@ -1432,6 +1531,14 @@
                 const feeRaw = row.quote_amount || row.total_amount;
                 const feeParsed = feeRaw != null ? parseFloat(String(feeRaw).replace(/[^0-9.-]/g, '')) : NaN;
                 const feeAmount = isFinite(feeParsed) ? feeParsed : null;
+                // Before a quote exists the figure is only the catalogue ESTIMATE: say so, and when a line is priced
+                // individually there is no amount to estimate at all — "To be quoted", never a misleading R0.00 / dash.
+                const unpricedLines = Number(row.unpriced_lines) || 0;
+                const feeHtml = bkHasQuote(row)
+                    ? (feeAmount ? 'R ' + feeAmount.toFixed(2) : '—')
+                    : (unpricedLines > 0
+                        ? `<span class="atl-bk-fee-tbq" title="${unpricedLines === 1 ? 'One service is' : unpricedLines + ' services are'} priced individually — the amount is agreed when the quote is prepared.">To be quoted</span>`
+                        : (feeAmount ? `R ${feeAmount.toFixed(2)} <span class="atl-bk-fee-est" title="Catalogue estimate — no quote has been sent yet.">est.</span>` : '—'));
 
                 // Compact table row (Pipeline + Archive) — mirrors atelier-deal-view-mockup.html's
                 // reference table. The inline next-step hint, per-row action buttons, and tag badges
@@ -1456,7 +1563,7 @@
     </span>
     <span class="atl-payment-badge">${payLbl[ps] || ps}</span>
   </td>
-  <td class="atl-bk-fee">${feeAmount ? 'R ' + feeAmount.toFixed(2) : '—'}</td>
+  <td class="atl-bk-fee">${feeHtml}</td>
 </tr>`;
             }); // end forEach
 
@@ -1501,7 +1608,7 @@
             const today = new Date().toISOString().split('T')[0];
             return (
                 s === 'NEW' ||
-                (s === 'PENDING'   && !b.quote_amount) ||
+                (s === 'PENDING'   && !bkHasQuote(b)) ||
                 (s === 'QUOTED'    && !b.accepted_at) ||
                 (s === 'ACCEPTED'  && (ps === 'UNPAID' || ps === 'FAILED')) ||
                 (s === 'CONFIRMED' && ps !== 'PAID') ||
@@ -1747,9 +1854,16 @@
             var ids = bkSelectedIds();
             var rows = (allBookingsCache || []).filter(function(b) { return ids.indexOf(b.id) !== -1; });
             if (!rows.length) { window.notificationService && window.notificationService.showWarning('Nothing selected', 'Select one or more bookings to export.'); return; }
-            var cols = ['id','name','company','email','cell','event_name','event_type','date','event_location','status','payment_status','total_amount','amount_paid','amount_outstanding','created_at'];
+            var cols = ['id','name','company','email','cell','event_name','event_type','date','event_location','status','payment_status','total_amount','amount_paid','amount_outstanding','created_at','amount_basis'];
             var esc = function(v) { v = (v == null ? '' : String(v)); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
-            var csv = cols.join(',') + '\n' + rows.map(function(r) { return cols.map(function(c) { return esc(r[c]); }).join(','); }).join('\n');
+            // A booking that was never quoted holds only the catalogue estimate in total_amount / amount_outstanding: exported blank, with
+            // the basis stated, so a published rate is never read as a booked amount or a balance owed.
+            var csv = cols.join(',') + '\n' + rows.map(function(r0) {
+                var agreed = bkAmountAgreed(r0);
+                var r = Object.assign({}, r0, { amount_basis: agreed ? 'Quoted' : 'No quotation yet' });
+                if (!agreed) { r.total_amount = ''; r.amount_outstanding = ''; }
+                return cols.map(function(c) { return esc(r[c]); }).join(',');
+            }).join('\n');
             var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
             var a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -1914,9 +2028,11 @@
             const payColor = { PAID:'var(--atl-green)', PARTIALLY_PAID:'var(--atl-orange)', DEPOSIT_PAID:'var(--atl-blue)', UNPAID:'var(--atl-clay)', FAILED:'var(--atl-clay)' };
             const c = payColor[ps] || '#aaa';
             $('#bf-pay-status').text(ps).css({ color: c, background: 'rgba(255,255,255,.05)', border: '1px solid ' + c + '44' });
-            $('#bf-total').text('R ' + parseFloat(booking.total_amount || 0).toFixed(2));
+            // Before a quotation exists these columns hold only the catalogue estimate - not a total, not a balance owed.
+            const agreed = bkAmountAgreed(booking);
+            $('#bf-total').text(agreed ? 'R ' + parseFloat(booking.total_amount || 0).toFixed(2) : 'Not yet quoted');
             $('#bf-paid').text('R ' + parseFloat(booking.amount_paid || 0).toFixed(2));
-            $('#bf-outstanding').text('R ' + parseFloat(booking.amount_outstanding || 0).toFixed(2));
+            $('#bf-outstanding').text(agreed ? 'R ' + parseFloat(booking.amount_outstanding || 0).toFixed(2) : '—');
 
             // Last payment info
             if (booking.last_payment_date) {
@@ -1929,8 +2045,9 @@
             $('#bf-pl-card').html('<i class="fa-solid fa-spinner fa-spin" style="color: var(--atl-muted);"></i> Loading P&L…');
             apiCall('/api/admin/bookings/' + bookingId + '/expenses', 'GET').then(d => {
                 const gross = parseFloat(d.gross_revenue || 0);
+                const refunded = parseFloat(d.refunded || 0);        // a refund leaves the account: it comes off the net (shown only when there is one)
                 const exp = parseFloat(d.total_expenses || 0);
-                const net = gross - exp;
+                const net = gross - refunded - exp;
                 const netClr = net >= 0 ? 'var(--atl-green)' : 'var(--atl-clay)';
                 let expRows = '';
                 if (d.expenses && d.expenses.length) {
@@ -1943,6 +2060,7 @@
                 $('#bf-pl-card').html(
                     '<div style="font-size:11px;color: var(--atl-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;"><i class="fa-solid fa-chart-pie" style="margin-right:5px;color: var(--atl-amber);"></i>Profit & Loss</div>'
                     + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span style="color: var(--atl-muted);">Revenue</span><span style="color:var(--atl-green);font-weight:700;">R ' + gross.toFixed(2) + '</span></div>'
+                    + (refunded > 0 ? '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span style="color: var(--atl-muted);">Refunded</span><span style="color:var(--atl-clay);font-weight:700;">- R ' + refunded.toFixed(2) + '</span></div>' : '')
                     + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span style="color: var(--atl-muted);">Expenses</span><span style="color:var(--atl-clay);font-weight:700;">R ' + exp.toFixed(2) + '</span></div>'
                     + expRows
                     + '<div style="display:flex;justify-content:space-between;font-size:14px;padding-top:8px;border-top:1px solid rgba(212,175,55,.2);margin-top:8px;"><span style="color: var(--atl-amber);font-weight:700;">Net Profit</span><span style="color:' + netClr + ';font-weight:700;">R ' + net.toFixed(2) + '</span></div>'
@@ -2072,21 +2190,36 @@
             $btn.prop('disabled', false);
         });
 
+        // Who these canned replies sign off as — Business > Business Profile's trading name when the owner has set one (that field
+        // exists precisely so correspondence can use a public-facing name instead of the registered legal entity), otherwise the
+        // name these replies have always used. Read fresh at the moment a template is picked (never cached for the page's lifetime),
+        // so a profile edit is reflected in the very next reply sent, not just after a full page reload.
+        async function bkSignOffName() {
+            try {
+                const d = await (await fetch('/api/admin/business-profile')).json();
+                if (d && d.profile && d.profile.trading_name) return d.profile.trading_name;
+            } catch (e) { /* fall through to the default below */ }
+            return 'Thabiso Mhlongo Management';
+        }
+
         // Email template switcher for new modal
-        $(document).on('change', '#be-template', function() {
+        $(document).on('change', '#be-template', async function() {
             const tmpl = $(this).val();
             const booking = allBookingsCache.find(b => b.id == $('#be-booking-id').val());
             const clientName = booking ? (booking.name || '').split(' ')[0] || 'there' : 'there';
+            const signOff = await bkSignOffName();
             let text = '';
 
             if (tmpl === 'pricing') {
-                text = 'Hi ' + clientName + ',\n\nThank you for reaching out regarding Thabiso\'s availability for your event. Please find our standard rate card below:\n\n- Corporate Event (45 mins): R 35,000.00\n- Private Function (30 mins): R 20,000.00\n- Festival Appearance (15 mins): R 15,000.00\n*(Prices exclude VAT and travel/accommodation outside Gauteng)*\n\nPlease let us know if this aligns with your budget and we can proceed with a formal contract.\n\nBest Regards,\nThabiso Mhlongo Management';
+                // No prices here: the rate card changes independently of this template, and a hard-coded figure just goes stale
+                // again (it already had - see docs-internal/business-profile-2026.md). Quote from the Quote Builder instead.
+                text = 'Hi ' + clientName + ',\n\nThank you for reaching out regarding Thabiso\'s availability for your event. I will put together a formal quotation for your event and share it with you shortly.\n\nPlease let us know if you\'d like to proceed in the meantime and we can draw up a formal quotation.\n\nBest Regards,\n' + signOff;
             } else if (tmpl === 'available') {
-                text = 'Hi ' + clientName + ',\n\nGreat news! Thabiso is available on your requested date. We would love to be part of your event.\n\nPlease reply to this email to confirm you would like to proceed with the booking, and we will draw up the invoice and contract.\n\nBest Regards,\nThabiso Mhlongo Management';
+                text = 'Hi ' + clientName + ',\n\nGreat news! Thabiso is available on your requested date. We would love to be part of your event.\n\nPlease reply to this email to confirm you would like to proceed with the booking, and we will draw up the invoice and contract.\n\nBest Regards,\n' + signOff;
             } else if (tmpl === 'decline') {
-                text = 'Hi ' + clientName + ',\n\nThank you for considering Thabiso for your upcoming event. Unfortunately, he is already booked or unavailable on that specific date.\n\nWe appreciate the inquiry and hope to work together in the future!\n\nBest Regards,\nThabiso Mhlongo Management';
+                text = 'Hi ' + clientName + ',\n\nThank you for considering Thabiso for your upcoming event. Unfortunately, he is already booked or unavailable on that specific date.\n\nWe appreciate the inquiry and hope to work together in the future!\n\nBest Regards,\n' + signOff;
             } else if (tmpl === 'call') {
-                text = 'Hi ' + clientName + ',\n\nThank you for your inquiry. To best understand your event requirements and ensure Thabiso is the perfect fit, we would love to jump on a quick phone call.\n\nPlease let us know what time works best for you this week, or feel free to call our management number at +27 74 341 9681.\n\nBest Regards,\nThabiso Mhlongo Management';
+                text = 'Hi ' + clientName + ',\n\nThank you for your inquiry. To best understand your event requirements and ensure Thabiso is the perfect fit, we would love to jump on a quick phone call.\n\nPlease let us know what time works best for you this week, or feel free to call our management number at +27 74 341 9681.\n\nBest Regards,\n' + signOff;
             }
             if (beQuillInstance && text) {
                 beQuillInstance.setText(text.replace(/\\n/g, '\n'));

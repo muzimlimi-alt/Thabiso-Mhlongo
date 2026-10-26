@@ -4,7 +4,7 @@ const { withDbTransaction } = require('../../lib/db-transaction');
 const { escapeEmailFields } = require('../../lib/email-escape');
 const { getEmailFooterContext, emailBaseUrl } = require('../../lib/email-context');
 const { syncBookingToCalendar } = require('../../lib/calendar-sync');
-const { generatePayFastSignature } = require('../../lib/payfast-signature');
+const { verifyPayFastItnSignature } = require('../../lib/payfast-signature');
 const {
     payfastItnRateLimiter, PAYFAST_VALID_IPS
 } = require('../../middleware/rate-limiters');
@@ -142,24 +142,24 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
         }
 
         // ── A. Signature Validation ──
+        // PayFast signs EVERY field it posts - the blank ones (item_description, custom_str1-5, custom_int1-5) too. That is not how the checkout form is signed, and
+        // checking a notification with the checkout recipe could never succeed: in production, where a mismatch is a hard reject, every genuine payment would
+        // have been dropped. See verifyPayFastItnSignature in lib/payfast-signature.js (PayFast's documented recipe; the expected value is never logged).
         const passphrase = process.env.PAYFAST_PASSPHRASE || null;
-        const receivedSignature = pfData.signature;
+        // The values exactly as PayFast posted them: app.js entity-encodes every request body (D'Souza -> D&#x27;Souza), which PayFast's signature and its
+        // server-confirmation call know nothing about. (The encoded pfData stays the one that is stored and used everywhere else.)
+        const itnAsPosted = req.pfRawBody || pfData;
+        const receivedSignature = itnAsPosted.signature;
+        const sigVerdict = verifyPayFastItnSignature(itnAsPosted, passphrase);
 
-        // Reconstruct signature from all params EXCEPT 'signature'
-        let sigData = {};
-        for (let key in pfData) {
-            if (key !== 'signature') sigData[key] = pfData[key];
-        }
-        const calculatedSignature = generatePayFastSignature(sigData, passphrase);
-
-        if (calculatedSignature !== receivedSignature) {
-            console.error(`[PayFast ITN] SIGNATURE MISMATCH booking #${bookingId} — expected: ${calculatedSignature}, received: ${receivedSignature}`);
+        if (!sigVerdict.valid) {
+            console.error(`[PayFast ITN] SIGNATURE MISMATCH booking #${bookingId} — received: ${receivedSignature}`);
             logPaymentEvent(bookingId, 'FAILED_SIGNATURE', pfData, false);
             if (!isSandbox) return; // Hard-fail in production only
             // In sandbox: log and continue — passphrase in .env may differ from sandbox account setting
             console.warn(`[PayFast ITN] Sandbox: proceeding despite mismatch. Verify PAYFAST_PASSPHRASE in .env matches your sandbox merchant account.`);
         } else {
-            console.log(`[PayFast ITN] ✓ Signature valid for booking #${bookingId}`);
+            console.log(`[PayFast ITN] ✓ Signature valid for booking #${bookingId}${sigVerdict.recipe === 'legacy' ? ' (signed the way this app used to compute it)' : ''}`);
         }
 
         // ── B. Source IP Validation ──
@@ -205,8 +205,8 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
             
         // Include BOTH payload AND signature for validation POST per PayFast requirements
         let validateParams = [];
-        for (let key in pfData) {
-            validateParams.push(`${key}=${encodeURIComponent(pfData[key]).replace(/%20/g, '+')}`);
+        for (let key in itnAsPosted) {      // as posted - PayFast compares these with what it sent, and the encoded copy would not match a name like D'Souza
+            validateParams.push(`${key}=${encodeURIComponent(itnAsPosted[key]).replace(/%20/g, '+')}`);
         }
         const validateBody = validateParams.join('&');
         

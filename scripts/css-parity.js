@@ -50,8 +50,8 @@ const THEMES = (process.env.PARITY_THEMES || 'dark,light').split(',');
 // The 22 real .admin-section panels switchTab() drives (admin.html:15305).
 const ALL_ADMIN_SECTIONS = [
     'dashboardAdmin', 'bookingsAdmin', 'inquiriesAdmin', 'financeAdmin', 'eventsAdmin',
-    'calendarAdmin', 'newsletterAdmin', 'emailLogsAdmin', 'usersAdmin', 'securityAdmin',
-    'brandingAdmin', 'preferencesAdmin', 'policiesAdmin', 'servicesAdmin', 'galleryAdmin',
+    'calendarAdmin', 'newsletterAdmin', 'emailLogsAdmin', 'emailBannersAdmin', 'usersAdmin', 'securityAdmin',
+    'brandingAdmin', 'integrationsAdmin', 'paymentSetupAdmin', 'businessAdmin', 'policiesAdmin', 'servicesAdmin', 'galleryAdmin',
     'socialAdmin', 'testimonialsAdmin', 'footprintAdmin', 'careerAdmin', 'contactAdmin',
     'aboutAdmin', 'homeAdmin',
 ];

@@ -1,5 +1,7 @@
-/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — System Settings
-   (preferencesAdmin), assembled from three pieces that were physically scattered:
+/* Phase 6 (HOUSEKEEPING-NOTES.md): relocated from admin.html verbatim — the old Admin Settings page
+   (preferencesAdmin). That page has since been split up (docs-internal/admin-nav-map.md): this file now serves
+   Revenue > Payment Setup, Email > Inquiries > Setup, System > Integrations, Site Appearance > Homepage Sections and
+   Site Appearance > Admin Appearance / Sign-in Page. The history below is how it was assembled, from three pieces that were physically scattered: from three pieces that were physically scattered:
    (A) the "Website Sections" carve-out left over from the About Me extraction
    (SECTION_REGISTRY/renderSectionsUI/loadSectionVisibility/saveSectionVisibility and their
    delegated handlers) — plain top-level code, not inside any IIFE;
@@ -18,7 +20,7 @@
    IIFE), it and every other name here is already reachable exactly as it was before. */
 
 
-// ===== Website Sections — public homepage visibility (Settings → Website Sections) =====
+// ===== Website Sections — public homepage visibility (Site Appearance → Homepage Sections) =====
 // Single source of truth for the admin UI; mirrors SECTION_MAP in js/myscript.js.
 // `shared:true` means the row maps to an existing setting instead of the section_visibility map.
 var SECTION_REGISTRY = [
@@ -119,7 +121,7 @@ $(document).on('click', '#secDisableAll', function () { SECTION_REGISTRY.forEach
 $(document).on('click', '#secReset',      function () { loadSectionVisibility(true); });
 $(document).on('input', '#secSearch', secFilter);
 // Lazy-load the saved state the first time the tab is opened.
-$(document).on('click', '[data-um-tab="prefPanelSections"]', function () { loadSectionVisibility(); });
+$(document).on('click', '[data-um-tab="brandPanelHomepage"]', function () { loadSectionVisibility(); });
 
 async function saveSectionVisibility(btn) {
     var $btn = $(btn), orig = $btn.html();
@@ -146,7 +148,7 @@ async function saveSectionVisibility(btn) {
     } finally { $btn.prop('disabled', false).html(orig); }
 }
 
-// ─── System Settings ───
+// ─── Settings cards (PayFast, Email, Integrations: each page has its own load and Save) ───
 // Email (SMTP): the server never sends the password back. `r.smtp` carries only whether one is saved (and where it comes
 // from); administrators get it, other roles do not (and then the whole card is hidden - they cannot change it either).
 var _smtpEditable = false;
@@ -187,7 +189,7 @@ function stToggleAuth() {
 $(document).on('change', '#stSmtpAuth', stToggleAuth);
 
 function stApplySmtp(m) {
-    if (!m) { _smtpEditable = false; $('#stSmtpCard').hide(); return; }
+    if (!m) { _smtpEditable = false; $('#stSmtpCard').hide(); $('#stInboxBlock').hide(); return; }
     _smtpEditable = true;
     $('#stSmtpCard').show();
     $('#stSmtpHost').val(m.host || '');
@@ -205,40 +207,133 @@ function stApplySmtp(m) {
     $('#stSmtpSecret').val('').attr('placeholder', m.secretSet ? dots : 'secret VALUE');
     stToggleAuth();
     $('#stSmtpStatus').text(stSmtpStatusText(m));
+    loadInboxSyncStatus();
 }
 
-window.loadSystemSettings = async function() {
-    var _pl = qs('#prefLoading'); if (_pl) _pl.style.display = 'block';
+// ---- Customer replies (inbox): administrator-only controls for lib/inbox-sync.js ----
+var _inboxEnabled = false;
+function stInboxStatusText(s) {
+    if (!s) return 'The status could not be loaded.';
+    function when(iso) { return iso ? new Date(iso).toLocaleString() : 'never'; }
+    if (!s.enabled) return 'Off. Customers\u2019 answers to your replies stay in Outlook only.';
+    var t = 'On \u2014 last checked ' + when(s.lastRunAt) + (s.lastStats ? ' (' + s.lastStats.replies + ' repl' + (s.lastStats.replies === 1 ? 'y' : 'ies') + ', ' + s.lastStats.new_inquiries + ' new inquir' + (s.lastStats.new_inquiries === 1 ? 'y' : 'ies') + ', ' + s.lastStats.bounces + ' bounced)' : '') + '.';
+    if (s.lastError) t += ' Last problem: ' + s.lastError + (s.retryAfter ? ' Trying again after ' + when(s.retryAfter) + '.' : '');
+    return t;
+}
+function renderInboxSync(s) {
+    _inboxEnabled = !!(s && s.enabled);
+    $('#stInboxStatus').text(stInboxStatusText(s)).css('color', s && s.lastError ? 'var(--atl-clay)' : '');
+    $('#stInboxToggleBtn span').text(_inboxEnabled ? 'Switch off' : 'Switch on');
+    $('#stInboxRunBtn').prop('disabled', !_inboxEnabled);
+}
+window.loadInboxSyncStatus = async function() {
+    if (window.currentUserRole !== 'administrator') return;
     try {
-        const r = await apiCall('/api/admin/settings');
+        const res = await fetch('/api/admin/inbox-sync', { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) { $('#stInboxBlock').toggle(res.status !== 404); return; }   // an older server without the feature: hide the block quietly
+        $('#stInboxBlock').show();
+        renderInboxSync(await res.json());
+    } catch (e) { /* the rest of the card still works */ }
+};
+function stInboxSteps(steps) { return (steps || []).map(function (s) { return (s.ok ? '\u2713 ' : '\u2717 ') + s.label + ': ' + s.message; }).join('\n'); }
+window.toggleInboxSync = async function() {
+    const $btn = $('#stInboxToggleBtn'), orig = $btn.html(), $out = $('#stInboxResult');
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Checking...');
+    $out.text('').css('color', '');
+    try {
+        const res = await fetch('/api/admin/inbox-sync', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !_inboxEnabled }) });
+        const r = await res.json();
+        if (res.ok && r.success) { renderInboxSync(r); window.notificationService.showSuccess(r.enabled ? 'Customer replies will now be read from the mailbox.' : 'Reading customer replies is switched off.'); }
+        else { $out.text((r.message || 'The setting was not changed.') + (r.steps ? '\n' + stInboxSteps(r.steps) : '')).css('color', 'var(--atl-clay)'); }
+    } catch (e) { $out.text('The setting could not be changed. Please try again.').css('color', 'var(--atl-clay)'); }
+    finally { $btn.prop('disabled', false).html(orig); renderInboxSync({ enabled: _inboxEnabled }); loadInboxSyncStatus(); }
+};
+window.testInboxAccess = async function() {
+    const $btn = $('#stInboxTestBtn'), orig = $btn.html(), $out = $('#stInboxResult');
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Testing...');
+    $out.text('').css('color', '');
+    try {
+        const r = await apiCall('/api/admin/settings/m365/test-mailbox-read', 'POST');
+        // textContent only: the messages can quote Microsoft's replies
+        $out.text(stInboxSteps(r.steps)).css('color', r.ok ? 'var(--atl-sage)' : 'var(--atl-clay)');
+    } catch (e) { /* apiCall has already shown the reason */ }
+    finally { $btn.prop('disabled', false).html(orig); }
+};
+window.runInboxSync = async function() {
+    const $btn = $('#stInboxRunBtn'), orig = $btn.html(), $out = $('#stInboxResult');
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Checking...');
+    $out.text('').css('color', '');
+    try {
+        const r = await apiCall('/api/admin/inbox-sync/run', 'POST');
+        const x = r.result || {};
+        if (x.ok && x.stats) $out.text('Checked the inbox: ' + x.stats.seen + ' message(s) seen, ' + x.stats.replies + ' repl' + (x.stats.replies === 1 ? 'y' : 'ies') + ' added, ' + x.stats.new_inquiries + ' new inquir' + (x.stats.new_inquiries === 1 ? 'y' : 'ies') + ', ' + x.stats.bounces + ' bounced.').css('color', 'var(--atl-sage)');
+        else $out.text(x.skipped ? x.skipped : ('The check failed: ' + (x.error || 'unknown problem'))).css('color', x.skipped ? '' : 'var(--atl-clay)');
+        if (r.status) renderInboxSync(r.status);
+    } catch (e) { /* apiCall has already shown the reason */ }
+    finally { $btn.prop('disabled', false).html(orig); renderInboxSync({ enabled: _inboxEnabled }); loadInboxSyncStatus(); }
+};
+
+// Each page loads its own cards. They all read the same GET /api/admin/settings; fetchSettings() only shares a request that is already in flight
+// (opening two pages in quick succession), it is not a cache - every page open is fresh.
+var _settingsInFlight = null;
+function fetchSettings() {
+    if (!_settingsInFlight) _settingsInFlight = apiCall('/api/admin/settings').finally(function () { _settingsInFlight = null; });
+    return _settingsInFlight;
+}
+function fillPayfast(s) {
+    if (s.payfast_merchant_id) $('#stPayfastId').val(s.payfast_merchant_id);
+    if (s.payfast_merchant_key) $('#stPayfastKey').val(s.payfast_merchant_key);
+    // Never render the passphrase — only show a masked indicator so the admin knows one is set
+    if (s.payfast_passphrase) {
+        $('#stPayfastPass').val('').attr('placeholder', '••••••••  (set — leave blank to keep current)');
+        $('#stPayfastPass').data('has-existing', true);
+    } else {
+        $('#stPayfastPass').attr('placeholder', '(leave blank if none)');
+        $('#stPayfastPass').data('has-existing', false);
+    }
+    if (s.payfast_url) $('#stPayfastUrl').val(s.payfast_url);
+}
+
+// Email Setup page: Outgoing Mail (SMTP / Microsoft 365), Customer Replies (inbox) and the alert address.
+window.loadEmailSetup = async function() {
+    var _pl = qs('#emLoading'); if (_pl) _pl.style.display = 'block';
+    try {
+        const r = await fetchSettings();
         if (r && r.settings) {
             const s = r.settings;
-            if (s.payfast_merchant_id) $('#stPayfastId').val(s.payfast_merchant_id);
-            if (s.payfast_merchant_key) $('#stPayfastKey').val(s.payfast_merchant_key);
-            // Never render the passphrase — only show a masked indicator so the admin knows one is set
-            if (s.payfast_passphrase) {
-                $('#stPayfastPass').val('').attr('placeholder', '••••••••  (set — leave blank to keep current)');
-                $('#stPayfastPass').data('has-existing', true);
-            } else {
-                $('#stPayfastPass').attr('placeholder', '(leave blank if none)');
-                $('#stPayfastPass').data('has-existing', false);
-            }
-            if (s.payfast_url) $('#stPayfastUrl').val(s.payfast_url);
-            // Only administrators may see the card (the role comes from the session, not from what the response happens to contain).
+            // Only administrators may see the SMTP card (the role comes from the session, not from what the response happens to contain).
             var smtpView = r.smtp;
             if (!smtpView && window.currentUserRole === 'administrator') {
                 smtpView = r.smtpError
                     ? { host: '', port: '', secure: 'starttls', user: '', from: '', fromName: '', passwordSet: false, source: 'none', loadError: true, active: {}, ok: false, problems: [], incomplete: [], warnings: [] }
                     : stSmtpFromLegacyApi(s);
             }
-            stApplySmtp(smtpView);
+            stApplySmtp(smtpView);   // also loads the Customer Replies status
             if (s.notification_email) $('#stNotificationEmail').val(s.notification_email);
         }
     } catch(e) {
-        if (window.notificationService) window.notificationService.showError('Could not load system settings. Please refresh.');
+        if (window.notificationService) window.notificationService.showError('Could not load email settings. Please refresh.');
     } finally {
         if (_pl) _pl.style.display = 'none';
     }
+};
+
+// Payment cards (PayFast; the bank-transfer card loads itself in js/admin/eft.js).
+window.loadPaymentSetup = async function() {
+    var _pl = qs('#payLoading'); if (_pl) _pl.style.display = 'block';
+    try {
+        const r = await fetchSettings();
+        if (r && r.settings) fillPayfast(r.settings);
+    } catch(e) {
+        if (window.notificationService) window.notificationService.showError('Could not load payment settings. Please refresh.');
+    } finally {
+        if (_pl) _pl.style.display = 'none';
+    }
+};
+
+// Google Calendar card: its own endpoint (js/admin/google-calendar.js).
+window.loadIntegrations = function() {
+    if (window.loadGoogleCalendarCard) window.loadGoogleCalendarCard();
 };
 
 // The SMTP form as the API wants it. Passwords/secrets are read with the native .value (not jQuery's patched .val()) so they
@@ -293,35 +388,69 @@ function stValidateSmtp(v) {
     return !bad;
 }
 
-window.saveSystemSettings = async function(btn) {
-    const $btn = btn ? $(btn) : $('#btnSaveSystemSettings');
+// PayFast: only its four keys. (It used to share one Save button, and one PUT, with the email settings and the alert address, so a
+// failed mail-server test refused the PayFast save too.)
+window.savePayfastSettings = async function(btn) {
+    const $btn = btn ? $(btn) : $('#btnSavePayfast');
     const origHtml = $btn.html();
     $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Saving…');
     const settings = {
         payfast_merchant_id: $('#stPayfastId').val(),
         payfast_merchant_key: $('#stPayfastKey').val(),
         payfast_passphrase: $('#stPayfastPass').val(),
-        payfast_url: $('#stPayfastUrl').val(),
-        notification_email: $('#stNotificationEmail').val()
+        payfast_url: $('#stPayfastUrl').val()
     };
-    if (_smtpEditable) Object.assign(settings, stSmtpFormValues());   // only administrators ever see (or send) the SMTP card
-    // G5 — inline per-field validation
-    const _fe = (id, msg) => { const e = document.getElementById(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
-    _fe('errStNotif', '');
-    const _emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    let _bad = _smtpEditable ? !stValidateSmtp(settings) : false;
-    if (settings.notification_email && !_emailRe.test(settings.notification_email)) { _fe('errStNotif', 'Enter a valid email address.'); _bad = true; }
-    if (_bad) { window.notificationService.showError('Please fix the highlighted fields.'); $btn.prop('disabled', false).html(origHtml); return; }
-    // Remove blank keys to avoid overwriting with empty strings (a blank password therefore means "keep the saved one")
+    // Remove blank keys to avoid overwriting with empty strings (a blank passphrase therefore means "keep the saved one")
+    Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
+    try {
+        await apiCall('/api/admin/settings', 'PUT', { settings });
+        window.notificationService.showSuccess('PayFast settings saved.');
+    } catch(e) {
+        // apiCall has already shown the server's reason
+    } finally {
+        $btn.prop('disabled', false).html(origHtml);
+    }
+};
+
+// Outgoing Mail: the whole SMTP form travels in ONE request, so the server's connection test stays all-or-nothing: if changed connection
+// details do not work, none of them is saved.
+window.saveEmailSettings = async function(btn) {
+    if (!_smtpEditable) return;   // only administrators ever see (or send) the SMTP card
+    const $btn = btn ? $(btn) : $('#btnSaveSmtp');
+    const origHtml = $btn.html();
+    const settings = stSmtpFormValues();
+    if (!stValidateSmtp(settings)) { window.notificationService.showError('Please fix the highlighted fields.'); return; }
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Saving…');
+    // Remove blank keys (a blank password therefore means "keep the saved one")
     Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
     try {
         const r = await apiCall('/api/admin/settings', 'PUT', { settings });
         if (r && r.smtp) stApplySmtp(r.smtp);
         $('#stSmtpTestResult').text('');
-        window.notificationService.showSuccess('System settings saved successfully.');
+        window.notificationService.showSuccess('Email settings saved.');
         (r && r.warnings || []).forEach(function (w) { window.notificationService.showWarning('Email settings', w); });
     } catch(e) {
         // apiCall has already shown the server's reason (e.g. "the connection test failed ... NOT saved") - nothing was overwritten.
+    } finally {
+        $btn.prop('disabled', false).html(origHtml);
+    }
+};
+
+// Alert address: where new-booking alerts and other admin notices are delivered.
+window.saveAlertEmail = async function(btn) {
+    const $btn = btn ? $(btn) : $('#btnSaveAlertEmail');
+    const origHtml = $btn.html();
+    const _fe = (id, msg) => { const e = document.getElementById(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
+    const addr = String($('#stNotificationEmail').val() || '').trim();
+    _fe('errStNotif', '');
+    if (!addr) { _fe('errStNotif', 'Enter the address that should receive alerts.'); window.notificationService.showError('Please fix the highlighted fields.'); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) { _fe('errStNotif', 'Enter a valid email address.'); window.notificationService.showError('Please fix the highlighted fields.'); return; }
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Saving…');
+    try {
+        await apiCall('/api/admin/settings', 'PUT', { settings: { notification_email: addr } });
+        window.notificationService.showSuccess('Alert address saved.');
+    } catch(e) {
+        // apiCall has already shown the server's reason
     } finally {
         $btn.prop('disabled', false).html(origHtml);
     }
@@ -346,6 +475,34 @@ window.testSmtpConnection = async function() {
         (r.warnings || []).forEach(function (w) { window.notificationService.showWarning('Email settings', w); });
     } catch(e) {
         // apiCall has already shown the reason
+    } finally {
+        $btn.prop('disabled', false).html(orig);
+    }
+};
+
+// Test Google Places (2026-10 Places audit): runs one real venue search through lib/places.js and shows what Google
+// answered - which API version is in use, or exactly what to fix in Google Cloud. Never shows the key.
+window.testPlacesConfig = async function() {
+    const $btn = $('#testPlacesBtn');
+    const $out = $('#stPlacesResult');
+    const orig = $btn.html();
+    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Checking...');
+    $out.removeClass('is-ok is-bad').text('');
+    try {
+        const r = await fetch('/api/admin/places/status', { credentials: 'same-origin', cache: 'no-store', bypassInterceptor: true, retry: false });
+        const d = await r.json().catch(() => null);
+        if (!r.ok || !d || !d.success) {
+            $out.addClass('is-bad').text(r.status === 403 ? 'Only an administrator can run this check.' : 'The check could not run. Please try again.');
+            return;
+        }
+        if (d.ok) {
+            const api = d.provider === 'legacy' ? 'the legacy Places API' : 'Places API (New)';
+            $out.addClass('is-ok').text('Working: Google returned ' + d.sample + ' result(s) through ' + api + '.' + (d.hint ? '\n' + d.hint : ''));
+        } else {
+            $out.addClass('is-bad').text('Not working (' + d.code + '). ' + (d.hint || '') + (d.detail ? '\nGoogle said: ' + d.detail : ''));
+        }
+    } catch (e) {
+        $out.addClass('is-bad').text('The check could not reach the server. Please try again.');
     } finally {
         $btn.prop('disabled', false).html(orig);
     }

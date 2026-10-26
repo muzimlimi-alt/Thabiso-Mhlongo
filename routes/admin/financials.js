@@ -5,18 +5,22 @@ const { requireRole } = require('../../middleware/rbac');
 const { getTransactionRevenueTrend, getExpenseTrend, getPeriodRevenue, getPeriodExpenses, getTotalTransactionCount } = require('../../database/repositories/finance.repository');
 const { getInvoiceAgingSummary, getOverdueInvoicesSummary, getDueSoonInvoicesSummary } = require('../../database/repositories/invoices-quotations.repository');
 const { getOutstandingTotal, getBookingStatusCounts } = require('../../database/repositories/bookings.repository');
+const { receivedAmountSql, revenueRowsSql } = require('../../lib/booking-amounts');
 const router = express.Router();
 
 // 3.7 Financial Analytics API (Admin)
 // GET /api/admin/financials/analytics
+// Every revenue figure here is money received MINUS refunds and chargebacks (they leave the account), never a manual adjustment, never a
+// payment flagged as a duplicate - the same rule as the dashboard revenue and the P&L (lib/booking-amounts.js).
 router.get('/api/admin/financials/analytics', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
     const clientQuery = `
         SELECT c.id AS client_id, COALESCE(c.full_name, b.name) AS client_name, c.company_name,
-               SUM(t.amount) AS total_spent, COUNT(DISTINCT b.id) AS booking_count
+               SUM(${receivedAmountSql('t')}) AS total_spent, COUNT(DISTINCT b.id) AS booking_count
         FROM transactions t
         JOIN bookings b ON t.booking_id = b.id
         LEFT JOIN clients c ON b.client_id = c.id
-        WHERE t.status = 'completed' AND COALESCE(t.is_duplicate, 0) = 0
+        WHERE ${revenueRowsSql('t')}
+          AND COALESCE(t.transaction_type, '') <> 'adjustment'
         GROUP BY client_id, client_name
         ORDER BY total_spent DESC
         LIMIT 5
@@ -36,11 +40,12 @@ router.get('/api/admin/financials/analytics', requireAdmin, requireRole(['admini
     // engagements (live shows, corporate, comedy, virtual …) earn the most.
     const categoryQuery = `
         SELECT COALESCE(NULLIF(b.event_type, ''), 'Other') AS category,
-               SUM(t.amount)          AS revenue,
+               SUM(${receivedAmountSql('t')}) AS revenue,
                COUNT(DISTINCT b.id)   AS bookings
         FROM transactions t
         JOIN bookings b ON t.booking_id = b.id
-        WHERE t.status = 'completed' AND COALESCE(t.is_duplicate, 0) = 0
+        WHERE ${revenueRowsSql('t')}
+          AND COALESCE(t.transaction_type, '') <> 'adjustment'
         GROUP BY category
         ORDER BY revenue DESC
         LIMIT 8
@@ -137,16 +142,21 @@ router.get('/api/admin/financials/stats', requireAdmin, requireRole(['administra
                     (e4, expRow) => {
                         const periodExpenses = parseFloat(expRow ? expRow.period_expenses : 0);
 
-                        // Pending quotes value — real data from quotations table (SENT/unsent, not yet accepted)
+                        // Pending quotes value — the STANDING quotation of every booking waiting on its client (status QUOTED).
+                        // A revision archives the quotation before it, and a voided/archived one no longer stands, so a booking counts once.
+                        // The money column is total_amount: this query used to ask for `q.total`, which does not exist, and the error was
+                        // swallowed - the dashboard showed R0.00 / 0 quotes however many were awaiting a client.
                         db.get(
-                            `SELECT COALESCE(SUM(q.total), 0) AS pending_quotes_value,
+                            `SELECT COALESCE(SUM(q.total_amount), 0) AS pending_quotes_value,
                                     COUNT(*) AS pending_quotes_count
                              FROM quotations q
                              JOIN bookings b ON q.booking_id = b.id
                              WHERE q.archived = 0
+                               AND LOWER(COALESCE(q.status, '')) NOT IN ('void', 'archived')
                                AND b.status = 'QUOTED'`,
                             [],
                             (e5, qRow) => {
+                                if (e5) console.error('[financials] pending quotes query failed:', e5.message);
                                 // Overdue invoices (SENT status with a due_date in the past)
                                 getOverdueInvoicesSummary(
                                     (e6, overdueRow) => {

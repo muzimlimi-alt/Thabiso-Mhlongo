@@ -245,17 +245,28 @@ router.post('/api/public/compliance/export-data', ipRateLimiter, (req, res) => {
         getInquiriesForEmail(email, (err, inquiries) => {
             if (err) console.error('[POPIA] export-data inquiries query failed:', err.message);
             dataExport.inquiries = inquiries || [];
-            
+
             if (dataExport.bookings.length === 0 && dataExport.inquiries.length === 0) {
                 return res.status(404).json({ success: false, message: 'No data found for this email address.' });
             }
 
-            // In production, we'd email this as a secure ZIP/PDF.
-            // For now, we return the JSON payload.
-            res.json({
-                success: true,
-                message: 'Data export generated successfully.',
-                data: dataExport
+            // The conversation on those inquiries (what we replied, what they answered) is their data too. Staff-side fields are left out.
+            const ids = dataExport.inquiries.map(i => i.inquiry_id);
+            const finish = (messages) => {
+                dataExport.inquiry_messages = messages || [];
+                // In production, we'd email this as a secure ZIP/PDF.
+                // For now, we return the JSON payload.
+                res.json({
+                    success: true,
+                    message: 'Data export generated successfully.',
+                    data: dataExport
+                });
+            };
+            if (!ids.length) return finish([]);
+            db.all(`SELECT inquiry_id, direction, subject, body_html, body_text, from_address, to_addresses, delivery_status, occurred_at
+                    FROM inquiry_messages WHERE inquiry_id IN (${ids.map(() => '?').join(',')}) ORDER BY occurred_at ASC, id ASC`, ids, (mErr, messages) => {
+                if (mErr) console.error('[POPIA] export-data conversation query failed:', mErr.message);
+                finish(messages);
             });
         });
     });

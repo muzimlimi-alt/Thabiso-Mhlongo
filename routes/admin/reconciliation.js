@@ -6,7 +6,13 @@ const { requireRole } = require('../../middleware/rbac');
 const { resolveDocsPath } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
 const { getCompletedTransactionsForReconciliation, setTransactionDuplicateFlag, getTransactionProofPath } = require('../../database/repositories/finance.repository');
+const { agreedAmountSql, AMOUNT_BASIS_LABEL } = require('../../lib/booking-amounts');
 const router = express.Router();
+
+// A booking that was never quoted carries only the service-catalogue ESTIMATE in total_amount / amount_outstanding (lib/booking-amounts.js).
+// A reconciliation matrix is about money, so such a booking shows 0 quoted / 0 outstanding and amount_basis 'none' - never a published rate
+// presented as a quotation (it would also inflate "Total quoted" below).
+const AGREED = agreedAmountSql('b');
 
 // ========================================
 // RECONCILIATION ENDPOINTS (Admin)
@@ -25,9 +31,10 @@ router.get('/api/admin/reconciliation', requireAdmin, requireRole(['administrato
             b.date AS event_date,
             b.status,
             b.payment_status,
-            COALESCE(b.total_amount, 0) AS quoted_amount,
+            CASE WHEN ${AGREED} THEN COALESCE(b.total_amount, 0) ELSE 0 END AS quoted_amount,
             COALESCE(b.amount_paid, 0)  AS amount_paid,
-            COALESCE(b.amount_outstanding, 0) AS outstanding,
+            CASE WHEN ${AGREED} THEN COALESCE(b.amount_outstanding, 0) ELSE 0 END AS outstanding,
+            CASE WHEN ${AGREED} THEN 'quoted' ELSE 'none' END AS amount_basis,
 
             -- PayFast transactions (non-duplicate)
             COALESCE(SUM(CASE WHEN t.source = 'payfast' AND COALESCE(t.is_duplicate, 0) = 0 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) AS payfast_total,
@@ -49,7 +56,7 @@ router.get('/api/admin/reconciliation', requireAdmin, requireRole(['administrato
 
             -- 'overpayment': effective received > quoted amount (and quoted > 0)
             CASE
-                WHEN COALESCE(b.total_amount, 0) > 0
+                WHEN ${AGREED} AND COALESCE(b.total_amount, 0) > 0
                  AND COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate, 0) = 0 THEN (CASE WHEN t.transaction_type = 'refund' THEN -t.amount WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END) ELSE 0 END), 0) > COALESCE(b.total_amount, 0) + 1.0
                 THEN 1 ELSE 0
             END AS is_overpaid
@@ -134,22 +141,26 @@ router.patch('/api/admin/transactions/:id/reconcile', requireAdmin, requireRole(
 
 // GET /api/admin/reconciliation/export/csv — CSV export for accountant
 router.get('/api/admin/reconciliation/export/csv', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {
+    // A manual adjustment (credit / debit) changes what is owed, it is not money received - the screen's own row query already counts it as 0.
+    // Summing t.amount here made it "Manual_Received" / "Effective_Received" and raised a false OverpaymentWarning in the accountant's file.
+    const RECEIVED = `CASE WHEN t.transaction_type = 'adjustment' THEN 0 ELSE t.amount END`;
     const query = `
         SELECT
             b.id, b.name AS client, b.event_name, b.date AS event_date, b.status, b.payment_status,
-            COALESCE(b.total_amount,0) AS quoted,
-            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0)=0 AND t.source='payfast' THEN t.amount ELSE 0 END),0) AS payfast_received,
-            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0)=0 AND t.source='manual'  THEN t.amount ELSE 0 END),0) AS manual_received,
-            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0)=1 THEN t.amount ELSE 0 END),0) AS duplicates_flagged,
-            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0)=0 THEN t.amount ELSE 0 END),0) AS effective_received,
-            COALESCE(b.amount_outstanding,0) AS outstanding,
+            CASE WHEN ${AGREED} THEN COALESCE(b.total_amount,0) ELSE 0 END AS quoted,
+            CASE WHEN ${AGREED} THEN 1 ELSE 0 END AS has_agreed_amount,
+            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0)=0 AND t.source='payfast' THEN ${RECEIVED} ELSE 0 END),0) AS payfast_received,
+            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0)=0 AND t.source='manual'  THEN ${RECEIVED} ELSE 0 END),0) AS manual_received,
+            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0)=1 THEN ${RECEIVED} ELSE 0 END),0) AS duplicates_flagged,
+            COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0)=0 THEN ${RECEIVED} ELSE 0 END),0) AS effective_received,
+            CASE WHEN ${AGREED} THEN COALESCE(b.amount_outstanding,0) ELSE 0 END AS outstanding,
             CASE
                 WHEN SUM(CASE WHEN t.source='payfast' THEN 1 ELSE 0 END)>0
                  AND SUM(CASE WHEN t.source='manual'  THEN 1 ELSE 0 END)>0 THEN 'YES' ELSE 'NO'
             END AS dual_source_warning,
             CASE
-                WHEN COALESCE(b.total_amount,0)>0
-                 AND COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0)=0 THEN t.amount ELSE 0 END),0) > COALESCE(b.total_amount,0)+1.0 THEN 'YES' ELSE 'NO'
+                WHEN ${AGREED} AND COALESCE(b.total_amount,0)>0
+                 AND COALESCE(SUM(CASE WHEN COALESCE(t.is_duplicate,0)=0 THEN ${RECEIVED} ELSE 0 END),0) > COALESCE(b.total_amount,0)+1.0 THEN 'YES' ELSE 'NO'
             END AS overpayment_warning
         FROM bookings b
         LEFT JOIN transactions t ON t.booking_id=b.id AND t.status='completed'
@@ -159,14 +170,16 @@ router.get('/api/admin/reconciliation/export/csv', requireAdmin, requireRole(['a
     db.all(query, [], (err, rows) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
 
-        const headers = ['BookingID','Client','Event','Date','Status','PaymentStatus','Quoted','PayFast_Received','Manual_Received','Duplicates_Flagged','Effective_Received','Outstanding','DualSourceWarning','OverpaymentWarning'];
+        const headers = ['BookingID','Client','Event','Date','Status','PaymentStatus','Quoted','PayFast_Received','Manual_Received','Duplicates_Flagged','Effective_Received','Outstanding','DualSourceWarning','OverpaymentWarning','AmountBasis'];
         const csvRows = rows.map(r => [
             r.id, `"${(r.client||'').replace(/"/g,'""')}"`, `"${(r.event_name||'').replace(/"/g,'""')}"`,
             r.event_date, r.status, r.payment_status,
             parseFloat(r.quoted).toFixed(2), parseFloat(r.payfast_received).toFixed(2),
             parseFloat(r.manual_received).toFixed(2), parseFloat(r.duplicates_flagged).toFixed(2),
             parseFloat(r.effective_received).toFixed(2), parseFloat(r.outstanding).toFixed(2),
-            r.dual_source_warning, r.overpayment_warning
+            r.dual_source_warning, r.overpayment_warning,
+            // "No quotation yet": Quoted / Outstanding above are 0 because the booking only carries a catalogue estimate.
+            r.has_agreed_amount ? AMOUNT_BASIS_LABEL.quoted : AMOUNT_BASIS_LABEL.none
         ].join(','));
 
         const csv = [headers.join(','), ...csvRows].join('\r\n');

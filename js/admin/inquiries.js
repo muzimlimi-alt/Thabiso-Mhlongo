@@ -195,7 +195,7 @@ function renderDirectEmailsList() {
         const preview = (row.body || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().substring(0, 100);
         const isActive = (inqActiveDraftId == row.id) ? 'inq-row--active' : '';
         const escapedTo = $('<span>').text(toStr).html();
-        const escapedSubject = $('<span>').text(row.subject || '(No Subject)').html();
+        const escapedSubject = $('<span>').text(inqStored(row.subject) || '(No Subject)').html();
         const escapedPreview = $('<span>').text(preview).html();
 
         let statusDot = 'draft';
@@ -255,10 +255,10 @@ function renderInqList() {
         const isUnread = row.status === 'unread';
         const rowInitial = (row.sender_name || '?').charAt(0).toUpperCase();
         const dateStr = inqFormatDate(row.submitted_at);
-        const preview = (row.message_body || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().substring(0, 100);
+        const preview = inqStored(row.message_body).replace(/\s+/g, ' ').trim().substring(0, 100);
         const isActive = (currentInqId == row.inquiry_id) ? 'inq-row--active' : '';
         const unreadClass = isUnread ? 'inq-row--unread' : '';
-        const escapedName = $('<span>').text(row.sender_name || 'Unknown').html();
+        const escapedName = $('<span>').text(inqStored(row.sender_name) || 'Unknown').html();
         const escapedSubject = $('<span>').text(row.subject || '(No Subject)').html();
         const escapedPreview = $('<span>').text(preview).html();
         const assigneeChip = row.assigned_to_name
@@ -268,7 +268,10 @@ function renderInqList() {
             ? `<i class="fa-solid fa-flag inq-priority-flag inq-priority-flag--${row.priority}" title="${row.priority === 'urgent' ? 'Urgent' : 'High'} priority" aria-label="${row.priority === 'urgent' ? 'Urgent' : 'High'} priority"></i>`
             : '';
         const categoryPill = row.category
-            ? `<span class="inq-chip" style="margin-left:6px; flex-shrink:0;"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${$('<s>').text(row.category).html()}</span>`
+            ? `<span class="inq-chip" style="margin-left:6px; flex-shrink:0;"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${$('<s>').text(inqStored(row.category)).html()}</span>`
+            : '';
+        const replyFailedFlag = (row.last_reply_status === 'failed' || row.last_reply_status === 'bounced')
+            ? `<i class="fa-solid fa-triangle-exclamation inq-reply-failed-flag" title="The last reply could not be delivered" aria-label="The last reply could not be delivered"></i>`
             : '';
         const overdueFlag = row.overdue
             ? `<i class="fa-solid fa-clock inq-overdue-flag" title="Overdue: past the response SLA" aria-label="Overdue: past the response SLA"></i>`
@@ -280,7 +283,7 @@ function renderInqList() {
     <div class="inq-row-avatar" aria-hidden="true">${rowInitial}</div>
     <div class="inq-row-main">
 <div class="inq-row-top">
-    <span class="inq-row-name">${overdueFlag}${priorityFlag}${escapedName}</span>${assigneeChip}${categoryPill}
+    <span class="inq-row-name">${overdueFlag}${replyFailedFlag}${priorityFlag}${escapedName}</span>${assigneeChip}${categoryPill}
     <span class="inq-row-date" style="margin-left:auto;">${dateStr}</span>
 </div>
 <div class="inq-row-subject">${escapedSubject}</div>
@@ -300,6 +303,78 @@ function renderInqList() {
     }
 }
 
+// ---- Conversation (replies with their REAL delivery state + the customer's answers) ----
+// 'accepted' is the strongest thing the system can truthfully say: Microsoft 365 took the message. Nobody can prove it reached an inbox.
+const INQ_DELIVERY_LABEL = { queued: 'Queued', attempted: 'Retrying', accepted: 'Sent (accepted by Microsoft 365)', failed: 'Failed', bounced: 'Bounced', received: 'Received' };
+let inqThreadTimer = null;
+// The text columns of `inquiries` (name, subject, category, message) are stored entity-encoded once (js/shared/stored-text.js). This screen shows them as TEXT, so
+// they are decoded first - otherwise "O'Brien & Sons" appeared as "O&#x27;Brien &amp; Sons". (inquiry_messages is stored plain and goes through inqEsc alone.)
+function inqStored(s) { return window.decodeStoredText ? window.decodeStoredText(s == null ? '' : s) : String(s == null ? '' : s); }
+function inqEsc(s) { return $('<s>').text(s == null ? '' : String(s)).html(); }
+
+function renderInqThread(data) {
+    const msgs = (data && data.messages) || [];
+    const canRetry = window.currentUserRole === 'administrator' || window.currentUserRole === 'manager';
+    // Persistence vs delivery: the inquiry is saved (you are looking at it); these say whether the two mails it queued have been accepted by Microsoft 365.
+    let intakeLine = '';
+    const ik = data && data.intake;
+    if (ik && (ik.notification || ik.receipt)) {
+        const part = (label, x) => x ? '<span class="inq-intake-item">' + label + ' <span class="inq-delivery inq-delivery--' + inqEsc(x.state) + '" title="' + inqEsc(x.error || '') + '">' + inqEsc(INQ_DELIVERY_LABEL[x.state] || x.state) + '</span></span>' : '';
+        intakeLine = '<div class="inq-intake-line">' + part('Alert to ' + inqEsc((ik.notification && ik.notification.to) || 'the booking mailbox'), ik.notification) + part('Confirmation to the sender', ik.receipt) + '</div>';
+    }
+    let html = intakeLine + '<div class="inq-thread-head"><i class="fa-solid fa-comments" aria-hidden="true"></i> Conversation' + (msgs.length ? ' <span class="inq-notes-count">' + msgs.length + '</span>' : '') + '</div>';
+    if (!msgs.length) {
+        html += '<div class="inq-notes-empty">No replies yet. Use Reply to answer the sender; what you send, and whether it was delivered, will show here.</div>';
+    }
+    msgs.forEach(m => {
+        const out = m.direction === 'out';
+        const when = m.occurred_at ? new Date(String(m.occurred_at).replace(' ', 'T') + 'Z').toLocaleString() : '';
+        const who = out ? ('Reply by ' + inqEsc(m.sent_by_name || 'staff')) : ('Reply from ' + inqEsc((m.from_address || 'the sender')));
+        // the customer's text is plain text from outside: it is escaped, never interpreted. The first message of an email inquiry carries no text of its own (it is the inquiry body above).
+        const body = out ? (m.body_html || '') : (m.body_text ? '<p style="margin:0; white-space:pre-wrap;">' + inqEsc(m.body_text) + '</p>' : '<p class="inq-notes-empty" style="margin:0;">First message of this inquiry (shown above).</p>');
+        let retry = '';
+        if (out && m.delivery_status === 'failed' && canRetry) {
+            retry = ' <button type="button" class="um-btn um-btn--ghost um-btn--sm inq-msg-retry" data-mid="' + m.id + '"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Send again</button>';
+        }
+        html += '<div class="inq-msg inq-msg--' + (out ? 'out' : 'in') + '">' +
+            '<div class="inq-msg-meta"><span class="inq-msg-who">' + who + '</span><span>' + inqEsc(when) + '</span>' +
+            '<span class="inq-delivery inq-delivery--' + inqEsc(m.delivery_status) + '">' + inqEsc(INQ_DELIVERY_LABEL[m.delivery_status] || m.delivery_status) + '</span>' + retry + '</div>' +
+            (out && m.subject ? '<div class="inq-msg-subject">' + inqEsc(m.subject) + '</div>' : '') +
+            '<div class="inq-msg-body">' + body + '</div>' +
+            ((m.delivery_status === 'failed' || m.delivery_status === 'bounced') && m.last_error ? '<div class="inq-msg-error"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> ' + inqEsc(m.last_error) + '</div>' : '') +
+            (m.delivery_status === 'attempted' && m.last_error ? '<div class="inq-msg-error">Last attempt failed, trying again: ' + inqEsc(m.last_error) + '</div>' : '') +
+            '</div>';
+    });
+    return html;
+}
+
+async function loadInqThread(id, wasPending) {
+    if (inqThreadTimer) { clearTimeout(inqThreadTimer); inqThreadTimer = null; }
+    let data;
+    try { data = await apiCall('/api/admin/inquiries/' + id + '/messages'); } catch (e) { return; }
+    if (!data || !data.success || String(currentInqId) !== String(id)) return;   // closed or switched while loading
+    $('#inqThread').html(renderInqThread(data));
+    if (data.pending) {
+        inqThreadTimer = setTimeout(() => loadInqThread(id, true), 8000);   // a queued reply: keep checking until the outbox has an answer
+    } else if (wasPending) {
+        loadInquiries();                                                      // the outcome may have changed the status ("replied") and the list flag
+        const inquiry = allInquiriesCache.find(i => String(i.inquiry_id) === String(id));
+        if (inquiry && data.messages.some(m => m.direction === 'out' && m.delivery_status === 'accepted') && inquiry.status !== 'replied' && inquiry.status !== 'archived') {
+            inquiry.status = 'replied';
+            $('#inqReadStatusBadge').text(inqStatusLabel('replied')).attr('class', 'inq-read-status-badge inq-badge ' + inqStatusBadgeClass('replied'));
+        }
+    }
+}
+
+$(document).on('click', '.inq-msg-retry', async function() {
+    const $btn = $(this).prop('disabled', true);
+    try {
+        await apiCall('/api/admin/inquiries/' + currentInqId + '/messages/' + $btn.data('mid') + '/retry', 'POST');
+        window.notificationService.showSuccess('Reply queued again.');
+        loadInqThread(currentInqId, true);
+    } catch (e) { $btn.prop('disabled', false); }
+});
+
 // ---- Open / Read a Message ----
 function openInquiry(id) {
     const inquiry = allInquiriesCache.find(i => i.inquiry_id == id);
@@ -307,10 +382,10 @@ function openInquiry(id) {
     currentInqId = id;
 
     // Populate header
-    const initial = (inquiry.sender_name || '?').charAt(0).toUpperCase();
+    const initial = (inqStored(inquiry.sender_name) || '?').charAt(0).toUpperCase();
     $('#inqReadAvatar').text(initial);
-    $('#inqReadSubject').text(inquiry.subject || '(No Subject)');
-    $('#inqReadFrom').text(inquiry.sender_name || 'Unknown');
+    $('#inqReadSubject').text(inqStored(inquiry.subject) || '(No Subject)');
+    $('#inqReadFrom').text(inqStored(inquiry.sender_name) || 'Unknown');
     $('#inqReadFromEmail').text('<' + inquiry.sender_email + '>');
     $('#inqReadDate').text(new Date(inquiry.submitted_at).toLocaleString());
     $('#inqReadStatusBadge')
@@ -320,9 +395,10 @@ function openInquiry(id) {
 
     // Metadata chips
     let chips = '';
-    if (inquiry.category) chips += `<span class="inq-chip"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${$('<s>').text(inquiry.category).html()}</span>`;
+    if (inquiry.category) chips += `<span class="inq-chip"><i class="fa-solid fa-tag" aria-hidden="true"></i> ${$('<s>').text(inqStored(inquiry.category)).html()}</span>`;
     if (inquiry.sender_phone) chips += `<span class="inq-chip"><i class="fa-solid fa-phone" aria-hidden="true"></i> ${$('<s>').text(inquiry.sender_phone).html()}</span>`;
     if (inquiry.sender_email) chips += `<span class="inq-chip"><i class="fa-solid fa-at" aria-hidden="true"></i> <a href="mailto:${inquiry.sender_email}" style="color:inherit;">${$('<s>').text(inquiry.sender_email).html()}</a></span>`;
+    chips += '<span class="inq-chip" title="Where this inquiry came from"><i class="fa-solid ' + (inquiry.source === 'email' ? 'fa-envelope' : 'fa-globe') + '" aria-hidden="true"></i> ' + (inquiry.source === 'email' ? 'Email' : 'Website form') + '</span>';
     if (inquiry.routing_path) chips += `<span class="inq-chip"><i class="fa-solid fa-route" aria-hidden="true"></i> ${$('<s>').text(inquiry.routing_path).html()}</span>`;
     $('#inqReadChips').html(chips);
 
@@ -353,8 +429,9 @@ function openInquiry(id) {
     $('#inqNoteInput').val('');
 
     // Message body (newlines → <br>)
-    const safeBody = $('<span>').text(inquiry.message_body || '').html().replace(/\n/g, '<br>');
-    $('#inqReadBody').html('<p style="margin:0;">' + safeBody + '</p>');
+    const safeBody = $('<span>').text(inqStored(inquiry.message_body)).html().replace(/\n/g, '<br>');
+    $('#inqReadBody').html('<p style="margin:0;">' + safeBody + '</p><div class="inq-thread" id="inqThread" aria-live="polite"></div>');
+    loadInqThread(id);
 
     // Show views
     $('#inqComposeView').hide();
@@ -390,6 +467,12 @@ let inqAttachments = [];
 let inqActiveInquiryContext = null;
 let inqAutosaveTimer = null;
 
+// A reply to an inquiry goes to that inquiry's sender; the server ignores any other To address, so the composer does not pretend otherwise.
+function setInqToLocked(locked) {
+    $('#inqToChipsContainer').toggleClass('inq-chip-input-container--locked', !!locked);
+    $('#inqComposeToInput').prop('disabled', !!locked).attr('placeholder', locked ? 'Replies go to the sender of the inquiry' : '');
+}
+
 // ---- Compose Mode (Enhanced) ----
 function showInqComposeView(defaults) {
     currentInqId = null;
@@ -401,7 +484,11 @@ function showInqComposeView(defaults) {
     inqActiveInquiryContext = null;
 
     defaults = defaults || {};
-    
+    // The inquiry being answered. It must be set AFTER the reset above: the Reply button used to set it just before calling this function, which
+    // wiped it, so every reply from this screen went out as a plain message with no inquiry_id (never marking the inquiry replied, and skipping the
+    // manager-only rule for inquiry replies).
+    inqActiveInquiryContext = defaults.inquiry || null;
+
     // Clean/Reset all form fields
     $('#inqComposerTitle').html(defaults.isReply ? '<i class="fa-solid fa-reply"></i> Reply to Inquiry' : '<i class="fa-solid fa-pen-to-square"></i> New Message');
     $('#inqComposeSubject').val(defaults.subject || '');
@@ -439,6 +526,8 @@ function showInqComposeView(defaults) {
     }
     renderRecipientChips('inqCcChipsContainer', 'inqComposeCcInput', inqCcEmails);
     renderRecipientChips('inqBccChipsContainer', 'inqComposeBccInput', inqBccEmails);
+
+    setInqToLocked(!!defaults.isReply);
 
     // Bind inputs
     setupInqChipInput('inqToChipsContainer', 'inqComposeToInput', inqToEmails);
@@ -611,8 +700,8 @@ function renderRecipientChips(containerId, inputId, storageArray) {
         const invalidClass = isValid ? '' : 'inq-recipient-invalid';
         const chipHtml = `
             <span class="inq-recipient-chip ${invalidClass}">
-                <span>${email}</span>
-                <i class="fa-solid fa-xmark inq-chip-remove" data-email="${email}"></i>
+                <span>${inqEsc(email)}</span>
+                <i class="fa-solid fa-xmark inq-chip-remove" data-email="${inqEsc(email).replace(/"/g, '&quot;')}"></i>
             </span>
         `;
         $(chipHtml).insertBefore($input);
@@ -875,6 +964,7 @@ async function openDirectEmailDraft(id) {
                     inqActiveInquiryContext = inqs.inquiries.find(i => i.inquiry_id == email.inquiry_id);
                 }
             }
+            setInqToLocked(!!email.inquiry_id);
 
             $('#inqReadView').hide();
             $('#inqComposeView').css('display', 'flex');
@@ -924,6 +1014,7 @@ window.closeEmailPreviewModal = function() {
 
 function inqCloseDetail() {
     if (inqAutosaveTimer) clearInterval(inqAutosaveTimer);
+    if (inqThreadTimer) { clearTimeout(inqThreadTimer); inqThreadTimer = null; }
     closeAtlDrawer('inqDetailDrawer');
 }
 
@@ -933,6 +1024,7 @@ document.addEventListener('atl:drawerClosed', function(e) {
     currentInqId = null;
     inqActiveDraftId = null;
     if (inqAutosaveTimer) clearInterval(inqAutosaveTimer);
+    if (inqThreadTimer) { clearTimeout(inqThreadTimer); inqThreadTimer = null; }
     $('#inqReadView').hide();
     $('#inqComposeView').hide();
     $('.inq-row').removeClass('inq-row--active');
@@ -1072,8 +1164,9 @@ $(document).on('click', '#inqReadReplyBtn', function() {
     const firstName = (inquiry.sender_name || '').split(' ')[0] || 'there';
     showInqComposeView({
         isReply: true,
+        inquiry: inquiry,
         to: inquiry.sender_email,
-        subject: 'Re: ' + (inquiry.subject || 'Your Inquiry'),
+        subject: 'Re: ' + (inqStored(inquiry.subject) || 'Your Inquiry'),
         body: `<p>Hi ${firstName},</p><p>Thank you for reaching out to us. We appreciate you taking the time to contact us.</p><p><br></p><p>Best Regards,</p><p>Thabiso Mhlongo Management</p>`
     });
 });
@@ -1394,7 +1487,7 @@ async function sendOrScheduleComposedEmail() {
         } else {
             const sendRes = await apiCall('/api/admin/direct-emails/' + draftId + '/send', 'POST');
             if (sendRes && sendRes.success) {
-                window.notificationService.showSuccess('Message sent successfully.');
+                window.notificationService.showSuccess(inqActiveInquiryContext ? 'Reply queued. Its delivery status appears under Conversation on the inquiry.' : 'Message queued for delivery.');
                 if (inqAutosaveTimer) clearInterval(inqAutosaveTimer);
                 inqCloseDetail();
                 loadInquiries(true);

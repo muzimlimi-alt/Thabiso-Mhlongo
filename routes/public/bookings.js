@@ -10,24 +10,26 @@ const {
     bookingRateLimiter
 } = require('../../middleware/rate-limiters');
 const { requireBookingAccessToken } = require('../../middleware/booking-access');
-const { encodeUserHtml } = require('../../lib/html-sanitize');
+const { encodeUserHtml, decodeStoredText } = require('../../lib/html-sanitize');
 const { getEmailFooterContext } = require('../../lib/email-context');
 const { resolveDocsPath, docsWriteDir } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
 const {
     asBookingText, OTP_TTL_MINUTES, OTP_MAX_ATTEMPTS, ACCESS_TOKEN_TTL_MINUTES,
-    generateOtpCode, hashAccessToken, parseBookingIdParam, BOOKING_ID_FORMAT_MESSAGE
+    generateOtpCode, hashAccessToken, parseBookingIdParam, BOOKING_ID_FORMAT_MESSAGE, pricesRevealed
 } = require('../../lib/booking-tracking');
 const { MIN_ADVANCE_HOURS, CURRENT_POLICY_VERSION } = require('../../lib/booking-policy');
 const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-utils');
+const { catalogueUnitPrice } = require('../../lib/service-pricing');
 const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/client-venue');
+const { normaliseClientVat, CLIENT_VAT_MESSAGE } = require('../../lib/business-profile-core');
 const { calculateCancellationRefund } = require('../../lib/cancellation-refund');
 const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
 // The module object is kept as well as the destructured names: the payment-plan notifications are
 // looked up on it at call time, so a missing export degrades to a logged warning, not a crash.
 const bookingNotifications = require('../../lib/booking-notifications');
 const { sendQuoteAcceptedEmail, sendBookingReceivedEmail } = bookingNotifications;
-const { generatePayFastSignature } = require('../../lib/payfast-signature');
+const { generatePayFastSignature, payfastBaseUrl, payfastNotifyBaseUrl } = require('../../lib/payfast-signature');
 const {
     syncBookingToCalendar, checkDateAvailability, hasCalendarConflict, isWithinWorkingHours
 } = require('../../lib/calendar-sync');
@@ -40,6 +42,7 @@ const {
     pickDefaultPreset, writeClientPlanInTx, summaryToFlatObject, describeSummaryRow,
     refreshInvoiceAfterPlanChange, syncContractAfterPlanChange
 } = require('../../lib/payment-plan');
+const eftData = require('../../lib/eft');
 const { dbGet, dbRun } = require('../../lib/db-helpers');
 // Phase 5: MUST stay the exact same singleton module.exports app.js and every other route file
 // import — see lib/db-transaction.js's own header comment.
@@ -55,14 +58,15 @@ const {
 } = require('../../database/repositories/bookings.repository');
 const {
     getInvoiceForTracking, getQuoteVersionInfoForTracking, getLatestQuoteFileForPublicDownload,
-    voidInvoicesForCancelledBookingAsync, markQuotationAcceptedAsync
+    voidInvoicesForCancelledBookingAsync, markQuotationAcceptedAsync, getActiveQuoteForInvoiceGen
 } = require('../../database/repositories/invoices-quotations.repository');
 const {
     getPaymentSchedulesForTracking, getCancellationSummaryForTracking,
     insertCancellationForPublicCancel, cancelPendingPaymentSchedulesAsync,
     getPaymentSchedulesForPayfastInit, getNextPayableScheduleRow, insertPaymentIntent,
-    getPaymentSchedulesForDocument
+    getPaymentSchedulesForDocument, getStandingAdjustmentRows
 } = require('../../database/repositories/finance.repository');
+const { applyAdjustments } = require('../../lib/booking-adjustments');
 const {
     releaseDateHoldsForBookingAsync, getEventByBookingId, demoteEventForCancelledBookingByBookingIdAsync,
     clearEventGoogleCalendarIdAsync
@@ -81,13 +85,14 @@ async function estimateDraftValue(services) {
         if (!ids.length) return 0;
         const placeholders = ids.map(() => '?').join(',');
         const rows = await new Promise(resolve =>
-            db.all(`SELECT id, base_price, default_price FROM services WHERE id IN (${placeholders})`, ids,
+            db.all(`SELECT id, base_price, default_price, price_type FROM services WHERE id IN (${placeholders})`, ids,
                 (err, r) => resolve(err ? [] : (r || []))));
         let total = 0;
         for (const s of services) {
             const row = rows.find(r => r.id === parseInt(s.service_id));
             if (!row) continue;
-            const price = parseFloat(row.base_price != null ? row.base_price : (row.default_price || 0)) || 0;
+            // Fixed-price services only: a range / "from" / enquiry has no amount to estimate with.
+            const price = catalogueUnitPrice(row);
             const qty = parseInt(s.quantity || s.quantity_minutes || 1) || 1;
             total += price * qty;
         }
@@ -353,6 +358,14 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                     getQuoteVersionInfoForTracking(row.id, (qvErr, qv) => {
                             getCancellationSummaryForTracking(row.id, (cErr, cancRow) => {
                                     db.get("SELECT pdf_url, status, sent_to_client_at, signed_by_client_at, signed_by_comedian_at, is_frozen FROM contracts WHERE booking_id = ?", [row.id], async (contractErr, contractRow) => {
+                                        // PRICES: a client only sees amounts once a quotation has been sent. Before
+                                        // then the stored figures are just the working estimate from the catalogue
+                                        // (0 for services priced individually), so they are withheld here, not merely
+                                        // hidden by the page. Computed early: the payment-plan block below carries
+                                        // raw catalogue-estimate cents (PaymentPlanRules' ctx) that must be withheld
+                                        // on exactly the same condition, or a NEW/un-quoted booking leaks its fee
+                                        // through payment_plan.context even though booking.total_amount is null.
+                                        const revealed = pricesRevealed({ status: row.status, quoteVersionCount: qv ? qv.total_versions : 0 });
                                         // Kept for older cached tracker scripts; the plan builder reads the
                                         // deposit percentage from payment_plan.context instead.
                                         const depositPercentage = await getDepositPercentage();
@@ -362,15 +375,24 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                         // rebuilt from the same rows so every row's `locked` flag (paid, by
                                         // money) and `source` agree with that context. Tracking itself must
                                         // never fail because of this, so it falls back to the plain schedule.
+                                        // Withheld entirely before `revealed` — there is nothing to design a plan
+                                        // against yet, and the ctx it carries would otherwise leak the catalogue
+                                        // estimate through payment_plan.context.
                                         let paymentSchedule = schedule || [];
                                         let paymentPlan = null;
-                                        try {
-                                            const planState = await loadPlanState(row);
-                                            paymentPlan = publicPlanState(planState);
-                                            paymentSchedule = toTrackingSchedule(planState);
-                                        } catch (planErr) {
-                                            console.error(`[Track] Booking #${row.id}: payment plan state unavailable:`, planErr.message);
+                                        if (revealed) {
+                                            try {
+                                                const planState = await loadPlanState(row);
+                                                paymentPlan = publicPlanState(planState);
+                                                paymentSchedule = toTrackingSchedule(planState);
+                                            } catch (planErr) {
+                                                console.error(`[Track] Booking #${row.id}: payment plan state unavailable:`, planErr.message);
+                                            }
                                         }
+                                        // Manual EFT (lib/eft.js): the banking details, reference and the client's own proofs - null when EFT is off and they
+                                        // have sent none. A failure here must never stop the booking from loading.
+                                        let eftPanel = null;
+                                        try { eftPanel = await eftData.panelForBooking(row); } catch (eftErr) { console.error('[EFT] Tracking panel failed for booking #' + row.id + ':', eftErr.message); }
                                         // SEC: build the public payload from an explicit allowlist rather than
                                         // spreading the full `bookings` row and denylisting a few gateway fields.
                                         // The denylist previously missed `admin_notes` — a free-text field admins
@@ -386,15 +408,18 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                             event_name: row.event_name,
                                             event_type: row.event_type,
                                             date: row.date,
-                                            quote_amount: row.quote_amount,
-                                            quote_details: row.quote_details,
-                                            quote_expiry_date: row.quote_expiry_date,
+                                            quote_amount: revealed ? row.quote_amount : null,
+                                            quote_details: revealed ? row.quote_details : null,
+                                            quote_expiry_date: revealed ? row.quote_expiry_date : null,
                                             company: row.company,
                                             vat_number: row.vat_number,
-                                            total_amount: row.total_amount,
+                                            billing_address: row.billing_address,
+                                            total_amount: revealed ? row.total_amount : null,
                                             amount_paid: row.amount_paid,
-                                            amount_outstanding: row.amount_outstanding
+                                            amount_outstanding: revealed ? row.amount_outstanding : null
                                         };
+                                        const publicServices = (services || []).map(s => revealed ? s
+                                            : { service_name: s.service_name, pricing_model: s.pricing_model, quantity_minutes: s.quantity_minutes });
 
                                         res.json({
                                             success: true,
@@ -403,11 +428,12 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                             payment_schedule: paymentSchedule,
                                             payment_plan: paymentPlan,
                                             deposit_percentage: depositPercentage,
-                                            services: services || [],
+                                            services: publicServices,
                                             quote_version: qv ? qv.version : null,
                                             quote_version_count: qv ? qv.total_versions : 0,
                                             cancellation: cancRow || null,
-                                            contract: contractRow || null
+                                            contract: contractRow || null,
+                                            eft: eftPanel
                                         });
                                     });
                                 });
@@ -696,13 +722,16 @@ function buildAndSendPfData(row, amt, milestoneDesc, mPaymentId, req, res) {
     try {
         // Derive the public base URL so PayFast's ITN callback always reaches this server.
         // Set BASE_URL in .env for production (e.g. https://thabisomhlongo.com).
-        // When tunnelling locally (ngrok / cloudflared) the forwarded host header is used automatically.
-        const proto = req.get('x-forwarded-proto') || req.protocol;
-        const host  = req.get('x-forwarded-host')  || req.get('host');
-        const baseUrl = (process.env.BASE_URL || `${proto}://${host}`).replace(/\/$/, '');
+        // PAYFAST_BASE_URL overrides it for PayFast only (a local sandbox run: http://localhost:3000 or an ngrok URL), because a
+        // developer's BASE_URL names the live site - and a sandbox notification must never be sent there.
+        // When tunnelling locally (ngrok / cloudflared) the forwarded host header is used automatically if neither is set.
+        const baseUrl = payfastBaseUrl(req);
 
         const isPortal = req.body.return_path === 'portal';
-        const clientName = row.name || 'Client';
+        // The database holds names entity-encoded (O&#x27;Brien, Smith &amp; Sons); PayFast shows what it is sent on its payment page and in the buyer's
+        // receipt e-mail, so it is sent as people wrote it (lib/html-sanitize.js decodeStoredText).
+        const plain = (v) => decodeStoredText(v == null ? '' : String(v));
+        const clientName = plain(row.name) || 'Client';
         const amount = parseFloat(amt);
 
         const pfData = {
@@ -710,13 +739,15 @@ function buildAndSendPfData(row, amt, milestoneDesc, mPaymentId, req, res) {
             merchant_key: process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a',
             return_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success` : `${baseUrl}/?track=${row.id}&payment=success`,
             cancel_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel`  : `${baseUrl}/?track=${row.id}&payment=cancel`,
-            notify_url: `${baseUrl}/api/payment/webhook/payfast`,
+            // PAYFAST_NOTIFY_BASE_URL (a local sandbox run only) sends just the notification through a tunnel; unset, this is baseUrl as before.
+            notify_url: `${payfastNotifyBaseUrl(req)}/api/payment/webhook/payfast`,
             name_first: (clientName.split(' ')[0] || '').substring(0, 100),
             name_last: (clientName.split(' ').slice(1).join(' ') || '').substring(0, 100),
-            email_address: row.email,
+            email_address: plain(row.email),
             m_payment_id: mPaymentId,
             amount: amount.toFixed(2),
-            item_name: `Booking ${row.id} - ${row.event_name || row.event_type || 'Event'} - ${milestoneDesc}`.substring(0, 100).replace(/[^a-zA-Z0-9.\- ]/g, '').replace(/\s+/g, ' ')
+            // (a "%" is kept - "50% Deposit" - now that the signature encodes it the way PayFast does; it used to be stripped to "50 Deposit")
+            item_name: `Booking ${row.id} - ${plain(row.event_name) || plain(row.event_type) || 'Event'} - ${milestoneDesc}`.substring(0, 100).replace(/[^a-zA-Z0-9.\-% ]/g, '').replace(/\s+/g, ' ')
         };
 
         // Remove empty or null values to ensure signature matches submitted form data
@@ -804,8 +835,12 @@ router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, re
             }
 
             // Server-side amount calculation — query payment_schedules for milestone-aware amounts
-            let baseAmt = 0;
-            if (row.quote_amount) {
+            // What is payable is the booking's CURRENT total: the quotation plus any manual adjustment logged since it was issued
+            // (lib/booking-adjustments.js). Taking it from the quotation alone sent a client with a R1,000 credit to PayFast for the
+            // quoted R5,000 and overpaid the booking by the credit. With no adjustment the total IS the quoted total; an older record
+            // with no total falls back to the quotation, exactly as before.
+            let baseAmt = parseFloat(row.total_amount);
+            if (!(baseAmt > 0) && row.quote_amount) {
                 baseAmt = parseFloat(row.quote_amount.replace(/[^0-9.]/g, ''));
             }
             if (isNaN(baseAmt) || baseAmt <= 0) {
@@ -1085,8 +1120,17 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
 
     // Client-supplied and written straight to bookings.vat_number, which the admin panel renders.
     // Same treatment as every other public free-text field: bounded and output-encoded.
-    const vat_number = asBookingText(req.body.vat_number);
+    let vat_number = asBookingText(req.body.vat_number);
     if (vat_number.length > 30) return res.status(400).json({ success: false, message: 'VAT number must be under 30 characters.' });
+    // A customer VAT number is printed on the tax invoice, so a malformed one is refused here instead of reaching SARS-facing paperwork.
+    const cleanVat = normaliseClientVat(vat_number);
+    if (cleanVat === null) return res.status(400).json({ success: false, message: CLIENT_VAT_MESSAGE });
+    vat_number = cleanVat;
+
+    // Same treatment, for the address a full tax invoice over R5,000 needs (VAT Act s20) — advised by
+    // lib/business-profile-core.js taxInvoiceAdvice(), never required to accept the quote.
+    const billing_address = asBookingText(req.body.billing_address);
+    if (billing_address.length > 300) return res.status(400).json({ success: false, message: 'Billing address must be under 300 characters.' });
 
     const bookingId = parseInt(req.params.id, 10);
     const clientIp = req.ip || 'unknown';
@@ -1137,9 +1181,10 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
                     `UPDATE bookings SET
                             status = CASE WHEN COALESCE(amount_paid, 0) > 0 THEN 'CONFIRMED' ELSE 'ACCEPTED' END,
                             accepted_at = CURRENT_TIMESTAMP, acceptance_ip = ?,
-                            acceptance_agreed_at = CURRENT_TIMESTAMP, vat_number = COALESCE(?, vat_number)
+                            acceptance_agreed_at = CURRENT_TIMESTAMP, vat_number = COALESCE(?, vat_number),
+                            billing_address = COALESCE(?, billing_address)
                      WHERE id = ? AND status = 'QUOTED'`,
-                    [clientIp, encodeUserHtml(vat_number) || null, bookingId]
+                    [clientIp, encodeUserHtml(vat_number) || null, encodeUserHtml(billing_address) || null, bookingId]
                 );
                 if (upd.changes === 0) {
                     await dbRun("ROLLBACK").catch(() => {});
@@ -1156,6 +1201,20 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
                 // The payment plan. F3: it must exist before generateInvoice() reads payment_schedules
                 // for the PDF, so it is written in this transaction, from state re-read inside it.
                 //
+                // The total this plan must add up to: the quote being accepted (quote_amount, else
+                // total_amount), adjusted for any manual credit/debit logged since it was issued — the
+                // invoice generateInvoice() renders right after this carries those same adjustments
+                // (lib/booking-adjustments.js), so the plan the client is given must match that figure,
+                // not the raw quoted total. With none logged this is exactly the quoted total, as before;
+                // a failed lookup falls back to the quoted total.
+                let totalAmount = quotedTotal || parseFloat(row.total_amount) || 0;
+                try {
+                    const standing = await getActiveQuoteForInvoiceGen(bookingId);
+                    totalAmount = applyAdjustments(totalAmount, await getStandingAdjustmentRows(bookingId, standing ? standing.created_at : null)).total;
+                } catch (adjErr) {
+                    console.error(`[Accept-Quote] Adjustments lookup failed for booking #${bookingId}; using the quoted total:`, adjErr.message);
+                }
+
                 // Paid milestones that survived a re-quote stay locked (decided by money: what
                 // bookings.amount_paid covers, walked in the payment waterfall's order) and the plan
                 // covers only the rest; "locked" rows count toward the 4-payment limit.
@@ -1166,12 +1225,12 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
                 //     before.
                 //   - not sent, nothing unpaid: the ready-made plan (installment_count payments, else
                 //     fewer), which satisfies the same rules.
-                // The total is the quote being accepted (quote_amount, else total_amount), exactly what
-                // this route has always scheduled, read fresh so the plan matches what is committed.
+                // The total passed in (totalAmount, adjustment-aware above) overrides buildPlanContext's
+                // own quote_amount/total_amount read — read fresh so the plan matches what is committed.
                 // Invariant (checked by writeClientPlanInTx; a mismatch rolls everything back):
                 // SUM(expected_amount) over live (non-superseded, non-cancelled) rows == that total.
                 const fresh = await dbGet("SELECT * FROM bookings WHERE id = ?", [bookingId]);
-                const planCtx = await buildPlanContext(fresh, 'accept', await loadLiveRows(bookingId));
+                const planCtx = await buildPlanContext(fresh, 'accept', await loadLiveRows(bookingId), { totalAmount });
                 let planWritten = false;
                 if (milestones) {
                     const check = PaymentPlanRules.validatePlan(planCtx, milestones);
@@ -1508,6 +1567,7 @@ router.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (re
     content_notes = asBookingText(content_notes);
     heard_about = asBookingText(heard_about);
     message = asBookingText(message);         vat_number = asBookingText(vat_number);
+    { const cv = normaliseClientVat(vat_number); if (cv === null) return res.status(400).json({ success: false, message: CLIENT_VAT_MESSAGE }); vat_number = cv; }
     venuePlaceId = asBookingText(venuePlaceId);
     venue_state = asBookingText(venue_state); venue_postal_code = asBookingText(venue_postal_code);
     // Coordinates are the one non-text venue field — validated, not just length-capped. Absent or
@@ -1686,7 +1746,9 @@ router.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (re
                 qtyMinutes = 1; // Default to 1 unit for flat fee if not specified
             }
 
-            const unitPrice = parseFloat(srv.base_price != null ? srv.base_price : (srv.default_price ?? 0));
+            // Only a fixed catalogue price is snapshotted; range / from / enquire services carry NO amount
+            // (0) until an administrator quotes them — never their minimum, maximum or midpoint.
+            const unitPrice = catalogueUnitPrice(srv);
             const lineTotal = isFlat ? unitPrice : (unitPrice * qtyMinutes); 
             
             calculatedBaseScope += lineTotal;

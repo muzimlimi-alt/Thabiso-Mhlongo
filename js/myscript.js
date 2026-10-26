@@ -109,6 +109,7 @@ $(function() {
     });
 
     // 3. Form Validation and Submission (Nodemailer Backend)
+    var contactFormStartedAt = Date.now();
     $('#contactForm').on('submit', async function(e) {
         e.preventDefault();
         
@@ -157,14 +158,8 @@ $(function() {
 
         $btn.prop('disabled', true).html('<i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i>Sending...');
 
-        // Fetch config to check if an override delivery email was saved by the admin
-        var adminEmail = 'thabiso@example.com'; 
-        var contactData = localStorage.getItem('tm_contact_data');
-        if (contactData) {
-            var parsed = JSON.parse(contactData);
-            if (parsed.email) adminEmail = parsed.email;
-        }
-
+        // The server decides where the message goes (Admin > Contact Details, else the booking mailbox); the browser sends no recipient.
+        // contact_hp is the hidden spam-trap field (empty for people); form_started_at lets the server spot a submit no human could make.
         var payload = {
             name: $('#contactName').val().trim(),
             email: em,
@@ -172,8 +167,9 @@ $(function() {
             category: $('#contactCategory').val() || 'General Inquiry',
             subject: $('#contactSubject').val().trim(),
             message: $('#contactMessage').val().trim(),
-            recipientEmail: adminEmail,
-            popia_consent: $('#contactPopia').is(':checked')
+            popia_consent: $('#contactPopia').is(':checked'),
+            contact_hp: $('#contactHp').val() || '',
+            form_started_at: contactFormStartedAt
         };
 
         try {
@@ -182,17 +178,21 @@ $(function() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
-            const result = await response.json();
-            
+            const result = await response.json().catch(function() { return {}; });
+
             if (result.success) {
-                window.notificationService.showSuccess('Your message has been sent. Thank you for getting in touch.');
+                window.notificationService.showSuccess((result.message || 'Your message has been sent. Thank you for getting in touch.') + (result.reference ? ' Your reference is ' + result.reference + '.' : ''));
                 this.reset();
+                contactFormStartedAt = Date.now();
             } else {
-                throw new Error(result.message || 'Server rejected message.');
+                // The server's reason (invalid input, too many messages, could not save) only ever describes the visitor's own input.
+                var rejected = new Error(result.message || 'Server rejected message.');
+                rejected.fromServer = !!result.message;
+                throw rejected;
             }
         } catch (err) {
             console.error("Email Error:", err);
-            window.notificationService.showError('Could not send email. Please try again later or contact us directly.');
+            window.notificationService.showError(err && err.fromServer ? err.message : 'Could not send email. Please try again later or contact us directly.');
         }
 
         // Restore button state
@@ -561,7 +561,7 @@ $(function() {
                 var safeVenue = item.venue_name ? item.venue_name.replace(/"/g, '&quot;') : '';
                 var safePoster = item.poster_image_path ? item.poster_image_path : 'images/events/1.jpg';
 
-                var mediaHtml = `<img src="${safePoster}" alt="${safeTitle}" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">`;
+                var mediaHtml = `<img src="${safePoster}" alt="${safeTitle}" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">`;
 
                 var encodedPayload = encodeURIComponent(JSON.stringify(item));
 
@@ -1090,7 +1090,7 @@ $(function() {
         var isMonogram = !item.image_path;
         var inner = isMonogram
             ? (item.name || '?').trim().charAt(0).toUpperCase()
-            : '<img src="' + item.image_path + '" alt="' + safeName + '" onerror="window.ctThumbFallback(this)">';
+            : '<img src="' + item.image_path + '" alt="' + safeName + '" loading="lazy" onerror="window.ctThumbFallback(this)">';
         return '<div class="ct-image-slot' + (isMonogram ? ' ct-monogram' : '') + '" data-pos="' + pos + '">' + inner + '</div>';
     }
 
@@ -1749,8 +1749,22 @@ document.addEventListener("DOMContentLoaded", function() {
                 var $dd = $('#bkServiceDropdown');
                 if (!$dd.length) return;
                 $dd.empty().append('<option value="">&#8212; Quick add from catalogue &#8212;</option>');
+                // Grouped as on the rate card (the API already sorts group by group); the Corporate & Events group
+                // carries the "Most Booked" mark. NO prices are sent to or shown on the public site - a client first
+                // sees an amount in the quotation.
+                var groups = [], byLabel = {};
                 services.forEach(function(s) {
-                    $dd.append('<option value="' + s.id + '">' + s.name + '</option>');
+                    var label = s.service_group_label || 'Add-ons & extras';
+                    if (!byLabel[label]) { byLabel[label] = { label: label, featured: false, items: [] }; groups.push(byLabel[label]); }
+                    if (s.is_featured) byLabel[label].featured = true;
+                    byLabel[label].items.push(s);
+                });
+                groups.forEach(function(g) {
+                    var $og = $('<optgroup>').attr('label', g.label + (g.featured ? ' — Most Booked' : ''));
+                    g.items.forEach(function(s) {
+                        $og.append('<option value="' + s.id + '">' + s.name + '</option>');
+                    });
+                    $dd.append($og);
                 });
 
 
@@ -1856,7 +1870,8 @@ document.addEventListener("DOMContentLoaded", function() {
             });
         }
 
-        function bkAddServiceRow(svcId, svcName, unitPrice, qty, model, minQty, unit, svcMeta) {
+        // No price is passed in or stored on the row: the public site never knows what a service costs.
+        function bkAddServiceRow(svcId, svcName, qty, model, minQty, unit, svcMeta) {
             model   = model   || 'flat_fee';
             minQty  = minQty  || 1;
             unit    = unit    || '';
@@ -1904,7 +1919,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 : '';
 
             var $row = $(
-                '<tr data-svc-id="' + svcId + '" data-unit-price="' + unitPrice + '" data-model="' + model + '" data-min-qty="' + minQty + '" data-perf-mins="' + perfMins + '">'
+                '<tr data-svc-id="' + svcId + '" data-model="' + model + '" data-min-qty="' + minQty + '" data-perf-mins="' + perfMins + '">'
                 + '<td style="padding:10px 12px; border:none; color:#ddd;">'
                 +   '<div style="display:flex; align-items:center;">'
                 +     '<i class="fa-solid fa-grip-lines" style="color:#333; margin-right:10px; font-size:10px;"></i>'
@@ -1967,7 +1982,7 @@ document.addEventListener("DOMContentLoaded", function() {
             } else {
                 startQty = 1;
             }
-            bkAddServiceRow(svc.id, svc.name, parseFloat(svc.default_price) || 0, startQty, svc.pricing_model, svc.min_quantity, svc.display_unit, svc);
+            bkAddServiceRow(svc.id, svc.name, startQty, svc.pricing_model, svc.min_quantity, svc.display_unit, svc);
             $dd.val('');
             $('#bkSvcPreview').fadeOut(200);
             bkSyncDurationSelect();
@@ -2432,6 +2447,9 @@ document.addEventListener("DOMContentLoaded", function() {
         var _venueCache = {};      // lower-cased query -> predictions
         var _venueReqSeq = 0;      // bumped on every keystroke; a response for an older seq is ignored
         var _venueXhr = null;
+        // Google billing session (2026-10 Places audit): one token covers the searches for a venue plus the
+        // details lookup of the one picked, then a fresh token starts the next search. js/shared/places-client.js.
+        var _venueSession = (window.TMPlaces && window.TMPlaces.newSessionToken) ? window.TMPlaces.newSessionToken() : '';
 
         function venueStatus(html, kind) {
             var $s = $('#venueStatus');
@@ -2499,12 +2517,14 @@ document.addEventListener("DOMContentLoaded", function() {
 
         function venueChoose(p, main) {
             var $input = $('#bookLocation');
+            var session = _venueSession;
+            if (window.TMPlaces && window.TMPlaces.newSessionToken) _venueSession = window.TMPlaces.newSessionToken();   // this pick ends the session
             venueClose();
             venueStatus('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Getting the address…');
             $.ajax({
                 url: '/api/public/places/details',
                 bypassInterceptor: true,   // failures are shown inline (venueStatus), not as an extra toast
-                data: { place_id: p.place_id },
+                data: session ? { place_id: p.place_id, sessionToken: session } : { place_id: p.place_id },
                 success: function(detailData) {
                     venueStatus('');
                     if (!detailData || !detailData.result) {
@@ -2575,7 +2595,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     _venueXhr = $.ajax({
                         url: '/api/public/places/autocomplete',
                         bypassInterceptor: true,   // failures are shown inline (venueStatus), not as an extra toast
-                        data: { input: q },
+                        data: _venueSession ? { input: q, sessionToken: _venueSession } : { input: q },
                         success: function(data) {
                             if (seq !== _venueReqSeq) return;          // the text has moved on
                             var predictions = (data && data.predictions) || [];
@@ -2749,7 +2769,6 @@ document.addEventListener("DOMContentLoaded", function() {
                     draft.services.push({
                         id:         svcId,
                         name:       catalogueEntry.name || $row.find('td:first div div div:first').text().trim(),
-                        unitPrice:  parseFloat($row.data('unit-price')) || 0,
                         qty:        parseInt($row.find('.bk-svc-qty').val()) || 1,
                         model:      $row.data('model') || 'flat_fee',
                         minQty:     parseInt($row.data('min-qty')) || 1,
@@ -2871,7 +2890,6 @@ document.addEventListener("DOMContentLoaded", function() {
                             if (!cat) return;
                             services.push({
                                 id: cat.id, name: cat.name,
-                                unitPrice: parseFloat(cat.base_price != null ? cat.base_price : cat.default_price) || 0,
                                 qty: parseInt(s.quantity) || 1, model: cat.pricing_model || 'flat_fee',
                                 minQty: parseInt(cat.min_quantity) || 1, unit: cat.display_unit || '',
                                 meta: {
@@ -3409,24 +3427,8 @@ $bookingForm.on('blur', '#bookName', function() {
             isSubmitting = true;
             $('#bookingFormError').hide();
 
-            // Re-fetch service prices and warn if any changed since the form was opened
-            try {
-                var freshSvcs = await fetch('/api/public/services').then(function(r) { return r.json(); });
-                if (Array.isArray(freshSvcs)) {
-                    var priceChanged = freshSvcs.some(function(s) {
-                        var cached = _bkServicesCatalogue.find(function(c) { return c.id === s.id; });
-                        return cached && parseFloat(cached.default_price) !== parseFloat(s.default_price);
-                    });
-                    if (priceChanged) {
-                        _bkServicesCatalogue = freshSvcs;
-                        isSubmitting = false;
-                        $submitBtn.prop('disabled', false);
-                        $label.text('Submit Booking Request');
-                        window.notificationService.showWarning('Prices Updated', 'Service prices have changed since you opened this form. Please review the updated total before submitting.');
-                        return;
-                    }
-                }
-            } catch(priceErr) { /* non-blocking — proceed with cached prices */ }
+            // (There used to be a "prices changed since you opened this form" check here. The public site no longer
+            // knows or shows any price - the quotation is where a client first sees one - so there is nothing to compare.)
 
             var srvItems = [];
             $('#bkServicesTableBody tr').each(function() {
@@ -3685,11 +3687,15 @@ $bookingForm.on('blur', '#bookName', function() {
         // C1: when a visitor books from a specific service card, pre-add the matching
         // catalogue service so they don't re-pick it. Best-effort keyword match; safe
         // no-op when there's no confident match (they just add manually, as today).
+        // Matches are by service name. Each homepage card is now a whole rate-card CATEGORY (club, corporate, private functions,
+        // writing, acting / voice-over / brand) and every category holds several tiers or services, so no card has ONE confident
+        // match: none pre-selects anything and visitors pick from the grouped list. Listed so a card's source is recognised.
         var _bkSourceKeywords = {
-            'service-standup':   ['stand-up', 'standup', 'stand up', 'stand'],
-            'service-mc-host':   ['mc /', 'mc/', 'hosting', 'compere', 'master of cere', ' host'],
-            'service-tv-film':   ['tv', 'podcast', 'film', 'present', 'acting', 'screen'],
-            'service-voiceover': ['voice', 'narration']
+            'service-club-theatre':       [],
+            'service-corporate-events':   [],
+            'service-private-functions':  [],
+            'service-writing-creative':   [],
+            'service-acting-voice-brand': []
         };
         function bkPreselectServiceFromSource() {
             try {
@@ -3707,7 +3713,7 @@ $bookingForm.on('blur', '#bookName', function() {
                 var startQty = svc.pricing_model === 'per_minute'
                     ? (perfMins || parseInt(svc.min_quantity) || 60)
                     : (svc.pricing_model === 'per_hour' ? Math.ceil((perfMins || 60) / 60) : 1);
-                bkAddServiceRow(svc.id, svc.name, parseFloat(svc.default_price) || 0, startQty, svc.pricing_model, svc.min_quantity, svc.display_unit, svc);
+                bkAddServiceRow(svc.id, svc.name, startQty, svc.pricing_model, svc.min_quantity, svc.display_unit, svc);
                 if (typeof bkSyncDurationSelect === 'function') bkSyncDurationSelect();
             } catch (e) { /* non-fatal — visitor selects manually */ }
         }
@@ -3787,7 +3793,6 @@ $bookingForm.on('blur', '#bookName', function() {
                                 bkAddServiceRow(
                                     s.id,
                                     s.name,
-                                    parseFloat(s.unitPrice) || 0,
                                     parseInt(s.qty) || 1,
                                     s.model || 'flat_fee',
                                     parseInt(s.minQty) || 1,

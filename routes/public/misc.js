@@ -1,24 +1,15 @@
 const express = require('express');
-const path = require('path');
 const moment = require('moment-timezone');
 const geoip = require('geoip-lite');
 const UAParser = require('ua-parser-js');
 const db = require('../../database');
 const {
-    ipRateLimiter, bookingRateLimiter, analyticsTrackLimiter, sitemapRateLimiter
+    ipRateLimiter, contactRateLimiter, analyticsTrackLimiter, sitemapRateLimiter
 } = require('../../middleware/rate-limiters');
+const multer = require('multer');
 const { upload } = require('../../lib/uploads');
-const { PROJECT_ROOT } = require('../../lib/runtime-paths');
 const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-utils');
-const { sanitizeEmailInput } = require('../../lib/validation');
-const { encodeUserHtml } = require('../../lib/html-sanitize');
-const { getEmailFooterContext } = require('../../lib/email-context');
-const bannerRegistry = require('../../js/bannerRegistry');
-const emailComponents = require('../../js/emailComponents');
-const { sendEmail } = require('../../js/emailService');
-const { getSenderEmail } = require('../../lib/smtp-config');
-const { insertLegacyBookingFromContactForm } = require('../../database/repositories/bookings.repository');
-const { insertInquiry } = require('../../database/repositories/inquiries.repository');
+const { submitContact } = require('../../lib/contact-intake');
 const {
     getActiveDateHoldsForIcsFeed, getEventsForSitemap
 } = require('../../database/repositories/calendar.repository');
@@ -79,11 +70,39 @@ router.post('/upload', (req, res, next) => {
         return res.status(401).json({ success: false, message: 'Unauthorized. Please log in.' });
     }
     next();
-}, upload.single('file'), (req, res) => {
+}, (req, res, next) => {
+    // Run multer here rather than as plain middleware: /upload isn't under /api/, so a rejected file (wrong type, too big)
+    // fell through to the global error handler, which answers non-API paths with the error.html PAGE. The admin's
+    // fetch(...).json() then choked on HTML and every rejection showed as "Network error during upload".
+    upload.single('file')(req, res, (err) => {
+        if (!err) return next();
+        let status = 400;
+        let message = err.message || 'Upload failed.';
+        if (err.code === 'LIMIT_FILE_SIZE') message = 'That file is too large. The limit is 15 MB.';
+        else if (err.code === 'UNSUPPORTED_FILE_TYPE') status = 415;
+        else if (!(err instanceof multer.MulterError)) { status = 500; message = 'Upload failed on the server. Please try again.'; console.error('upload failed:', err); }
+        res.status(status).json({ success: false, message });
+    });
+}, async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ success: false, message: 'No file uploaded' });
     }
-    
+
+    // Shrink oversized photos before the public site can serve them (bandwidth). Same name and format, so the
+    // returned path is unchanged; any failure leaves the original upload in place. Accolade/branding files are
+    // left alone (certificates, logos and the favicon must stay pixel-exact).
+    if (req.body.section !== 'branding' && req.body.section !== 'accolades') {
+        try {
+            const objectStorage = require('../../lib/object-storage');
+            const { optimizeImageBuffer } = require('../../lib/image-optimize');
+            const original = await objectStorage.readFile(req.file.path);
+            const result = await optimizeImageBuffer(original, req.file.filename);
+            if (result.optimised) await objectStorage.putBuffer(objectStorage.keyForDiskPath(req.file.path), result.buffer, req.file.mimetype);
+        } catch (err) {
+            console.error('image optimisation skipped:', err.message);
+        }
+    }
+
     // Construct the relative path string that the website expects (e.g. "images/gallery/photo.jpg")
     let folderPath = 'images/';
     const section = req.body.section;
@@ -190,133 +209,13 @@ router.post('/api/public/analytics/track', analyticsTrackLimiter, (req, res) => 
     }
 });
 
-router.post('/send-email', ipRateLimiter, bookingRateLimiter, async (req, res) => {
-    console.log('[DEBUG] /send-email body:', req.body);
-    let { name, email, cell, category, subject, message, recipientEmail, popia_consent } = req.body;
-
-    
-    // Sanitize subject and email to prevent header injection
-    name = sanitizeEmailInput(name);
-    email = sanitizeEmailInput(email);
-    subject = sanitizeEmailInput(subject);
-    recipientEmail = sanitizeEmailInput(recipientEmail);
-
-    if (!name || !email || !message) {
-        return res.status(400).json({ success: false, message: 'Name, email, and message are required.' });
-    }
-    if (subject && subject.trim().length < 3) {
-        return res.status(400).json({ success: false, message: 'Subject must be at least 3 characters.' });
-    }
-
-    // Manual XSS Sanitization for Message (Strip HTML Tags)
-    message = message.replace(/<[^>]*>?/gm, '');
-
-
-    if (!popia_consent) {
-        return res.status(400).json({ success: false, message: 'POPIA consent is required to submit an inquiry.' });
-    }
-
-    // Attempt to dynamically resolve the logo path to embed it.
-    // Phase 5 (HOUSEKEEPING-NOTES.md): __dirname here now resolves relative to this file's own
-    // directory (routes/public/), not the project root as it did in app.js — same __dirname-
-    // relative-path hazard caught in earlier route moves. Fixed via PROJECT_ROOT
-    // (lib/runtime-paths.js). This variable is unused below (dead even in the original app.js), so
-    // the fix has no behavioural effect either way — applied anyway for consistency, matching the
-    // same defensive fix already made to sendBookingReceivedEmail's identical dead logoFilePath.
-    const logoFilePath = path.join(PROJECT_ROOT, 'images', 'logo4.png');
-
-    // 0. FETCH CONFIGURED DELIVERY EMAIL FROM DB
-    db.get("SELECT email FROM contact_info ORDER BY quote_id ASC LIMIT 1", [], async (err, contactRow) => {
-        let configuredReceiverEmail = getSenderEmail() || 'admin@thabisomhlongo.com';
-        if (!err && contactRow && contactRow.email) {
-            configuredReceiverEmail = contactRow.email;
-        }
-        
-        // Use explicitly forwarded recipientEmail from body, OR the DB configured one
-        const receiver = recipientEmail || configuredReceiverEmail;
-
-        // 1. SAVE TO DATABASE
-        const isBooking = category && category.toLowerCase().includes('booking');
-        
-        if (isBooking) {
-            // We lack specific date/event_type from the current frontend form, so we use placeholders or derivations
-            insertLegacyBookingFromContactForm(name, email, cell, category, `${subject}\n\n${message}`, function(err) {
-                    if (err) console.error("DB Insert Error (Bookings):", err);
-                });
-        } else {
-            const ip_address = req.ip || req.connection.remoteAddress || '';
-            const user_agent = req.get('User-Agent') || '';
-            const routing_path = req.get('Referrer') || req.originalUrl || '';
-            
-            insertInquiry(encodeUserHtml(name), email, receiver, cell || '', category || 'Contact Form', encodeUserHtml(subject) || 'No Subject', encodeUserHtml(message), routing_path, ip_address, user_agent, function(err) {
-                    if (err) console.error("DB Insert Error (Inquiries):", err);
-                });
-        }
-
-    // 2. DISPATCH EMAIL
-    const inquiryRows = [
-        { label: 'Name', value: name, mono: false },
-        { label: 'Email', rawValue: `<a href="mailto:${email}" style="color:#D4AF37; text-decoration:none;">${email}</a>` },
-        { label: 'Phone', rawValue: cell ? `<a href="tel:${cell}" style="color:#D4AF37; text-decoration:none;">${cell}</a>` : 'N/A' },
-        { label: 'Category', value: category || 'General Inquiry', mono: false, highlight: true },
-        { label: 'Subject', value: subject || 'No Subject', mono: false }
-    ];
-
-    const emailBody = emailComponents.renderSystemEmail({
-        preheaderText: `New website inquiry: ${subject || 'No Subject'}.`,
-        category: 'Contact & Support',
-        severity: 'action',
-        leadFact: `You have received a new contact message through the Thabiso Mhlongo official website.`,
-        bodyHtml:
-            `<p style="margin:14px 0 6px; color:#D4AF37; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.7px;">Message Body</p>` +
-            `<div style="padding:16px; background:#1A1A1A; border-left:3px solid #D4AF37; white-space:pre-wrap; color:#E6E6E6; font-size:14px; line-height:1.6;">${message.replace(/\n/g, '<br>')}</div>` +
-            `<p style="margin:16px 0 0; color:#707070; font-size:11px; text-align:center;">This email was securely dispatched and logged in the CRM database.</p>`,
-        cards: [{ rows: inquiryRows }]
+// Public Contact form. All the work (validation, spam traps, duplicate and per-address limits, persisting the inquiry BEFORE any e-mail,
+// server-decided recipients, queued notification + visitor receipt) lives in lib/contact-intake.js; see its header.
+router.post('/send-email', ipRateLimiter, contactRateLimiter, async (req, res) => {
+    const result = await submitContact({
+        body: req.body, ip: req.ip || req.connection.remoteAddress || '', userAgent: req.get('User-Agent') || '', referrer: req.get('Referrer') || ''
     });
-
-    try {
-        // 1. Notification to Admin
-        await sendEmail({
-            to: receiver,
-            subject: `Website Inquiry: ${subject || 'No Subject'}`,
-            htmlContent: emailBody,
-            preWrapped: true,
-            replyTo: email, // Allow admin to reply directly to the visitor
-            titleOverride: 'New Website Inquiry',
-            trigger_event: 'Contact Form: Admin Notification'
-        });
-
-        // 2. Receipt to Visitor
-        const { socialLinks: contactSocialLinks } = await getEmailFooterContext();
-        const contactBanner = await bannerRegistry.resolveBanner('contact_auto_reply');
-        const visitorBody = emailComponents.renderPremiumEmail({
-            preheaderText: `We've received your message — thanks for reaching out, ${name}!`,
-            bannerSrc: contactBanner?.src, bannerAlt: contactBanner?.alt, subtitle: contactBanner?.subtitle,
-            headline: contactBanner?.headline || "We've Received Your Message",
-            greeting: `Hi ${name},`,
-            bodyHtml:
-                `Thank you for reaching out to Thabiso Mhlongo Management. We have successfully received your inquiry regarding <strong style="color:#D4AF37;">"${subject || 'General Inquiry'}"</strong> and our team will review it shortly.` +
-                `<p style="margin:10px 0 0; color:#E6E6E6;">In the meantime, feel free to follow Thabiso on social media for the latest updates and tour dates.</p>` +
-                `<p style="margin:18px 0 0; color:#B0B0B0;">Stay funny,<br><span style="font-family:'Cormorant Garamond',Georgia,serif; font-size:18px; color:#D4AF37;">Thabiso Mhlongo Management</span></p>`,
-            socialLinks: contactSocialLinks
-        });
-
-        await sendEmail({
-            to: email,
-            subject: `Thank you for your message, ${name}!`,
-            htmlContent: visitorBody,
-            preWrapped: true,
-            titleOverride: "We've Received Your Message!",
-            trigger_event: 'Contact Form: Visitor Receipt'
-        });
-
-        console.log('Inquiry and Receipt sent successfully via Unified Service');
-        res.json({ success: true, message: 'Form submitted and confirmation sent!' });
-    } catch (error) {
-        console.error('Error in contact form dispatch:', error);
-        res.status(500).json({ success: false, message: 'Server error during dispatch.' });
-    }
-    }); // End DB Query Callback
+    res.status(result.status).json(result.body);
 });
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): the entire Advancing Pack feature (all 12 routes plus

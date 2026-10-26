@@ -409,6 +409,57 @@ $(document).on('click', '#cancelEventConfirmBtn', async function() {
 // single editing surface for both creating and updating events, mirroring the Banner Library's
 // drawer-only pattern (openBnrCreateDrawer/openBnrEditDrawer above). No inline accordion.
 
+// ---- Google Calendar follows the connection ----
+// The connection itself is set up under Bookings > Calendar (js/admin/google-calendar.js); this only reads its status so the form never offers a sync that cannot happen.
+var _gcalStatus = null, _gcalStatusAt = 0;
+function evtGcalStatus(force) {
+    if (!force && _gcalStatus && Date.now() - _gcalStatusAt < 30000) return Promise.resolve(_gcalStatus);
+    return fetch('/api/admin/google-calendar', { credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && d.success) { _gcalStatus = d; _gcalStatusAt = Date.now(); } return _gcalStatus; })
+        .catch(function () { return _gcalStatus; });
+}
+// Google's "open this event" address needs the event id AND the calendar id together (base64, no padding). The raw id on its own opens nothing.
+function evtGcalViewUrl(eventId) {
+    var acct = _gcalStatus && _gcalStatus.account;
+    if (!acct) return 'https://calendar.google.com/calendar/r';
+    return 'https://calendar.google.com/calendar/event?eid=' + btoa(eventId + ' ' + acct).replace(/=+$/, '');
+}
+function evtApplyGcalState() {
+    return evtGcalStatus().then(function (st) {
+        var $cb = $('#eventsGcalSync');
+        if (!$cb.length) return;
+        var $hint = $('#eventsGcalHint');
+        if (!$hint.length) $hint = $('<div id="eventsGcalHint" role="status" style="display:none;margin:-4px 0 12px;padding:8px 12px;border-radius:6px;font-size:12px;border:1px solid var(--atl-line);color:var(--atl-muted);"></div>').insertAfter($cb.parent());
+        if (!st) { $hint.hide(); return; }   // status unavailable: leave the form as it was
+        var gid = $('#eventsGcalLink').data('gid');
+        if (gid) $('#eventsGcalLink').attr('href', evtGcalViewUrl(gid));
+        if (!st.connected) {
+            $cb.prop('checked', false).prop('disabled', true);
+            $hint.empty().css('border-color', 'var(--atl-line)').text("Google Calendar isn't connected, so this event won't be copied to it. ");
+            if (st.canManage) $hint.append($('<a href="#" id="eventsGcalSetup" style="color:var(--atl-amber);text-decoration:underline;">Set up Google Calendar</a>'));
+            else $hint.append(document.createTextNode('An administrator can connect it.'));
+            $hint.show();
+        } else {
+            $cb.prop('disabled', false);
+            if (st.sync && st.sync.healthy === false && st.sync.lastError) $hint.text('Google Calendar is not answering right now: ' + st.sync.lastError).css('border-color', 'var(--atl-orange)').show();
+            else $hint.hide();
+        }
+    });
+}
+$(document).on('click', '#eventsGcalSetup', function (e) {
+    e.preventDefault();
+    closeAtlDrawer('evtDrawer');
+    if (window.admNav && window.admNav.go) window.admNav.go('calendarAdmin', { tab: 'calPanelSettings' });
+    else if (window.switchTab) window.switchTab('calendarAdmin');
+});
+// A save went through but Google did not take it: say why, in the words the sync recorded (no technical text, no credentials).
+function evtGcalFailureToast(done) {
+    return evtGcalStatus(true).then(function (st) {
+        window.notificationService.showError(done + ', but Google Calendar sync failed' + (st && st.sync && st.sync.lastError ? ': ' + st.sync.lastError : '.'));
+    });
+}
+
 function applyEventToEditor(item) {
     $('#eventsId').val(item.event_id);
     $('#eventsTitle').val(item.event_title || '');
@@ -431,6 +482,10 @@ function applyEventToEditor(item) {
     }
 
     $('#eventsVenue').val(item.venue_name || '');
+    // Remember the venue this event is already linked to: the edit form never re-loads its Google place, so a
+    // save that didn't pick a new place used to send no venue at all and the update cleared events.venue_id.
+    // It is kept only while the venue name is unchanged (see the submit handler).
+    $('#eventsVenue').data('origVenueId', item.venue_id || null).data('origVenueName', item.venue_name || '');
     $('#eventsVenueMapLink').val(item.venue_map_link || '');
     $('#eventsCapacity').val(item.event_capacity || '');
     $('#eventsTicketUrl').val(item.ticket_sales_link || '');
@@ -474,9 +529,10 @@ function applyEventToEditor(item) {
     }
 
     if (item.google_calendar_event_id) {
-        $('#eventsGcalLink').attr('href', 'https://calendar.google.com/calendar/r/eventedit/' + item.google_calendar_event_id);
+        $('#eventsGcalLink').data('gid', item.google_calendar_event_id).attr('href', evtGcalViewUrl(item.google_calendar_event_id));
         $('#eventsGcalLinkBadge').show();
     } else {
+        $('#eventsGcalLink').removeData('gid');
         $('#eventsGcalLinkBadge').hide();
     }
     $('#eventsGcalSync').prop('checked', true);
@@ -499,6 +555,9 @@ function applyEventToEditor(item) {
 function resetEventForm() {
     $('#eventsForm')[0].reset();
     $('#eventsId').val('');
+    $('#eventsVenue').removeData('origVenueId').removeData('origVenueName');
+    // form.reset() does not clear hidden inputs - drop the last picked place (see clearEventPlaceFields).
+    if (typeof window.clearEventPlaceFields === 'function') window.clearEventPlaceFields();
     $('#eventsFallbackUrl').val('');
     // form.reset() only touches native form controls, not this preview <img>/<div>.
     $('#evtPosterPreview').hide(); $('#evtPosterPreviewImg').attr('src', '');
@@ -518,6 +577,7 @@ function resetEventForm() {
 window.openEvtCreateDrawer = function() {
     resetEventForm();
     openAtlDrawer('evtDrawer');
+    evtApplyGcalState();
     $('#eventsTitle').focus();
 };
 $('#eventsAddNewBtn').on('click', function() { window.openEvtCreateDrawer(); });
@@ -530,6 +590,7 @@ window.openEvtEditDrawer = function(eventId) {
     resetEventForm();
     openAtlDrawer('evtDrawer');
     applyEventToEditor(JSON.parse(decodeURIComponent(payload)));
+    evtApplyGcalState();
 };
 
 function cancelEventEdit() {
@@ -576,6 +637,9 @@ $(document).on('submit', '#eventsForm', async function (e) {
     var venuePostalCode = ($('#eventsVenuePostalCode').val() || '').trim();
     var venueLatitude = ($('#eventsVenueLatitude').val() || '').trim();
     var venueLongitude = ($('#eventsVenueLongitude').val() || '').trim();
+    // Keep an existing venue link when no new place was picked and the venue name wasn't changed.
+    var origVenueId = $('#eventsVenue').data('origVenueId');
+    var keepVenueId = (!venuePlaceId && origVenueId && venueInput === ($('#eventsVenue').data('origVenueName') || '').trim()) ? origVenueId : null;
     var ticketUrl = ($('#eventsTicketUrl').val() || '').trim();
     
     var bookingId = ($('#eventsBookingId').val() || '').trim();
@@ -630,6 +694,7 @@ $(document).on('submit', '#eventsForm', async function (e) {
             event_type: eventTypeInput || null,
             venue_name: venueInput,
             venue_map_link: venueMapLink,
+            venue_id: keepVenueId,
             venue_place_id: venuePlaceId || null,
             venue_address: venueAddress || null,
             venue_city: venueCity || null,
@@ -661,7 +726,7 @@ $(document).on('submit', '#eventsForm', async function (e) {
 
                 if (payload.sync_to_gcal) {
                     if (res.gcal_synced) window.notificationService.showSuccess((isEdit ? 'Event updated' : 'Event created') + ' and synced to Google Calendar.');
-                    else window.notificationService.showError((isEdit ? 'Event updated' : 'Event created') + ', but Google Calendar sync failed.');
+                    else evtGcalFailureToast(isEdit ? 'Event updated' : 'Event created');
                 } else {
                     window.notificationService.showSuccess(isEdit ? 'Event updated.' : 'Event created.');
                 }
@@ -822,12 +887,31 @@ document.addEventListener('atl:drawerOpened', function(e) {
 // routes/admin/events.js) — the two behaviours this field already had (auto-filling the venue
 // name box, and preferring place.url for the map link, falling back to a lat/lng query link) are
 // unchanged.
+//
+// 2026-10 Places audit: the search now runs through this server (js/admin/places-autocomplete.js ->
+// /api/admin/places/*), so it works as soon as the drawer opens - it no longer waits for Google's script.
+// Two stale-data fixes: (1) the hidden place fields below are cleared whenever the form is reset, because
+// form.reset() leaves hidden inputs as they were - a place picked for one event was being saved onto the next
+// event created or edited in the same session; (2) retyping the search clears them too, and also clears the
+// Map URL if it was filled in by a pick (a URL the admin typed by hand is left alone).
+var EVT_PLACE_FIELDS = ['#eventsVenuePlaceId', '#eventsVenueAddress', '#eventsVenueCity', '#eventsVenueState',
+    '#eventsVenueCountry', '#eventsVenuePostalCode', '#eventsVenueLatitude', '#eventsVenueLongitude'];
+function clearEventPlaceFields() {
+    $(EVT_PLACE_FIELDS.join(',')).val('');
+    var $map = $('#eventsVenueMapLink');
+    if ($map.data('evtAuto')) $map.val('').data('evtAuto', false);
+}
+window.clearEventPlaceFields = clearEventPlaceFields;
+$(document).on('input', '#eventsVenueMapLink', function() { $(this).data('evtAuto', false); });
+
 window.initEventsMap = function() {
     var searchInput = document.getElementById('eventsVenueSearch');
     if (!searchInput || !window.AdminPlacesAutocomplete) return;
     window.AdminPlacesAutocomplete.init(searchInput, {
+        detail: 'full',
+        onInput: function() { if ($('#eventsVenuePlaceId').val()) clearEventPlaceFields(); },
         onPlace: function(loc) {
-            $('#eventsVenueMapLink').val(loc.mapUrl || (loc.latitude != null ? 'https://maps.google.com/?q=' + loc.latitude + ',' + loc.longitude : ''));
+            $('#eventsVenueMapLink').val(loc.mapUrl || (loc.latitude != null ? 'https://maps.google.com/?q=' + loc.latitude + ',' + loc.longitude : '')).data('evtAuto', true);
             if (loc.name) $('#eventsVenue').val(loc.name); // Auto-fill the required venue name box
             $('#eventsVenuePlaceId').val(loc.placeId);
             $('#eventsVenueAddress').val(loc.formattedAddress);

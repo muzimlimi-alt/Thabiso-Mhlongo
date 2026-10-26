@@ -5,7 +5,8 @@ const { requireRole } = require('../../middleware/rbac');
 const { syncBookingToCalendar } = require('../../lib/calendar-sync');
 const { generateInvoice } = require('../../lib/invoicing');
 const {
-    logPaymentEvent, alignMilestonePayments, deriveBookingStatusAfterPayment, deriveManualPaymentStatus, updateBookingMilestones
+    logPaymentEvent, alignMilestonePayments, deriveBookingStatusAfterPayment, deriveManualPaymentStatus, updateBookingMilestones,
+    rebalanceScheduleAfterAdjustment
 } = require('../../lib/payment-processing');
 const {
     sendPaymentReceivedEmail, sendAdminPaymentNotification, sendDepositBalanceDueEmail,
@@ -107,13 +108,16 @@ router.post('/api/admin/transactions/manual', requireAdmin, requireRole(['admini
                                     return res.json({ success: true, transaction_id: txId, message: 'Transaction logged but booking update failed.' });
                                 }
 
-                                // Record payment event
+                                // Record the payment EVENT (audit log) only. The transaction itself was inserted above, with the admin's reference,
+                                // note and method; without auditOnly logPaymentEvent() inserted a second transaction for the same payment
+                                // (reference "MANUAL-<booking>-<timestamp>", method 'payfast'), so every sum over transactions counted it twice
+                                // while bookings.amount_paid went up once. The PayFast ITN handler uses auditOnly for the same reason.
                                 logPaymentEvent(booking_id, 'MANUAL_PAYMENT_RECORDED', {
                                     amount_gross: parseFloat(amt),
                                     payment_method: payment_method || 'manual',
                                     pf_payment_id: null,
                                     m_payment_id: `MANUAL-${booking_id}-${Date.now()}`
-                                }, true);
+                                }, true, null, { auditOnly: true });
 
                                 db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
                                         VALUES ('bookings', ?, 'PAYMENT', ?, ?, CURRENT_TIMESTAMP)`,
@@ -225,11 +229,15 @@ router.post('/api/admin/transactions/manual', requireAdmin, requireRole(['admini
 
                                 (async () => {
                                     await syncBookingToCalendar(booking_id);
+                                    // The payment schedule follows the new total (only if it added up to the old one), BEFORE the milestones are
+                                    // re-aligned with what has been paid and before the invoice is rebuilt, so the invoice's schedule agrees with its total.
+                                    await rebalanceScheduleAfterAdjustment(booking_id, total, newTotal, adminUser);
                                     updateBookingMilestones(booking_id, (psErr) => {
                                         if (psErr) console.error('[Manual Transaction] Milestone update failed:', psErr.message);
                                     });
 
-                                    // Void and regenerate invoice if one exists that is not paid/void
+                                    // Void and regenerate invoice if one exists that is not paid/void. The rebuilt invoice carries this
+                                    // adjustment (and any logged since the quotation was issued) - lib/booking-adjustments.js.
                                     getOpenInvoiceIdForAdjustmentRegen(booking_id, async (invErr, invRow) => {
                                         if (!invErr && invRow) {
                                             try {

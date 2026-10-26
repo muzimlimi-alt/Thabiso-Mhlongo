@@ -106,7 +106,8 @@ getAllSettings((err, rows) => {
             const val = r.setting_value;
             // SMTP settings (the password above all) are read straight from the table by lib/smtp-config.js on every send;
             // the generic fall-through below must not copy them into process.env.
-            if (key.startsWith('smtp_')) return;
+            // google_cal_* (the Google Calendar client secret and sign-in, encrypted) is likewise read straight from the table by lib/google-config.js.
+            if (key.startsWith('smtp_') || key.startsWith('google_cal_')) return;
             if (val !== null && val !== undefined && val !== '') {
                 if (key === 'min_booking_gap_minutes') {
                     const parsed = parseInt(val);
@@ -285,6 +286,10 @@ app.use((req, res, next) => {
     // per-field in their handlers instead of being blanket entity-escaped here.
     if (req.body && req.path !== '/api/admin/about-me' && req.path !== '/api/admin/site-content' && req.path !== '/api/admin/newsletter/birthday-settings') {
         const raw = RAW_HTML_BODY_FIELDS.find(r => r.path.test(req.path));
+        // PayFast's notification is SIGNED over the exact values it posted, and PayFast's server-confirmation call compares them again, so the ITN route
+        // must see them as posted - before the encoding below turns D'Souza into D&#x27;Souza and a name with "&" into "&amp;". It keeps a copy for
+        // exactly that; everything else in the route still works on the encoded body, as before.
+        if (req.path === '/api/payment/webhook/payfast') req.pfRawBody = { ...req.body };
         deepEscapeBody(req.body, raw && raw.keys);
     }
     next();
@@ -347,6 +352,17 @@ app.get('/sitemap.xml', (req, res) => {
     res.type('application/xml');
     res.set('Cache-Control', CRAWLER_FILE_CACHE_CONTROL);
     res.send('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url>\n    <loc>https://www.thabisomhlongo.com/</loc>\n    <changefreq>weekly</changefreq>\n    <priority>1.0</priority>\n  </url>\n</urlset>\n');
+});
+
+// The site icon is images/icon/favicon.ico - the owner's file; it used to be favicon.ico in the project root, which no longer exists. Browsers and
+// crawlers still ask for /favicon.ico by default and every page's <head> links to /favicon.ico?v=N, so that one URL answers with it. Registered
+// before express.static so nothing shadows it. Cached for a day, not the static server's immutable year: the URL is fixed, so a future icon change
+// has to be able to reach visitors (bump the ?v= in the page heads too - browsers keep icons far longer than any header says).
+const FAVICON_FILE = path.join(__dirname, 'images', 'icon', 'favicon.ico');
+app.get('/favicon.ico', (req, res) => {
+    res.type('image/x-icon');
+    res.set('Cache-Control', 'public, max-age=86400');
+    res.sendFile(FAVICON_FILE, (err) => { if (err && !res.headersSent) res.status(err.status || 404).end(); });
 });
 
 // Production-readiness pass (2026-10-12): liveness/readiness probe for the hosting platform
@@ -444,6 +460,11 @@ app.use(express.static(path.join(__dirname, '/'), {
         } else if (filePath.match(/\.(css|js)$/i)) {
             // CSS and JS - cache for 1 day
             res.setHeader('Cache-Control', 'public, max-age=86400');
+        } else if (path.basename(filePath).toLowerCase() === 'index.html') {
+            // The public homepage is a static, cookie-free, nonce-free file. "no-cache" still forces a
+            // revalidation on every view (so a deploy shows up immediately, same as no-store) but lets the
+            // browser answer from its copy with a tiny 304 via the ETag instead of re-downloading ~200 KB.
+            res.setHeader('Cache-Control', 'no-cache');
         } else if (ext === '.html' || ext === '.htm') {
             // NEVER cache HTML files to ensure updates propagate immediately
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
@@ -495,9 +516,11 @@ app.use(session({
 app.use(require('./routes/admin/users'));
 app.use(require('./routes/admin/auth'));
 app.use(require('./routes/admin/settings'));
+app.use(require('./routes/admin/places'));           // shared Google Places search (lib/places.js)
 app.use(require('./routes/admin/site-content'));
 app.use(require('./routes/admin/content'));
 app.use(require('./routes/admin/team'));
+app.use(require('./routes/admin/business-profile'));   // who issues our documents + SARS/VAT registration (lib/business-profile.js)
 app.use(require('./routes/admin/accolades'));
 app.use(require('./routes/admin/home-social'));
 app.use(require('./routes/admin/newsletter-subscribers'));
@@ -521,10 +544,14 @@ app.use(require('./routes/admin/email-templates'));
 app.use(require('./routes/admin/reminders'));
 app.use(require('./routes/admin/finance'));
 app.use(require('./routes/admin/financials'));
+app.use(require('./routes/admin/eft'));              // Manual EFT: banking details, proof-of-payment review queue (lib/eft*.js)
+app.use(require('./routes/admin/payfast-reconcile')); // PayFast safety net: status, findings, "check PayFast now" (lib/payfast-reconcile.js)
 app.use(require('./routes/admin/dashboard'));
 app.use(require('./routes/admin/bookings'));
 app.use(require('./routes/admin/events'));
 app.use(require('./routes/public/bookings'));
+app.use(require('./routes/public/eft'));             // Manual EFT: a client uploads / reads back their proof of payment
+app.use(require('./routes/public/payfast-check'));   // a buyer back from PayFast asks to have their own payment confirmed now
 app.use(require('./routes/public/site-content'));
 app.use(require('./routes/public/availability'));
 app.use(require('./routes/admin/misc'));
@@ -1138,6 +1165,9 @@ const { registerLedgerReconciliationJob } = require('./lib/ledger-reconciliation
 registerLedgerReconciliationJob();
 const { registerPayFastPendingTimeoutJob } = require('./lib/payfast-pending-timeout-job');
 registerPayFastPendingTimeoutJob();
+// The safety net for a lost PayFast notification: asks PayFast's own history and records an exactly-matching payment (lib/payfast-reconcile.js).
+const { registerPayFastReconcileJob } = require('./lib/payfast-reconcile');
+registerPayFastReconcileJob();
 
 // C9: Prevent sandbox PayFast config from silently disabling payment validation in production
 if (process.env.NODE_ENV === 'production' && (process.env.PAYFAST_URL || '').includes('sandbox')) {

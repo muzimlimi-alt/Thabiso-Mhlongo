@@ -18,6 +18,11 @@
  * window.saveQuoteDraft / window.triggerAutoSave / window.addQuoteItem were already window-attached
  * in the original source — no new attachments needed. window.openQuoteDrawer/closeQuoteDrawer
  * (services.js) and openAtlDrawer/closeAtlDrawer (components/drawer.js) are called, not moved. */
+    // Plain-text labels from the server (price labels, group names) go into HTML through this.
+    function _qbEsc(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
     // ─── Quote Builder Auto-Save & Recovery ───
     let qbAutoSaveTimeout = null;
     let qbHasUnsavedChanges = false;
@@ -145,7 +150,9 @@
         await sleep(200);
 
         $('#quoteModalBookingId').val(id);
-        $('#quoteDrawer').data('has-existing-quote', !!(booking.quoted_at || booking.quote_amount));
+        // "Already has a quote" means a quotation was issued - NOT that bookings.quote_amount is non-empty: before any
+        // quote that column holds the catalogue estimate, which used to trigger this warning on every first quote.
+        $('#quoteDrawer').data('has-existing-quote', bkHasQuote(booking));
         $('#quoteDrawer').data('perf-duration', booking.performance_duration || 60);
         // Re-quoting a booking that's already ACCEPTED/CONFIRMED auto-supersedes its contract back
         // to draft (see reQuotingCommitted in the /quote route) — including a signed one. Stash what
@@ -238,6 +245,13 @@
         $('#qbItemsBody').empty();
         $('#qbDiscount').val('0');
         $('#qbApplyVat').prop('checked', false);
+        // The booking's own service rows carry how each service is priced TODAY (price type, tax class, limits). They
+        // back up the active catalogue for a service that has since been deactivated, so re-quoting an older booking
+        // still treats its lines correctly.
+        window.qbBookingServices = booking.services || [];
+        // What's on file for this client — the tax-invoice advisory below checks these the moment "Apply VAT" would make them matter
+        // (lib/business-profile-core.js taxInvoiceAdvice(), never required to send the quote).
+        window.qbClientInfo = { name: booking.name || '', company: booking.company || '', vatNumber: booking.vat_number || '', billingAddress: booking.billing_address || '' };
 
         // Load services catalogue (properly awaited so servicesCache is populated)
         await fetchServicesForQuote();
@@ -249,7 +263,7 @@
                 $('#quoteModalExpiry').val(draftObj.expiry);
                 $('#qbDiscount').val(draftObj.discount);
                 $('#qbDepositPercentage').val(draftObj.depositPercentage);
-                $('#qbApplyVat').prop('checked', draftObj.applyVat);
+                $('#qbApplyVat').prop('checked', !!draftObj.applyVat && !!window.qbVatActive);
 
                 // Restore terms source radio
                 const termsSource = draftObj.termsSource || 'global';
@@ -281,20 +295,27 @@
 
             // Auto-prefill line items from the client's booking services
             if (booking.services && booking.services.length > 0) {
+                const hasQuote = bkHasQuote(booking);
                 booking.services.forEach(svc => {
-                    const price = parseFloat(svc.unit_price) > 0 ? parseFloat(svc.unit_price) : parseFloat(svc.default_price || 0);
-                    addQuoteItem(svc.service_name, svc.quantity_minutes, price, svc.service_id);
+                    // Where each amount comes from (rate card 2026):
+                    //  - a quote was already issued: the booking's saved line amount, so a revision starts from what was
+                    //    quoted and never silently picks up today's catalogue fee (a saved R0 stays R0);
+                    //  - no quote yet: that saved amount is only the estimate made when the service was added, so use the
+                    //    CURRENT catalogue fee for a fixed price - and nothing at all for a service priced individually.
+                    const saved = parseFloat(svc.unit_price);
+                    const cat = parseFloat(svc.catalogue_unit_price);   // NaN from a server that predates the field
+                    const price = hasQuote
+                        ? (isFinite(saved) ? saved : (isFinite(cat) ? cat : 0))
+                        : (isFinite(cat) ? cat : (saved > 0 ? saved : 0));
+                    // The same rule for the line's NAME: a revision keeps the description the client was quoted under (the service may
+                    // have been renamed since); a first quote starts from the service as it is called today, matching today's fee.
+                    addQuoteItem(hasQuote && svc.line_description ? svc.line_description : svc.service_name, svc.quantity_minutes, price, svc.service_id, svc);
                 });
             } else {
-                // Fallback for legacy bookings with no booking_services rows
-                const cache = window.servicesCache || [];
-                const matchedService = cache.find(s => s.name.toLowerCase().includes((booking.event_type || '').toLowerCase()));
-                if (matchedService) {
-                    addQuoteItem(matchedService.name, 1, matchedService.default_price, matchedService.id);
-                } else {
-                    // Ultimate fallback: add a generic line item so the table is never empty
-                    addQuoteItem('Main Performance (' + (booking.performance_duration || '60 min') + ')', 1, 20000, null);
-                }
+                // A booking with no recorded services (older / contact-form bookings): start from one blank line so the
+                // table is never empty. No price is guessed - not from a service whose name happens to match the event
+                // type, and not a hardcoded default - the agreed amount is entered here.
+                addQuoteItem('Main Performance (' + (booking.performance_duration || '60 min') + ')', 1, 0, null);
             }
             // Clear status indicator on new quote build
             $('#qbSaveStatus').text('');
@@ -340,10 +361,54 @@
         calcQuoteTotal();                    // immediately inject current dynamic values
     });
 
+    // The "Apply VAT" box follows the business profile: greyed out and unticked when VAT cannot be charged, with the reason beside it.
+    function qbSyncVatBox() {
+        const on = !!window.qbVatActive;
+        const pct = Math.round((window.qbVatRate || 0.15) * 1000) / 10;
+        $('#qbApplyVatLabel').text('Apply VAT (' + pct + '%)');
+        $('#qbApplyVat').prop('disabled', !on).css('cursor', on ? 'pointer' : 'not-allowed');
+        if (!on) $('#qbApplyVat').prop('checked', false);
+        $('#qbVatHint').text(on ? '' : 'VAT is off: the business is not set up as VAT-registered with a confirmed VAT number (Business > Business Profile).').toggle(!on);
+    }
+    window.qbSyncVatBox = qbSyncVatBox;
+
+    // Advisory only — never blocks sending the quote. Mirrors lib/business-profile-core.js taxInvoiceAdvice() exactly (same rule,
+    // same threshold, same wording), so the Quote Builder can warn live as the admin types without a round trip on every keystroke.
+    function qbSyncTaxInvoiceAdvice(total) {
+        const $box = $('#qbTaxInvoiceAdvice');
+        if (!$box.length) return;
+        const c = window.qbClientInfo || {};
+        const out = [];
+        if (window.qbVatActive && $('#qbApplyVat').is(':checked') && (parseFloat(total) || 0) > (window.qbFullTaxInvoiceOver || 5000)) {
+            if (!c.name) out.push('A full tax invoice needs the customer’s name.');
+            if (!c.billingAddress) out.push('A full tax invoice (over R' + (window.qbFullTaxInvoiceOver || 5000).toLocaleString('en-ZA') + ') needs the customer’s address — none is on record.');
+            if (c.company && !c.vatNumber) out.push('The customer is a company with no VAT number on record. If it is a VAT vendor its VAT number must appear on this tax invoice.');
+        }
+        if (!out.length) { $box.hide(); return; }
+        $box.html('<i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i>Before sending this as a tax invoice: ' + out.join(' ')).show();
+    }
+    window.qbSyncTaxInvoiceAdvice = qbSyncTaxInvoiceAdvice;
+
     async function fetchServicesForQuote() {
 
         const $sel = $('#qbServiceSelector');
         if (!$sel.length) return;
+        // The VAT rate the SERVER will charge, so the live preview matches the stored quote (not a hard-coded 15%).
+        window.qbVatRate = 0.15;
+        // Whether the business may charge VAT at all (Business > Business Profile: VAT-registered AND number confirmed). Unknown = not allowed:
+        // the server refuses a VAT quote from a business that is not set up for it, so never offer what will be refused.
+        window.qbVatActive = false;
+        // Above this total a VAT-charged invoice needs the customer's address etc. (VAT Act s20) — advisory only, see qbSyncTaxInvoiceAdvice().
+        window.qbFullTaxInvoiceOver = 5000;
+        try {
+            const m = await (await fetch('/api/admin/services/meta')).json();
+            const rate = parseFloat(m && m.vat_rate);
+            if (isFinite(rate) && rate >= 0) window.qbVatRate = rate;
+            window.qbVatActive = !!(m && m.vat_active);
+            const over = parseFloat(m && m.full_tax_invoice_over);
+            if (isFinite(over) && over >= 0) window.qbFullTaxInvoiceOver = over;
+        } catch (eMeta) { console.warn('Could not load the VAT rate for the Quote Builder preview; using 15%.', eMeta); }
+        qbSyncVatBox();
         try {
             // Load ONLY active services
             const r = await fetch('/api/admin/services?active_only=1');
@@ -352,20 +417,22 @@
             
             $sel.html('<option value="">-- Quick Add from Catalogue --</option>');
             
-            // Group by category
-            const grouped = services.reduce((acc, s) => {
-                const cat = s.category || 'Other';
-                if (!acc[cat]) acc[cat] = [];
-                acc[cat].push(s);
-                return acc;
-            }, {});
+            // Group as on the rate card (the API returns the services in that order; add-ons and legacy rows last)
+            const groupOrder = [];
+            const grouped = {};
+            services.forEach(s => {
+                const cat = s.service_group_label || 'Add-ons & other';
+                if (!grouped[cat]) { grouped[cat] = []; groupOrder.push(cat); }
+                grouped[cat].push(s);
+            });
 
-            Object.keys(grouped).sort().forEach(cat => {
-                const $group = $(`<optgroup label="${cat}"></optgroup>`);
+            groupOrder.forEach(cat => {
+                const $group = $('<optgroup></optgroup>').attr('label', cat);
                 grouped[cat].forEach(s => {
-                    const price = parseFloat(s.default_price || 0);
-                    const model = s.pricing_model === 'per_minute' ? '/ min' : s.pricing_model === 'per_hour' ? '/ hr' : '/ unit';
-                    $group.append(`<option value="${s.id}">${s.name} (R ${price.toLocaleString('en-ZA', {minimumFractionDigits:0})} ${model})</option>`);
+                    // The price exactly as the rate card publishes it. A range / "from" / enquiry is only a guide:
+                    // the line is added with NO amount and the agreed amount is entered on the quote.
+                    const label = s.price_label || ('R ' + parseFloat(s.catalogue_unit_price || 0).toLocaleString('en-ZA', {minimumFractionDigits:0}));
+                    $group.append($('<option></option>').val(s.id).html(`${s.name} — ${_qbEsc(label)}`));
                 });
                 $sel.append($group);
             });
@@ -386,12 +453,17 @@
         
         const service = window.servicesCache.find(s => s.id == serviceId);
         if (service) {
-            const price = parseFloat(service.default_price) || 0;
+            // catalogue_unit_price is the only amount the catalogue may pre-fill (base_price wins over default_price;
+            // 0 for a range / "from" / enquiry service, whose agreed amount is typed on the line).
+            const price = parseFloat(service.catalogue_unit_price) || 0;
             const isPerMinute = service.pricing_model === 'per_minute';
             const isPerHour = service.pricing_model === 'per_hour';
             const isFlat = service.pricing_model === 'flat' || service.pricing_model === 'flat_fee';
             const modelDisp = isPerMinute ? 'per min' : (isPerHour ? 'per hr' : 'flat fee');
-            $preview.text(`Selected: R ${price.toLocaleString()} (${modelDisp})`).fadeIn(200);
+            // the price as the rate card publishes it; a range / "from" / enquiry only gets its amount on the quote
+            $preview.text(service.quote_required
+                ? `Selected: ${service.price_label || 'priced individually'} — enter the agreed amount on the line`
+                : `Selected: ${service.price_label || ('R ' + price.toLocaleString())} (${modelDisp})`).fadeIn(200);
             
             let defaultQty = 1;
             if (!isFlat) {
@@ -402,7 +474,7 @@
                 else if (isPerHour) defaultQty = Math.ceil((perfMins || 60) / 60);
             }
             
-            addQuoteItem(service.name, defaultQty, service.default_price, service.id);
+            addQuoteItem(service.name, defaultQty, price, service.id);
             $(this).val('');
             
             // Clear preview after add
@@ -415,24 +487,38 @@
     });
 
     // Helper to add row
-    window.addQuoteItem = function(desc = '', qty = 1, price = 0, serviceId = null) {
+    // `meta` is the booking's own service row (see the prefill above); it only matters when the service is no longer in the
+    // active catalogue, which is how an older booking made under a since-retired service stays correctly described.
+    window.addQuoteItem = function(desc = '', qty = 1, price = 0, serviceId = null, meta = null) {
         let minQty = 1;
         let model = 'flat_fee';
         let unit = '';
-        
+
         let maxQty = null;
         let externalNote = '';
-        if (serviceId && window.servicesCache) {
-            const svc = window.servicesCache.find(s => s.id == serviceId);
+        // A range / "from" / enquiry service has no catalogue amount: its line carries NO price until the agreed
+        // amount is entered here (the server refuses to issue a quote with a R0 line for such a service).
+        let quoteRequired = false;
+        let publishedLabel = '';
+        // VAT is charged per line from the service's tax class (the server resolves the same class from the catalogue);
+        // a custom line has no service and is taxable.
+        let taxClass = 'standard';
+        if (serviceId) {
+            const svc = (window.servicesCache || []).find(s => s.id == serviceId)
+                || meta
+                || (window.qbBookingServices || []).find(s => s.service_id == serviceId);
             if (svc) {
                 minQty = svc.min_quantity || 1;
                 maxQty = svc.max_quantity || null;
                 model = svc.pricing_model || 'flat_fee';
                 unit = svc.display_unit || '';
                 externalNote = svc.external_note || '';
+                quoteRequired = !!svc.quote_required;
+                publishedLabel = svc.price_label || '';
+                taxClass = svc.tax_class || 'standard';
             }
         }
-        
+
         qty = Math.max(qty, minQty);
         
         const isPerMinute = model === 'per_minute';
@@ -444,12 +530,13 @@
         const durHint = isPerMinute ? `<div class="qb-dur-hint" style="color: var(--atl-amber); font-size:10px; font-weight:700; margin-top:2px;">${formatDuration(qty)}</div>` : '';
 
         const tr = `
-            <tr class="qb-item-row" data-service-id="${serviceId || ''}" data-model="${model}" data-min-qty="${minQty}" data-max-qty="${maxQty || ''}" style="border-bottom:1px solid var(--atl-line);">
+            <tr class="qb-item-row" data-service-id="${serviceId || ''}" data-model="${model}" data-min-qty="${minQty}" data-max-qty="${maxQty || ''}" data-quote-required="${quoteRequired ? 1 : 0}" data-tax-class="${_qbEsc(taxClass)}" style="border-bottom:1px solid var(--atl-line);">
                 <td style="border:none; padding:8px 0;">
                     <div style="display:flex; flex-direction:column;">
                         <input type="text" class="atl-input qb-desc" style="background: var(--atl-paper); border:1px solid var(--atl-line-strong); color: var(--atl-ink);" value="${desc}" placeholder="Description">
                         ${unit ? `<small style="color:#666; font-size:9px; margin-top:2px; text-transform:uppercase; letter-spacing:0.5px;">${unit} | Model: ${model.replace('_', ' ')}</small>` : ''}
                         ${externalNote ? `<small style="color:var(--atl-amber); font-size:10px; margin-top:3px; font-style:italic;">${externalNote}</small>` : ''}
+                        ${quoteRequired ? `<small class="qb-quote-hint" style="color:var(--atl-amber); font-size:10px; margin-top:3px; font-weight:600;"><i class="fa-solid fa-file-signature" style="margin-right:4px;"></i>Priced individually &mdash; published: ${_qbEsc(publishedLabel)}. Enter the agreed amount.</small>` : ''}
                     </div>
                 </td>
                 <td style="border:none; padding:8px 5px; width:100px;">
@@ -459,7 +546,7 @@
                     </div>
                 </td>
                 <td style="border:none; padding:8px 5px; width:130px;">
-                    <input type="number" class="atl-input qb-price text-right" style="background: var(--atl-paper); border:1px solid var(--atl-line-strong); color: var(--atl-ink);" value="${price}" min="0">
+                    <input type="number" class="atl-input qb-price text-right" style="background: var(--atl-paper); border:1px solid var(--atl-line-strong); color: var(--atl-ink);" value="${quoteRequired && !(parseFloat(price) > 0) ? '' : price}" placeholder="${quoteRequired ? 'Agreed amount' : ''}" min="0">
                 </td>
                 <td style="border:none; padding:8px 5px; vertical-align:middle; text-align:right; font-weight:600; color:#eee;">
                     R <span class="qb-row-total">0.00</span>
@@ -485,8 +572,20 @@
     $(document).on('input', '.qb-qty, .qb-price, #qbDiscount, #qbDepositPercentage', calcQuoteTotal);
     $(document).on('change', '#qbApplyVat', calcQuoteTotal);
 
+    // The deposit / balance summary the builder keeps at the top of the terms. It is built and recognised by the same two definitions, so
+    // the strip removes exactly what was injected and never anything the owner wrote - their payment-terms policy usually begins with the
+    // very same words ("50% Deposit required to secure the booking."). The old pattern stripped only the first three words of the summary,
+    // so every edit left a fragment behind (and took "50% Deposit" out of the policy line).
+    function _qbDepositSummary(depPct, depositAmount, balanceDue, fmt) {
+        return `${depPct}% Deposit (R ${fmt(depositAmount)}) required to secure the booking.\n` +
+               `Balance Due: R ${fmt(balanceDue)}\n\n`;
+    }
+    const QB_DEPOSIT_SUMMARY_RE = /^\d+(?:\.\d+)?% Deposit \(R [^)\n]*\) required to secure the booking\.\r?\nBalance Due: R [^\n]*(?:\r?\n)*/gm;
+
     function calcQuoteTotal() {
-        let subtotal = 0;
+        // The lines as the server will see them: the shared DocumentTotals (js/shared/document-totals.js) is the very code
+        // that stores the quote total, so VAT on taxable lines only, the proportional discount and the cent rounding agree.
+        const totalLines = [];
         $('.qb-item-row').each(function() {
             const minQ = parseFloat($(this).data('min-qty')) || 1;
             const model = $(this).data('model');
@@ -511,18 +610,18 @@
             const p = parseFloat($(this).find('.qb-price').val()) || 0;
             const rt = q * p;
             $(this).find('.qb-row-total').text(rt.toLocaleString('en-ZA', {minimumFractionDigits:2}));
-            subtotal += rt;
+            totalLines.push({ quantity_minutes: q, unit_price: p, tax_class: $(this).data('tax-class') || 'standard' });
         });
         const discount = parseFloat($('#qbDiscount').val()) || 0;
-        let vatable = Math.max(0, subtotal - discount);
-        let vat = 0;
-        if($('#qbApplyVat').is(':checked')) vat = vatable * 0.15;
-        
-        let finalTotal = vatable + vat;
-        
+        const totals = window.DocumentTotals.computeDocumentTotals(totalLines, {
+            discount: discount, applyVat: $('#qbApplyVat').is(':checked'), vatRate: window.qbVatRate
+        });
+        const subtotal = totals.subtotal, vat = totals.vat, finalTotal = totals.total;
+
         $('#qbSubtotal').text(subtotal.toFixed(2));
         $('#qbVatAmount').text(vat.toFixed(2));
         $('#qbFinalTotal').text(finalTotal.toFixed(2));
+        qbSyncTaxInvoiceAdvice(finalTotal);
 
         const depPct = parseFloat($('#qbDepositPercentage').val()) || 0;
         const depositAmount = (finalTotal * (depPct / 100)).toFixed(2);
@@ -534,14 +633,12 @@
         const _fmtDate = ds => { try { return new Date(ds).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }); } catch(e) { return ds; } };
 
         if ($('#qbRadioGlobal').is(':checked')) {
-            // Strip any previously injected deposit/balance lines, then prepend fresh values
-            let t = $('#quoteModalDetails').val() || '';
-            t = t.replace(/^\d+% Deposit.*?\n?/im, '').replace(/^Balance Due:.*?\n?/im, '').trim();
+            // Take off the summary injected last time, then put a fresh one on top
+            let t = ($('#quoteModalDetails').val() || '').replace(QB_DEPOSIT_SUMMARY_RE, '').trim();
             let prefix = '';
             if (depPct > 0) {
                 const balanceDue = finalTotal - parseFloat(depositAmount);
-                prefix  = `${depPct}% Deposit (R ${_fmtR(depositAmount)}) required to secure the booking.\n`;
-                prefix += `Balance Due: R ${_fmtR(balanceDue)}\n\n`;
+                prefix = _qbDepositSummary(depPct, depositAmount, balanceDue, _fmtR);
             }
             $('#quoteModalDetails').val(prefix + t);
         }
@@ -605,6 +702,20 @@
             return;
         }
         $('.qb-item-row').css('outline', '');
+
+        // A service that is priced individually (range / "from" / enquiry) must carry the agreed amount: nothing is
+        // assumed from its published band. (The server refuses such a line at R0 as well.)
+        const unpriced = [];
+        $('.qb-item-row').each(function() {
+            if (String($(this).data('quote-required')) === '1' && !(parseFloat($(this).find('.qb-price').val()) > 0)) {
+                unpriced.push($(this).find('.qb-desc').val().trim() || 'this service');
+                $(this).css('outline', '1px solid var(--atl-clay)');
+            }
+        });
+        if (unpriced.length) {
+            $msg.css('color','var(--atl-clay)').text('Enter the agreed amount for: ' + unpriced.join(', ') + '.');
+            return;
+        }
 
         const $btn = $(this);
         const originalText = $btn.html();

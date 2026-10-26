@@ -10,6 +10,7 @@ const { dbGet, dbRun } = require('../../lib/db-helpers');
 const { withDbTransaction } = require('../../lib/db-transaction');
 const { docsWriteDir, resolveDocsPath } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
+const businessProfile = require('../../lib/business-profile');
 const { encodeUserHtml } = require('../../lib/html-sanitize');
 const { getBookingByIdAsync, getBookingIdStatusAsync } = require('../../database/repositories/bookings.repository');
 const emailService = require('../../js/emailService');
@@ -350,7 +351,7 @@ router.post('/api/admin/bookings/:id/advancing/pdf', requireAdmin, async (req, r
         const fileName = `ADV-${bookingId}-${moment().format('YYMMDDHHmmss')}.pdf`;
         const pdfPath = path.join(advancingDir, fileName);
 
-        await pdfService.generateAdvancingPack(booking, pack, rosItems, contacts, pdfPath);
+        await pdfService.generateAdvancingPack(booking, pack, rosItems, contacts, pdfPath, { issuer: await businessProfile.loadIssuer() });
         await objectStorage.syncFileToStorage(pdfPath);
         await dbRun("UPDATE advancing_packs SET pdf_url = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [fileName, pack.id]);
 
@@ -405,7 +406,7 @@ router.post('/api/admin/bookings/:id/advancing/send', requireAdmin, requireRole(
         const advancingDir = docsWriteDir('advancing');
         const fileName = `ADV-${bookingId}-${moment().format('YYMMDDHHmmss')}.pdf`;
         const pdfPath = path.join(advancingDir, fileName);
-        await pdfService.generateAdvancingPack(booking, pack, rosItems, contacts, pdfPath);
+        await pdfService.generateAdvancingPack(booking, pack, rosItems, contacts, pdfPath, { issuer: await businessProfile.loadIssuer() });
         await objectStorage.syncFileToStorage(pdfPath);
 
         await sendAdvancingPackEmail(booking, venue, pdfPath);

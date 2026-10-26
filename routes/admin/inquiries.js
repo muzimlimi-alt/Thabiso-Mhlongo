@@ -10,7 +10,11 @@ const {
     bulkUpdateInquiryStatus, bulkDeleteInquiries, deleteInquiry,
 } = require('../../database/repositories/inquiries.repository');
 const { getAssignableAdmins, checkAdminActiveById, getAdminDisplayNameById } = require('../../database/repositories/auth-users.repository');
+const inquiryMessages = require('../../lib/inquiry-messages');
+const { sendDirectEmail } = require('../../lib/direct-emails');
 const router = express.Router();
+// Customer-replies-from-the-mailbox controls (administrator only) live in their own file; mounted here so this stays the one place the Inquiries API is wired up.
+router.use(require('./inbox-sync'));
 
 // --- Inquiries ---
 router.get('/api/admin/inquiries', requireAdmin, (req, res) => {
@@ -53,7 +57,9 @@ router.get('/api/admin/inquiries', requireAdmin, (req, res) => {
         // overdue: still awaiting a first response and past the SLA window — purely derived at query
         // time from submitted_at vs the policy value, no background job needed.
         const dataSql = `SELECT inquiries.*, COALESCE(admins.full_name, admins.username) AS assigned_to_name,
-                                 CASE WHEN status IN ('unread','read') AND submitted_at < datetime('now', '-' || ? || ' hours') THEN 1 ELSE 0 END AS overdue
+                                 CASE WHEN status IN ('unread','read') AND submitted_at < datetime('now', '-' || ? || ' hours') THEN 1 ELSE 0 END AS overdue,
+                                 (SELECT m.delivery_status FROM inquiry_messages m WHERE m.inquiry_id = inquiries.inquiry_id AND m.direction = 'out' ORDER BY m.id DESC LIMIT 1) AS last_reply_status,
+                                 (SELECT COUNT(*) FROM inquiry_messages m WHERE m.inquiry_id = inquiries.inquiry_id AND m.direction = 'in') AS inbound_count
                           FROM inquiries LEFT JOIN admins ON admins.id = inquiries.assigned_to
                           ${whereClause} ORDER BY ${orderClause} LIMIT ? OFFSET ?`;
 
@@ -201,6 +207,61 @@ router.delete('/api/admin/inquiries/:id/notes/:noteId', requireAdmin, (req, res)
             res.json({ success: true });
         }
     );
+});
+
+// --- Conversation: the admin's replies (with their real delivery state) and the customer's answers read from the mailbox ---
+const toId = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null; };
+const dbGet = (sql, params = []) => new Promise((resolve, reject) => db.get(sql, params, (e, r) => e ? reject(e) : resolve(r)));
+const dbAll = (sql, params = []) => new Promise((resolve, reject) => db.all(sql, params, (e, r) => e ? reject(e) : resolve(r)));
+
+// The two mails a website submission queued (lib/contact-intake.js), as the outbox sees them. Same vocabulary as a reply's delivery state:
+// queued -> attempted (a try failed, retrying) -> accepted (Microsoft 365 took it) | failed. The inquiry being saved is a separate fact from these.
+function intakeState(rows, entity) {
+    const n = rows.filter((r) => r.related_entity === entity).pop();
+    if (!n) return null;
+    const state = n.status === 'sent' ? 'accepted' : n.status === 'failed' ? 'failed' : (n.retry_count > 0 || n.error_message) ? 'attempted' : 'queued';
+    return { state, to: n.recipient_email, at: n.sent_at || n.created_at, error: state === 'failed' || state === 'attempted' ? (n.error_message || null) : null };
+}
+
+router.get('/api/admin/inquiries/:id/messages', requireAdmin, async (req, res) => {
+    const id = toId(req.params.id);
+    if (!id) return res.status(400).json({ success: false, message: 'Invalid inquiry.' });
+    try {
+        const inquiry = await dbGet('SELECT inquiry_id, source FROM inquiries WHERE inquiry_id = ?', [id]);
+        if (!inquiry) return res.status(404).json({ success: false, message: 'Inquiry not found.' });
+        await inquiryMessages.reconcileDelivery();   // so the state shown is the outbox's latest, not the last sweep's
+        const messages = await inquiryMessages.listForInquiry(id);
+        const intakeRows = await dbAll("SELECT related_entity, status, retry_count, error_message, recipient_email, sent_at, created_at FROM notifications WHERE related_id = ? AND related_entity IN ('inquiry_intake', 'inquiry_receipt') ORDER BY id", [id]);
+        res.json({
+            success: true, source: inquiry.source || 'web_form', messages,
+            intake: { notification: intakeState(intakeRows, 'inquiry_intake'), receipt: intakeState(intakeRows, 'inquiry_receipt') },
+            pending: messages.some((m) => m.direction === 'out' && (m.delivery_status === 'queued' || m.delivery_status === 'attempted'))
+                || [intakeState(intakeRows, 'inquiry_intake'), intakeState(intakeRows, 'inquiry_receipt')].some((x) => x && (x.state === 'queued' || x.state === 'attempted'))
+        });
+    } catch (e) {
+        console.error('inquiry messages failed:', e.message);
+        res.status(500).json({ success: false, message: 'The conversation could not be loaded.' });
+    }
+});
+
+// Send a FAILED reply again (same conversation row, new outbox entry). Both ids must belong together - a forged pair is a 404.
+router.post('/api/admin/inquiries/:id/messages/:mid/retry', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+    const id = toId(req.params.id), mid = toId(req.params.mid);
+    if (!id || !mid) return res.status(400).json({ success: false, message: 'Invalid request.' });
+    try {
+        await inquiryMessages.reconcileDelivery();
+        const msg = await dbGet('SELECT id, direction, delivery_status, direct_email_id FROM inquiry_messages WHERE id = ? AND inquiry_id = ?', [mid, id]);
+        if (!msg) return res.status(404).json({ success: false, message: 'Message not found.' });
+        if (msg.direction !== 'out' || msg.delivery_status !== 'failed') return res.status(409).json({ success: false, message: 'Only a reply that failed can be sent again.' });
+        const draft = msg.direct_email_id ? await dbGet('SELECT id FROM direct_emails WHERE id = ?', [msg.direct_email_id]) : null;
+        if (!draft) return res.status(409).json({ success: false, message: 'The original draft no longer exists - please write the reply again.' });
+        await new Promise((resolve) => db.run("UPDATE direct_emails SET status = 'failed' WHERE id = ? AND status = 'sent'", [draft.id], () => resolve()));
+        await sendDirectEmail(draft.id, { id: req.session.adminId }, { retryMessageId: msg.id });
+        res.json({ success: true, queued: true, message: 'Reply queued again.' });
+    } catch (e) {
+        console.error('inquiry reply retry failed:', e.message);
+        res.status(500).json({ success: false, message: 'The reply could not be queued: ' + e.message });
+    }
 });
 
 router.put('/api/admin/inquiries/bulk-status', requireAdmin, requireRole(['administrator', 'manager']), (req, res) => {

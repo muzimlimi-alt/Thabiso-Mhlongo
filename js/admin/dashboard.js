@@ -29,7 +29,6 @@
             policiesAdmin:     { endpoint: '/api/admin/policies',                handler: obj => (obj && obj.policies && Object.keys(obj.policies).length) ? 'Active' : '—' },
             emailLogsAdmin:    { endpoint: '/api/admin/email-logs?limit=1',      handler: res => res.total || 0 },
             securityAdmin:     { endpoint: '/api/admin/audit_log?limit=500',     handler: res => (res.logs || []).length },
-            preferencesAdmin:  { endpoint: '/api/admin/settings',                handler: obj => (obj && obj.settings && Object.keys(obj.settings).length) ? 'Customised' : 'Default' },
             usersAdmin:        { endpoint: '/api/admin/users',                   handler: arr => arr.length },
             brandingAdmin:     { endpoint: '/api/public/branding',               handler: b => (b && (b.primary_color || b.site_logo)) ? 'Custom' : 'Default' }
         };

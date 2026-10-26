@@ -75,6 +75,15 @@ async function spawnAndWait() {
             // Sandbox so the PayFast ITN accepts synthetic notifications (lenient signature/IP).
             PAYFAST_URL: 'https://sandbox.payfast.co.za',
             PAYFAST_MERCHANT_ID: '10000100',
+            // PayFast's public SANDBOX test account (merchant 10000100, this key, no passphrase). Set explicitly because dotenv never
+            // overrides a variable that is already set (empty included): without these the local .env's LIVE key and passphrase would
+            // reach every test server.
+            PAYFAST_MERCHANT_KEY: '46f0cd694581a',
+            PAYFAST_PASSPHRASE: '',
+            // PayFast's merchant API (transaction history, used by the safety net for a lost notification - lib/payfast-reconcile.js) must NEVER reach the
+            // real PayFast from a test: it points at test/fake-payfast-api.js (port 3198), which only exists while a test that uses it runs.
+            PAYFAST_API_URL: 'http://127.0.0.1:3198',
+            PAYFAST_RECONCILE_MIN_GAP_MS: '0',
             // Real EMAIL_USER/PASS and GOOGLE_REFRESH_TOKEN now both work (2026-07-16) — without these
             // overrides, every test run would send real Gmail messages to the business's real inbox
             // and write real events onto its real Google Calendar for every fake test booking. SMTP_MOCK
@@ -130,6 +139,32 @@ async function start() {
         const db = new sqlite3.Database(TEST_DB);
         db.run("DELETE FROM date_holds WHERE block_type = 'calendar_sync'", e => db.close(() => e ? rej(e) : res()));
     });
+    // A test server must NEVER be configured for a real payment gateway. Admin > Settings stores payfast_url / merchant id / key /
+    // passphrase in `settings`, and app.js copies those over process.env at startup - OVERRIDING the sandbox values passed in
+    // spawnAndWait(). Since the owner saved live PayFast settings into the source DB (2026-10-16) every test server was
+    // running as "production" with a live merchant id: the ITN tests failed (a production ITN with the wrong merchant id and a bad
+    // signature is rightly dropped) and anything that built a payment would have targeted the live PayFast host. Dropping the rows
+    // from the THROWAWAY copy (never the real database) lets the sandbox environment below stand.
+    await new Promise((res, rej) => {
+        const db = new sqlite3.Database(TEST_DB);
+        db.run("DELETE FROM settings WHERE LOWER(setting_key) IN ('payfast_url', 'payfast_merchant_id', 'payfast_merchant_key', 'payfast_passphrase')", e => db.close(() => e ? rej(e) : res()));
+    });
+    // Same rule for Google: Admin > System Settings > Google Calendar stores the client, its secret and the connected account's sign-in in `settings`
+    // (google_cal_*), and they take precedence over the GOOGLE_REFRESH_TOKEN passed to the test server below. A source DB that has the real calendar
+    // connected would otherwise let every fake test booking write real events onto the owner's real Google Calendar. Dropped from the THROWAWAY copy only.
+    await new Promise((res, rej) => {
+        const db = new sqlite3.Database(TEST_DB);
+        db.run("DELETE FROM settings WHERE LOWER(setting_key) LIKE 'google\\_cal\\_%' ESCAPE '\\'", e => db.close(() => e ? rej(e) : res()));
+    });
+    // And for Manual EFT: the source DB may have it switched ON with the owner's real banking details (and proofs from trying it out). Tests assume a fresh
+    // installation (EFT off, no details, invoices without a banking block), so the throwaway copy is reset - never the real database. A source DB from before
+    // the EFT migration has none of these tables/columns yet: those statements fail harmlessly and the server creates them, empty, at boot.
+    for (const sql of ['UPDATE invoices SET bank_details_id = NULL', 'DELETE FROM eft_submission_events', 'DELETE FROM eft_payment_submissions', 'DELETE FROM bank_details', "DELETE FROM sqlite_sequence WHERE name IN ('bank_details', 'eft_payment_submissions', 'eft_submission_events')", "DELETE FROM audit_log WHERE table_name IN ('eft_payment_submissions', 'bank_details', 'eft_settings')", 'UPDATE eft_settings SET enabled = 0']) {
+        await new Promise((res) => {
+            const db = new sqlite3.Database(TEST_DB);
+            db.run(sql, () => db.close(() => res()));
+        });
+    }
     await seedAdmin();
     await spawnAndWait();
 
@@ -139,6 +174,41 @@ async function start() {
     const sc = lr.headers.get('set-cookie');
     if (lr.status !== 200 || !sc) throw new Error('admin login failed: ' + lr.status);
     cookie = sc.split(';')[0];
+
+    // The business profile ships with income-tax and VAT registration OFF (migration 110), and a quotation can only carry VAT while the business is
+    // VAT-registered with a confirmed number. Many suites quote WITH VAT, so the throwaway DB is a VAT vendor (made-up number); business-profile.test.js
+    // changes these on purpose and puts them back. The server reads the row per request, so this takes effect at once.
+    // trading_name/registered_address/physical_address/postal_address are reset too - these are admin-editable through Settings on the
+    // REAL database.sqlite this copy is taken from, and several suites (incl. this file's own business-profile.test.js and
+    // browser/business-profile.js) assume the known defaults below rather than whatever the owner currently has on file. Found the hard
+    // way (2026-10-25): the owner set a trading name and flattened the stored address to one line through the live admin page while this
+    // throwaway copy's un-reset fields silently inherited it, breaking an "unsaved field was not sent" check and an addressLines test.
+    await new Promise((res) => {
+        const db = new sqlite3.Database(TEST_DB);
+        db.run(`UPDATE business_profile SET legal_name = 'MTV CREATIVES (PTY) LTD', trading_name = '', contact_phone = '',
+                    registered_address = '59 Stone Crest, Frederick Street' || char(10) || 'Kengies / Stone Crest, Fourways' || char(10) || 'Gauteng, 0059',
+                    physical_address = '', postal_address = '59 Stone Crest, Frederick Street' || char(10) || 'Kengies / Stone Crest, Fourways' || char(10) || 'Gauteng, 0059',
+                    is_tax_registered = 1, income_tax_reference = '9000000001', is_vat_registered = 1, vat_number = '4123456789', vat_number_verified = 1
+                WHERE id = 1`, () => db.close(() => res()));
+    });
+    // Booking Policies (deposit_percentage, min_installment_amount, etc.) are admin-editable through
+    // Settings on the REAL database.sqlite this copy is taken from, same hazard as business_profile
+    // above: several suites (installment-plan.test.js, payment-plan-rules.test.js) assume the
+    // documented defaults (database.js's own defaultPolicies seed) rather than whatever the owner
+    // currently has configured. Found the same way: deposit_percentage was 35 on the live dev DB
+    // (not the assumed 50), silently changing a client plan's deposit-first split.
+    await new Promise((res) => {
+        const db = new sqlite3.Database(TEST_DB);
+        db.run(`INSERT INTO policies (policy_key, policy_value) VALUES
+                    ('cancellation_policy', 'Cancellations made 30+ days before the event receive a full refund minus a 10% admin fee. Cancellations 14-29 days receive 50% refund. Cancellations within 14 days are non-refundable.'),
+                    ('deposit_percentage', '50'),
+                    ('quote_validity_days', '7'),
+                    ('payment_terms', '50% non-refundable deposit due upon acceptance of quote. Remaining balance due 48 hours before the event.'),
+                    ('inquiry_response_sla_hours', '24'),
+                    ('min_installment_amount', '500')
+                ON CONFLICT(policy_key) DO UPDATE SET policy_value = excluded.policy_value`,
+            () => db.close(() => res()));
+    });
 }
 
 // Kills the current child WITHOUT touching TEST_DB (unlike start(), which always re-copies the
@@ -185,10 +255,10 @@ async function api(method, urlPath, body) {
 }
 
 // Authenticated request expecting a binary body (PDF downloads etc), returned as a Buffer.
-async function apiBinary(method, urlPath) {
-    const r = await fetch(BASE + urlPath, { method, headers: { Cookie: cookie } });
+async function apiBinary(method, urlPath, body) {
+    const r = await fetch(BASE + urlPath, { method, headers: body ? { 'Content-Type': 'application/json', Cookie: cookie } : { Cookie: cookie }, body: body ? JSON.stringify(body) : undefined });
     const buffer = Buffer.from(await r.arrayBuffer());
-    return { status: r.status, buffer, contentType: r.headers.get('content-type') };
+    return { status: r.status, buffer, contentType: r.headers.get('content-type'), disposition: r.headers.get('content-disposition') };
 }
 
 // PDF string escapes: \n \r \t \( \) \\ and up to 3-digit octal (PDF spec 7.3.4.2).
@@ -216,26 +286,54 @@ function hexToStr(hex) {
 // fonts, no embedded custom-encoded glyphs). Decompresses each Flate content stream and reads the
 // text-showing operators directly (both literal `(...)` and hex `<...>` string forms); this is
 // not a general-purpose PDF parser.
+//
+// A stream's bytes are found from its own `/Length N` (PDFKit always writes one, a direct integer,
+// right before `stream` — never searched for by the next literal "endstream": compressed binary
+// data occasionally contains that exact byte sequence by chance, more likely the bigger the stream,
+// which truncated a real stream — found via a client VAT number that pushed the BILL TO box's
+// content stream a few hundred bytes bigger than the golden fixture that had exercised this file
+// until then, with every text check after it silently coming back empty, not failing loudly).
+// `/Length` can instead be an indirect reference ("6 0 R", used for a stream — an embedded font
+// program — whose size is not known until after it is written); the delimiter search is the
+// fallback for exactly that case.
 function extractPdfText(buffer) {
     const raw = buffer.toString('latin1');
-    const streamRe = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+    const streamKwRe = /stream\r?\n/g;
     let text = '';
-    let m;
-    while ((m = streamRe.exec(raw))) {
-        let decoded;
-        try { decoded = zlib.inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1'); }
-        catch (e) { continue; } // not Flate-compressed (e.g. an embedded image/font) — skip
-        const tjRe = /(\(((?:\\.|[^()\\])*)\)|<([0-9A-Fa-f\s]*)>)\s*Tj/g;
-        let t;
-        while ((t = tjRe.exec(decoded))) text += (t[2] !== undefined ? unescapePdfString(t[2]) : hexToStr(t[3])) + ' ';
-        const tjArrRe = /\[((?:[^\[\]])*)\]\s*TJ/g;
-        let arr;
-        while ((arr = tjArrRe.exec(decoded))) {
-            const partRe = /\(((?:\\.|[^()\\])*)\)|<([0-9A-Fa-f\s]*)>/g;
-            let p;
-            while ((p = partRe.exec(arr[1]))) text += (p[1] !== undefined ? unescapePdfString(p[1]) : hexToStr(p[2]));
-            text += ' ';
+    let sm;
+    while ((sm = streamKwRe.exec(raw))) {
+        const dataStart = sm.index + sm[0].length;
+        const dictWindow = raw.slice(Math.max(0, sm.index - 300), sm.index);
+        const lenRe = /\/Length\s+(\d+)(\s+\d+\s+R\b)?/g;
+        let lenMatch, lastLenMatch;
+        while ((lenMatch = lenRe.exec(dictWindow))) lastLenMatch = lenMatch;   // the one closest to this `stream` keyword
+        let dataEnd, streamBytes;
+        if (lastLenMatch && !lastLenMatch[2]) {
+            dataEnd = dataStart + parseInt(lastLenMatch[1], 10);
+            streamBytes = raw.slice(dataStart, dataEnd);
+        } else {
+            const endMatch = /\r?\nendstream/.exec(raw.slice(dataStart));
+            if (!endMatch) continue;
+            dataEnd = dataStart + endMatch.index;
+            streamBytes = raw.slice(dataStart, dataEnd);
         }
+        let decoded = null;
+        try { decoded = zlib.inflateSync(Buffer.from(streamBytes, 'latin1')).toString('latin1'); }
+        catch (e) { /* not Flate-compressed (e.g. an embedded image/font) — skip */ }
+        if (decoded !== null) {
+            const tjRe = /(\(((?:\\.|[^()\\])*)\)|<([0-9A-Fa-f\s]*)>)\s*Tj/g;
+            let t;
+            while ((t = tjRe.exec(decoded))) text += (t[2] !== undefined ? unescapePdfString(t[2]) : hexToStr(t[3])) + ' ';
+            const tjArrRe = /\[((?:[^\[\]])*)\]\s*TJ/g;
+            let arr;
+            while ((arr = tjArrRe.exec(decoded))) {
+                const partRe = /\(((?:\\.|[^()\\])*)\)|<([0-9A-Fa-f\s]*)>/g;
+                let p;
+                while ((p = partRe.exec(arr[1]))) text += (p[1] !== undefined ? unescapePdfString(p[1]) : hexToStr(p[2]));
+                text += ' ';
+            }
+        }
+        streamKwRe.lastIndex = dataEnd;   // past this stream's binary body — its bytes could otherwise fake a "stream\n" match
     }
     return text;
 }

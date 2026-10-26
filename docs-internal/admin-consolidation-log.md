@@ -885,3 +885,19 @@ The brief's checklist is much larger than the above, and none of it should be re
 **Recommended next step**, if this is picked up again: one category at a time (e.g. "every hardcoded
 shadow value" or "Bookings onto the shared table"), each with its own before/after parity capture —
 the same shape as Steps 1-5, rather than attempting the full brief as a single step.
+
+
+---
+
+## 2026-10-23 - Navigation reorganisation (sidebar, pages, tabs, cards)
+
+Not a CSS step: the *information architecture* of the admin portal was redone so each setting lives in one logical place. Current map: `docs-internal/admin-nav-map.md`.
+
+* **"Admin Settings" (`preferencesAdmin`) is gone.** Its cards moved to: Revenue > **Payment Setup** (PayFast; Manual EFT / banking details), System > **Email** > Email Setup (outgoing mail, customer replies, alert address), System > **Integrations** (Google Calendar, Location Search), Business > **Business Profile** (own page, six tabs), Site Appearance > **Homepage Sections** (was "Website Sections"), System > **Admin Portal** (admin appearance + the sign-in background). The old id is an alias for `adminPortalAdmin`.
+* **Business group (new):** Business Profile, Legal & Compliance (policies, moved out of Revenue). **System** replaces "Administration": Email (Email Setup + Delivery Log), Integrations, Admin Portal, People & Access.
+* **One registry**, `js/admin/nav-config.js`: names, headings, group, who may open each page, aliases. The sidebar role hiding and the `switchTab` access check both read it; `admNav.go(section, {tab, scroll})` replaces ad-hoc `switchTab` + click chains. Sidebar label, page heading and document title now agree for the pages that moved.
+* **Save split:** PayFast, outgoing mail and the alert address each have their own Save (the server is unchanged; SMTP keys still travel together so the connection test stays all-or-nothing).
+* **Roles:** Business Profile - administrator edits, manager views read-only, assistant none. Account menu: "My profile" and "Team & roles" open Users (administrators only for now).
+* **Tests:** `test/admin-nav.test.js` (static: sidebar <-> pages <-> registry <-> access matrix), `test/browser/admin-nav.js` (every link opens its page, role sidebars, denied redirect, alias, stale session value, where each card lives, tab-bar invariant), and updated browser tests for the moved cards. `scripts/css-parity.js` now lists the new sections.
+* **Moves were scripted** (block extraction by depth, id manifest, byte-identical card markup); nothing was re-typed.
+* **Open:** managers/assistants cannot open My Profile / Change Password (those tabs live on the administrator-only Users page; a self-service endpoint is a follow-up). Remaining pages whose sidebar label differs from the page heading are listed in the test's HEADING_DIFFERS.

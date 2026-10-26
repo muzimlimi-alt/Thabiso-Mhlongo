@@ -218,10 +218,12 @@ function renderTransactions(list) {
         </tr>`;
     }).join(''));
 
-    // Grand total of visible rows
+    // Grand total of visible rows: money received - payments less refunds. A manual adjustment (credit / debit) changes what is owed,
+    // not what was received, so it adds nothing here (it used to be summed as if it were a payment).
     const total = list.reduce((s, t) => {
-        const isRefund = (t.transaction_type || '').toLowerCase() === 'refund';
-        return s + (isRefund ? -parseFloat(t.amount || 0) : parseFloat(t.amount || 0));
+        const type = (t.transaction_type || '').toLowerCase();
+        if (type === 'adjustment') return s;
+        return s + (type === 'refund' ? -parseFloat(t.amount || 0) : parseFloat(t.amount || 0));
     }, 0);
     $('#txGrandTotal').text(`Showing ${list.length} transaction(s) · Net: ${fmtCurr(total)}`);
     const isFiltered = list.length < _allTransactionsCache.length;
@@ -461,6 +463,7 @@ window.generateInvoice = async function(bookingId, btnEl) {
         const res = await apiCall(`/api/admin/bookings/${bookingId}/invoice/generate`, 'POST');
         if (res.success) {
             window.notificationService.showSuccess('Success: Invoice PDF generated and dispatched. Booking updated.');
+            (res.warnings || []).forEach(function (w) { window.notificationService.showWarning('Tax invoice', w); });
             $btn.html('<i class="fa-solid fa-check"></i> Regenerate Invoice').css('background','var(--atl-sage)').css('color', '#fff').prop('disabled', false);
             await loadBookings();
             if (typeof window.toggleBookingDetail === 'function') window.toggleBookingDetail(bookingId, true);

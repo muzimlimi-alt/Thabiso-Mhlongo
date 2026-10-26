@@ -121,8 +121,9 @@
         try {
             const d = await apiCall(`/api/admin/bookings/${bookingId}/expenses`, 'GET');
             const gross = parseFloat(d.gross_revenue || 0);
+            const refunded = parseFloat(d.refunded || 0);        // a refund leaves the account: it comes off the net (shown only when there is one)
             const exp = parseFloat(d.total_expenses || 0);
-            const net = gross - exp;
+            const net = gross - refunded - exp;
             const netColor = net >= 0 ? 'var(--atl-green)' : 'var(--atl-clay)';
             $(`#bkPLCard-${bookingId}`).html(`
                 <div style="font-size:11px;color: var(--atl-muted);font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;"><i class="fa-solid fa-chart-pie" style="margin-right:5px;color: var(--atl-amber);"></i>Profit & Loss</div>
@@ -130,6 +131,10 @@
                     <span style="color:#aaa;">Gross Revenue:</span>
                     <span style="color:var(--atl-green);font-weight:600;">R ${gross.toLocaleString('en-ZA',{minimumFractionDigits:2})}</span>
                 </div>
+                ${refunded > 0 ? `<div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                    <span style="color:#aaa;">Refunded:</span>
+                    <span style="color:var(--atl-clay);font-weight:600;">- R ${refunded.toLocaleString('en-ZA',{minimumFractionDigits:2})}</span>
+                </div>` : ''}
                 <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
                     <span style="color:#aaa;">Expenses:</span>
                     <span style="color:var(--atl-clay);font-weight:600;">R ${exp.toLocaleString('en-ZA',{minimumFractionDigits:2})}</span>
@@ -636,11 +641,11 @@
                             <div style="font-size:11px;color: var(--atl-muted);">${r.event_name || ''}</div>
                         </td>
                         <td style="font-size:12px;" data-label="Date">${r.event_date ? new Date(r.event_date).toLocaleDateString('en-ZA') : '—'}</td>
-                        <td style="font-weight:600;" data-label="Quoted">${R_FMT(r.quoted_amount)}</td>
+                        <td style="font-weight:600;" data-label="Quoted">${r.amount_basis === 'none' ? '<span style="color:var(--atl-muted);font-weight:400;font-style:italic;" title="No quotation has been issued yet: the booking only carries the service-catalogue estimate, which is a published rate, not a quoted amount.">Not quoted</span>' : R_FMT(r.quoted_amount)}</td>
                         <td style="color:#2196F3;" data-label="PayFast">${R_FMT(r.payfast_total)}</td>
                         <td style="color:#9C27B0;" data-label="Manual">${R_FMT(r.manual_total)}</td>
                         <td style="color:${effectiveColor};font-weight:700;" data-label="Effective">${R_FMT(r.effective_received)}</td>
-                        <td style="color:var(--atl-orange);" data-label="Outstanding">${R_FMT(r.outstanding)}</td>
+                        <td style="color:var(--atl-orange);" data-label="Outstanding">${r.amount_basis === 'none' ? '<span style="color:var(--atl-muted);">—</span>' : R_FMT(r.outstanding)}</td>
                         <td data-label="Status"><span style="color:${psColor};font-size:11px;font-weight:700;">${r.payment_status || '—'}</span></td>
                         <td data-label="Warning">${warnBadge}</td>
                     </tr>

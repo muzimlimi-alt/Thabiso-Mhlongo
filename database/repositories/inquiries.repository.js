@@ -31,7 +31,19 @@ function promisedAll(sql, params) {
 function anonymizeOldInquiries(callback) {
     db.run(`UPDATE inquiries
             SET sender_name = '[ANONYMIZED]', sender_email = 'deleted@po-pia.com', sender_phone = '0000000000', message_body = '[REDACTED]'
-            WHERE submitted_at < date('now', '-2 years') AND sender_email != 'deleted@po-pia.com'`, callback);
+            WHERE submitted_at < date('now', '-2 years') AND sender_email != 'deleted@po-pia.com'`, function (err) {
+        const result = this;
+        // The conversation on those inquiries (replies sent, answers received) is personal data too.
+        db.run(`UPDATE inquiry_messages SET subject = '[REDACTED]', body_html = '[REDACTED]', body_text = '[REDACTED]', from_address = NULL, to_addresses = NULL, cc_addresses = NULL, last_error = NULL
+                WHERE inquiry_id IN (SELECT inquiry_id FROM inquiries WHERE sender_email = 'deleted@po-pia.com') AND body_html IS NOT '[REDACTED]'`,
+            () => callback.call(result, err));
+    });
+}
+// The conversation (inquiry_messages) of erased inquiries: content and addresses go; the row, its direction and timestamps stay for the audit trail.
+function redactInquiryMessagesForErasure(inquiryPh, inquiryIds) {
+    return promised(`UPDATE inquiry_messages SET subject = '[Redacted per POPIA erasure request]', body_html = '[Redacted per POPIA erasure request]',
+            body_text = '[Redacted per POPIA erasure request]', from_address = NULL, to_addresses = NULL, cc_addresses = NULL, last_error = NULL
+            WHERE inquiry_id IN (${inquiryPh})`, inquiryIds);
 }
 function getInquiryIdsForEmail(email) {
     return promisedAll(`SELECT inquiry_id FROM inquiries WHERE LOWER(sender_email) = LOWER(?)`, [email]);
@@ -121,7 +133,7 @@ function deleteInquiry(id, callback) {
 }
 
 module.exports = {
-    anonymizeOldInquiries, getInquiryIdsForEmail, anonymizeInquiriesForErasure, redactInquiryNotesForErasure,
+    anonymizeOldInquiries, getInquiryIdsForEmail, anonymizeInquiriesForErasure, redactInquiryNotesForErasure, redactInquiryMessagesForErasure,
     countInquiryNotesForIds, getInquiriesForEmail, insertInquiry, linkInquiryToBooking, markInquiryReplied,
     countInquiries, countInquiriesByStatus, countMyInquiries,
     updateInquiryStatus, unassignInquiry, assignInquiry, updateInquiryPriority, listInquiryCategories, updateInquiryCategory,

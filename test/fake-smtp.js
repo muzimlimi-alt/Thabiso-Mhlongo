@@ -137,7 +137,10 @@ async function startFakeSmtp(opts = {}) {
                     if (opts.allowedFrom && s.mailFrom !== opts.allowedFrom) send('550 5.7.60 SMTP; Client does not have permissions to send as this sender');
                     else send('250 2.1.0 Sender OK');
                 } else if (cmd.startsWith('RCPT TO')) {
-                    const m = /<([^>]*)>/.exec(line); s.rcpt.push(m ? m[1] : null); send('250 2.1.5 Recipient OK');
+                    const m = /<([^>]*)>/.exec(line); s.rcpt.push(m ? m[1] : null);
+                    // opts.rejectRcpt(address) => true makes the server refuse that recipient the way Exchange does for an unknown mailbox
+                    if (typeof opts.rejectRcpt === 'function' && opts.rejectRcpt(m ? m[1] : null)) send('550 5.1.1 RESOLVER.ADR.RecipNotFound; not found');
+                    else send('250 2.1.5 Recipient OK');
                 } else if (cmd === 'DATA') {
                     state = 'data'; send('354 Start mail input; end with <CRLF>.<CRLF>');
                 } else if (cmd === 'QUIT') {

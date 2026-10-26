@@ -445,8 +445,8 @@ async function runAll({ check, api, pub, one, q, future, sleep, getTrackingToken
                 J({ invBefore, invAfter, before: invCountBefore.n, after: invCountAfter.n }));
             const invPdf = await apiBinary('GET', `/api/admin/bookings/${D.id}/invoice/download`);
             const invText = invPdf.status === 200 ? extractPdfText(invPdf.buffer) : '';
-            const docDate = invText.match(/DOC DATE:?\s*(\d{1,2} [A-Z][a-z]{2} \d{4})/);
-            check('plans: the re-rendered invoice PDF keeps its issue date (DOC DATE) and number, not today\'s date',
+            const docDate = invText.match(/INVOICE DATE:?\s*(\d{1,2} [A-Z][a-z]{2} \d{4})/);
+            check('plans: the re-rendered invoice PDF keeps its issue date (INVOICE DATE) and number, not today\'s date',
                 !!invBefore && !!docDate && docDate[1] === issuedDocDate && invText.includes(invBefore.invoice_number),
                 J({ status: invPdf.status, docDate: docDate && docDate[1], expected: issuedDocDate, number: !!invBefore && invText.includes(invBefore.invoice_number) }));
 

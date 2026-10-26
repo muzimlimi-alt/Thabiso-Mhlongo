@@ -1,0 +1,35 @@
+/* =====================================================================
+   ADMIN - PAYFAST SAFETY NET (docs-internal/payfast.md)
+   The panel at the top of Finance -> Reconciliation (js/admin/payfast-reconcile.js). Platform tokens only (--atl-*) and the existing
+   atl-badge / atl-btn / atl-input components; every selector here is new (.pfs-*), so load order does not matter.
+   ===================================================================== */
+
+.pfs-panel { background: var(--atl-surface2); border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); padding: 16px; margin-bottom: 18px; }
+.pfs-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px 16px; }
+.pfs-title { font-size: 13px; font-weight: 700; color: var(--atl-ink); }
+.pfs-title i { margin-right: 6px; color: var(--atl-amber); }
+.pfs-sub { font-size: 11px; color: var(--atl-muted); margin-top: 2px; max-width: 62ch; }
+.pfs-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+
+.pfs-status { font-size: 12px; color: var(--atl-muted); margin-top: 12px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.pfs-status strong { color: var(--atl-ink); font-weight: 600; }
+.pfs-problem { color: var(--atl-clay); font-weight: 600; }
+
+.pfs-result { font-size: 12px; margin-top: 10px; padding: 8px 12px; border-radius: var(--atl-r-md); border: 1px solid var(--atl-line); color: var(--atl-ink); display: none; }
+.pfs-result.is-shown { display: block; }
+.pfs-result.is-ok { border-color: color-mix(in srgb, var(--atl-sage, var(--atl-amber)) 50%, transparent); background: color-mix(in srgb, var(--atl-sage, var(--atl-amber)) 10%, transparent); }
+.pfs-result.is-warn { border-color: color-mix(in srgb, var(--atl-orange) 45%, transparent); background: color-mix(in srgb, var(--atl-orange) 10%, transparent); }
+.pfs-result.is-bad { border-color: color-mix(in srgb, var(--atl-clay) 50%, transparent); background: color-mix(in srgb, var(--atl-clay) 10%, transparent); }
+.pfs-result ul { margin: 6px 0 0; padding-left: 18px; }
+
+.pfs-findings { margin-top: 14px; }
+.pfs-findings h6 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--atl-muted); font-weight: 600; }
+.pfs-table { font-size: 12px; color: var(--atl-ink-dim); border-color: var(--atl-line); margin: 0; }
+.pfs-table th { color: var(--atl-blue); font-weight: 600; white-space: nowrap; }
+.pfs-table td, .pfs-table th { vertical-align: top; }
+.pfs-amount { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.pfs-sub2 { font-size: 11px; color: var(--atl-muted); }
+.pfs-detail { max-width: 46ch; overflow-wrap: anywhere; color: var(--atl-ink-dim); }
+.pfs-empty { padding: 18px 12px; text-align: center; color: var(--atl-muted); font-size: 12px; }
+.pfs-resolve { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 220px; }
+.pfs-resolve input { flex: 1 1 160px; min-width: 0; font-size: 12px; }

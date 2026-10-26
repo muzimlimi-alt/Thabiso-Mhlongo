@@ -9,6 +9,10 @@ try { rateLimit = require('express-rate-limit'); } catch(e) { rateLimit = null; 
 // Rate limiter for public booking submissions (5 per 15 minutes per IP)
 const bookingRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { success: false, message: 'Too many booking submissions from this device. Please wait 15 minutes and try again.' } }) : (req, res, next) => next();
 
+// Public Contact form (POST /send-email): its own budget, so a visitor's messages and a client's booking submissions do not use each other up.
+// Bypassed under NODE_ENV=test like its siblings; the per-address / duplicate rules in lib/contact-intake.js are DB-based and tested directly.
+const contactRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({ windowMs: 15 * 60 * 1000, max: 5, standardHeaders: true, legacyHeaders: false, message: { success: false, message: 'Too many messages from this device. Please wait 15 minutes and try again, or contact us directly.' } }) : (req, res, next) => next();
+
 // Limits exports/sitemaps to prevent resource exhaustion
 const exportRateLimiter = rateLimit ? rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
@@ -22,7 +26,10 @@ const sitemapRateLimiter = rateLimit ? rateLimit({
     message: "Generating sitemaps too frequently. Please wait a while."
 }) : (req, res, next) => next();
 
-const trackRateLimiter = rateLimit ? rateLimit({
+// Public booking tracking / document downloads: 10 per 15 minutes per address. Bypassed under NODE_ENV=test like its siblings above:
+// every test file shares one server and one address, and a full run makes more than 10 of these calls - the 11th got a 429 and crashed
+// service-visibility.test.js, skipping every file after it (test/rate-limiters.test.js checks production still enforces the limit).
+const trackRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
     windowMs: 15 * 60 * 1000, // 15 mins
     max: 10,
     standardHeaders: true,
@@ -47,6 +54,18 @@ const mutateRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateL
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: 'Too many attempts. Please wait 15 minutes and try again.' }
+}) : (req, res, next) => next();
+
+// Proof-of-payment uploads (POST /api/public/bookings/:id/eft/proof): files are the expensive thing to accept, so this has its own budget -
+// 10 per hour per address, apart from the 5-per-15-minutes mutate limiter that accepting a quote or paying uses up. A client who photographs
+// the wrong screen and uploads again must not be locked out for fifteen minutes. Bypassed under NODE_ENV=test like its siblings (the
+// per-booking caps in lib/eft.js are enforced in the database and tested there; test/rate-limiters.test.js checks this one in production mode).
+const popUploadRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many uploads from this device. Please wait an hour and try again, or email us your proof of payment.' }
 }) : (req, res, next) => next();
 
 // Limiter for all authenticated admin routes (per IP) — bypassed in test mode, matching
@@ -188,8 +207,8 @@ const payfastItnRateLimiter = rateLimit ? rateLimit({
 }) : (req, res, next) => next();
 
 module.exports = {
-    bookingRateLimiter, exportRateLimiter, sitemapRateLimiter, trackRateLimiter,
+    bookingRateLimiter, contactRateLimiter, exportRateLimiter, sitemapRateLimiter, trackRateLimiter,
     otpRequestRateLimiter, mutateRateLimiter, adminRateLimiter, adminLoginRateLimiter,
-    lookupRateLimiter, analyticsTrackLimiter, ipRateLimiter,
+    lookupRateLimiter, analyticsTrackLimiter, ipRateLimiter, popUploadRateLimiter,
     PAYFAST_VALID_IPS, payfastItnRateLimiter,
 };

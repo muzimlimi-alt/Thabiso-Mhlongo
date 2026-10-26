@@ -1,4 +1,4 @@
-// Admin -> System Settings -> Email (SMTP): the card driven through the REAL admin.html UI on an isolated DB copy (test/support.js -
+// Email > Inquiries > Setup (Outgoing Mail card, Customer Replies, Alert Address): the card driven through the REAL admin.html UI on an isolated DB copy (test/support.js -
 // SMTP mocked, the real database and mail server are never touched). Covers: the card renders with the Microsoft 365 fields,
 // the password is masked and never comes back from the server, inline validation, Test Connection, Save, Send Test, reload,
 // and the card being hidden for non-administrators.
@@ -52,10 +52,10 @@ async function openAdmin(browser, cookie, { width = 1440, height = 1100, rewrite
         r.continue();
     });
     await p.goto(BASE + '/admin.html', { waitUntil: 'networkidle0', timeout: 90000 });
-    await p.waitForFunction(() => typeof window.loadSystemSettings === 'function' && typeof window.switchTab === 'function', { timeout: 30000 });
-    await p.evaluate(() => window.switchTab('preferencesAdmin'));
+    await p.waitForFunction(() => typeof window.loadEmailSetup === 'function' && typeof window.switchTab === 'function', { timeout: 30000 });
+    await p.evaluate(() => window.admNav.go('inquiriesAdmin', { tab: 'inqSetupPanel' }));
     await sleep(300);
-    await p.evaluate(() => window.loadSystemSettings());
+    await p.evaluate(() => window.loadEmailSetup());
     await sleep(600);
     return p;
 }
@@ -119,21 +119,24 @@ const shot = async (p, name) => { if (!SHOTS) return; await p.evaluate(() => { c
     ok(!tr.text.includes(SECRET), 'the test result never contains the password', tr.text);
 
     // ── 4. Save ──
+    await p.evaluate(() => { window.__puts = []; const of = window.fetch; window.fetch = function (u, o) { if (o && o.method === 'PUT' && /\/api\/admin\/settings$/.test(String(u))) window.__puts.push(o.body); return of.apply(this, arguments); }; });
     await shot(p, 'smtp-card-filled');
-    await domClick(p, '#btnSaveSystemSettings');
-    await p.waitForFunction(() => /saved successfully/i.test(Array.from(document.querySelectorAll('.tm-toast__message')).map(t => t.textContent).join(' ')), { timeout: 20000 });
+    await domClick(p, '#btnSaveSmtp');
+    await p.waitForFunction(() => /Email settings saved/i.test(Array.from(document.querySelectorAll('.tm-toast__message')).map(t => t.textContent).join(' ')), { timeout: 20000 });
     const after = await p.evaluate(() => ({
         pw: document.getElementById('stSmtpPass').value, ph: document.getElementById('stSmtpPass').placeholder,
         status: document.getElementById('stSmtpStatus').textContent, host: document.getElementById('stSmtpHost').value, name: document.getElementById('stSmtpFromName').value
     }));
     ok(after.pw === '' && /saved/.test(after.ph) && after.host === 'smtp.office365.com' && after.name === 'Thabiso Mhlongo', 'after saving, the password box is cleared and says a password is saved; other values stay', JSON.stringify(after));
     ok(/Active: bookings@thabisomhlongo\.com via smtp\.office365\.com:587 \(STARTTLS\).*encrypted/.test(after.status), 'the status line reflects the saved configuration', after.status);
+    const smtpPuts = await p.evaluate(() => window.__puts.slice());
+    ok(smtpPuts.length === 1 && Object.keys(JSON.parse(smtpPuts[0]).settings).every(k => /^smtp_/.test(k)), 'Save email settings sends ONLY the mail-server settings (no alert address, no PayFast)', smtpPuts.join(' | ').replace(/smtp_pass":"[^"]*"/, 'smtp_pass":"..."'));
 
     // ── 5. reload: values come back, the password never does ──
     await p.reload({ waitUntil: 'networkidle0' });
     await p.waitForFunction(() => typeof window.switchTab === 'function', { timeout: 30000 });
-    await p.evaluate(() => window.switchTab('preferencesAdmin')); await sleep(300);
-    await p.evaluate(() => window.loadSystemSettings()); await sleep(800);
+    await p.evaluate(() => window.admNav.go('inquiriesAdmin', { tab: 'inqSetupPanel' })); await sleep(300);
+    await p.evaluate(() => window.loadEmailSetup()); await sleep(800);
     const re = await p.evaluate(() => ({ host: document.getElementById('stSmtpHost').value, user: document.getElementById('stSmtpUser').value, pw: document.getElementById('stSmtpPass').value, ph: document.getElementById('stSmtpPass').placeholder, html: document.documentElement.outerHTML }));
     ok(re.host === 'smtp.office365.com' && re.user === 'bookings@thabisomhlongo.com' && re.pw === '' && /saved/.test(re.ph), 'after a reload the saved values load and the password box stays empty', JSON.stringify({ h: re.host, u: re.user, pw: re.pw, ph: re.ph }));
     ok(!re.html.includes(SECRET), 'the password appears nowhere in the page DOM', '');
@@ -141,8 +144,8 @@ const shot = async (p, name) => { if (!SHOTS) return; await p.evaluate(() => { c
 
     // ── 6. editing without retyping the password keeps it ──
     await setVal(p, '#stSmtpFromName', 'Thabiso M.');
-    await domClick(p, '#btnSaveSystemSettings');
-    await p.waitForFunction(() => /saved successfully/i.test(Array.from(document.querySelectorAll('.tm-toast__message')).map(t => t.textContent).join(' ')), { timeout: 20000 });
+    await domClick(p, '#btnSaveSmtp');
+    await p.waitForFunction(() => /Email settings saved/i.test(Array.from(document.querySelectorAll('.tm-toast__message')).map(t => t.textContent).join(' ')), { timeout: 20000 });
     const kept = await p.evaluate(() => document.getElementById('stSmtpStatus').textContent);
     ok(/encrypted/.test(kept), 'saving with the password box blank keeps the stored password', kept);
 
@@ -165,15 +168,15 @@ const shot = async (p, name) => { if (!SHOTS) return; await p.evaluate(() => { c
     const otr = await p.$eval('#stSmtpTestResult', e => e.textContent);
     ok(/mock/i.test(otr) && !otr.includes(OSECRET), 'Test Connection works with the OAuth fields (mock server here) and never echoes the secret', otr);
     await shot(p, 'smtp-card-oauth');
-    await domClick(p, '#btnSaveSystemSettings');
+    await domClick(p, '#btnSaveSmtp');
     // wait for the save's own effect (not for a toast: the previous save's toast can still be on screen)
     await p.waitForFunction(() => document.getElementById('stSmtpSecret').value === '' && /using Microsoft 365 OAuth/.test(document.getElementById('stSmtpStatus').textContent), { timeout: 20000 });
     const oafter = await p.evaluate(() => ({ secret: document.getElementById('stSmtpSecret').value, ph: document.getElementById('stSmtpSecret').placeholder, status: document.getElementById('stSmtpStatus').textContent }));
     ok(oafter.secret === '' && /saved/.test(oafter.ph) && /using Microsoft 365 OAuth/.test(oafter.status) && /client secret saved \(encrypted\)/.test(oafter.status), 'after saving, the secret box is cleared and the status line says OAuth with a saved (encrypted) secret', JSON.stringify(oafter));
     await p.reload({ waitUntil: 'networkidle0' });
     await p.waitForFunction(() => typeof window.switchTab === 'function', { timeout: 30000 });
-    await p.evaluate(() => window.switchTab('preferencesAdmin')); await sleep(300);
-    await p.evaluate(() => window.loadSystemSettings()); await sleep(800);
+    await p.evaluate(() => window.admNav.go('inquiriesAdmin', { tab: 'inqSetupPanel' })); await sleep(300);
+    await p.evaluate(() => window.loadEmailSetup()); await sleep(800);
     const ore = await p.evaluate(() => ({
         auth: document.getElementById('stSmtpAuth').value, tenant: document.getElementById('stSmtpTenant').value, client: document.getElementById('stSmtpClient').value,
         secret: document.getElementById('stSmtpSecret').value, oauthShown: document.getElementById('stSmtpOauthGroup').offsetParent !== null,
@@ -194,7 +197,22 @@ const shot = async (p, name) => { if (!SHOTS) return; await p.evaluate(() => { c
     ok(/accepted the test email/.test(tt) && !/email sent to/i.test(tt), 'Send Test says the mail server ACCEPTED the message (not "sent")', tt);
     await shot(p, 'smtp-card-saved');
 
-    // ── 7b. the Email Logs page shows that attempt, and says "accepted" rather than implying inbox delivery ──
+    // ── 7a. the alert address saves on its own ──
+    await p.evaluate(() => { window.__puts = []; const of = window.fetch; window.fetch = function (u, o) { if (o && o.method === 'PUT' && /\/api\/admin\/settings$/.test(String(u))) window.__puts.push(o.body); return of.apply(this, arguments); }; });
+    await setVal(p, '#stNotificationEmail', 'not-an-address');
+    await domClick(p, '#btnSaveAlertEmail');
+    await sleep(400);
+    const badAlert = await p.evaluate(() => ({ err: document.getElementById('errStNotif').style.display === 'block', sent: window.__puts.length }));
+    ok(badAlert.err && badAlert.sent === 0, 'an invalid alert address is refused on the page and nothing is sent to the server', JSON.stringify(badAlert));
+    await setVal(p, '#stNotificationEmail', 'alerts@example.invalid');
+    await domClick(p, '#btnSaveAlertEmail');
+    await p.waitForFunction(() => /Alert address saved/i.test(Array.from(document.querySelectorAll('.tm-toast__message')).map(t => t.textContent).join(' ')), { timeout: 20000 });
+    const alertPuts = await p.evaluate(() => window.__puts.slice());
+    ok(alertPuts.length === 1 && JSON.stringify(Object.keys(JSON.parse(alertPuts[0]).settings)) === '["notification_email"]', 'Save alert address sends ONLY the alert address - never the mail-server settings', alertPuts.join(' | '));
+    const savedAlert = await (await fetch(BASE + '/api/admin/settings', { headers: { Cookie: adminCookie } })).json();
+    ok(savedAlert.settings.notification_email === 'alerts@example.invalid', 'the alert address is stored', String(savedAlert.settings.notification_email));
+
+    // ── 7b. the Delivery Log page shows that attempt, and says "accepted" rather than implying inbox delivery ──
     await p.evaluate(() => window.switchTab('emailLogsAdmin'));
     await p.evaluate(() => window.loadEmailLogs());
     await p.waitForFunction(() => document.querySelector('#emailLogsAdmin tbody tr td span[title]'), { timeout: 15000 }).catch(() => {});

@@ -22,7 +22,11 @@
 // embeds Date.now(). Both are masked below for the same reason as the other two.
 const fs = require('fs');
 const path = require('path');
+const moment = require('moment-timezone');
 const { api, pub, one, future, sleep, getTrackingToken, apiBinary, extractPdfText } = require('./support');
+
+// PDFKit writes one '/Type /Page' object per page ('/Type /Pages' is the tree root and does not match).
+const pageCount = (buf) => (buf.toString('latin1').match(/\/Type \/Page\b/g) || []).length;
 
 const SVC = 15; // 'Travel Buyout – Gauteng' (active, flat fee, zero lead time) — see booking.test.js
 const GOLDEN_DIR = path.join(__dirname, 'golden');
@@ -57,6 +61,13 @@ function compareGolden(name, normalizedText) {
 }
 
 module.exports = async function ({ check }) {
+    // The quotation prints "Rates are valid until <date>" only while the rate card is valid. Pin the validity far ahead so this golden
+    // never depends on today's date (the date itself is masked as <DATE> by normalize() below).
+    const originalValidity = (((await api('GET', '/api/admin/services/meta')).body || {}).rate_card || {}).valid_until || null;
+    const restoreValidity = async () => { if (originalValidity) await api('PUT', '/api/admin/services/rate-card', { valid_until: originalValidity }); };
+    const pin = await api('PUT', '/api/admin/services/rate-card', { valid_until: '2099-12-31' });
+    check('fixture: rate-card validity pinned so the quote golden is date-independent', pin.status === 200, `${pin.status}`);
+
     const em = `pdfgolden.${Date.now()}@example.invalid`;
     const created = await api('POST', '/api/admin/bookings', {
         name: CLIENT_NAME, email: em, cell: '+27821234567', event_date: future(860),
@@ -66,7 +77,7 @@ module.exports = async function ({ check }) {
     });
     check('fixture: booking created', created.status === 200 && !!created.body.booking_id, `${created.status}`);
     const id = created.body.booking_id;
-    if (!id) return;
+    if (!id) { await restoreValidity(); return; }
 
     await sleep(50);
     const bkRow = await one('SELECT date FROM bookings WHERE id=?', [id]);
@@ -89,8 +100,11 @@ module.exports = async function ({ check }) {
     if (quoteRow && quoteRow.quote_number) {
         check('quote PDF: quote_number appears verbatim', quoteText.includes(quoteRow.quote_number), `looking for ${quoteRow.quote_number}`);
     }
+    check('quote PDF: exactly one page (the footer used to spill onto a blank second page)', pageCount(quoteDl.buffer) === 1, 'pages=' + pageCount(quoteDl.buffer));
+    check('quote PDF: VALID UNTIL is the expiry chosen on the quote, and the footer repeats it', quoteText.includes('VALID UNTIL: ' + moment(expiry, 'YYYY-MM-DD').format('DD MMM YYYY')) && quoteText.includes('This quotation is valid until ' + moment(expiry, 'YYYY-MM-DD').format('DD MMM YYYY') + '.'), quoteText.slice(0, 400));
     const quoteGolden = compareGolden('quote.golden.txt', normalize(quoteText));
     check('quote PDF: matches normalized golden structure', quoteGolden.pass, quoteGolden.detail);
+    await restoreValidity();   // the pin was only for the golden; other tests read the real rate-card validity
 
     // ── Accept, to generate the invoice ──
     const token = await getTrackingToken(id, em);
@@ -109,6 +123,10 @@ module.exports = async function ({ check }) {
     if (invRow && invRow.invoice_number) {
         check('invoice PDF: invoice_number appears verbatim', invText.includes(invRow.invoice_number), `looking for ${invRow.invoice_number}`);
     }
+    check('invoice PDF: exactly one page', pageCount(invDl.buffer) === 1, 'pages=' + pageCount(invDl.buffer));
+    // The footer is shared with the quotation, whose validity sentence ("Quotes are valid for 14 days.") used to print on every invoice too.
+    // An invoice carries no quote validity, and no payment terms are invented to fill the gap: it simply thanks the client.
+    check('invoice PDF: the footer thanks the client and says nothing about quotes', invText.includes('Thank you for your business.') && !/Quotes are valid|quotation is valid/i.test(invText), invText.slice(-260));
     const invGolden = compareGolden('invoice.golden.txt', normalize(invText));
     check('invoice PDF: matches normalized golden structure', invGolden.pass, invGolden.detail);
 };

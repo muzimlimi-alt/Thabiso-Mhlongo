@@ -58,6 +58,12 @@ test/test-uploads/
 # Temporary and test files directory
 TBC/
 
+# Business documents directory
+business_docs/
+
+# Plaintext admin credentials dump (never meant to enter this public repo)
+data/admin_credentials.txt
+
 # OS-generated files
 .DS_Store
 Thumbs.db

@@ -656,8 +656,12 @@
             const chips = [];
             if (row.date) chips.push(`<span class="dv-chip"><i class="fa-regular fa-calendar"></i>&nbsp;${row.date}${row.event_start_time ? ' · ' + row.event_start_time : ''}</span>`);
             if (row.event_location) chips.push(`<span class="dv-chip"><i class="fa-solid fa-location-dot"></i>&nbsp;${row.event_location}</span>`);
-            if (row.quote_amount) chips.push(`<span class="dv-chip gold"><span class="m">R ${parseFloat(row.quote_amount).toFixed(2)}</span></span>`);
-            if (parseFloat(row.amount_outstanding) > 0) chips.push(`<span class="dv-chip"><span class="m">Outstanding R ${parseFloat(row.amount_outstanding).toFixed(2)}</span></span>`);
+            // Gold chip = an ISSUED quote's total. Before a quote exists bookings.quote_amount is only the catalogue
+            // estimate ("R 5000.00" — which parseFloat reads as NaN), and an individually priced line has no amount yet.
+            if (bkHasQuote(row)) chips.push(`<span class="dv-chip gold"><span class="m">R ${(bkMoney(row.quote_amount) || 0).toFixed(2)}</span></span>`);
+            else if (Number(row.unpriced_lines) > 0) chips.push(`<span class="dv-chip"><span class="m">To be quoted</span></span>`);
+            else if (bkMoney(row.quote_amount)) chips.push(`<span class="dv-chip"><span class="m">Est. R ${bkMoney(row.quote_amount).toFixed(2)}</span></span>`);
+            if (bkAmountAgreed(row) && parseFloat(row.amount_outstanding) > 0) chips.push(`<span class="dv-chip"><span class="m">Outstanding R ${parseFloat(row.amount_outstanding).toFixed(2)}</span></span>`);
             $('#dvChips').html(chips.join(''));
 
             // Actions — reuse the row's own already-rendered action bar verbatim, so every
@@ -730,11 +734,18 @@
                         var qty  = li.quantity_minutes || li.quantity || 0;
                         var unit = parseFloat(li.unit_price);
                         var tot  = parseFloat(li.total_price || unit * qty);
+                        // A service that is priced individually and has no agreed amount yet is "to be quoted" —
+                        // printing R0.00 would read as a free service. The published band (server-built, numbers
+                        // only) sits beneath it as a reference, never as the price.
+                        var tbq  = !!li.unpriced;
+                        var band = (li.price_label && li.price_label !== 'Enquire') ? '<div style="font-size:11px;color:var(--atl-muted);font-weight:400;">' + li.price_label + '</div>' : '';
                         return '<tr>'
-                            + '<td data-label="Service">'      + (li.service_name || li.description || '—') + '</td>'
+                            // line_description: what the line was called when it was booked / quoted - a later rename of the service
+                            // (the rate card renamed three) must not re-title a past booking.
+                            + '<td data-label="Service">'      + (li.line_description || li.service_name || li.description || '—') + '</td>'
                             + '<td data-label="Qty" class="right atl-det-tabular">'   + qty + ' ' + (li.display_unit || 'min') + '</td>'
-                            + '<td data-label="Unit" class="right atl-det-tabular">R ' + unit.toFixed(2) + '</td>'
-                            + '<td data-label="Total" class="right atl-det-tabular" style="font-weight:700;">R ' + tot.toFixed(2) + '</td>'
+                            + '<td data-label="Unit" class="right atl-det-tabular">' + (tbq ? '<span style="color:var(--atl-muted);">To be quoted</span>' + band : 'R ' + unit.toFixed(2)) + '</td>'
+                            + '<td data-label="Total" class="right atl-det-tabular" style="font-weight:700;">' + (tbq ? '—' : 'R ' + tot.toFixed(2)) + '</td>'
                             + '</tr>';
                     }).join('');
 
@@ -868,7 +879,7 @@
                 };
                 var tlEntries = [];
                 if (row.created_at) tlEntries.push({ when: row.created_at, what: 'Enquiry received', meta: 'Booking submitted' });
-                if (row.quoted_at) tlEntries.push({ when: row.quoted_at, what: 'Quote sent', meta: row.quote_amount ? ('R ' + parseFloat(row.quote_amount).toFixed(2)) : '' });
+                if (row.quoted_at) tlEntries.push({ when: row.quoted_at, what: 'Quote sent', meta: bkMoney(row.quote_amount) != null ? ('R ' + bkMoney(row.quote_amount).toFixed(2)) : '' });
                 if (row.accepted_at) tlEntries.push({ when: row.accepted_at, what: 'Quote accepted', meta: 'By client' });
                 if (contract && contract.contract && contract.contract.signed_date) {
                     tlEntries.push({ when: contract.contract.signed_date, what: 'Contract signed', meta: contract.contract.signed_by ? ('Signed by ' + contract.contract.signed_by) : 'IP logged' });

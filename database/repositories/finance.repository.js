@@ -13,6 +13,7 @@
 // Found by a live grep sweep of every FROM/INTO/UPDATE hit against these six tables in
 // server.js — no prior catalog existed for this domain.
 const db = require('../../database');
+const { receivedAmountSql, revenueRowsSql } = require('../../lib/booking-amounts');   // pure SQL fragments: revenue = payments MINUS refunds / chargebacks
 
 function promised(sql, params) {
     return new Promise((resolve, reject) => {
@@ -127,6 +128,10 @@ function insertAdminPaymentScheduleRow(bookingId, description, dueDate, amount, 
 // POST .../payment-schedules/rebalance — same "relocate the prepare() call only" treatment.
 function prepareUpdatePaymentScheduleAmount() {
     return db.prepare("UPDATE payment_schedules SET expected_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+}
+// The same statement for one row, awaitable - used when a manual adjustment rescales the schedule (lib/payment-processing.js).
+function setPaymentScheduleAmount(scheduleId, amount) {
+    return promised("UPDATE payment_schedules SET expected_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", [amount, scheduleId]);
 }
 
 // Shared by cancelActiveBookingsForErasure() (POPIA), the admin cancel route, applyStatusChange()'s
@@ -296,16 +301,35 @@ function insertManualTransaction(bookingId, amt, transactionType, normalizedMeth
          VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', 'completed', CURRENT_TIMESTAMP)`,
         [bookingId, amt, transactionType, normalizedMethod, reference, finalNotes, txDate], callback);
 }
+// The manual adjustments that count towards a booking's invoice (lib/booking-adjustments.js): logged against it since the standing
+// quotation was issued (`sinceTimestamp` = that quotation's created_at, UTC; null when no quotation stands), completed and not flagged as a
+// duplicate, in the order they were logged. A failed lookup is logged, never silently read as "no adjustments".
+function getStandingAdjustmentRows(bookingId, sinceTimestamp) {
+    return new Promise((resolve) => {
+        db.all(
+            `SELECT id, amount, notes, created_at FROM transactions
+             WHERE booking_id = ? AND transaction_type = 'adjustment'
+               AND COALESCE(is_duplicate, 0) = 0 AND (status = 'completed' OR status IS NULL)
+               AND (? IS NULL OR created_at >= ?)
+             ORDER BY id`,
+            [bookingId, sinceTimestamp || null, sinceTimestamp || null],
+            (err, rows) => {
+                if (err) console.error(`[Adjustments] Lookup failed for booking #${bookingId}:`, err.message);
+                resolve(err ? [] : (rows || []));
+            });
+    });
+}
 // GET /api/admin/financials/analytics — 12-month revenue trend (deferred whole from the
 // invoices+quotations domain; its invoices-only aging query is now in that repository, and its
 // bookings/clients-joined queries stay in server.js — this is its one finance-only statement).
 function getTransactionRevenueTrend(callback) {
     db.all(
         `
-        SELECT strftime('%Y-%m', transaction_date) AS month, SUM(amount) AS total_revenue
-        FROM transactions
-        WHERE status = 'completed' AND COALESCE(is_duplicate, 0) = 0
-          AND transaction_date >= DATE('now', '-12 months')
+        SELECT strftime('%Y-%m', t.transaction_date) AS month, SUM(${receivedAmountSql('t')}) AS total_revenue
+        FROM transactions t
+        WHERE ${revenueRowsSql('t')}
+          AND COALESCE(t.transaction_type, '') <> 'adjustment'   -- an adjustment changes what is owed; it is not money received
+          AND t.transaction_date >= DATE('now', '-12 months')
         GROUP BY month
         ORDER BY month ASC
     `,
@@ -316,8 +340,8 @@ function getTransactionRevenueTrend(callback) {
 // already-built clause, moved.
 function getTransactionRevenueByPeriod(groupFormat, whereClause, params, callback) {
     db.all(
-        `SELECT strftime('${groupFormat}', transaction_date) AS period,
-                COALESCE(SUM(amount), 0) AS revenue
+        `SELECT strftime('${groupFormat}', t.transaction_date) AS period,
+                COALESCE(SUM(${receivedAmountSql('t')}), 0) AS revenue
          FROM transactions t
          ${whereClause}
          GROUP BY period ORDER BY period ASC`,
@@ -327,10 +351,10 @@ function getTransactionRevenueByPeriod(groupFormat, whereClause, params, callbac
 function getPeriodRevenue(periodFrom, periodTo, callback) {
     db.get(
         `
-        SELECT COALESCE(SUM(t.amount), 0) AS period_revenue
+        SELECT COALESCE(SUM(${receivedAmountSql('t')}), 0) AS period_revenue
         FROM transactions t
-        WHERE t.status = 'completed'
-          AND COALESCE(t.is_duplicate, 0) = 0
+        WHERE ${revenueRowsSql('t')}
+          AND COALESCE(t.transaction_type, '') <> 'adjustment'   -- an adjustment changes what is owed; it is not money received
           AND DATE(t.transaction_date) >= ?
           AND DATE(t.transaction_date) <= ?
     `,
@@ -577,7 +601,7 @@ module.exports = {
     getPaymentSchedulesForDocument, flagOverduePaymentSchedules,
     getActiveScheduleRowsForAlignment, markScheduleRowsPaid, markScheduleRowsPending,
     getActivePaymentSchedules, supersedeLivePaymentSchedules,
-    insertAdminPaymentScheduleRow, prepareUpdatePaymentScheduleAmount,
+    insertAdminPaymentScheduleRow, prepareUpdatePaymentScheduleAmount, setPaymentScheduleAmount,
     cancelPendingPaymentSchedules, cancelPendingPaymentSchedulesAsync,
     supersedePaymentSchedulesForRequote, getPaymentSchedulesForPayfastInit, getPaymentSchedulesForTracking,
     getNextPayableScheduleRow,
@@ -588,7 +612,7 @@ module.exports = {
     insertPaymentLogEntry, insertLoggedPaymentTransaction, getPaymentLogsForBooking,
     getRecentPayfastTransactionForBooking, getCancellationsWithRefundedTotals,
     getTransactionsForBooking, getAlreadyRefundedAmount, insertRefundTransaction,
-    getTransactionsPaidSumForReconcile, insertManualTransaction,
+    getTransactionsPaidSumForReconcile, insertManualTransaction, getStandingAdjustmentRows,
     getTransactionRevenueTrend, getTransactionRevenueByPeriod, getPeriodRevenue, getTotalTransactionCount,
     getCompletedTransactionsForReconciliation, setTransactionDuplicateFlag, countTransactionsForIds,
     getTransactionProofPath,

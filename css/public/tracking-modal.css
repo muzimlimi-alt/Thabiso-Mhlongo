@@ -389,6 +389,124 @@
 .trk-sched-pay:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 2px; }
 
 /* ==========================================================================
+   PAY BY EFT (manual bank transfer + proof of payment)
+   ========================================================================== */
+
+.trk-eft {
+  margin-top: 14px;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border-low);
+  border-radius: var(--r-md);
+  padding: 14px;
+}
+.trk-eft-title {
+  font-size: .7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.trk-eft-title i { color: var(--y-base); margin-right: 5px; }
+.trk-eft-intro { color: var(--text-secondary); font-size: .8125rem; line-height: 1.5; margin: 0 0 12px; }
+.trk-eft-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 6px 14px;
+  margin: 0 0 12px;
+  padding: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-low);
+  border-radius: var(--r-md);
+  font-size: .8125rem;
+}
+.trk-eft-details dt { color: var(--text-muted); font-weight: 500; margin: 0; }
+.trk-eft-details dd { color: var(--text-primary); font-weight: 600; margin: 0; overflow-wrap: anywhere; }
+.trk-eft-details dd.trk-eft-ref { color: var(--y-base); }
+.trk-eft-copy {
+  margin-left: 8px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: .6875rem;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.trk-eft-copy:hover { color: var(--y-base); border-color: var(--y-base); }
+.trk-eft-note { color: var(--text-muted); font-size: .75rem; line-height: 1.5; margin: 0 0 10px; }
+.trk-eft-note.trk-eft-warn {
+  color: var(--warning);
+  background: rgba(245, 158, 11, .08);
+  border: 1px solid rgba(245, 158, 11, .25);
+  border-radius: var(--r-md);
+  padding: 8px 10px;
+}
+.trk-eft-form { border-top: 1px solid var(--border-low); margin-top: 12px; padding-top: 12px; }
+.trk-eft-form h4 { font-size: .8125rem; color: var(--text-primary); margin: 0 0 4px; font-weight: 700; }
+.trk-eft-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.trk-eft-form label { display: block; font-size: .6875rem; color: var(--text-muted); margin-bottom: 4px; }
+.trk-eft-form input[type="text"],
+.trk-eft-form input[type="date"],
+.trk-eft-form input[type="file"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 12px;
+  background: var(--bg-section);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: .8125rem;
+  min-height: 40px;
+}
+.trk-eft-form input:focus-visible { outline: 2px solid var(--y-base); outline-offset: 1px; }
+.trk-eft-form input[type="file"]::file-selector-button {
+  margin-right: 12px;
+  padding: 6px 12px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.trk-eft-form input[type="file"]::file-selector-button:hover { border-color: var(--y-base); color: var(--y-base); }
+.trk-eft-submit {
+  width: 100%;
+  margin-top: 4px;
+  padding: 11px 16px;
+  background: var(--y-base);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: 8px;
+  font-size: .8125rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.trk-eft-submit:disabled { opacity: .55; cursor: not-allowed; }
+.trk-eft-list { list-style: none; margin: 12px 0 0; padding: 0; }
+.trk-eft-list li {
+  padding: 10px 0;
+  border-top: 1px solid var(--border-low);
+  font-size: .75rem;
+  color: var(--text-secondary);
+}
+.trk-eft-list .trk-eft-line { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; }
+.trk-eft-list strong { color: var(--text-primary); }
+.trk-eft-badge { font-size: .625rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border-default); color: var(--text-muted); }
+.trk-eft-badge.approved { color: var(--success); border-color: var(--success-glow); background: var(--success-dim); }
+.trk-eft-badge.pending { color: var(--warning); border-color: rgba(245, 158, 11, .3); background: rgba(245, 158, 11, .12); }
+.trk-eft-badge.rejected, .trk-eft-badge.replacement_requested { color: var(--error); border-color: rgba(239, 68, 68, .3); background: rgba(239, 68, 68, .12); }
+.trk-eft-list .trk-eft-reason { margin-top: 4px; color: var(--text-secondary); }
+.trk-eft-list .trk-eft-file { margin-top: 3px; color: var(--text-muted); font-size: .6875rem; overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .trk-eft-row { grid-template-columns: 1fr; }
+  .trk-eft-details { grid-template-columns: 1fr; gap: 0; }
+  .trk-eft-details dt { margin-top: 8px; font-size: .6875rem; }
+}
+
+/* ==========================================================================
    ACCEPT QUOTE SECTION
    ========================================================================== */
 

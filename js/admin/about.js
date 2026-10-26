@@ -2,7 +2,7 @@
 // block, minus its middle "Website Sections" sub-block (admin.html ~13855-13979:
 // SECTION_REGISTRY/secEsc/renderSectionsUI/secSetToggle/loadSectionVisibility/secFilter/
 // saveSectionVisibility), which stayed behind in admin.html — despite sitting physically inside
-// this labeled block, it genuinely belongs to a future System Settings (`preferencesAdmin`)
+// this labeled block, it genuinely belongs to the (since split) Admin Settings page (`preferencesAdmin`, now Site Appearance > Homepage Sections)
 // extraction: its own tab (`prefPanelSections`) and a static onclick="saveSectionVisibility(this)"
 // both live in System Settings' own markup, not About Me's. Confirmed via the section's own tab
 // markup that the rest of this file — bio/profile AND the Hero/Services/Features/Announcement
@@ -156,11 +156,13 @@ $(function () {
 // HOMEPAGE CONTENT — Hero paragraph + "What I Do" services (admin-editable)
 // =====================================================================
 var _siteContent = null, _siteContentLoaded = false;
+// One card per rate-card category (same text as lib/homepage-service-cards.js and index.html - test/homepage-services.test.js keeps them equal).
 var DEFAULT_SVC_ITEMS = [
-    { title: 'Stand-Up', description: 'Solo sets, festivals & comedy nights', image: '' },
-    { title: 'MC & Host', description: 'Galas, weddings & corporate events', image: '' },
-    { title: 'TV, Podcast & Film', description: 'Acting, presenting & writing', image: '' },
-    { title: 'Voice-Over', description: 'Radio & TV ads', image: '' }
+    { title: 'Club & Theatre', description: 'Guest spots, support sets, headline shows & club nights', image: '' },
+    { title: 'Corporate & Events', description: 'Comedic performances & MC duties for conferences, galas & corporate days', image: '' },
+    { title: 'Private Functions, Weddings & Year-End Events', description: 'MC, performance & hosting for private celebrations', image: '' },
+    { title: 'Writing & Creative Services', description: 'Copywriting, joke & roast writing, scripts and script editing', image: '' },
+    { title: 'Acting, Voice-Over & Brand Campaigns', description: 'Screen acting, voice-over & brand content campaigns', image: '' }
 ];
 var DEFAULT_FEAT_ITEMS = [
     { title: '10+ Years', description: 'On stage since 2014' },
@@ -178,6 +180,9 @@ async function loadSiteContent(force) {
         if (!data || !data.success) throw new Error('bad response');
         if (!data.services) data.services = {};
         if (!Array.isArray(data.services.items) || !data.services.items.length) data.services.items = DEFAULT_SVC_ITEMS.slice();
+        // The homepage has one card per rate-card category. A set saved when there were only four cards still works (its cards keep
+        // the owner's text), but the cards it lacks must be editable too, so the editor offers the defaults for them.
+        for (var di = data.services.items.length; di < DEFAULT_SVC_ITEMS.length; di++) data.services.items.push(Object.assign({}, DEFAULT_SVC_ITEMS[di]));
         if (!data.features) data.features = {};
         if (!Array.isArray(data.features.items) || !data.features.items.length) data.features.items = DEFAULT_FEAT_ITEMS.slice();
         if (!data.announcement) data.announcement = {};

@@ -155,3 +155,100 @@
 }
 /* Constrain FC selection preview to a subtle per-cell amber tint */
 #calendarAdmin { --fc-highlight-color: color-mix(in srgb, var(--atl-amber) 12%, transparent); }
+
+/* ===== Microsoft 365 calendar sharing (js/admin/calendar-m365.js, docs-internal/calendar-m365.md) ===== */
+:root { --atl-m365: #7a93b8; }
+.cal-m365-strip[hidden], .cal-m365-panel[hidden], .cal-m365-strip__btn[hidden], #calFilterExternal[hidden], #calSyncFilterWrap[hidden], #calGoogleFilterWrap[hidden], .cal-m365-strip__warn[hidden] { display: none !important; }
+/* what a person may do is enforced by the server; these only hide buttons that would be refused */
+body.role-assistant .cal-m365-manage { display: none !important; }
+body:not(.role-administrator) .cal-m365-admin { display: none !important; }
+
+.cal-m365-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--atl-line); border-left-width: 3px; border-radius: 8px; background: var(--atl-paper); font-size: 12px; line-height: 1.5; color: var(--atl-ink-dim); }
+.cal-m365-strip--ok { border-left-color: var(--atl-sage); }
+.cal-m365-strip--warn { border-left-color: var(--atl-orange); }
+.cal-m365-strip--bad { border-left-color: var(--atl-clay); }
+.cal-m365-strip--off { border-left-color: var(--atl-line); }
+.cal-m365-strip__icon { color: var(--atl-m365); font-size: 15px; }
+#calGoogleStrip .cal-m365-strip__icon { color: var(--atl-google, #4285f4); }   /* the Google Calendar strip (js/admin/google-calendar.js) reuses the Microsoft strip's layout */
+.cal-m365-strip__text { flex: 1 1 240px; min-width: 0; }
+.cal-m365-strip__actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.cal-m365-strip__btn { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 10px; border: 1px solid var(--atl-line); border-radius: 6px; background: var(--atl-card); color: var(--atl-ink-dim) !important; font: inherit; font-size: 12px; text-decoration: none !important; cursor: pointer; }
+.cal-m365-strip__btn:hover { border-color: var(--atl-amber); color: var(--atl-ink) !important; }
+.cal-m365-strip__btn:focus-visible, .cal-m365-x:focus-visible { outline: 2px solid var(--atl-amber); outline-offset: 2px; }
+.cal-m365-strip__btn[disabled] { opacity: .55; cursor: default; }
+
+.cal-m365-panel { margin: -4px 0 14px; padding: 14px 16px; border: 1px solid var(--atl-line); border-radius: 8px; background: var(--atl-card); font-size: 12.5px; color: var(--atl-ink-dim); }
+.cal-m365-panel__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; color: var(--atl-ink); }
+.cal-m365-x { min-width: 32px; min-height: 32px; border: 0; background: none; color: var(--atl-muted); font-size: 20px; line-height: 1; cursor: pointer; }
+.cal-m365-dl { margin: 0; }
+.cal-m365-dl > div { display: flex; flex-wrap: wrap; gap: 2px 10px; padding: 3px 0; border-bottom: 1px dashed var(--atl-line); }
+.cal-m365-dl dt { flex: 0 0 150px; color: var(--atl-muted); font-weight: 600; }
+.cal-m365-dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.cal-m365-counts { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.cal-m365-count { padding: 2px 9px; border: 1px solid var(--atl-line); border-radius: 999px; background: var(--atl-paper); font-size: 11.5px; }
+.cal-m365-count--attn { border-color: var(--atl-orange); color: var(--atl-orange); }
+.cal-m365-admin-box { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--atl-line); }
+.cal-m365-btnrow { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+.cal-m365-steps { list-style: none; margin: 6px 0; padding: 0; }
+.cal-m365-steps li { padding: 3px 0; overflow-wrap: anywhere; }
+.cal-m365-steps li.ok i { color: var(--atl-sage); }
+.cal-m365-steps li.bad i { color: var(--atl-clay); }
+.cal-m365-log { list-style: none; margin: 6px 0 0; padding: 0; max-height: 260px; overflow: auto; }
+.cal-m365-log li { padding: 4px 0; border-bottom: 1px dashed var(--atl-line); overflow-wrap: anywhere; }
+.cal-m365-log li.error em { color: var(--atl-clay); font-style: normal; }
+.cal-m365-log li.skipped em { color: var(--atl-orange); font-style: normal; }
+.cal-m365-log__when { color: var(--atl-muted); font-size: 11px; margin-right: 6px; }
+.cal-m365-help { margin-top: 10px; }
+.cal-m365-help summary { cursor: pointer; color: var(--atl-ink); font-weight: 600; }
+.cal-m365-help ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.6; }
+
+/* the popup section */
+.cal-m365-sec { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--atl-line); font-size: 12px; color: var(--atl-ink-dim); }
+.cal-m365-sec__h { margin-bottom: 6px; font-weight: 700; color: var(--atl-ink); }
+.cal-m365-line { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.cal-m365-pill { display: inline-block; padding: 1px 8px; border: 1px solid var(--atl-line); border-radius: 999px; font-size: 10.5px; font-weight: 700; }
+.cal-m365-pill--synced { color: var(--atl-sage); border-color: var(--atl-sage); }
+.cal-m365-pill--pending { color: var(--atl-amber); border-color: var(--atl-amber); }
+.cal-m365-pill--warn { color: var(--atl-orange); border-color: var(--atl-orange); }
+.cal-m365-pill--bad { color: var(--atl-clay); border-color: var(--atl-clay); }
+.cal-m365-pill--none { color: var(--atl-muted); }
+.cal-m365-note { margin-top: 6px; padding: 6px 8px; border: 1px solid var(--atl-line); border-radius: 6px; background: var(--atl-paper); line-height: 1.5; }
+.cal-m365-note--bad { border-color: var(--atl-clay); }
+.cal-m365-note--warn { border-color: var(--atl-orange); }
+.cal-m365-fine { font-size: 11px; color: var(--atl-muted); }
+.cal-m365-cmp { display: grid; gap: 6px; margin-top: 6px; }
+.cal-m365-cmp span { display: block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--atl-muted); }
+.cal-m365-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.cal-m365-sec .cal-m365-strip__btn { min-height: 30px; }
+
+/* markers on the calendar items (the icon shape differs per state - colour alone never carries the meaning) */
+.fc-m365-badge { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 16px; height: 16px; margin: 0 4px 0 0; border: 1.5px solid #555; border-radius: 50%; background: #fff; font-size: 8.5px; line-height: 1; vertical-align: middle; box-sizing: border-box; }
+.fc-m365-badge--synced { border-color: #2e7d32; background: #d9f2dc; }
+.fc-m365-badge--pending { border-color: #b26a00; background: #ffe7bf; }
+.fc-m365-badge--error { border-color: #c62828; background: #ffd2d2; }
+.fc-m365-badge--external_deleted { border-color: #c62828; background: #ffd2d2; border-style: dashed; }
+.fc-m365-badge--conflict { border-color: #e65100; background: #ffd9b8; border-style: dashed; }
+.fc-m365-badge--External { border-color: #3b5b8c; background: #dbe6f7; }
+/* an appointment that lives only in Outlook: hatched, dashed edge, never draggable */
+.fc-event--type-external { background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, .3) 0 5px, transparent 5px 10px) !important; border-left-style: dashed !important; opacity: .93; }
+/* filters */
+.fc-cal--hide-external .fc-event--type-external { display: none !important; }
+#calendar.fc-cal--sync-synced .fc-event:not(.fc-event--m365-synced),
+#calendar.fc-cal--sync-pending .fc-event:not(.fc-event--m365-pending),
+#calendar.fc-cal--sync-attention .fc-event:not(.fc-event--m365-attention),
+#calendar.fc-cal--sync-website .fc-event:not(.fc-event--m365-none) { display: none !important; }
+/* the Google filter (js/admin/google-calendar.js calGoogleBadge marks each booking / public event) */
+#calendar.fc-cal--g-on .fc-event:not(.fc-event--gcal-yes),
+#calendar.fc-cal--g-off .fc-event:not(.fc-event--gcal-no) { display: none !important; }
+.cal-m365-strip__warn { flex: 1 1 100%; margin: 2px 0 0; padding: 6px 10px; border: 1px solid var(--atl-orange); border-radius: 6px; font-size: 11.5px; line-height: 1.5; color: var(--atl-ink-dim); }
+.cal-sync-filter { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+/* body.admin-body prefix: the admin form rules (css/admin/07-components.css) force every select to height:auto / min-height:40px with !important */
+body.admin-body .cal-sync-filter select { min-height: 32px; padding: 3px 8px; border: 1px solid var(--atl-line); border-radius: 6px; background: var(--atl-card); color: var(--atl-ink-dim); font: inherit; font-size: 12px; }
+
+@media (max-width: 575px) {
+    .cal-m365-strip__actions { width: 100%; margin-left: 0; }
+    .cal-m365-strip__btn { flex: 1 1 auto; justify-content: center; min-height: 44px; }
+    .cal-sync-filter { margin-left: 0; width: 100%; }
+    body.admin-body .cal-sync-filter select { flex: 1 1 auto; min-height: 44px !important; height: 44px !important; }
+    .cal-m365-dl dt { flex-basis: 100%; }
+}
