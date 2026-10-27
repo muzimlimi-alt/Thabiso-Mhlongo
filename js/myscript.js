@@ -2932,6 +2932,7 @@ document.addEventListener("DOMContentLoaded", function() {
             // Show step panel
             $('.book-step-panel').removeClass('active');
             $('#bookStep' + step).addClass('active');
+            bkPlaceDraftLine(step);
             currentStep = step;
             _bkFurthestStep = Math.max(_bkFurthestStep, step);
             // Wait past the 350ms tmFadeIn animation before measuring input position
@@ -2946,11 +2947,21 @@ document.addEventListener("DOMContentLoaded", function() {
                     );
                 }
                 $('#bkSmartReadout').css('display', 'flex');
+                bkUpdateExtrasMeta();   // a restored draft fills these fields without input events
             }
             // Persist step progress so a closed modal can be restored
             if (step > 0) saveBkDraft();
         }
         window._bkGoTo = updateProgress;
+
+        // "Progress saved · Clear saved progress" sits in the current step, just above its Back/Next row. Left after the
+        // form, the sticky row's negative bottom margin (css/public/drawer.css) pulled it underneath, half hidden.
+        function bkPlaceDraftLine(step) {
+            var $line = $('#bkDraftLine');
+            var $nav = $('#bookStep' + step + ' .bk-nav-row').first();
+            if ($line.length && $nav.length) $nav.before($line);
+        }
+        bkPlaceDraftLine(1);
 
         function setFieldState(id, valid, msg) {
             var $inp = $('#' + id);
@@ -3139,36 +3150,98 @@ document.addEventListener("DOMContentLoaded", function() {
                 var qtyDisp = model === 'per_minute' ? formatDuration(qty) : qty;
                 srvHtml += '<div style="margin-bottom:5px;font-size:12px;"><strong>' + bkEsc(name) + '</strong> (' + bkEsc(qtyDisp) + ')' + detailsHtml + '</div>';
             });
-            // P8: Include Venue Name and Company so the user can verify the
-            // two most critical identifiers on the Review screen before submitting.
-            var rows = [
-                ['Event Name',            $('#bookEventName').val()],
-                ['Event Type',            $('#bookType').val()],
-                ['Services Required',     srvHtml || '\u2014', true],   // true = already-escaped HTML
-                ['Event Date',            window.bkLongDate ? window.bkLongDate($('#bookDate').val()) : $('#bookDate').val()],
-                ['Performance Slot',      $('#bookSlot').val() || '\u2014'],
-                ['Venue / Location',      $('#bookLocation').val() || '\u2014'],
-                ['Venue Type',            $('#bookVenueType').val() || '\u2014'],
-                ['Notes / Requirements',  $('#bookNotes').val() || '\u2014'],
-                ['Audience Size',         $('#bookAudience').val() || '\u2014'],
-                ['Audience Demographic',  $('#bookDemographic').val() || '\u2014'],
-                ['Budget Range',          $('#bookBudget').val() || '\u2014'],
-                ['Alternative Dates',     $('#bookAltDates').val() || '\u2014'],
-                ['Content Suitability',   $('#bookContentNotes').val() || '\u2014'],
-                ['How You Heard About Us', bkHeardAboutValue() || '\u2014'],
-                ['Full Name',             $('#bookName').val()],
-                ['Company / Organization', $('#bookCompany').val() || '\u2014'],
-                ['Email',                 $('#bookEmail').val()],
-                ['Phone',                 $('#bookCell').val()],
-                ['City / Country',        [$('#bookCity').val(), $('#bookCountry').val()].filter(Boolean).join(', ') || '\u2014'],
-                ['Travel & Accommodation', $('#bookTravel').val() || '\u2014']
+            // Grouped by the step each detail came from, each group with an Edit link back to that step.
+            // Only what was filled in is listed: a row of dashes for every optional field left blank
+            // made the summary hard to read. (P8: venue name and company stay listed when given.)
+            var groups = [
+                { title: 'Event', icon: 'fa-solid fa-star', step: 1, rows: [
+                    ['Event Name',            $('#bookEventName').val()],
+                    ['Event Type',            $('#bookType').val()],
+                    ['Event Date',            window.bkLongDate ? window.bkLongDate($('#bookDate').val()) : $('#bookDate').val()],
+                    ['Services Required',     srvHtml, true]   // true = already-escaped HTML
+                ] },
+                { title: 'Venue & time', icon: 'fa-solid fa-location-dot', step: 3, rows: [
+                    ['Venue / Location',      $('#bookLocation').val()],
+                    ['Venue Type',            $('#bookVenueType').val()],
+                    ['City / Country',        [$('#bookCity').val(), $('#bookCountry').val()].filter(Boolean).join(', ')],
+                    ['Performance Slot',      $('#bookSlot').val()]
+                ] },
+                { title: 'Your details', icon: 'fa-solid fa-user', step: 2, rows: [
+                    ['Full Name',             $('#bookName').val()],
+                    ['Company / Organization', $('#bookCompany').val()],
+                    ['Email',                 $('#bookEmail').val()],
+                    ['Phone',                 $('#bookCell').val()]
+                ] },
+                { title: 'Extra details', icon: 'fa-solid fa-sliders', step: 3, extras: true, rows: [
+                    ['Notes / Requirements',  $('#bookNotes').val()],
+                    ['Audience Size',         $('#bookAudience').val()],
+                    ['Audience Demographic',  $('#bookDemographic').val()],
+                    ['Budget Range',          $('#bookBudget').val()],
+                    ['Alternative Dates',     $('#bookAltDates').val()],
+                    ['Content Suitability',   $('#bookContentNotes').val()],
+                    ['How You Heard About Us', bkHeardAboutValue()],
+                    ['Travel & Accommodation', $('#bookTravel').val()]
+                ] }
             ];
-            var html = rows.map(function(r) {
-                var val = r[1] || '\u2014';
-                return '<div class="book-review-row"><span>' + r[0] + '</span><span>' + (r[2] ? val : bkEsc(val)) + '</span></div>';
+            var html = groups.map(function(g) {
+                var rows = g.rows.filter(function(r) { return r[1] && $.trim(String(r[1])); });
+                if (!rows.length) return '';
+                return '<section class="bk-card bk-review-group">' +
+                    '<div class="bk-review-group__head"><h5 class="bk-card__title"><i class="' + g.icon + '" aria-hidden="true"></i>' + bkEsc(g.title) + '</h5>' +
+                    '<button type="button" class="bk-review-edit" data-step="' + g.step + '"' + (g.extras ? ' data-extras="1"' : '') +
+                    ' aria-label="Edit ' + bkEsc(g.title.toLowerCase()) + '">Edit</button></div>' +
+                    rows.map(function(r) {
+                        return '<div class="book-review-row"><span>' + r[0] + '</span><span>' + (r[2] ? r[1] : bkEsc(r[1])) + '</span></div>';
+                    }).join('') +
+                    '</section>';
             }).join('');
             $('#bookReviewContent').html(html);
         }
+
+        // Review "Edit" links: back to the step the detail came from (the extras card opened when that is where it lives).
+        $(document).on('click', '.bk-review-edit', function() {
+            updateProgress(parseInt($(this).attr('data-step'), 10) || 1);
+            if ($(this).attr('data-extras')) bkSetExtrasOpen(true);
+            var body = document.querySelector('#bookingDrawer .atl-drawer__body');
+            if (body) body.scrollTop = 0;
+        });
+
+        // \u2500\u2500 Step 3 "Extra details (optional)": one folded card for every optional field and the files \u2500\u2500
+        var BK_EXTRA_FIELDS = ['bookNotes', 'bookAudience', 'bookDemographic', 'bookBudget', 'bookAltDates', 'bookContentNotes', 'bookHeardAbout', 'bookTravel'];
+
+        function bkSetExtrasOpen(open) {
+            $('#bkExtrasToggle').attr('aria-expanded', open ? 'true' : 'false');
+            $('#bkExtrasBody').prop('hidden', !open);
+            $('#bkExtrasCard').toggleClass('is-open', !!open);
+        }
+
+        // "2 added" in the card's heading, so a folded card still shows what it holds.
+        function bkUpdateExtrasMeta() {
+            var n = BK_EXTRA_FIELDS.filter(function(id) { return $.trim(String($('#' + id).val() || '')); }).length;
+            n += $('#bookAttachList').children().length;
+            $('#bkExtrasMeta').text(n ? n + ' added' : '');
+        }
+
+        // A field inside the folded card that shows a problem must never stay hidden: open the card.
+        function bkExtrasHasProblem() {
+            var shown = $('#bkExtrasBody .bk-step-err').filter(function() {
+                return (this.style.display || getComputedStyle(this).display) !== 'none' && $.trim($(this).text());
+            }).length;
+            return shown > 0 || $('#bkExtrasBody .bk-input--err').length > 0;
+        }
+
+        $(document).on('click', '#bkExtrasToggle', function() {
+            bkSetExtrasOpen($(this).attr('aria-expanded') !== 'true');
+        });
+        $(document).on('input change', '#bkExtrasBody :input', bkUpdateExtrasMeta);
+        (function() {
+            var body = document.getElementById('bkExtrasBody');
+            if (!body || !window.MutationObserver) return;
+            new MutationObserver(function() {
+                if (body.hidden && bkExtrasHasProblem()) bkSetExtrasOpen(true);
+                bkUpdateExtrasMeta();   // attachments are added/removed as list items, with no input event
+            }).observe(body, { subtree: true, childList: true, attributes: true, attributeFilter: ['style', 'class'] });
+        })();
 
         // Note: bookNext1 click is registered near the date availability checker (with availability gating).
 

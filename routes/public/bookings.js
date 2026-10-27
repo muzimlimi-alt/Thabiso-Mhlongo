@@ -22,7 +22,7 @@ const { MIN_ADVANCE_HOURS, CURRENT_POLICY_VERSION } = require('../../lib/booking
 const { addMinutesToTime, parseDurationToMinutes } = require('../../lib/time-utils');
 const { catalogueUnitPrice } = require('../../lib/service-pricing');
 const { findOrCreateClient, findOrCreateVenueFromPlace } = require('../../lib/client-venue');
-const { normaliseClientVat, CLIENT_VAT_MESSAGE } = require('../../lib/business-profile-core');
+const { normaliseClientVat, CLIENT_VAT_MESSAGE, PATTERNS } = require('../../lib/business-profile-core');
 const { calculateCancellationRefund } = require('../../lib/cancellation-refund');
 const { sendCancellationEmail } = require('../../lib/booking-cancellation-email');
 // The module object is kept as well as the destructured names: the payment-plan notifications are
@@ -408,6 +408,13 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                             event_name: row.event_name,
                                             event_type: row.event_type,
                                             date: row.date,
+                                            // The client's own details, for the drawer's "Your details" row - shown back to the
+                                            // person who just proved they own this booking's inbox (requireBookingAccessToken).
+                                            name: row.name,
+                                            email: row.email,
+                                            cell: row.cell,
+                                            performance_slot: row.performance_slot,
+                                            event_location: row.event_location,
                                             quote_amount: revealed ? row.quote_amount : null,
                                             quote_details: revealed ? row.quote_details : null,
                                             quote_expiry_date: revealed ? row.quote_expiry_date : null,
@@ -1060,6 +1067,144 @@ router.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter
             res.status(500).json({ success: false, message: 'Failed to record your request in the database.' });
         }
     });
+});
+
+// ── Client corrections (the tracking drawer's "Your details") ─────────────────────────────────────────────────────────
+// LOW-RISK details the client fixes themselves, straight away: their own name, phone number and company. They are facts
+// about the CLIENT, not the event, and change no price, date or document already issued - the same three fields an admin
+// corrects under PUT /api/admin/bookings/:id/contact, with the same rules. Everything else (e-mail decides who can open
+// this booking; event name/type, date, time and venue can change the quote, invoice, contract or availability) is
+// HIGH-RISK: the client asks, and our team gets it as a booking note plus an e-mail and applies it in admin.
+const CLIENT_EDITABLE_STATUSES = ['NEW', 'PENDING', 'QUOTED', 'ACCEPTED', 'CONFIRMED'];
+const CLOSED_FOR_CHANGES = 'This booking can no longer be changed online. Please contact us if something needs correcting.';
+
+router.post('/api/public/bookings/:id/contact', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+    try {
+        const row = await dbGet('SELECT id, status, name, email, cell, company, vat_number, billing_address, client_id FROM bookings WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        if (!CLIENT_EDITABLE_STATUSES.includes(String(row.status || '').toUpperCase())) {
+            return res.status(409).json({ success: false, message: CLOSED_FOR_CHANGES });
+        }
+        const body = req.body || {};
+        const has = (f) => Object.prototype.hasOwnProperty.call(body, f);
+        const next = {};
+        const errors = [];
+        if (has('name')) {
+            const v = asBookingText(body.name);
+            if (v.length < 2 || v.length > 150) errors.push('Your name must be between 2 and 150 characters.');
+            else next.name = encodeUserHtml(v);
+        }
+        if (has('cell')) {
+            const v = asBookingText(body.cell);
+            if (!PATTERNS.phone.test(v)) errors.push('Please enter a valid phone number, e.g. 082 123 4567 or +27 82 123 4567.');
+            else next.cell = v;
+        }
+        if (has('company')) {
+            const v = asBookingText(body.company);
+            if (v.length > 150) errors.push('Company name must be under 150 characters.');
+            else next.company = encodeUserHtml(v) || null;   // '' clears it
+        }
+        if (errors.length) return res.status(400).json({ success: false, message: errors.join(' ') });
+
+        const asText = (v) => (v == null ? '' : String(v));
+        const changed = Object.keys(next).filter((f) => asText(row[f]) !== asText(next[f]));
+        const current = Object.assign({}, row, next);
+        const echo = { name: current.name, cell: current.cell, company: current.company };
+        if (!changed.length) return res.json({ success: true, unchanged: true, message: 'Your details are already up to date.', booking: echo });
+
+        await dbRun(`UPDATE bookings SET ${changed.map((f) => f + ' = ?').join(', ')}, modified_on = CURRENT_TIMESTAMP WHERE id = ?`,
+            changed.map((f) => next[f]).concat([row.id]));
+
+        // The same client-record refresh the admin correction does (identity by e-mail, which this route never changes).
+        try {
+            const clientId = await findOrCreateClient(current.name, current.email, current.cell, current.company, current.vat_number);
+            if (clientId !== row.client_id) await dbRun('UPDATE bookings SET client_id = ? WHERE id = ?', [clientId, row.id]);
+            await dbRun('UPDATE clients SET phone = ? WHERE id = ?', [current.cell, clientId]);
+        } catch (e) {
+            console.error('[Client Contact] Client record could not be refreshed for booking #' + row.id + ':', e.message);
+        }
+
+        const LABELS = { name: 'Name', cell: 'Phone', company: 'Company' };
+        const oldValues = {}, newValues = {};
+        changed.forEach((f) => { oldValues[f] = asText(row[f]); newValues[f] = asText(next[f]); });
+        await dbRun(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
+                     VALUES ('bookings', ?, 'CONTACT_UPDATED', ?, ?, 'client', CURRENT_TIMESTAMP)`,
+            [row.id, JSON.stringify(oldValues), JSON.stringify(newValues)]);
+        // A note too, so the team sees on the booking itself that the client changed these.
+        const noteText = '[Client updated their details]\n' +
+            changed.map((f) => `${LABELS[f]}: ${oldValues[f] || '(blank)'} → ${newValues[f] || '(blank)'}`).join('\n');
+        await insertBookingNoteFromTracker(row.id, encodeUserHtml(noteText));
+
+        res.json({ success: true, message: 'Your details have been updated.', updated: changed, booking: echo });
+    } catch (e) {
+        console.error('[Client Contact] Update failed for booking #' + req.params.id + ':', e.message);
+        res.status(500).json({ success: false, message: 'We could not save your details. Please try again.' });
+    }
+});
+
+// What a client can ask us to correct, and where in admin the team applies it.
+const CORRECTION_FIELDS = {
+    email:            { label: 'Email address',    column: 'email',            where: 'the Client card (Edit)' },
+    event_name:       { label: 'Event name',       column: 'event_name',       where: 'the Event card (Edit)' },
+    event_type:       { label: 'Event type',       column: 'event_type',       where: 'the Event card (Edit)' },
+    event_date:       { label: 'Event date',       column: 'date',             where: 'the Event card (Edit)' },
+    performance_time: { label: 'Performance time', column: 'performance_slot', where: 'the Event card (Edit)' },
+    venue:            { label: 'Venue / location', column: 'event_location',   where: 'the Venue card (Edit Location or Link a venue)' },
+    other:            { label: 'Something else',   column: null,               where: 'the booking' }
+};
+
+router.post('/api/public/bookings/:id/correction-request', mutateRateLimiter, ipRateLimiter, requireBookingAccessToken, async (req, res) => {
+    try {
+        const spec = CORRECTION_FIELDS[asBookingText(req.body.field)];
+        const details = asBookingText(req.body.details);
+        if (!spec) return res.status(400).json({ success: false, message: 'Please choose what needs correcting.' });
+        if (details.length < 3 || details.length > 1000) {
+            return res.status(400).json({ success: false, message: 'Please tell us what it should say (3 to 1,000 characters).' });
+        }
+        const row = await dbGet('SELECT id, status, name, email, event_name, event_type, date, performance_slot, event_location FROM bookings WHERE id = ?', [req.params.id]);
+        if (!row) return res.status(404).json({ success: false, message: 'Booking not found.' });
+        if (!CLIENT_EDITABLE_STATUSES.includes(String(row.status || '').toUpperCase())) {
+            return res.status(409).json({ success: false, message: CLOSED_FOR_CHANGES });
+        }
+        const currently = spec.column ? (row[spec.column] || '(not set)') : null;
+
+        // The note first - the record the team works from; the e-mail is the nudge.
+        const noteText = `[Correction Request] ${spec.label}\n` +
+            (currently !== null ? `Currently: ${currently}\n` : '') +
+            `Should be: "${details}"\nApply it in admin: ${spec.where}.`;
+        await insertBookingNoteFromTracker(row.id, encodeUserHtml(noteText));
+
+        const rows = [
+            { label: 'Client', value: row.name, mono: false },
+            { label: 'Email', value: row.email },
+            { label: 'Event', value: `${row.event_name || row.event_type || 'Event'} on ${row.date}`, mono: false },
+            { label: 'What needs correcting', value: spec.label, mono: false, highlight: true }
+        ];
+        if (currently !== null) rows.push({ label: 'Currently', value: currently, mono: false });
+        rows.push({ label: 'Should be', value: details, mono: false, highlight: true });
+        const html = emailComponents.renderSystemEmail({
+            preheaderText: `Correction request (${spec.label}) for booking #${row.id}.`,
+            category: 'Bookings',
+            severity: 'action',
+            leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(row.name)}</strong> asked us to correct the <strong style="color:#D4AF37;">${emailComponents.esc(spec.label.toLowerCase())}</strong> on booking <strong style="color:#FAFAFA;">#${row.id}</strong>.`,
+            bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Check it with the client if needed, then update it in the admin booking view: ${emailComponents.esc(spec.where)}. The request is also saved as a note on the booking.</p>`,
+            cards: [{ rows }]
+        });
+        getNotificationEmail().then((to) => sendEmail({
+            to,
+            subject: `[ACTION REQUIRED] Correction Request – Booking #${row.id}`,
+            htmlContent: html,
+            preWrapped: true,
+            replyTo: row.email,
+            titleOverride: 'Correction Request',
+            trigger_event: 'Booking: Correction Request'
+        })).catch((e) => console.error('[Correction Request] Team e-mail failed for booking #' + row.id + ':', e.message));
+
+        res.json({ success: true, message: 'Thanks — we have sent this to our team. We will update it and let you know.' });
+    } catch (e) {
+        console.error('[Correction Request] Failed for booking #' + req.params.id + ':', e.message);
+        res.status(500).json({ success: false, message: 'We could not send your request. Please try again.' });
+    }
 });
 
 // Accept quote (public) — client formally accepts a sent quote

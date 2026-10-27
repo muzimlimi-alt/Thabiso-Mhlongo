@@ -366,6 +366,51 @@
         }
     });
 
+    // ─── Correct the event's name / type / date / time from the Deal View's Event card (routes/admin/bookings.js PUT :id/event-details),
+    // usually after a client's "[Correction Request]". Same open/cancel/save pattern as the Client card above. ───
+    $(document).off('click.bkeeToggle').on('click.bkeeToggle', '.bk-event-edit-toggle', function() {
+        const $card = $('#bk-event-card-' + $(this).data('id'));
+        $card.find('.bk-event-view').hide();
+        $card.find('.bk-event-edit-form').show().find('.bk-ee-name').trigger('focus');
+    });
+    $(document).off('click.bkeeCancel').on('click.bkeeCancel', '.bk-event-edit-cancel', function() {
+        const $card = $('#bk-event-card-' + $(this).data('id'));
+        $card.find('.bk-event-edit-form').hide();
+        $card.find('.bk-event-view').show();
+    });
+    $(document).off('click.bkeeSave').on('click.bkeeSave', '.bk-event-edit-save', async function() {
+        const id = $(this).data('id');
+        const $form = $(this).closest('.bk-event-edit-form');
+        const $err = $('#bk-event-edit-err-' + id).hide().text('');
+        const body = {
+            date: $form.find('.bk-ee-date').val(),
+            start_time: $form.find('.bk-ee-start').val(),
+            end_time: $form.find('.bk-ee-end').val()
+        };
+        // Name and type only when given: a booking made with neither must still be able to save a new date.
+        const eeName = $form.find('.bk-ee-name').val().trim();
+        const eeType = $form.find('.bk-ee-type').val();
+        if (eeName) body.event_name = eeName;
+        if (eeType) body.event_type = eeType;
+        const $btn = $(this).prop('disabled', true);
+        try {
+            const res = await fetch('/api/admin/bookings/' + id + '/event-details', {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify(body)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.success) {
+                $err.text(data.message || 'Could not save these changes.').show();
+                return;
+            }
+            if (typeof window.refreshDealView === 'function') await window.refreshDealView();
+            else { $form.hide(); $form.closest('.atl-det-card').find('.bk-event-view').show(); }
+        } catch (e) {
+            $err.text('Could not reach the server. Please try again.').show();
+        } finally {
+            $btn.prop('disabled', false);
+        }
+    });
+
     // ─── Refresh email communication history for a booking ───
     $(document).off('click.bkcommsload').on('click.bkcommsload', '.bk-comms-load-btn', async function() {
         const id = $(this).data('id');

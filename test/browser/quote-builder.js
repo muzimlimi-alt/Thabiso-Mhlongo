@@ -313,7 +313,8 @@ const confirms = (p) => p.evaluate(() => window.__confirms.slice());
         // (six after four edits) - and, because the owner's own payment-terms policy usually begins with the same words, it ate those too.
         // The terms go on the quotation PDF and the client's email.
         const POLICY_PAYMENT = '50% Deposit required to secure the booking. Balance due 48 hours prior to the event.';
-        await p.evaluate((pay) => { $('#polDeposit').val('50'); $('#polPaymentTerms').val(pay); $('#polCancellation').val('Cancellations less than 14 days before the event forfeit the deposit.'); }, POLICY_PAYMENT);
+        // The builder reads the saved policies from GET /api/admin/policies each time it opens (not the Settings fields on the page).
+        await api('PUT', '/api/admin/policies', { policies: { deposit_percentage: '50', payment_terms: POLICY_PAYMENT, cancellation_policy: 'Cancellations less than 14 days before the event forfeit the deposit.' } });
         const bT = await mkBooking('QB Terms', [{ service_id: sClub }]);
         await openBuilder(p, bT, 1);
         const policyOnly = (await p.evaluate(() => $('#quoteDrawer').data('qb-global-terms'))).trim();

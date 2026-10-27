@@ -247,27 +247,25 @@
         root.setAttribute('data-mode', this.mode);
         root.setAttribute('role', 'group');
         root.setAttribute('tabindex', '-1');
+        root.setAttribute('aria-label', 'Payment plan');
 
-        var head = h('div', 'trk-plan-head');
-        var title = h('p', 'trk-plan-title');
-        title.id = this.uid + '-title';
-        title.appendChild(icon('fa-solid fa-calendar-days'));
-        title.appendChild(document.createTextNode('Your payment plan'));
-        head.appendChild(title);
-        var due = h('p', 'trk-plan-due');
-        due.appendChild(h('strong', null, money(ctx.remaining_cents)));
-        due.appendChild(document.createTextNode(' to schedule'));
-        head.appendChild(due);
-        root.appendChild(head);
-        root.setAttribute('aria-labelledby', title.id);
-
+        // The client only chooses HOW MANY payments; the system sets every amount and date. So one
+        // plain sentence says how the split works, instead of the rules for typing a plan by hand.
+        var split = ctx.require_deposit && ctx.deposit_needed_cents > 0 && ctx.deposit_percentage
+            ? (ctx.locked_cents > 0
+                ? 'Your next payment completes the ' + ctx.deposit_percentage + '% deposit and the rest is split evenly.'
+                : 'Your first payment is the ' + ctx.deposit_percentage + '% deposit and the rest is split evenly.')
+            : 'The amount is split evenly.';
         root.appendChild(h('p', 'trk-plan-intro', this.mode === 'change'
-            ? 'Rearrange your unpaid payments below. Paid payments stay as they are.'
-            : 'Choose how you would like to pay. You can rearrange unpaid payments from this page later.'));
+            ? 'Choose how many payments you’d like for what is still unpaid. ' + split + ' We set the due dates for you.'
+            : 'Choose how many payments you’d like. ' + split + ' We set the due dates for you.'));
 
-        var rulesList = h('ul', 'trk-plan-rules');
-        this.ruleLines().forEach(function (line) { rulesList.appendChild(h('li', null, line)); });
-        root.appendChild(rulesList);
+        // Only when the amount cannot be split at all: then ruleLines() is the one-sentence reason why.
+        if (this.cannotSplit()) {
+            var rulesList = h('ul', 'trk-plan-rules');
+            this.ruleLines().forEach(function (line) { rulesList.appendChild(h('li', null, line)); });
+            root.appendChild(rulesList);
+        }
 
         var locked = ctx.locked_rows || [];
         if (locked.length) {
@@ -282,7 +280,7 @@
             root.appendChild(lockedWrap);
         }
 
-        var presetsLabel = h('p', 'trk-plan-sub', 'Quick plans');
+        var presetsLabel = h('p', 'trk-plan-sub', 'Number of payments');
         presetsLabel.id = this.uid + '-presets';
         root.appendChild(presetsLabel);
         var presets = h('div', 'trk-plan-presets');
@@ -307,13 +305,17 @@
         }
         root.appendChild(presets);
 
-        var rowsLabel = h('p', 'trk-plan-sub', this.mode === 'change' ? 'Unpaid payments' : 'Payments');
+        var rowsLabel = h('p', 'trk-plan-sub', this.mode === 'change' ? 'Your new payments' : 'Your payments');
         rowsLabel.id = this.uid + '-rows';
         root.appendChild(rowsLabel);
         this.rowsList = h('ol', 'trk-plan-rows');
         this.rowsList.setAttribute('aria-labelledby', rowsLabel.id);
         root.appendChild(this.rowsList);
 
+        // Owner rule: the client picks a plan SHAPE (the 1-4 payment buttons) and the system computes every
+        // amount and date from it - never a number the client typed. this.addBtn still exists (refresh()
+        // unconditionally touches it) but is deliberately never appended, so there is no way to add a
+        // payment the chosen preset didn't already produce.
         this.addBtn = h('button', 'trk-plan-add');
         this.addBtn.type = 'button';
         this.addBtn.setAttribute('data-role', 'add');
@@ -321,7 +323,6 @@
         plus.setAttribute('aria-hidden', 'true');
         this.addBtn.appendChild(plus);
         this.addBtn.appendChild(document.createTextNode('Add payment'));
-        root.appendChild(this.addBtn);
 
         var summary = h('div', 'trk-plan-summary');
         this.summaryLine = h('p', 'trk-plan-summary-line');
@@ -373,6 +374,14 @@
         root.addEventListener('pointerdown', this.onPointerDown, true);
         document.addEventListener('pointerup', this.onPointerUp, true);
         document.addEventListener('pointercancel', this.onPointerUp, true);
+    };
+
+    // The balance can only be paid in one payment: no slots left, one possible due date, or too small
+    // to split into two minimum payments. (The same test ruleLines() uses for its short version.)
+    PlanBuilder.prototype.cannotSplit = function () {
+        var ctx = this.ctx;
+        return ctx.slots <= 1 || ctx.earliest_due === ctx.latest_due ||
+            (ctx.min_payment_cents > 0 && ctx.remaining_cents < 2 * ctx.min_payment_cents);
     };
 
     // The rules in plain words, built from the same context the checks use.
@@ -452,7 +461,6 @@
 
     PlanBuilder.prototype.renderRows = function () {
         var self = this;
-        var ctx = this.ctx;
         var list = this.rowsList;
         while (list.firstChild) list.removeChild(list.firstChild);
         this.rows.forEach(function (r, i) {
@@ -465,6 +473,9 @@
             num.setAttribute('aria-hidden', 'true');
             var label = h('span', 'trk-plan-card-label', 'Payment ' + n);
             label.id = self.uid + '-label-' + r.key;
+            // Built but never appended, same reasoning as this.addBtn in build(): refresh() still
+            // unconditionally does card.querySelector('[data-role="remove"]') and handles finding
+            // none, so this stays a one-line change rather than also touching that function.
             var rm = h('button', 'trk-plan-remove');
             rm.type = 'button';
             rm.setAttribute('data-role', 'remove');
@@ -475,52 +486,19 @@
             var x = h('span', 'trk-plan-remove-x', '\u00d7');
             x.setAttribute('aria-hidden', 'true');
             rm.appendChild(x);
+            // Owner rule: the client picks how many payments and the system computes every amount and
+            // date from it - so each payment is shown as text, never as a field that looks editable.
+            // data-role stays on the two values so refresh() can still mark one a server error names.
+            var cents = amountCents(parseAmountText(r.amountText));
+            var amount = h('span', 'trk-plan-card-amt', cents === null ? r.amountText : money(cents));
+            amount.setAttribute('data-role', 'amount');
             top.appendChild(num);
             top.appendChild(label);
-            top.appendChild(rm);
+            top.appendChild(amount);
             li.appendChild(top);
-
-            var fields = h('div', 'trk-plan-fields');
-
-            var amountField = h('div', 'trk-plan-field');
-            var amountId = self.uid + '-amount-' + r.key;
-            var amountLabel = h('label', null, 'Amount');
-            amountLabel.htmlFor = amountId;
-            amountField.appendChild(amountLabel);
-            var money = h('div', 'trk-plan-money');
-            var cur = h('span', 'trk-plan-cur', 'R');
-            cur.setAttribute('aria-hidden', 'true');
-            var amount = h('input', 'bk-input form-control trk-plan-input trk-plan-amount');
-            amount.type = 'text';
-            amount.id = amountId;
-            amount.setAttribute('inputmode', 'decimal');
-            amount.setAttribute('autocomplete', 'off');
-            amount.setAttribute('spellcheck', 'false');
-            amount.setAttribute('data-role', 'amount');
-            amount.setAttribute('aria-describedby', label.id);
-            amount.value = r.amountText;
-            money.appendChild(cur);
-            money.appendChild(amount);
-            amountField.appendChild(money);
-
-            var dueField = h('div', 'trk-plan-field');
-            var dueId = self.uid + '-due-' + r.key;
-            var dueLabel = h('label', null, 'Due date');
-            dueLabel.htmlFor = dueId;
-            dueField.appendChild(dueLabel);
-            var due = h('input', 'bk-input form-control trk-plan-input trk-plan-date');
-            due.type = 'date';
-            due.id = dueId;
+            var due = h('p', 'trk-plan-card-due', r.due ? 'Due ' + self.R.formatDate(r.due) : 'No due date');
             due.setAttribute('data-role', 'due');
-            due.setAttribute('aria-describedby', label.id);
-            if (ctx.earliest_due) due.min = ctx.earliest_due;
-            if (ctx.latest_due) due.max = ctx.latest_due;
-            due.value = r.due;
-            dueField.appendChild(due);
-
-            fields.appendChild(amountField);
-            fields.appendChild(dueField);
-            li.appendChild(fields);
+            li.appendChild(due);
             list.appendChild(li);
         });
     };
@@ -904,6 +882,8 @@
             left.appendChild(document.createTextNode(money(-diff) + ' more than the balance.'));
         }
         toggleClass(this.summary, 'is-err', stats.allValid && diff !== 0);
+        // A plan the system built always adds up, so the tally only appears when something is off.
+        this.summary.style.display = stats.allValid && diff === 0 ? 'none' : '';
 
         var showFix = false;
         if (stats.allValid && diff !== 0) {

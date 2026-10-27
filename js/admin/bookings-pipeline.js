@@ -672,8 +672,15 @@
           </div>
 
           <!-- Event Card -->
-          <div class="atl-det-card">
-            <h5 class="atl-det-title"><i class="fa-solid fa-calendar-day"></i>Event</h5>
+          <div class="atl-det-card" id="bk-event-card-${row.id}">
+            <h5 class="atl-det-title" style="display:flex;align-items:center;justify-content:space-between;">
+              <span><i class="fa-solid fa-calendar-day"></i>Event</span>
+              ${(window.currentUserRole === 'administrator' || window.currentUserRole === 'manager')
+                ? `<button type="button" class="atl-btn atl-btn--ghost bk-event-edit-toggle" data-id="${row.id}" title="Correct the event's name, type, date or time" style="font-size:11px;padding:3px 9px;">
+                     <i class="fa-solid fa-pen" style="margin-right:4px;"></i>Edit</button>`
+                : ''}
+            </h5>
+            <div class="bk-event-view">
             <p class="atl-lead" style="margin-bottom:8px;">
               ${row.event_name || row.event_type || '—'}
             </p>
@@ -682,12 +689,45 @@
               <dd>${row.date || '—'}${row.event_start_time ? ' · ' + row.event_start_time : ''}${computeDaysUntilEventBadge(row)}</dd>
               <dt>Location</dt>
               <dd>${row.event_location || '—'}</dd>
+              ${row.event_type           ? `<dt>Type</dt><dd>${row.event_type}</dd>` : ''}
               ${row.performance_slot     ? `<dt>Slot</dt><dd>${row.performance_slot}</dd>` : ''}
               ${row.performance_duration ? `<dt>Duration</dt><dd>${row.performance_duration}</dd>` : ''}
               ${row.venue_type           ? `<dt>Venue type</dt><dd>${row.venue_type}</dd>` : ''}
               ${row.alternative_dates    ? `<dt>Alternative dates</dt><dd>${row.alternative_dates}</dd>` : ''}
               ${row.content_notes        ? `<dt>Content suitability</dt><dd>${row.content_notes}</dd>` : ''}
             </dl>
+            </div>
+            <!-- Correcting the EVENT (routes/admin/bookings.js PUT :id/event-details), usually after a client's "[Correction Request]".
+                 A new date/time goes through the calendar's reschedule rules. Venue changes stay on the Venue card. -->
+            <form class="bk-event-edit-form" data-id="${row.id}" style="display:none;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                <div style="grid-column:1/-1;"><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Event name</label>
+                  <input type="text" class="atl-input bk-ee-name" value="${bkAttrEsc(row.event_name || '')}" style="width:100%;"></div>
+                <div style="grid-column:1/-1;"><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Event type</label>
+                  <select class="atl-input bk-ee-type" style="width:100%;">
+                    ${(function () {
+                        const types = ['Corporate Event', 'Festival / Concert', 'Private Function', 'Comedy Club', 'University / College', 'Charity / Fundraiser', 'Virtual Event', 'Other'];
+                        if (row.event_type && types.indexOf(row.event_type) === -1) types.unshift(row.event_type);
+                        // No type yet: an explicit "not set" first, so saving a date change never quietly assigns one.
+                        return (row.event_type ? '' : '<option value="" selected>— Not set —</option>') +
+                            types.map(t => `<option value="${bkAttrEsc(t)}"${t === row.event_type ? ' selected' : ''}>${bkAttrEsc(t)}</option>`).join('');
+                    })()}
+                  </select></div>
+                <div style="grid-column:1/-1;"><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Date</label>
+                  <input type="date" class="atl-input bk-ee-date" value="${bkAttrEsc(row.date || '')}" style="width:100%;"></div>
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">Start time</label>
+                  <input type="time" class="atl-input bk-ee-start" value="${bkAttrEsc(row.event_start_time || '')}" style="width:100%;"></div>
+                <div><label class="atl-panel-label" style="display:block;margin-bottom:3px;">End time</label>
+                  <input type="time" class="atl-input bk-ee-end" value="${bkAttrEsc(row.performance_end_time || '')}" style="width:100%;"></div>
+              </div>
+              <p class="atl-sub" style="font-size:11px;margin:0 0 10px;">A new date or time is checked for clashes and synced to the calendar, and the client is e-mailed about a new date. Change the venue on the Venue card.</p>
+              <div id="bk-event-edit-err-${row.id}" style="display:none;color:var(--atl-clay);font-size:12px;margin-bottom:8px;"></div>
+              <div class="atl-doc-actions-row">
+                <button type="button" class="atl-btn atl-btn--primary bk-event-edit-save" data-id="${row.id}">
+                  <i class="fa-solid fa-check" style="margin-right:6px;"></i>Save</button>
+                <button type="button" class="atl-btn atl-btn--ghost bk-event-edit-cancel" data-id="${row.id}">Cancel</button>
+              </div>
+            </form>
             <div style="border-top:1px solid var(--atl-line);margin-top:10px;padding-top:10px;">
               <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                 <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.07em;color:var(--atl-muted);white-space:nowrap;">

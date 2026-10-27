@@ -199,13 +199,23 @@
         d.setDate(d.getDate() + 7);
         $('#quoteModalExpiry').val(d.toISOString().split('T')[0]);
 
-        // Pull deposit percentage from global policies or default to 50
-        const policyDeposit = parseFloat($('#polDeposit').val()) || 50;
+        // Pull deposit % and policy text straight from the server, not from #polDeposit/#polPaymentTerms/
+        // #polCancellation - those only hold a value once the admin has separately visited Settings >
+        // Policies in this session (loadPolicies() populates them); opening Quote Builder first left them
+        // empty, so every quote silently fell back to "50% ... Balance due 48 hours ..." even when the
+        // admin had the deposit policy set to something else (the computed deposit line above, read from
+        // #qbDepositPercentage after the admin edits it, then visibly disagreed with this boilerplate).
+        let policies = {};
+        try {
+            const polRes = await apiCall('/api/admin/policies', 'GET');
+            if (polRes && polRes.policies) policies = polRes.policies;
+        } catch (e) { /* fall through to the same defaults loadPolicies() itself uses */ }
+        const policyDeposit = parseFloat(policies.deposit_percentage) || 50;
         $('#qbDepositPercentage').val(policyDeposit);
 
         // Build Global Booking Policies text
-        const paymentTerms = $('#polPaymentTerms').val() || `${policyDeposit}% Deposit required to secure the booking. Balance due 48 hours prior to the event.`;
-        const cancellationPolicy = $('#polCancellation').val() || 'Standard cancellation policy applies.';
+        const paymentTerms = policies.payment_terms || `${policyDeposit}% Deposit required to secure the booking. Balance due 48 hours prior to the event.`;
+        const cancellationPolicy = policies.cancellation_policy || 'Standard cancellation policy applies.';
         const globalTermsText = `PAYMENT TERMS:\n${paymentTerms}\n\nCANCELLATION POLICY:\n${cancellationPolicy}`;
 
         // Fetch payment milestones for this booking

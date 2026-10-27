@@ -2238,6 +2238,84 @@ router.put('/api/admin/bookings/:id/contact', requireAdmin, requireRole(['admini
     }
 });
 
+// Correct the EVENT's details - name, type, date and performance time - usually because the client asked (a "[Correction
+// Request]" note from the tracking drawer). Partial update: only the fields present are validated and changed. The date and
+// time go through lib/booking-reschedule.js, the same rules the calendar drag uses (conflict check, quote expiry, holds and
+// the linked event follow, audit row, calendar re-sync, the client e-mailed about a new date); if that refuses (a clash),
+// nothing else is saved either. Venue changes stay on the Venue card (PATCH :id/venue / PUT :id/venue-google).
+router.put('/api/admin/bookings/:id/event-details', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
+    try {
+        const bookingId = parseInt(req.params.id, 10);
+        if (!Number.isInteger(bookingId)) return res.status(400).json({ success: false, message: 'Invalid booking id.' });
+        const row = await dbGet('SELECT id, event_name, event_type, date, event_start_time, performance_end_time, performance_slot FROM bookings WHERE id = ?', [bookingId]);
+        if (!row) return res.status(404).json({ success: false, message: 'Booking not found.' });
+
+        const body = req.body || {};
+        const has = (f) => Object.prototype.hasOwnProperty.call(body, f);
+        const errors = [];
+        const named = {};
+        if (has('event_name')) {
+            const v = asBookingText(body.event_name);
+            if (v.length < 2 || v.length > 150) errors.push('Event name must be between 2 and 150 characters.');
+            else named.event_name = v;
+        }
+        if (has('event_type')) {
+            const v = asBookingText(body.event_type);
+            if (v.length < 2 || v.length > 80) errors.push('Event type must be between 2 and 80 characters.');
+            else named.event_type = v;
+        }
+        const date = has('date') ? asBookingText(body.date) : row.date;
+        if (has('date') && !(/^\d{4}-\d{2}-\d{2}$/.test(date) && moment(date, 'YYYY-MM-DD', true).isValid())) errors.push('Enter a valid date.');
+        const start = has('start_time') ? asBookingText(body.start_time) : undefined;
+        const end = has('end_time') ? asBookingText(body.end_time) : undefined;
+        if (start !== undefined && start !== '' && !/^\d{2}:\d{2}$/.test(start)) errors.push('Start time must be HH:MM.');
+        if (end !== undefined && end !== '' && !/^\d{2}:\d{2}$/.test(end)) errors.push('End time must be HH:MM.');
+        if (end && !(start || row.event_start_time)) errors.push('Give a start time with the end time.');
+        if (errors.length) return res.status(400).json({ success: false, message: 'Not saved: ' + errors.join(' ') });
+
+        const updated = [];
+        const timeChanged = (start !== undefined && start !== (row.event_start_time || '')) || (end !== undefined && end !== (row.performance_end_time || ''));
+        if (date !== row.date || timeChanged) {
+            const out = await rescheduleBooking({
+                bookingId, date,
+                time: start !== undefined && start !== (row.event_start_time || '') ? start : undefined,
+                endTime: end !== undefined && end !== (row.performance_end_time || '') ? end : undefined,
+                actorId: req.session && req.session.adminId,
+                notifyWhenDateUnchanged: false   // e-mail the client about a new DATE, not about a time-only fix
+            });
+            if (!out.ok) return res.status(out.status).json({ success: false, message: out.message });
+            if (date !== row.date) updated.push('date');
+            if (timeChanged) {
+                updated.push('time');
+                // Keep the human-readable slot ("09:00–10:00", the public form's own format) in step with the times.
+                const fresh = await dbGet('SELECT event_start_time, performance_end_time FROM bookings WHERE id = ?', [bookingId]);
+                const slot = fresh.event_start_time ? fresh.event_start_time + (fresh.performance_end_time ? '–' + fresh.performance_end_time : '') : null;
+                await dbRun('UPDATE bookings SET performance_slot = ? WHERE id = ?', [slot, bookingId]);
+            }
+        }
+
+        const nameChanges = Object.keys(named).filter((f) => (row[f] || '') !== named[f]);
+        if (nameChanges.length) {
+            await dbRun(`UPDATE bookings SET ${nameChanges.map((f) => f + ' = ?').join(', ')}, modified_on = CURRENT_TIMESTAMP WHERE id = ?`,
+                nameChanges.map((f) => named[f]).concat([bookingId]));
+            const oldValues = {}, newValues = {};
+            nameChanges.forEach((f) => { oldValues[f] = row[f] || ''; newValues[f] = named[f]; });
+            await dbRun(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
+                         VALUES ('bookings', ?, 'EVENT_UPDATED', ?, ?, ?, CURRENT_TIMESTAMP)`,
+                [bookingId, JSON.stringify(oldValues), JSON.stringify(newValues), (req.session && req.session.adminId) || 'admin']);
+            getBookingById(bookingId, (e, fresh) => {
+                if (!e && fresh) syncBookingToCalendar(fresh).catch((ce) => console.error('[Event Details] Calendar sync failed:', ce.message));
+            });
+            updated.push(...nameChanges);
+        }
+
+        res.json({ success: true, message: updated.length ? 'Event details updated.' : 'Nothing changed.', updated });
+    } catch (e) {
+        console.error('[Event Details] Update failed for booking #' + req.params.id + ':', e.message);
+        res.status(500).json({ success: false, message: 'Could not save these changes. Please try again.' });
+    }
+});
+
 // Shared status-change logic used by both PUT /bookings/:id and PUT /bookings/:id/status
 // options.reason — optional cancellation reason string (admin-supplied)
 // Phase 5 (HOUSEKEEPING-NOTES.md): applyStatusChange moved to lib/booking-status.js — see the

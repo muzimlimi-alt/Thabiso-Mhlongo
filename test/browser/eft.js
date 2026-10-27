@@ -71,12 +71,16 @@ async function acceptedBooking(tag, days) {
             await p.waitForFunction(() => window.openAtlDrawer && document.getElementById('trackBtn'), { timeout: 20000 });
             await p.evaluate(() => { const x = document.getElementById('cookieRejectAll'); if (x && x.offsetParent) x.click(); });
             await p.evaluate(() => document.getElementById('trackBtn').click());
+            // Paying offers two tabs, Pay online / Bank transfer: the client chooses Bank transfer to see this panel.
+            await p.waitForFunction(() => { const e = document.getElementById('eftSection'); return e && e.style.display !== 'none' && document.getElementById('trackingDetails').style.display !== 'none'; }, { timeout: 20000 });
+            await p.evaluate(() => { const t = document.getElementById('trkPayTabEft'); if (t && t.offsetParent) t.click(); });
             await p.waitForFunction(() => { const e = document.getElementById('eftSection'); return e && e.offsetParent !== null; }, { timeout: 20000 });
             return p;
         };
         const pc = await openTracker(A, 1280);
-        const panel = await pc.evaluate(() => document.getElementById('eftSection').innerText.replace(/\s+/g, ' '));
-        ok(/Pay by EFT/i.test(panel) && /Thabiso Mhlongo Entertainment/.test(panel) && /First National Bank/.test(panel) && panel.includes(ACCT) && /250655/.test(panel), 'the tracking page shows the banking details', panel);
+        // The whole "Bank transfer (EFT)" option card: when online payment is offered too, its heading names the method.
+        const panel = await pc.evaluate(() => (document.getElementById('trkPayOptEft') || document.getElementById('eftSection')).innerText.replace(/\s+/g, ' '));
+        ok(/Pay by EFT|Bank transfer \(EFT\)/i.test(panel) && /Thabiso Mhlongo Entertainment/.test(panel) && /First National Bank/.test(panel) && panel.includes(ACCT) && /250655/.test(panel), 'the tracking page shows the banking details', panel);
         ok(panel.includes(inv.invoice_number) && /Payment reference/i.test(panel), 'it shows the reference to quote - the invoice number', panel);
         ok(/confirmed only once we have checked it/i.test(panel) && /does not confirm your payment/i.test(panel), 'and says a proof does NOT confirm the payment', panel);
         ok(await pc.evaluate(() => !!document.querySelector('#eftUploadForm input[type=file][name=proof]') && document.querySelector('#eftAmount').value === '2500.00'), 'the upload form offers the next instalment (R2,500.00) as the amount', '');

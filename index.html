@@ -63,8 +63,8 @@
 	
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
-	<link rel="stylesheet" href="css/public/redesign.css?v=22">
-	<link rel="stylesheet" href="css/public/tracking-modal.css?v=3">
+	<link rel="stylesheet" href="css/public/redesign.css?v=24">
+	<link rel="stylesheet" href="css/public/tracking-modal.css?v=8">
 	<link rel="stylesheet" href="css/components/notifications.css">
 	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
 	     reuses. Must load before booking-form.css (below), which documents its own need to
@@ -860,9 +860,8 @@
 							</div>
 
 							<!-- Choose a Date — first so availability is confirmed before filling event details -->
-							<div class="bk-section-divider" aria-hidden="true">
-								<span class="bk-section-divider__label"><i class="fa-regular fa-calendar" style="margin-right:6px;"></i>Choose a Date</span>
-							</div>
+							<section class="bk-card" aria-labelledby="bkCardDateTitle">
+							<h5 class="bk-card__title" id="bkCardDateTitle"><i class="fa-regular fa-calendar" aria-hidden="true"></i>Choose a date</h5>
 
 							<div class="row">
 								<div class="col-md-12 form-group">
@@ -908,14 +907,11 @@
 							<input type="hidden" id="bkSlotFrom">
 							<input type="hidden" id="bkSlotTo">
 							<input type="hidden" id="bookSlot">
-
-							<br>
-							<div class="bk-section-divider" aria-hidden="true">
-								<span class="bk-section-divider__label"><i class="fa-regular fa-calendar" style="margin-right:6px;"></i>Event Specifics</span>
-							</div>
-							<br>
+							</section>
 
 							<!-- Event details — filled after confirming date availability -->
+							<section class="bk-card" aria-labelledby="bkCardEventTitle">
+							<h5 class="bk-card__title" id="bkCardEventTitle"><i class="fa-solid fa-star" aria-hidden="true"></i>Event specifics</h5>
 							<div class="row">
 								<div class="col-md-6 form-group">
 									<label class="bk-label">Event Name / Title <span class="bk-required" aria-hidden="true">*</span></label>
@@ -978,6 +974,7 @@
 									<div class="bk-step-err" id="err-bookServices"><i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i>Please add at least one service. Use the catalogue dropdown to browse available options.</div>
 								</div>
 							</div>
+							</section>
 							<div class="bk-nav-row bk-nav-row--end">
 								<button type="button" class="btn-bk-nav btn-bk-next" id="bookNext1">Your Details <i class="fa-solid fa-arrow-right"></i></button>
 							</div>
@@ -994,6 +991,8 @@
 									<span>We may save your progress so you can pick up where you left off &mdash; and, if you don't finish, email you a reminder with a link to complete your request. Your details are used only for this booking, and every reminder includes a one-click opt-out.</span>
 								</p> -->
 							</div>
+							<section class="bk-card" aria-labelledby="bkCardYouTitle">
+							<h5 class="bk-card__title" id="bkCardYouTitle"><i class="fa-solid fa-user" aria-hidden="true"></i>Your details</h5>
 							<div class="row">
 								<div class="col-md-4 form-group">
 									<label class="bk-label">Full Name <span class="bk-required" aria-hidden="true">*</span></label>
@@ -1030,6 +1029,7 @@
 									</div>
 								</div>
 							</div>
+							</section>
 							<div class="bk-nav-row">
 								<button type="button" class="btn-bk-nav btn-bk-back" id="bookBack2"><i class="fa-solid fa-arrow-left"></i> Back</button>
 								<button type="button" class="btn-bk-nav btn-bk-next" id="bookNext2">Venue Details <i class="fa-solid fa-arrow-right"></i></button>
@@ -1044,6 +1044,8 @@
 								<p class="bk-step-desc">Where is the event and what does Thabiso need to know?</p>
 							</div>
 
+							<section class="bk-card" aria-labelledby="bkCardVenueTitle">
+							<h5 class="bk-card__title" id="bkCardVenueTitle"><i class="fa-solid fa-location-dot" aria-hidden="true"></i>Venue &amp; time</h5>
 							<!-- Venue location + type -->
 							<div class="row">
 								<div class="col-md-6 form-group">
@@ -1140,10 +1142,20 @@
 								<div class="bk-step-err" id="err-bookSlot" style="display:none;"><i class="fa-solid fa-triangle-exclamation" style="margin-right:4px;"></i>Please select a performance time slot.</div>
 							</div>
 
-							<!-- Additional Notes — optional; immediately after slot -->
-							<div class="bk-section-divider" aria-hidden="true">
-								<span class="bk-section-divider__label"><i class="fa-regular fa-calendar" style="margin-right:6px;"></i>Additional Details</span>
-							</div>
+							</section>
+
+							<!-- Everything optional, folded into one card (opens by itself if something inside needs fixing - js/myscript.js bkExtras*).
+							     The heading says how many are filled in. -->
+							<section class="bk-card bk-card--fold" id="bkExtrasCard">
+								<h5 class="bk-card__h">
+									<button type="button" class="bk-card__toggle" id="bkExtrasToggle" aria-expanded="false" aria-controls="bkExtrasBody">
+										<span class="bk-card__title"><i class="fa-solid fa-sliders" aria-hidden="true"></i>Extra details <span class="bk-card__opt">(optional)</span></span>
+										<span class="bk-card__meta" id="bkExtrasMeta"></span>
+										<i class="fa-solid fa-chevron-down bk-card__chevron" aria-hidden="true"></i>
+									</button>
+								</h5>
+								<p class="bk-card__hint" id="bkExtrasHint">Notes for Thabiso, audience, budget, travel and supporting files &mdash; anything that helps us prepare your quote.</p>
+								<div class="bk-card__body" id="bkExtrasBody" hidden>
 							<div class="form-group">
 								<label class="bk-label">Additional Notes / Requirements <span aria-hidden="true" style="color:var(--text-secondary);font-weight:400;font-size:0.85em;">(optional)</span></label>
 								<div class="bk-field bk-field--textarea">
@@ -1243,10 +1255,6 @@
 								</div>
 							</div>
 
-							<div class="bk-section-divider" aria-hidden="true">
-								<span class="bk-section-divider__label"><i class="fa-regular fa-calendar" style="margin-right:6px;"></i>Supporting Information</span>
-							</div>
-
 							<!-- Supporting Files -->
 							<div class="bk-field-group" style="margin:4px 0 12px;" id="bookAttachSection">
 								<label class="bk-label" style="margin-bottom:8px;display:block;">
@@ -1263,6 +1271,9 @@
 								<div id="bookAttachList" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;"></div>
 							</div>
 
+								</div>
+							</section>
+
 							<div class="bk-nav-row">
 								<button type="button" class="btn-bk-nav btn-bk-back" id="bookBack3"><i class="fa-solid fa-arrow-left"></i> Back</button>
 								<button type="button" class="btn-bk-nav btn-bk-next" id="bookNext3">Review &amp; Submit <i class="fa-solid fa-arrow-right"></i></button>
@@ -1276,7 +1287,7 @@
 								<h4 class="bk-step-title">Review Your Booking</h4>
 								<p class="bk-step-desc">Please confirm the details below before submitting.</p>
 							</div>
-							<div id="bookReviewContent" class="bk-review-card"></div>
+							<div id="bookReviewContent" class="bk-review"></div>
 
 							<div class="form-group" style="margin-top:20px; padding:0 10px;">
 								<label class="bk-checkbox-label">
@@ -1322,9 +1333,11 @@
 						</div>
 
 					</form>
-					<div style="text-align:center;padding:8px 0 4px;margin-top:8px;display:flex;justify-content:center;align-items:center;gap:12px;">
-						<span id="bkDraftStatus" style="display:none;font-size:11px;color:var(--text-muted);"><i class="fa-solid fa-floppy-disk" style="margin-right:4px;"></i>Progress saved</span>
-						<a href="#" id="bkClearDraftBtn" style="display:none;font-size:11px;color:var(--text-muted);text-decoration:underline;cursor:pointer;"><i class="fa-solid fa-trash-can" style="margin-right:4px;"></i>Clear saved progress</a>
+					<!-- Moved into the current step, just above its Back/Next row, by bkPlaceDraftLine() (js/myscript.js): left here,
+					     after the form, the sticky Back/Next row's negative bottom margin pulled it underneath and hid it. -->
+					<div id="bkDraftLine" style="text-align:center;padding:8px 0 0;display:flex;justify-content:center;align-items:center;gap:14px;">
+						<span id="bkDraftStatus" style="display:none;font-size:12px;color:var(--text-secondary);"><i class="fa-solid fa-floppy-disk" style="margin-right:5px;color:var(--y-base);"></i>Progress saved</span>
+						<a href="#" id="bkClearDraftBtn" style="display:none;font-size:12px;color:var(--text-secondary);text-decoration:underline;cursor:pointer;"><i class="fa-solid fa-trash-can" style="margin-right:5px;"></i>Clear saved progress</a>
 					</div>
 			</div>
 	</div>
@@ -1409,8 +1422,20 @@
 						</div>
 					</div>
 
-					<!-- Details Screen -->
+					<!-- Details Screen. Laid out by trkLayout() (script below): the booking header, any one-line
+					     status message, then "Your next step" - the ONE thing the client has to do now (accept,
+					     sign or pay), with the sections it needs moved into it - then everything else as short
+					     collapsed rows, each with a one-line summary. Every section keeps its id, so the render
+					     code shows/hides them exactly as before wherever they currently sit. -->
 					<div id="trackingDetails" style="display:none;">
+
+						<!-- When this was last loaded, and a way to load it again (our team may have changed something) -->
+						<div class="trk-refresh-row">
+							<span id="trkUpdatedAt" class="trk-updated" aria-live="polite"></span>
+							<button type="button" id="trkRefreshBtn" class="trk-refresh-btn" aria-label="Refresh booking details">
+								<i class="fa-solid fa-rotate-right" aria-hidden="true"></i><span>Refresh</span>
+							</button>
+						</div>
 
 						<!-- Event card -->
 						<div class="trk-event-card">
@@ -1487,224 +1512,10 @@
 							</div>
 
 						</div>
+						<!-- The stage in words: phones hide the labels under the dots. Filled by setTimeline(). -->
+						<p id="trkStepLine" class="trk-step-line" style="display:none;"></p>
 
-						<!-- Quote Details -->
-						<div id="quoteSection" style="display:none;">
-							<div class="trk-quote-card">
-								<div class="trk-quote-header">
-									<span><i class="fa-solid fa-file-invoice-dollar"></i>Your Quote</span>
-									<span class="trk-quote-amount" id="tdQuoteAmount"></span>
-								</div>
-								<div class="trk-quote-body">
-									<div id="tdQuoteDetails" class="trk-quote-detail"></div>
-									<p class="trk-quote-expiry">
-										<i class="fa-solid fa-clock"></i>Quote valid until: <strong id="tdQuoteExpiry"></strong>
-									</p>
-								</div>
-							</div>
-
-							<!-- Financial Ledger -->
-							<div id="financialLedger" style="display:none;">
-								<p class="trk-ledger-title">
-									<i class="fa-solid fa-chart-pie"></i>Payment Progress
-								</p>
-								<div class="trk-ledger-row">
-									<div>Total Scope: <strong id="lgTotal">R0.00</strong></div>
-									<div>Amount Paid: <strong class="lg-paid" id="lgPaid">R0.00</strong></div>
-									<div>Remaining: <strong class="lg-due" id="lgOutstanding">R0.00</strong></div>
-								</div>
-								<div class="trk-ledger-bar">
-									<div id="lgProgressBar"></div>
-								</div>
-							</div>
-
-							<!-- Payment Status -->
-							<div class="trk-pay-status">
-								<span class="trk-pay-status-label">Payment Status:</span>
-								<span id="tdPaymentStatus" class="trk-pay-badge"></span>
-							</div>
-
-							<!-- Payment Buttons -->
-							<div id="paymentSection" class="trk-pay-section">
-								<p>Choose a payment option securely via PayFast:</p>
-								<button class="pay-btn pay-btn-deposit" data-type="DEPOSIT">
-									<i class="fa-solid fa-percent"></i>Pay Deposit
-								</button>
-								<button class="pay-btn pay-btn-full" data-type="FULL" id="btnPayFull">
-									<i class="fa-solid fa-bolt"></i>Pay Full Amount
-								</button>
-							</div>
-
-							<!-- Payment Schedule -->
-							<div id="paymentScheduleSection" class="trk-schedule-section" style="display:none;">
-								<div class="trk-schedule-title">
-									<i class="fa-solid fa-calendar-check"></i>Payment Schedule
-								</div>
-								<div id="paymentScheduleBody" class="trk-schedule-body"></div>
-								<!-- Client payment plans: rearrange the unpaid milestones after acceptance
-								     (POST /api/public/bookings/:id/payment-plan). Shown only when /track's
-								     payment_plan.editable; otherwise a short reason for the few cases the
-								     client can act on (contact us / wait for a payment to clear). -->
-								<div id="planChangeArea" class="trk-plan-change">
-									<button type="button" id="btnChangePlan" class="trk-plan-ghost-btn" style="display:none;" aria-expanded="false" aria-controls="planEditor">
-										<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>Change payment plan
-									</button>
-									<p id="planChangeReason" class="trk-plan-muted" tabindex="-1" style="display:none;"></p>
-									<div id="planEditor" class="trk-plan-editor" style="display:none;">
-										<div id="planEditorBuilder"></div>
-										<p class="trk-plan-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>Your new plan applies as soon as you save it. We'll email you a copy and let our team know.</p>
-										<p id="planContractNote" class="trk-plan-note" style="display:none;"><i class="fa-solid fa-file-contract" aria-hidden="true"></i>Your contract still shows your current plan. Our team will be in touch if it needs to be updated.</p>
-										<div class="trk-plan-actions">
-											<button type="button" id="btnSavePlan" class="trk-plan-save" disabled>
-												<i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Save new plan
-											</button>
-											<button type="button" id="btnCancelPlan" class="trk-plan-cancel">Cancel</button>
-										</div>
-										<p id="planSaveHint" class="trk-plan-muted" style="display:none;"></p>
-									</div>
-								</div>
-							</div>
-
-							<!-- Pay by EFT: our banking details, the reference to use, and a place to send the proof of payment.
-							     Filled by renderEftPanel() from the `eft` block of the tracking response (docs-internal/eft-payments.md). -->
-							<div id="eftSection" class="trk-eft" style="display:none;">
-								<div class="trk-eft-title">
-									<i class="fa-solid fa-building-columns"></i>Pay by EFT (bank transfer)
-								</div>
-								<div id="eftBody"></div>
-							</div>
-
-							<!-- Payment Success -->
-							<div id="paymentSuccess" class="trk-pay-success">
-								<i class="fa-solid fa-circle-check"></i>
-								Financial obligation fully settled! Your booking is now <strong>CONFIRMED</strong>.
-							</div>
-						</div>
-
-						<!-- Invoice + Quote + Contract PDF downloads — side by side, full-width row. Wraps (and each
-						     button keeps a 100px basis) so all three still fit on a 320px phone instead of the
-						     third running off the drawer's edge. -->
-						<div id="docDownloadRow" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:16px;margin-bottom:16px;">
-							<div id="invoiceSection" style="display:none;flex:1 1 100px;">
-								<a id="invoiceDownloadLink" href="#" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;width:100%;box-sizing:border-box;background:color-mix(in srgb, var(--y-base) 12%, transparent);border:1px solid color-mix(in srgb, var(--y-base) 35%, transparent);border-radius:8px;color:var(--y-base);font-size:12px;font-weight:700;text-decoration:none;transition:background 0.2s;">
-									<i class="fa-solid fa-file-pdf"></i> Download Invoice
-								</a>
-							</div>
-							<div id="quotePdfSection" style="display:none;flex:1 1 100px;">
-								<button id="btnDownloadQuotePdf" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;width:100%;box-sizing:border-box;background:color-mix(in srgb, var(--y-base) 8%, transparent);border:1px solid color-mix(in srgb, var(--y-base) 30%, transparent);border-radius:8px;color:var(--y-base);font-size:12px;font-weight:700;cursor:pointer;">
-									<i class="fa-solid fa-file-pdf"></i> Download Quote
-								</button>
-							</div>
-							<div id="contractDownloadSection" style="display:none;flex:1 1 100px;">
-								<a id="contractDownloadLink" href="#" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;width:100%;box-sizing:border-box;background:color-mix(in srgb, var(--y-base) 8%, transparent);border:1px solid color-mix(in srgb, var(--y-base) 30%, transparent);border-radius:8px;color:var(--y-base);font-size:12px;font-weight:700;text-decoration:none;transition:background 0.2s;">
-									<i class="fa-solid fa-file-contract"></i> Download Contract
-								</a>
-							</div>
-						</div>
-
-						<!-- Contract e-signature (shown when a contract has been sent and the client hasn't signed yet) -->
-						<div id="contractSignSection" style="display:none;padding:16px;background:color-mix(in srgb, var(--y-base) 6%, transparent);border:1px solid color-mix(in srgb, var(--y-base) 30%, transparent);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;">
-							<div style="font-weight:700;color:var(--y-base);margin-bottom:6px;"><i class="fa-solid fa-signature" style="margin-right:6px;"></i>Sign your contract</div>
-							<p style="font-size:12px;color:var(--text-secondary);margin:0 0 12px;">Please download and review the contract above. To sign, type your full legal name and confirm your agreement below. Our team will then countersign to finalise it.</p>
-							<label for="contractSignName" style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:4px;">Full legal name</label>
-							<input type="text" id="contractSignName" autocomplete="name" placeholder="Your full legal name" style="width:100%;box-sizing:border-box;padding:9px 12px;background:var(--bg-section);border:1px solid var(--border-default);border-radius:8px;color:var(--text-primary);font-size:13px;margin-bottom:10px;">
-							<label style="display:flex;align-items:flex-start;gap:8px;font-size:12px;color:var(--text-secondary);margin-bottom:12px;cursor:pointer;">
-								<input type="checkbox" id="contractSignAgree" style="margin-top:2px;">
-								<span>I have read the contract and agree to its terms. I intend this typed name to be my electronic signature.</span>
-							</label>
-							<button type="button" id="contractSignBtn" style="width:100%;padding:11px 16px;background:var(--y-base);color:var(--text-inverse);border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;">Sign contract</button>
-							<div id="contractSignError" style="display:none;margin-top:8px;font-size:12px;color:var(--error);" role="alert" aria-live="assertive"></div>
-						</div>
-						<!-- Contract signed confirmation -->
-						<div id="contractSignedNotice" style="display:none;padding:14px 16px;background:var(--success-dim);border:1px solid var(--success-glow);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;color:var(--success);font-size:13px;">
-							<i class="fa-solid fa-circle-check" style="margin-right:6px;"></i><span id="contractSignedText">You've signed this contract. It's now awaiting our countersignature.</span>
-						</div>
-
-						<!-- Cancelled Notice -->
-						<div id="cancelledNotice" style="display:none;padding:16px;background:color-mix(in srgb, var(--error) 12%, transparent);border:1px solid color-mix(in srgb, var(--error) 30%, transparent);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;color:var(--error);font-weight:500;">
-							<i class="fa-solid fa-ban" style="color:var(--error);margin-right:6px;"></i>
-							This booking has been cancelled.
-							<div id="cancelledRefundInfo" style="margin-top:6px;font-size:12px;color:var(--text-secondary);display:none;"></div>
-						</div>
-
-						<!-- Completed Notice -->
-						<div id="completedNotice" style="display:none;padding:16px;background:var(--success-dim);border:1px solid var(--success-glow);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;color:var(--success);font-weight:500;">
-							<i class="fa-solid fa-flag-checkered" style="color:var(--success);margin-right:6px;"></i>
-							Your event is complete — thank you for choosing Thabiso Mhlongo!
-						</div>
-
-						<!-- Expired Notice -->
-						<div id="expiredNotice" style="display:none;padding:16px;background:color-mix(in srgb, var(--text-muted) 12%, transparent);border:1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);border-radius:var(--r-lg);margin-top:16px;margin-bottom:16px;color:var(--text-secondary);font-weight:500;">
-							<i class="fa-solid fa-clock" style="color:var(--text-secondary);margin-right:6px;"></i>
-							This booking enquiry has expired. Please <a href="#booking" style="color:var(--y-base);">submit a new enquiry</a> if you'd still like to book.
-						</div>
-
-						<!-- Client Self-Cancel -->
-						<div id="clientCancelSection" style="display:none;margin-top:16px;border-top:1px solid var(--border-low);padding-top:14px;">
-							<p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Changed your mind? You can cancel at this stage.</p>
-							<button id="btnClientCancel" style="background:none;border:1px solid var(--error);color:var(--error);border-radius:6px;padding:7px 16px;font-size:12px;cursor:pointer;">
-								<i class="fa-solid fa-ban"></i> Cancel This Booking
-							</button>
-						</div>
-
-						<!-- Accept Quote (S3-1 S3-2 S3-4) -->
-						<div id="acceptQuoteSection" style="display:none;">
-							<div class="trk-accept-section">
-								<p>You've received a quote! Review the details above and formally accept it to proceed.</p>
-								<!-- Client payment plans: the client designs their own plan here while accepting
-								     (js/public/payment-plan-builder.js, accept mode). When a plan already exists
-								     (built by our team before acceptance) it is shown read-only with a "Change
-								     plan" toggle; milestones are only sent when the builder was used. -->
-								<div id="planBuilder" class="trk-plan-accept" style="display:none;">
-									<div id="planExisting" class="trk-plan" style="display:none;">
-										<div id="planExistingView">
-											<div class="trk-plan-head">
-												<p class="trk-plan-title"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i>Your payment plan</p>
-											</div>
-											<p class="trk-plan-intro">We've prepared this payment plan for you. Accept it as it is, or change it to suit you.</p>
-											<ol id="planExistingList" class="trk-plan-list"></ol>
-										</div>
-										<button type="button" id="btnTogglePlanBuilder" class="trk-plan-ghost-btn" aria-expanded="false" aria-controls="planBuilderMount">
-											<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i><span>Change plan</span>
-										</button>
-									</div>
-									<div id="planBuilderMount"></div>
-									<p id="planAcceptNote" class="trk-plan-muted" style="display:none;"></p>
-								</div>
-								<div id="vatFieldGroup" style="display:none;margin:12px 0;">
-									<label class="bk-label" style="font-size:11px;">VAT Number <span style="color:var(--text-muted);font-weight:400;">(optional &mdash; printed on your invoice)</span></label>
-									<div class="bk-field">
-										<i class="fa-solid fa-hashtag bk-field-ico"></i>
-										<input type="text" id="acceptVatNumber" class="bk-input form-control bk-ico-input" placeholder="e.g. 4010123456" style="font-size:13px;">
-									</div>
-									<small class="bk-step-hint">Leave blank if not VAT registered.</small>
-								</div>
-								<div id="billingAddressFieldGroup" style="display:none;margin:12px 0;">
-									<label class="bk-label" style="font-size:11px;">Billing Address <span style="color:var(--text-muted);font-weight:400;">(optional &mdash; needed on a tax invoice over R5,000)</span></label>
-									<textarea id="acceptBillingAddress" class="bk-input form-control bk-ico-input" rows="2" maxlength="300" placeholder="Street, suburb, city, postal code" style="font-size:13px;"></textarea>
-								</div>
-								<label id="chkTermsRow" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:12px 0;padding:12px;background:var(--bg-page);border:1px solid var(--border-default);border-radius:4px;">
-									<input type="checkbox" id="chkTermsAgree" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--y-base);margin-top:1px;">
-									<span style="font-size:12px;color:var(--text-secondary);line-height:1.5;">I have read and agree to the <a href="/terms" target="_blank" rel="noopener" style="color:var(--y-base);text-decoration:underline;">Terms and Conditions</a> and commit to making payments per the schedule above.</span>
-								</label>
-								<p id="acceptPlanHint" class="trk-plan-muted trk-plan-muted--warn" style="display:none;"></p>
-								<button id="acceptQuoteBtn" class="trk-accept-btn" disabled style="opacity:0.4;cursor:not-allowed;">
-									<i class="fa-solid fa-handshake"></i>Accept Quote
-								</button>
-								<div style="margin-top:14px;border-top:1px solid var(--border-low);padding-top:12px;">
-									<button id="btnRequestRevision" style="background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;text-decoration:underline;padding:0;">Need changes or more time? Request a revision or extension</button>
-									<div id="revisionRequestForm" style="display:none;margin-top:10px;">
-										<select id="revisionType" style="width:100%;background:var(--bg-section);border:1px solid var(--border-default);color:var(--text-secondary);padding:8px;border-radius:4px;font-size:12px;margin-bottom:8px;">
-										<option value="revision">Request Quote Revision</option>
-										<option value="extension">Request Expiry Extension</option>
-										</select>
-										<textarea id="revisionMessage" placeholder="Please describe what you'd like changed or why you need more time..." style="width:100%;background:var(--bg-section);border:1px solid var(--border-default);color:var(--text-secondary);padding:8px;border-radius:4px;font-size:12px;resize:vertical;min-height:80px;box-sizing:border-box;"></textarea>
-										<button id="btnSubmitRevision" style="margin-top:8px;background:transparent;border:1px solid var(--y-base);color:var(--y-base);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;padding:6px 16px;border-radius:2px;cursor:pointer;">Send Request</button>
-										<button id="btnCancelRevision" style="margin-top:8px;margin-left:8px;background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;text-decoration:underline;">Cancel</button>
-									</div>
-								</div>
-							</div>
-						</div>
+						<!-- ═══ One-line status messages ═══ -->
 
 						<!-- No Quote Yet -->
 						<div id="noQuoteSection" class="trk-no-quote" style="display:none;">
@@ -1712,11 +1523,412 @@
 							<p>Our team is reviewing your booking &mdash; a quote will appear here shortly.</p>
 						</div>
 
-						<!-- Back link -->
+						<!-- Fully paid -->
+						<div id="paymentSuccess" class="trk-pay-success">
+							<i class="fa-solid fa-circle-check"></i>
+							Fully paid &mdash; thank you! There is nothing more to pay.
+						</div>
+
+						<!-- Cancelled Notice -->
+						<div id="cancelledNotice" style="display:none;padding:16px;background:color-mix(in srgb, var(--error) 12%, transparent);border:1px solid color-mix(in srgb, var(--error) 30%, transparent);border-radius:var(--r-lg);margin-bottom:16px;color:var(--error);font-weight:500;">
+							<i class="fa-solid fa-ban" style="color:var(--error);margin-right:6px;"></i>
+							This booking has been cancelled.
+							<div id="cancelledRefundInfo" style="margin-top:6px;font-size:12px;color:var(--text-secondary);display:none;"></div>
+						</div>
+
+						<!-- Completed Notice -->
+						<div id="completedNotice" style="display:none;padding:16px;background:var(--success-dim);border:1px solid var(--success-glow);border-radius:var(--r-lg);margin-bottom:16px;color:var(--success);font-weight:500;">
+							<i class="fa-solid fa-flag-checkered" style="color:var(--success);margin-right:6px;"></i>
+							Your event is complete — thank you for choosing Thabiso Mhlongo!
+						</div>
+
+						<!-- Expired Notice -->
+						<div id="expiredNotice" style="display:none;padding:16px;background:color-mix(in srgb, var(--text-muted) 12%, transparent);border:1px solid color-mix(in srgb, var(--text-muted) 30%, transparent);border-radius:var(--r-lg);margin-bottom:16px;color:var(--text-secondary);font-weight:500;">
+							<i class="fa-solid fa-clock" style="color:var(--text-secondary);margin-right:6px;"></i>
+							This booking enquiry has expired. Please <a href="#booking" style="color:var(--y-base);">submit a new enquiry</a> if you'd still like to book.
+						</div>
+
+						<!-- ═══ Your next step: trkLayout() moves the sections for the current step in here ═══ -->
+						<section id="trkNextStep" class="trk-next" style="display:none;" aria-labelledby="trkNextStepTitle">
+							<p class="trk-next__eyebrow">Your next step</p>
+							<h3 class="trk-next__title" id="trkNextStepTitle"></h3>
+							<div class="trk-next__body" id="trkNextStepBody"></div>
+						</section>
+
+						<!-- ═══ Everything else: collapsed rows with a one-line summary (trkUpdateCardSummaries) ═══ -->
+						<p id="trkMoreLabel" class="trk-more-label" style="display:none;">Booking details</p>
+
+						<!-- Payment: what is due next and the two ways to pay -->
+						<section class="trk-card" id="cardPayment">
+							<button type="button" class="trk-card__header" aria-expanded="false" aria-controls="cardPaymentBody">
+								<span class="trk-card__title"><i class="fa-solid fa-credit-card" aria-hidden="true"></i>Payment</span>
+								<span class="trk-card__meta" id="cardPaymentMeta"></span>
+								<i class="fa-solid fa-chevron-down trk-card__chevron" aria-hidden="true"></i>
+							</button>
+							<div class="trk-card__body" id="cardPaymentBody" hidden>
+								<div id="trkPayBlock">
+
+									<!-- The next payment due (filled by trkRenderNextPay from the schedule) -->
+									<div id="trkNextPay" class="trk-nextpay" style="display:none;">
+										<div class="trk-nextpay__main">
+											<span id="trkNextPayLabel" class="trk-nextpay__label"></span>
+											<strong id="trkNextPayAmt" class="trk-nextpay__amt"></strong>
+										</div>
+										<p id="trkNextPayDue" class="trk-nextpay__due"></p>
+									</div>
+
+									<!-- How to pay. When BOTH ways apply right now, each is its own card with a clear heading and the
+									     client picks one: its details open, the other folds to its heading (#trkPayBlock.has-choice).
+									     When only one applies it shows on its own, with no chooser. See trkUpdatePaymentTabs(). -->
+									<p id="trkPayHow" class="trk-pay-how" style="display:none;">Choose how you'd like to pay</p>
+
+									<!-- Option 1: Pay online (PayFast). With a payment schedule, one button pays the next payment
+									     (#trkSchedPay; class is-scheduled hides the deposit/full buttons); without one, the
+									     deposit/full buttons are the way to pay. -->
+									<div class="trk-payopt" id="trkPayOptPayfast">
+										<h4 class="trk-payopt__h">
+											<button type="button" class="trk-payopt__head" id="trkPayTabPayfast" aria-expanded="true" aria-controls="paymentSection">
+												<span class="trk-payopt__icon" aria-hidden="true"><i class="fa-solid fa-credit-card"></i></span>
+												<span class="trk-payopt__text">
+													<span class="trk-payopt__title">Pay online</span>
+													<span class="trk-payopt__sub">Card or Instant EFT, secured by PayFast</span>
+												</span>
+												<span class="trk-payopt__radio" aria-hidden="true"></span>
+											</button>
+										</h4>
+										<div id="paymentSection" class="trk-pay-section">
+											<p>Choose a payment option securely via PayFast:</p>
+											<div id="trkSchedPay"></div>
+											<button class="pay-btn pay-btn-deposit" data-type="DEPOSIT">
+												<i class="fa-solid fa-percent"></i>Pay Deposit
+											</button>
+											<button class="pay-btn pay-btn-full" data-type="FULL" id="btnPayFull">
+												<i class="fa-solid fa-bolt"></i>Pay Full Amount
+											</button>
+											<small class="trk-pay-secure"><i class="fa-solid fa-lock" aria-hidden="true"></i>Card or Instant EFT, secured by PayFast</small>
+										</div>
+									</div>
+
+									<!-- Option 2: Bank transfer (EFT): our banking details, the reference to use, and a place to send the proof
+									     of payment. Filled by renderEftPanel() from the `eft` block of the tracking response (docs-internal/eft-payments.md). -->
+									<div class="trk-payopt" id="trkPayOptEft">
+										<h4 class="trk-payopt__h">
+											<button type="button" class="trk-payopt__head" id="trkPayTabEft" aria-expanded="false" aria-controls="eftSection">
+												<span class="trk-payopt__icon" aria-hidden="true"><i class="fa-solid fa-building-columns"></i></span>
+												<span class="trk-payopt__text">
+													<span class="trk-payopt__title">Bank transfer (EFT)</span>
+													<span class="trk-payopt__sub">Pay from your banking app, then send us your proof of payment</span>
+												</span>
+												<span class="trk-payopt__radio" aria-hidden="true"></span>
+											</button>
+										</h4>
+										<div id="eftSection" class="trk-eft" style="display:none;">
+											<div class="trk-eft-title">
+												<i class="fa-solid fa-building-columns"></i>Pay by EFT (bank transfer)
+											</div>
+											<div id="eftBody"></div>
+										</div>
+									</div>
+
+								</div>
+							</div>
+						</section>
+
+						<!-- Payment plan: progress + every payment, and "Change payment plan" -->
+						<section class="trk-card" id="cardPlan">
+							<button type="button" class="trk-card__header" aria-expanded="false" aria-controls="cardPlanBody">
+								<span class="trk-card__title"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i>Payment plan</span>
+								<span class="trk-card__meta" id="cardPlanMeta"></span>
+								<i class="fa-solid fa-chevron-down trk-card__chevron" aria-hidden="true"></i>
+							</button>
+							<div class="trk-card__body" id="cardPlanBody" hidden>
+
+								<!-- Payment Status -->
+								<div class="trk-pay-status">
+									<span class="trk-pay-status-label">Payment Status:</span>
+									<span id="tdPaymentStatus" class="trk-pay-badge"></span>
+								</div>
+
+								<!-- Financial Ledger -->
+								<div id="financialLedger" style="display:none;">
+									<p class="trk-ledger-title">
+										<i class="fa-solid fa-chart-pie"></i>Payment Progress
+									</p>
+									<div class="trk-ledger-row">
+										<div>Total Scope: <strong id="lgTotal">R0.00</strong></div>
+										<div>Amount Paid: <strong class="lg-paid" id="lgPaid">R0.00</strong></div>
+										<div>Remaining: <strong class="lg-due" id="lgOutstanding">R0.00</strong></div>
+									</div>
+									<div class="trk-ledger-bar">
+										<div id="lgProgressBar"></div>
+									</div>
+								</div>
+
+								<!-- Payment Schedule -->
+								<div id="paymentScheduleSection" class="trk-schedule-section" style="display:none;">
+									<div class="trk-schedule-title">
+										<i class="fa-solid fa-calendar-check"></i>Payment Schedule
+									</div>
+									<div id="paymentScheduleBody" class="trk-schedule-body"></div>
+									<!-- Client payment plans: rearrange the unpaid milestones after acceptance
+									     (POST /api/public/bookings/:id/payment-plan). Shown only when /track's
+									     payment_plan.editable; otherwise #planChangeReason below says why. -->
+									<div id="planChangeArea" class="trk-plan-change">
+										<button type="button" id="btnChangePlan" class="trk-plan-ghost-btn" style="display:none;" aria-expanded="false" aria-controls="planEditor">
+											<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>Change payment plan
+										</button>
+										<div id="planEditor" class="trk-plan-editor" style="display:none;">
+											<div id="planEditorBuilder"></div>
+											<p class="trk-plan-note"><i class="fa-solid fa-circle-info" aria-hidden="true"></i>Your new plan applies as soon as you save it. We'll email you a copy and let our team know.</p>
+											<p id="planContractNote" class="trk-plan-note" style="display:none;"><i class="fa-solid fa-file-contract" aria-hidden="true"></i>Your contract still shows your current plan. Our team will be in touch if it needs to be updated.</p>
+											<div class="trk-plan-actions">
+												<button type="button" id="btnSavePlan" class="trk-plan-save" disabled>
+													<i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Save new plan
+												</button>
+												<button type="button" id="btnCancelPlan" class="trk-plan-cancel">Cancel</button>
+											</div>
+											<p id="planSaveHint" class="trk-plan-muted" style="display:none;"></p>
+										</div>
+									</div>
+								</div>
+
+								<!-- Why the payment plan can't be changed right now (renderPlanChangeControls). Outside the
+								     schedule box so it still shows when nothing is scheduled. -->
+								<p id="planChangeReason" class="trk-plan-reason" tabindex="-1" style="display:none;"></p>
+
+							</div>
+						</section>
+
+						<!-- Quote: the quote itself, and (while it is open) the accept step -->
+						<section class="trk-card" id="cardQuotePlan">
+							<button type="button" class="trk-card__header" aria-expanded="false" aria-controls="cardQuotePlanBody">
+								<span class="trk-card__title"><i class="fa-solid fa-file-invoice" aria-hidden="true"></i>Your quote</span>
+								<span class="trk-card__meta" id="cardQuotePlanMeta"></span>
+								<i class="fa-solid fa-chevron-down trk-card__chevron" aria-hidden="true"></i>
+							</button>
+							<div class="trk-card__body" id="cardQuotePlanBody" hidden>
+
+								<!-- Quote Details. .trk-step-h headings only show inside "Your next step" (numbered by CSS). -->
+								<div id="quoteSection" style="display:none;">
+									<p class="trk-step-h">Check your quote</p>
+									<div class="trk-quote-card">
+										<div class="trk-quote-header">
+											<span><i class="fa-solid fa-file-invoice-dollar"></i>Your Quote</span>
+											<span class="trk-quote-amount" id="tdQuoteAmount"></span>
+										</div>
+										<div class="trk-quote-body">
+											<div id="tdQuoteDetails" class="trk-quote-detail"></div>
+											<p class="trk-quote-expiry">
+												<i class="fa-solid fa-clock"></i>Quote valid until: <strong id="tdQuoteExpiry"></strong>
+											</p>
+										</div>
+									</div>
+								</div>
+
+								<!-- Accept Quote (S3-1 S3-2 S3-4) -->
+								<div id="acceptQuoteSection" style="display:none;">
+									<div class="trk-accept-section">
+										<!-- Client payment plans: the client picks how many payments while accepting
+										     (js/public/payment-plan-builder.js, accept mode). When a plan already exists
+										     (built by our team before acceptance) it is shown read-only with a "Change
+										     plan" toggle; milestones are only sent when the builder was used. -->
+										<div id="planBuilder" class="trk-plan-accept" style="display:none;">
+											<p class="trk-step-h">Choose your payment plan</p>
+											<div id="planExisting" class="trk-plan" style="display:none;">
+												<div id="planExistingView">
+													<p class="trk-plan-intro">We've prepared this payment plan for you. Accept it as it is, or change it to suit you.</p>
+													<ol id="planExistingList" class="trk-plan-list"></ol>
+												</div>
+												<button type="button" id="btnTogglePlanBuilder" class="trk-plan-ghost-btn" aria-expanded="false" aria-controls="planBuilderMount">
+													<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i><span>Change plan</span>
+												</button>
+											</div>
+											<div id="planBuilderMount"></div>
+											<p id="planAcceptNote" class="trk-plan-muted" style="display:none;"></p>
+										</div>
+										<p class="trk-step-h">Accept the quote</p>
+										<!-- Company bookings only: optional details printed on the invoice. -->
+										<details id="acceptCompanyDetails" class="trk-optional" style="display:none;">
+											<summary>Add your VAT number or billing address (optional)</summary>
+											<div id="vatFieldGroup" style="display:none;margin:12px 0;">
+												<label class="bk-label" style="font-size:11px;">VAT Number <span style="color:var(--text-muted);font-weight:400;">(optional &mdash; printed on your invoice)</span></label>
+												<div class="bk-field">
+													<i class="fa-solid fa-hashtag bk-field-ico"></i>
+													<input type="text" id="acceptVatNumber" class="bk-input form-control bk-ico-input" placeholder="e.g. 4010123456" style="font-size:13px;">
+												</div>
+												<small class="bk-step-hint">Leave blank if not VAT registered.</small>
+											</div>
+											<div id="billingAddressFieldGroup" style="display:none;margin:12px 0;">
+												<label class="bk-label" style="font-size:11px;">Billing Address <span style="color:var(--text-muted);font-weight:400;">(optional &mdash; needed on a tax invoice over R5,000)</span></label>
+												<textarea id="acceptBillingAddress" class="bk-input form-control bk-ico-input" rows="2" maxlength="300" placeholder="Street, suburb, city, postal code" style="font-size:13px;"></textarea>
+											</div>
+										</details>
+										<label id="chkTermsRow" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;margin:12px 0;padding:12px;background:var(--bg-page);border:1px solid var(--border-default);border-radius:4px;">
+											<input type="checkbox" id="chkTermsAgree" style="width:16px;height:16px;flex-shrink:0;cursor:pointer;accent-color:var(--y-base);margin-top:1px;">
+											<span style="font-size:12px;color:var(--text-secondary);line-height:1.5;">I have read and agree to the <a href="/terms" target="_blank" rel="noopener" style="color:var(--y-base);text-decoration:underline;">Terms and Conditions</a> and commit to making payments per the schedule above.</span>
+										</label>
+										<p id="acceptPlanHint" class="trk-plan-muted trk-plan-muted--warn" style="display:none;"></p>
+										<button id="acceptQuoteBtn" class="trk-accept-btn" disabled style="opacity:0.4;cursor:not-allowed;">
+											<i class="fa-solid fa-handshake"></i>Accept Quote
+										</button>
+										<div style="margin-top:14px;border-top:1px solid var(--border-low);padding-top:12px;">
+											<button id="btnRequestRevision" style="background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;text-decoration:underline;padding:0;">Need changes or more time? Request a revision or extension</button>
+											<div id="revisionRequestForm" style="display:none;margin-top:10px;">
+												<select id="revisionType" style="width:100%;background:var(--bg-section);border:1px solid var(--border-default);color:var(--text-secondary);padding:8px;border-radius:4px;font-size:12px;margin-bottom:8px;">
+												<option value="revision">Request Quote Revision</option>
+												<option value="extension">Request Expiry Extension</option>
+												</select>
+												<textarea id="revisionMessage" placeholder="Please describe what you'd like changed or why you need more time..." style="width:100%;background:var(--bg-section);border:1px solid var(--border-default);color:var(--text-secondary);padding:8px;border-radius:4px;font-size:12px;resize:vertical;min-height:80px;box-sizing:border-box;"></textarea>
+												<button id="btnSubmitRevision" style="margin-top:8px;background:transparent;border:1px solid var(--y-base);color:var(--y-base);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;padding:6px 16px;border-radius:2px;cursor:pointer;">Send Request</button>
+												<button id="btnCancelRevision" style="margin-top:8px;margin-left:8px;background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;text-decoration:underline;">Cancel</button>
+											</div>
+										</div>
+									</div>
+								</div>
+
+							</div>
+						</section>
+
+						<!-- Contract: sign it, or where the signing stands -->
+						<section class="trk-card" id="cardContract">
+							<button type="button" class="trk-card__header" aria-expanded="false" aria-controls="cardContractBody">
+								<span class="trk-card__title"><i class="fa-solid fa-signature" aria-hidden="true"></i>Contract</span>
+								<span class="trk-card__meta" id="cardContractMeta"></span>
+								<i class="fa-solid fa-chevron-down trk-card__chevron" aria-hidden="true"></i>
+							</button>
+							<div class="trk-card__body" id="cardContractBody" hidden>
+
+								<!-- Contract e-signature (shown when a contract has been sent and the client hasn't signed yet) -->
+								<div id="contractSignSection" class="trk-sign" style="display:none;">
+									<p class="trk-sign__intro">Read the contract, then type your full legal name below to sign it. Our team will then countersign to finalise it.</p>
+									<a id="contractSignReadLink" class="trk-sign__read" href="#" target="_blank" rel="noopener" style="display:none;"><i class="fa-solid fa-file-contract" aria-hidden="true"></i>Read the contract (PDF)</a>
+									<label for="contractSignName" class="trk-sign__label">Full legal name</label>
+									<input type="text" id="contractSignName" class="trk-sign__input" autocomplete="name" placeholder="Your full legal name">
+									<label class="trk-sign__agree">
+										<input type="checkbox" id="contractSignAgree">
+										<span>I have read the contract and agree to its terms. I intend this typed name to be my electronic signature.</span>
+									</label>
+									<button type="button" id="contractSignBtn" class="trk-sign__btn">Sign contract</button>
+									<div id="contractSignError" class="trk-sign__error" style="display:none;" role="alert" aria-live="assertive"></div>
+								</div>
+								<!-- Contract signed confirmation -->
+								<div id="contractSignedNotice" style="display:none;padding:14px 16px;background:var(--success-dim);border:1px solid var(--success-glow);border-radius:var(--r-lg);color:var(--success);font-size:13px;">
+									<i class="fa-solid fa-circle-check" style="margin-right:6px;"></i><span id="contractSignedText">You've signed this contract. It's now awaiting our countersignature.</span>
+								</div>
+
+							</div>
+						</section>
+
+						<!-- Documents -->
+						<section class="trk-card" id="cardDocuments">
+							<button type="button" class="trk-card__header" aria-expanded="false" aria-controls="cardDocumentsBody">
+								<span class="trk-card__title"><i class="fa-solid fa-folder-open" aria-hidden="true"></i>Documents</span>
+								<span class="trk-card__meta" id="cardDocumentsMeta"></span>
+								<i class="fa-solid fa-chevron-down trk-card__chevron" aria-hidden="true"></i>
+							</button>
+							<div class="trk-card__body" id="cardDocumentsBody" hidden>
+
+								<!-- Invoice + Quote + Contract PDF downloads — side by side, full-width row. Wraps (and each
+								     button keeps a 100px basis) so all three still fit on a 320px phone instead of the
+								     third running off the drawer's edge. -->
+								<div id="docDownloadRow" style="display:flex;flex-wrap:wrap;gap:8px;">
+									<div id="invoiceSection" style="display:none;flex:1 1 100px;">
+										<a id="invoiceDownloadLink" href="#" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;width:100%;box-sizing:border-box;background:color-mix(in srgb, var(--y-base) 12%, transparent);border:1px solid color-mix(in srgb, var(--y-base) 35%, transparent);border-radius:8px;color:var(--y-base);font-size:12px;font-weight:700;text-decoration:none;transition:background 0.2s;">
+											<i class="fa-solid fa-file-pdf"></i> Download Invoice
+										</a>
+									</div>
+									<div id="quotePdfSection" style="display:none;flex:1 1 100px;">
+										<button id="btnDownloadQuotePdf" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;width:100%;box-sizing:border-box;background:color-mix(in srgb, var(--y-base) 8%, transparent);border:1px solid color-mix(in srgb, var(--y-base) 30%, transparent);border-radius:8px;color:var(--y-base);font-size:12px;font-weight:700;cursor:pointer;">
+											<i class="fa-solid fa-file-pdf"></i> Download Quote
+										</button>
+									</div>
+									<div id="contractDownloadSection" style="display:none;flex:1 1 100px;">
+										<a id="contractDownloadLink" href="#" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;padding:9px 16px;width:100%;box-sizing:border-box;background:color-mix(in srgb, var(--y-base) 8%, transparent);border:1px solid color-mix(in srgb, var(--y-base) 30%, transparent);border-radius:8px;color:var(--y-base);font-size:12px;font-weight:700;text-decoration:none;transition:background 0.2s;">
+											<i class="fa-solid fa-file-contract"></i> Download Contract
+										</a>
+									</div>
+								</div>
+
+							</div>
+						</section>
+
+						<!-- Your details: what we have on file. The client fixes their own name, phone and company straight away
+						     (POST :id/contact); anything that can affect the quote, invoice, contract or availability (email, event,
+						     date, time, venue) is a request our team applies (POST :id/correction-request). trkRenderMyDetails(). -->
+						<section class="trk-card" id="cardDetails">
+							<button type="button" class="trk-card__header" aria-expanded="false" aria-controls="cardDetailsBody">
+								<span class="trk-card__title"><i class="fa-solid fa-address-card" aria-hidden="true"></i>Your details</span>
+								<span class="trk-card__meta" id="cardDetailsMeta"></span>
+								<i class="fa-solid fa-chevron-down trk-card__chevron" aria-hidden="true"></i>
+							</button>
+							<div class="trk-card__body" id="cardDetailsBody" hidden>
+								<div id="trkMyDetails" style="display:none;">
+
+									<div class="trk-details-box">
+										<p class="trk-details-h">Contact</p>
+										<dl class="trk-details-dl" id="trkContactList"></dl>
+										<button type="button" id="trkEditContactBtn" class="trk-plan-ghost-btn" aria-expanded="false" aria-controls="trkContactForm">
+											<i class="fa-solid fa-pen-to-square" aria-hidden="true"></i>Edit name, phone or company
+										</button>
+										<form id="trkContactForm" class="trk-mini-form" style="display:none;" novalidate>
+											<label for="trkContactName">Full name</label>
+											<input type="text" id="trkContactName" class="trk-mini-input" autocomplete="name" maxlength="150">
+											<label for="trkContactCell">Phone number</label>
+											<input type="tel" id="trkContactCell" class="trk-mini-input" autocomplete="tel" inputmode="tel" maxlength="30">
+											<label for="trkContactCompany">Company <span class="trk-mini-opt">(optional)</span></label>
+											<input type="text" id="trkContactCompany" class="trk-mini-input" autocomplete="organization" maxlength="150">
+											<p id="trkContactError" class="trk-mini-error" role="alert" style="display:none;"></p>
+											<div class="trk-plan-actions">
+												<button type="submit" id="trkContactSave" class="trk-plan-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i>Save</button>
+												<button type="button" id="trkContactCancel" class="trk-plan-cancel">Cancel</button>
+											</div>
+										</form>
+									</div>
+
+									<div class="trk-details-box">
+										<p class="trk-details-h">Event</p>
+										<dl class="trk-details-dl" id="trkEventList"></dl>
+									</div>
+
+									<div class="trk-correction" id="trkCorrectionArea">
+										<p class="trk-correction__intro">Is your email, event, date, time or venue wrong? These can affect your quote, invoice and contract, so our team checks and updates them for you.</p>
+										<button type="button" id="trkCorrectionBtn" class="trk-plan-ghost-btn" aria-expanded="false" aria-controls="trkCorrectionForm">
+											<i class="fa-solid fa-paper-plane" aria-hidden="true"></i>Request a correction
+										</button>
+										<form id="trkCorrectionForm" class="trk-mini-form" style="display:none;" novalidate>
+											<label for="trkCorrectionField">What needs correcting?</label>
+											<select id="trkCorrectionField" class="trk-mini-input">
+												<option value="email">Email address</option>
+												<option value="event_name">Event name</option>
+												<option value="event_type">Event type</option>
+												<option value="event_date">Event date</option>
+												<option value="performance_time">Performance time</option>
+												<option value="venue">Venue / location</option>
+												<option value="other">Something else</option>
+											</select>
+											<label for="trkCorrectionDetails">What should it say?</label>
+											<textarea id="trkCorrectionDetails" class="trk-mini-input" rows="3" maxlength="1000"></textarea>
+											<p id="trkCorrectionError" class="trk-mini-error" role="alert" style="display:none;"></p>
+											<div class="trk-plan-actions">
+												<button type="submit" id="trkCorrectionSend" class="trk-plan-save"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i>Send request</button>
+												<button type="button" id="trkCorrectionCancel" class="trk-plan-cancel">Cancel</button>
+											</div>
+										</form>
+										<p id="trkCorrectionSent" class="trk-plan-reason" role="status" style="display:none;"></p>
+									</div>
+
+								</div>
+							</div>
+						</section>
+
+						<!-- Footer links: another booking, and (while still allowed) a quiet way to cancel this one -->
 						<div class="trk-back-row">
 							<a id="trkBackBtn" class="trk-back-btn" href="#">
 								<i class="fa-solid fa-arrow-left"></i>Track a different booking
 							</a>
+							<div id="clientCancelSection" style="display:none;">
+								<button type="button" id="btnClientCancel" class="trk-cancel-link">Need to cancel this booking?</button>
+							</div>
 						</div>
 
 					</div>
@@ -2114,7 +2326,7 @@
 	<script src="js/shared/location-utils.js?v=1"></script>
 	<!-- Shared location-search client (2026-10 Places audit) - the booking wizard uses its session tokens. -->
 	<script src="js/shared/places-client.js?v=1"></script>
-	<script src="js/myscript.js?v=1.9.11"></script>
+	<script src="js/myscript.js?v=1.9.12"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather
@@ -2126,7 +2338,7 @@
 	     validates a plan with (routes/public/bookings.js) — and the plan builder built on it. Both must
 	     load before the tracking script below. -->
 	<script src="js/shared/payment-plan-rules.js?v=1"></script>
-	<script src="js/public/payment-plan-builder.js?v=2"></script>
+	<script src="js/public/payment-plan-builder.js?v=3"></script>
 </body>
 <!-- UI Dependencies -->
 <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
@@ -2284,13 +2496,14 @@ $(document).ready(function() {
     //   acceptShowsPlan the accept step presents the plan, so the schedule section stays hidden
     //   changeBuilder  the post-acceptance "Change payment plan" editor's builder
     var planState = {
-        view: null, plan: null, schedule: [], contract: null,
+        view: null, plan: null, schedule: [], contract: null, nextRow: null, eft: null, booking: null,
         acceptBuilder: null, acceptOpen: false, acceptShowsPlan: false, accepting: false, accepted: false,
         changeBuilder: null, saving: false
     };
-    // Reasons the client can act on (contact us / wait for a payment to clear); any other reason
-    // (fully paid, event passed, …) needs no explanation next to the schedule.
-    var PLAN_REASONS_SHOWN = ['NEEDS_ADMIN', 'NO_SLOTS', 'PAYMENT_IN_PROGRESS'];
+    // Why-the-plan-can't-change reasons NOT shown next to the payment plan: they are about the
+    // booking's own stage (not accepted yet, cancelled, completed, expired), which the status line
+    // and notices already say. Every other reason (event passed, fully paid, …) is shown.
+    var PLAN_REASONS_HIDDEN = ['NOT_ACCEPTED', 'NOT_QUOTED', 'NO_QUOTE'];
 
     function maskEmail(email) {
         var parts = String(email || '').split('@');
@@ -2327,7 +2540,10 @@ $(document).ready(function() {
     function setTimeline(status) {
         // Gap 4 (Phase 2): 'RESPONDED' was a legacy status retired in Phase 2; it maps directly to QUOTED.
         // Removed the explicit mapping since RESPONDED no longer appears as a booking status.
-        var idx = statusOrder.indexOf(status);
+        // A completed event has been through every stage; a cancelled/expired one left the track,
+        // so its bar is hidden and the notice below says what happened.
+        var idx = status === 'COMPLETED' ? statusOrder.length : statusOrder.indexOf(status);
+        $('#trkTimeline').toggle(status !== 'CANCELLED' && status !== 'EXPIRED');
         // Connector fills are driven purely by CSS (.trk-wz-dot.done + .bk-wz-conn .bk-wz-conn-fill)
         $('.trk-wz-dot').each(function() {
             var s = $(this).data('status');
@@ -2336,6 +2552,12 @@ $(document).ready(function() {
             if (si < idx) $(this).addClass('done');
             else if (si === idx) $(this).addClass('active');
         });
+        var stages = ['PENDING', 'QUOTED', 'ACCEPTED', 'CONFIRMED'];
+        var stageLabels = { PENDING: 'We\'re preparing your quote', QUOTED: 'Your quote is ready', ACCEPTED: 'Quote accepted', CONFIRMED: 'Booking confirmed' };
+        var stage = status === 'NEW' ? 'PENDING' : status;
+        var n = stages.indexOf(stage);
+        if (n >= 0) $('#trkStepLine').text('Step ' + (n + 1) + ' of 4 · ' + stageLabels[stage]).show();
+        else $('#trkStepLine').hide().text('');
     }
 
     function setPaymentBadge(payStatus) {
@@ -2415,8 +2637,8 @@ $(document).ready(function() {
      * Renders #paymentScheduleSection from a payment_schedule array and its payment_plan block —
      * used by loadTrackingDetails() and again, without another /track call, after the client saves a
      * new plan (the payment-plan route answers with both). Every stored string goes in as text.
-     * A mobile-first list (one row per milestone, the Pay Now button full width underneath), so
-     * nothing is clipped at 320px wide.
+     * A mobile-first list (one row per milestone), so nothing is clipped at 320px wide. It is
+     * information only; the next payment's Pay button is rendered by trkRenderNextPay().
      */
     function renderPaymentSchedule(schedule, paymentPlan) {
         var view = planState.view || {};
@@ -2425,9 +2647,10 @@ $(document).ready(function() {
         // While the quote is still open, the accept step shows the plan (with the builder), so it is
         // not repeated here.
         var hiddenByAccept = view.status === 'QUOTED' && planState.acceptShowsPlan;
+        planState.nextRow = null;
         if (!view.isQuotedOrActive || rows.length === 0 || hiddenByAccept) {
             $('#paymentScheduleSection').hide();
-            renderPlanChangeControls(null);
+            renderPlanChangeControls(paymentPlan);   // nothing scheduled can still need a reason
             return;
         }
 
@@ -2444,7 +2667,7 @@ $(document).ready(function() {
             var due = String(s.due_date || '').slice(0, 10);
             var isOverdue = !isPaid && (st === 'overdue' || (!!due && due < today));
             var isNext = payableCanPay && !isPaid && !nextPayableFound;
-            if (isNext) nextPayableFound = true;
+            if (isNext) { nextPayableFound = true; planState.nextRow = s; }
 
             var $li = $('<li class="trk-sched-item"></li>')
                 .toggleClass('is-paid', isPaid).toggleClass('is-overdue', isOverdue).toggleClass('is-next', isNext);
@@ -2465,42 +2688,42 @@ $(document).ready(function() {
             }
             $meta.append($status);
             $li.append($main, $meta);
-            if (isNext) {
-                // The earliest unpaid row is the one /pay accepts (strict due order); later rows
-                // wait their turn. `pay-btn` is what the delegated PayFast handler listens for.
-                var $pay = $('<button type="button" class="pay-btn trk-sched-pay"></button>')
-                    .attr('data-schedule-id', s.id)
-                    .append('<i class="fa-solid fa-credit-card" aria-hidden="true"></i>')
-                    .append(document.createTextNode(' Pay Now'));
-                $li.append($('<div class="trk-sched-action"></div>').append($pay));
-            }
             $list.append($li);
         });
         $body.append($list);
         $('#paymentScheduleSection').show();
-        // A schedule exists — the static DEPOSIT/FULL buttons are superseded by the per-row "Pay Now"
-        // action; they stay only as the fallback for a booking with no schedule rows at all.
-        if (payableCanPay && view.amountPaid < view.totalScope) $('#paymentSection').hide();
+        // The earliest unpaid row (planState.nextRow) is the one /pay accepts (strict due order); its
+        // Pay button lives in the payment step (trkRenderNextPay), so this list is information only.
         renderPlanChangeControls(paymentPlan);
     }
 
-    // "Change payment plan" button, or the reason it is unavailable when the client can act on it.
+    // "Change payment plan" button, or one line saying why the plan can't be changed right now.
     function renderPlanChangeControls(paymentPlan) {
         var $btn = $('#btnChangePlan');
         var $reason = $('#planChangeReason');
         if (planState.changeBuilder) return; // the editor is open; it manages these itself
-        var canChange = !!(paymentPlan && paymentPlan.mode === 'change' && paymentPlan.editable && paymentPlan.context &&
+        var isChange = !!(paymentPlan && paymentPlan.mode === 'change');
+        var canChange = !!(isChange && paymentPlan.editable && paymentPlan.context &&
             window.PaymentPlanBuilder && window.PaymentPlanRules);
         if (canChange) {
             $btn.show().attr('aria-expanded', 'false');
             $reason.hide().text('');
-        } else if (paymentPlan && !paymentPlan.editable && PLAN_REASONS_SHOWN.indexOf(paymentPlan.reason_code) !== -1 && paymentPlan.reason) {
+        } else if (isChange && !paymentPlan.editable && paymentPlan.reason && PLAN_REASONS_HIDDEN.indexOf(paymentPlan.reason_code) === -1) {
             $btn.hide();
-            $reason.text(paymentPlan.reason).show();
+            $reason.text(planReasonText(paymentPlan)).show();
         } else {
             $btn.hide();
             $reason.hide().text('');
         }
+    }
+
+    // The server's reason, except NO_UNPAID on a booking with nothing scheduled at all, where its
+    // "no unpaid payments to rearrange" would read oddly next to a balance that is still owed.
+    function planReasonText(paymentPlan) {
+        if (paymentPlan.reason_code === 'NO_UNPAID' && !(planState.schedule || []).filter(isLiveScheduleRow).length) {
+            return 'This booking doesn’t have a payment plan to change. Please contact us if you’d like to pay in instalments.';
+        }
+        return paymentPlan.reason;
     }
 
     function refreshSaveBtn() {
@@ -2690,6 +2913,12 @@ $(document).ready(function() {
             planState.schedule = data.payment_schedule;
             planState.plan = data.payment_plan;
             renderPaymentSchedule(data.payment_schedule, data.payment_plan);
+            // The bank-transfer form offers the next payment's amount and sends its id: rebuild it from
+            // the new plan, or it would still offer a payment the new plan replaced.
+            renderEftPanel(planState.eft, data.payment_schedule);
+            // Bypasses loadTrackingDetails() (no second /track call), so the layout pass that
+            // normally follows it has to run here too.
+            trkLayout();
         } else {
             // The plan was saved, but the server could not read it back for this response.
             await loadTrackingDetails();
@@ -2765,7 +2994,7 @@ $(document).ready(function() {
                 closePlanEditor();
                 planState.plan = Object.assign({}, plan, { editable: false, reason_code: data.code, reason: data.message || null });
                 renderPlanChangeControls(planState.plan);
-                if (PLAN_REASONS_SHOWN.indexOf(data.code) === -1) $('#planChangeReason').text(data.message || 'Your payment plan can no longer be changed online.').show();
+                if (!data.message || PLAN_REASONS_HIDDEN.indexOf(data.code) !== -1) $('#planChangeReason').text(data.message || 'Your payment plan can no longer be changed online.').show();
                 window.notificationService.showWarning('Payment Plan', data.message || 'Your payment plan can\'t be changed right now.');
                 revealPlanArea(false);
                 return;
@@ -2951,7 +3180,10 @@ $(document).ready(function() {
         pfReturn.timer = setTimeout(attempt, delays[0]);
     }
 
-    async function loadTrackingDetails() {
+    // opts.refresh: the drawer's Refresh button - re-render in place (no fade, no scroll jump), and if
+    // the reload fails (e.g. the 10-per-15-minutes tracking limit) keep the booking on screen and say so.
+    async function loadTrackingDetails(opts) {
+        opts = opts && opts.refresh ? opts : {};
         var $err = $('#trackError');
         try {
             var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/track', {
@@ -2969,6 +3201,7 @@ $(document).ready(function() {
                 if (data.success) {
                 var id = currentBookingId, email = currentBookingEmail;
                 var b = data.booking;
+                planState.booking = b;
                 var bStatus = (b.status || '').toUpperCase();
                 var bPay = (b.payment_status || 'UNPAID').toUpperCase();
 
@@ -2977,7 +3210,7 @@ $(document).ready(function() {
                 planState.plan = data.payment_plan || null;
                 planState.schedule = Array.isArray(data.payment_schedule) ? data.payment_schedule : [];
                 planState.contract = data.contract || null;
-                planState.view = { status: bStatus, isQuotedOrActive: false, amountPaid: 0, totalScope: 0 };
+                planState.view = { status: bStatus, payStatus: bPay, isQuotedOrActive: false, amountPaid: 0, totalScope: 0 };
 
                 // Show payment return alert if returning from PayFast (once: a reload after a plan
                 // change or an acceptance must not stack a second banner on top of the first).
@@ -3011,7 +3244,8 @@ $(document).ready(function() {
                 var isQuotedOrActive = ['QUOTED', 'ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(bStatus);
 
                 if (isQuotedOrActive && b.quote_amount) {
-                    $('#tdQuoteAmount').text(b.quote_amount);
+                    var quoteAmountNum = parseFloat(String(b.quote_amount).replace(/[^0-9.]/g, ''));
+                    $('#tdQuoteAmount').text(isNaN(quoteAmountNum) ? b.quote_amount : fmtRand(quoteAmountNum));
                     
                     try {
                         let qd = JSON.parse(b.quote_details);
@@ -3021,18 +3255,18 @@ $(document).ready(function() {
                             qd.items.forEach(item => {
                                 let qty = item.quantity_minutes || item.quantity || 0;
                                 let rowTot = qty * item.unit_price;
-                                tableHtml += `<tr><td style="padding:6px 0;">${qty}x ${item.description}</td><td style="text-align:right;">R ${rowTot.toFixed(2)}</td></tr>`;
+                                tableHtml += `<tr><td style="padding:6px 0;">${qty}x ${item.description}</td><td style="text-align:right;">${fmtRand(rowTot)}</td></tr>`;
                             });
                             tableHtml += '</table>';
                             
                             if (qd.discount > 0) {
-                                tableHtml += `<div style="text-align:right; font-size:12px; color:var(--text-secondary);">Discount: -R ${parseFloat(qd.discount).toFixed(2)}</div>`;
+                                tableHtml += `<div style="text-align:right; font-size:12px; color:var(--text-secondary);">Discount: -${fmtRand(parseFloat(qd.discount))}</div>`;
                             }
                             if (qd.apply_vat) {
-                                tableHtml += `<div style="text-align:right; font-size:12px; color:var(--text-secondary);">VAT (15%): R ${parseFloat(qd.vat || 0).toFixed(2)}</div>`;
+                                tableHtml += `<div style="text-align:right; font-size:12px; color:var(--text-secondary);">VAT (15%): ${fmtRand(parseFloat(qd.vat || 0))}</div>`;
                             }
                             
-                            tableHtml += `<div style="margin-top:12px; font-size:12px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:10px; white-space:pre-wrap;"><strong>Terms:</strong><br>${qd.terms}</div>`;
+                            if (qd.terms) tableHtml += `<details class="trk-quote-terms"><summary>Quote terms</summary><div>${qd.terms}</div></details>`;
                             
                             $('#tdQuoteDetails').html(tableHtml);
                         } else {
@@ -3071,6 +3305,7 @@ $(document).ready(function() {
                         } else {
                             $('#billingAddressFieldGroup').hide();
                         }
+                        $('#acceptCompanyDetails').toggle(!!b.company);
                         $('#acceptQuoteSection').show();
                     } else {
                         destroyAcceptPlan();
@@ -3095,7 +3330,7 @@ $(document).ready(function() {
                     } else {
                         $('#financialLedger').hide();
                     }
-                    planState.view = { status: bStatus, isQuotedOrActive: isQuotedOrActive, amountPaid: amountPaid, totalScope: totalScope };
+                    planState.view = { status: bStatus, payStatus: bPay, isQuotedOrActive: isQuotedOrActive, amountPaid: amountPaid, totalScope: totalScope };
 
                     // Payment Buttons visibility logic tied to Ledger Engine
                     if (amountPaid >= totalScope && totalScope > 0) {
@@ -3150,10 +3385,13 @@ $(document).ready(function() {
 
                 // Contract download link
                 if (isQuotedOrActive && data.contract && data.contract.pdf_url) {
-                    $('#contractDownloadLink').attr('href', '/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/contract/download?access_token=' + encodeURIComponent(currentAccessToken));
+                    var contractHref = '/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/contract/download?access_token=' + encodeURIComponent(currentAccessToken);
+                    $('#contractDownloadLink').attr('href', contractHref);
+                    $('#contractSignReadLink').attr('href', contractHref).css('display', 'inline-flex');
                     $('#contractDownloadSection').css('display', 'flex');
                 } else {
                     $('#contractDownloadSection').hide();
+                    $('#contractSignReadLink').hide();
                 }
 
                 // Contract e-signature state (C4): show the sign form when a contract was sent and the
@@ -3219,15 +3457,24 @@ $(document).ready(function() {
                     $('#clientCancelSection').hide();
                 }
 
-                // Payment schedule (+ the "Change payment plan" controls). The earliest unpaid row
-                // gets its own "Pay Now" action; later rows wait their turn (strict due order,
-                // matching /pay's own server-side enforcement).
+                // Payment schedule (+ the "Change payment plan" controls). Only the earliest unpaid
+                // row can be paid (strict due order, matching /pay's own server-side enforcement);
+                // trkLayout() gives it the Pay button.
                 renderPaymentSchedule(data.payment_schedule, data.payment_plan);
 
                 // Pay by EFT: banking details + proof-of-payment upload (hidden unless an administrator switched Manual EFT on)
+                planState.eft = data.eft || null;
                 renderEftPanel(data.eft, data.payment_schedule);
 
-                $('#trackingDetails').hide().fadeIn(300);
+                trkRenderMyDetails();
+
+                // The layout (next step, payment tabs, collapsed rows) reads the visibility every other
+                // render call in this block just decided, so this must run last.
+                trkLayout();
+
+                $('#trkUpdatedAt').text('Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+                if (opts.refresh) $('#trackingDetails').show();
+                else $('#trackingDetails').hide().fadeIn(300);
 
                 // Deep-link to the Accept button when ?action=accept was in the URL (quote-sent
                 // email CTAs) — restored here since it now fires after the OTP step, not immediately.
@@ -3241,6 +3488,8 @@ $(document).ready(function() {
                         }
                     }, 300);
                 }
+            } else if (opts.refresh) {
+                window.notificationService.showWarning('Could not refresh', data.message || 'Your booking could not be refreshed. Please try again shortly.');
             } else {
                 // Also hide the details: a failed reload (e.g. the track rate limit after a plan
                 // change) must not leave the lookup screen and a stale booking both on show.
@@ -3252,6 +3501,10 @@ $(document).ready(function() {
                 $('#trackingAuth').show();
             }
         } catch (e) {
+            if (opts.refresh) {
+                window.notificationService.showError('Could not refresh', 'We could not reach the server. Please check your connection and try again.');
+                return;
+            }
             closePlanEditor();
             destroyAcceptPlan();
             $('#trackingDetails').hide();
@@ -3260,6 +3513,24 @@ $(document).ready(function() {
             $('#trackingAuth').show();
         }
     }
+
+    // ── Refresh: re-read the booking (our team may have sent a quote, recorded a payment, …) ──
+    // A short pause between refreshes, because tracking lookups share a small per-device budget.
+    var TRK_REFRESH_PAUSE_MS = 10000;
+    $(document).on('click', '#trkRefreshBtn', async function () {
+        var $btn = $(this);
+        if ($btn.prop('disabled') || !currentAccessToken || planState.saving || planState.accepting) return;
+        var $scroller = $('#trackingDrawer .atl-drawer__body');
+        var top = $scroller.scrollTop();
+        $btn.prop('disabled', true).addClass('is-busy').attr('aria-busy', 'true');
+        try {
+            await loadTrackingDetails({ refresh: true });
+            $scroller.scrollTop(top);
+        } finally {
+            $btn.removeClass('is-busy').attr('aria-busy', 'false');
+            setTimeout(function () { $btn.prop('disabled', false); }, TRK_REFRESH_PAUSE_MS);
+        }
+    });
 
     $(document).on('click', '.pay-btn', async function() {
         var type = $(this).attr('data-type');
@@ -3309,6 +3580,339 @@ $(document).ready(function() {
         refreshAcceptBtn();
     });
 
+    // ── Drawer layout: "Your next step" + collapsed rows ──────────────
+    // The render code above still decides, exactly as before, which sections apply to this booking
+    // (each section's own show/hide). trkLayout() then arranges them: the sections for the ONE thing
+    // the client has to do now (sign > accept > pay) move into #trkNextStep, everything else stays in
+    // its collapsed row (.trk-card) with a one-line summary, and a row with nothing in it is hidden.
+    var TRK_CARD_SIGNALS = {
+        cardPayment: ['#paymentSection', '#eftSection'],
+        cardPlan: ['#paymentScheduleSection', '#financialLedger', '#planChangeReason'],
+        cardQuotePlan: ['#quoteSection', '#acceptQuoteSection'],
+        cardContract: ['#contractSignSection', '#contractSignedNotice'],
+        cardDocuments: ['#invoiceSection', '#quotePdfSection', '#contractDownloadSection'],
+        cardDetails: ['#trkMyDetails']
+    };
+    // Whether the render code switched a section on: its own display (inline first, as show()/hide()
+    // leave it, else computed), never its ancestors' - a collapsed row around it doesn't make it
+    // "not relevant". jQuery's show() can leave no inline display at all, so a class that hides an
+    // element (trk-tab-off) does count here: trkLayout() clears that class before measuring.
+    function trkElVisible(sel) {
+        var el = $(sel)[0];
+        if (!el) return false;
+        return el.style.display ? el.style.display !== 'none' : getComputedStyle(el).display !== 'none';
+    }
+
+    function trkSetCardOpen(id, open) {
+        $('#' + id + ' > .trk-card__header').attr('aria-expanded', open ? 'true' : 'false');
+        $('#' + id + 'Body').prop('hidden', !open);
+    }
+
+    $(document).on('click', '.trk-card__header', function () {
+        var id = $(this).closest('.trk-card').attr('id');
+        trkSetCardOpen(id, $(this).attr('aria-expanded') !== 'true');
+    });
+
+    // Puts the sections that can move back in their own rows; every layout starts from here.
+    function trkReturnHome() {
+        $('#cardQuotePlanBody').append($('#quoteSection'), $('#acceptQuoteSection'));
+        $('#cardPaymentBody').append($('#trkPayBlock'));
+        $('#cardContractBody').prepend($('#contractSignSection'));
+    }
+
+    function trkIsPaidRow(s) { return s.locked === true || String(s.status || '').toLowerCase() === 'paid'; }
+
+    function trkStepTitle(step) {
+        if (step === 'sign') return 'Sign your contract';
+        if (step === 'accept') return 'Review and accept your quote';
+        var v = planState.view || {};
+        var unpaid = (planState.schedule || []).filter(isLiveScheduleRow).filter(function (s) { return !trkIsPaidRow(s); }).length;
+        if (v.amountPaid > 0) return unpaid === 1 ? 'Pay your final balance' : 'Make your next payment';
+        return unpaid === 1 ? 'Make your payment' : 'Pay your deposit';
+    }
+
+    var trkLayoutKey = null;
+
+    function trkLayout() {
+        trkReturnHome();
+        // Undo the last payment choice before anything is measured: a method the client didn't pick is
+        // hidden by that class, and must still count as a method that applies.
+        $('#paymentSection, #eftSection').removeClass('trk-tab-off');
+        var view = planState.view || {};
+        var payDue = (view.status === 'ACCEPTED' || view.status === 'CONFIRMED') && view.totalScope > 0 && view.amountPaid < view.totalScope;
+        var step = null;
+        if (trkElVisible('#contractSignSection')) step = 'sign';
+        else if (trkElVisible('#acceptQuoteSection')) step = 'accept';
+        else if (payDue && (trkElVisible('#paymentSection') || trkElVisible('#eftSection'))) step = 'pay';
+
+        // A new booking or a new step starts tidy (rows collapsed, default payment method: bank
+        // transfer once the client has sent a proof of payment, else online); re-rendering the same
+        // step (a saved plan, a sent proof) keeps whatever the client had opened.
+        var key = String(currentBookingId) + ':' + (step || '-');
+        var fresh = key !== trkLayoutKey;
+        trkLayoutKey = key;
+        if (fresh) trkActivePaymentMethod = $('#eftBody .trk-eft-list li').length ? 'eft' : 'payfast';
+
+        trkRenderNextPay();
+        trkUpdatePaymentTabs();
+
+        var $next = $('#trkNextStepBody');
+        if (step === 'sign') $next.append($('#contractSignSection'));
+        else if (step === 'accept') $next.append($('#quoteSection'), $('#acceptQuoteSection'));
+        else if (step === 'pay') $next.append($('#trkPayBlock'));
+        $('#trkNextStepTitle').text(step ? trkStepTitle(step) : '');
+        $('#trkNextStep').toggle(!!step);
+
+        var anyRow = false;
+        Object.keys(TRK_CARD_SIGNALS).forEach(function (id) {
+            var $body = $('#' + id + 'Body');
+            var shown = TRK_CARD_SIGNALS[id].some(function (sel) { return $body.find(sel).length > 0 && trkElVisible(sel); });
+            // Until the quote is accepted there is no plan or progress to follow.
+            if (id === 'cardPlan' && ['NEW', 'PENDING', 'QUOTED'].indexOf(view.status) !== -1) shown = false;
+            $('#' + id).toggle(shown);
+            if (shown) anyRow = true;
+            if (fresh) trkSetCardOpen(id, false);
+        });
+        $('#trkMoreLabel').toggle(anyRow);
+        // A completed event's own notice already says thank you.
+        if (trkElVisible('#completedNotice')) $('#paymentSuccess').hide();
+        trkUpdateCardSummaries(payDue);
+    }
+
+    // The next payment due, and (with a payment schedule) the one button that pays it online. The
+    // class is-scheduled hides the deposit/full buttons, which are only for a booking with no schedule.
+    function trkRenderNextPay() {
+        var next = planState.nextRow;
+        var $slot = $('#trkSchedPay').empty();
+        $('#paymentSection').toggleClass('is-scheduled', !!next);
+        if (!next) { $('#trkNextPay').hide(); return; }
+        var amount = fmtRand(next.expected_amount);
+        var due = String(next.due_date || '').slice(0, 10);
+        var ctx = planState.plan && planState.plan.context;
+        var overdue = !!due && due < ((ctx && ctx.today) || localTodayYmd());
+        $('#trkNextPayLabel').text(next.description || 'Next payment');
+        $('#trkNextPayAmt').text(amount);
+        $('#trkNextPayDue').text(due ? (overdue ? 'Overdue — it was due ' : 'Due ') + fmtDate(due) : '').toggleClass('is-overdue', overdue);
+        $('#trkNextPay').show();
+        // `pay-btn` is what the delegated PayFast handler listens for; /pay takes the earliest unpaid row only.
+        $slot.append($('<button type="button" class="pay-btn trk-sched-pay"></button>')
+            .attr('data-schedule-id', next.id)
+            .append('<i class="fa-solid fa-lock" aria-hidden="true"></i>')
+            .append(document.createTextNode(' Pay ' + amount + ' now')));
+
+        // Once the deposit is paid and two or more payments are left, the client may settle everything at
+        // once. /pay {payment_type:'FULL'} on a DEPOSIT_PAID booking charges the sum of the unpaid payments
+        // (routes/public/bookings.js), and the PayFast notification then marks every one of them paid. Only
+        // offered when that sum IS what is owed, so the amount on the button is exactly what PayFast asks for.
+        var v = planState.view || {};
+        var unpaid = (planState.schedule || []).filter(function (s) { return isLiveScheduleRow(s) && !trkIsPaidRow(s); });
+        var unpaidCents = unpaid.reduce(function (t, s) { return t + Math.round((parseFloat(s.expected_amount) || 0) * 100); }, 0);
+        var owedCents = Math.round(((v.totalScope || 0) - (v.amountPaid || 0)) * 100);
+        if (v.payStatus === 'DEPOSIT_PAID' && unpaid.length >= 2 && unpaidCents > 0 && Math.abs(unpaidCents - owedCents) <= 1) {
+            $slot.append($('<button type="button" class="pay-btn trk-pay-all" data-type="FULL"></button>')
+                .append('<i class="fa-solid fa-circle-check" aria-hidden="true"></i>')
+                .append(document.createTextNode(' Pay the full balance, ' + fmtRand(unpaidCents / 100))));
+            // a div, not a <p>: the render code rewrites every `#paymentSection p`
+            $slot.append($('<div class="trk-pay-all-note"></div>').text('Settles all ' + unpaid.length + ' remaining payments at once.'));
+        }
+    }
+
+    // One-line summaries on the collapsed rows, so the whole booking reads at a glance.
+    function trkUpdateCardSummaries(payDue) {
+        var v = planState.view || {};
+        var next = planState.nextRow;
+        var nextDue = next ? String(next.due_date || '').slice(0, 10) : '';
+        $('#cardPaymentMeta').text(next
+            ? fmtRand(next.expected_amount) + (nextDue ? ' due ' + fmtDate(nextDue) : '')
+            : (payDue ? fmtRand(Math.max(0, v.totalScope - v.amountPaid)) + ' to pay' : ''));
+
+        var rows = (planState.schedule || []).filter(isLiveScheduleRow);
+        var paid = rows.filter(trkIsPaidRow).length;
+        $('#cardPlanMeta').text(rows.length
+            ? (paid === rows.length ? 'Fully paid' : paid + ' of ' + rows.length + ' paid')
+            : (v.totalScope > 0 ? fmtRand(v.amountPaid || 0) + ' of ' + fmtRand(v.totalScope) + ' paid' : ''));
+
+        $('#cardQuotePlanMeta').text($('#tdQuoteAmount').text());
+
+        var c = planState.contract;
+        $('#cardContractMeta').text(trkElVisible('#contractSignSection') ? 'Signature needed'
+            : (c && (c.is_frozen === 1 || c.status === 'signed')) ? 'Signed'
+            : (c && c.signed_by_client_at) ? 'Awaiting our signature' : '');
+
+        var docs = [];
+        if (trkElVisible('#quotePdfSection')) docs.push('Quote');
+        if (trkElVisible('#invoiceSection')) docs.push('Invoice');
+        if (trkElVisible('#contractDownloadSection')) docs.push('Contract');
+        $('#cardDocumentsMeta').text(docs.join(', '));
+        $('#cardDetailsMeta').text((planState.booking && planState.booking.name) || '');
+    }
+
+    // ── Your details: what we have on file, and the two ways to fix it ──
+    // The client fixes their own name, phone and company straight away; email, event, date, time and venue go to our team
+    // as a correction request. Same statuses as the server (routes/public/bookings.js CLIENT_EDITABLE_STATUSES).
+    var TRK_CHANGEABLE = ['NEW', 'PENDING', 'QUOTED', 'ACCEPTED', 'CONFIRMED'];
+
+    function trkCanChangeDetails() {
+        return !!planState.booking && TRK_CHANGEABLE.indexOf(String(planState.booking.status || '').toUpperCase()) !== -1;
+    }
+
+    function trkDetailRow($dl, label, value) {
+        if (!value) return;
+        $dl.append($('<dt>').text(label), $('<dd>').text(value));
+    }
+
+    function trkRenderMyDetails() {
+        var b = planState.booking;
+        if (!b) { $('#trkMyDetails').hide(); return; }
+        var $c = $('#trkContactList').empty();
+        trkDetailRow($c, 'Name', b.name);
+        trkDetailRow($c, 'Email', b.email);
+        trkDetailRow($c, 'Phone', b.cell);
+        trkDetailRow($c, 'Company', b.company);
+        var $e = $('#trkEventList').empty();
+        trkDetailRow($e, 'Event', b.event_name);
+        trkDetailRow($e, 'Type', b.event_type);
+        trkDetailRow($e, 'Date', b.date ? fmtDate(String(b.date).slice(0, 10)) : '');
+        trkDetailRow($e, 'Time', b.performance_slot);
+        trkDetailRow($e, 'Venue', b.event_location);
+        var open = trkCanChangeDetails();
+        $('#trkEditContactBtn').toggle(open && $('#trkContactForm').css('display') === 'none');
+        if (!open) $('#trkContactForm').hide();
+        $('#trkCorrectionArea').toggle(open);
+        $('#trkMyDetails').show();
+    }
+
+    function trkCloseContactForm() {
+        $('#trkContactForm').hide();
+        $('#trkContactError').hide().text('');
+        $('#trkEditContactBtn').attr('aria-expanded', 'false').toggle(trkCanChangeDetails());
+    }
+
+    function trkCloseCorrectionForm() {
+        $('#trkCorrectionForm').hide();
+        $('#trkCorrectionError').hide().text('');
+        $('#trkCorrectionBtn').show().attr('aria-expanded', 'false');
+    }
+
+    $(document).on('click', '#trkEditContactBtn', function () {
+        var b = planState.booking || {};
+        $('#trkContactName').val(b.name || '');
+        $('#trkContactCell').val(b.cell || '');
+        $('#trkContactCompany').val(b.company || '');
+        $('#trkContactError').hide().text('');
+        $(this).hide().attr('aria-expanded', 'true');
+        $('#trkContactForm').show();
+        $('#trkContactName').trigger('focus');
+    });
+    $(document).on('click', '#trkContactCancel', trkCloseContactForm);
+
+    $(document).on('submit', '#trkContactForm', async function (e) {
+        e.preventDefault();
+        if (!currentAccessToken) { handleTokenExpired(); return; }
+        var $btn = $('#trkContactSave'), orig = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Saving…');
+        try {
+            var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/contact', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: currentAccessToken, name: $('#trkContactName').val(), cell: $('#trkContactCell').val(), company: $('#trkContactCompany').val() }),
+                bypassInterceptor: true
+            });
+            var data = {};
+            try { data = (await res.json()) || {}; } catch (pe) { data = {}; }
+            if (res.status === 401 || data.code === 'TOKEN_REQUIRED') { handleTokenExpired(); return; }
+            if (!res.ok || !data.success) {
+                $('#trkContactError').text(data.message || 'We could not save your details. Please try again.').show();
+                return;
+            }
+            Object.assign(planState.booking, data.booking || {});
+            trkCloseContactForm();
+            trkRenderMyDetails();
+            $('#cardDetailsMeta').text(planState.booking.name || '');
+            window.notificationService.showSuccess('Details updated', data.message || 'Your details have been updated.');
+        } catch (err) {
+            $('#trkContactError').text('We could not reach the server. Please try again.').show();
+        } finally {
+            $btn.prop('disabled', false).html(orig);
+        }
+    });
+
+    $(document).on('click', '#trkCorrectionBtn', function () {
+        $('#trkCorrectionSent').hide().text('');
+        $('#trkCorrectionDetails').val('');
+        $('#trkCorrectionError').hide().text('');
+        $(this).hide().attr('aria-expanded', 'true');
+        $('#trkCorrectionForm').show();
+        $('#trkCorrectionField').trigger('focus');
+    });
+    $(document).on('click', '#trkCorrectionCancel', trkCloseCorrectionForm);
+
+    $(document).on('submit', '#trkCorrectionForm', async function (e) {
+        e.preventDefault();
+        if (!currentAccessToken) { handleTokenExpired(); return; }
+        var details = $.trim($('#trkCorrectionDetails').val());
+        if (details.length < 3) {
+            $('#trkCorrectionError').text('Please tell us what it should say.').show();
+            $('#trkCorrectionDetails').trigger('focus');
+            return;
+        }
+        var $btn = $('#trkCorrectionSend'), orig = $btn.html();
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i>Sending…');
+        try {
+            var res = await fetch('/api/public/bookings/' + encodeURIComponent(currentBookingId) + '/correction-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ access_token: currentAccessToken, field: $('#trkCorrectionField').val(), details: details }),
+                bypassInterceptor: true
+            });
+            var data = {};
+            try { data = (await res.json()) || {}; } catch (pe) { data = {}; }
+            if (res.status === 401 || data.code === 'TOKEN_REQUIRED') { handleTokenExpired(); return; }
+            if (!res.ok || !data.success) {
+                $('#trkCorrectionError').text(data.message || 'We could not send your request. Please try again.').show();
+                return;
+            }
+            trkCloseCorrectionForm();
+            $('#trkCorrectionSent').text(data.message || 'Thanks — we have sent this to our team. We will update it and let you know.').show();
+            window.notificationService.showSuccess('Request sent', 'Our team will update it and let you know.');
+        } catch (err) {
+            $('#trkCorrectionError').text('We could not reach the server. Please try again.').show();
+        } finally {
+            $btn.prop('disabled', false).html(orig);
+        }
+    });
+
+    // ── How to pay: Pay online / Bank transfer option cards ──────────
+    // Only when BOTH ways to pay apply right now — a real choice: each is a card with its own heading,
+    // the chosen one open, the other folded to its heading. Otherwise whichever one applies shows on
+    // its own. The unchosen method is hidden with a class (trk-tab-off), never its display, so the
+    // render code's own show/hide stays the record of what applies.
+    var trkActivePaymentMethod = 'payfast';
+
+    function trkSetActivePaymentTab(method) {
+        trkActivePaymentMethod = method;
+        var payfast = method !== 'eft';
+        $('#trkPayTabPayfast').attr('aria-expanded', payfast ? 'true' : 'false');
+        $('#trkPayTabEft').attr('aria-expanded', payfast ? 'false' : 'true');
+        $('#trkPayOptPayfast').toggleClass('is-selected', payfast);
+        $('#trkPayOptEft').toggleClass('is-selected', !payfast);
+        $('#paymentSection').toggleClass('trk-tab-off', !payfast);
+        $('#eftSection').toggleClass('trk-tab-off', payfast);
+    }
+
+    $(document).on('click', '.trk-payopt__head', function () {
+        trkSetActivePaymentTab($(this).attr('id') === 'trkPayTabEft' ? 'eft' : 'payfast');
+    });
+
+    // Runs inside trkLayout(), after it has cleared the last choice (so both methods are measured).
+    function trkUpdatePaymentTabs() {
+        var both = trkElVisible('#paymentSection') && trkElVisible('#eftSection');
+        $('#trkPayBlock').toggleClass('has-choice', both);
+        $('#trkPayHow').toggle(both);
+        if (both) trkSetActivePaymentTab(trkActivePaymentMethod);
+        else $('#trkPayOptPayfast, #trkPayOptEft').removeClass('is-selected');
+    }
+
     // ── Pay by EFT (docs-internal/eft-payments.md) ──
     // `eft` is the block the tracking response carries: our banking details and the reference to quote (only while the booking can still be
     // paid), the client's own earlier proofs, and whether another may be sent. Sending a proof of payment NEVER confirms a payment - the
@@ -3340,9 +3944,12 @@ $(document).ready(function() {
             if (d.paymentInstructions) $body.append($('<p class="trk-eft-note">').text(d.paymentInstructions));
 
             if (eft.can_upload) {
-                var nextRow = (schedule || []).filter(function (s) { return s.status !== 'paid'; })[0];
+                // The first payment still owed: never one a plan change replaced (superseded/cancelled).
+                var nextRow = (schedule || []).filter(function (s) { return isLiveScheduleRow(s) && !trkIsPaidRow(s); })[0];
                 var suggested = Math.min(parseFloat(eft.outstanding) || 0, nextRow ? parseFloat(nextRow.expected_amount) || 0 : Infinity);
-                var today = new Date().toISOString().slice(0, 10);
+                // South Africa's date from the server when known, else the device's - never toISOString(): that is UTC, a day behind until 02:00.
+                var planCtx = planState.plan && planState.plan.context;
+                var today = (planCtx && planCtx.today) || localTodayYmd();
                 var $form = $('<form id="eftUploadForm" class="trk-eft-form" novalidate>');
                 $form.append($('<h4>').text('Already paid? Send us your proof of payment'));
                 $form.append($('<p class="trk-eft-note">').text('PDF, JPG or PNG, up to ' + eft.max_upload_mb + ' MB. This does not confirm your payment - we will email you once we have verified it.'));
@@ -3627,6 +4234,8 @@ $(document).ready(function() {
                 $('#contractSignSection').hide();
                 $('#contractSignedText').text('Thank you — your signature has been recorded. It\'s now awaiting our countersignature.');
                 $('#contractSignedNotice').show();
+                if (planState.contract) planState.contract.signed_by_client_at = new Date().toISOString();
+                trkLayout();   // signing is done: the next step moves on (usually to paying)
                 if (window.notificationService) window.notificationService.showSuccess('Contract signed. Thank you!');
             } else {
                 $err.text(result.message || 'Could not record your signature.').show();
@@ -3651,6 +4260,23 @@ $(document).ready(function() {
         $('#cancelledNotice, #completedNotice, #expiredNotice, #clientCancelSection, #quotePdfSection, #invoiceSection, #paymentScheduleSection, #contractDownloadSection, #contractSignSection, #contractSignedNotice').hide();
         $('#paymentSection').show();
         $('#paymentSection p').text('Choose a payment option to confirm your booking:');
+        $('#trkPayHow, #trkNextStep, #trkNextPay, #trkStepLine').hide();
+        $('#trkUpdatedAt').text('');
+        trkCloseContactForm();
+        trkCloseCorrectionForm();
+        $('#trkCorrectionSent').hide().text('');
+        planState.booking = null;
+        $('#trkMyDetails').hide();
+        $('#trkPayBlock').removeClass('has-choice');
+        $('#trkPayOptPayfast, #trkPayOptEft').removeClass('is-selected');
+        planState.eft = null;
+        trkReturnHome();
+        trkLayoutKey = null;
+        trkActivePaymentMethod = 'payfast';
+        planState.nextRow = null;
+        $('#trkSchedPay').empty();
+        $('#paymentSection').removeClass('is-scheduled');
+        $('#paymentSection, #eftSection').removeClass('trk-tab-off');
         $('.pay-btn[data-type="DEPOSIT"]').show();
         $('.pay-btn[data-type="FULL"]').html('<i class="fa-solid fa-bolt" style="margin-right:6px;"></i>Pay Full Amount');
         $('#trackId, #trackEmail, #trackCode').val('');

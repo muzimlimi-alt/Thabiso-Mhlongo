@@ -96,6 +96,9 @@ const PLACE = { result: { name: 'Khabo Hall', formatted_address: '12 Main Rd, Sa
     await p.select('#bookVenueType', 'Outdoor');
 
     // ── How did you hear about us ──
+    // It is one of the optional fields in the folded "Extra details (optional)" card: open it, as a client would.
+    await p.evaluate(() => { const t = document.getElementById('bkExtrasToggle'); if (t && t.getAttribute('aria-expanded') !== 'true') t.click(); });
+    await d.sleep(200);
     const ha = await p.evaluate(() => { const e = document.getElementById('bookHeardAbout'); return { tag: e.tagName, opts: e.options.length, first: e.options[0].textContent, label: !!document.querySelector('label[for="bookHeardAbout"]'), wrap: !!document.getElementById('bookHeardAboutOtherWrap').offsetParent }; });
     ok(ha.tag === 'SELECT' && ha.opts === 13 && ha.first === 'Select...' && ha.label && !ha.wrap, 'How did you hear about us is a labelled dropdown with a placeholder; text box hidden', JSON.stringify(ha));
     const haStyle = await p.evaluate(() => { const a = getComputedStyle(document.getElementById('bookHeardAbout')), b = getComputedStyle(document.getElementById('bookBudget')); return { h: [a.height, b.height], bg: [a.backgroundColor, b.backgroundColor], pad: [a.paddingLeft, b.paddingLeft], font: [a.fontSize, b.fontSize] }; });
