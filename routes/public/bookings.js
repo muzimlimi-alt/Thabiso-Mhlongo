@@ -860,19 +860,25 @@ router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, re
                 (schedErr, schedules) => {
                     let amt = baseAmt;
                     let milestoneDesc = 'Full Payment';
+                    const paidSoFar = parseFloat(row.amount_paid) || 0;
 
-                    if (!schedErr && schedules && schedules.length > 0) {
-                        if (payment_type === 'DEPOSIT') {
-                            amt = parseFloat(schedules[0].expected_amount);
-                            milestoneDesc = schedules[0].description;
-                        } else if (payStatus === 'DEPOSIT_PAID') {
-                            amt = schedules.reduce((sum, s) => sum + parseFloat(s.expected_amount), 0);
+                    if (payment_type === 'FULL') {
+                        // FULL settles what is still owed IN MONEY: the current total minus what has been paid. It used to add up the
+                        // schedule rows not yet flagged 'paid' - but every payment path flags rows only after it has answered, so right
+                        // after a payment the sum still included the row just paid. PayFast was then asked for too much, and the ITN's
+                        // overpayment guard (new total <= total + R1) would refuse to record what PayFast had already taken.
+                        if (paidSoFar > 0) {
+                            amt = Math.round((baseAmt - paidSoFar) * 100) / 100;
                             milestoneDesc = 'Balance Payment';
                         }
+                    } else if (!schedErr && schedules && schedules.length > 0) {
+                        amt = parseFloat(schedules[0].expected_amount);   // DEPOSIT: the first milestone (only allowed while UNPAID)
+                        milestoneDesc = schedules[0].description;
                     } else {
-                        if (payment_type === 'DEPOSIT') { amt = baseAmt / 2; milestoneDesc = 'Deposit'; }
-                        else if (payStatus === 'DEPOSIT_PAID') { amt = baseAmt / 2; milestoneDesc = 'Balance'; }
+                        amt = baseAmt / 2;
+                        milestoneDesc = 'Deposit';
                     }
+                    if (!(amt > 0)) return res.status(400).json({ success: false, message: 'Nothing outstanding to pay.' });
 
                     buildAndSendPfData(row, amt, milestoneDesc, `${row.id}_${payment_type}`, req, res);
                 });

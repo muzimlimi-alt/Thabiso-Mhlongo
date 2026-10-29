@@ -64,7 +64,7 @@
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
 	<link rel="stylesheet" href="css/public/redesign.css?v=24">
-	<link rel="stylesheet" href="css/public/tracking-modal.css?v=8">
+	<link rel="stylesheet" href="css/public/tracking-modal.css?v=9">
 	<link rel="stylesheet" href="css/components/notifications.css">
 	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
 	     reuses. Must load before booking-form.css (below), which documents its own need to
@@ -3932,7 +3932,15 @@ $(document).ready(function() {
             var $dl = $('<dl class="trk-eft-details">');
             var rows = [['Account holder', d.accountHolder], ['Bank', d.bankName], ['Account number', d.accountNumber], ['Account type', d.accountType], ['Branch code', d.branchCode]];
             if (d.swiftCode) rows.push(['SWIFT / BIC', d.swiftCode]);
-            rows.forEach(function (r) { $dl.append($('<dt>').text(r[0]), $('<dd>').text(r[1])); });
+            // The two a client types into their banking app (with the reference below) get a Copy button.
+            var COPYABLE = ['Account number', 'Branch code'];
+            rows.forEach(function (r) {
+                var $dd = $('<dd>').text(r[1]);
+                if (r[1] && COPYABLE.indexOf(r[0]) !== -1) {
+                    $dd.append($('<button type="button" class="trk-eft-copy">').attr('data-copy', r[1]).attr('aria-label', 'Copy ' + r[0].toLowerCase()).text('Copy'));
+                }
+                $dl.append($('<dt>').text(r[0]), $dd);
+            });
             var $ref = $('<dd class="trk-eft-ref">').text(d.reference);
             $ref.append($('<button type="button" class="trk-eft-copy">').attr('data-copy', d.reference).text('Copy'));
             $dl.append($('<dt>').text('Payment reference'), $ref);
@@ -3950,8 +3958,15 @@ $(document).ready(function() {
                 // South Africa's date from the server when known, else the device's - never toISOString(): that is UTC, a day behind until 02:00.
                 var planCtx = planState.plan && planState.plan.context;
                 var today = (planCtx && planCtx.today) || localTodayYmd();
-                var $form = $('<form id="eftUploadForm" class="trk-eft-form" novalidate>');
-                $form.append($('<h4>').text('Already paid? Send us your proof of payment'));
+                // Banking details first; the proof-of-payment form stays folded behind one button until the client has
+                // paid. It starts open only when we asked for a new proof (one was not accepted) - that IS their next step.
+                var needsNewProof = subs.some(function (s) { return s.status === 'rejected' || s.status === 'replacement_requested'; });
+                var $toggle = $('<button type="button" id="eftProofToggle" class="trk-eft-proof-toggle" aria-controls="eftUploadForm">')
+                    .attr('aria-expanded', needsNewProof ? 'true' : 'false')
+                    .append('<i class="fa-solid fa-receipt trk-eft-proof-toggle__icon" aria-hidden="true"></i>')
+                    .append($('<span class="trk-eft-proof-toggle__text">').append($('<strong>').text('Already paid?'), document.createTextNode(' Send us your proof of payment')))
+                    .append('<i class="fa-solid fa-chevron-down trk-eft-proof-toggle__chevron" aria-hidden="true"></i>');
+                var $form = $('<form id="eftUploadForm" class="trk-eft-form" novalidate>').prop('hidden', !needsNewProof);
                 $form.append($('<p class="trk-eft-note">').text('PDF, JPG or PNG, up to ' + eft.max_upload_mb + ' MB. This does not confirm your payment - we will email you once we have verified it.'));
                 if (nextRow) $form.append($('<input type="hidden" name="schedule_id">').val(nextRow.id));
                 $form.append($('<div class="trk-eft-row">').append(
@@ -3962,7 +3977,7 @@ $(document).ready(function() {
                 $form.append($('<div style="margin-bottom:10px;">').append($('<label for="eftFile">').text('Proof of payment'), $('<input type="file" id="eftFile" name="proof" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required>')));
                 $form.append($('<button type="submit" id="eftUploadBtn" class="trk-eft-submit">').html('<i class="fa-solid fa-paper-plane" style="margin-right:6px;"></i>Send proof of payment'));
                 $form.data('maxMb', eft.max_upload_mb);
-                $body.append($form);
+                $body.append($('<div class="trk-eft-proof">').toggleClass('is-open', needsNewProof).append($toggle, $form));
             } else {
                 $body.append($('<p class="trk-eft-note trk-eft-warn">').text('You already have ' + (eft.pending_count || 0) + ' proofs of payment waiting for review. We will be in touch once they have been checked.'));
             }
@@ -3988,6 +4003,13 @@ $(document).ready(function() {
         }
         $sec.show();
     }
+
+    $(document).on('click', '#eftProofToggle', function () {
+        var open = $(this).attr('aria-expanded') !== 'true';
+        $(this).attr('aria-expanded', open ? 'true' : 'false').closest('.trk-eft-proof').toggleClass('is-open', open);
+        $('#eftUploadForm').prop('hidden', !open);
+        if (open) $('#eftAmount').trigger('focus');
+    });
 
     $(document).on('click', '.trk-eft-copy', function () {
         var text = $(this).attr('data-copy');
@@ -4404,10 +4426,16 @@ $(document).on('click', '#lookupMoreBtn', async function() {
 
 $(document).on('click', '.trk-lookup-row', function() {
     $('#trackId').val($(this).data('id'));
+    // The booking was found under the lookup email, so that is the email it needs: fill it in (empty, or a
+    // different address that would not match this booking), then put the client on "Find My Booking".
+    var lookupEmail = $.trim($('#lookupEmail').val());
+    if (lookupEmail && $.trim($('#trackEmail').val()).toLowerCase() !== lookupEmail.toLowerCase()) $('#trackEmail').val(lookupEmail);
+    $('#trackError').hide();
     $('#trackingLookup').hide();
     $('#lookupEmail').val('');
     $('#lookupResults').empty();
     _lookupPage = 1;
+    $('#trackBtn').trigger('focus');
 });
 </script>
 

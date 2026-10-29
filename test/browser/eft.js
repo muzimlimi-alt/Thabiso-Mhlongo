@@ -75,6 +75,8 @@ async function acceptedBooking(tag, days) {
             await p.waitForFunction(() => { const e = document.getElementById('eftSection'); return e && e.style.display !== 'none' && document.getElementById('trackingDetails').style.display !== 'none'; }, { timeout: 20000 });
             await p.evaluate(() => { const t = document.getElementById('trkPayTabEft'); if (t && t.offsetParent) t.click(); });
             await p.waitForFunction(() => { const e = document.getElementById('eftSection'); return e && e.offsetParent !== null; }, { timeout: 20000 });
+            // The proof-of-payment form is folded under the banking details: "Already paid?" opens it.
+            await p.evaluate(() => { const t = document.getElementById('eftProofToggle'); if (t && t.getAttribute('aria-expanded') !== 'true') t.click(); });
             return p;
         };
         const pc = await openTracker(A, 1280);
