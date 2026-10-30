@@ -218,6 +218,23 @@ body.atl-overlay-open #back-to-top {
     .atl-drawer__footer { padding: 14px 16px; padding-bottom: max(14px, env(safe-area-inset-bottom)); }
 }
 
+/* ── Bottom sheet (opt-in: .atl-drawer--sheet, used by the Get Tickets drawer #ticketDrawer). On phones and portrait
+   tablets the drawer rises from the bottom edge as a full-height sheet instead of sliding in from the right - the
+   gesture people expect for a quick purchase. Desktop is unchanged (right-side drawer). Drawers without the class are
+   not affected. ── */
+@media (max-width: 820px) {
+    .atl-drawer--sheet {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        border-left: none;
+        border-top: 1px solid var(--border-low);
+        border-radius: var(--r-lg) var(--r-lg) 0 0;
+        transform: translateY(100%);
+    }
+    .atl-drawer--sheet.atl-drawer--open { transform: translateY(0); }
+}
+
 /* Narrow phones — keep the close target and header comfortably tappable rather
    than shrinking further; only trims the title so long labels don't wrap onto
    the close button. */

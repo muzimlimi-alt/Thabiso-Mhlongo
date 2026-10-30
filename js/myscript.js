@@ -517,7 +517,12 @@ $(function() {
                 };
                 if (e.event_description) ev.description = decodeHtmlEntities(e.event_description);
                 if (e.venue_name) ev.location = { '@type': 'Place', name: decodeHtmlEntities(e.venue_name), address: decodeHtmlEntities(e.venue_name) };
-                if (e.ticket_sales_link) ev.offers = { '@type': 'Offer', url: decodeHtmlEntities(e.ticket_sales_link) };
+                if (e.ticketing && e.ticketing.state !== 'closed') {
+                    // tickets sold on this site (event ticketing): price from the cheapest on-sale tier, and whether any are left
+                    ev.offers = { '@type': 'Offer', url: location.origin + '/#events', priceCurrency: 'ZAR',
+                        availability: e.ticketing.state === 'on_sale' ? 'https://schema.org/InStock' : e.ticketing.state === 'sold_out' ? 'https://schema.org/SoldOut' : 'https://schema.org/PreOrder' };
+                    if (e.ticketing.from_cents) ev.offers.price = (e.ticketing.from_cents / 100).toFixed(2);
+                } else if (e.ticket_sales_link) ev.offers = { '@type': 'Offer', url: decodeHtmlEntities(e.ticket_sales_link) };
                 if (e.poster_image_path) {
                     try { ev.image = new URL(decodeHtmlEntities(e.poster_image_path), location.origin + '/').href; } catch (err) {}
                 }
@@ -564,6 +569,9 @@ $(function() {
                 var mediaHtml = `<img src="${safePoster}" alt="${safeTitle}" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">`;
 
                 var encodedPayload = encodeURIComponent(JSON.stringify(item));
+                // Event ticketing (js/tickets-drawer.js): an event with ticket types gets Get Tickets / Sold Out / Sales Closed;
+                // without any (null) the card keeps its external ticket link exactly as before.
+                var ticketCta = window.tmTicketCta ? window.tmTicketCta(item, safeTitle) : null;
 
                 return `
                     <div class="ev-card live-event-card reveal" data-payload="${encodedPayload}">
@@ -572,7 +580,7 @@ $(function() {
                             <h4 style="margin: 0 0 8px 0; font-family: var(--f-display), serif; font-size: 1.25rem; font-weight: 600; color: #fff; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${safeTitle}">${safeTitle}</h4>
                             ${displayDate ? `<div class="ev-detail"><i class="far fa-clock ev-detail__ico"></i><span class="ev-detail__text">${displayDate}</span></div>` : ''}
                             ${item.venue_name ? `<div class="ev-detail"><i class="fas fa-map-marker-alt ev-detail__ico"></i><span class="ev-detail__text">${safeVenue}</span></div>` : ''}
-                            ${(item.ticket_sales_link || item.ticket_link) ? `
+                            ${ticketCta !== null ? ticketCta : (item.ticket_sales_link || item.ticket_link) ? `
                             <div class="ev-card__ticket-cta">
                                 <a href="${item.ticket_sales_link || item.ticket_link}" target="_blank" rel="noopener noreferrer"
                                    class="ev-card__ticket-btn"
@@ -654,8 +662,10 @@ $(function() {
         // Ticket linking logic — supports both manually created events (ticket_sales_link)
         // and booking-promoted shows (ticket_link)
         var ticketUrl = item.ticket_sales_link || item.ticket_link;
-        if (ticketUrl) {
-            $('#modalEventTicketBtn').attr('href', ticketUrl).show();
+        if (window.tmTicketModalCta && window.tmTicketModalCta(item, $('#modalEventTicketBtn'))) {
+            // event ticketing set the button itself (js/tickets-drawer.js): Get Tickets opens the drawer, or Sold Out / Sales Closed
+        } else if (ticketUrl) {
+            $('#modalEventTicketBtn').attr('href', ticketUrl).html('<i class="fas fa-ticket-alt"></i>Purchase Tickets').show();
         } else {
             $('#modalEventTicketBtn').hide();
         }

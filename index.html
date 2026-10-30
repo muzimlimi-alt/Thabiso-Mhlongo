@@ -69,7 +69,9 @@
 	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
 	     reuses. Must load before booking-form.css (below), which documents its own need to
 	     stay last; nothing here needs to win a cascade tie against it. -->
-	<link rel="stylesheet" href="css/public/drawer.css?v=5">
+	<link rel="stylesheet" href="css/public/drawer.css?v=6">
+	<!-- Get Tickets drawer (event ticketing) - every selector is scoped to #ticketDrawer / .tk-*, so its position is not a cascade concern. -->
+	<link rel="stylesheet" href="css/public/tickets.css?v=1">
 
 	<!-- Google Places Visibility Fix -->
 	<!-- Booking wizard styles — extracted from the inline block that sat here. Must stay
@@ -1356,6 +1358,19 @@
 		<div class="atl-drawer__body" id="accoladeDrawerBody"></div>
 	</div>
 
+	<!-- Get Tickets drawer (event ticketing) — opened by an event card's / the event pop-up's "Get Tickets" button.
+	     Same drawer component as the others (focus trap, Esc / backdrop close, focus back to the button that opened it);
+	     .atl-drawer--sheet makes it a full-height bottom sheet on phones (css/public/drawer.css). Its body is built by
+	     js/tickets-drawer.js; styles in css/public/tickets.css. -->
+	<div class="atl-drawer-backdrop" id="ticketDrawerBackdrop" onclick="closeAtlDrawer('ticketDrawer')"></div>
+	<div class="atl-drawer atl-drawer--600 atl-drawer--sheet" id="ticketDrawer" role="dialog" aria-modal="true" data-atl-modal inert aria-labelledby="ticketDrawerTitle">
+		<div class="atl-drawer__header">
+			<h3 class="atl-drawer__title" id="ticketDrawerTitle">Get Tickets</h3>
+			<button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('ticketDrawer')" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+		</div>
+		<div class="atl-drawer__body" id="ticketDrawerBody"></div>
+	</div>
+
 	<!-- Track Booking Drawer — same conversion as the Booking Drawer above; same component
 	     family (identical BEM classes, identical open/close mechanism). -->
 	<div class="atl-drawer-backdrop" id="trackingDrawerBackdrop" onclick="closeAtlDrawer('trackingDrawer')"></div>
@@ -2326,7 +2341,7 @@
 	<script src="js/shared/location-utils.js?v=1"></script>
 	<!-- Shared location-search client (2026-10 Places audit) - the booking wizard uses its session tokens. -->
 	<script src="js/shared/places-client.js?v=1"></script>
-	<script src="js/myscript.js?v=1.9.12"></script>
+	<script src="js/myscript.js?v=1.9.14"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather
@@ -2334,6 +2349,8 @@
 	     skin (same BEM classes, public design tokens instead of admin's --atl-* ones). -->
 	<script src="js/admin/components/drawer.js?v=3"></script>
 	<script src="js/notificationService.js?v=2.0.2"></script>
+	<!-- Event ticketing: the Get Tickets drawer + the event cards' ticket buttons (called by js/myscript.js). -->
+	<script src="js/tickets-drawer.js?v=1"></script>
 	<!-- Client payment plans (Track Booking drawer): the shared rules module — the very file the server
 	     validates a plan with (routes/public/bookings.js) — and the plan builder built on it. Both must
 	     load before the tracking script below. -->
@@ -3532,6 +3549,25 @@ $(document).ready(function() {
         }
     });
 
+    // The PayFast hand-off: post the server-built, signed fields to PayFast's payment page (a redirect - nothing is paid on this site).
+    // Shared by the booking tracker's Pay buttons below and the Get Tickets drawer (js/tickets-drawer.js).
+    window.tmPostToPayfast = function (pfHost, pfData) {
+        var $form = $('<form>', {
+            action: pfHost,
+            method: 'POST',
+            style: 'display:none;'
+        });
+        for (var key in pfData) {
+            $form.append($('<input>', {
+                type: 'hidden',
+                name: key,
+                value: pfData[key]
+            }));
+        }
+        $('body').append($form);
+        $form.submit();
+    };
+
     $(document).on('click', '.pay-btn', async function() {
         var type = $(this).attr('data-type');
         var scheduleId = $(this).attr('data-schedule-id');
@@ -3550,20 +3586,7 @@ $(document).ready(function() {
             });
             var data = await res.json();
             if (data.success && data.pfData) {
-                var $form = $('<form>', {
-                    action: data.pfHost,
-                    method: 'POST',
-                    style: 'display:none;'
-                });
-                for (var key in data.pfData) {
-                    $form.append($('<input>', {
-                        type: 'hidden',
-                        name: key,
-                        value: data.pfData[key]
-                    }));
-                }
-                $('body').append($form);
-                $form.submit();
+                window.tmPostToPayfast(data.pfHost, data.pfData);
             } else {
                 window.notificationService.showError('Payment Failed', data.message || ('Status: ' + res.status));
                 $btn.prop('disabled', false).html(orig);
