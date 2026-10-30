@@ -132,7 +132,10 @@ Node (`npm test`): `ticketing-core` (32), `ticketing-lib` (child, throwaway DB, 
 `ticketing-reconcile` (10, fake PayFast history API), `ticketing-limits` (3), `payfast-checkout-form` (11, booking form byte-identical).
 Browser (`npm run test:browser`): `ticketing.js` (25: drawer, phone sheet, focus, PayFast hand-off, return, states),
 `checkin.js` (18: `/t/` public + staff, scanner, decoder, admin Ticket Sales + Tickets tab). Date offsets 1900-1969 are reserved.
-Mutation checks and the real-sandbox run are recorded in the final report of this work.
+Results on the branch (2026-10-30): full node suite 3551/3556 (the 5 failures are the pre-work baseline's: admin-nav x2,
+inbox-sync x3); ticketing browser 25/25 + 18/18; 13 of 13 single-safeguard mutations caught. Real PayFast **sandbox** run
+(isolated copy, fresh DB, ngrok, the owner's own sandbox merchant, safety net off so only a real notification could pay): all 13
+end-to-end steps passed twice, plus a cancelled payment on PayFast's page.
 
 ## 8. Outstanding / owner decisions
 
@@ -151,6 +154,8 @@ Mutation checks and the real-sandbox run are recorded in the final report of thi
 * Pre-existing issues noticed, not changed: `/api/public/events` returns every events column (ip, user agent, admin ids, …) and
   `ORDER BY ASC LIMIT 100` will drop future events past 100 rows; draft/cancelled standalone events still block booking dates; the
   existing CSV exports neither decode text nor guard against spreadsheet formulas; `GET /api/admin/settings` returns the PayFast key
-  to every admin role; most app writes outside ticketing are bare single statements on the shared connection (see §4).
+  to every admin role; most app writes outside ticketing are bare single statements on the shared connection (see §4); the mail
+  queue (`lib/background-clerk.js`) logs `Successfully sent email #N to <recipient address>` for every e-mail the site sends
+  (bookings too) - found by the real-sandbox run, left unchanged because it is shared mail code.
 * **Go-live**: say "push"; check the Privacy Policy text; open sales on one show; buy one ticket for yourself on the live site and
   watch: order paid, e-mail with QR + PDF, `/t/` link, check-in on a phone.
