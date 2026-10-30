@@ -22,6 +22,7 @@ const {
     updateEventFull, clearEventGoogleCalendarId, getEventGoogleCalendarId, clearDateHoldEventId,
     deleteEventById, getEventForDragReschedule, updateEventDatetime, getEventById, insertEventForDuplicate
 } = require('../../database/repositories/calendar.repository');
+const ticketing = require('../../lib/ticketing');
 const router = express.Router();
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved from app.js verbatim, byte-identical — single-consumer
@@ -289,12 +290,27 @@ router.put('/api/admin/events/:id', requireAdmin, async (req, res) => {
                     try { gcalSynced = !!(await syncEventToCalendar(eventId)); }
                     catch(e) { console.error('GCal sync error:', e); }
                 }
-                res.json({ success: true, message: 'Event updated', gcal_synced: gcalSynced, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
+                // Ticketing: a cancelled or postponed show stops selling at once. Paid orders are reported, never auto-refunded.
+                let ticketPaidOrders = 0;
+                if (event_status === 'cancelled' || event_status === 'postponed') {
+                    try { ticketPaidOrders = (await ticketing.closeSalesForEvent(eventId)).paidOrders; }
+                    catch(e) { console.error('[Events] closing ticket sales failed:', e.message); }
+                }
+                res.json({ success: true, message: 'Event updated', gcal_synced: gcalSynced, ticket_paid_orders: ticketPaidOrders, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
             });
     });
 });
 
-router.delete('/api/admin/events/:id', requireAdmin, requireRole(['administrator']), (req, res) => {
+router.delete('/api/admin/events/:id', requireAdmin, requireRole(['administrator']), async (req, res) => {
+    // Ticket orders are financial records: an event that has any is cancelled, never deleted (the database refuses it too - RESTRICT).
+    // Ticket types nobody ever ordered go with the event.
+    try {
+        const tk = await ticketing.eventDeletionCheck(req.params.id);
+        if (tk.orders) return res.status(409).json({ success: false, message: `This event has ${tk.orders} ticket order${tk.orders === 1 ? '' : 's'}, so it can't be deleted - cancel it instead.` });
+        if (tk.tiers) await ticketing.deleteUnsoldTiersOfEvent(req.params.id);
+    } catch (e) {
+        return res.status(500).json({ success: false, error: e.message });
+    }
     getEventGoogleCalendarId(req.params.id, (selErr, evRow) => {
         // Null out any booking that references this event before deleting to prevent dangling FK
         clearBookingEventIdWhereEventId(req.params.id, () => {

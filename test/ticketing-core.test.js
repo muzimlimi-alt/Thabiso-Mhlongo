@@ -51,6 +51,8 @@ module.exports = async function ({ check }) {
         && core.tierState(tier, { ...ev, event_datetime: '2030-06-01T11:00' }, new Date('2030-06-01T09:30:00Z')) === 'closed'   // 11:00 SAST = 09:00Z
         && core.tierState(tier, { ...ev, event_datetime: null }, now) === 'closed' && core.tierState(tier, { ...ev, booking_id: 55 }, now) === 'closed', '');
     check('summary: no tiers -> null (the card keeps its external ticket link)', core.eventSummary([], ev, now) === null, '');
+    check('summary: an event an admin marked "sold out" shows Sold Out and sells nothing, whatever its tiers say',
+        core.eventSummary([tier], { ...ev, event_status: 'sold_out' }, now).state === 'sold_out' && core.tierState(tier, { ...ev, event_status: 'sold_out' }, now) === 'closed', '');
     check('summary: on sale from the cheapest on-sale tier; all gone -> sold out; none open -> closed / opens later',
         JSON.stringify(core.eventSummary([tier, { ...tier, id: 2, price_cents: 9000 }, { ...tier, id: 3, price_cents: 5000, sold: 10, reserved: 0 }], ev, now)) === JSON.stringify({ state: 'on_sale', from_cents: 9000, opens_at: null })
         && core.eventSummary([{ ...tier, sold: 10, reserved: 0 }], ev, now).state === 'sold_out'

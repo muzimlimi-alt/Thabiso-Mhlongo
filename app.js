@@ -549,6 +549,7 @@ app.use(require('./routes/admin/payfast-reconcile')); // PayFast safety net: sta
 app.use(require('./routes/admin/dashboard'));
 app.use(require('./routes/admin/bookings'));
 app.use(require('./routes/admin/events'));
+app.use(require('./routes/admin/ticketing'));        // Event ticketing: tiers, sales, orders, refunds, door check-in (lib/ticketing*.js)
 app.use(require('./routes/public/bookings'));
 app.use(require('./routes/public/eft'));             // Manual EFT: a client uploads / reads back their proof of payment
 app.use(require('./routes/public/payfast-check'));   // a buyer back from PayFast asks to have their own payment confirmed now

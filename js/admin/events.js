@@ -548,6 +548,8 @@ function applyEventToEditor(item) {
 
     $('#evt-tab-history').show();
     if (window.loadChangeHistoryCard) window.loadChangeHistoryCard('evtChangeHistoryList', 'events', item.event_id);
+    // Event ticketing (js/admin/ticketing.js) shows its Tickets tab for a saved standalone event.
+    if (window.tktOpenEventTickets) window.tktOpenEventTickets(item);
 }
 
 // Blank slate shared by "New Event" and the pre-populate step of "Edit Event" — mirrors
@@ -569,6 +571,7 @@ function resetEventForm() {
     $('#eventsSubmitBtn').prop('disabled', false).html('<i class="fa-solid fa-calendar-check"></i> Add Event');
     $('#evtCancelEventBtn').hide();
     $('#evt-tab-history').hide();
+    $('#evt-tab-tickets').hide();
     window.atlActivateDrawerTab('evtDrawer', 'evt-tab-edit');
     $('#evtDrawerTitle').html('<i class="fa-solid fa-calendar-plus"></i> New Event');
 }

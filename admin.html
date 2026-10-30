@@ -47,6 +47,7 @@
     <link href="css/admin/eft.css?v=2" rel="stylesheet">
     <link href="css/admin/business-profile.css?v=8" rel="stylesheet">
     <link href="css/admin/payfast-reconcile.css?v=1" rel="stylesheet">
+    <link href="css/admin/ticketing.css?v=1" rel="stylesheet">
     <link href="css/admin/redesign-admin.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
     <link rel="stylesheet" href="css/components/notifications.css">
@@ -8151,7 +8152,7 @@
         // block below (_fpDate/_fpTime/_fpDateTime/window.initAdminDateTimePickers, used by many
         // other sections) was NOT moved — it stays exactly here.
     </script>
-    <script src="js/admin/events.js?v=2"></script>
+    <script src="js/admin/events.js?v=3"></script>
     <script>
 
         // Every other native <input type="date/time/datetime-local"> across the admin panel — same
@@ -9421,6 +9422,7 @@
             <div class="dv-tabs" role="tablist" aria-label="Event sections" id="evtTabs">
                 <button type="button" class="dv-tab" role="tab" id="evt-tab-edit" aria-controls="evt-panel-edit" aria-selected="true" tabindex="0">Edit</button>
                 <button type="button" class="dv-tab" role="tab" id="evt-tab-history" aria-controls="evt-panel-history" aria-selected="false" tabindex="-1" style="display:none;">Change History</button>
+                <button type="button" class="dv-tab" role="tab" id="evt-tab-tickets" aria-controls="evt-panel-tickets" aria-selected="false" tabindex="-1" style="display:none;">Tickets</button>
             </div>
         </div>
         <div class="atl-drawer__body">
@@ -9618,6 +9620,10 @@
                 <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-timeline"></i> Change History</h5>
                 <div id="evtChangeHistoryList"></div>
             </div>
+          </section>
+          <!-- Event ticketing: tiers, capacity and the sales switch for THIS event (js/admin/ticketing.js) -->
+          <section class="dv-panel" role="tabpanel" id="evt-panel-tickets" aria-labelledby="evt-tab-tickets" tabindex="0" hidden>
+            <div id="tktEventMount" class="tkt-event"></div>
           </section>
         </div>
     </div>
@@ -13499,6 +13505,7 @@
     <script src="js/admin/financials.js?v=2"></script>
     <script src="js/admin/eft.js?v=3"></script>
     <script src="js/admin/payfast-reconcile.js?v=1"></script>
+    <script src="js/admin/ticketing.js?v=1"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================
      FINANCE MODULE — JavaScript Engine
