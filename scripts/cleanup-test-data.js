@@ -201,6 +201,9 @@ const OPTIONAL_TABLES = {
     eft_submission_events: 'submission_id INTEGER',
     // PayFast safety net findings (lib/payfast-reconcile.js, migration 109).
     payfast_reconcile_findings: 'id INTEGER, booking_id INTEGER, transaction_id INTEGER',
+    // Event ticketing (lib/ticketing-schema.js, migration 112) - read only, to keep ticketed events (see the events rule below).
+    ticket_types: 'event_id INTEGER',
+    ticket_orders: 'event_id INTEGER',
 };
 
 async function ensureStandIns(db) {
@@ -285,7 +288,9 @@ async function buildSets(db, o) {
         WHERE (e.booking_id IN (SELECT id FROM cl_del_booking)
                OR (e.booking_id IS NOT NULL AND e.booking_id NOT IN ${real} AND ${OLD('e.created_on')})
                ${o.includeStandaloneEvents ? `OR (e.booking_id IS NULL AND ${OLD('e.created_on')})` : ''})
-          AND e.event_id NOT IN (SELECT event_id FROM bookings WHERE event_id IS NOT NULL AND id NOT IN (SELECT id FROM cl_del_booking))`, ctx);
+          AND e.event_id NOT IN (SELECT event_id FROM bookings WHERE event_id IS NOT NULL AND id NOT IN (SELECT id FROM cl_del_booking))
+          -- an event that sells tickets is never deleted here: its tiers / orders / tickets are financial records (the database refuses it anyway)
+          AND e.event_id NOT IN (SELECT event_id FROM ticket_types) AND e.event_id NOT IN (SELECT event_id FROM ticket_orders)`, ctx);
     await run(db, `INSERT INTO cl_del_hold SELECT h.id FROM date_holds h
         WHERE ${o.includeCalendarSync ? '1=1' : `coalesce(h.block_type,'') <> 'calendar_sync'`}
           AND (h.converted_to_booking_id IN (SELECT id FROM cl_del_booking)

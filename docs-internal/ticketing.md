@@ -1,0 +1,156 @@
+# Event ticketing
+
+Selling tickets for Thabiso's own shows, as an **extension of the existing Events module**: tiers hang off `events`, buyers pay through the
+**existing PayFast integration**, tickets go out through the **existing mail queue and PDF service**, and the door runs on a phone page
+behind the **existing admin login**. Branch `feature/event-ticketing` (built 2026-10-30).
+
+Owner decisions this design follows: extend Events (no second event system); reuse existing code (no standalone or duplicate systems);
+explicit table relationships; additive migration only; no paid infrastructure; ticket revenue reported separately (Finance / P&L
+untouched); admin inside Events (no new sidebar item); the PayFast safety net covers ticket orders; the door scanner uses the camera
+with the browser's own QR reader plus the free jsQR library; the public drawer is two short steps, with optional per-ticket names, and
+shows the tickets after payment.
+
+---
+
+## 1. How it works, end to end
+
+1. **Admin** opens an event (Events → Upcoming → Edit) → **Tickets** tab → adds ticket types (name, price, places, max per order,
+   optional sales window) → **Open sales**. Only *standalone* events (not a client booking's event) can sell tickets.
+2. **Public site**: the event's card shows **Get Tickets · from R…** (or Sold Out / Sales Closed / On sale <date>). An event with no
+   ticket types keeps its old external `ticket_sales_link` exactly as before.
+3. **Drawer step 1**: choose quantities → **Continue** reserves them for **10 minutes** (`POST /api/public/ticket-orders`).
+4. **Drawer step 2**: name, e-mail, phone, optional names per ticket, POPIA consent, countdown → **Pay** → the server builds and signs
+   the PayFast form (`POST …/checkout`) → the browser posts it to PayFast (`window.tmPostToPayfast`, shared with the booking tracker).
+5. **PayFast** posts its notification (ITN) to the **same** `/api/payment/webhook/payfast` the bookings use. `m_payment_id` `TKT_<id>`
+   is handed to `lib/ticketing-payments.js`; everything else is the untouched booking path.
+6. The verified notification marks the order **paid**, moves the held places to sold, creates one **ticket** per admission (random
+   144-bit token each) and queues **one e-mail** with every QR code inline and a PDF of the tickets attached.
+7. The buyer's browser returns to `/?tickets=<reference>&payment=success`: the drawer re-opens and **asks the server** (polling, plus
+   the safety net at 0 / 35 / 90 s) until it says paid, then shows the tickets with QR codes and a PDF download. The return itself
+   proves nothing.
+8. **Door**: staff open `/checkin` on a phone (signed in to the admin portal), pick the show, scan. Each QR encodes
+   `https://<site>/t/<token>`. **Check In** is a POST that runs one atomic update — green **Admitted**, red **Already scanned at 19:42**,
+   **Wrong show**, or **Invalid / no longer valid**.
+9. **Office**: Events → **Ticket Sales**: revenue, sold, checked in, per-tier table, orders (search / filter), order drawer with
+   **Resend tickets** and **Mark as refunded**, **Attendees CSV**.
+
+## 2. Files
+
+New (ticketing's own code, in the repo's existing lib / routes / js/admin layout):
+
+| File | What |
+|---|---|
+| `lib/ticketing-schema.js` | migration 112: tables, indexes, constraints, email-banner slot |
+| `lib/ticketing-core.js` | pure rules, no DB: cents, tokens, validation, sale windows (SAST), CSV cell guard, log masking |
+| `lib/ticketing.js` | DB: tiers, reserve, holds/expiry, checkout, refunds, check-in, figures, order lists |
+| `lib/ticketing-payments.js` | PayFast checkout, the ITN branch, `confirmTicketPayment()` (shared with the safety net) |
+| `lib/ticketing-delivery.js` | QR codes, ticket PDF, the e-mails, admin alerts |
+| `lib/payfast-itn-checks.js` | the timestamp / source-IP / validate-POST steps, moved verbatim out of the booking ITN handler |
+| `routes/public/ticketing.js` | public API, `/t/<token>`, `/checkin` |
+| `routes/admin/ticketing.js` | admin API (tiers, sales switch, orders, refunds, CSV, figures, door) |
+| `js/tickets-drawer.js`, `css/public/tickets.css` | the Get Tickets drawer + card buttons |
+| `js/admin/ticketing.js`, `css/admin/ticketing.css` | event drawer Tickets tab + Ticket Sales tab + order drawer |
+| `checkin.html`, `js/checkin.js`, `css/public/checkin.css` | door scanner + the staff view on `/t/<token>` |
+| `js/vendor/jsQR-1.4.0.js` (+ LICENSE) | QR decoder for phones without a built-in one (Apache-2.0, served from the site) |
+
+Integration points in existing code (small, each commented in place): `database.js` (one call), `app.js` (two router mounts, the hold
+sweep, request-log masking), `routes/public/payment.js` (one dispatch line + the shared checks), `routes/public/bookings.js` (uses the
+shared `buildPayfastCheckout`), `lib/payfast-signature.js` (`buildPayfastCheckout`, `payfastItemName`), `lib/payfast-reconcile.js`
+(ticket orders in the same pass), `routes/admin/payfast-reconcile.js` (`ticket_order_id`), `js/admin/payfast-reconcile.js` (label),
+`routes/admin/events.js` (delete guard, cancel/postpone closes sales), `routes/public/site-content.js` (`ticketing` summary on
+`/api/public/events`), `middleware/rate-limiters.js` (two limiters), `js/pdfService.js` (`generateTicketsPdf`), `js/myscript.js`
+(card / pop-up buttons, JSON-LD), `index.html` (drawer markup, includes, `tmPostToPayfast`), `css/public/drawer.css`
+(`.atl-drawer--sheet`), `admin.html` (tabs, drawer, includes), `js/admin/events.js` (two hooks), `scripts/cleanup-test-data.js`
+(ticketed events are never deleted). New dependency: `qrcode` 1.5.4 (MIT).
+
+## 3. Data model (migration 112)
+
+```
+events(event_id) ─1:N─ ticket_types ─1:N─ ticket_order_items ─N:1─ ticket_orders ─N:1─ events
+                        ticket_types ─1:N─ tickets ─N:1─ ticket_orders
+admins(id) ─ ticket_types.created_by / tickets.checked_in_by / ticket_orders.refunded_by   (ON DELETE SET NULL)
+ticket_orders ─1:N─ ticket_webhook_events (order_id ON DELETE SET NULL)
+payfast_reconcile_findings.ticket_order_id → ticket_orders (new nullable column, SET NULL)
+```
+
+* **Money records never cascade.** `ticket_types.event_id`, `ticket_orders.event_id`, `tickets.*`, `ticket_order_items.ticket_type_id`
+  are `RESTRICT`: an event / tier / order with history cannot be deleted (cancel or close it). Only an order's own line items follow it.
+* **The database refuses to oversell**: `CHECK (sold + reserved <= capacity)` on `ticket_types`, on top of the conditional UPDATE.
+* **Prices**: integer cents, `CHECK (price_cents >= 500)` (PayFast's R5 minimum); each order line keeps the price it was sold at.
+* **Uniques**: `ticket_types(event_id, name)`, `ticket_orders.public_reference`, `ticket_orders.m_payment_id`,
+  `ticket_orders.gateway_payment_id`, `tickets.token`, and a partial unique `ticket_webhook_events(gateway_payment_id, payment_status)
+  WHERE verified = 1` — a forged/unverified post is logged but can never take the genuine notification's slot.
+* **Order status**: `pending | paid | failed | expired | refunded`, plus `refund_required` (paid after the tickets sold out).
+* **Why not the PayFast ledger tables?** `transactions`, `payfast_payment_intents` and `payment_logs` all require a booking
+  (`booking_id NOT NULL` FK). Rebuilding them would touch live booking money; ticket orders carry their own payment facts instead,
+  and ticket revenue is reported in Events → Ticket Sales (owner's choice), not in Finance.
+* Timestamps are ISO-8601 UTC text written by the app; events keep their existing SAST wall-time format.
+* Ticketing text (tier names, buyer details) is stored as validated **plain** text (like EFT banking details); event text stays
+  entity-encoded as before and is decoded for PDF / e-mail / CSV / JSON.
+
+## 4. Safeguards (and the test that proves each)
+
+| Rule | How | Test |
+|---|---|---|
+| Never oversell | `withDbTransaction` + `BEGIN IMMEDIATE`, conditional `UPDATE … WHERE sold + reserved + q <= capacity`, DB CHECK | 20-way race (lib) + 10-way race (HTTP): exactly 1 wins |
+| Prices only from the DB | reservation reads tier rows; checkout recomputes from order lines | client-sent `unit_price_cents` ignored |
+| Paid only by PayFast | ITN (signature in **every** mode, IP + timestamp + validate POST in production, merchant id, payment id) or the safety net (PayFast's own history) | forged ITN refused; return URL never pays |
+| Exact amount | `amount_gross` in cents must equal `total_cents` | wrong-amount ITN refused + admin alert |
+| Processed once | verified-row partial UNIQUE + UNIQUE gateway id + status guard; rollback (throw) after stock moves | ITN replay, late ITN after safety-net recovery |
+| Holds end | lazy release on every read + 60 s sweep (`registerTicketHoldExpiryJob`) | expired reservation, lazy + sweep |
+| Late payment | re-reserve all-or-nothing (SAVEPOINT) else `paid + refund_required`, no tickets, buyer + admin told | both cases, never oversold |
+| Door | `UPDATE tickets SET checked_in_at … WHERE token = ? AND checked_in_at IS NULL AND voided_at IS NULL AND order paid`; POST only | double scan, two phones at once, GET never checks in |
+| Refund | order refunded, tickets voided, places back on sale (one transaction) | refunded ticket fails at the door |
+| Tokens | `crypto.randomBytes(18)` base64url (144 bits), never derived from ids | 2000 unique, shape |
+| Rate limits | reserve/checkout 10 per 10 min; lookups 120 per 10 min (per address) | production child test |
+| Secrets out of logs | request logger masks `/t/<token>`, order references, `?tickets=`, ticketing admin `?q=` | log scanned after the flow test |
+| POPIA | only name / e-mail / phone (+ optional names); consent time + policy version stored; full PayFast payload ONLY in `ticket_webhook_events`; `/t/<token>` shows strangers nothing personal | flow + browser tests |
+| Shared-connection writes | every ticketing write goes through the transaction queue (a bare write can be swept into another request's transaction and rolled back with it) | — (design rule, see `lib/ticketing.js` header) |
+| Roles | tiers / sales / orders / refunds / CSV: administrator + manager; check-in + door counts: every role; revenue hidden from assistants | RBAC checks |
+
+## 5. Running the door (show night)
+
+* Each phone at the door: open the admin portal and **sign in** (any role — assistants can check in), then open
+  `https://www.thabisomhlongo.com/checkin` (the Ticket Sales tab has a **Door check-in** button that opens it for the right show).
+* Pick the show (it pre-selects the next one), **Start scanning**, allow the camera. Scan → check the name → **Check In**.
+  The counter (X of Y checked in) updates from every phone every 30 s.
+* No QR / cracked screen: type the buyer's name, e-mail, order number or the printed code into **Find**.
+* Scanning with the phone's ordinary camera app also works: it opens the ticket link, which shows the Check In button to signed-in
+  staff (and only "Valid ticket for …" to anyone else).
+* Camera needs HTTPS (the live site has it). On iPhones the bundled jsQR does the decoding; on Android Chrome the built-in reader.
+
+## 6. Configuration and jobs
+
+No new secrets or settings: PayFast credentials, sandbox/live switch, `PAYFAST_BASE_URL` / `PAYFAST_NOTIFY_BASE_URL`, mail and
+`BASE_URL` (QR links) are the existing ones. `PAYFAST_RECONCILE=off` switches the safety net off for tickets too.
+Jobs: the hold sweep (every 60 s after 30 s; a single cheap read unless a hold lapsed) and the existing 5-minute safety net. Neither
+runs under `NODE_ENV=test`. The tickets e-mail has a banner slot `ticket_confirmation` in Email Banners.
+
+## 7. Tests
+
+Node (`npm test`): `ticketing-core` (32), `ticketing-lib` (child, throwaway DB, 16), `ticketing-admin` (15), `ticketing-flow` (~70),
+`ticketing-reconcile` (10, fake PayFast history API), `ticketing-limits` (3), `payfast-checkout-form` (11, booking form byte-identical).
+Browser (`npm run test:browser`): `ticketing.js` (25: drawer, phone sheet, focus, PayFast hand-off, return, states),
+`checkin.js` (18: `/t/` public + staff, scanner, decoder, admin Ticket Sales + Tickets tab). Date offsets 1900-1969 are reserved.
+Mutation checks and the real-sandbox run are recorded in the final report of this work.
+
+## 8. Outstanding / owner decisions
+
+* **Privacy Policy wording** (needed before going live): the policy (`#privacyModal` in `index.html`, also served at `/privacy`)
+  does not yet mention ticket buyers. Suggested addition, for the owner to approve or edit:
+  > *Ticket purchases.* When you buy tickets on this website we collect your name, e-mail address and phone number (and any names you
+  > add to individual tickets) to issue your tickets, e-mail them to you, admit you at the event and contact you about it. Payments are
+  > processed by PayFast; we do not see or store your card details. We keep order and payment records for as long as the law requires
+  > for financial records.
+* **VAT**: ticket prices are shown as final prices. If/when the business is VAT-registered, decide whether ticket receipts need to be
+  tax invoices.
+* **Refunds** are made in the PayFast dashboard; the site only records them (Mark as refunded).
+* **Retention**: decide how long to keep `ticket_webhook_events.raw_payload` (it holds the buyer's name and e-mail) and add ticket
+  buyers to the POPIA erasure flow (anonymise buyer fields, keep amounts).
+* **Undo check-in** is not built (a mistaken admission needs an administrator in the database).
+* Pre-existing issues noticed, not changed: `/api/public/events` returns every events column (ip, user agent, admin ids, …) and
+  `ORDER BY ASC LIMIT 100` will drop future events past 100 rows; draft/cancelled standalone events still block booking dates; the
+  existing CSV exports neither decode text nor guard against spreadsheet formulas; `GET /api/admin/settings` returns the PayFast key
+  to every admin role; most app writes outside ticketing are bare single statements on the shared connection (see §4).
+* **Go-live**: say "push"; check the Privacy Policy text; open sales on one show; buy one ticket for yourself on the live site and
+  watch: order paid, e-mail with QR + PDF, `/t/` link, check-in on a phone.
