@@ -42,12 +42,17 @@ body.role-assistant .tkt-manage { display: none !important; }
 .tkt-sales { display: flex; flex-direction: column; gap: 16px; }
 .tkt-sales__bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .tkt-sales__label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--atl-muted); margin: 0; }
-.tkt-select { width: auto; min-width: 220px; max-width: 100%; font-size: 13px; background: var(--atl-card); color: var(--atl-ink); border-color: var(--atl-line); }
+/* the shared .atl-input is width:100% - here the selects sit inline with their label / the search box */
+.tkt-sales .atl-input.tkt-select { width: auto !important; flex: 0 1 auto; min-width: 220px; max-width: 100%; font-size: 13px; }
+.tkt-sales__bar .atl-input.tkt-select { min-width: 320px; }
+#tktSalesBody:not([hidden]) { display: flex; flex-direction: column; gap: 16px; }
+.tkt-tier-table .table { margin-bottom: 0; }
+@media (max-width: 640px) { .tkt-sales .atl-input.tkt-select, .tkt-sales__bar .atl-input.tkt-select { width: 100% !important; min-width: 0; } .tkt-sales__links { margin-left: 0; } }
 .tkt-sales__links { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
 .tkt-sales__links .atl-btn { font-size: 12px; }
 .tkt-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
 .tkt-stat { cursor: default; }
-.tkt-stat .db-stat-value small { font-size: 13px; color: var(--atl-muted); font-weight: 500; }
+.tkt-stat .db-stat-value small { font-family: 'Outfit', sans-serif; font-size: 14px; color: var(--atl-muted); font-weight: 500; margin-left: 2px; }
 .tkt-stat__sub { display: block; font-size: 11px; color: var(--atl-muted); margin-top: 2px; }
 .tkt-table td, .tkt-table th { vertical-align: middle; }
 .tkt-table th { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--atl-muted); }

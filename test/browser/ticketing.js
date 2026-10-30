@@ -132,6 +132,8 @@ function itnFor(o) {
         await page.waitForSelector('#tkHolder0', { visible: true });
         await page.type('#tkHolder0', 'Sipho Guest');
         await page.click('#tkPopia');
+        const leftover = await page.$$eval('#ticketDrawer .bk-step-err.show', els => els.length);
+        ok(leftover === 0, 'filling in a field clears its error message (no red text left once everything is filled)', leftover + ' still shown');
         await shot(page, 'desktop-3-filled');
         await Promise.all([page.waitForNavigation({ timeout: 15000 }).catch(() => null), page.click('#ticketDrawer .tk-pay')]);
         const post = page.pfPosts[0];

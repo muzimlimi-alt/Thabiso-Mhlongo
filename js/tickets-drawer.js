@@ -303,6 +303,13 @@
         if (first) document.getElementById(first).focus();
     }
 
+    // a field's error goes away as soon as the buyer changes that field (it used to stay red until the next Pay)
+    $(document).on('input change', '#tkBuyer input', function () {
+        var id = this.id && /^tkHolder/.test(this.id) ? 'tkHolder0' : this.id;
+        $(this).removeClass('bk-input--err').removeAttr('aria-invalid');
+        $('#' + id + 'Err').removeClass('show').text('');
+    });
+
     $(document).on('submit', '#tkBuyer', function (e) {
         e.preventDefault();
         var f = readForm();

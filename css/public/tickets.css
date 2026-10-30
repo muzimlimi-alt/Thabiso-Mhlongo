@@ -81,6 +81,18 @@ button.ev-card__ticket-btn { line-height: 1.2; }
 #ticketDrawer .tk-summary li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; }
 #ticketDrawer .tk-summary__total { border-top: 1px solid var(--border-low); margin-top: 4px; padding-top: 10px !important; color: var(--text-primary); font-weight: 600; }
 #ticketDrawer .tk-field { margin-bottom: 14px; }
+/* text starts after the field icon (the booking / tracking drawers carry the same rule under their own ids) */
+#ticketDrawer .bk-ico-input.form-control { padding-left: 38px !important; }
+/* the browser's autofill paints fields light blue with dark text - keep them on the drawer's dark field colour (as #contactForm does) */
+#ticketDrawer .form-control:-webkit-autofill,
+#ticketDrawer .form-control:-webkit-autofill:hover,
+#ticketDrawer .form-control:-webkit-autofill:focus,
+#ticketDrawer .form-control:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-page) inset !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    caret-color: var(--text-primary);
+    transition: background-color 5000s ease-in-out 0s;
+}
 #ticketDrawer .tk-label { display: block; margin: 0 0 6px; font-size: .78rem; font-weight: 600; letter-spacing: .04em; color: var(--text-secondary); }
 #ticketDrawer .tk-label span { color: var(--y-base); }
 #ticketDrawer .tk-link { background: none; border: 0; padding: 8px 0; min-height: 44px; color: var(--y-base); font: inherit; font-size: var(--fs-sm); cursor: pointer; text-align: left; }
