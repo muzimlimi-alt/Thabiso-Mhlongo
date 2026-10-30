@@ -35,3 +35,48 @@ body.role-assistant .tkt-manage { display: none !important; }
 .tkt-form-error { color: var(--atl-clay); font-size: 12px; margin: 6px 0 0; min-height: 1em; }
 .tkt-editor__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 @media (max-width: 520px) { .tkt-grid { grid-template-columns: 1fr; } }
+.tkt-view-orders { align-self: flex-start; font-size: 12px; }
+
+/* ── Events -> Ticket Sales ── */
+#eventsAdmin.tkt-mode .evt-controls-row, #eventsAdmin.tkt-mode #evtBulkBar { display: none !important; }   /* those filter event cards, not orders */
+.tkt-sales { display: flex; flex-direction: column; gap: 16px; }
+.tkt-sales__bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.tkt-sales__label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--atl-muted); margin: 0; }
+.tkt-select { width: auto; min-width: 220px; max-width: 100%; font-size: 13px; background: var(--atl-card); color: var(--atl-ink); border-color: var(--atl-line); }
+.tkt-sales__links { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.tkt-sales__links .atl-btn { font-size: 12px; }
+.tkt-stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.tkt-stat { cursor: default; }
+.tkt-stat .db-stat-value small { font-size: 13px; color: var(--atl-muted); font-weight: 500; }
+.tkt-stat__sub { display: block; font-size: 11px; color: var(--atl-muted); margin-top: 2px; }
+.tkt-table td, .tkt-table th { vertical-align: middle; }
+.tkt-table th { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--atl-muted); }
+.tkt-num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tkt-col-bar { width: 28%; min-width: 120px; }
+.tkt-col-bar .tkt-meter { margin-top: 0; }
+.tkt-buyer { display: block; font-weight: 600; color: var(--atl-ink); }
+.tkt-sub { display: block; font-size: 11px; color: var(--atl-muted); }
+.tkt-empty { padding: 28px 12px !important; text-align: center; color: var(--atl-muted); font-size: 13px; }
+.tkt-order-row { cursor: pointer; }
+.tkt-orders-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+.tkt-pager { display: flex; gap: 10px; align-items: center; justify-content: center; margin-top: 10px; }
+
+/* ── order drawer ── */
+.tkt-order { display: flex; flex-direction: column; gap: 14px; }
+.tkt-order__head { display: flex; justify-content: space-between; align-items: center; }
+.tkt-order__head .tkt-price { font-size: 16px; margin: 0; }
+.tkt-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0; font-size: 13px; }
+.tkt-kv dt { color: var(--atl-muted); font-weight: 500; margin: 0; }
+.tkt-kv dd { color: var(--atl-ink); margin: 0; overflow-wrap: anywhere; }
+.tkt-mono { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 12px; }
+.tkt-h { margin: 6px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--atl-muted); font-weight: 600; }
+.tkt-list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.tkt-list li { padding: 7px 0; border-top: 1px solid var(--atl-line); color: var(--atl-ink); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tkt-list li:first-child { border-top: none; }
+.tkt-list .tkt-price { margin-left: auto; }
+.tkt-list--small li { font-size: 12px; color: var(--atl-muted); }
+.tkt-order__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tkt-danger { border-color: var(--atl-clay); color: var(--atl-clay); }
+.tkt-danger-solid { background: var(--atl-clay) !important; border-color: var(--atl-clay) !important; }
+.tkt-refund { border: 1px solid var(--atl-line); border-radius: 6px; padding: 12px; background: var(--atl-surface2); }
+.tkt-refund label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--atl-muted); margin-bottom: 6px; }

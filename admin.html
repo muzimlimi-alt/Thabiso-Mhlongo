@@ -47,7 +47,7 @@
     <link href="css/admin/eft.css?v=2" rel="stylesheet">
     <link href="css/admin/business-profile.css?v=8" rel="stylesheet">
     <link href="css/admin/payfast-reconcile.css?v=1" rel="stylesheet">
-    <link href="css/admin/ticketing.css?v=1" rel="stylesheet">
+    <link href="css/admin/ticketing.css?v=2" rel="stylesheet">
     <link href="css/admin/redesign-admin.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
     <link rel="stylesheet" href="css/components/notifications.css">
@@ -5809,6 +5809,9 @@
                         <button class="atl-tab-btn" data-um-tab="evtPanelPast" role="tab" aria-selected="false">
                             <i class="fa-solid fa-clock-rotate-left"></i> Past Events
                         </button>
+                        <button class="atl-tab-btn" data-um-tab="evtPanelTickets" role="tab" aria-selected="false">
+                            <i class="fa-solid fa-ticket"></i> Ticket Sales
+                        </button>
                         <button class="atl-tab-btn" data-um-tab="evtPanelAbout" role="tab" aria-selected="false">
                             <i class="fa-solid fa-circle-info"></i> About
                         </button>
@@ -5864,6 +5867,55 @@
                     <div class="um-panel" id="evtPanelPast">
                         <div id="adminPastEventsList" class="evt-card-grid">
                             <!-- JS injected -->
+                        </div>
+                    </div>
+
+                    <!-- Panel: Ticket Sales (event ticketing - js/admin/ticketing.js, docs-internal/ticketing.md). Ticket types are set up
+                         in each event's drawer (Tickets tab); this is where the orders, refunds, attendee list and door figures live. -->
+                    <div class="um-panel" id="evtPanelTickets">
+                        <div class="tkt-sales">
+                            <div class="tkt-sales__bar">
+                                <label class="tkt-sales__label" for="tktSalesEvent">Event</label>
+                                <select id="tktSalesEvent" class="atl-input tkt-select" aria-label="Choose the event"></select>
+                                <div class="tkt-sales__links">
+                                    <a id="tktDoorLink" class="atl-btn atl-btn--ghost" href="/checkin" target="_blank" rel="noopener"><i class="fa-solid fa-qrcode"></i> Door check-in</a>
+                                    <a id="tktCsvLink" class="atl-btn atl-btn--ghost tkt-manage" href="#"><i class="fa-solid fa-file-csv"></i> Attendees CSV</a>
+                                    <button type="button" id="tktSalesRefresh" class="atl-btn atl-btn--ghost" aria-label="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
+                                </div>
+                            </div>
+                            <div id="tktSalesEmpty" class="tkt-muted" hidden>No event has ticket types yet. Open an event (Upcoming Events), go to its <strong>Tickets</strong> tab and add one.</div>
+                            <div id="tktSalesBody" hidden>
+                                <div class="tkt-stat-grid" id="tktStatGrid"></div>
+                                <div class="tkt-tier-table" id="tktTierTable"></div>
+                                <div class="tkt-manage">
+                                    <div class="tkt-orders-bar">
+                                        <div class="um-input-wrap" style="flex:1; min-width:180px;">
+                                            <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
+                                            <input type="search" id="tktOrderSearch" class="um-input" placeholder="Search by name, email or order number…" aria-label="Search orders">
+                                        </div>
+                                        <select id="tktOrderStatus" class="atl-input tkt-select" aria-label="Filter orders by status">
+                                            <option value="">All orders</option>
+                                            <option value="paid">Paid</option>
+                                            <option value="refund_required">Refund needed</option>
+                                            <option value="pending">Waiting for payment</option>
+                                            <option value="expired">Expired holds</option>
+                                            <option value="failed">Failed</option>
+                                            <option value="refunded">Refunded</option>
+                                        </select>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table tkt-table">
+                                            <thead><tr><th>Order</th><th>Buyer</th><th>Tickets</th><th>Total</th><th>Status</th><th>When</th><th></th></tr></thead>
+                                            <tbody id="tktOrdersBody"><tr><td colspan="7" class="tkt-empty">Loading…</td></tr></tbody>
+                                        </table>
+                                    </div>
+                                    <div class="tkt-pager" id="tktPager" style="display:none;">
+                                        <button type="button" class="atl-btn atl-btn--ghost" id="tktPrev"><i class="fa-solid fa-chevron-left"></i> Previous</button>
+                                        <span id="tktPageInfo" class="tkt-muted"></span>
+                                        <button type="button" class="atl-btn atl-btn--ghost" id="tktNext">Next <i class="fa-solid fa-chevron-right"></i></button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -9626,6 +9678,17 @@
             <div id="tktEventMount" class="tkt-event"></div>
           </section>
         </div>
+    </div>
+
+    <!-- Ticket order drawer (Events -> Ticket Sales; js/admin/ticketing.js): one order's tickets, check-ins, PayFast notifications,
+         Resend tickets and Mark as refunded (the refund itself is done in the PayFast dashboard). -->
+    <div id="tktOrderDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="tktOrderDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="tktOrderDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="tktOrderDrawerTitle"><i class="fa-solid fa-ticket"></i> Ticket order</h5>
+            <button type="button" class="atl-drawer__close" id="tktOrderDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body" id="tktOrderDrawerBody"></div>
     </div>
 
     <!-- Hero paragraph editor drawer -->
@@ -13505,7 +13568,7 @@
     <script src="js/admin/financials.js?v=2"></script>
     <script src="js/admin/eft.js?v=3"></script>
     <script src="js/admin/payfast-reconcile.js?v=2"></script>
-    <script src="js/admin/ticketing.js?v=1"></script>
+    <script src="js/admin/ticketing.js?v=2"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================
      FINANCE MODULE — JavaScript Engine

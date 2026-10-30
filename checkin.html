@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0a0a0a">
+<title>Door check-in · Thabiso Mhlongo</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link href="/css/public/redesign.css?v=24" rel="stylesheet">
+<link href="/css/public/checkin.css?v=1" rel="stylesheet">
+</head>
+<!-- Door check-in for event ticketing (docs-internal/ticketing.md). For staff signed in to the admin portal (any role).
+     Scans a ticket's QR code with the phone camera (the browser's own QR reader where it has one, else the bundled jsQR), or finds a
+     ticket by name / e-mail / order number; shows holder, ticket type and status; ONE tap on Check In admits (a POST - an atomic
+     update on the server, so two phones can never both admit the same ticket). Everything is an admin API call; the page holds nothing. -->
+<body class="ck-body">
+<main class="ck-shell" id="ckScanner">
+  <header class="ck-top">
+    <p class="ck-eyebrow">Thabiso Mhlongo · Door check-in</p>
+    <div class="ck-event-row">
+      <label class="ck-sr" for="ckEvent">Event</label>
+      <select id="ckEvent" class="ck-select" aria-label="Which show is this door for?"></select>
+      <p class="ck-count" id="ckCount" aria-live="polite"></p>
+    </div>
+  </header>
+
+  <section class="ck-signin" id="ckSignin" hidden>
+    <h1 class="ck-title">Sign in first</h1>
+    <p class="ck-line">Door check-in is for staff. Sign in to the admin portal on this phone, then come back to this page.</p>
+    <a class="ck-btn ck-btn--gold" href="/admin.html">Open the admin sign-in</a>
+  </section>
+
+  <section class="ck-camera" id="ckCameraBox" hidden>
+    <div class="ck-video-wrap" id="ckVideoWrap">
+      <video id="ckVideo" playsinline muted aria-label="Camera view for scanning tickets"></video>
+      <div class="ck-frame" aria-hidden="true"></div>
+      <p class="ck-video-hint" id="ckVideoHint">Point the camera at a ticket's QR code</p>
+    </div>
+    <div class="ck-cam-actions">
+      <button type="button" class="ck-btn ck-btn--gold" id="ckStart"><i class="fa-solid fa-camera" aria-hidden="true"></i> Start scanning</button>
+      <button type="button" class="ck-btn" id="ckStop" hidden><i class="fa-solid fa-stop" aria-hidden="true"></i> Stop camera</button>
+    </div>
+  </section>
+
+  <section class="ck-result" id="ckResult" hidden aria-live="assertive"></section>
+
+  <section class="ck-manual" id="ckManual" hidden>
+    <h2 class="ck-h">No QR? Find the ticket</h2>
+    <form id="ckSearchForm" class="ck-search" role="search">
+      <label class="ck-sr" for="ckSearch">Name, e-mail, order number or ticket code</label>
+      <input id="ckSearch" class="ck-input" type="search" autocomplete="off" placeholder="Name, e-mail, order # or code">
+      <button type="submit" class="ck-btn">Find</button>
+    </form>
+    <ul class="ck-found" id="ckFound"></ul>
+  </section>
+  <canvas id="ckCanvas" hidden></canvas>
+</main>
+<script src="/js/vendor/jsQR-1.4.0.js"></script>
+<script src="/js/checkin.js?v=1"></script>
+</body>
+</html>

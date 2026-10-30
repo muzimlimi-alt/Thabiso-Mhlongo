@@ -1,0 +1,69 @@
+/* =====================================================================
+   DOOR CHECK-IN + THE /t/<token> TICKET PAGE (event ticketing, docs-internal/ticketing.md; js/checkin.js)
+   Loaded after css/public/redesign.css and uses ONLY its tokens (--bg-*, --y-*, --text-*, --status-*-rgb, --f-*, --r-*) - no new ones.
+   Built for a phone in a dark venue: big type, big targets, one unmistakable colour per result (green admitted, red refused).
+   ===================================================================== */
+.ck-body { margin: 0; min-height: 100vh; min-height: 100dvh; background: var(--bg-page); color: var(--text-primary); font-family: var(--f-body); }
+.ck-shell {
+    max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 18px;
+    padding: max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+.ck-body [hidden] { display: none !important; }        /* .ck-btn's display would otherwise beat the hidden attribute (Stop camera showed early) */
+.ck-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.ck-eyebrow { margin: 0; font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--y-base); font-weight: 700; }
+.ck-title { margin: 8px 0 0; font-family: var(--f-display); font-weight: 400; font-size: 2rem; line-height: 1.15; }
+.ck-line { margin: 10px 0 0; color: var(--text-secondary); font-size: 1rem; line-height: 1.5; }
+.ck-h { margin: 0 0 10px; font-family: var(--f-display); font-weight: 400; font-size: 1.3rem; }
+.ck-public, .ck-signin { padding-top: 12vh; text-align: center; }
+.ck-shell[data-state="valid"] .ck-title { color: rgb(var(--status-available-rgb)); }
+.ck-shell[data-state="void"] .ck-title, .ck-shell[data-state="invalid"] .ck-title { color: rgb(var(--status-blocked-rgb)); }
+
+.ck-top { display: flex; flex-direction: column; gap: 10px; }
+.ck-event-row { display: flex; flex-direction: column; gap: 6px; }
+.ck-select, .ck-input {
+    width: 100%; min-height: 48px; padding: 10px 12px; font: inherit; font-size: 1rem; color: var(--text-primary);
+    background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--r-md);
+}
+.ck-select:focus, .ck-input:focus { outline: 2px solid var(--y-base); outline-offset: 1px; }
+.ck-count { margin: 0; font-family: var(--f-mono); font-size: .95rem; color: var(--text-secondary); }
+
+.ck-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; padding: 10px 18px; width: 100%;
+    font: inherit; font-weight: 700; font-size: .85rem; letter-spacing: .08em; text-transform: uppercase; text-decoration: none;
+    color: var(--text-primary); background: transparent; border: 1px solid var(--border-strong); border-radius: var(--r-md); cursor: pointer;
+}
+.ck-btn:focus-visible { outline: 2px solid var(--y-base); outline-offset: 2px; }
+.ck-btn:disabled { opacity: .45; cursor: not-allowed; }
+.ck-btn--gold { background: var(--y-base); border-color: var(--y-base); color: var(--text-inverse); }
+.ck-btn--huge { min-height: 72px; font-size: 1.15rem; margin: 6px 0; }
+
+.ck-video-wrap { position: relative; border-radius: var(--r-lg); overflow: hidden; background: var(--bg-surface); aspect-ratio: 1 / 1; border: 1px solid var(--border-default); }
+.ck-video-wrap video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ck-frame { position: absolute; inset: 18%; border: 3px solid var(--y-base); border-radius: var(--r-lg); box-shadow: 0 0 0 999px rgba(0, 0, 0, .35); opacity: 0; }
+.ck-live .ck-frame { opacity: 1; }
+.ck-video-hint { position: absolute; left: 0; right: 0; bottom: 10px; margin: 0; text-align: center; font-size: .85rem; color: var(--text-secondary); }
+.ck-cam-actions { display: flex; gap: 10px; margin-top: 10px; }
+
+.ck-banner { margin: 0 0 10px; padding: 16px; border-radius: var(--r-md); font-size: 1.35rem; font-weight: 700; text-align: center; color: #fff; }
+.ck-banner--ok { background: rgb(var(--status-available-rgb)); }
+.ck-banner--bad { background: rgb(var(--status-blocked-rgb)); }
+.ck-banner--ready { background: var(--bg-elevated); color: var(--text-primary); }
+.ck-ticket { padding: 16px; border-radius: var(--r-lg); background: var(--bg-surface); border: 2px solid var(--border-default); margin-bottom: 8px; }
+.ck-ticket--ok { border-color: rgb(var(--status-available-rgb)); }
+.ck-ticket--bad { border-color: rgb(var(--status-blocked-rgb)); }
+.ck-ticket--ready { border-color: var(--y-base); }
+.ck-ticket__holder { margin: 0; font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+.ck-ticket__tier { margin: 4px 0 0; color: var(--y-base); font-weight: 600; }
+.ck-ticket__event { margin: 6px 0 0; color: var(--text-secondary); font-size: .9rem; }
+.ck-ticket__status { margin: 10px 0 0; font-size: .95rem; }
+.ck-result { display: flex; flex-direction: column; gap: 8px; }
+.ck-staff { display: flex; flex-direction: column; gap: 12px; padding-top: 4vh; }
+
+.ck-manual { border-top: 1px solid var(--border-low); padding-top: 16px; }
+.ck-search { display: flex; gap: 8px; }
+.ck-search .ck-btn { width: auto; }
+.ck-found { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ck-found__row { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 12px; border: 1px solid var(--border-default); border-radius: var(--r-md); background: var(--bg-surface); }
+.ck-found__row .ck-ticket__holder { font-size: 1.05rem; }
+.ck-found__row .ck-btn { width: auto; flex-shrink: 0; }
+.ck-found__none { color: var(--text-secondary); padding: 8px 0; }

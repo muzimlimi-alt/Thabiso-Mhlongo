@@ -11,6 +11,7 @@
 // The order reference is 144 random bits and is the buyer's key to their own order (it is in their e-mail); nothing here takes a price,
 // a total or a payment status from the request.
 const express = require('express');
+const path = require('path');
 const { ticketReserveRateLimiter, ticketLookupRateLimiter } = require('../../middleware/rate-limiters');
 const { CURRENT_POLICY_VERSION } = require('../../lib/booking-policy');
 const core = require('../../lib/ticketing-core');
@@ -160,7 +161,8 @@ function ticketPage({ title, heading, line, state, token }) {
 <meta name="robots" content="noindex, nofollow">
 <title>${h(title)}</title>
 <link rel="icon" href="/favicon.ico">
-<link href="/css/admin/checkin.css?v=1" rel="stylesheet">
+<link href="/css/public/redesign.css?v=24" rel="stylesheet">
+<link href="/css/public/checkin.css?v=1" rel="stylesheet">
 </head>
 <body class="ck-body">
 <main class="ck-shell" id="ckMain" data-token="${h(token)}" data-state="${h(state)}">
@@ -175,6 +177,13 @@ function ticketPage({ title, heading, line, state, token }) {
 </body>
 </html>`;
 }
+
+// The door scanner page (checkin.html + js/checkin.js) at a short address staff can type. The page itself holds nothing - every lookup
+// and check-in it makes is an admin API call that needs a signed-in session.
+router.get('/checkin', (req, res) => {
+    res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow' });
+    res.sendFile(path.join(__dirname, '..', '..', 'checkin.html'));
+});
 
 router.get('/t/:token', ticketLookupRateLimiter, async (req, res) => {
     res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex, nofollow', 'Referrer-Policy': 'no-referrer' });
