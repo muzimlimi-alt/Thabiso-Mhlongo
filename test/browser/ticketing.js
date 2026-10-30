@@ -32,7 +32,7 @@ function itnFor(o) {
     try {
         // ── setup: a ticketed show and one without tiers that still uses an external link ──
         const when = `${future(1950)}T20:00`;
-        const ev = (await api('POST', '/api/admin/events', { event_title: 'ZZ Ticket UI Show', event_datetime: when, venue_name: 'Joburg Theatre', event_status: 'upcoming', sync_to_gcal: false })).body;
+        const ev = (await api('POST', '/api/admin/events', { event_title: 'ZZ Ticket UI Show', event_datetime: when, venue_name: 'Joburg Theatre', poster_image_path: 'images/events/1.jpg', event_status: 'upcoming', sync_to_gcal: false })).body;
         made.push({ id: ev.id, title: 'ZZ Ticket UI Show', when });
         const gen = (await api('POST', `/api/admin/events/${ev.id}/ticket-types`, { name: 'General', price: '150', capacity: 20, max_per_order: 4, is_active: true })).body.tier;
         const vip = (await api('POST', `/api/admin/events/${ev.id}/ticket-types`, { name: 'VIP', price: '450', capacity: 1, max_per_order: 1, is_active: true, description: 'Front rows + meet and greet' })).body.tier;
@@ -120,6 +120,8 @@ function itnFor(o) {
         const t2 = await page.$eval('.tk-hold__time', el => el.textContent);
         ok(/^(10:00|9:5\d)$/.test(t1) && t1 !== t2, 'Continue holds the tickets: "Tickets held for 9:59" counting down', `${t1} -> ${t2}`);
         ok((await one('SELECT reserved FROM ticket_types WHERE id = ?', [gen.id])).reserved === 2, '...and the server really holds 2 General tickets', '');
+        const poster = await page.$eval('#ticketDrawer .tk-event__poster img', img => ({ ok: img.complete && img.naturalWidth > 0, src: img.getAttribute('src'), alt: img.alt, h: img.getBoundingClientRect().height })).catch(() => null);
+        ok(!!poster && poster.ok && poster.src === '/images/events/1.jpg' && /ZZ Ticket UI Show/.test(poster.alt) && poster.h >= 140, 'the "Your details" step shows the show\'s poster at the top, so the buyer knows which show they are paying for', JSON.stringify(poster));
         await shot(page, 'desktop-2-details');
         await page.click('#ticketDrawer .tk-pay');
         await sleep(200);
@@ -128,10 +130,10 @@ function itnFor(o) {
         await page.type('#tkName', 'Lindiwe Ui');
         await page.type('#tkEmail', 'lindiwe.ui@example.invalid');
         await page.type('#tkPhone', '082 123 4567');
-        await page.click('#ticketDrawer .tk-names-toggle');
+        await page.$eval('#ticketDrawer .tk-names-toggle', el => { el.scrollIntoView({ block: 'center' }); el.click(); });
         await page.waitForSelector('#tkHolder0', { visible: true });
         await page.type('#tkHolder0', 'Sipho Guest');
-        await page.click('#tkPopia');
+        await page.$eval('#tkPopia', el => { el.scrollIntoView({ block: 'center' }); el.click(); });
         const leftover = await page.$$eval('#ticketDrawer .bk-step-err.show', els => els.length);
         ok(leftover === 0, 'filling in a field clears its error message (no red text left once everything is filled)', leftover + ' still shown');
         await shot(page, 'desktop-3-filled');

@@ -50,9 +50,21 @@
     function open() { if (window.openAtlDrawer && !$('#' + DRAWER).hasClass('atl-drawer--open')) window.openAtlDrawer(DRAWER); }
     function focusFirst(sel) { setTimeout(function () { var el = document.querySelector('#' + DRAWER + ' ' + sel); if (el) el.focus(); }, 60); }
 
+    // The show's poster, so the buyer can see at a glance which show they are buying for. Stored paths are site-relative
+    // ("images/events/x.jpg") or a data: URL; a poster that fails to load is simply removed.
+    function posterSrc(p) {
+        var s = String(p || '').trim();
+        if (!s) return '';
+        if (/^(data:image\/|https?:\/\/|\/)/i.test(s)) return s;
+        return '/' + s.replace(/^\.?\//, '');
+    }
+
     function eventHead(ev) {
         if (!ev) return '';
-        return '<div class="tk-event"><p class="tk-event__title">' + esc(ev.title) + '</p>' +
+        var poster = posterSrc(ev.poster_image_path);
+        return '<div class="tk-event">' +
+            (poster ? '<div class="tk-event__poster"><img src="' + esc(poster) + '" alt="Poster for ' + esc(ev.title) + '" onerror="this.parentNode.remove()"></div>' : '') +
+            '<p class="tk-event__title">' + esc(ev.title) + '</p>' +
             '<p class="tk-event__meta">' + esc([ev.starts_label, ev.venue_name].filter(Boolean).join(' · ')) + '</p></div>';
     }
     function messageBox(kind, text) { return text ? '<div class="tk-msg tk-msg--' + kind + '" role="' + (kind === 'error' ? 'alert' : 'status') + '">' + text + '</div>' : ''; }

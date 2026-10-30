@@ -22,6 +22,10 @@ button.ev-card__ticket-btn { line-height: 1.2; }
 /* ── drawer content ── */
 #ticketDrawer { font-family: var(--f-body); }
 #ticketDrawer .tk-event { margin-bottom: 18px; }
+/* the show's poster on top: a fixed-height banner, cropped from the top so a poster's headline stays visible */
+#ticketDrawer .tk-event__poster { margin: 0 0 16px; height: 180px; border-radius: var(--r-lg); overflow: hidden; background: var(--bg-elevated); border: 1px solid var(--border-low); }
+#ticketDrawer .tk-event__poster img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 20%; }
+@media (max-width: 420px) { #ticketDrawer .tk-event__poster { height: 150px; } }
 #ticketDrawer .tk-event__title { margin: 0; font-family: var(--f-display); font-size: 1.6rem; line-height: 1.2; color: var(--text-primary); }
 #ticketDrawer .tk-event__meta { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--fs-sm); }
 #ticketDrawer .tk-price { font-family: var(--f-mono); color: var(--y-base); font-variant-numeric: tabular-nums; white-space: nowrap; }
