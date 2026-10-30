@@ -20,9 +20,10 @@ router.get('/api/admin/payfast/reconcile', requireAdmin, FINANCE, async (req, re
 router.post('/api/admin/payfast/reconcile/run', requireAdmin, FINANCE, async (req, res) => {
     try {
         // dry_run: look at PayFast and say what WOULD be recorded, change nothing (no credit, no finding, no state, no e-mail)
-        // booking_id: check just that booking's waiting payments
+        // booking_id: check just that booking's waiting payments; ticket_order_id: just that ticket order's (event ticketing)
         const bookingId = parseInt(req.body && req.body.booking_id, 10) || undefined;
-        const r = await reconcile.reconcileNow({ reason: 'admin', req, bookingId, dryRun: !!(req.body && req.body.dry_run) });
+        const ticketOrderId = parseInt(req.body && req.body.ticket_order_id, 10) || undefined;
+        const r = await reconcile.reconcileNow({ reason: 'admin', req, bookingId, ticketOrderId, dryRun: !!(req.body && req.body.dry_run) });
         if (r.skipped === 'busy') return res.status(409).json({ success: false, message: r.message });
         if (r.ok === false) return res.status(502).json({ success: false, message: r.message, error: r.error });
         res.json({ success: true, checked: r.checked || 0, recovered: r.recovered || [], findings: r.findings || [], skipped: r.skipped || null, message: r.message });

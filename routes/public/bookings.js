@@ -29,7 +29,7 @@ const { sendCancellationEmail } = require('../../lib/booking-cancellation-email'
 // looked up on it at call time, so a missing export degrades to a logged warning, not a crash.
 const bookingNotifications = require('../../lib/booking-notifications');
 const { sendQuoteAcceptedEmail, sendBookingReceivedEmail } = bookingNotifications;
-const { generatePayFastSignature, payfastBaseUrl, payfastNotifyBaseUrl } = require('../../lib/payfast-signature');
+const { buildPayfastCheckout, payfastBaseUrl, payfastNotifyBaseUrl } = require('../../lib/payfast-signature');
 const {
     syncBookingToCalendar, checkDateAvailability, hasCalendarConflict, isWithinWorkingHours
 } = require('../../lib/calendar-sync');
@@ -741,9 +741,8 @@ function buildAndSendPfData(row, amt, milestoneDesc, mPaymentId, req, res) {
         const clientName = plain(row.name) || 'Client';
         const amount = parseFloat(amt);
 
-        const pfData = {
-            merchant_id: process.env.PAYFAST_MERCHANT_ID || '10000100',
-            merchant_key: process.env.PAYFAST_MERCHANT_KEY || '46f0cd694581a',
+        // Merchant fields, blank-field removal, the signature and the PayFast host: lib/payfast-signature.js buildPayfastCheckout (shared with ticket orders).
+        const { pfData, pfHost } = buildPayfastCheckout({
             return_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success` : `${baseUrl}/?track=${row.id}&payment=success`,
             cancel_url: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel`  : `${baseUrl}/?track=${row.id}&payment=cancel`,
             // PAYFAST_NOTIFY_BASE_URL (a local sandbox run only) sends just the notification through a tunnel; unset, this is baseUrl as before.
@@ -754,20 +753,8 @@ function buildAndSendPfData(row, amt, milestoneDesc, mPaymentId, req, res) {
             m_payment_id: mPaymentId,
             amount: amount.toFixed(2),
             // (a "%" is kept - "50% Deposit" - now that the signature encodes it the way PayFast does; it used to be stripped to "50 Deposit")
-            item_name: `Booking ${row.id} - ${plain(row.event_name) || plain(row.event_type) || 'Event'} - ${milestoneDesc}`.substring(0, 100).replace(/[^a-zA-Z0-9.\-% ]/g, '').replace(/\s+/g, ' ')
-        };
-
-        // Remove empty or null values to ensure signature matches submitted form data
-        Object.keys(pfData).forEach(key => {
-            if (pfData[key] === '' || pfData[key] === null || pfData[key] === undefined) {
-                delete pfData[key];
-            }
+            item_name: `Booking ${row.id} - ${plain(row.event_name) || plain(row.event_type) || 'Event'} - ${milestoneDesc}`
         });
-
-        const passphrase = process.env.PAYFAST_PASSPHRASE || null;
-        pfData.signature = generatePayFastSignature(pfData, passphrase);
-
-        const pfHost = process.env.PAYFAST_URL || 'https://sandbox.payfast.co.za/eng/process';
 
         // Record what this redirect was actually built for — the ITN handler (routes/public/
         // payment.js) cross-checks amount_gross against this instead of trusting the ITN amount on

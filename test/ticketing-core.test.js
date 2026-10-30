@@ -4,6 +4,15 @@
 const core = require('../lib/ticketing-core');
 
 module.exports = async function ({ check }) {
+    // ═══ the request log ═══
+    const tok = 'AbCdEfGhIjKlMnOpQrStUvWx';
+    check('log masking: ticket tokens, order references, ?tickets= and the ticketing admin search never reach the log; other URLs are untouched',
+        core.maskSecretsInUrl(`/t/${tok}`) === '/t/[hidden]' && core.maskSecretsInUrl(`/api/public/ticket-orders/${tok}/checkout`) === '/api/public/ticket-orders/[hidden]/checkout'
+        && core.maskSecretsInUrl(`/api/admin/ticketing/tickets/${tok}/check-in`) === '/api/admin/ticketing/tickets/[hidden]/check-in'
+        && core.maskSecretsInUrl(`/?tickets=${tok}&payment=success`) === '/?tickets=[hidden]&payment=success'
+        && core.maskSecretsInUrl('/api/admin/ticketing/orders?event_id=3&q=jo%40x.co') === '/api/admin/ticketing/orders?event_id=3&q=[hidden]'
+        && core.maskSecretsInUrl('/api/admin/bookings?q=abc') === '/api/admin/bookings?q=abc' && core.maskSecretsInUrl('/index.html') === '/index.html', core.maskSecretsInUrl(`/t/${tok}`));
+
     // ═══ money ═══
     const p = core.parseRandsToCents;
     check('money: rands in every shape an admin types become integer cents',

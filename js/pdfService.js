@@ -1007,6 +1007,65 @@ class PDFService {
             } catch (e) { reject(e); }
         });
     }
+
+    // Event tickets (lib/ticketing-delivery.js): one page per admission on the shared letterhead, with the ticket's QR code, and returned as
+    // a Buffer - tickets are rebuilt from the database whenever they are needed (e-mail, resend, download), never stored as files.
+    // input: { event: { title, when, venue }, order: { id, buyer_name }, tickets: [{ tier_name, holder_name, token, url, qrPng }], issuer }
+    async generateTicketsPdf(input) {
+        const { event, order, tickets } = decodeStoredDeep({ event: input.event, order: input.order, tickets: input.tickets.map(t => ({ ...t, qrPng: null })) });
+        const issuer = input.issuer || legacyIssuer();
+        return new Promise((resolve, reject) => {
+            try {
+                const doc = new PDFDocument({ margin: 28, autoFirstPage: false });
+                const chunks = [];
+                doc.on('data', (c) => chunks.push(c));
+                doc.on('end', () => resolve(Buffer.concat(chunks)));
+                doc.on('error', reject);
+                const LEFT = 28, WIDTH = 556;
+
+                tickets.forEach((t, i) => {
+                    doc.addPage();
+                    const number = `${order.id}-${i + 1}`;
+                    const bandBottom = this._drawHeader(doc, 'Ticket', number, issuer, false);
+                    let y = bandBottom + 26;
+                    doc.font('Helvetica-Bold').fontSize(20).fillColor(DARK).text(event.title || 'Show', LEFT, y, { width: WIDTH });
+                    y = doc.y + 4;
+                    doc.font('Helvetica').fontSize(11).fillColor('#333333').text([event.when, event.venue].filter(Boolean).join('   ·   '), LEFT, y, { width: WIDTH });
+                    y = doc.y + 16;
+                    doc.rect(LEFT, y, 42, 1.5).fillColor(GOLD).fill();
+                    y += 14;
+
+                    const qrSize = 230;
+                    const qrX = LEFT + (WIDTH - qrSize) / 2;
+                    if (input.tickets[i].qrPng) doc.image(input.tickets[i].qrPng, qrX, y, { width: qrSize, height: qrSize });
+                    y += qrSize + 12;
+                    // The code in groups of four, so it can be read out or typed at the door if the QR will not scan.
+                    const grouped = String(t.token || '').match(/.{1,4}/g).join(' ');
+                    doc.font('Courier-Bold').fontSize(13).fillColor(DARK).text(grouped, LEFT, y, { width: WIDTH, align: 'center' });
+                    y = doc.y + 18;
+
+                    const kv = (k, v) => {
+                        doc.font('Helvetica-Bold').fontSize(10).fillColor(DARK).text(k, LEFT + 60, y, { width: 140 });
+                        doc.font('Helvetica').fontSize(10).fillColor('#333333').text(String(v || ''), LEFT + 200, y, { width: WIDTH - 260 });
+                        y = Math.max(doc.y, y + 14) + 4;
+                    };
+                    kv('Ticket', t.tier_name);
+                    kv('Name', t.holder_name || order.buyer_name);
+                    kv('Order', `#${order.id}  ·  ticket ${i + 1} of ${tickets.length}`);
+
+                    const bottom = doc.page.height - 66;
+                    doc.rect(28, bottom, 556, 1.5).fillColor(GOLD).fill();
+                    const bottomMargin = doc.page.margins.bottom;
+                    doc.page.margins.bottom = 0;
+                    doc.fillColor(GREY).font('Helvetica').fontSize(7.5)
+                       .text('Show this page (printed or on your phone) at the door. Each code admits one person, once - do not share it.', 28, bottom + 8, { align: 'center', width: 556 })
+                       .text(`${issuer.legalName}${issuer.registrationNumber ? '  ·  Reg No ' + issuer.registrationNumber : ''}${issuer.email ? '  ·  ' + issuer.email : ''}`, 28, bottom + 19, { align: 'center', width: 556 });
+                    doc.page.margins.bottom = bottomMargin;
+                });
+                doc.end();
+            } catch (e) { reject(e); }
+        });
+    }
 }
 
 module.exports = new PDFService();

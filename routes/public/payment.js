@@ -5,6 +5,9 @@ const { escapeEmailFields } = require('../../lib/email-escape');
 const { getEmailFooterContext, emailBaseUrl } = require('../../lib/email-context');
 const { syncBookingToCalendar } = require('../../lib/calendar-sync');
 const { verifyPayFastItnSignature } = require('../../lib/payfast-signature');
+const { isSandboxPayfast, itnTimestampCheck, itnSourceIp, confirmItnWithPayfast } = require('../../lib/payfast-itn-checks');
+const { isTicketPaymentId } = require('../../lib/ticketing-core');
+const ticketingPayments = require('../../lib/ticketing-payments');
 const {
     payfastItnRateLimiter, PAYFAST_VALID_IPS
 } = require('../../middleware/rate-limiters');
@@ -111,6 +114,10 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
 
     console.log(`[PayFast ITN] Received notification for m_payment_id: ${pfData.m_payment_id}`);
 
+    // A ticket order (m_payment_id TKT_<id>) is not a booking: it has its own records (lib/ticketing-payments.js), checked by the same
+    // shared steps (lib/payfast-itn-checks.js). Everything below is the booking path, unchanged.
+    if (isTicketPaymentId(pfData.m_payment_id)) return ticketingPayments.handleItn(req, pfData);
+
     const parts = (pfData.m_payment_id || '').split('_');
     const bookingId = parseInt(parts[0], 10);
     // Client-selectable installment plans: m_payment_id is `${bookingId}_SCHED${scheduleId}` for a
@@ -128,17 +135,14 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
     try {
         // ── 0. Log & detect environment ──
         logPaymentEvent(bookingId, 'ITN_RECEIVED', pfData, false);
-        const isSandbox = (process.env.PAYFAST_URL || '').includes('sandbox');
+        const isSandbox = isSandboxPayfast();
 
-        // P3-15: Timestamp replay protection — reject ITNs older than 30 minutes in production.
-        if (!isSandbox && pfData.timestamp) {
-            const itnTime = new Date(pfData.timestamp);
-            const ageMins = (Date.now() - itnTime.getTime()) / 60000;
-            if (isNaN(itnTime.getTime()) || ageMins > 30) {
-                console.error(`[PayFast ITN] STALE TIMESTAMP for booking #${bookingId}: timestamp=${pfData.timestamp}, age=${ageMins.toFixed(1)}m — rejecting as possible replay.`);
-                logPaymentEvent(bookingId, 'FAILED_STALE_TIMESTAMP', pfData, false);
-                return;
-            }
+        // P3-15: Timestamp replay protection — reject ITNs older than 30 minutes in production (lib/payfast-itn-checks.js).
+        const ts = itnTimestampCheck(pfData, isSandbox);
+        if (ts.stale) {
+            console.error(`[PayFast ITN] STALE TIMESTAMP for booking #${bookingId}: timestamp=${pfData.timestamp}, age=${ts.ageMins.toFixed(1)}m — rejecting as possible replay.`);
+            logPaymentEvent(bookingId, 'FAILED_STALE_TIMESTAMP', pfData, false);
+            return;
         }
 
         // ── A. Signature Validation ──
@@ -162,12 +166,8 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
             console.log(`[PayFast ITN] ✓ Signature valid for booking #${bookingId}${sigVerdict.recipe === 'legacy' ? ' (signed the way this app used to compute it)' : ''}`);
         }
 
-        // ── B. Source IP Validation ──
-        // Use req.ip, not the raw X-Forwarded-For header. `app.set('trust proxy', 1)` is configured,
-        // so Express resolves req.ip from the trusted proxy hop. Reading X-Forwarded-For directly and
-        // taking its leftmost value let a caller spoof an allowlisted PayFast IP with a header, which
-        // would defeat this check entirely.
-        const sourceIp = (req.ip || req.connection.remoteAddress || '').split(',')[0].trim().replace('::ffff:', '');
+        // ── B. Source IP Validation ── (req.ip through the trusted proxy, never raw X-Forwarded-For - lib/payfast-itn-checks.js)
+        const sourceIp = itnSourceIp(req);
 
         if (!isSandbox && !PAYFAST_VALID_IPS.has(sourceIp)) {
             console.error(`[PayFast ITN] INVALID SOURCE IP: ${sourceIp}`);
@@ -198,44 +198,8 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
             return;
         }
 
-        // ── D. PayFast Server Confirmation (POST BACK) ──
-        const pfValidateHost = isSandbox
-            ? 'https://sandbox.payfast.co.za/eng/query/validate'
-            : 'https://www.payfast.co.za/eng/query/validate';
-            
-        // Include BOTH payload AND signature for validation POST per PayFast requirements
-        let validateParams = [];
-        for (let key in itnAsPosted) {      // as posted - PayFast compares these with what it sent, and the encoded copy would not match a name like D'Souza
-            validateParams.push(`${key}=${encodeURIComponent(itnAsPosted[key]).replace(/%20/g, '+')}`);
-        }
-        const validateBody = validateParams.join('&');
-        
-        let pfServerValid = false;
-        try {
-            const https = require('https');
-            const urlModule = require('url');
-            const parsedUrl = urlModule.parse(pfValidateHost);
-            
-            pfServerValid = await new Promise((resolve) => {
-                const options = {
-                    hostname: parsedUrl.hostname, port: 443, path: parsedUrl.path, method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(validateBody), 'connection': 'close' },
-                    rejectUnauthorized: !isSandbox,
-                    timeout: 8000
-                };
-                const request = https.request(options, (response) => {
-                    let data = '';
-                    response.on('data', (chunk) => data += chunk);
-                    response.on('end', () => resolve(data.trim() === 'VALID'));
-                });
-                request.on('timeout', () => { request.destroy(); resolve(false); });
-                request.on('error', () => resolve(false));
-                request.write(validateBody);
-                request.end();
-            });
-        } catch (serverErr) {
-            console.error('[PayFast ITN] Server confirmation error:', serverErr.message);
-        }
+        // ── D. PayFast Server Confirmation (POST BACK) ── the payload AS POSTED, plus its signature (lib/payfast-itn-checks.js)
+        const pfServerValid = await confirmItnWithPayfast(itnAsPosted, isSandbox);
 
         if (!pfServerValid && !isSandbox) {
             console.error(`[PayFast ITN] SERVER CONFIRMATION FAILED for booking #${bookingId}`);

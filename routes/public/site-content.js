@@ -11,6 +11,7 @@ const { listPublicMembers } = require('../../lib/team');
 const { listPublicAccolades } = require('../../lib/accolades');
 const { getSettingsByKeys } = require('../../database/repositories/settings.repository');
 const { PUBLIC_SERVICE_COLUMNS, publicServiceList } = require('../../lib/service-pricing');
+const ticketing = require('../../lib/ticketing');
 const router = express.Router();
 
 // Uses its own fixed-destination storage (not the shared `storage` in app.js, which picks a folder
@@ -151,9 +152,13 @@ router.get('/api/public/events', (req, res) => {
          WHERE e.event_status NOT IN ('cancelled', 'draft')
            AND (e.booking_id IS NULL OR b.is_public = 1)
          ORDER BY e.event_datetime ASC LIMIT ? OFFSET ?`,
-        [limit, offset], (err, siteEvents) => {
+        [limit, offset], async (err, siteEvents) => {
         if (err) return res.status(500).json({ error: err.message });
-        const mapped = (siteEvents || []).map(e => ({...e, source: 'event'}));
+        // Event ticketing (lib/ticketing.js): an event with ticket types gets `ticketing` = { state, from_cents, opens_at } so its card
+        // shows Get Tickets / Sold Out / Sales Closed. Events without tiers get null and keep their ticket_sales_link exactly as before.
+        // A failure here must never take the events list down - the cards just fall back to the old behaviour.
+        const summaries = await ticketing.summariesForEvents(siteEvents || []).catch(e => { console.error('[Ticketing] event summaries failed:', e.message); return {}; });
+        const mapped = (siteEvents || []).map(e => ({...e, source: 'event', ticketing: summaries[e.event_id] || null}));
         res.json(mapped);
     });
 });

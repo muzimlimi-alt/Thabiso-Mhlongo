@@ -68,6 +68,27 @@ const popUploadRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? ra
     message: { success: false, message: 'Too many uploads from this device. Please wait an hour and try again, or email us your proof of payment.' }
 }) : (req, res, next) => next();
 
+// Event ticketing (routes/public/ticketing.js). Reserving tickets and starting a checkout: 10 per 10 minutes per address - enough for a buyer
+// who changes their mind a few times, not enough to hold a show's stock hostage (each hold also expires on its own after 10 minutes).
+// Looking up an order / a ticket / the PDF: 120 per 10 minutes - the return page polls the order status every few seconds for up to two
+// minutes, and a /t/<token> lookup must not become a way to walk through tokens (144-bit, so it cannot be anyway). Both bypassed under
+// NODE_ENV=test like their siblings; test/rate-limiters.test.js checks production enforces them.
+const ticketReserveRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many ticket requests from this device. Please wait 10 minutes and try again.' }
+}) : (req, res, next) => next();
+
+const ticketLookupRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests from this device. Please wait a few minutes and try again.' }
+}) : (req, res, next) => next();
+
 // Limiter for all authenticated admin routes (per IP) — bypassed in test mode, matching
 // bookingRateLimiter/mutateRateLimiter above: the integration suite runs many admin requests from
 // one IP across dozens of test files in the same 1-minute window, well beyond real admin usage.
@@ -210,5 +231,6 @@ module.exports = {
     bookingRateLimiter, contactRateLimiter, exportRateLimiter, sitemapRateLimiter, trackRateLimiter,
     otpRequestRateLimiter, mutateRateLimiter, adminRateLimiter, adminLoginRateLimiter,
     lookupRateLimiter, analyticsTrackLimiter, ipRateLimiter, popUploadRateLimiter,
+    ticketReserveRateLimiter, ticketLookupRateLimiter,
     PAYFAST_VALID_IPS, payfastItnRateLimiter,
 };

@@ -61,7 +61,7 @@
             var isOpen = f.status === 'open';
             h += '<tr data-finding="' + f.id + '">' +
                 '<td class="pfs-sub2">' + esc(when(f.first_seen_at)) + '</td>' +
-                '<td>' + (f.booking_id ? '#' + f.booking_id : '') + '<div class="pfs-sub2">' + esc(f.client_name || '') + (f.event_name ? ' · ' + esc(f.event_name) : '') + '</div></td>' +
+                '<td>' + (f.booking_id ? '#' + f.booking_id : (f.ticket_order_id ? 'Ticket order #' + f.ticket_order_id : '')) + '<div class="pfs-sub2">' + esc(f.client_name || '') + (f.event_name ? ' · ' + esc(f.event_name) : '') + '</div></td>' +
                 '<td>' + esc(f.pf_payment_id) + '<div class="pfs-sub2">' + esc(f.m_payment_id || '') + '</div></td>' +
                 '<td class="pfs-amount" style="text-align:right;">' + money(f.gross_amount) + '</td>' +
                 '<td><span class="atl-badge ' + (KIND_BADGE[f.kind] || '') + '">' + esc(KIND_LABEL[f.kind] || f.kind) + '</span><div class="pfs-detail">' + esc(f.detail || '') + '</div>' +

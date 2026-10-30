@@ -316,10 +316,12 @@ app.use((req, res, next) => {
 
 
 
-// Log all requests for debugging
+// Log all requests for debugging. Ticket tokens and ticket-order references are secrets (whoever has one holds the ticket / the order),
+// so they are masked before the URL reaches the log (lib/ticketing-core.js maskSecretsInUrl).
+const { maskSecretsInUrl } = require('./lib/ticketing-core');
 app.use((req, res, next) => {
     res.on('finish', () => {
-        console.log(`[DEBUG] ${req.method} ${req.url} - Status: ${res.statusCode}`);
+        console.log(`[DEBUG] ${req.method} ${maskSecretsInUrl(req.url)} - Status: ${res.statusCode}`);
     });
     next();
 });
@@ -553,6 +555,7 @@ app.use(require('./routes/admin/ticketing'));        // Event ticketing: tiers, 
 app.use(require('./routes/public/bookings'));
 app.use(require('./routes/public/eft'));             // Manual EFT: a client uploads / reads back their proof of payment
 app.use(require('./routes/public/payfast-check'));   // a buyer back from PayFast asks to have their own payment confirmed now
+app.use(require('./routes/public/ticketing'));       // Event ticketing: tiers on sale, reserve, checkout, order status, /t/<token> ticket page
 app.use(require('./routes/public/site-content'));
 app.use(require('./routes/public/availability'));
 app.use(require('./routes/admin/misc'));
@@ -1169,6 +1172,8 @@ registerPayFastPendingTimeoutJob();
 // The safety net for a lost PayFast notification: asks PayFast's own history and records an exactly-matching payment (lib/payfast-reconcile.js).
 const { registerPayFastReconcileJob } = require('./lib/payfast-reconcile');
 registerPayFastReconcileJob();
+// Event ticketing: releases ticket holds whose 10 minutes ran out (lib/ticketing.js; reads release lapsed holds lazily as well).
+require('./lib/ticketing').registerTicketHoldExpiryJob();
 
 // C9: Prevent sandbox PayFast config from silently disabling payment validation in production
 if (process.env.NODE_ENV === 'production' && (process.env.PAYFAST_URL || '').includes('sandbox')) {
