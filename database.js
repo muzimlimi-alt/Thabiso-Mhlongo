@@ -3120,6 +3120,10 @@ function initializeDatabase() {
         db.run("ALTER TABLE bookings ADD COLUMN billing_address TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log("Note: billing_address already exists or error: " + err.message); });
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (111, 'booking_billing_address')");
 
+        // Event ticketing (version 112): tiers, orders, tickets and PayFast notifications, all hanging off events(event_id).
+        // Additive only - see lib/ticketing-schema.js for the relationship rules and docs-internal/ticketing.md for the design.
+        require('./lib/ticketing-schema').apply(db);
+
         // Homepage "What I do" cards follow the five rate-card categories (version 107): replaced only while still the shipped
         // defaults, once. See lib/homepage-service-cards.js for the rules.
         {
