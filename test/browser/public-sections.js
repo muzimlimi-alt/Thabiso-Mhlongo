@@ -136,6 +136,9 @@ async function centering(p, itemsSel, withinSel) {
         ok(!(await visible(p, lessSel)), label + ': "View Less" hides itself once back at the first page', '');
 
         // Resume revealing — More must carry on from the collapsed page, not from wherever it left off.
+        // View Less scrolls the page back to the buttons (smoothly): wait until it has stopped, as a person would, before clicking -
+        // a click mid-scroll lands where the button WAS.
+        for (let last = -1, still = 0, i = 0; i < 40 && still < 3; i++) { const y = await p.evaluate(() => window.scrollY); still = y === last ? still + 1 : 0; last = y; await sleep(100); }
         await p.click(moreSel);
         await sleep(300);
         const resumed = await countFn();

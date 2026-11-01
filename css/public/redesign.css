@@ -1881,10 +1881,17 @@ header .navbar {
   outline-offset:4px;
 }
 
+/* ---- Social video grid: three columns on desktop, two on tablets, one on phones (same as the Events grid) ---- */
 #dynamicEmbedsRow{
   display:grid!important;
-  grid-template-columns:repeat(auto-fill,minmax(300px,1fr))!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
   gap:24px!important;
+}
+@media (max-width:991px){
+  #dynamicEmbedsRow{ grid-template-columns:repeat(2,minmax(0,1fr))!important; gap:20px!important; }
+}
+@media (max-width:575px){
+  #dynamicEmbedsRow{ grid-template-columns:minmax(0,1fr)!important; gap:18px!important; }
 }
 .embed-grid-item{
   min-width:0;
@@ -1892,16 +1899,169 @@ header .navbar {
   flex-direction:column;
   overflow:visible!important;
 }
-.youtube-custom-card{
+/* once played, the platform's player fills the card's picture area (js/myscript.js) */
+.sm-card--playing{ cursor:default; }
+.sm-card--playing:hover{ transform:none; }
+.sm-card--playing .sm-card__media iframe{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  border:0;
+}
+
+/* ---- Social card (js/myscript.js renderSocial): the Events card's build - thumbnail, badge, title, channel, description, Play Video ---- */
+.sm-card{
   flex:1;
   display:flex;
   flex-direction:column;
-  transition:border-color var(--t) var(--ease), box-shadow var(--t) var(--ease)!important;
+  overflow:hidden;
+  border-radius:var(--r-lg);
+  border:1px solid var(--border-low);
+  background:var(--bg-surface);
+  box-shadow:0 4px 18px rgba(0,0,0,.35);
+  cursor:pointer;
+  transition:border-color var(--t) var(--ease), transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
-.youtube-custom-card:hover{
-  border-color:var(--y-dark)!important;
-  box-shadow:var(--sh-md)!important;
+.sm-card:hover{
+  border-color:var(--y-dark);
+  transform:translateY(-4px);
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
 }
+
+/* thumbnail: one shape for every card; shown whole (portrait TikTok / Instagram never cropped) on a blurred copy of itself */
+.sm-card__media{
+  position:relative;
+  aspect-ratio:16/9;
+  overflow:hidden;
+  background:#000;
+}
+.sm-card__media-bg{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  filter:blur(18px) brightness(.5);
+  transform:scale(1.15);
+}
+.sm-card__media-img{
+  position:relative;
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  transition:transform .65s var(--ease);
+}
+.sm-card:hover .sm-card__media-img{ transform:scale(1.03); }
+/* YouTube's thumbnails are 4:3 with the black bars baked in: filling the 16:9 frame crops exactly the bars */
+.sm-card__media--cover .sm-card__media-img{ object-fit:cover; }
+.sm-card__play{
+  position:absolute;
+  top:50%;
+  left:50%;
+  width:64px;
+  height:64px;
+  display:grid;
+  place-items:center;
+  border-radius:50%;
+  background:rgba(10,10,10,.65);
+  border:1px solid rgba(255,255,255,.25);
+  color:var(--sm-color, var(--y-base));
+  font-size:1.6rem;
+  transform:translate(-50%,-50%);
+  -webkit-backdrop-filter:blur(4px);
+  backdrop-filter:blur(4px);
+  transition:transform var(--t) var(--ease), background var(--t) var(--ease);
+}
+.sm-card:hover .sm-card__play{ transform:translate(-50%,-50%) scale(1.08); background:rgba(10,10,10,.8); }
+
+.sm-card__info{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:8px;
+  padding:18px 18px 20px;
+  border-top:1px solid var(--border-low);
+}
+.sm-card__badge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  max-width:100%;
+  padding:5px 12px;
+  border-radius:var(--r-pill);
+  background:var(--y-muted);
+  border:1px solid rgba(212,175,55,.3);
+  color:var(--y-light);
+  font-family:var(--f-body);
+  font-size:.78rem;
+  font-weight:600;
+  line-height:1.35;
+}
+.sm-card__badge i{ color:var(--y-base); flex-shrink:0; }
+.sm-card__title{
+  margin:4px 0 0;
+  font-family:var(--f-display), serif;
+  font-weight:600;
+  line-height:1.2;
+  color:var(--text-primary);
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.sm-card__channel{
+  margin:0;
+  color:var(--text-primary);
+  font-family:var(--f-body);
+  font-size:.82rem;
+  font-weight:600;
+}
+.sm-card__desc{
+  margin:0;
+  color:var(--text-secondary);
+  font-family:var(--f-body);
+  font-size:.875rem;
+  line-height:1.5;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.sm-card__foot{
+  margin-top:auto;
+  width:100%;
+  padding-top:10px;
+}
+.sm-card__btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  width:100%;
+  min-height:46px;
+  padding:10px 16px;
+  border:1px solid var(--y-base);
+  border-radius:var(--r-md);
+  background:var(--y-base);
+  color:var(--text-inverse);
+  font-family:var(--f-body);
+  font-size:.82rem;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:background var(--t) var(--ease), border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.sm-card__btn:hover,
+.sm-card:hover .sm-card__btn{
+  background:var(--y-hover);
+  border-color:var(--y-hover);
+  box-shadow:0 4px 14px var(--y-glow);
+}
+.sm-card__btn:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
 
 /* ---------- EVENTS ---------- */
 .tm-events{ background:var(--bg-page); }

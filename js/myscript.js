@@ -1560,37 +1560,45 @@ $(function() {
                             if (dMatch) activeHtml = `<iframe width="100%" height="480" src="https://www.dailymotion.com/embed/video/${dMatch[1]}?autoplay=1" frameborder="0" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
                         }
                         
-                        var tagsArr = meta.tags || [];
-                        var tagsHtml = tagsArr.slice(0, 5).map(t => `<span class="badge" style="background:${pColor}; color:#fff; margin-right:5px; margin-bottom:5px;">#${t}</span>`).join('');
-                        var statsHtml = `<small style="color:var(--text-muted); font-size:.75rem;">${parseInt(meta.viewCount || 0).toLocaleString()} views &nbsp;&bull;&nbsp; ${parseInt(meta.likeCount || 0).toLocaleString()} likes</small><br>`;
-                        
                         var GIF_BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
                         var safeThumb = (meta.thumbnail && meta.thumbnail !== GIF_BLANK) ? meta.thumbnail : (function() {
                             var ec = item.embed_code || '';
                             var ytRe = ec.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
                             return (ytRe && ytRe[1]) ? 'https://img.youtube.com/vi/' + ytRe[1] + '/hqdefault.jpg' : GIF_BLANK;
                         }());
+                        // Same card as the Events section: thumbnail whole on a blurred copy of itself (portrait TikTok / Instagram
+                        // thumbnails are never cropped), a platform + date badge, title, channel, two-line description, and a full-width
+                        // Play Video button at the bottom. Clicking the card or the button swaps in the player (the .sm-card handler below).
+                        // Metadata text comes from the platforms: decoded, then escaped.
+                        var mTitle = tmEscHtml(decodeHtmlEntities(meta.title || 'Untitled Video'));
+                        var mChannel = tmEscHtml(decodeHtmlEntities(meta.channelName || 'Official'));
+                        // "Embedded media from YouTube." is the admin's stand-in when a platform gives no description: say nothing instead
+                        var mDesc = tmEscHtml(decodeHtmlEntities(meta.description || '').replace(/\s+/g, ' ').trim());
+                        if (/^Embedded media from [^.]+\.$/.test(mDesc)) mDesc = '';
+                        var mDate = '';
+                        if (meta.publishDate && !isNaN(new Date(meta.publishDate))) {
+                            try { mDate = new Date(meta.publishDate).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) {}
+                        }
+                        var thumbAttr = tmEscHtml(safeThumb);
                         embedHtml = `
-                        <div class="youtube-custom-card reveal"
-                             style="background:var(--bg-surface); border-radius:var(--r-md); overflow:hidden; box-shadow:var(--sh-sm); cursor:pointer; position:relative; border: 1px solid var(--border-low);"
-                             onclick="const active = '${activeHtml.replace(/'/g, "\\'").replace(/"/g, "&quot;")}' ; $(this).parent().html(active);">
-                            <div style="position:relative; background:#000; width: 100%; aspect-ratio: 16 / 9; overflow:hidden;">
-                                <img src="${safeThumb}" onerror="this.onerror=null;this.src='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';" alt="Video Thumbnail" style="width:100%; height:100%; display:block; object-fit: cover; opacity: 0.85;">
-                                <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:${pColor}; font-size:48px; text-shadow:0 0 10px rgba(0,0,0,0.5);"><i class="${pIcon}"></i></div>
-                                <div style="position:absolute; top:12px; left:12px; background:rgba(0,0,0,0.7); color:#fff; font-size:10px; padding:4px 8px; border-radius:4px; letter-spacing:0.05em; text-transform:uppercase;">${item.platform_name}</div>
+                        <article class="sm-card youtube-custom-card reveal" style="--sm-color:${pColor};">
+                            <div class="sm-card__media${/ytimg\.com|img\.youtube\.com/.test(safeThumb) ? ' sm-card__media--cover' : ''}">
+                                <img class="sm-card__media-bg" src="${thumbAttr}" alt="" aria-hidden="true" loading="lazy" decoding="async" onerror="this.remove()">
+                                <img class="sm-card__media-img" src="${thumbAttr}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${GIF_BLANK}';">
+                                <span class="sm-card__play" aria-hidden="true"><i class="${pIcon}"></i></span>
                             </div>
-                            <div style="padding:18px; color:#fff; flex-grow: 1; display:flex; flex-direction:column; justify-content: space-between;">
-                                <div>
-                                    <h4 style="margin:0 0 8px; color:var(--text-primary); font-family:var(--f-display); font-size:1.15rem; line-height:1.4;">${meta.title || 'Untitled Video'}</h4>
-                                    <p style="color:var(--text-secondary); font-size:12px; margin-bottom:12px;">
-                                        <strong>${meta.channelName || 'Official'}</strong> &bull; ${meta.publishDate ? new Date(meta.publishDate).toLocaleDateString() : ''}
-                                    </p>
-                                    <p style="font-size:13px; color:var(--text-muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.5;">${meta.description || 'Watch the latest from Thabiso Mhlongo.'}</p>
+                            <div class="sm-card__info">
+                                <span class="sm-card__badge"><i class="${pIcon}" aria-hidden="true"></i>${tmEscHtml(item.platform_name)}${mDate ? ' &middot; ' + mDate : ''}</span>
+                                <h4 class="sm-card__title" title="${mTitle}">${mTitle}</h4>
+                                <p class="sm-card__channel">${mChannel}</p>
+                                ${mDesc ? `<p class="sm-card__desc">${mDesc}</p>` : ''}
+                                <div class="sm-card__foot">
+                                    <button type="button" class="sm-card__btn" aria-label="Play video: ${mTitle}"><i class="fa-solid fa-play" aria-hidden="true"></i>Play Video</button>
                                 </div>
-                                <div style="margin-top:14px; display:flex; flex-wrap:wrap; gap:6px;">${tagsHtml}</div>
                             </div>
-                        </div>
+                        </article>
                         `;
+                        col.data('smPlayer', activeHtml);
                     } else {
                         // Fallback: direct render for platforms that refused metadata fetch
                         embedHtml = item.embed_code;
@@ -1614,6 +1622,18 @@ $(function() {
         }
     }
     renderSocial();
+
+    // A social card (renderSocial above): clicking it, or its Play Video button, plays the video in the card's picture area; the
+    // title and description stay, so the row keeps its shape.
+    $(document).on('click', '#dynamicEmbedsRow .sm-card:not(.sm-card--playing)', function () {
+        var $card = $(this);
+        var player = $card.closest('.embed-grid-item').data('smPlayer');
+        if (!player) return;
+        $card.addClass('sm-card--playing').find('.sm-card__media').html(player);
+        $card.find('.sm-card__foot').remove();
+        var frame = $card.find('.sm-card__media iframe')[0];
+        if (frame) { frame.setAttribute('title', 'Video player: ' + $card.find('.sm-card__title').text()); try { frame.focus(); } catch (e) {} }
+    });
 
 });
 
