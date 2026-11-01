@@ -189,7 +189,7 @@ oversold; 10 simultaneous payments each notified twice -> exactly 10 tickets.
 
 ## 8. Outstanding / owner decisions
 
-* **Check on Render: `TRUST_PROXY_HOPS` must be 2** (Cloudflare in front of Render). With 1, the app sees Cloudflare's address instead
+* **DONE 2026-11-01 - owner confirmed `TRUST_PROXY_HOPS=2` on Render** (Cloudflare in front of Render). With 1, the app sees Cloudflare's address instead
   of the visitor's: every visitor shares the per-address rate limits (an on-sale would hit the 40-per-10-minutes limit for everyone at
   once), and PayFast's notifications are not recognised as PayFast's (source-IP check; and the notification limiter below).
 * **PayFast notification limiter (shared with bookings, NOT changed - owner's call):** `payfastItnRateLimiter` takes 20 notifications
