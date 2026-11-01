@@ -157,19 +157,16 @@ end-to-end steps passed twice, plus a cancelled payment on PayFast's page.
 
 ## 8. Outstanding / owner decisions
 
-* **Ticket terms (DRAFT, awaiting owner approval):** `lib/ticketing-core.js` `TICKET_TERMS` - the single source shown in the drawer
-  (3 key lines + "Read all ticket terms") and accepted with one checkbox together with the Privacy Policy; each order stores the version
-  it accepted (`terms_version`, migration 114). To approve: say so, and rename the version (drop `-draft`). Any wording change = a new
-  version. The owner's legal adviser should confirm it against the Consumer Protection Act before the first public sale.
+* **Ticket terms - APPROVED by the owner on 2026-11-01** (version `ticket-terms-2026-11-01`): `lib/ticketing-core.js` `TICKET_TERMS` -
+  the single source shown in the drawer (3 key lines + "Read all ticket terms") and accepted with one checkbox together with the Privacy
+  Policy; each order stores the version it accepted (`terms_version`, migration 114). Any wording change = a new version. The owner's
+  legal adviser should still confirm it against the Consumer Protection Act before the first public sale.
+* **Privacy Policy - APPROVED and applied on 2026-11-01:** a "Ticket purchases" item in section 2 and a ticketing purpose in section 3
+  of `#privacyModal` in `index.html` (the single source; `/privacy` is built from it) and of the admin copy `#privacyModalAdmin`
+  in `admin.html`; "Last Updated: 1 November 2026". `CURRENT_POLICY_VERSION` (lib/booking-policy.js) was NOT bumped: it is the
+  booking / newsletter consent version and other flows stamp it - bump it only if the owner wants earlier consents re-asked.
 * **Undo check-in** and the **orders CSV** (PayFast payment ids, for reconciliation) were added on 2026-11-01, and **door links**
   (volunteers without a portal account, migration 115) the same day.
-
-* **Privacy Policy wording** (needed before going live): the policy (`#privacyModal` in `index.html`, also served at `/privacy`)
-  does not yet mention ticket buyers. Suggested addition, for the owner to approve or edit:
-  > *Ticket purchases.* When you buy tickets on this website we collect your name, e-mail address and phone number (and any names you
-  > add to individual tickets) to issue your tickets, e-mail them to you, admit you at the event and contact you about it. Payments are
-  > processed by PayFast; we do not see or store your card details. We keep order and payment records for as long as the law requires
-  > for financial records.
 * **VAT**: ticket prices are shown as final prices. If/when the business is VAT-registered, decide whether ticket receipts need to be
   tax invoices.
 * **Refunds** are made in the PayFast dashboard; the site only records them (Mark as refunded).
