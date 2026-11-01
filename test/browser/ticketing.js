@@ -120,6 +120,9 @@ function itnFor(o) {
         const t2 = await page.$eval('.tk-hold__time', el => el.textContent);
         ok(/^(10:00|9:5\d)$/.test(t1) && t1 !== t2, 'Continue holds the tickets: "Tickets held for 9:59" counting down', `${t1} -> ${t2}`);
         ok((await one('SELECT reserved FROM ticket_types WHERE id = ?', [gen.id])).reserved === 2, '...and the server really holds 2 General tickets', '');
+        const terms = await page.$eval('#ticketDrawer .tk-terms', el => ({ text: el.innerText, items: el.querySelectorAll('ul li').length, more: !!el.querySelector('details summary') })).catch(() => null);
+        ok(!!terms && terms.items === 3 && /cancelled/.test(terms.text) && /postponed/.test(terms.text) && terms.more && /accept the ticket terms/.test(await page.$eval('.tk-consent', el => el.innerText)),
+            'step 2 shows the ticket terms (3 key lines + "Read all ticket terms") and one checkbox for terms + Privacy Policy', JSON.stringify(terms));
         const poster = await page.$eval('#ticketDrawer .tk-event__poster img', img => ({ ok: img.complete && img.naturalWidth > 0, src: img.getAttribute('src'), alt: img.alt, h: img.getBoundingClientRect().height })).catch(() => null);
         ok(!!poster && poster.ok && poster.src === '/images/events/1.jpg' && /ZZ Ticket UI Show/.test(poster.alt) && poster.h >= 140, 'the "Your details" step shows the show\'s poster at the top, so the buyer knows which show they are paying for', JSON.stringify(poster));
         await shot(page, 'desktop-2-details');
@@ -163,7 +166,7 @@ function itnFor(o) {
 
         // a cancelled payment: back on the cancel URL the tickets are still held, with Try again / Release
         const cx = (await pub('POST', '/api/public/ticket-orders', { event_id: ev.id, items: [{ ticket_type_id: gen.id, quantity: 1 }] })).body.order;
-        await pub('POST', `/api/public/ticket-orders/${cx.reference}/checkout`, { buyer_name: 'Cancel Ui', buyer_email: 'cancel.ui@example.invalid', buyer_phone: '0821234567', popia_consent: true });
+        await pub('POST', `/api/public/ticket-orders/${cx.reference}/checkout`, { buyer_name: 'Cancel Ui', buyer_email: 'cancel.ui@example.invalid', buyer_phone: '0821234567', popia_consent: true, terms_accepted: true });
         await gotoHome(page, `?tickets=${encodeURIComponent(cx.reference)}&payment=cancel`);
         await page.waitForSelector('#ticketDrawer .tk-retry-pay', { timeout: 15000 });
         const cxText = await drawerText(page);

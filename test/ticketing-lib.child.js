@@ -47,7 +47,7 @@ const tier = (id) => dbGet('SELECT * FROM ticket_types WHERE id = ?', [id]);
     out.overLimit = await refusal(t.reserve(ev.lastID, [{ ticket_type_id: g.id, quantity: 5 }]));
 
     // checkout on a live hold, then on an expired one
-    const buyer = core.validateBuyer({ buyer_name: 'Test Buyer', buyer_email: 'buyer@example.invalid', buyer_phone: '0821234567', holder_names: ['A', ''], popia_consent: true }, 2).clean;
+    const buyer = core.validateBuyer({ buyer_name: 'Test Buyer', buyer_email: 'buyer@example.invalid', buyer_phone: '0821234567', holder_names: ['A', ''], popia_consent: true, terms_accepted: true }, 2).clean;
     const co = await t.startCheckout(r1.order.public_reference, buyer, 'v2.2');
     out.checkout = { name: co.buyer_name, consent: !!co.consent_at, policy: co.consent_policy_version, started: !!co.checkout_started_at, holders: co.holder_names };
     const r2 = await t.reserve(ev.lastID, [{ ticket_type_id: g.id, quantity: 1 }]);

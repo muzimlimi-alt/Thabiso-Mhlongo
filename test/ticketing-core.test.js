@@ -4,6 +4,11 @@
 const core = require('../lib/ticketing-core');
 
 module.exports = async function ({ check }) {
+    // ═══ the ticket terms ═══
+    check('ticket terms: a version, three summary lines (cancelled -> refund, postponed -> still valid, otherwise no refund unless the law says so) and the full list',
+        /^ticket-terms-/.test(core.TICKET_TERMS.version) && core.TICKET_TERMS.summary.length === 3 && /cancelled.*full refund/i.test(core.TICKET_TERMS.summary[1]) && /postponed.*stay valid/i.test(core.TICKET_TERMS.summary[1])
+        && /except where the law/i.test(core.TICKET_TERMS.summary[2]) && core.TICKET_TERMS.full.length >= 6, JSON.stringify(core.TICKET_TERMS.summary));
+
     // ═══ the request log ═══
     const tok = 'AbCdEfGhIjKlMnOpQrStUvWx';
     check('log masking: ticket tokens, order references, ?tickets= and the ticketing admin search never reach the log; other URLs are untouched',
@@ -83,13 +88,13 @@ module.exports = async function ({ check }) {
     check('reservation: a cancelled event refuses the whole order', rerr([{ ticket_type_id: 1, quantity: 1 }], { ...ev, event_status: 'cancelled' }).includes('event_cancelled'), '');
 
     // ═══ the buyer ═══
-    const goodBuyer = { buyer_name: 'Lindiwe O&#x27;Neill', buyer_email: ' Lindiwe@Example.Invalid ', buyer_phone: '+27 82 123 4567', holder_names: ['', 'Sipho'], popia_consent: true };
+    const goodBuyer = { buyer_name: 'Lindiwe O&#x27;Neill', buyer_email: ' Lindiwe@Example.Invalid ', buyer_phone: '+27 82 123 4567', holder_names: ['', 'Sipho'], popia_consent: true, terms_accepted: true };
     const b = core.validateBuyer(goodBuyer, 2);
     check('buyer: name decoded, email lower-cased and trimmed, phone compacted, blank holder names become null',
         Object.keys(b.errors).length === 0 && b.clean.buyer_name === "Lindiwe O'Neill" && b.clean.buyer_email === 'lindiwe@example.invalid' && b.clean.buyer_phone === '+27821234567' && JSON.stringify(b.clean.holder_names) === '[null,"Sipho"]', JSON.stringify(b));
     const berr = (patch) => Object.keys(core.validateBuyer({ ...goodBuyer, ...patch }, 2).errors);
     check('buyer: no POPIA consent, a bad email, a bad phone, markup in a holder name are refused',
-        berr({ popia_consent: false }).includes('popia_consent') && berr({ buyer_email: 'nope' }).includes('buyer_email') && berr({ buyer_phone: '12' }).includes('buyer_phone') && berr({ holder_names: ['<x>'] }).includes('holder_names'), '');
+        berr({ popia_consent: false }).includes('popia_consent') && berr({ terms_accepted: false }).includes('popia_consent') && berr({ buyer_email: 'nope' }).includes('buyer_email') && berr({ buyer_phone: '12' }).includes('buyer_phone') && berr({ holder_names: ['<x>'] }).includes('holder_names'), '');
     check('buyer: PayFast name split', core.splitName('Mary Jane Watson').first === 'Mary Jane' && core.splitName('Mary Jane Watson').last === 'Watson' && core.splitName('Cher').last === '', '');
 
     // ═══ CSV ═══

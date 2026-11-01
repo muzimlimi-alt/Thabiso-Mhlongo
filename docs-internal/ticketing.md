@@ -139,6 +139,12 @@ end-to-end steps passed twice, plus a cancelled payment on PayFast's page.
 
 ## 8. Outstanding / owner decisions
 
+* **Ticket terms (DRAFT, awaiting owner approval):** `lib/ticketing-core.js` `TICKET_TERMS` - the single source shown in the drawer
+  (3 key lines + "Read all ticket terms") and accepted with one checkbox together with the Privacy Policy; each order stores the version
+  it accepted (`terms_version`, migration 114). To approve: say so, and rename the version (drop `-draft`). Any wording change = a new
+  version. The owner's legal adviser should confirm it against the Consumer Protection Act before the first public sale.
+* **Undo check-in** and the **orders CSV** (PayFast payment ids, for reconciliation) were added on 2026-11-01.
+
 * **Privacy Policy wording** (needed before going live): the policy (`#privacyModal` in `index.html`, also served at `/privacy`)
   does not yet mention ticket buyers. Suggested addition, for the owner to approve or edit:
   > *Ticket purchases.* When you buy tickets on this website we collect your name, e-mail address and phone number (and any names you

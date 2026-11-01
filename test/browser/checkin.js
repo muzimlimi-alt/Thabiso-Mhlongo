@@ -28,7 +28,7 @@ async function adminCookie() {
 // a paid order with n tickets for an event, the way production makes one (reserve -> checkout -> PayFast's signed notification)
 async function paidOrder(eventId, tierId, n, buyerName) {
     const o = (await pub('POST', '/api/public/ticket-orders', { event_id: eventId, items: [{ ticket_type_id: tierId, quantity: n }] })).body.order;
-    await pub('POST', `/api/public/ticket-orders/${o.reference}/checkout`, { buyer_name: buyerName, buyer_email: `door.${Date.now()}.${n}@example.invalid`, buyer_phone: '0821234567', popia_consent: true });
+    await pub('POST', `/api/public/ticket-orders/${o.reference}/checkout`, { buyer_name: buyerName, buyer_email: `door.${Date.now()}.${n}@example.invalid`, buyer_phone: '0821234567', popia_consent: true, terms_accepted: true });
     const row = await one('SELECT * FROM ticket_orders WHERE public_reference = ?', [o.reference]);
     const m = { m_payment_id: row.m_payment_id, pf_payment_id: `DOOR-PF-${Date.now()}-${n}`, payment_status: 'COMPLETE', item_name: 'x', item_description: '', amount_gross: (row.total_cents / 100).toFixed(2), amount_fee: '-1.00', amount_net: '1.00',
         custom_str1: '', custom_str2: '', custom_str3: '', custom_str4: '', custom_str5: '', custom_int1: '', custom_int2: '', custom_int3: '', custom_int4: '', custom_int5: '', name_first: 'D', name_last: 'B', email_address: row.buyer_email, merchant_id: '10000100' };

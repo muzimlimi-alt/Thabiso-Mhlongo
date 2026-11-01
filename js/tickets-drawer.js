@@ -283,14 +283,22 @@
             (n > 1 ? '<button type="button" class="tk-link tk-names-toggle" aria-expanded="' + (state.namesOpen ? 'true' : 'false') + '" aria-controls="tkNames">' +
                 (state.namesOpen ? '− Hide ticket names' : '+ Add a name to each ticket') + ' <span class="tk-muted">(optional)</span></button>' +
                 '<div id="tkNames" class="tk-names"' + (state.namesOpen ? '' : ' hidden') + '>' + names + '</div>' : '') +
+            termsHtml(o.terms || (state.data && state.data.terms)) +
             '<div class="tk-field"><label class="bk-checkbox-label tk-consent"><input type="checkbox" id="tkPopia" class="bk-checkbox"' + (keep.popia ? ' checked' : '') + ' aria-describedby="tkPopiaErr">' +
-            '<span class="bk-checkbox-text">I agree to the <a href="/privacy" data-toggle="modal" data-target="#privacyModal">Privacy Policy</a> and consent to my details being used to issue and deliver these tickets, in line with POPIA.</span></label>' +
+            '<span class="bk-checkbox-text">I accept the ticket terms and the <a href="/privacy" data-toggle="modal" data-target="#privacyModal">Privacy Policy</a>, and consent to my details being used to issue and deliver these tickets, in line with POPIA.</span></label>' +
             '<div class="bk-step-err" id="tkPopiaErr" role="alert"></div></div>' +
             '<p class="tk-fine">You will be taken to PayFast to pay. Your tickets are confirmed once PayFast confirms the payment.</p>' +
             '<div class="tk-actions"><button type="submit" class="btn-bk-nav btn-bk-next tk-pay"><i class="fa-solid fa-lock" aria-hidden="true"></i> Pay ' + zar(o.total_cents) + ' securely</button></div>' +
             '</form>');
         startCountdown(function () { renderExpired(); });
         focusFirst(error ? '.tk-msg' : '#tkName');
+    }
+
+    // The ticket terms: the three lines a first-time buyer must know, the rest one tap away (served by the API - one source of wording).
+    function termsHtml(terms) {
+        if (!terms || !terms.summary) return '';
+        return '<div class="tk-terms"><p class="tk-terms__title">Ticket terms</p><ul>' + terms.summary.map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ul>' +
+            '<details class="tk-terms__all"><summary>Read all ticket terms</summary><ol>' + (terms.full || []).map(function (l) { return '<li>' + esc(l) + '</li>'; }).join('') + '</ol></details></div>';
     }
 
     function readForm() {
@@ -343,11 +351,11 @@
         if (String(f.buyer_name || '').trim().length < 2) local.buyer_name = 'Please enter your full name.';
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(f.buyer_email || '').trim())) local.buyer_email = 'Please enter a valid email address - your tickets are sent there.';
         if (String(f.buyer_phone || '').replace(/[^\d]/g, '').length < 9) local.buyer_phone = 'Please enter a valid phone number.';
-        if (!f.popia) local.popia_consent = 'Please agree to the Privacy Policy so we can send your tickets.';
+        if (!f.popia) local.popia_consent = 'Please accept the ticket terms and the Privacy Policy to continue.';
         if (Object.keys(local).length) { showErrors(local); return; }
         var $b = $('#' + DRAWER + ' .tk-pay').prop('disabled', true).html('<i class="fa-solid fa-circle-notch fa-spin"></i> Taking you to PayFast…');
         call('POST', '/api/public/ticket-orders/' + encodeURIComponent(state.order.reference) + '/checkout', {
-            buyer_name: f.buyer_name, buyer_email: f.buyer_email, buyer_phone: f.buyer_phone, holder_names: state.namesOpen ? f.holders : [], popia_consent: true
+            buyer_name: f.buyer_name, buyer_email: f.buyer_email, buyer_phone: f.buyer_phone, holder_names: state.namesOpen ? f.holders : [], popia_consent: true, terms_accepted: true
         }).then(function (r) {
             if (r.ok && r.json.pfData) {
                 stopTimers();

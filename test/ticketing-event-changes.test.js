@@ -31,7 +31,7 @@ const orderStatus = async (ref) => (await one('SELECT status FROM ticket_orders 
 
 async function paidOrder(eventId, tierId, email) {
     const o = (await reserve(eventId, tierId, 1)).body.order;
-    await pub('POST', `/api/public/ticket-orders/${o.reference}/checkout`, { buyer_name: 'Notice Buyer', buyer_email: email, buyer_phone: '0821234567', popia_consent: true });
+    await pub('POST', `/api/public/ticket-orders/${o.reference}/checkout`, { buyer_name: 'Notice Buyer', buyer_email: email, buyer_phone: '0821234567', popia_consent: true, terms_accepted: true });
     const row = await one('SELECT * FROM ticket_orders WHERE public_reference = ?', [o.reference]);
     const m = { m_payment_id: row.m_payment_id, pf_payment_id: `EVCH-${Date.now()}-${++pf}`, payment_status: 'COMPLETE', item_name: 'x', item_description: '', amount_gross: (row.total_cents / 100).toFixed(2), amount_fee: '-1.00', amount_net: '1.00',
         custom_str1: '', custom_str2: '', custom_str3: '', custom_str4: '', custom_str5: '', custom_int1: '', custom_int2: '', custom_int3: '', custom_int4: '', custom_int5: '', name_first: 'N', name_last: 'B', email_address: email, merchant_id: '10000100' };
@@ -53,7 +53,7 @@ async function suite(check, made) {
     const refused = await reserve(s.id, s.tier.id, 4, KEY_B);
     check('a replacement that is REFUSED (sold out) leaves that browser\'s earlier hold in place - the swap is all or nothing',
         refused.status === 409 && (await orderStatus(b1.body.order.reference)) === 'pending' && (await tierRow(s.tier.id)).reserved === 5, JSON.stringify([refused.status, await tierRow(s.tier.id)]));
-    await pub('POST', `/api/public/ticket-orders/${a2.reference}/checkout`, { buyer_name: 'At PayFast', buyer_email: 'at.payfast@example.invalid', buyer_phone: '0821234567', popia_consent: true });
+    await pub('POST', `/api/public/ticket-orders/${a2.reference}/checkout`, { buyer_name: 'At PayFast', buyer_email: 'at.payfast@example.invalid', buyer_phone: '0821234567', popia_consent: true, terms_accepted: true });
     await pub('POST', `/api/public/ticket-orders/${b1.body.order.reference}/release`);
     const a3 = await reserve(s.id, s.tier.id, 1, KEY_A);
     check('a hold whose buyer already went to PayFast is NEVER given back by a new reservation from the same browser',
@@ -87,4 +87,26 @@ async function suite(check, made) {
     const pmail = await waitFor(async () => one("SELECT body FROM notifications WHERE subject = 'Postponed: ZZ Postpone Me Show'").catch(() => null));
     check('a postponed show: "Postponed: <show>" says the tickets stay valid and the new date will follow', pr.body.sent === 1 && !!pmail && /stay valid/.test(pmail.body) && /new date/.test(pmail.body), JSON.stringify(pr.body));
     void p1; void p2;
+
+    // ═══ 3. undo a mistaken check-in; the reconciliation CSV ═══
+    const u = await makeShow(made, 1973, 'ZZ Undo Show', { capacity: 10 });
+    const uo = await paidOrder(u.id, u.tier.id, `undo.${Date.now()}@example.invalid`);
+    const tk = await one('SELECT token FROM tickets WHERE order_id = ?', [uo.id]);
+    await api('POST', `/api/admin/ticketing/tickets/${tk.token}/check-in`);
+    check('undo check-in: an assistant cannot (403); without a reason it is refused (400)',
+        (await asst('POST', `/api/admin/ticketing/tickets/${tk.token}/undo-check-in`, { reason: 'mistake' })).status === 403
+        && (await api('POST', `/api/admin/ticketing/tickets/${tk.token}/undo-check-in`, {})).status === 400, '');
+    const undo = await api('POST', `/api/admin/ticketing/tickets/${tk.token}/undo-check-in`, { reason: 'Scanned the wrong ticket' });
+    const audit = await one("SELECT old_values, reason FROM audit_log WHERE action = 'TICKET_CHECK_IN_UNDONE' ORDER BY id DESC LIMIT 1");
+    const reIn = await api('POST', `/api/admin/ticketing/tickets/${tk.token}/check-in`);
+    check('undo check-in: the ticket is back to "not in", the audit log keeps when / who had checked it in and why, and it can be admitted again',
+        undo.status === 200 && !!audit && /checked_in_at/.test(audit.old_values) && audit.reason === 'Scanned the wrong ticket' && reIn.body.result === 'admitted', JSON.stringify([undo.body, audit, reIn.body.result]));
+    check('undoing a ticket that is not checked in is refused (409)', (await api('POST', `/api/admin/ticketing/tickets/${(await one('SELECT token FROM tickets WHERE order_id = ? ', [uo.id])).token}/undo-check-in`, { reason: 'x y z' })).status === 200
+        && (await api('POST', `/api/admin/ticketing/tickets/${tk.token}/undo-check-in`, { reason: 'again' })).status === 409, '');
+    const csv = await require('./support').apiBinary('GET', `/api/admin/ticketing/events/${u.id}/orders.csv`);
+    const text = csv.buffer.toString('utf8');
+    const paidRow = await one('SELECT gateway_payment_id FROM ticket_orders WHERE id = ?', [uo.id]);
+    check('orders CSV for reconciliation: a header and the order with its PayFast payment id and status', csv.status === 200 && text.startsWith('﻿Order,Created (SAST),Status')
+        && text.includes(paidRow.gateway_payment_id) && text.includes(',paid,'), text.slice(0, 300));
+    check('an assistant cannot download the orders CSV (403)', (await asst('GET', `/api/admin/ticketing/events/${u.id}/orders.csv`)).status === 403, '');
 }

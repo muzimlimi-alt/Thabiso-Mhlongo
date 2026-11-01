@@ -181,6 +181,26 @@ router.post('/api/admin/ticketing/events/:id/notify-holders', requireAdmin, MANA
     } catch (e) { fail(res, e, 'notify holders'); }
 });
 
+// Reconciliation: every order that went to PayFast, with PayFast's payment id, status and refund - to tick off against the PayFast dashboard.
+router.get('/api/admin/ticketing/events/:id/orders.csv', requireAdmin, MANAGE, exportRateLimiter, async (req, res) => {
+    try {
+        const ev = await ticketing.getEvent(idParam(req.params.id));
+        if (!ev) return res.status(404).json({ success: false, message: 'Event not found.' });
+        const rows = await ticketing.ordersForExport(ev.event_id);
+        const status = (o) => (o.status === 'paid' && o.refund_required ? 'paid - refund needed' : o.status);
+        const lines = [core.csvRow(['Order', 'Created (SAST)', 'Status', 'Buyer', 'Buyer email', 'Buyer phone', 'Tickets', 'Total (R)', 'PayFast payment id', 'Paid (SAST)', 'Refunded (SAST)', 'Refund note'])];
+        for (const o of rows) {
+            lines.push(core.csvRow([o.id, core.formatSast(o.created_at, 'YYYY-MM-DD HH:mm'), status(o), o.buyer_name, o.buyer_email, o.buyer_phone, o.ticket_count,
+                core.centsToAmountString(o.total_cents), o.gateway_payment_id, o.paid_at ? core.formatSast(o.paid_at, 'YYYY-MM-DD HH:mm') : '',
+                o.refunded_at ? core.formatSast(o.refunded_at, 'YYYY-MM-DD HH:mm') : '', o.refund_note]));
+        }
+        await logAudit({ tableName: 'events', recordId: ev.event_id, action: 'TICKET_ORDERS_EXPORTED', req, newValues: { rows: rows.length } });
+        const slug = core.oneLine(ev.event_title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'event';
+        res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="orders-${slug}-${ev.event_id}.csv"`, 'Cache-Control': 'no-store' });
+        res.send('﻿' + lines.join('\r\n') + '\r\n');
+    } catch (e) { fail(res, e, 'orders csv'); }
+});
+
 router.get('/api/admin/ticketing/events/:id/attendees.csv', requireAdmin, MANAGE, exportRateLimiter, async (req, res) => {
     try {
         const ev = await ticketing.getEvent(idParam(req.params.id));
@@ -233,6 +253,18 @@ router.post('/api/admin/ticketing/tickets/:token/check-in', requireAdmin, async 
         const message = r.result === 'admitted' ? 'Admitted' : r.result === 'already' ? `Already scanned at ${view.checked_in_label}` : 'This ticket is no longer valid';
         res.json({ success: r.result === 'admitted', result: r.result, message, ticket: view, counts: await ticketing.doorCounts(r.ticket.event_id) });
     } catch (e) { fail(res, e, 'check-in'); }
+});
+
+// Undo a mistaken check-in (administrators and managers, with a reason - kept in the audit log with when / who had checked it in).
+router.post('/api/admin/ticketing/tickets/:token/undo-check-in', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const reason = core.oneLine((req.body && req.body.reason) || '').slice(0, 300);
+        if (reason.length < 3) return res.status(400).json({ success: false, message: 'Please say why the check-in is being undone (a few words).' });
+        const before = await ticketing.undoCheckIn(String(req.params.token || ''));
+        await logAudit({ tableName: 'tickets', recordId: before.id, action: 'TICKET_CHECK_IN_UNDONE', req,
+            oldValues: { checked_in_at: before.checked_in_at, checked_in_by: before.checked_in_by_name || before.checked_in_by }, newValues: { checked_in_at: null }, reason });
+        res.json({ success: true, message: 'Check-in undone - the ticket can be scanned again.', counts: await ticketing.doorCounts(before.event_id) });
+    } catch (e) { fail(res, e, 'undo check-in'); }
 });
 
 router.get('/api/admin/ticketing/events/:id/door', requireAdmin, async (req, res) => {

@@ -44,6 +44,7 @@ async function orderView(order) {
         checkout_started: !!order.checkout_started_at, email_hint: maskEmail(order.buyer_email),
         event: ev ? ticketing.publicEvent(ev) : null,
         items: items.map(i => ({ name: i.name, quantity: i.quantity, unit_price_cents: i.unit_price_cents })),
+        terms: order.status === 'pending' ? core.TICKET_TERMS : undefined,
         tickets: order.status === 'paid' && !order.refund_required ? await delivery.ticketsForBuyer(order.id) : []
     };
 }
@@ -92,7 +93,7 @@ router.post('/api/public/ticket-orders/:ref/checkout', ticketReserveRateLimiter,
         const count = items.reduce((n, i) => n + i.quantity, 0);
         const { clean, errors } = core.validateBuyer(req.body, count);
         if (Object.keys(errors).length) return res.status(400).json({ success: false, message: Object.values(errors)[0], errors });
-        const order = await ticketing.startCheckout(req.params.ref, clean, CURRENT_POLICY_VERSION);
+        const order = await ticketing.startCheckout(req.params.ref, clean, CURRENT_POLICY_VERSION, core.TICKET_TERMS.version);
         const ev = await ticketing.getEvent(order.event_id);
         const { pfData, pfHost } = payments.buildCheckout(order, { event_title: decodeStoredText(ev.event_title || '') }, req);
         console.log(`[Ticketing] Checkout started: order #${order.id}, ${order.m_payment_id}, R${core.centsToAmountString(order.total_cents)}`);

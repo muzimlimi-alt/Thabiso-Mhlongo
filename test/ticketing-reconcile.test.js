@@ -37,7 +37,7 @@ async function suite(check, fake, made) {
     // a buyer who went to PayFast (reserved + checkout) - and whose notification never comes
     const startPaying = async (qty, email) => {
         const ref = (await pub('POST', '/api/public/ticket-orders', { event_id: ev.id, items: [{ ticket_type_id: tier.id, quantity: qty }] })).body.order.reference;
-        await pub('POST', `/api/public/ticket-orders/${ref}/checkout`, { buyer_name: 'Net Buyer', buyer_email: email, buyer_phone: '0821234567', popia_consent: true });
+        await pub('POST', `/api/public/ticket-orders/${ref}/checkout`, { buyer_name: 'Net Buyer', buyer_email: email, buyer_phone: '0821234567', popia_consent: true, terms_accepted: true });
         return one('SELECT * FROM ticket_orders WHERE public_reference = ?', [ref]);
     };
     const pfRow = (o, over = {}) => row({ date: sastNow(5), grossCents: o.total_cents, mPaymentId: o.m_payment_id, pfPaymentId: nextPf(), name: `Tickets - Order ${o.id}`, ...over });

@@ -241,6 +241,7 @@
         sales.page = 1;
         $('#tktSalesBody').prop('hidden', false);
         $('#tktCsvLink').attr('href', '/api/admin/ticketing/events/' + id + '/attendees.csv');
+        $('#tktOrdersCsvLink').attr('href', '/api/admin/ticketing/events/' + id + '/orders.csv');
         $('#tktDoorLink').attr('href', '/checkin?event=' + id);
         loadStats();
         if (canManage()) loadOrders();
@@ -361,11 +362,13 @@
             (o.gateway_payment_id ? '<dt>PayFast id</dt><dd class="tkt-mono">' + esc(o.gateway_payment_id) + '</dd>' : '') +
             (o.tickets_emailed_at ? '<dt>Tickets emailed</dt><dd>' + esc(sast(o.tickets_emailed_at)) + '</dd>' : '') +
             (o.consent_at ? '<dt>POPIA consent</dt><dd>' + esc(sast(o.consent_at)) + ' (' + esc(o.consent_policy_version || '') + ')</dd>' : '') +
+            (o.terms_version ? '<dt>Ticket terms</dt><dd class="tkt-mono">' + esc(o.terms_version) + '</dd>' : '') +
             (o.refunded_at ? '<dt>Refunded</dt><dd>' + esc(sast(o.refunded_at)) + (o.refunded_by_name ? ' by ' + esc(o.refunded_by_name) : '') + (o.refund_note ? ' - ' + esc(o.refund_note) : '') + '</dd>' : '') +
             '</dl>';
         html += '<h6 class="tkt-h">Tickets</h6>' + (d.tickets.length ? '<ul class="tkt-list">' + d.tickets.map(function (t) {
             var st = t.voided_at ? '<span class="atl-badge atl-badge--cancelled">Void</span>' : t.checked_in_at ? '<span class="atl-badge atl-badge--paid">In at ' + esc(sast(t.checked_in_at)) + '</span>' : '<span class="atl-badge atl-badge--pending">Not yet in</span>';
-            return '<li><strong>' + esc(t.tier_name) + '</strong> · ' + esc(t.holder_name || o.buyer_name || '') + ' ' + st + (t.checked_in_by_name ? '<span class="tkt-sub">checked in by ' + esc(t.checked_in_by_name) + '</span>' : '') + '</li>';
+            var undo = t.checked_in_at && !t.voided_at && canManage() ? ' <button type="button" class="tkt-linkbtn tkt-undo" data-token="' + esc(t.token) + '">Undo check-in</button>' : '';
+            return '<li><strong>' + esc(t.tier_name) + '</strong> · ' + esc(t.holder_name || o.buyer_name || '') + ' ' + st + undo + (t.checked_in_by_name ? '<span class="tkt-sub">checked in by ' + esc(t.checked_in_by_name) + '</span>' : '') + '</li>';
         }).join('') + '</ul>' : '<p class="tkt-muted">No tickets were issued for this order.</p>');
         html += '<h6 class="tkt-h">Lines</h6><ul class="tkt-list">' + d.items.map(function (i) { return '<li>' + i.quantity + ' × ' + esc(i.name) + ' <span class="tkt-price">' + esc(zar(i.unit_price_cents * i.quantity)) + '</span></li>'; }).join('') + '</ul>';
         if (d.notifications.length) {
@@ -386,6 +389,21 @@
         html += '</div>';
         $('#tktOrderDrawerBody').html(html);
     }
+
+    // Undo a mistaken check-in: asks why (kept in the audit log), then the ticket can be scanned again.
+    $(document).on('click', '.tkt-undo', function () {
+        var token = $(this).attr('data-token');
+        var ask = window.notificationService && window.notificationService.showPrompt
+            ? window.notificationService.showPrompt({ title: 'Undo check-in', message: 'Why is this check-in being undone? (kept in the audit log)', placeholder: 'e.g. scanned the wrong ticket' })
+            : Promise.resolve(window.prompt('Why is this check-in being undone?'));
+        ask.then(function (reason) {
+            if (reason == null) return;
+            call('POST', '/api/admin/ticketing/tickets/' + encodeURIComponent(token) + '/undo-check-in', { reason: reason }).then(function (r) {
+                toast(r.ok ? 'showSuccess' : 'showError', r.json.message || (r.ok ? 'Undone.' : 'Could not undo it.'));
+                if (r.ok) { openOrder(sales.order.order.id); loadStats(); }
+            });
+        });
+    });
 
     $(document).on('click', '#tktResend', function () {
         var $b = $(this).prop('disabled', true);

@@ -36,7 +36,7 @@ async function addTier(eventId, body) {
     return r.body && r.body.tier;
 }
 const reserve = (eventId, items) => pub('POST', '/api/public/ticket-orders', { event_id: eventId, items });
-const buyer = (over = {}) => ({ buyer_name: 'Thandi Test', buyer_email: `buyer.${Date.now()}.${pfSeq}@example.invalid`, buyer_phone: '0821234567', popia_consent: true, ...over });
+const buyer = (over = {}) => ({ buyer_name: 'Thandi Test', buyer_email: `buyer.${Date.now()}.${pfSeq}@example.invalid`, buyer_phone: '0821234567', popia_consent: true, terms_accepted: true, ...over });
 const order = (ref) => pub('GET', `/api/public/ticket-orders/${ref}`);
 const dbOrder = (ref) => one('SELECT * FROM ticket_orders WHERE public_reference = ?', [ref]);
 const tierRow = (id) => one('SELECT * FROM ticket_types WHERE id = ?', [id]);
@@ -90,6 +90,8 @@ async function suite(check, made, run) {
     // ═══════════ 3. checkout ═══════════
     const noConsent = await pub('POST', `/api/public/ticket-orders/${o1.reference}/checkout`, buyer({ popia_consent: false }));
     check('checkout: without POPIA consent it is refused (400) and nothing goes to PayFast', noConsent.status === 400 && noConsent.body.errors.popia_consent && !noConsent.body.pfData, JSON.stringify(noConsent.body));
+    const noTerms = await pub('POST', `/api/public/ticket-orders/${o1.reference}/checkout`, buyer({ terms_accepted: false }));
+    check('checkout: without accepting the ticket terms it is refused too (400)', noTerms.status === 400 && !!noTerms.body.errors.popia_consent && !noTerms.body.pfData, JSON.stringify(noTerms.body));
     const b1 = buyer({ buyer_email: `flow.buyer.${Date.now()}@example.invalid`, holder_names: ['Alice Holder', ''] });
     const co = await pub('POST', `/api/public/ticket-orders/${o1.reference}/checkout`, b1);
     const pf = co.body && co.body.pfData;
@@ -99,7 +101,7 @@ async function suite(check, made, run) {
         co.status === 200 && pf.m_payment_id === `TKT_${row1.id}` && pf.amount === '300.00' && pf.return_url.includes(`tickets=${encodeURIComponent(o1.reference)}`) && pf.return_url.includes('payment=success')
         && pf.cancel_url.includes('payment=cancel') && /\/api\/payment\/webhook\/payfast$/.test(pf.notify_url) && pf.merchant_id === MERCHANT_ID && /payfast\.co\.za/.test(co.body.pfHost), JSON.stringify(co.body));
     check('checkout: the signature is PayFast\'s checkout recipe over exactly the posted fields', signature === generatePayFastSignature(unsigned, null), '');
-    check('checkout: buyer, consent time + policy version and per-ticket names are stored', row1.buyer_email === b1.buyer_email && !!row1.consent_at && row1.consent_policy_version === 'v2.2' && row1.holder_names === '["Alice Holder",null]', JSON.stringify(row1));
+    check('checkout: buyer, consent time + policy version and per-ticket names are stored', row1.buyer_email === b1.buyer_email && !!row1.consent_at && row1.consent_policy_version === 'v2.2' && /^ticket-terms-/.test(row1.terms_version || '') && row1.holder_names === '["Alice Holder",null]', JSON.stringify(row1));
     const pending = await order(o1.reference);
     check('status before payment: pending, no tickets, e-mail shown masked', pending.body.order.status === 'pending' && pending.body.order.tickets.length === 0 && /^f\*+@example\.invalid$/.test(pending.body.order.email_hint), JSON.stringify(pending.body.order));
 
