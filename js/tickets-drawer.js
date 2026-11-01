@@ -211,11 +211,58 @@
         if (btn && !btn.disabled) btn.focus(); else { var other = document.querySelector('#' + DRAWER + ' .tk-step[data-tier="' + id + '"]:not([disabled])'); if (other) other.focus(); }
     });
 
+    // ── the "are you human?" check (Cloudflare Turnstile, lib/turnstile.js) - only when the server sends a site key (bot_check). It runs when
+    // Continue is pressed (the choose step redraws on every +/-, which would wipe a widget): most people pass invisibly in a second, some
+    // get a tick-box. Its one-use token goes with the reservation.
+    var bot = { loading: null, widget: null };
+    function loadTurnstile() {
+        if (window.turnstile) return Promise.resolve();
+        if (!bot.loading) {
+            bot.loading = new Promise(function (resolve, reject) {
+                var s = document.createElement('script');
+                s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+                s.async = true;
+                s.onload = function () { resolve(); };
+                s.onerror = function () { bot.loading = null; reject(new Error('turnstile did not load')); };
+                document.head.appendChild(s);
+            });
+        }
+        return bot.loading;
+    }
+    function humanCheck(siteKey) {
+        return loadTurnstile().then(function () {
+            return new Promise(function (resolve, reject) {
+                var slot = document.querySelector('#' + DRAWER + ' .tk-bot__widget');
+                if (!slot) return reject(new Error('drawer changed'));
+                if (bot.widget !== null) { try { window.turnstile.remove(bot.widget); } catch (e) {} bot.widget = null; }
+                bot.widget = window.turnstile.render(slot, {
+                    sitekey: siteKey, theme: 'dark', action: 'ticket-reserve',
+                    callback: resolve,
+                    'error-callback': function () { reject(new Error('check failed')); },
+                    'timeout-callback': function () { reject(new Error('check timed out')); }
+                });
+            });
+        });
+    }
+
     $(document).on('click', '#' + DRAWER + ' .tk-continue', function () {
         var items = Object.keys(state.qty).filter(function (k) { return state.qty[k] > 0; }).map(function (k) { return { ticket_type_id: Number(k), quantity: state.qty[k] }; });
         if (!items.length) return;
-        var $b = $(this).prop('disabled', true).html('<i class="fa-solid fa-circle-notch fa-spin"></i> Holding your tickets…');
-        call('POST', '/api/public/ticket-orders', { event_id: state.eventId, items: items, hold_key: holdKey }).then(function (r) {
+        var siteKey = state.data && state.data.bot_check;
+        var $b = $(this).prop('disabled', true);
+        if (!siteKey) return reserveNow(items, null, $b);
+        $b.html('<i class="fa-solid fa-circle-notch fa-spin"></i> Checking you’re not a robot…');
+        $('#' + DRAWER + ' .tk-bot').remove();
+        $('#' + DRAWER + ' .tk-actions').before('<div class="tk-bot" role="status"><p class="tk-fine">A quick check that you’re a person, not a ticket robot.</p><div class="tk-bot__widget"></div></div>');
+        humanCheck(siteKey).then(function (token) { reserveNow(items, token, $b); }, function () {
+            state.notice = 'The "I am human" check did not work. Check your connection and press Continue again.';
+            renderChoose();
+        });
+    });
+
+    function reserveNow(items, botToken, $b) {
+        $b.html('<i class="fa-solid fa-circle-notch fa-spin"></i> Holding your tickets…');
+        call('POST', '/api/public/ticket-orders', { event_id: state.eventId, items: items, hold_key: holdKey, turnstile_token: botToken || undefined }).then(function (r) {
             if (r.status === 201) {
                 state.order = r.json.order;
                 noteSkew(state.order.server_now);
@@ -231,10 +278,10 @@
                 renderChoose(r.json.sold_out);
                 return;
             }
-            state.notice = r.json.message || 'We could not hold those tickets. Please try again.';
+            state.notice = r.json.message || 'We could not hold those tickets. Please try again.';     // incl. a failed "I am human" check (403)
             renderChoose();
         }).catch(function () { $b.prop('disabled', false).html('Continue <i class="fa-solid fa-arrow-right"></i>'); state.notice = 'Connection problem - please try again.'; renderChoose(); });
-    });
+    }
 
     // ---------------------------------------------------------------- step 2: your details + countdown
 

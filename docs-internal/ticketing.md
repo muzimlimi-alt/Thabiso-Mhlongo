@@ -139,6 +139,15 @@ WhatsApp / Facebook cache a link's preview: after changing a poster, Facebook's 
 
 ## 6. Configuration and jobs
 
+**Bot check (Cloudflare Turnstile, free) - OFF until both keys are set.** `lib/turnstile.js`; env `TURNSTILE_SITE_KEY` + `TURNSTILE_SECRET_KEY`
+(Cloudflare dashboard -> Turnstile -> Add site -> domain www.thabisomhlongo.com, widget mode "Managed"). With both set, pressing Continue
+in the Get Tickets drawer runs the check (most people pass invisibly; some tick a box) and the reservation is refused (403) without a
+valid one-use token. If Cloudflare cannot be reached the reservation is let through (logged) so an outage there never stops sales. CSP
+allows `https://challenges.cloudflare.com` (script + frame). Test servers keep it off even if `.env` has keys (`test/support.js`;
+a test that wants it sets `TEST_TURNSTILE_*`). Tests: `turnstile` (7, fake Cloudflare) + browser `turnstile.js` (Cloudflare's
+published test keys, needs internet). The same middleware can guard the contact form later.
+
+
 No new secrets or settings: PayFast credentials, sandbox/live switch, `PAYFAST_BASE_URL` / `PAYFAST_NOTIFY_BASE_URL`, mail and
 `BASE_URL` (QR links) are the existing ones. `PAYFAST_RECONCILE=off` switches the safety net off for tickets too.
 Jobs: the hold sweep (every 60 s after 30 s; a single cheap read unless a hold lapsed) and the existing 5-minute safety net. Neither

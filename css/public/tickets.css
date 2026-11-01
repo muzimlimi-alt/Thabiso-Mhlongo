@@ -29,6 +29,8 @@ button.ev-card__ticket-btn { line-height: 1.2; }
 #ticketDrawer .tk-event__title { margin: 0; font-family: var(--f-display); font-size: 1.6rem; line-height: 1.2; color: var(--text-primary); }
 #ticketDrawer .tk-event__meta { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--fs-sm); }
 #ticketDrawer .tk-share { margin-top: 10px; }
+#ticketDrawer .tk-bot { margin: 4px 0 12px; }
+#ticketDrawer .tk-bot__widget { min-height: 65px; }
 #ticketDrawer .tk-price { font-family: var(--f-mono); color: var(--y-base); font-variant-numeric: tabular-nums; white-space: nowrap; }
 #ticketDrawer .tk-fine { margin: 10px 0 0; color: var(--text-secondary); font-size: .78rem; line-height: 1.5; }
 #ticketDrawer .tk-muted { color: var(--text-secondary); font-weight: 400; }

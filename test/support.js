@@ -74,6 +74,10 @@ async function spawnAndWait() {
             R2_SECRET_ACCESS_KEY: '',
             // Sandbox so the PayFast ITN accepts synthetic notifications (lenient signature/IP).
             PAYFAST_URL: 'https://sandbox.payfast.co.za',
+            // Turnstile (lib/turnstile.js) stays OFF for test servers even if the local .env has real keys; a test that needs it sets TEST_TURNSTILE_*.
+            TURNSTILE_SITE_KEY: process.env.TEST_TURNSTILE_SITE_KEY || '',
+            TURNSTILE_SECRET_KEY: process.env.TEST_TURNSTILE_SECRET_KEY || '',
+            TURNSTILE_VERIFY_URL: process.env.TEST_TURNSTILE_VERIFY_URL || '',
             PAYFAST_MERCHANT_ID: '10000100',
             // PayFast's public SANDBOX test account (merchant 10000100, this key, no passphrase). Set explicitly because dotenv never
             // overrides a variable that is already set (empty included): without these the local .env's LIVE key and passphrase would

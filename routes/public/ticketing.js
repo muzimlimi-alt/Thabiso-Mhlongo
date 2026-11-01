@@ -13,6 +13,7 @@
 const express = require('express');
 const path = require('path');
 const { ticketReserveRateLimiter, ticketLookupRateLimiter } = require('../../middleware/rate-limiters');
+const turnstile = require('../../lib/turnstile');
 const { CURRENT_POLICY_VERSION } = require('../../lib/booking-policy');
 const core = require('../../lib/ticketing-core');
 const ticketing = require('../../lib/ticketing');
@@ -64,11 +65,13 @@ router.get('/api/public/events/:id/tickets', ticketLookupRateLimiter, async (req
         noStore(res);
         const data = await ticketing.publicEventTickets(req.params.id);
         if (!data) return res.status(404).json({ success: false, message: 'Tickets for this show are not available online.' });
-        res.json({ success: true, ...data });
+        // bot_check: the Turnstile site key when the "are you human?" check is on (lib/turnstile.js), else null
+        res.json({ success: true, ...data, bot_check: turnstile.config().siteKey });
     } catch (e) { fail(res, e, 'event tickets'); }
 });
 
-router.post('/api/public/ticket-orders', ticketReserveRateLimiter, async (req, res) => {
+// Turnstile (off unless its keys are set) before a hold is made - holding stock is what a bot would abuse; one check per purchase.
+router.post('/api/public/ticket-orders', ticketReserveRateLimiter, turnstile.requireTurnstile, async (req, res) => {
     try {
         noStore(res);
         const body = req.body || {};
