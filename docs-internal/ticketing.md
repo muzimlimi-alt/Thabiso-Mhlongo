@@ -20,8 +20,8 @@ shows the tickets after payment.
    which opens the details pop-up (poster | date, title, category, "Tickets start at R…", **Get Tickets**; below: About | Venue,
    Featuring, Organiser). Get Tickets appears only while tickets are on sale (`tmTicketPrice` / `tmTicketModalCta`). An event with no
    ticket types keeps its old external `ticket_sales_link` (the pop-up's Purchase Tickets) exactly as before. A shared link `/?event=<id>`
-   still goes straight to the drawer for a show on sale (`window.tmOpenTickets`). Featuring / Organiser are site-wide text in
-   `index.html` (events have no such fields).
+   still goes straight to the drawer for a show on sale (`window.tmOpenTickets`). Featuring / Organiser are the event's own optional
+   fields (`events.event_featuring` / `event_organiser`, set in the admin event editor; a blank one hides its panel).
 3. **Drawer step 1**: choose quantities → **Continue** reserves them for **10 minutes** (`POST /api/public/ticket-orders`).
 4. **Drawer step 2**: name, e-mail, phone, optional names per ticket, POPIA consent, countdown → **Pay** → the server builds and signs
    the PayFast form (`POST …/checkout`) → the browser posts it to PayFast (`window.tmPostToPayfast`, shared with the booking tracker).

@@ -30,6 +30,25 @@ const router = express.Router();
 const VALID_EVENT_STATUSES = ['upcoming', 'draft', 'live', 'completed', 'cancelled', 'postponed', 'sold_out'];
 const VALID_EVENT_TYPES = ['Corporate Event', 'Festival / Concert', 'Private Function', 'Comedy Club', 'University / College', 'Charity / Fundraiser', 'Virtual Event', 'Other', ''];
 
+// Featuring / Organiser: optional free text shown in the public event pop-up (a blank one is left out there). Written by its own
+// statement after the insert / update, and only for the fields the request actually sent - callers that never send them (the
+// cancel modal, bulk actions, older scripts) leave them as they were. Text arrives entity-encoded (the request sanitiser), as stored.
+const EVENT_CREDIT_FIELDS = ['event_featuring', 'event_organiser'];
+function eventCreditsError(body) {
+    for (const k of EVENT_CREDIT_FIELDS) {
+        if (body[k] == null) continue;
+        if (typeof body[k] !== 'string') return `${k} must be text`;
+        if (body[k].length > 600) return `${k} is too long (200 characters at most)`;      // 600: room for the stored entity-encoding
+    }
+    return null;
+}
+function saveEventCredits(eventId, body) {
+    const keys = EVENT_CREDIT_FIELDS.filter(k => Object.prototype.hasOwnProperty.call(body, k));
+    if (!keys.length) return Promise.resolve();
+    const vals = keys.map(k => (typeof body[k] === 'string' && body[k].trim()) ? body[k].trim() : null);
+    return new Promise((resolve, reject) => db.run(`UPDATE events SET ${keys.map(k => k + ' = ?').join(', ')} WHERE event_id = ?`, [...vals, eventId], (e) => e ? reject(e) : resolve()));
+}
+
 function checkEventConflicts(event_datetime, booking_id, excludeEventId, callback) {
     const eventDateStr = (event_datetime || '').split('T')[0];
     if (!eventDateStr || booking_id) return callback(null, false);
@@ -143,6 +162,8 @@ router.post('/api/admin/events', requireAdmin, async (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}/.test(event_datetime)) return res.status(400).json({ success: false, error: 'event_datetime must be ISO format (YYYY-MM-DD...)' });
     if (event_status && !VALID_EVENT_STATUSES.includes(event_status)) return res.status(400).json({ success: false, error: 'Invalid event_status value' });
     if (event_type && !VALID_EVENT_TYPES.includes(event_type)) return res.status(400).json({ success: false, error: 'Invalid event_type value' });
+    const creditsErr = eventCreditsError(req.body);
+    if (creditsErr) return res.status(400).json({ success: false, error: creditsErr });
 
     const eventDateStr = (event_datetime || '').split('T')[0];
 
@@ -170,6 +191,8 @@ router.post('/api/admin/events', requireAdmin, async (req, res) => {
             async function(err) {
                 if (err) return res.status(500).json({ success: false, error: err.message });
                 const newEventId = this.lastID;
+                try { await saveEventCredits(newEventId, req.body); }
+                catch (e) { console.error('[Events] saving Featuring / Organiser failed:', e.message); }
 
                 if (booking_id) {
                     setBookingEventId(newEventId, booking_id);
@@ -228,6 +251,8 @@ router.put('/api/admin/events/:id', requireAdmin, async (req, res) => {
     if (!event_title || !event_title.trim()) return res.status(400).json({ success: false, error: 'event_title is required' });
     if (event_status && !VALID_EVENT_STATUSES.includes(event_status)) return res.status(400).json({ success: false, error: 'Invalid event_status value' });
     if (event_type && !VALID_EVENT_TYPES.includes(event_type)) return res.status(400).json({ success: false, error: 'Invalid event_type value' });
+    const creditsErr = eventCreditsError(req.body);
+    if (creditsErr) return res.status(400).json({ success: false, error: creditsErr });
 
     // Read the old row first — checkEventConflicts() deliberately no-ops whenever booking_id is set
     // (on the assumption the booking's own creation path already checked), so a booking-linked event
@@ -261,6 +286,8 @@ router.put('/api/admin/events/:id', requireAdmin, async (req, res) => {
             event_title, event_description, event_datetime, event_end_time || null, event_type || null, venue_name, resolvedVenueId, venue_map_link, ticket_sales_link, poster_image_path, event_status, event_capacity || null, cancellation_reason || null, booking_id || null, req.session.adminId, req.session.role || null, ip_address, user_agent, eventId,
             async function(err) {
                 if (err) return res.status(500).json({ success: false, error: err.message });
+                try { await saveEventCredits(eventId, req.body); }
+                catch (e) { console.error('[Events] saving Featuring / Organiser failed:', e.message); }
                 const actor = await resolveActor(req.session.adminId);
                 const resolvedBookingId = booking_id || (oldRow && oldRow.old_booking_id);
                 if (resolvedBookingId) {
@@ -408,7 +435,10 @@ router.post('/api/admin/events/:id/duplicate', requireAdmin, (req, res) => {
             row.event_capacity, req.session.adminId, req.ip || 'unknown', req.get('User-Agent') || 'unknown',
             function(insErr) {
                 if (insErr) return res.status(500).json({ success: false, error: insErr.message });
-                res.json({ success: true, id: this.lastID, message: 'Event duplicated as draft' });
+                const newId = this.lastID;
+                saveEventCredits(newId, { event_featuring: row.event_featuring, event_organiser: row.event_organiser })
+                    .catch(e => console.error('[Events] copying Featuring / Organiser failed:', e.message))
+                    .then(() => res.json({ success: true, id: newId, message: 'Event duplicated as draft' }));
             }
         );
     });

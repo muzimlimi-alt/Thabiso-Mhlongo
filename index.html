@@ -2152,13 +2152,14 @@
                             <p id="modalEventVenue" class="evd-panel__main">To be announced</p>
                             <a id="modalEventVenueLink" href="#" target="_blank" rel="noopener noreferrer" class="evd-panel__link">View on Google Maps <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
                         </div>
-                        <div class="evd-panel">
+                        <!-- From the event's own Featuring / Organiser fields (admin event editor); a blank one is left out -->
+                        <div class="evd-panel" id="modalEventFeaturingPanel" hidden>
                             <h3 class="evd-panel__h"><i class="fa-solid fa-microphone" aria-hidden="true"></i>Featuring</h3>
-                            <p class="evd-panel__main">Thabiso Mhlongo</p>
+                            <p id="modalEventFeaturing" class="evd-panel__main"></p>
                         </div>
-                        <div class="evd-panel">
+                        <div class="evd-panel" id="modalEventOrganiserPanel" hidden>
                             <h3 class="evd-panel__h"><i class="fa-solid fa-user-tie" aria-hidden="true"></i>Organiser</h3>
-                            <p class="evd-panel__main">Thabiso Mhlongo Management</p>
+                            <p id="modalEventOrganiser" class="evd-panel__main"></p>
                         </div>
                     </aside>
                 </div>
@@ -2354,7 +2355,7 @@
 	<script src="js/shared/location-utils.js?v=1"></script>
 	<!-- Shared location-search client (2026-10 Places audit) - the booking wizard uses its session tokens. -->
 	<script src="js/shared/places-client.js?v=1"></script>
-	<script src="js/myscript.js?v=1.9.16"></script>
+	<script src="js/myscript.js?v=1.9.17"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather

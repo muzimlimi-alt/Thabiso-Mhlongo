@@ -671,6 +671,13 @@ $(function() {
         $('#modalEventPrice').text(price ? price.text : '').attr('data-state', price ? price.state : '').prop('hidden', !price);
 
         $('#modalEventVenue').text(decodeHtmlEntities(item.venue_name) || 'To be announced');
+        // Featuring / Organiser: the event's own fields (admin event editor); a blank one is left out
+        var featuring = decodeHtmlEntities(item.event_featuring || '').trim();
+        var organiser = decodeHtmlEntities(item.event_organiser || '').trim();
+        $('#modalEventFeaturing').text(featuring);
+        $('#modalEventFeaturingPanel').prop('hidden', !featuring);
+        $('#modalEventOrganiser').text(organiser);
+        $('#modalEventOrganiserPanel').prop('hidden', !organiser);
 
         // Maps link: only when the event has one
         if(item.venue_map_link) {

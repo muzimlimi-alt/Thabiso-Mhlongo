@@ -8232,7 +8232,7 @@
         // block below (_fpDate/_fpTime/_fpDateTime/window.initAdminDateTimePickers, used by many
         // other sections) was NOT moved — it stays exactly here.
     </script>
-    <script src="js/admin/events.js?v=3"></script>
+    <script src="js/admin/events.js?v=4"></script>
     <script>
 
         // Every other native <input type="date/time/datetime-local"> across the admin panel — same
@@ -9628,6 +9628,24 @@
                         <div class="um-input-wrap">
                             <i class="fa-solid fa-users um-input-icon"></i>
                             <input type="number" id="eventsCapacity" class="um-input" placeholder="e.g. 500" min="1">
+                        </div>
+                    </div>
+
+                    <!-- Shown in the public event pop-up's Featuring / Organiser panels; a panel is left out when its field is blank -->
+                    <div class="um-form-grid">
+                        <div class="um-field-group">
+                            <label class="um-label" for="eventsFeaturing">Featuring <span style="font-weight:400;color:var(--atl-muted);">(optional)</span></label>
+                            <div class="um-input-wrap">
+                                <i class="fa-solid fa-microphone um-input-icon"></i>
+                                <input type="text" id="eventsFeaturing" class="um-input" placeholder="e.g. Thabiso Mhlongo, Skhumba Hlophe" maxlength="200">
+                            </div>
+                        </div>
+                        <div class="um-field-group">
+                            <label class="um-label" for="eventsOrganiser">Organiser <span style="font-weight:400;color:var(--atl-muted);">(optional)</span></label>
+                            <div class="um-input-wrap">
+                                <i class="fa-solid fa-user-tie um-input-icon"></i>
+                                <input type="text" id="eventsOrganiser" class="um-input" placeholder="e.g. Thabiso Mhlongo Management" maxlength="200">
+                            </div>
                         </div>
                     </div>
 

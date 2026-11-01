@@ -488,6 +488,10 @@ function applyEventToEditor(item) {
     $('#eventsVenue').data('origVenueId', item.venue_id || null).data('origVenueName', item.venue_name || '');
     $('#eventsVenueMapLink').val(item.venue_map_link || '');
     $('#eventsCapacity').val(item.event_capacity || '');
+    // stored text is entity-encoded once (js/shared/stored-text.js): decode for the input
+    var evtStored = function (s) { return window.decodeStoredText ? window.decodeStoredText(s || '') : (s || ''); };
+    $('#eventsFeaturing').val(evtStored(item.event_featuring));
+    $('#eventsOrganiser').val(evtStored(item.event_organiser));
     $('#eventsTicketUrl').val(item.ticket_sales_link || '');
     $('#eventsFallbackUrl').val(item.poster_image_path || '');
     if (item.poster_image_path) {
@@ -710,6 +714,8 @@ $(document).on('submit', '#eventsForm', async function (e) {
             poster_image_path: finalMediaUrl,
             event_status: $('#eventsStatus').val() || 'upcoming',
             event_capacity: parseInt($('#eventsCapacity').val()) || null,
+            event_featuring: $('#eventsFeaturing').val().trim(),
+            event_organiser: $('#eventsOrganiser').val().trim(),
             booking_id: bookingId || null,
             block_type: blockType,
             sync_to_gcal: $('#eventsGcalSync').is(':checked')

@@ -32,7 +32,7 @@ function itnFor(o) {
     try {
         // ── setup: a ticketed show and one without tiers that still uses an external link ──
         const when = `${future(1950)}T20:00`;
-        const ev = (await api('POST', '/api/admin/events', { event_title: 'ZZ Ticket UI Show', event_datetime: when, venue_name: 'Joburg Theatre', poster_image_path: 'images/events/1.jpg', event_status: 'upcoming', sync_to_gcal: false })).body;
+        const ev = (await api('POST', '/api/admin/events', { event_title: 'ZZ Ticket UI Show', event_datetime: when, venue_name: 'Joburg Theatre', poster_image_path: 'images/events/1.jpg', event_status: 'upcoming', sync_to_gcal: false, event_featuring: 'Thabiso & Friends', event_organiser: 'ZZ Promotions' })).body;
         made.push({ id: ev.id, title: 'ZZ Ticket UI Show', when });
         const gen = (await api('POST', `/api/admin/events/${ev.id}/ticket-types`, { name: 'General', price: '150', capacity: 20, max_per_order: 4, is_active: true })).body.tier;
         const vip = (await api('POST', `/api/admin/events/${ev.id}/ticket-types`, { name: 'VIP', price: '450', capacity: 1, max_per_order: 1, is_active: true, description: 'Front rows + meet and greet' })).body.tier;
@@ -88,6 +88,8 @@ function itnFor(o) {
         const extCard = await page.evaluate((title) => { const card = [...document.querySelectorAll('.ev-card')].find(c => c.innerText.includes(title)); card.querySelector('.ev-card__view').click(); return card.innerText; }, 'ZZ External Link Show');
         await waitFor(() => modalShown(page));
         const extLink = await page.$eval('#modalEventTicketBtn', el => ({ href: el.getAttribute('href'), target: el.getAttribute('target'), shown: !!el.offsetParent, text: el.innerText }));
+        const extCredits = await page.evaluate(() => ['modalEventFeaturingPanel', 'modalEventOrganiserPanel'].map(id => !!document.getElementById(id).offsetParent));
+        ok(extCredits.every(v => !v), 'an event without Featuring / Organiser shows neither panel in its pop-up (nothing made up)', JSON.stringify(extCredits));
         ok(extLink.href === 'https://tickets.example.invalid/show' && extLink.target === '_blank' && extLink.shown && /Purchase Tickets/i.test(extLink.text) && !/From R/.test(extCard),
             'a show without ticket types keeps its external ticket link (in the pop-up) and its card shows no price', JSON.stringify(extLink));
         await sleep(500);
@@ -206,7 +208,10 @@ function itnFor(o) {
         const modalBtn = await page.$eval('#modalEventTicketBtn', el => ({ text: el.innerText, ev: el.getAttribute('data-ticket-event'), target: el.getAttribute('target') }));
         ok(/Get Tickets/i.test(modalBtn.text) && Number(modalBtn.ev) === ev.id && !modalBtn.target, 'the event pop-up\'s ticket button says Get Tickets and opens the drawer (not a new tab)', JSON.stringify(modalBtn));
         const pop = await page.evaluate(() => ({ title: document.getElementById('modalEventTitle').innerText, price: document.getElementById('modalEventPrice').innerText.replace(/\s/g, ' '),
-            venue: document.getElementById('modalEventVenue').innerText, poster: document.getElementById('modalEventPoster').getAttribute('src'), about: !!document.getElementById('modalEventAboutTitle').offsetParent }));
+            venue: document.getElementById('modalEventVenue').innerText, poster: document.getElementById('modalEventPoster').getAttribute('src'), about: !!document.getElementById('modalEventAboutTitle').offsetParent,
+            featuring: document.getElementById('modalEventFeaturingPanel').offsetParent ? document.getElementById('modalEventFeaturing').innerText : null,
+            organiser: document.getElementById('modalEventOrganiserPanel').offsetParent ? document.getElementById('modalEventOrganiser').innerText : null }));
+        ok(pop.featuring === 'Thabiso & Friends' && pop.organiser === 'ZZ Promotions', 'the pop-up\'s Featuring and Organiser come from the event\'s own fields (decoded once: "&" not "&amp;")', JSON.stringify(pop));
         ok(pop.title === 'ZZ Ticket UI Show' && /Tickets start at R 150\.00/.test(pop.price) && pop.venue === 'Joburg Theatre' && pop.poster === 'images/events/1.jpg' && pop.about,
             'the pop-up shows that show\'s title, "Tickets start at" its cheapest ticket, its venue, poster and About section', JSON.stringify(pop));
         await sleep(500);                                                     // the pop-up's fade-in
