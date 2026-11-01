@@ -1582,135 +1582,133 @@ header .navbar {
 
 /* ---------- MANAGEMENT TEAM ---------- */
 .tm-team{ background:var(--bg-surface); }
-/* max-width + margin:auto keeps this as a compact, centered cluster inside the wider
-   .tm-container — without it, .team-list's flex:1 stretches across the full container while the
-   photo grid stays compact, which reads as everything bunched on the left. align-items:center
-   (overridden back to flex-start once we switch to the row layout at 768px) also centers the
-   photo grid horizontally while stacked on mobile, where it would otherwise stretch full-width via
-   flex's default cross-axis "stretch" and leave its columns hugging the left edge. */
-.team-layout{ display:flex; flex-direction:column; align-items:center; gap:32px; max-width:960px; margin:0 auto; }
-@media (min-width:768px){
-  /* justify-content:center centers the photos+list PAIR as one block when there are few enough
-     members that it doesn't fill the row (team-list gives up flex:1 below, at the same breakpoint,
-     for exactly this reason — a flex:1 item claims all leftover space before justify-content gets
-     a say, which is what used to pin the photos left and stretch the list across the rest). */
-  .team-layout{ flex-direction:row; align-items:flex-start; justify-content:center; gap:40px; }
-}
-@media (min-width:1024px){ .team-layout{ gap:56px; } }
+/* js/team-view.js (the public section AND the admin live preview): one card per member in #teamList, built like the Events cards.
+   The old photo-collage column (#teamPhotoGrid) is left empty and hidden. */
+.team-layout{ display:block; max-width:1100px; margin:0 auto; }
+.team-photos[hidden]{ display:none !important; }
 
-/* Photo grid — three columns, each a different card size, staggered vertically. Numbers below
-   mirror the reference component's own px values (w-[110px]/h-[120px] etc. per column/breakpoint)
-   rather than a single uniform card size, which is what gives it the editorial-collage look. */
-.team-photos{ display:flex; gap:8px; flex-shrink:0; overflow-x:auto; padding-bottom:2px; }
-@media (min-width:768px){ .team-photos{ gap:12px; overflow-x:visible; } }
-.team-photo-col{ display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
-@media (min-width:768px){ .team-photo-col{ gap:12px; } }
-.team-photo-col:nth-child(2){ margin-top:48px; }
-.team-photo-col:nth-child(3){ margin-top:22px; }
-@media (min-width:640px){
-  .team-photo-col:nth-child(2){ margin-top:56px; }
-  .team-photo-col:nth-child(3){ margin-top:26px; }
+/* phones: one column; from 576px: cards 240-340px wide, as many as fit (three on desktop), always centred - two members sit in the middle */
+.team-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  gap:18px;
 }
-@media (min-width:768px){
-  .team-photo-col:nth-child(2){ margin-top:68px; }
-  .team-photo-col:nth-child(3){ margin-top:32px; }
+@media (min-width:576px){
+  .team-grid{ grid-template-columns:repeat(auto-fit, minmax(240px, 340px)); justify-content:center; gap:24px; }
 }
 
-.team-photo-card{
-  position:relative;
-  border-radius:var(--r);
+.team-card{
+  display:flex;
+  flex-direction:column;
   overflow:hidden;
-  cursor:pointer;
+  border-radius:var(--r-lg);
+  border:1px solid var(--border-low);
   background:var(--bg-elevated);
-  flex-shrink:0;
-  transition:opacity .4s var(--ease);
+  box-shadow:0 4px 18px rgba(0,0,0,.35);
+  transition:border-color var(--t) var(--ease), transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
-/* ~15% larger than the reference component's original sizes at every breakpoint, same per-column
-   proportions (col 2 biggest, col 3 in between) that give the staggered collage its look. */
-.team-photo-col:nth-child(1) .team-photo-card{ width:125px; height:140px; }
-.team-photo-col:nth-child(2) .team-photo-card{ width:140px; height:150px; }
-.team-photo-col:nth-child(3) .team-photo-card{ width:130px; height:145px; }
-@media (min-width:640px){
-  .team-photo-col:nth-child(1) .team-photo-card{ width:150px; height:160px; }
-  .team-photo-col:nth-child(2) .team-photo-card{ width:165px; height:180px; }
-  .team-photo-col:nth-child(3) .team-photo-card{ width:155px; height:170px; }
+.team-card:hover{
+  border-color:var(--y-dark);
+  transform:translateY(-4px);
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
 }
-@media (min-width:768px){
-  .team-photo-col:nth-child(1) .team-photo-card{ width:180px; height:190px; }
-  .team-photo-col:nth-child(2) .team-photo-card{ width:200px; height:210px; }
-  .team-photo-col:nth-child(3) .team-photo-card{ width:185px; height:200px; }
+.team-card--featured{ border-color:rgba(212,175,55,.45); }
+
+/* photo: one shape for every card; the photo whole on a blurred copy of itself (the real photo comes first in the markup) */
+.team-card__photo{
+  position:relative;
+  aspect-ratio:4/5;
+  overflow:hidden;
+  background:#000;
 }
-.team-photo-card img{
-  width:100%; height:100%; object-fit:cover;
-  filter:grayscale(0.75) brightness(0.82);
-  transition:filter .5s var(--ease);
+.team-card__photo-bg{
+  position:absolute;
+  inset:0;
+  z-index:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  filter:blur(18px) brightness(.5);
+  transform:scale(1.15);
 }
-.team-photo-card.is-active img{ filter:grayscale(0) brightness(1); }
-.team-photo-card.is-dimmed{ opacity:.6; }
-.team-photo-card--monogram{
-  display:flex; align-items:center; justify-content:center;
-  font-family:var(--f-display); font-size:1.6rem; font-weight:500;
-  color:var(--text-inverse); background:var(--y-base);
+.team-card__photo-img{
+  position:relative;
+  z-index:1;
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  transition:transform .65s var(--ease);
+}
+.team-card:hover .team-card__photo-img{ transform:scale(1.03); }
+.team-card__photo--monogram{
+  display:grid;
+  place-items:center;
+  background:linear-gradient(160deg, var(--bg-elevated), var(--bg-page));
+  color:var(--y-base);
+  font-family:var(--f-display);
+  font-size:4.5rem;
 }
 
-.team-list{ flex:1; width:100%; display:flex; flex-direction:column; gap:18px; }
-@media (min-width:640px) and (max-width:767px){
-  .team-list{ display:grid; grid-template-columns:1fr 1fr; gap:20px 28px; }
+.team-card__info{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:10px;
+  padding:18px 18px 20px;
+  border-top:1px solid var(--border-low);
 }
-@media (min-width:768px){
-  /* Caps at a comfortable reading width instead of flex:1 (which used to stretch it across
-     whatever the photo cluster left over) — the pair centers as a compact block instead. */
-  .team-list{ flex:0 1 420px; width:auto; gap:20px; }
+.team-card__role{
+  display:inline-flex;
+  align-items:center;
+  max-width:100%;
+  padding:5px 12px;
+  border-radius:var(--r-pill);
+  background:var(--y-muted);
+  border:1px solid rgba(212,175,55,.3);
+  color:var(--y-light);
+  font-family:var(--f-body);
+  font-size:.72rem;
+  font-weight:600;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  line-height:1.35;
 }
-.team-row{ transition:opacity .3s var(--ease); }
-.team-row.is-dimmed{ opacity:.5; }
-.team-row__inner{ cursor:pointer; border-radius:var(--r); }
-.team-row__head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.team-row__dot{
-  width:16px; height:12px; border-radius:5px; flex-shrink:0;
-  background:var(--border-strong);
-  transition:width var(--t) var(--ease), background var(--t) var(--ease);
+/* the page-wide h1-h6 rules are !important, so the size here is too */
+.team-card__name{
+  margin:2px 0 0;
+  font-size:1.45rem!important;
+  font-weight:600!important;
+  line-height:1.2!important;
+  color:var(--text-primary);
 }
-.team-row.is-active .team-row__dot{ width:20px; background:var(--y-base); }
-.team-row__name{
-  font-family:var(--f-display); font-weight:500;
-  font-size:clamp(1.05rem,.98rem + .3vw,1.25rem);
+.team-card__star{ font-size:.8rem; color:var(--y-base); vertical-align:middle; }
+.team-card__bio{
+  margin:0;
   color:var(--text-secondary);
-  transition:color var(--t) var(--ease);
-}
-.team-row.is-active .team-row__name{ color:var(--text-primary); }
-.team-row__social{
-  display:flex; align-items:center; gap:4px; margin-left:2px;
-  opacity:0; transform:translateX(-8px);
-  transition:opacity .2s var(--ease), transform .2s var(--ease);
-  pointer-events:none;
-}
-.team-row.is-active .team-row__social{ opacity:1; transform:none; pointer-events:auto; }
-.team-row__social .social-icon-wrapper{ width:44px; height:44px; border:1px solid rgba(212,175,55,.22); }
-.team-row__social .social-icon-wrapper:hover{ transform:scale(1.1); }
-.team-row__social .social-icon-wrapper i{ font-size:11px !important; }
-.team-row__role{
-  margin:6px 0 0; padding-left:26px;
-  font-family:var(--f-body); font-weight:500;
-  font-size:.68rem; letter-spacing:.2em; text-transform:uppercase;
-  color:var(--text-muted);
-}
-/* Biography — revealed with the social icons (hover / tap / Enter), same active state. It sits
-   beside the button (not inside it) in the DOM so assistive tech reads it. Height is capped for the
-   reveal animation only; the admin limits a bio to 600 characters (lib/team.js BIO_MAX), which fits. */
-.team-row__bio{
-  margin:0; padding-left:26px;
-  max-height:0; opacity:0; overflow:hidden;
-  font-family:var(--f-body); font-size:.88rem; line-height:1.6;
-  color:var(--text-secondary);
+  font-family:var(--f-body);
+  font-size:.875rem;
+  line-height:1.6;
   white-space:pre-line;
-  transition:max-height .35s var(--ease), opacity .25s var(--ease), margin-top .35s var(--ease);
 }
-.team-row.is-active .team-row__bio{ max-height:26em; opacity:1; margin-top:8px; }
-/* Featured — a star beside the name and an accent ring on the photo. */
-.team-row__star{ font-size:.7rem; color:var(--y-base); }
-.team-row--featured .team-row__dot{ background:var(--y-base); }
-.team-photo-card--featured{ box-shadow:0 0 0 1px var(--y-base); }
+.team-card__links{
+  margin-top:auto;
+  padding-top:6px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.team-card__links .social-icon-wrapper{
+  width:44px;
+  height:44px;
+  border:1px solid rgba(212,175,55,.3);
+  color:var(--text-primary);
+}
+.team-card__links .social-icon-wrapper:hover,
+.team-card__links .social-icon-wrapper:focus-visible{ border-color:var(--y-base); color:var(--y-base); transform:translateY(-2px); }
+.team-card__links .social-icon-wrapper:focus-visible{ outline:2px solid var(--y-base); outline-offset:2px; }
+.team-card__links .social-icon-wrapper i{ font-size:.95rem !important; }
 
 /* ---------- VIEW MORE / VIEW LESS (Gallery photos / Past Shows — see tmPaginateGrid() in js/myscript.js) ----------
    .btn is inline-flex (redesign.css ~line 556), so it doesn't stretch to center itself via margin:auto —
@@ -1728,49 +1726,73 @@ header .navbar {
 
 /* ---------- GALLERY ---------- */
 .tm-gallery{ background:var(--bg-page); }
+/* Two columns on phones, four from tablets up - 8 photos a page (tmPaginateGrid) always fill whole rows */
 #dynamicGalleryGrid.insta-grid{
   display:grid!important;
-  grid-template-columns:repeat(2,1fr)!important;
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  grid-auto-rows:auto!important;
   gap:14px!important;
 }
-@media (min-width:640px){
-  #dynamicGalleryGrid.insta-grid{ grid-template-columns:repeat(3,1fr)!important; gap:18px!important; }
+@media (min-width:768px){
+  #dynamicGalleryGrid.insta-grid{ grid-template-columns:repeat(4,minmax(0,1fr))!important; gap:20px!important; }
 }
 @media (min-width:1024px){
-  #dynamicGalleryGrid.insta-grid{ grid-template-columns:repeat(4,1fr)!important; gap:22px!important; }
+  #dynamicGalleryGrid.insta-grid{ gap:24px!important; }
 }
+/* Tiles: the Events cards' build - one shape for every tile, the photo shown whole (never cropped or stretched) on a blurred copy
+   of itself (js/myscript.js renderGallery: .insta-item__img + .insta-item__bg), rounded, with a soft shadow and a lift on hover */
 #dynamicGalleryGrid > a,
 #dynamicGalleryGrid > div{
   display:block;
-  border-radius:var(--r);
-  overflow:hidden;
   position:relative;
-  background:var(--bg-surface);
+  height:auto;
+  aspect-ratio:4/5;
+  overflow:hidden;
+  border-radius:var(--r-lg);
+  background:#000;
   border:1px solid var(--border-low);
-  aspect-ratio:1/1;
+  box-shadow:0 4px 18px rgba(0,0,0,.35);
   cursor:pointer;
-  transition:all var(--t) var(--ease);
+  transition:border-color var(--t) var(--ease), transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
-#dynamicGalleryGrid > a:nth-child(4n+1),
-#dynamicGalleryGrid > div:nth-child(4n+1){ aspect-ratio:1/1.25; }
-#dynamicGalleryGrid img{
-  width:100%; height:100%; object-fit:cover;
+#dynamicGalleryGrid .insta-item__bg{
+  position:absolute;
+  inset:0;
+  z-index:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  filter:blur(18px) brightness(.5);
+  transform:scale(1.15);
+  opacity:1;
+  pointer-events:none;
+}
+#dynamicGalleryGrid .insta-item__img,
+#dynamicGalleryGrid video{
+  position:relative;
+  z-index:1;
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
   transition:transform var(--t-slow) var(--ease);
 }
 #dynamicGalleryGrid > a::after,
 #dynamicGalleryGrid > div::after{
-  content:""; position:absolute; inset:0;
+  content:""; position:absolute; inset:0; z-index:2;
   background:linear-gradient(180deg, transparent 60%, rgba(26,22,18,.5));
   opacity:0;
+  pointer-events:none;
   transition:opacity var(--t) var(--ease);
 }
 #dynamicGalleryGrid > a:hover,
 #dynamicGalleryGrid > div:hover{
-  border-color:var(--y-base);
-  box-shadow:var(--sh-md);
+  border-color:var(--y-dark);
+  transform:translateY(-4px);
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
 }
-#dynamicGalleryGrid > a:hover img,
-#dynamicGalleryGrid > div:hover img{ transform:scale(1.06); }
+#dynamicGalleryGrid > a:hover .insta-item__img,
+#dynamicGalleryGrid > div:hover .insta-item__img{ transform:scale(1.03); opacity:1; }
 #dynamicGalleryGrid > a:hover::after,
 #dynamicGalleryGrid > div:hover::after{ opacity:1; }
 
@@ -2030,38 +2052,8 @@ header .navbar {
   -webkit-box-orient:vertical;
   overflow:hidden;
 }
-.sm-card__foot{
-  margin-top:auto;
-  width:100%;
-  padding-top:10px;
-}
-.sm-card__btn{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  width:100%;
-  min-height:46px;
-  padding:10px 16px;
-  border:1px solid var(--y-base);
-  border-radius:var(--r-md);
-  background:var(--y-base);
-  color:var(--text-inverse);
-  font-family:var(--f-body);
-  font-size:.82rem;
-  font-weight:700;
-  letter-spacing:.08em;
-  text-transform:uppercase;
-  cursor:pointer;
-  transition:background var(--t) var(--ease), border-color var(--t) var(--ease), box-shadow var(--t) var(--ease);
-}
-.sm-card__btn:hover,
-.sm-card:hover .sm-card__btn{
-  background:var(--y-hover);
-  border-color:var(--y-hover);
-  box-shadow:0 4px 14px var(--y-glow);
-}
-.sm-card__btn:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+/* the picture is the card's play control (role=button): a clear ring when it has keyboard focus */
+.sm-card__media:focus-visible{ outline:3px solid var(--y-base); outline-offset:-3px; }
 
 /* ---------- EVENTS ---------- */
 .tm-events{ background:var(--bg-page); }

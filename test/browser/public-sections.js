@@ -72,32 +72,33 @@ async function centering(p, itemsSel, withinSel) {
         await p.close();
     }
 
-    // ══════════ MANAGEMENT TEAM: centered at both the row (desktop) and stacked (mobile) layouts ══════════
+    // ══════════ MANAGEMENT TEAM: one card per member (js/team-view.js), centred as a group at every width ══════════
+    // Measured on the cards themselves (not #teamList, whose own box always spans the container): fewer members than fit a row
+    // must sit in the middle, not bunched on the left - the bug the old photo+list layout had.
     {
         const p = await openHome(browser, { width: 1440, height: 1000 });
-        await p.waitForSelector('#teamList .team-row', { timeout: 15000 });
-        // Against #teamLayout itself (not the wider .tm-container): #teamLayout's own box is ALWAYS
-        // centered in the section (max-width + margin:auto, regardless of what's inside it), so
-        // comparing the pair to .tm-container can't tell "the pair is a centered, compact cluster"
-        // apart from "the list stretched with flex:1 all the way to #teamLayout's own edges, which
-        // happens to make the union equal #teamLayout's box too" — the exact bug this guards against.
-        // Requiring the gaps to be equal AND clearly non-zero rules that stretched case back out.
-        const layout = await centering(p, '#teamPhotoGrid, #teamList', '#teamLayout');
-        ok(!!layout && Math.abs(layout.leftGap - layout.rightGap) <= 2 && layout.leftGap > 15,
-            'Team (desktop): photos+list pair sits centered as a compact cluster (not stretched edge-to-edge)', JSON.stringify(layout));
-        const rowMode = await p.evaluate(() => { const cs = getComputedStyle(document.getElementById('teamLayout')); return { dir: cs.flexDirection, jc: cs.justifyContent }; });
-        ok(rowMode.dir === 'row' && rowMode.jc === 'center', 'Team (desktop): row layout centers its content (not stretched to one side)', JSON.stringify(rowMode));
-        // The list must NOT be claiming all the leftover width any more (that's what broke centering).
-        const listGrow = await p.evaluate(() => getComputedStyle(document.getElementById('teamList')).flexGrow);
-        ok(listGrow === '0', 'Team (desktop): the member list no longer stretches to fill the row (flex-grow: 0)', listGrow);
+        await p.waitForSelector('#teamList .team-card', { timeout: 15000 });
+        const cards = await centering(p, '#teamList .team-card', '#team .tm-container');
+        ok(!!cards && Math.abs(cards.leftGap - cards.rightGap) <= 2,
+            'Team (desktop): the member cards sit centred as a group (equal left/right margins)', JSON.stringify(cards));
+        const view = await p.evaluate(() => ({
+            members: document.querySelectorAll('#teamList .team-card').length,
+            photoColumnHidden: !document.getElementById('teamPhotoGrid').offsetParent,
+            namesShown: [...document.querySelectorAll('#teamList .team-card__name')].every(n => n.offsetParent && n.textContent.trim()),
+            biosShown: [...document.querySelectorAll('#teamList .team-card__bio')].every(b => b.offsetParent && b.getBoundingClientRect().height > 10),
+            sameWidth: new Set([...document.querySelectorAll('#teamList .team-card')].map(c => Math.round(c.getBoundingClientRect().width))).size === 1
+        }));
+        ok(view.members > 0 && view.photoColumnHidden && view.namesShown && view.biosShown && view.sameWidth,
+            'Team (desktop): one same-width card per member - name and biography shown without hovering; the old photo column is gone', JSON.stringify(view));
         ok(p._errs.length === 0, 'Team (desktop): no page errors', p._errs.join(' | '));
         await p.close();
     }
     {
         const p = await openHome(browser, { width: 390, height: 900 });
-        await p.waitForSelector('#teamList .team-row', { timeout: 15000 });
-        const photos = await centering(p, '#teamPhotoGrid', '#team .tm-container');
-        ok(!!photos && Math.abs(photos.leftGap - photos.rightGap) <= 3, 'Team (mobile, stacked): photo cluster is centered', JSON.stringify(photos));
+        await p.waitForSelector('#teamList .team-card', { timeout: 15000 });
+        const cards = await centering(p, '#teamList .team-card', '#team .tm-container');
+        const noScroll = await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+        ok(!!cards && Math.abs(cards.leftGap - cards.rightGap) <= 3 && noScroll, 'Team (mobile): the cards are centred, one per row, no sideways scroll', JSON.stringify(cards));
         ok(p._errs.length === 0, 'Team (mobile): no page errors', p._errs.join(' | '));
         await p.close();
     }

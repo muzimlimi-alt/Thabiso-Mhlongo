@@ -334,7 +334,10 @@ $(function() {
             if (isVideo) {
                 mediaHtml = `<video src="${item.image_path}" muted autoplay loop playsinline onerror="this.outerHTML='<img src=\\'https://placehold.co/250x250/111/EEE?text=Video+Error\\'>'"></video>`;
             } else {
-                mediaHtml = `<img src="${item.image_path}" alt="${safeAlt}" data-desc="${safeAlt}" loading="lazy" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">`;
+                // the photo whole (never cropped) on a blurred copy of itself, so every tile is the same shape (as the Events cards);
+                // the copy comes second so the lightbox and "the tile's img" always mean the real photo
+                mediaHtml = `<img class="insta-item__img" src="${item.image_path}" alt="${safeAlt}" data-desc="${safeAlt}" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">` +
+                    `<img class="insta-item__bg" src="${item.image_path}" alt="" aria-hidden="true" loading="lazy" decoding="async" onerror="this.remove()">`;
             }
 
             return `
@@ -711,9 +714,9 @@ $(function() {
     var lightboxData = [];
     var currentLightboxIndex = 0;
 
-    $(document).on('click', '.insta-item img', function() {
+    $(document).on('click', '.insta-item img:not(.insta-item__bg)', function() {
         var $grid = $(this).closest('.insta-grid');
-        var $images = $grid.find('.insta-item img');
+        var $images = $grid.find('.insta-item img:not(.insta-item__bg)');   // not the blurred backdrop copies
         
         lightboxData = [];
         $images.each(function(index) {
@@ -1589,7 +1592,7 @@ $(function() {
                         var thumbAttr = tmEscHtml(safeThumb);
                         embedHtml = `
                         <article class="sm-card youtube-custom-card reveal" style="--sm-color:${pColor};">
-                            <div class="sm-card__media${/ytimg\.com|img\.youtube\.com/.test(safeThumb) ? ' sm-card__media--cover' : ''}">
+                            <div class="sm-card__media${/ytimg\.com|img\.youtube\.com/.test(safeThumb) ? ' sm-card__media--cover' : ''}" role="button" tabindex="0" aria-label="Play video: ${mTitle}">
                                 <img class="sm-card__media-bg" src="${thumbAttr}" alt="" aria-hidden="true" loading="lazy" decoding="async" onerror="this.remove()">
                                 <img class="sm-card__media-img" src="${thumbAttr}" alt="" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='${GIF_BLANK}';">
                                 <span class="sm-card__play" aria-hidden="true"><i class="${pIcon}"></i></span>
@@ -1599,9 +1602,6 @@ $(function() {
                                 <h4 class="sm-card__title" title="${mTitle}">${mTitle}</h4>
                                 <p class="sm-card__channel">${mChannel}</p>
                                 ${mDesc ? `<p class="sm-card__desc">${mDesc}</p>` : ''}
-                                <div class="sm-card__foot">
-                                    <button type="button" class="sm-card__btn" aria-label="Play video: ${mTitle}"><i class="fa-solid fa-play" aria-hidden="true"></i>Play Video</button>
-                                </div>
                             </div>
                         </article>
                         `;
@@ -1630,14 +1630,16 @@ $(function() {
     }
     renderSocial();
 
-    // A social card (renderSocial above): clicking it, or its Play Video button, plays the video in the card's picture area; the
-    // title and description stay, so the row keeps its shape.
+    // A social card (renderSocial above): tapping it - or Enter / Space on its picture, which is the card's play control - plays the
+    // video in the card's picture area; the title and description stay, so the row keeps its shape.
+    $(document).on('keydown', '#dynamicEmbedsRow .sm-card:not(.sm-card--playing) .sm-card__media', function (e) {
+        if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); $(this).trigger('click'); }
+    });
     $(document).on('click', '#dynamicEmbedsRow .sm-card:not(.sm-card--playing)', function () {
         var $card = $(this);
         var player = $card.closest('.embed-grid-item').data('smPlayer');
         if (!player) return;
-        $card.addClass('sm-card--playing').find('.sm-card__media').html(player);
-        $card.find('.sm-card__foot').remove();
+        $card.addClass('sm-card--playing').find('.sm-card__media').removeAttr('role tabindex aria-label').html(player);
         var frame = $card.find('.sm-card__media iframe')[0];
         if (frame) { frame.setAttribute('title', 'Video player: ' + $card.find('.sm-card__title').text()); try { frame.focus(); } catch (e) {} }
     });

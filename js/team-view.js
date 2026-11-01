@@ -6,8 +6,9 @@
  * places. The data it is given is lib/team.js's public projection; the styles are the .team-*
  * rules in css/public/redesign.css. Requires jQuery.
  *
- * The photo grid is decorative (aria-hidden); the list beside it is the accessible source of truth
- * (name + role always visible; biography and links revealed on hover / tap / Enter — not hover-only).
+ * One card per member, built like the Events cards: the photo whole (never cropped or stretched) on
+ * a blurred copy of itself, a role badge, the name, the biography and the member's links. Everything
+ * is visible without hovering, so mouse, touch, keyboard and screen readers all get the same.
  */
 (function (global) {
     'use strict';
@@ -35,116 +36,61 @@
             .filter(function (l) { return l.url; });
     }
 
-    function buildPhotoCard(m, opts) {
-        var initial = initialOf(m);
-        var $card = $('<div>').addClass('team-photo-card').attr('data-id', m.id);
-        if (m.featured == 1) $card.addClass('team-photo-card--featured');
-        if (opts && opts.active) $card.addClass('is-active');
+    // The photo area: the photo on its blurred copy, or the member's initial when there is no photo (or it fails to load).
+    function buildPhoto(m) {
+        var $photo = $('<div>').addClass('team-card__photo');
+        var monogram = function () { $photo.addClass('team-card__photo--monogram').empty().append($('<span>').attr('aria-hidden', 'true').text(initialOf(m))); };
         if (m.image_path) {
-            $card.append($('<img>').attr({ src: m.image_path, alt: '', loading: 'lazy' }).on('error', function () {
-                $card.addClass('team-photo-card--monogram').empty().text(initial);
-            }));
+            $photo.append($('<img>').addClass('team-card__photo-img').attr({ src: m.image_path, alt: m.name ? 'Photo of ' + m.name : '', loading: 'lazy', decoding: 'async' }).on('error', monogram));
+            $photo.append($('<img>').addClass('team-card__photo-bg').attr({ src: m.image_path, alt: '', 'aria-hidden': 'true', loading: 'lazy', decoding: 'async' }).on('error', function () { $(this).remove(); }));
         } else {
-            $card.addClass('team-photo-card--monogram').text(initial);
+            monogram();
         }
-        return $card;
+        return $photo;
     }
 
-    function buildRow(m, opts) {
-        var $row = $('<div>').addClass('team-row').attr({ 'data-id': m.id, role: 'listitem' });
-        if (m.featured == 1) $row.addClass('team-row--featured');
-        if (opts && opts.active) $row.addClass('is-active');
+    // textContent only — never HTML.
+    function buildCard(m) {
+        var $card = $('<article>').addClass('team-card').attr({ 'data-id': m.id, role: 'listitem' });
+        if (m.featured == 1) $card.addClass('team-card--featured');
+        $card.append(buildPhoto(m));
 
-        var $inner = $('<div>').addClass('team-row__inner').attr({
-            role: 'button', tabindex: '0', 'aria-pressed': (opts && opts.active) ? 'true' : 'false',
-            'aria-label': (m.name || 'Team member') + (m.role ? (', ' + m.role) : '')
-        });
-        var $head = $('<div>').addClass('team-row__head');
-        $head.append($('<span>').addClass('team-row__dot').attr('aria-hidden', 'true'));
-        $head.append($('<span>').addClass('team-row__name').text(m.name || ''));
+        var $info = $('<div>').addClass('team-card__info');
+        if (m.role) $info.append($('<span>').addClass('team-card__role').text(m.role));
+        var $name = $('<h3>').addClass('team-card__name').text(m.name || '');
         if (m.featured == 1) {
-            $head.append($('<i>').addClass('fa-solid fa-star team-row__star').attr('aria-hidden', 'true'));
-            $head.append($('<span>').addClass('sr-only').text('Featured'));
+            $name.append(' ', $('<i>').addClass('fa-solid fa-star team-card__star').attr('aria-hidden', 'true'), $('<span>').addClass('sr-only').text('(featured)'));
         }
+        $info.append($name);
+        if (m.biography) $info.append($('<p>').addClass('team-card__bio').text(m.biography));
 
         var links = linksOf(m);
         if (links.length) {
-            var $social = $('<div>').addClass('team-row__social');
+            var $social = $('<div>').addClass('team-card__links');
             links.forEach(function (l) {
                 $social.append(
                     $('<a>').addClass('social-icon-wrapper').attr({
                         href: l.url, target: '_blank', rel: 'noopener noreferrer',
-                        title: l.label, 'aria-label': l.label + ' (opens in a new tab)'
-                    }).on('click', function (e) { e.stopPropagation(); })
-                    .append($('<i>').addClass(l.icon).attr('aria-hidden', 'true'))
+                        title: l.label, 'aria-label': (m.name ? m.name + ' on ' : '') + l.label + ' (opens in a new tab)'
+                    }).append($('<i>').addClass(l.icon).attr('aria-hidden', 'true'))
                 );
             });
-            $head.append($social);
+            $info.append($social);
         }
-
-        $inner.append($head);
-        if (m.role) $inner.append($('<p>').addClass('team-row__role').text(m.role));
-        $row.append($inner);
-        // Sibling of the button (not inside it) so assistive tech reads it: a role=button's
-        // children are presentational. textContent only — never HTML.
-        if (m.biography) $row.append($('<p>').addClass('team-row__bio').text(m.biography));
-        return $row;
+        $card.append($info);
+        return $card;
     }
 
-    // Empty $photos/$list and fill them with `members`, in the order given. `opts.active` renders
-    // every member in its expanded state (used by the admin preview).
+    // Empty $photos/$list and fill $list with one card per member, in the order given. $photos (the old
+    // photo-collage column) is left empty and hidden; it stays in the signature so both callers are unchanged.
     function render(members, $photos, $list, opts) {
-        $photos.empty();
-        $list.empty();
-        // Never more columns than members: an empty trailing .team-photo-col has no content to size
-        // it, but .team-photos' flex `gap` still counts it as a child, leaving a sliver of dead space
-        // after the real photos — and centering the whole cluster (redesign.css .team-layout) only
-        // looks right if the cluster is exactly as wide as what's actually in it.
-        var numCols = Math.max(1, Math.min(3, members.length));
-        var cols = [];
-        for (var i = 0; i < numCols; i++) cols.push($('<div>').addClass('team-photo-col'));
-        cols.forEach(function (c) { $photos.append(c); });
-        members.forEach(function (m, i) {
-            cols[i % numCols].append(buildPhotoCard(m, opts));
-            $list.append(buildRow(m, opts));
-        });
+        $photos.empty().attr('hidden', 'hidden');
+        $list.empty().addClass('team-grid').toggleClass('team-grid--few', members.length < 3);
+        members.forEach(function (m) { $list.append(buildCard(m, opts)); });
     }
 
-    // Hover (pointer) highlights; click / Enter / Space toggles it (works for touch + keyboard).
-    function bindInteractions($layout, $photos, $list) {
-        function setActive(id) {
-            $layout.find('.team-photo-card, .team-row').each(function () {
-                var $el = $(this);
-                var isActive = id !== null && String($el.data('id')) === String(id);
-                $el.toggleClass('is-active', isActive);
-                $el.toggleClass('is-dimmed', id !== null && !isActive);
-            });
-            $layout.find('.team-row__inner').each(function () {
-                var rowId = $(this).closest('.team-row').data('id');
-                $(this).attr('aria-pressed', (id !== null && String(rowId) === String(id)) ? 'true' : 'false');
-            });
-        }
-        var activeId = null;
-        $photos.add($list).on('mouseenter', '.team-photo-card, .team-row', function () {
-            activeId = $(this).data('id');
-            setActive(activeId);
-        });
-        $layout.on('mouseleave', function () {
-            activeId = null;
-            setActive(null);
-        });
-        $photos.add($list).on('click', '.team-photo-card, .team-row__inner', function () {
-            var id = $(this).closest('[data-id]').data('id');
-            activeId = (activeId !== null && String(activeId) === String(id)) ? null : id;
-            setActive(activeId);
-        });
-        $list.on('keydown', '.team-row__inner', function (e) {
-            if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
-                e.preventDefault();
-                $(this).trigger('click');
-            }
-        });
-    }
+    // Nothing to wire up any more: every card shows everything without hover or tap. Kept so callers stay unchanged.
+    function bindInteractions() {}
 
-    global.TeamView = { LINKS: LINKS, safeHref: safeHref, initialOf: initialOf, linksOf: linksOf, buildPhotoCard: buildPhotoCard, buildRow: buildRow, render: render, bindInteractions: bindInteractions };
+    global.TeamView = { LINKS: LINKS, safeHref: safeHref, initialOf: initialOf, linksOf: linksOf, buildCard: buildCard, render: render, bindInteractions: bindInteractions };
 })(window);
