@@ -145,6 +145,36 @@ async function paidOrder(eventId, tierId, n, buyerName) {
         const r3 = await text(door, '#ckResult .ck-banner');
         ok(/^Wrong show/.test(r3) && !(await door.$('#ckResult [data-checkin]')) && !(await one('SELECT checked_in_at FROM tickets WHERE id = ?', [X.tickets[0].id])).checked_in_at,
             'a ticket for ANOTHER show: "Wrong show", no Check In, not checked in', r3);
+        // the signal drops while Check In is pressed: the phone must SAY so (never silently re-enable), and when the check-in did reach the
+        // server, "Check again" must show this phone's own admission in green - not a red "Already scanned" that would turn the guest away
+        await door.click('#ckNext');
+        await door.$eval('#ckSearch', el => { el.value = ''; });
+        await door.type('#ckSearch', a2.token);
+        await door.click('#ckSearchForm .ck-btn');
+        await door.waitForSelector('#ckResult [data-checkin]', { timeout: 10000 });
+        await door.setOfflineMode(true);
+        await door.click('#ckResult [data-checkin]');
+        await door.waitForSelector('#ckResult [data-recheck]', { timeout: 10000 });
+        const lost = await text(door, '#ckResult');
+        ok(/Connection lost/.test(lost) && /Check this ticket again before letting the guest in/.test(lost), 'signal lost during Check In: the phone says so and offers Check again (no silent retry button)', lost);
+        await shot(door, 'door-7-lost');
+        await api('POST', `/api/admin/ticketing/tickets/${a2.token}/check-in`);           // ...but the phone's request had reached the server
+        await door.setOfflineMode(false);
+        await door.click('#ckResult [data-recheck]');
+        await door.waitForFunction(() => /went through/.test((document.querySelector('#ckResult .ck-banner') || {}).innerText || ''), { timeout: 10000 });
+        const mine = await door.$eval('#ckResult .ck-banner', el => ({ t: el.innerText, c: el.className }));
+        ok(/this phone's check-in went through/.test(mine.t) && /ck-banner--ok/.test(mine.c), '...Check again: green "Admitted - this phone\'s check-in went through", not "Already scanned"', JSON.stringify(mine));
+        await shot(door, 'door-8-mine');
+        // another phone scanning that same ticket (a copied QR code) still gets the red refusal
+        const otherPhone = await newPage(390, 844, true);
+        await otherPhone.goto(`${BASE}/checkin?event=${show.id}`, { waitUntil: 'networkidle0' });
+        await otherPhone.waitForSelector('#ckManual:not([hidden])', { timeout: 10000 });
+        await otherPhone.type('#ckSearch', a2.token);
+        await otherPhone.click('#ckSearchForm .ck-btn');
+        await otherPhone.waitForSelector('#ckResult .ck-banner', { timeout: 10000 });
+        const otherBanner = await otherPhone.$eval('#ckResult .ck-banner', el => ({ t: el.innerText, c: el.className }));
+        ok(/^Already scanned at \d{2}:\d{2}$/.test(otherBanner.t) && /ck-banner--bad/.test(otherBanner.c), '...while ANOTHER phone scanning the same ticket still gets a red "Already scanned"', JSON.stringify(otherBanner));
+        await otherPhone.close();
         // the decoder: the server's QR for a ticket, read back by the bundled jsQR, gives the token
         const qr = (await pub('GET', `/api/public/ticket-orders/${A.reference}`)).body.order.tickets[1].qr;
         const decoded = await door.evaluate(async (src) => {
@@ -171,13 +201,15 @@ async function paidOrder(eventId, tierId, n, buyerName) {
         await adm.evaluate(() => window.switchTab('eventsAdmin'));
         await sleep(800);
         await adm.click('#eventsAdmin [data-um-tab="evtPanelTickets"]');
-        await adm.waitForSelector('#tktOrdersBody .tkt-order-row', { timeout: 15000 });
+        // the tab opens on the soonest ticketed show - the dev DB copy may hold a real one sooner than ours - so pick ours first
+        await adm.waitForFunction((id) => !!document.querySelector(`#tktSalesEvent option[value="${id}"]`), { timeout: 15000 }, show.id);
         await adm.select('#tktSalesEvent', String(show.id));
         await adm.waitForFunction((id) => [...document.querySelectorAll('#tktOrdersBody .tkt-order-row')].length === 2 && document.getElementById('tktSalesEvent').value === String(id), { timeout: 15000 }, show.id);
+        await adm.waitForFunction(() => /of\s*30/.test((document.getElementById('tktStatGrid') || {}).innerText || ''), { timeout: 15000 });
         const tiles = await text(adm, '#tktStatGrid');
         const toolbarHidden = await adm.$eval('#eventsAdmin .evt-controls-row', el => getComputedStyle(el).display === 'none');
-        ok(/R\s?360[.,]00/.test(tiles.replace(/ | /g, ' ').replace(/(\d) (\d)/g, '$1$2')) && /3\s*of 30/.test(tiles) && /2\s*of 3/.test(tiles) && toolbarHidden,
-            'Events -> Ticket Sales: revenue R360, 3 of 30 sold, 2 of 3 checked in - and the event search bar is out of the way', tiles);
+        ok(/R\s?360[.,]00/.test(tiles.replace(/ | /g, ' ').replace(/(\d) (\d)/g, '$1$2')) && /3\s*of 30/.test(tiles) && /3\s*of 3\b/.test(tiles) && toolbarHidden,
+            'Events -> Ticket Sales: revenue R360, 3 of 30 sold, 3 of 3 checked in - and the event search bar is out of the way', tiles);
         await shot(adm, 'admin-1-sales');
         await adm.click('#tktOrdersBody .tkt-order-row');
         await adm.waitForSelector('#tktOrderDrawerBody .tkt-order', { timeout: 10000 });

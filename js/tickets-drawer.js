@@ -462,7 +462,7 @@
 
     function renderRefundDue(o) {
         title('About your payment');
-        body(eventHead(o.event) + messageBox('warn', 'We received your payment, but it arrived after your hold ended and the tickets had sold out. <strong>A full refund is on its way</strong> to your original payment method - no action is needed.'));
+        body(eventHead(o.event) + messageBox('warn', 'We received your payment, but it arrived after your hold ended and the tickets had sold out, so no tickets were issued. <strong>We will refund the full amount</strong> to your original payment method and e-mail you as soon as the refund has been made.'));
     }
 
     function renderTickets(o) {

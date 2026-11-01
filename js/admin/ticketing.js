@@ -350,6 +350,7 @@
                 '<button type="button" class="atl-btn atl-btn--ghost tkt-danger" id="tktRefundStart"><i class="fa-solid fa-rotate-left"></i> Mark as refunded</button></div>' +
                 '<div class="tkt-refund" id="tktRefundBox" hidden><label for="tktRefundNote">How was it refunded?</label>' +
                 '<input id="tktRefundNote" class="um-input" maxlength="300" placeholder="e.g. Refunded in the PayFast dashboard on 30 Oct">' +
+                '<label class="tkt-check-line"><input type="checkbox" id="tktRefundNotify" checked> E-mail the buyer that the refund was made</label>' +
                 '<p class="tkt-hint">Refund the money in the PayFast dashboard first. Marking it here makes its tickets stop working at the door and puts the places back on sale.</p>' +
                 '<div class="tkt-editor__actions"><button type="button" class="atl-btn atl-btn--ghost" id="tktRefundCancel">Cancel</button><button type="button" class="atl-btn atl-btn--primary tkt-danger-solid" id="tktRefundGo">Mark refunded</button></div></div>';
         }
@@ -369,7 +370,7 @@
     $(document).on('click', '#tktRefundGo', function () {
         var $b = $(this).prop('disabled', true);
         var id = sales.order.order.id;
-        call('POST', '/api/admin/ticketing/orders/' + id + '/refund', { note: $('#tktRefundNote').val() }).then(function (r) {
+        call('POST', '/api/admin/ticketing/orders/' + id + '/refund', { note: $('#tktRefundNote').val(), notify: $('#tktRefundNotify').is(':checked') }).then(function (r) {
             $b.prop('disabled', false);
             if (!r.ok) { toast('showError', r.json.message || 'Could not mark it refunded.'); return; }
             toast('showSuccess', r.json.message);

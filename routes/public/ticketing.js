@@ -173,7 +173,7 @@ function ticketPage({ title, heading, line, state, token }) {
   </section>
   <section class="ck-staff" id="ckStaff" hidden></section>
 </main>
-<script src="/js/checkin.js?v=1"></script>
+<script src="/js/checkin.js?v=2"></script>
 </body>
 </html>`;
 }

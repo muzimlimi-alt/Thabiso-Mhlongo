@@ -132,6 +132,18 @@ async function suite(check, made, run) {
     check('REPLAY: the same notification again is ignored - still 2 tickets, still 2 sold',
         (await outcomes(paid.id)).includes('ignored_duplicate') && (await q('SELECT COUNT(*) AS n FROM tickets WHERE order_id = ?', [paid.id]))[0].n === 2 && (await tierRow(gen.id)).sold === 2, JSON.stringify(await outcomes(paid.id)));
 
+    // the buyer pays a SECOND time for the same order (two browser tabs): a different PayFast payment, the right amount
+    const second = itnFor(paid);
+    await postItn(second);
+    const dupFinding = await waitFor(async () => one('SELECT * FROM payfast_reconcile_findings WHERE pf_payment_id = ?', [second.pf_payment_id]).catch(() => null));
+    check('PAID TWICE: a second, different PayFast payment for an already-paid order is reported (Finance -> Reconciliation finding), never ignored - and issues nothing',
+        !!dupFinding && dupFinding.kind === 'duplicate_payment' && dupFinding.status === 'open' && dupFinding.ticket_order_id === paid.id && dupFinding.booking_id === null
+        && (await outcomes(paid.id)).includes('second_payment_reported') && (await q('SELECT COUNT(*) AS n FROM tickets WHERE order_id = ?', [paid.id]))[0].n === 2 && (await tierRow(gen.id)).sold === 2,
+        JSON.stringify([dupFinding, await outcomes(paid.id)]));
+    await postItn(second);                                                       // PayFast repeats that second notification
+    await waitFor(async () => (await outcomes(paid.id)).filter(o => o === 'second_payment_reported').length >= 2);
+    check('...PayFast repeating that notification does not report it twice', (await q('SELECT COUNT(*) AS n FROM payfast_reconcile_findings WHERE pf_payment_id = ?', [second.pf_payment_id]))[0].n === 1, '');
+
     // ═══════════ 5. delivery ═══════════
     const mail = await waitFor(async () => one("SELECT * FROM notifications WHERE recipient_email = ? AND subject LIKE 'Your tickets - %' ORDER BY id DESC LIMIT 1", [b1.buyer_email]).catch(() => null));
     check('the buyer is e-mailed through the existing mail queue: one "Your tickets" e-mail, the PDF attached, the QR codes inline, the trigger recorded',
@@ -208,8 +220,9 @@ async function suite(check, made, run) {
     const owed = await waitFor(async () => { const r = await dbOrder(vipRef); return r.status === 'paid' ? r : null; });
     check('LATE payment after it sold out: paid but flagged refund_required, NO tickets, and never oversold (VIP still 1 of 1)',
         !!owed && owed.refund_required === 1 && (await q('SELECT COUNT(*) AS n FROM tickets WHERE order_id = ?', [owed.id]))[0].n === 0 && (await tierRow(vip.id)).sold === 1 && (await tierRow(vip.id)).reserved === 0, JSON.stringify([owed, await tierRow(vip.id)]));
-    const refundMail = await waitFor(async () => one("SELECT id FROM notifications WHERE subject LIKE 'About your ticket payment%' AND recipient_email = ?", [owed.buyer_email]).catch(() => null));
-    check('...the buyer is told they will be refunded', !!refundMail, '');
+    const refundMail = await waitFor(async () => one("SELECT id, body FROM notifications WHERE subject LIKE 'About your ticket payment%' AND recipient_email = ?", [owed.buyer_email]).catch(() => null));
+    check('...the buyer is told they WILL be refunded and will be e-mailed when it is done - never that a refund is already on its way',
+        !!refundMail && /as soon as the refund has been made/.test(refundMail.body) && !/on its way/i.test(refundMail.body), refundMail && refundMail.body.slice(0, 200));
 
     const cx = (await reserve(ev.id, [{ ticket_type_id: gen.id, quantity: 1 }])).body.order;
     await pub('POST', `/api/public/ticket-orders/${cx.reference}/checkout`, buyer());
@@ -251,8 +264,13 @@ async function suite(check, made, run) {
     const voidScan = await api('POST', `/api/admin/ticketing/tickets/${t1.token}/check-in`);
     const voidPage = await (await fetch(`${BASE}/t/${t1.token}`)).text();
     check('a refunded ticket fails at the door ("no longer valid") and its page says so', voidScan.body.result === 'void' && /no longer valid/.test(voidPage), JSON.stringify(voidScan.body));
-    const owedRefund = await api('POST', `/api/admin/ticketing/orders/${owed.id}/refund`, { note: 'Refunded in PayFast' });
+    const madeMail = await waitFor(async () => one("SELECT body FROM notifications WHERE subject LIKE 'Your refund has been made%' AND recipient_email = ?", [b1.buyer_email]).catch(() => null));
+    check('...and only NOW the buyer is e-mailed that the refund has been made (amount, order, tickets no longer work)',
+        refund.body.mailed === true && !!madeMail && /R 300\.00/.test(madeMail.body.replace(/&nbsp;| /g, ' ')) && /no longer work/.test(madeMail.body), JSON.stringify([refund.body, !!madeMail]));
+    const owedRefund = await api('POST', `/api/admin/ticketing/orders/${owed.id}/refund`, { note: 'Refunded in PayFast', notify: false });
     check('refunding the refund-required order changes only its status (it never took stock)', owedRefund.status === 200 && (await tierRow(vip.id)).sold === 1, JSON.stringify(await tierRow(vip.id)));
+    check('...with "e-mail the buyer" unticked, no refund e-mail is sent', owedRefund.body.mailed === false
+        && !(await one("SELECT id FROM notifications WHERE subject LIKE 'Your refund has been made%' AND recipient_email = ?", [owed.buyer_email]).catch(() => null)), JSON.stringify(owedRefund.body));
 
     // ═══════════ 9. the existing Events routes still protect the records ═══════════
     const del = await api('DELETE', `/api/admin/events/${ev.id}`);

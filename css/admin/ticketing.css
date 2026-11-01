@@ -84,4 +84,5 @@ body.role-assistant .tkt-manage { display: none !important; }
 .tkt-danger { border-color: var(--atl-clay); color: var(--atl-clay); }
 .tkt-danger-solid { background: var(--atl-clay) !important; border-color: var(--atl-clay) !important; }
 .tkt-refund { border: 1px solid var(--atl-line); border-radius: 6px; padding: 12px; background: var(--atl-surface2); }
-.tkt-refund label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--atl-muted); margin-bottom: 6px; }
+.tkt-refund .tkt-check-line { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--atl-ink); }
+.tkt-refund label:not(.tkt-check-line) { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--atl-muted); margin-bottom: 6px; }

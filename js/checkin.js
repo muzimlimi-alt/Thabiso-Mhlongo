@@ -45,6 +45,30 @@
         return '<button type="button" class="ck-btn ck-btn--gold ck-btn--huge" data-checkin="' + esc(token) + '"><i class="fa-solid fa-door-open" aria-hidden="true"></i> Check In</button>';
     }
 
+    // ── "did MY check-in go through?" ── A tap whose answer is lost (signal drops at the door) may still have reached the server. The
+    // phone remembers which tickets it just tried to admit; if a recheck shows the ticket checked in AFTER this phone's attempt (by the
+    // server's own "seconds ago", so the phone's clock does not matter), that check-in was this phone's: the guest is in - not "already
+    // scanned". Any other phone (a copied QR code) has no such attempt and still gets the red "Already scanned".
+    // An attempt is remembered ONLY while its answer is missing: any answer that arrives - and a recheck that confirms it - forgets it, so
+    // scanning the same ticket again on this phone afterwards is the ordinary red "Already scanned", never a second green.
+    var attempts = {};                                              // token -> Date.now() when this phone pressed Check In
+    function noteAttempt(token) { attempts[token] = Date.now(); }
+    function forgetAttempt(token) { delete attempts[token]; }
+    function wasMine(t) {
+        var at = t && attempts[t.token];
+        if (!at || t.status !== 'checked_in' || t.checked_in_seconds_ago == null) return false;
+        var sinceAttempt = (Date.now() - at) / 1000;
+        var mine = sinceAttempt < 300 && t.checked_in_seconds_ago <= sinceAttempt + 10;
+        forgetAttempt(t.token);                                     // answered now, either way
+        return mine;
+    }
+    function lostMessage(token) {
+        return '<p class="ck-banner ck-banner--bad" role="alert">Connection lost - the check-in may not have gone through.</p>' +
+            '<p class="ck-line">Check this ticket again before letting the guest in.</p>' +
+            '<button type="button" class="ck-btn ck-btn--gold" data-recheck="' + esc(token) + '">Check again</button>';
+    }
+    var MINE = 'Admitted - this phone\'s check-in went through';
+
     function messageFor(r) {
         if (r.result === 'admitted') return 'Admitted';
         if (r.result === 'already') return r.json && r.json.message ? r.json.message : 'Already scanned';
@@ -66,22 +90,33 @@
             staff.hidden = false;
             $('ckPublic').hidden = true;
         };
-        if (TOKEN.test(token)) {
-            call('GET', '/api/admin/ticketing/tickets/' + encodeURIComponent(token)).then(function (r) {
-                if (r.ok) showStaff(r.json.ticket, null, null, r.json.counts);          // signed-in staff: the door controls
-                // 401 / 403 (not signed in) or 404: the public view stays exactly as the server rendered it
-            }).catch(function () {});
-        }
+        var lookupStaff = function () {
+            return call('GET', '/api/admin/ticketing/tickets/' + encodeURIComponent(token)).then(function (r) {
+                if (!r.ok) return;                                  // 401 / 403 (not signed in) or 404: the public view stays as rendered
+                var t = r.json.ticket;
+                if (wasMine(t)) { buzz(true); showStaff(t, 'admitted', MINE, r.json.counts); return; }
+                showStaff(t, null, null, r.json.counts);            // signed-in staff: the door controls
+            });
+        };
+        if (TOKEN.test(token)) lookupStaff().catch(function () {});
         document.addEventListener('click', function (e) {
+            var re = e.target.closest && e.target.closest('[data-recheck]');
+            if (re) { re.disabled = true; lookupStaff().catch(function () { re.disabled = false; }); return; }
             var b = e.target.closest && e.target.closest('[data-checkin]');
             if (!b) return;
             b.disabled = true;
+            noteAttempt(b.getAttribute('data-checkin'));
             call('POST', '/api/admin/ticketing/tickets/' + encodeURIComponent(b.getAttribute('data-checkin')) + '/check-in').then(function (r) {
                 var res = { result: r.json.result || (r.status === 404 ? 'invalid' : 'error'), json: r.json };
-                buzz(res.result === 'admitted');
                 if (r.status === 401 || r.status === 403) { b.disabled = false; return; }
-                showStaff(r.json.ticket, res.result, messageFor(res), r.json.counts);
-            }).catch(function () { b.disabled = false; });
+                if (res.result === 'already' && wasMine(r.json.ticket)) { res.result = 'admitted'; res.mine = true; }
+                forgetAttempt(b.getAttribute('data-checkin'));          // an answer arrived
+                buzz(res.result === 'admitted');
+                showStaff(r.json.ticket, res.result, res.mine ? MINE : messageFor(res), r.json.counts);
+            }).catch(function () {
+                // the answer never came back: say so - never leave the button silently re-enabled
+                staff.innerHTML = '<p class="ck-eyebrow">Door check-in · staff view</p>' + lostMessage(b.getAttribute('data-checkin'));
+            });
         });
         return;
     }
@@ -115,6 +150,7 @@
                 showResult(ticketCard(t, 'wrong_event', 'Wrong show - this ticket is for ' + t.event_title + (t.when ? ' (' + t.when + ')' : '')) + nextButton());
                 return;
             }
+            if (t.status === 'checked_in' && wasMine(t)) { buzz(true); showResult(ticketCard(t, 'admitted', MINE) + nextButton()); return; }
             if (t.status === 'checked_in') { buzz(false); showResult(ticketCard(t, 'already', 'Already scanned at ' + t.checked_in_label) + nextButton()); return; }
             if (t.status === 'void') { buzz(false); showResult(ticketCard(t, 'void', 'This ticket is no longer valid') + nextButton()); return; }
             showResult(ticketCard(t, null, null) + checkInButton(t.token) + nextButton());
@@ -124,18 +160,28 @@
     }
 
     document.addEventListener('click', function (e) {
+        var re = e.target.closest && e.target.closest('[data-recheck]');
+        if (re) { lookup(re.getAttribute('data-recheck')); return; }
         var b = e.target.closest && e.target.closest('[data-checkin]');
         if (b) {
+            var tok = b.getAttribute('data-checkin');
             b.disabled = true;
-            call('POST', '/api/admin/ticketing/tickets/' + encodeURIComponent(b.getAttribute('data-checkin')) + '/check-in').then(function (r) {
+            noteAttempt(tok);
+            call('POST', '/api/admin/ticketing/tickets/' + encodeURIComponent(tok) + '/check-in').then(function (r) {
                 if (r.status === 401 || r.status === 403) return needSignIn();
                 var res = { result: r.json.result || 'invalid', json: r.json };
+                if (res.result === 'already' && wasMine(r.json.ticket)) { res.result = 'admitted'; res.mine = true; }   // a retry of this phone's own tap
+                forgetAttempt(tok);                                         // an answer arrived
                 buzz(res.result === 'admitted');
-                showResult(ticketCard(r.json.ticket, res.result, messageFor(res)) + nextButton());
+                showResult(ticketCard(r.json.ticket, res.result, res.mine ? MINE : messageFor(res)) + nextButton());
                 setCounts(r.json.counts);
                 var n = $('ckNext'); if (n) n.focus();
                 if (res.result === 'admitted' && state.stream) setTimeout(function () { if (!state.scanning && state.stream) next(); }, 1600);   // keep the queue moving
-            }).catch(function () { b.disabled = false; });
+            }).catch(function () {
+                // the answer never came back: say so - never leave the button silently re-enabled
+                buzz(false);
+                showResult(lostMessage(tok) + nextButton());
+            });
             return;
         }
         if (e.target.closest && e.target.closest('#ckNext')) next();

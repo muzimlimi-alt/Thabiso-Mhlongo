@@ -146,7 +146,14 @@ router.post('/api/admin/ticketing/orders/:id/refund', requireAdmin, MANAGE, asyn
         const r = await ticketing.refundOrder(idParam(req.params.id), req.session.adminId, note);
         await logAudit({ tableName: 'ticket_orders', recordId: r.after.id, action: 'TICKET_ORDER_REFUNDED', req,
             oldValues: { status: r.before.status, refund_required: r.before.refund_required }, newValues: { status: r.after.status }, reason: note });
-        res.json({ success: true, message: r.checkedIn ? `Marked as refunded. Note: ${r.checkedIn} of its tickets had already been used at the door.` : 'Marked as refunded - its tickets no longer work and the places are back on sale.' });
+        // The buyer is told the refund has been MADE (only now - never before it happened). notify: false skips it (e.g. already told by phone).
+        let mailed = false;
+        if (!(req.body && req.body.notify === false)) {
+            const m = await delivery.notifyRefunded(r.after.id).catch(() => null);
+            mailed = !!(m && m.success);
+        }
+        const tail = mailed ? ' The buyer has been e-mailed that the refund was made.' : '';
+        res.json({ success: true, mailed, message: (r.checkedIn ? `Marked as refunded. Note: ${r.checkedIn} of its tickets had already been used at the door.` : 'Marked as refunded - its tickets no longer work and the places are back on sale.') + tail });
     } catch (e) { fail(res, e, 'refund'); }
 });
 
@@ -175,7 +182,9 @@ function doorView(t) {
         token: t.token, event_id: t.event_id, event_title: core.tidy(t.event_title), when: core.formatSast(core.eventStart({ event_datetime: t.event_datetime })),
         tier: t.tier_name, holder: t.holder_name || t.buyer_name || '', order_id: t.order_id,
         status: t.voided_at || t.order_status !== 'paid' ? 'void' : (t.checked_in_at ? 'checked_in' : 'valid'),
-        checked_in_at: t.checked_in_at, checked_in_label: t.checked_in_at ? core.formatSast(t.checked_in_at, 'HH:mm') : null, checked_in_by: t.checked_in_by_name || null
+        checked_in_at: t.checked_in_at, checked_in_label: t.checked_in_at ? core.formatSast(t.checked_in_at, 'HH:mm') : null, checked_in_by: t.checked_in_by_name || null,
+        // by the SERVER's clock, so a door phone can tell "my own check-in a moment ago went through" without trusting its own clock
+        checked_in_seconds_ago: t.checked_in_at ? Math.max(0, Math.round((Date.now() - Date.parse(t.checked_in_at)) / 1000)) : null
     };
 }
 
