@@ -36,6 +36,9 @@ body.role-assistant .tkt-manage { display: none !important; }
 .tkt-editor__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
 @media (max-width: 520px) { .tkt-grid { grid-template-columns: 1fr; } }
 .tkt-view-orders { align-self: flex-start; font-size: 12px; }
+.tkt-notice p { margin: 0; }
+.tkt-notice__row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-top: 8px !important; font-weight: 600; }
+.tkt-notice__row .atl-btn { font-size: 12px; }
 
 /* ── Events -> Ticket Sales ── */
 #eventsAdmin.tkt-mode .evt-controls-row, #eventsAdmin.tkt-mode #evtBulkBar { display: none !important; }   /* those filter event cards, not orders */

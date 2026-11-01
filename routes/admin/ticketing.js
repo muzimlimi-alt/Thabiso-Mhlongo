@@ -105,8 +105,11 @@ router.get('/api/admin/ticketing/events', requireAdmin, async (req, res) => {
 router.get('/api/admin/ticketing/events/:id/stats', requireAdmin, async (req, res) => {
     try {
         const id = idParam(req.params.id);
-        if (!(await ticketing.getEvent(id))) return res.status(404).json({ success: false, message: 'Event not found.' });
+        const ev = await ticketing.getEvent(id);
+        if (!ev) return res.status(404).json({ success: false, message: 'Event not found.' });
         const s = await ticketing.eventStats(id);
+        s.event_status = String(ev.event_status || '').toLowerCase();
+        s.notice = await ticketing.eventNoticeCounts(id);
         if (isAssistant(req)) { delete s.revenue_cents; delete s.refunded_cents; delete s.refund_due_cents; s.tiers = s.tiers.map(({ price_cents, ...t }) => t); }
         res.json({ success: true, stats: s });
     } catch (e) { fail(res, e, 'stats'); }
@@ -155,6 +158,27 @@ router.post('/api/admin/ticketing/orders/:id/refund', requireAdmin, MANAGE, asyn
         const tail = mailed ? ' The buyer has been e-mailed that the refund was made.' : '';
         res.json({ success: true, mailed, message: (r.checkedIn ? `Marked as refunded. Note: ${r.checkedIn} of its tickets had already been used at the door.` : 'Marked as refunded - its tickets no longer work and the places are back on sale.') + tail });
     } catch (e) { fail(res, e, 'refund'); }
+});
+
+// The show was cancelled or postponed (set in the Events editor): e-mail every paid order's buyer, once each. Cancelled -> "you will be
+// refunded" (each refund is then made in PayFast and marked per order); postponed -> "your tickets stay valid".
+router.post('/api/admin/ticketing/events/:id/notify-holders', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const ev = await ticketing.getEvent(idParam(req.params.id));
+        if (!ev) return res.status(404).json({ success: false, message: 'Event not found.' });
+        const kind = String(ev.event_status || '').toLowerCase();
+        if (kind !== 'cancelled' && kind !== 'postponed') return res.status(409).json({ success: false, message: 'Only a cancelled or postponed show can be announced to its ticket holders - change the event\'s status first.' });
+        let sent = 0, failed = 0;
+        for (const o of await ticketing.eventNoticePending(ev.event_id)) {
+            if (!(await ticketing.claimEventNotice(o.id))) continue;          // another click / admin is telling this buyer
+            const r = await delivery.notifyEventChange(o.id, kind).catch(() => null);
+            if (r && r.success) sent++; else { failed++; await ticketing.unclaimEventNotice(o.id).catch(() => {}); }
+        }
+        await logAudit({ tableName: 'events', recordId: ev.event_id, action: kind === 'cancelled' ? 'TICKET_HOLDERS_TOLD_CANCELLED' : 'TICKET_HOLDERS_TOLD_POSTPONED', req, newValues: { sent, failed } });
+        const counts = await ticketing.eventNoticeCounts(ev.event_id);
+        res.json({ success: true, sent, failed, notice: counts,
+            message: (sent ? `${sent} ticket holder${sent === 1 ? '' : 's'} e-mailed.` : 'Everyone had already been told.') + (failed ? ` ${failed} could not be queued - try again.` : '') });
+    } catch (e) { fail(res, e, 'notify holders'); }
 });
 
 router.get('/api/admin/ticketing/events/:id/attendees.csv', requireAdmin, MANAGE, exportRateLimiter, async (req, res) => {

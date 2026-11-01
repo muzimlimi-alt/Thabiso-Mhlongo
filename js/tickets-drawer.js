@@ -29,6 +29,20 @@
         try { return new Date(iso).toLocaleString('en-ZA', { timeZone: 'Africa/Johannesburg', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
         catch (e) { return ''; }
     }
+    // One live hold per browser per show: this random key (not personal data) lets the server give back this browser's earlier hold when
+    // it reserves again - a second tab or a change of mind replaces the hold instead of keeping two. Without storage it is per page load.
+    var holdKey = (function () {
+        var k = null;
+        try { k = localStorage.getItem('tmTicketHoldKey'); } catch (e) {}
+        if (!k || !/^[A-Za-z0-9_-]{16,64}$/.test(k)) {
+            var a = new Uint8Array(18);
+            (window.crypto || window.msCrypto).getRandomValues(a);
+            k = btoa(String.fromCharCode.apply(null, a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            try { localStorage.setItem('tmTicketHoldKey', k); } catch (e) {}
+        }
+        return k;
+    })();
+
     function store(v) { try { if (v) sessionStorage.setItem(STORE, JSON.stringify(v)); else sessionStorage.removeItem(STORE); } catch (e) {} }
     function stored() { try { return JSON.parse(sessionStorage.getItem(STORE) || 'null'); } catch (e) { return null; } }
     // bypassInterceptor: this drawer shows its own messages (js/notificationService.js would otherwise toast every non-OK answer too)
@@ -198,7 +212,7 @@
         var items = Object.keys(state.qty).filter(function (k) { return state.qty[k] > 0; }).map(function (k) { return { ticket_type_id: Number(k), quantity: state.qty[k] }; });
         if (!items.length) return;
         var $b = $(this).prop('disabled', true).html('<i class="fa-solid fa-circle-notch fa-spin"></i> Holding your tickets…');
-        call('POST', '/api/public/ticket-orders', { event_id: state.eventId, items: items }).then(function (r) {
+        call('POST', '/api/public/ticket-orders', { event_id: state.eventId, items: items, hold_key: holdKey }).then(function (r) {
             if (r.status === 201) {
                 state.order = r.json.order;
                 noteSkew(state.order.server_now);

@@ -268,6 +268,7 @@
             tiles.push(tile('fa-door-open', 'Checked in', s.door.checked_in + ' <small>of ' + s.door.valid + '</small>', s.door.valid ? Math.round(100 * s.door.checked_in / s.door.valid) + '% at the door' : 'no tickets yet'));
             if (s.refund_due_orders) tiles.push(tile('fa-rotate-left', 'Refund needed', String(s.refund_due_orders), 'paid after the tickets sold out'));
             $('#tktStatGrid').html(tiles.join(''));
+            renderEventNotice(s);
             $('#tktTierTable').html('<table class="table tkt-table tkt-table--tiers"><thead><tr><th>Ticket type</th>' + (s.revenue_cents !== undefined ? '<th>Price</th>' : '') +
                 '<th>Sold</th><th>Held</th><th>Checked in</th><th class="tkt-col-bar"></th></tr></thead><tbody>' + s.tiers.map(function (t) {
                     return '<tr><td><strong>' + esc(t.name) + '</strong>' + (t.is_active ? '' : ' <span class="tkt-muted">(closed)</span>') + '</td>' +
@@ -277,6 +278,34 @@
                 }).join('') + '</tbody></table>');
         });
     }
+
+    // A cancelled / postponed show: what is left to do for its ticket holders, and the one button that tells them (once each).
+    function renderEventNotice(s) {
+        $('#tktEventNotice').remove();
+        var kind = s.event_status;
+        if ((kind !== 'cancelled' && kind !== 'postponed') || !s.notice || !s.notice.total) return;
+        var left = s.notice.total - s.notice.sent;
+        var what = kind === 'cancelled'
+            ? 'This show is <strong>cancelled</strong>. Every paid order needs a refund: refund each one in the PayFast dashboard, then mark it refunded (filter the list by <em>Paid</em>) - the buyer is e-mailed when you do.'
+            : 'This show is <strong>postponed</strong>. Tickets stay valid; tell the holders, and e-mail them again once the new date is set.';
+        var told = s.notice.sent + ' of ' + s.notice.total + ' ticket holder' + (s.notice.total === 1 ? '' : 's') + ' told';
+        $('#tktStatGrid').before('<div class="tkt-warn tkt-notice" id="tktEventNotice"><p>' + what + '</p><p class="tkt-notice__row"><span>' + told + '</span>' +
+            (left > 0 && canManage() ? '<button type="button" class="atl-btn atl-btn--primary" id="tktNotifyHolders"><i class="fa-solid fa-paper-plane"></i> E-mail ' + left + ' ticket holder' + (left === 1 ? '' : 's') + '</button>' : '') +
+            '</p></div>');
+    }
+    $(document).on('click', '#tktNotifyHolders', function () {
+        var $b = $(this);
+        var go = function () {
+            $b.prop('disabled', true);
+            call('POST', '/api/admin/ticketing/events/' + sales.eventId + '/notify-holders').then(function (r) {
+                toast(r.ok ? 'showSuccess' : 'showError', r.json.message || (r.ok ? 'Sent.' : 'Could not send.'));
+                loadStats();
+            });
+        };
+        if (window.notificationService && window.notificationService.showConfirm) {
+            window.notificationService.showConfirm({ message: 'E-mail every ticket holder of this show who has not been told yet? Each buyer is e-mailed once.' }).then(function (ok) { if (ok) go(); });
+        } else { go(); }
+    });
 
     function loadOrders() {
         var id = sales.eventId;

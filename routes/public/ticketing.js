@@ -71,7 +71,7 @@ router.post('/api/public/ticket-orders', ticketReserveRateLimiter, async (req, r
     try {
         noStore(res);
         const body = req.body || {};
-        const { order } = await ticketing.reserve(body.event_id, Array.isArray(body.items) ? body.items : []);
+        const { order } = await ticketing.reserve(body.event_id, Array.isArray(body.items) ? body.items : [], body.hold_key);
         res.status(201).json({ success: true, order: await orderView(order) });
     } catch (e) {
         if (e && e.refusal && e.sold_out) {
