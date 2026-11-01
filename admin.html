@@ -47,7 +47,7 @@
     <link href="css/admin/eft.css?v=2" rel="stylesheet">
     <link href="css/admin/business-profile.css?v=8" rel="stylesheet">
     <link href="css/admin/payfast-reconcile.css?v=1" rel="stylesheet">
-    <link href="css/admin/ticketing.css?v=8" rel="stylesheet">
+    <link href="css/admin/ticketing.css?v=11" rel="stylesheet">
     <link href="css/admin/redesign-admin.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
     <link rel="stylesheet" href="css/components/notifications.css">
@@ -5899,11 +5899,27 @@
                                     <div id="tktDoorPassNew" hidden></div>
                                     <ul class="tkt-doorpasses__list" id="tktDoorPassList"></ul>
                                 </section>
+                                <!-- Guest list: complimentary tickets (lib/ticketing-issue.js) - take seats, never revenue -->
+                                <section class="tkt-manage tkt-doorpasses tkt-comps" id="tktComps" aria-labelledby="tktCompsTitle">
+                                    <h3 class="um-section-label" id="tktCompsTitle">Guest list (complimentary tickets)</h3>
+                                    <p class="tkt-muted">Free tickets for guests, press or sponsors. They take seats from the ticket type you choose (so the show never oversells) but are not revenue. Cancel them from the order if plans change.</p>
+                                    <form class="tkt-comps__form" id="tktCompForm" novalidate>
+                                        <label class="tkt-comps__field"><span>Ticket type</span><select id="tktCompTier" class="atl-input" required></select></label>
+                                        <label class="tkt-comps__field tkt-comps__field--qty"><span>How many</span><input id="tktCompQty" class="atl-input" type="number" min="1" max="20" value="1" required></label>
+                                        <label class="tkt-comps__field"><span>Guest name</span><input id="tktCompName" class="atl-input" maxlength="120" autocomplete="off" required></label>
+                                        <label class="tkt-comps__field"><span>E-mail (optional)</span><input id="tktCompEmail" class="atl-input" type="email" maxlength="200" autocomplete="off"></label>
+                                        <label class="tkt-comps__field"><span>Phone (optional)</span><input id="tktCompPhone" class="atl-input" type="tel" maxlength="20" autocomplete="off"></label>
+                                        <label class="tkt-comps__field tkt-comps__field--wide"><span>Who they are / why</span><input id="tktCompNote" class="atl-input" maxlength="300" placeholder="e.g. Press - Sowetan, Sponsor, Thabiso's family" required></label>
+                                        <label class="tkt-check-line tkt-comps__field--wide"><input type="checkbox" id="tktCompSend" checked> E-mail the tickets to the guest (when an e-mail address is given)</label>
+                                        <p class="tkt-form-error tkt-comps__field--wide" id="tktCompError" role="alert"></p>
+                                        <div class="tkt-editor__actions tkt-comps__field--wide"><button type="submit" class="atl-btn atl-btn--primary"><i class="fa-solid fa-gift"></i> Issue complimentary tickets</button></div>
+                                    </form>
+                                </section>
                                 <div class="tkt-manage">
                                     <div class="tkt-orders-bar">
                                         <div class="um-input-wrap" style="flex:1; min-width:180px;">
                                             <i class="fa-solid fa-magnifying-glass um-input-icon"></i>
-                                            <input type="search" id="tktOrderSearch" class="um-input" placeholder="Search by name, email or order number…" aria-label="Search orders">
+                                            <input type="search" id="tktOrderSearch" class="um-input" placeholder="Name, email, phone, order or ticket number…" aria-label="Search orders by name, email, phone, order number, ticket number or ticket code">
                                         </div>
                                         <select id="tktOrderStatus" class="atl-input tkt-select" aria-label="Filter orders by status">
                                             <option value="">All orders</option>
@@ -13582,7 +13598,7 @@
     <script src="js/admin/financials.js?v=2"></script>
     <script src="js/admin/eft.js?v=3"></script>
     <script src="js/admin/payfast-reconcile.js?v=2"></script>
-    <script src="js/admin/ticketing.js?v=7"></script>
+    <script src="js/admin/ticketing.js?v=9"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================
      FINANCE MODULE — JavaScript Engine

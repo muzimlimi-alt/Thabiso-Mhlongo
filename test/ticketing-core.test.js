@@ -16,6 +16,7 @@ module.exports = async function ({ check }) {
         && core.maskSecretsInUrl(`/api/admin/ticketing/tickets/${tok}/check-in`) === '/api/admin/ticketing/tickets/[hidden]/check-in'
         && core.maskSecretsInUrl(`/?tickets=${tok}&payment=success`) === '/?tickets=[hidden]&payment=success'
         && core.maskSecretsInUrl(`/checkin?pass=${tok}`) === '/checkin?pass=[hidden]'
+        && core.maskSecretsInUrl('/api/door/search?q=Thandi') === '/api/door/search?q=[hidden]' && core.maskSecretsInUrl(`/api/door/tickets/${tok}/check-in`) === '/api/door/tickets/[hidden]/check-in'
         && core.maskSecretsInUrl('/api/admin/ticketing/orders?event_id=3&q=jo%40x.co') === '/api/admin/ticketing/orders?event_id=3&q=[hidden]'
         && core.maskSecretsInUrl('/api/admin/bookings?q=abc') === '/api/admin/bookings?q=abc' && core.maskSecretsInUrl('/index.html') === '/index.html', core.maskSecretsInUrl(`/t/${tok}`));
 

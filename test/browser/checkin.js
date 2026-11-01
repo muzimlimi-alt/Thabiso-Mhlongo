@@ -256,12 +256,42 @@ async function paidOrder(eventId, tierId, n, buyerName) {
         await adm2.$eval('#tktDoorPasses', el => el.scrollIntoView());
         await shot(adm2, 'admin-4-door-link');
 
+        // guest list: complimentary tickets through the form, then void & reissue one from the order drawer
+        await adm2.waitForFunction(() => document.querySelectorAll('#tktCompTier option').length > 0, { timeout: 10000 });
+        await adm2.type('#tktCompName', 'Gugu Guest');
+        await adm2.type('#tktCompNote', 'Press - test');
+        await adm2.$eval('#tktCompQty', el => { el.value = '2'; });
+        await adm2.$eval('#tktCompForm button[type=submit]', el => el.click());
+        await adm2.waitForFunction(() => [...document.querySelectorAll('#tktOrdersBody .tkt-order-row')].some(r => /Gugu Guest/.test(r.innerText) && /Complimentary/i.test(r.innerText)), { timeout: 15000 });
+        const compTile = await text(adm2, '#tktStatGrid');
+        ok(/2 complimentary/.test(compTile), 'Guest list: "Issue complimentary tickets" adds an order marked Complimentary, and the figures say 2 complimentary', compTile);
+        await adm2.$eval('#tktComps', el => el.scrollIntoView());
+        await shot(adm2, 'admin-5-guest-list');
+        await adm2.evaluate(() => [...document.querySelectorAll('#tktOrdersBody .tkt-order-row')].find(r => /Gugu Guest/.test(r.innerText)).click());
+        await adm2.waitForSelector('#tktOrderDrawerBody .tkt-reissue', { timeout: 10000 });
+        await sleep(600);
+        const compDrawer = await text(adm2, '#tktOrderDrawerBody');
+        ok(/Complimentary/.test(compDrawer) && /Press - test/.test(compDrawer) && /Cancel these tickets/.test(compDrawer) && !/Mark as refunded/.test(compDrawer),
+            'the complimentary order\'s drawer: who / why, "Cancel these tickets" (not "Mark as refunded")', compDrawer);
+        await adm2.$eval('#tktOrderDrawerBody .tkt-reissue', el => el.click());
+        await adm2.waitForSelector('#tktReissueReason', { visible: true, timeout: 5000 });
+        await adm2.type('#tktReissueReason', 'Lost phone');
+        await adm2.$eval('#tktReissueName', el => { el.value = ''; });
+        await adm2.type('#tktReissueName', 'Gugu Plus One');
+        await adm2.$eval('#tktReissueGo', el => el.click());
+        await adm2.waitForFunction(() => /voided .* Lost phone/.test((document.getElementById('tktOrderDrawerBody') || {}).innerText || ''), { timeout: 15000 });
+        const afterRe = await text(adm2, '#tktOrderDrawerBody');
+        ok(/Gugu Plus One/.test(afterRe) && /Void/.test(afterRe) && /reissued/.test(afterRe), 'Void & reissue from the drawer: the old ticket shows Void with why and "reissued", the new one carries the new name', afterRe);
+        await shot(adm2, 'admin-6-reissued');
+        await adm2.evaluate(() => window.closeAtlDrawer('tktOrderDrawer'));
+        await sleep(400);
+
         const phone = await newPage(390, 844, false);                            // the volunteer: NOT signed in
         await phone.goto(link.replace(/^https?:\/\/[^/]+/, BASE), { waitUntil: 'networkidle0' });
         await phone.waitForSelector('#ckManual:not([hidden])', { timeout: 10000 });
         await waitFor(async () => /checked in/.test(await text(phone, '#ckCount')));
         const head = await phone.evaluate(() => ({ url: location.href, select: document.getElementById('ckEvent').hidden, name: document.getElementById('ckEventName').innerText, label: document.getElementById('ckPassLabel').innerText, ph: document.getElementById('ckSearch').placeholder }));
-        ok(!/pass=/.test(head.url) && head.select && /ZZ Volunteer Show/.test(head.name) && /Side entrance/.test(head.label) && /^0 of 1 checked in$/.test(await text(phone, '#ckCount')) && !/e-mail/i.test(head.ph),
+        ok(!/pass=/.test(head.url) && head.select && /ZZ Volunteer Show/.test(head.name) && /Side entrance/.test(head.label) && /^0 of 3 checked in$/.test(await text(phone, '#ckCount'))   /* 1 bought + 2 guest-list */ && !/e-mail/i.test(head.ph),
             'the door link on a phone with no sign-in: the scanner opens for THAT show (no show picker), names the link, takes the secret out of the address bar, and search offers no e-mail', JSON.stringify(head));
         await shot(phone, 'door-9-link-scanner');
         await phone.type('#ckSearch', 'Vusi');
@@ -270,8 +300,8 @@ async function paidOrder(eventId, tierId, n, buyerName) {
         await phone.click('#ckFound [data-checkin]');
         await phone.waitForSelector('#ckResult .ck-banner', { timeout: 10000 });
         const vr = await text(phone, '#ckResult .ck-banner');
-        await waitFor(async () => /^1 of 1/.test(await text(phone, '#ckCount')));
-        ok(vr === 'Admitted' && /^1 of 1 checked in$/.test(await text(phone, '#ckCount')) && (await one('SELECT checked_in_via FROM tickets WHERE id = ?', [V.tickets[0].id])).checked_in_via === 'Side entrance',
+        await waitFor(async () => /^1 of 3/.test(await text(phone, '#ckCount')));
+        ok(vr === 'Admitted' && /^1 of 3 checked in$/.test(await text(phone, '#ckCount')) && (await one('SELECT checked_in_via FROM tickets WHERE id = ?', [V.tickets[0].id])).checked_in_via === 'Side entrance',
             'through the door link: find by name -> Check In -> "Admitted", the counter moves, and the check-in is recorded as "Side entrance"', vr);
         await phone.click('#ckNext');
         await phone.$eval('#ckSearch', el => { el.value = ''; });

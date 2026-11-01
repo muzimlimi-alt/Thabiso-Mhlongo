@@ -207,6 +207,7 @@
 
     function orderBadge(o) {
         if (o.status === 'paid' && o.refund_required) return '<span class="atl-badge atl-badge--overdue">Refund needed</span>';
+        if (o.complimentary) return o.status === 'refunded' ? '<span class="atl-badge atl-badge--cancelled">Cancelled</span>' : '<span class="atl-badge atl-badge--info">Complimentary</span>';
         return '<span class="atl-badge ' + (ORDER_BADGE[o.status] || '') + '">' + esc(ORDER_LABEL[o.status] || o.status) + '</span>';
     }
 
@@ -260,12 +261,14 @@
             if (id !== sales.eventId) return;
             if (!r.ok) { $('#tktStatGrid').html('<p class="tkt-muted">' + esc(r.json.message || 'Could not load the figures.') + '</p>'); return; }
             var s = r.json.stats;
+            sales.tiers = s.tiers;
+            $('#tktCompTier').html(s.tiers.map(function (t) { return '<option value="' + t.id + '">' + esc(t.name) + ' (' + Math.max(0, t.capacity - t.sold - t.reserved) + ' left)</option>'; }).join(''));
             var sold = s.tiers.reduce(function (n, t) { return n + t.sold; }, 0);
             var cap = s.tiers.reduce(function (n, t) { return n + t.capacity; }, 0);
             var held = s.tiers.reduce(function (n, t) { return n + t.reserved; }, 0);
             var tiles = [];
             if (s.revenue_cents !== undefined) tiles.push(tile('fa-sack-dollar', 'Ticket revenue', esc(zar(s.revenue_cents)), s.refunded_cents ? zar(s.refunded_cents) + ' refunded' : 'from paid orders'));
-            tiles.push(tile('fa-ticket', 'Tickets sold', sold + ' <small>of ' + cap + '</small>', held ? held + ' held right now' : (cap - sold) + ' left'));
+            tiles.push(tile('fa-ticket', 'Tickets sold', sold + ' <small>of ' + cap + '</small>', (s.comp_tickets ? s.comp_tickets + ' complimentary · ' : '') + (held ? held + ' held right now' : (cap - sold) + ' left')));
             tiles.push(tile('fa-door-open', 'Checked in', s.door.checked_in + ' <small>of ' + s.door.valid + '</small>', s.door.valid ? Math.round(100 * s.door.checked_in / s.door.valid) + '% at the door' : 'no tickets yet'));
             if (s.refund_due_orders) tiles.push(tile('fa-rotate-left', 'Refund needed', String(s.refund_due_orders), 'paid after the tickets sold out'));
             $('#tktStatGrid').html(tiles.join(''));
@@ -358,17 +361,23 @@
         if (o.status === 'paid' && o.refund_required) html += '<p class="tkt-warn">This payment arrived after the hold ended and the tickets had sold out - no tickets were issued. Refund it in the PayFast dashboard, then mark it refunded below.</p>';
         html += '<dl class="tkt-kv"><dt>Buyer</dt><dd>' + esc(o.buyer_name || '—') + '</dd><dt>Email</dt><dd>' + esc(o.buyer_email || '—') + '</dd><dt>Phone</dt><dd>' + esc(o.buyer_phone || '—') + '</dd>' +
             '<dt>Show</dt><dd>' + esc(d.event ? d.event.title : '') + '</dd>' +
-            '<dt>Ordered</dt><dd>' + esc(sast(o.created_at)) + '</dd>' + (o.paid_at ? '<dt>Paid</dt><dd>' + esc(sast(o.paid_at)) + '</dd>' : '') +
+            '<dt>Ordered</dt><dd>' + esc(sast(o.created_at)) + '</dd>' + (o.paid_at ? '<dt>' + (o.complimentary ? 'Issued' : 'Paid') + '</dt><dd>' + esc(sast(o.paid_at)) + '</dd>' : '') +
             (o.gateway_payment_id ? '<dt>PayFast id</dt><dd class="tkt-mono">' + esc(o.gateway_payment_id) + '</dd>' : '') +
             (o.tickets_emailed_at ? '<dt>Tickets emailed</dt><dd>' + esc(sast(o.tickets_emailed_at)) + '</dd>' : '') +
             (o.consent_at ? '<dt>POPIA consent</dt><dd>' + esc(sast(o.consent_at)) + ' (' + esc(o.consent_policy_version || '') + ')</dd>' : '') +
             (o.terms_version ? '<dt>Ticket terms</dt><dd class="tkt-mono">' + esc(o.terms_version) + '</dd>' : '') +
-            (o.refunded_at ? '<dt>Refunded</dt><dd>' + esc(sast(o.refunded_at)) + (o.refunded_by_name ? ' by ' + esc(o.refunded_by_name) : '') + (o.refund_note ? ' - ' + esc(o.refund_note) : '') + '</dd>' : '') +
+            (d.issue && d.issue.complimentary ? '<dt>Complimentary</dt><dd>' + esc(d.issue.comp_note || '') + (d.issue.issued_by_name ? ' - issued by ' + esc(d.issue.issued_by_name) : '') + '</dd>' : '') +
+            (o.refunded_at ? '<dt>' + (o.complimentary ? 'Cancelled' : 'Refunded') + '</dt><dd>' + esc(sast(o.refunded_at)) + (o.refunded_by_name ? ' by ' + esc(o.refunded_by_name) : '') + (o.refund_note ? ' - ' + esc(o.refund_note) : '') + '</dd>' : '') +
             '</dl>';
         html += '<h6 class="tkt-h">Tickets</h6>' + (d.tickets.length ? '<ul class="tkt-list">' + d.tickets.map(function (t) {
             var st = t.voided_at ? '<span class="atl-badge atl-badge--cancelled">Void</span>' : t.checked_in_at ? '<span class="atl-badge atl-badge--paid">In at ' + esc(sast(t.checked_in_at)) + '</span>' : '<span class="atl-badge atl-badge--pending">Not yet in</span>';
             var undo = t.checked_in_at && !t.voided_at && canManage() ? ' <button type="button" class="tkt-linkbtn tkt-undo" data-token="' + esc(t.token) + '">Undo check-in</button>' : '';
-            return '<li><strong>' + esc(t.tier_name) + '</strong> · ' + esc(t.holder_name || o.buyer_name || '') + ' ' + st + undo + (t.checked_in_by_name ? '<span class="tkt-sub">checked in by ' + esc(t.checked_in_by_name) + '</span>' : '') + '</li>';
+            var canReissue = o.status === 'paid' && !o.refund_required && !t.voided_at && !t.checked_in_at && canManage();
+            var reissue = canReissue ? ' <button type="button" class="tkt-linkbtn tkt-reissue" data-token="' + esc(t.token) + '" data-holder="' + esc(t.holder_name || '') + '">Void &amp; reissue</button>' : '';
+            var story = (d.issue && d.issue.voids || []).filter(function (v) { return v.id === t.id; })[0];
+            return '<li data-ticket-row="' + esc(t.token) + '"><strong>' + esc(t.tier_name) + '</strong> · ' + esc(t.holder_name || o.buyer_name || '') + ' ' + st + undo + reissue +
+                (t.checked_in_by_name ? '<span class="tkt-sub">checked in by ' + esc(t.checked_in_by_name) + '</span>' : '') +
+                (story ? '<span class="tkt-sub">voided ' + esc(sast(story.voided_at)) + (story.voided_by_name ? ' by ' + esc(story.voided_by_name) : '') + ' - ' + esc(story.void_reason) + (story.replaced_by ? ' · reissued' : '') + '</span>' : '') + '</li>';
         }).join('') + '</ul>' : '<p class="tkt-muted">No tickets were issued for this order.</p>');
         html += '<h6 class="tkt-h">Lines</h6><ul class="tkt-list">' + d.items.map(function (i) { return '<li>' + i.quantity + ' × ' + esc(i.name) + ' <span class="tkt-price">' + esc(zar(i.unit_price_cents * i.quantity)) + '</span></li>'; }).join('') + '</ul>';
         if (d.notifications.length) {
@@ -378,13 +387,19 @@
         }
         if (o.status === 'paid') {
             html += '<div class="tkt-order__actions">' +
-                (!o.refund_required ? '<button type="button" class="atl-btn atl-btn--ghost" id="tktResend"><i class="fa-solid fa-paper-plane"></i> Resend tickets</button>' : '') +
-                '<button type="button" class="atl-btn atl-btn--ghost tkt-danger" id="tktRefundStart"><i class="fa-solid fa-rotate-left"></i> Mark as refunded</button></div>' +
-                '<div class="tkt-refund" id="tktRefundBox" hidden><label for="tktRefundNote">How was it refunded?</label>' +
-                '<input id="tktRefundNote" class="um-input" maxlength="300" placeholder="e.g. Refunded in the PayFast dashboard on 30 Oct">' +
-                '<label class="tkt-check-line"><input type="checkbox" id="tktRefundNotify" checked> E-mail the buyer that the refund was made</label>' +
-                '<p class="tkt-hint">Refund the money in the PayFast dashboard first. Marking it here makes its tickets stop working at the door and puts the places back on sale.</p>' +
-                '<div class="tkt-editor__actions"><button type="button" class="atl-btn atl-btn--ghost" id="tktRefundCancel">Cancel</button><button type="button" class="atl-btn atl-btn--primary tkt-danger-solid" id="tktRefundGo">Mark refunded</button></div></div>';
+                (!o.refund_required && o.buyer_email ? '<button type="button" class="atl-btn atl-btn--ghost" id="tktResend"><i class="fa-solid fa-paper-plane"></i> Resend tickets</button>' : '') +
+                (!o.refund_required ? '<a class="atl-btn atl-btn--ghost" href="/api/public/ticket-orders/' + encodeURIComponent(o.public_reference) + '/tickets.pdf" target="_blank" rel="noopener"><i class="fa-solid fa-file-pdf"></i> Tickets PDF</a>' : '') +
+                '<button type="button" class="atl-btn atl-btn--ghost tkt-danger" id="tktRefundStart"><i class="fa-solid fa-rotate-left"></i> ' + (o.complimentary ? 'Cancel these tickets' : 'Mark as refunded') + '</button></div>' +
+                (o.complimentary
+                    ? '<div class="tkt-refund" id="tktRefundBox" hidden><label for="tktRefundNote">Why are they cancelled?</label>' +
+                      '<input id="tktRefundNote" class="um-input" maxlength="300" placeholder="e.g. Guest cannot come">' +
+                      '<p class="tkt-hint">The codes stop working at the door and the seats are free again. Nobody is e-mailed.</p>' +
+                      '<div class="tkt-editor__actions"><button type="button" class="atl-btn atl-btn--ghost" id="tktRefundCancel">Keep them</button><button type="button" class="atl-btn atl-btn--primary tkt-danger-solid" id="tktRefundGo">Cancel tickets</button></div></div>'
+                    : '<div class="tkt-refund" id="tktRefundBox" hidden><label for="tktRefundNote">How was it refunded?</label>' +
+                      '<input id="tktRefundNote" class="um-input" maxlength="300" placeholder="e.g. Refunded in the PayFast dashboard on 30 Oct">' +
+                      '<label class="tkt-check-line"><input type="checkbox" id="tktRefundNotify" checked> E-mail the buyer that the refund was made</label>' +
+                      '<p class="tkt-hint">Refund the money in the PayFast dashboard first. Marking it here makes its tickets stop working at the door and puts the places back on sale.</p>' +
+                      '<div class="tkt-editor__actions"><button type="button" class="atl-btn atl-btn--ghost" id="tktRefundCancel">Cancel</button><button type="button" class="atl-btn atl-btn--primary tkt-danger-solid" id="tktRefundGo">Mark refunded</button></div></div>');
         }
         html += '</div>';
         $('#tktOrderDrawerBody').html(html);
@@ -462,6 +477,52 @@
         } else go();
     });
 
+    // ── void & reissue one ticket (lost phone, forwarded QR, wrong name): a small form under the ticket ──
+    $(document).on('click', '.tkt-reissue', function () {
+        $('#tktReissueBox').remove();
+        var token = $(this).attr('data-token');
+        var o = sales.order.order;
+        $(this).closest('li').append('<div class="tkt-refund tkt-reissue-box" id="tktReissueBox" data-token="' + esc(token) + '">' +
+            '<label for="tktReissueReason">Why?</label><input id="tktReissueReason" class="um-input" maxlength="300" placeholder="e.g. lost phone, QR was forwarded, name change">' +
+            '<label for="tktReissueName" style="margin-top:10px;">Name on the new ticket</label><input id="tktReissueName" class="um-input" maxlength="120" value="' + esc($(this).attr('data-holder')) + '">' +
+            (o.buyer_email ? '<label class="tkt-check-line"><input type="checkbox" id="tktReissueSend" checked> E-mail the new ticket to ' + esc(o.buyer_email) + '</label>' : '') +
+            '<p class="tkt-hint">The old code stops working at the door straight away. The seat count does not change.</p>' +
+            '<p class="tkt-form-error" role="alert"></p>' +
+            '<div class="tkt-editor__actions"><button type="button" class="atl-btn atl-btn--ghost" id="tktReissueCancel">Cancel</button><button type="button" class="atl-btn atl-btn--primary" id="tktReissueGo">Void &amp; reissue</button></div></div>');
+        $('#tktReissueReason').trigger('focus');
+    });
+    $(document).on('click', '#tktReissueCancel', function () { $('#tktReissueBox').remove(); });
+    $(document).on('click', '#tktReissueGo', function () {
+        var $box = $('#tktReissueBox'), $b = $(this).prop('disabled', true);
+        call('POST', '/api/admin/ticketing/tickets/' + encodeURIComponent($box.attr('data-token')) + '/reissue', {
+            reason: $('#tktReissueReason').val(), holder_name: $('#tktReissueName').val(), send_email: $('#tktReissueSend').length ? $('#tktReissueSend').is(':checked') : false
+        }).then(function (r) {
+            $b.prop('disabled', false);
+            if (!r.ok) { $box.find('.tkt-form-error').text(r.json.message || 'Could not reissue it.'); return; }
+            toast('showSuccess', r.json.message);
+            openOrder(sales.order.order.id);
+        }).catch(function () { $b.prop('disabled', false); $box.find('.tkt-form-error').text('Connection problem - try again.'); });
+    });
+
+    // ── guest list: issue complimentary tickets ──
+    $(document).on('submit', '#tktCompForm', function (e) {
+        e.preventDefault();
+        var $b = $(this).find('button[type=submit]').prop('disabled', true);
+        $('#tktCompError').text('');
+        call('POST', '/api/admin/ticketing/events/' + sales.eventId + '/complimentary', {
+            ticket_type_id: Number($('#tktCompTier').val()), quantity: Number($('#tktCompQty').val()), guest_name: $('#tktCompName').val(),
+            guest_email: $('#tktCompEmail').val(), guest_phone: $('#tktCompPhone').val(), note: $('#tktCompNote').val(), send_email: $('#tktCompSend').is(':checked')
+        }).then(function (r) {
+            $b.prop('disabled', false);
+            if (!r.ok) { $('#tktCompError').text(r.json.message || 'Could not issue the tickets.'); return; }
+            toast('showSuccess', r.json.message);
+            $('#tktCompName, #tktCompEmail, #tktCompPhone, #tktCompNote').val('');
+            $('#tktCompQty').val('1');
+            loadStats();
+            loadOrders();
+        }).catch(function () { $b.prop('disabled', false); $('#tktCompError').text('Connection problem - try again.'); });
+    });
+
     $(document).on('click', '#tktResend', function () {
         var $b = $(this).prop('disabled', true);
         call('POST', '/api/admin/ticketing/orders/' + sales.order.order.id + '/resend').then(function (r) {
@@ -474,7 +535,7 @@
     $(document).on('click', '#tktRefundGo', function () {
         var $b = $(this).prop('disabled', true);
         var id = sales.order.order.id;
-        call('POST', '/api/admin/ticketing/orders/' + id + '/refund', { note: $('#tktRefundNote').val(), notify: $('#tktRefundNotify').is(':checked') }).then(function (r) {
+        call('POST', '/api/admin/ticketing/orders/' + id + '/refund', { note: $('#tktRefundNote').val(), notify: $('#tktRefundNotify').length ? $('#tktRefundNotify').is(':checked') : false }).then(function (r) {
             $b.prop('disabled', false);
             if (!r.ok) { toast('showError', r.json.message || 'Could not mark it refunded.'); return; }
             toast('showSuccess', r.json.message);

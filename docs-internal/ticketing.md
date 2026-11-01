@@ -47,6 +47,7 @@ New (ticketing's own code, in the repo's existing lib / routes / js/admin layout
 | `lib/ticketing-delivery.js` | QR codes, ticket PDF, the e-mails, admin alerts |
 | `lib/payfast-itn-checks.js` | the timestamp / source-IP / validate-POST steps, moved verbatim out of the booking ITN handler |
 | `routes/public/ticketing.js` | public API, `/t/<token>`, `/checkin` |
+| `lib/ticketing-issue.js` | migration 116: complimentary tickets (guest list) and void-and-reissue of one ticket |
 | `lib/ticketing-door.js`, `routes/public/ticketing-door.js` | door links (migration 115): per-show volunteer links, and the door API they use |
 | `routes/admin/ticketing.js` | admin API (tiers, sales switch, orders, refunds, CSV, figures, door) |
 | `js/tickets-drawer.js`, `css/public/tickets.css` | the Get Tickets drawer + card buttons |
@@ -126,6 +127,20 @@ payfast_reconcile_findings.ticket_order_id → ticket_orders (new nullable colum
 * Scanning with the phone's ordinary camera app also works: it opens the ticket link, which shows the Check In button to signed-in
   staff (and only "Valid ticket for …" to anyone else).
 * Camera needs HTTPS (the live site has it). On iPhones the bundled jsQR does the decoding; on Android Chrome the built-in reader.
+
+## 5b. The office's extra tools (2026-11-01)
+
+* **Search** (orders list and door search): name, e-mail, order number, a **phone number** in any SA form (082 123 4567 / +27 82 ...),
+  a **ticket number** as printed on the PDF ("1042-2" = order 1042's 2nd valid ticket) and the **ticket code** (with or without the
+  PDF's spaces). A door link never searches by e-mail or phone.
+* **Guest list (complimentary tickets)** - Ticket Sales -> Guest list: ticket type, how many (1-20), guest name, optional e-mail / phone,
+  who they are / why. A paid R0 order marked `complimentary` (+ `issued_by`, `comp_note`); seats are taken with the same atomic
+  capacity check as a sale (never oversold), never revenue (the figures show "N complimentary"), no PayFast. E-mailed as "Complimentary"
+  when an address is given; otherwise "Tickets PDF" in the order drawer. "Cancel these tickets" (the refund path, no e-mail) frees the seats.
+* **Void & reissue** one ticket (order drawer, per ticket): reason required, optional new name; the old code is void at once (who / why
+  kept), a new code is issued to the same order and type (`replaces_ticket_id`), seats unchanged, the buyer is e-mailed the tickets again.
+  Refused for a ticket already used at the door (undo the check-in first). Audit: `TICKETS_COMPLIMENTARY_ISSUED`,
+  `TICKETS_COMPLIMENTARY_CANCELLED`, `TICKET_REISSUED`. Tests: `ticketing-office` (22) + browser `checkin.js`.
 
 ## 5a. Sharing a show
 

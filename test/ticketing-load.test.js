@@ -3,9 +3,9 @@
 //      never one ticket too many - while the homepage's events list keeps answering;
 //   B. 120 buyers wanting 1-4 tickets each at once for 100 tickets: the tickets held add up to what was sold, never above 100;
 //   C. 10 buyers pay at the same moment, and PayFast sends every notification TWICE at once: 10 paid orders, exactly 10 tickets, no duplicates.
-//      The notification endpoint takes 20 a minute from any address but PayFast's own (exempt) and answers the rest "200" WITHOUT acting
-//      (middleware/rate-limiters.js payfastItnRateLimiter) - so 10 x 2 here, and any order still unpaid is notified again after that minute
-//      (in production the buyer's return page and the 5-minute safety net recover such a payment from PayFast's history).
+//      In production the notification endpoint takes 20 a minute from any address but PayFast's own (exempt) and answers the rest "200"
+//      WITHOUT acting (middleware/rate-limiters.js payfastItnRateLimiter; off under NODE_ENV=test). Kept within that anyway, and any order
+//      still unpaid is notified again a minute later, as PayFast / the safety net would.
 // Timings are printed (the server handles reservations one at a time - SQLite BEGIN IMMEDIATE - so this is also the speed check).
 // Date offsets 1996-1998 are reserved for this file. Every event it creates is cancelled before it ends.
 const { api, pub, q, one, future, sleep } = require('./support');

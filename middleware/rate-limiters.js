@@ -224,7 +224,9 @@ if (process.env.NODE_ENV !== 'test') setInterval(refreshPayfastValidIps, 15 * 60
 
 // S4-4: Rate limiter for PayFast ITN — generous window to allow retries, but caps floods.
 // Known PayFast IPs skip the limit entirely; unknown IPs (misconfigured proxies) are throttled.
-const payfastItnRateLimiter = rateLimit ? rateLimit({
+// Off under NODE_ENV=test like its siblings: the whole suite posts synthetic notifications from one address, and over 20 a minute the
+// limiter answers 200 WITHOUT acting (see the handler) - payments in later test files then silently never arrive (found 2026-11-01).
+const payfastItnRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
     windowMs: 60 * 1000, // 1-minute window
     max: 20,             // 20 ITNs/min is more than enough for all PayFast retry patterns
     standardHeaders: true,

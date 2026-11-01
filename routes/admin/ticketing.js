@@ -12,6 +12,7 @@ const core = require('../../lib/ticketing-core');
 const ticketing = require('../../lib/ticketing');
 const delivery = require('../../lib/ticketing-delivery');
 const door = require('../../lib/ticketing-door');
+const issue = require('../../lib/ticketing-issue');
 const { emailBaseUrl } = require('../../lib/email-context');
 const router = express.Router();
 
@@ -127,7 +128,7 @@ router.get('/api/admin/ticketing/orders/:id', requireAdmin, MANAGE, async (req, 
     try {
         const d = await ticketing.orderDetail(idParam(req.params.id));
         if (!d) return res.status(404).json({ success: false, message: 'Order not found.' });
-        res.json({ success: true, ...d });
+        res.json({ success: true, ...d, issue: await issue.issueDetails(d.order.id) });
     } catch (e) { fail(res, e, 'order detail'); }
 });
 
@@ -147,8 +148,15 @@ router.post('/api/admin/ticketing/orders/:id/resend', requireAdmin, MANAGE, asyn
 router.post('/api/admin/ticketing/orders/:id/refund', requireAdmin, MANAGE, async (req, res) => {
     try {
         const note = core.oneLine((req.body && req.body.note) || '').slice(0, 300);
-        if (note.length < 3) return res.status(400).json({ success: false, message: 'Please note how it was refunded (for example "Refunded in PayFast on 30 Oct").' });
+        const target = await ticketing.getOrderById(idParam(req.params.id));
+        const comp = !!(target && target.complimentary);
+        if (note.length < 3) return res.status(400).json({ success: false, message: comp ? 'Please say why these complimentary tickets are cancelled.' : 'Please note how it was refunded (for example "Refunded in PayFast on 30 Oct").' });
         const r = await ticketing.refundOrder(idParam(req.params.id), req.session.adminId, note);
+        if (comp) {
+            // complimentary tickets: nothing was paid, so no "refund made" e-mail - the seats just go back
+            await logAudit({ tableName: 'ticket_orders', recordId: r.after.id, action: 'TICKETS_COMPLIMENTARY_CANCELLED', req, reason: note });
+            return res.json({ success: true, mailed: false, message: 'Complimentary tickets cancelled - they no longer work at the door and the seats are free again.' });
+        }
         await logAudit({ tableName: 'ticket_orders', recordId: r.after.id, action: 'TICKET_ORDER_REFUNDED', req,
             oldValues: { status: r.before.status, refund_required: r.before.refund_required }, newValues: { status: r.after.status }, reason: note });
         // The buyer is told the refund has been MADE (only now - never before it happened). notify: false skips it (e.g. already told by phone).
@@ -160,6 +168,40 @@ router.post('/api/admin/ticketing/orders/:id/refund', requireAdmin, MANAGE, asyn
         const tail = mailed ? ' The buyer has been e-mailed that the refund was made.' : '';
         res.json({ success: true, mailed, message: (r.checkedIn ? `Marked as refunded. Note: ${r.checkedIn} of its tickets had already been used at the door.` : 'Marked as refunded - its tickets no longer work and the places are back on sale.') + tail });
     } catch (e) { fail(res, e, 'refund'); }
+});
+
+// ── tickets issued outside a sale (lib/ticketing-issue.js): complimentary orders, void and reissue of one ticket ──
+router.post('/api/admin/ticketing/events/:id/complimentary', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const r = await issue.issueComplimentary(idParam(req.params.id), req.body || {}, req.session.adminId);
+        await logAudit({ tableName: 'ticket_orders', recordId: r.order.id, action: 'TICKETS_COMPLIMENTARY_ISSUED', req,
+            newValues: { event_id: r.order.event_id, tickets: r.tickets.length, guest: r.order.buyer_name, note: r.order.comp_note } });
+        let mailed = false;
+        if (r.order.buyer_email && !(req.body && req.body.send_email === false)) {
+            const m = await delivery.deliverOrder(r.order.id).catch(() => null);
+            mailed = !!(m && m.success);
+        }
+        res.json({ success: true, order: { id: r.order.id, public_reference: r.order.public_reference }, tickets: r.tickets.length, mailed,
+            message: `${r.tickets.length} complimentary ticket${r.tickets.length === 1 ? '' : 's'} issued to ${r.order.buyer_name}.` + (mailed ? ' They have been e-mailed.' : r.order.buyer_email ? '' : ' No e-mail address: open the order to print or share them.') });
+    } catch (e) { fail(res, e, 'complimentary'); }
+});
+
+router.post('/api/admin/ticketing/tickets/:token/reissue', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-store');
+        const body = req.body || {};
+        const r = await issue.reissueTicket(String(req.params.token || ''), { reason: body.reason, holderName: body.holder_name }, req.session.adminId);
+        await logAudit({ tableName: 'tickets', recordId: r.old.id, action: 'TICKET_REISSUED', req, oldValues: { ticket_id: r.old.id, holder: r.old.holder_name },
+            newValues: { ticket_id: r.ticket.id, holder: r.ticket.holder_name }, reason: core.oneLine(body.reason).slice(0, 300) });
+        let mailed = false;
+        const order = await ticketing.getOrderById(r.ticket.order_id);
+        if (order.buyer_email && body.send_email !== false) {
+            const m = await delivery.deliverOrder(order.id, { resend: true }).catch(() => null);
+            mailed = !!(m && m.success);
+        }
+        res.json({ success: true, mailed, ticket: doorView(r.ticket),
+            message: 'The old code no longer works; a new ticket was issued.' + (mailed ? ' The buyer has been e-mailed the new ticket.' : '') });
+    } catch (e) { fail(res, e, 'reissue'); }
 });
 
 // The show was cancelled or postponed (set in the Events editor): e-mail every paid order's buyer, once each. Cancelled -> "you will be

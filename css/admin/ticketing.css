@@ -110,3 +110,14 @@ body.role-assistant .tkt-manage { display: none !important; }
 
 /* text for screen readers only (e.g. a table column whose header would otherwise be empty) */
 .tkt-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* guest list (complimentary tickets) */
+.tkt-comps__form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px 12px; align-items: end; }
+.tkt-comps__field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tkt-comps__field > span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--atl-muted); }
+.tkt-comps__field--wide { grid-column: 1 / -1; }
+.tkt-comps .tkt-check-line { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--atl-ink); }
+.tkt-reissue-box { margin-top: 8px; }
+/* the Door links / Guest list headings are h3 (heading order) but look like the panel's other section labels */
+#evtPanelTickets .tkt-doorpasses h3.um-section-label { font-size: 16px !important; font-weight: 700 !important; line-height: 1.3 !important; letter-spacing: 0 !important; text-transform: none !important; margin: 0 !important; }   /* !important: the theme engine sizes every h3 */
+#evtPanelTickets .tkt-comps label.tkt-check-line { text-transform: none !important; letter-spacing: 0 !important; font-weight: 400 !important; font-size: 13px !important; margin: 0 !important; }
