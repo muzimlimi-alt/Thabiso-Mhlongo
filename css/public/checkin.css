@@ -25,6 +25,9 @@
     background: var(--bg-surface); border: 1px solid var(--border-default); border-radius: var(--r-md);
 }
 .ck-select:focus, .ck-input:focus { outline: 2px solid var(--y-base); outline-offset: 1px; }
+/* door-link mode: the show is fixed by the link, so its name replaces the event picker */
+.ck-event-name { margin: 0; flex: 1 1 auto; font-weight: 700; font-size: 1rem; color: var(--text-primary); }
+.ck-pass-label { margin: 6px 0 0; font-size: .8rem; color: var(--text-secondary); }
 .ck-count { margin: 0; font-family: var(--f-mono); font-size: .95rem; color: var(--text-secondary); }
 
 .ck-btn {

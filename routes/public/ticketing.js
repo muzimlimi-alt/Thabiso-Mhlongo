@@ -163,7 +163,7 @@ function ticketPage({ title, heading, line, state, token }) {
 <title>${h(title)}</title>
 <link rel="icon" href="/favicon.ico">
 <link href="/css/public/redesign.css?v=24" rel="stylesheet">
-<link href="/css/public/checkin.css?v=1" rel="stylesheet">
+<link href="/css/public/checkin.css?v=2" rel="stylesheet">
 </head>
 <body class="ck-body">
 <main class="ck-shell" id="ckMain" data-token="${h(token)}" data-state="${h(state)}">
@@ -174,7 +174,7 @@ function ticketPage({ title, heading, line, state, token }) {
   </section>
   <section class="ck-staff" id="ckStaff" hidden></section>
 </main>
-<script src="/js/checkin.js?v=2"></script>
+<script src="/js/checkin.js?v=3"></script>
 </body>
 </html>`;
 }
@@ -203,5 +203,8 @@ router.get('/t/:token', ticketLookupRateLimiter, async (req, res) => {
         res.status(500).type('html').send(ticketPage({ title: 'Ticket', heading: 'Something went wrong', line: 'Please try again in a moment.', state: 'error', token: '' }));
     }
 });
+
+// Door links: the scanner API for volunteers without a portal account (routes/public/ticketing-door.js).
+router.use(require('./ticketing-door'));
 
 module.exports = router;

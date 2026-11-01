@@ -9,9 +9,10 @@
 <link rel="icon" href="/favicon.ico">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link href="/css/public/redesign.css?v=24" rel="stylesheet">
-<link href="/css/public/checkin.css?v=1" rel="stylesheet">
+<link href="/css/public/checkin.css?v=2" rel="stylesheet">
 </head>
-<!-- Door check-in for event ticketing (docs-internal/ticketing.md). For staff signed in to the admin portal (any role).
+<!-- Door check-in for event ticketing (docs-internal/ticketing.md). For staff signed in to the admin portal (any role), or a volunteer
+     holding a DOOR LINK (/checkin?pass=..., one show only, expires after show night - lib/ticketing-door.js).
      Scans a ticket's QR code with the phone camera (the browser's own QR reader where it has one, else the bundled jsQR), or finds a
      ticket by name / e-mail / order number; shows holder, ticket type and status; ONE tap on Check In admits (a POST - an atomic
      update on the server, so two phones can never both admit the same ticket). Everything is an admin API call; the page holds nothing. -->
@@ -22,14 +23,16 @@
     <div class="ck-event-row">
       <label class="ck-sr" for="ckEvent">Event</label>
       <select id="ckEvent" class="ck-select" aria-label="Which show is this door for?"></select>
+      <p class="ck-event-name" id="ckEventName" hidden></p>
       <p class="ck-count" id="ckCount" aria-live="polite"></p>
     </div>
+    <p class="ck-pass-label" id="ckPassLabel" hidden></p>
   </header>
 
   <section class="ck-signin" id="ckSignin" hidden>
-    <h1 class="ck-title">Sign in first</h1>
-    <p class="ck-line">Door check-in is for staff. Sign in to the admin portal on this phone, then come back to this page.</p>
-    <a class="ck-btn ck-btn--gold" href="/admin.html">Open the admin sign-in</a>
+    <h1 class="ck-title" id="ckSigninTitle">Sign in first</h1>
+    <p class="ck-line" id="ckSigninLine">Door check-in is for staff. Sign in to the admin portal on this phone, or open the door link the organiser sent you.</p>
+    <a class="ck-btn ck-btn--gold" id="ckSigninLink" href="/admin.html">Open the admin sign-in</a>
   </section>
 
   <section class="ck-camera" id="ckCameraBox" hidden>
@@ -49,7 +52,7 @@
   <section class="ck-manual" id="ckManual" hidden>
     <h2 class="ck-h">No QR? Find the ticket</h2>
     <form id="ckSearchForm" class="ck-search" role="search">
-      <label class="ck-sr" for="ckSearch">Name, e-mail, order number or ticket code</label>
+      <label class="ck-sr" for="ckSearch" id="ckSearchLabel">Name, e-mail, order number or ticket code</label>
       <input id="ckSearch" class="ck-input" type="search" autocomplete="off" placeholder="Name, e-mail, order # or code">
       <button type="submit" class="ck-btn">Find</button>
     </form>
@@ -58,6 +61,6 @@
   <canvas id="ckCanvas" hidden></canvas>
 </main>
 <script src="/js/vendor/jsQR-1.4.0.js"></script>
-<script src="/js/checkin.js?v=2"></script>
+<script src="/js/checkin.js?v=3"></script>
 </body>
 </html>

@@ -90,3 +90,20 @@ body.role-assistant .tkt-manage { display: none !important; }
 .tkt-refund { border: 1px solid var(--atl-line); border-radius: 6px; padding: 12px; background: var(--atl-surface2); }
 .tkt-refund .tkt-check-line { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; font-size: 13px; text-transform: none; letter-spacing: 0; color: var(--atl-ink); }
 .tkt-refund label:not(.tkt-check-line) { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--atl-muted); margin-bottom: 6px; }
+
+/* door links (Ticket Sales) */
+.tkt-doorpasses { display: flex; flex-direction: column; gap: 10px; margin: 16px 0; padding: 14px; border: 1px solid var(--atl-line); border-radius: 8px; }
+.tkt-doorpasses .um-section-label { margin: 0; }
+.tkt-doorpasses__form { display: flex; gap: 8px; flex-wrap: wrap; }
+.tkt-doorpasses__form .atl-input { flex: 1 1 220px; min-width: 0; }
+.tkt-doorpasses__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.tkt-doorpass { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--atl-line); border-radius: 6px; }
+.tkt-doorpass--off { opacity: .65; }
+.tkt-doorpass__label { margin: 0; font-weight: 700; color: var(--atl-ink); }
+.tkt-doorpass .atl-btn { font-size: 12px; }
+.tkt-doorpass-new { border: 1px solid color-mix(in srgb, var(--atl-amber) 50%, transparent); background: color-mix(in srgb, var(--atl-amber) 8%, transparent); border-radius: 6px; padding: 12px; font-size: 13px; color: var(--atl-ink); }
+.tkt-doorpass-new p { margin: 0 0 10px; }
+.tkt-doorpass-new__row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.tkt-doorpass-new__qr { background: #fff; padding: 6px; border-radius: 6px; flex: 0 0 auto; }
+.tkt-doorpass-new__link { display: flex; flex-direction: column; gap: 6px; flex: 1 1 240px; min-width: 0; }
+.tkt-doorpass-new__link .atl-input { width: 100%; font-family: var(--f-mono, monospace); font-size: 12px; }

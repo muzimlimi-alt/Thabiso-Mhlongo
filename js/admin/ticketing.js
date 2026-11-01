@@ -244,7 +244,7 @@
         $('#tktOrdersCsvLink').attr('href', '/api/admin/ticketing/events/' + id + '/orders.csv');
         $('#tktDoorLink').attr('href', '/checkin?event=' + id);
         loadStats();
-        if (canManage()) loadOrders();
+        if (canManage()) { loadOrders(); $('#tktDoorPassNew').prop('hidden', true).empty(); loadDoorPasses(); }
     }
     $(document).on('change', '#tktSalesEvent', function () { selectEvent(Number($(this).val())); });
     $(document).on('click', '#tktSalesRefresh', function () { loadStats(); if (canManage()) loadOrders(); });
@@ -403,6 +403,63 @@
                 if (r.ok) { openOrder(sales.order.order.id); loadStats(); }
             });
         });
+    });
+
+    // ── door links: a per-show check-in link for a volunteer (no portal account). The link itself is shown ONCE, when made. ──
+    function doorPassState(p) {
+        if (p.revoked_at) return { cls: 'off', text: 'Switched off' };
+        if (Date.parse(p.expires_at) <= Date.now()) return { cls: 'off', text: 'Expired' };
+        return { cls: 'on', text: 'Works until ' + sast(p.expires_at) };
+    }
+    function loadDoorPasses() {
+        var id = sales.eventId;
+        return call('GET', '/api/admin/ticketing/events/' + id + '/door-passes').then(function (r) {
+            if (id !== sales.eventId || !r.ok) return;
+            var list = r.json.passes || [];
+            $('#tktDoorPassList').html(list.length ? list.map(function (p) {
+                var st = doorPassState(p);
+                return '<li class="tkt-doorpass tkt-doorpass--' + st.cls + '"><div><p class="tkt-doorpass__label">' + esc(p.label) + '</p>' +
+                    '<p class="tkt-muted">' + esc(st.text) + ' · ' + p.check_ins + ' checked in' + (p.last_used_at ? ' · last used ' + esc(sast(p.last_used_at)) : ' · not used yet') +
+                    (p.created_by_name ? ' · made by ' + esc(p.created_by_name) : '') + '</p></div>' +
+                    (st.cls === 'on' ? '<button type="button" class="atl-btn atl-btn--ghost tkt-doorpass-off" data-id="' + p.id + '" data-label="' + esc(p.label) + '"><i class="fa-solid fa-ban"></i> Switch off</button>' : '') + '</li>';
+            }).join('') : '<li class="tkt-muted">No door links for this show yet.</li>');
+        });
+    }
+    $(document).on('submit', '#tktDoorPassForm', function (e) {
+        e.preventDefault();
+        var $b = $(this).find('button[type=submit]').prop('disabled', true);
+        call('POST', '/api/admin/ticketing/events/' + sales.eventId + '/door-passes', { label: $('#tktDoorPassLabel').val() }).then(function (r) {
+            $b.prop('disabled', false);
+            if (!r.ok) { toast('showError', r.json.message || 'Could not create the door link.'); return; }
+            $('#tktDoorPassLabel').val('');
+            $('#tktDoorPassNew').html('<div class="tkt-doorpass-new" role="status">' +
+                '<p><strong>Door link for "' + esc(r.json.pass.label) + '" is ready.</strong> Send it to the volunteer now (WhatsApp is fine), or let them scan this code with their phone. ' +
+                'It is shown only this once - if it is lost, switch it off and make a new one.</p>' +
+                '<div class="tkt-doorpass-new__row"><img class="tkt-doorpass-new__qr" src="' + esc(r.json.qr) + '" alt="QR code that opens the door link" width="160" height="160">' +
+                '<div class="tkt-doorpass-new__link"><label class="tkt-muted" for="tktDoorPassUrl">Door link</label>' +
+                '<input type="text" id="tktDoorPassUrl" class="atl-input" readonly value="' + esc(r.json.link) + '">' +
+                '<button type="button" class="atl-btn atl-btn--primary" id="tktDoorPassCopy"><i class="fa-regular fa-copy"></i> Copy link</button></div></div></div>').prop('hidden', false);
+            loadDoorPasses();
+        }).catch(function () { $b.prop('disabled', false); toast('showError', 'Could not create the door link - check your connection.'); });
+    });
+    $(document).on('click', '#tktDoorPassCopy', function () {
+        var input = document.getElementById('tktDoorPassUrl');
+        var done = function () { toast('showSuccess', 'Door link copied.'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(input.value).then(done, function () { input.select(); });
+        else { input.select(); try { document.execCommand('copy'); done(); } catch (err) {} }
+    });
+    $(document).on('click', '.tkt-doorpass-off', function () {
+        var id = Number($(this).attr('data-id'));
+        var go = function () {
+            call('DELETE', '/api/admin/ticketing/events/' + sales.eventId + '/door-passes/' + id).then(function (r) {
+                toast(r.ok ? 'showSuccess' : 'showError', r.json.message || (r.ok ? 'Switched off.' : 'Could not switch it off.'));
+                $('#tktDoorPassNew').prop('hidden', true).empty();
+                loadDoorPasses();
+            });
+        };
+        if (window.notificationService && window.notificationService.showConfirm) {
+            window.notificationService.showConfirm({ message: 'Switch off the door link "' + $(this).attr('data-label') + '"? It stops working on that phone straight away. Check-ins already made stay.', isDestructive: true }).then(function (ok) { if (ok) go(); });
+        } else go();
     });
 
     $(document).on('click', '#tktResend', function () {

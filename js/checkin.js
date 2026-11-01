@@ -4,6 +4,8 @@
        becomes the staff view: holder, ticket type, status and a big Check In button. Opening the page never checks anyone in.
    (2) /checkin - the scanner: the phone camera reads QR codes (the browser's BarcodeDetector where it exists, else the bundled jsQR),
        or a ticket is found by name / e-mail / order number / code; a tap on Check In admits.
+       Two ways in: signed in to the admin portal (any role, any show), or a DOOR LINK (/checkin?pass=..., made in Events -> Ticket Sales):
+       a volunteer without a portal account, for ONE show, no buyer e-mails - the pass goes to the door API (routes/public/ticketing-door.js).
    Check-in is always a POST to the admin API, which runs ONE atomic update - of two phones scanning the same ticket, exactly one admits. */
 (function () {
     'use strict';
@@ -11,8 +13,11 @@
     var TOKEN = /^[A-Za-z0-9_-]{24}$/;
 
     function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+    var doorPass = null;                                            // set by the scanner when it was opened from a door link
     function call(method, url) {
-        return fetch(url, { method: method, credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json' } }).then(function (res) {
+        var headers = { Accept: 'application/json' };
+        if (doorPass) headers['x-door-pass'] = doorPass;
+        return fetch(url, { method: method, credentials: 'same-origin', cache: 'no-store', headers: headers }).then(function (res) {
             return res.json().catch(function () { return {}; }).then(function (json) { return { status: res.status, ok: res.ok, json: json || {} }; });
         });
     }
@@ -126,12 +131,28 @@
     var scanner = $('ckScanner');
     if (!scanner) return;
     var params = new URLSearchParams(window.location.search);
+    // A door link: keep its secret for this tab only and take it out of the address bar (screenshots, history, shoulder-surfers).
+    try {
+        if (params.get('pass')) { sessionStorage.setItem('tmDoorPass', params.get('pass')); history.replaceState(null, '', '/checkin'); }
+        doorPass = sessionStorage.getItem('tmDoorPass');
+    } catch (e) { doorPass = params.get('pass'); }
+    var api = doorPass ? {
+        ticket: function (tok) { return '/api/door/tickets/' + encodeURIComponent(tok); },
+        checkIn: function (tok) { return '/api/door/tickets/' + encodeURIComponent(tok) + '/check-in'; },
+        counts: function () { return '/api/door/event'; },
+        search: function (q) { return '/api/door/search?q=' + encodeURIComponent(q); }
+    } : {
+        ticket: function (tok) { return '/api/admin/ticketing/tickets/' + encodeURIComponent(tok); },
+        checkIn: function (tok) { return '/api/admin/ticketing/tickets/' + encodeURIComponent(tok) + '/check-in'; },
+        counts: function () { return '/api/admin/ticketing/events/' + state.eventId + '/door'; },
+        search: function (q) { return '/api/admin/ticketing/events/' + state.eventId + '/door?q=' + encodeURIComponent(q); }
+    };
     var state = { eventId: null, stream: null, scanning: false, detector: null, lastText: '', lastAt: 0, busy: false, timer: null };
 
     function setCounts(c) { if (c) $('ckCount').textContent = c.checked_in + ' of ' + c.valid + ' checked in'; }
     function refreshCounts() {
         if (!state.eventId) return;
-        call('GET', '/api/admin/ticketing/events/' + state.eventId + '/door').then(function (r) { if (r.ok) setCounts(r.json.counts); });
+        call('GET', api.counts()).then(function (r) { if (r.ok) setCounts(r.json.counts); });
     }
 
     function showResult(html) { var box = $('ckResult'); box.innerHTML = html; box.hidden = false; box.scrollIntoView({ block: 'nearest' }); }
@@ -141,13 +162,13 @@
     function lookup(token) {
         state.busy = true;
         pauseScan();
-        call('GET', '/api/admin/ticketing/tickets/' + encodeURIComponent(token)).then(function (r) {
+        call('GET', api.ticket(token)).then(function (r) {
             if (r.status === 401 || r.status === 403) return needSignIn();
             if (!r.ok) { buzz(false); showResult(ticketCard(null, 'invalid', 'Invalid ticket') + nextButton()); return; }
             var t = r.json.ticket;
             if (state.eventId && Number(t.event_id) !== Number(state.eventId)) {
                 buzz(false);
-                showResult(ticketCard(t, 'wrong_event', 'Wrong show - this ticket is for ' + t.event_title + (t.when ? ' (' + t.when + ')' : '')) + nextButton());
+                showResult(ticketCard(t.status === 'wrong_event' ? null : t, 'wrong_event', 'Wrong show - this ticket is for ' + t.event_title + (t.when ? ' (' + t.when + ')' : '')) + nextButton());
                 return;
             }
             if (t.status === 'checked_in' && wasMine(t)) { buzz(true); showResult(ticketCard(t, 'admitted', MINE) + nextButton()); return; }
@@ -167,7 +188,7 @@
             var tok = b.getAttribute('data-checkin');
             b.disabled = true;
             noteAttempt(tok);
-            call('POST', '/api/admin/ticketing/tickets/' + encodeURIComponent(tok) + '/check-in').then(function (r) {
+            call('POST', api.checkIn(tok)).then(function (r) {
                 if (r.status === 401 || r.status === 403) return needSignIn();
                 var res = { result: r.json.result || 'invalid', json: r.json };
                 if (res.result === 'already' && wasMine(r.json.ticket)) { res.result = 'admitted'; res.mine = true; }   // a retry of this phone's own tap
@@ -197,12 +218,37 @@
 
     function needSignIn() {
         stopCamera();
+        if (doorPass) {
+            $('ckSigninTitle').textContent = 'This door link has stopped working';
+            $('ckSigninLine').textContent = 'It has expired or was switched off. Ask the organiser for a new door link.';
+            $('ckSigninLink').hidden = true;
+            try { sessionStorage.removeItem('tmDoorPass'); } catch (e) {}
+        }
         ['ckCameraBox', 'ckManual', 'ckResult'].forEach(function (id) { $(id).hidden = true; });
         $('ckSignin').hidden = false;
         $('ckEvent').hidden = true;
     }
 
-    // ── the event this door is for ──
+    // ── the event this door is for ── (a door link: fixed by the link; signed-in staff: pick one)
+    function loadDoorEvent() {
+        return call('GET', '/api/door/event').then(function (r) {
+            if (r.status === 401 || r.status === 403 || !r.json.event) return needSignIn();
+            var ev = r.json.event;
+            state.eventId = Number(ev.event_id);
+            $('ckEvent').hidden = true;
+            var name = $('ckEventName');
+            name.textContent = (ev.title || 'This show') + (ev.starts_label ? ' · ' + ev.starts_label : '');
+            name.hidden = false;
+            $('ckPassLabel').textContent = 'Door link: ' + r.json.pass.label;
+            $('ckPassLabel').hidden = false;
+            $('ckSearch').placeholder = 'Name, order # or code';
+            $('ckSearchLabel').textContent = 'Name, order number or ticket code';
+            $('ckCameraBox').hidden = false;
+            $('ckManual').hidden = false;
+            setCounts(r.json.counts);
+            setInterval(refreshCounts, 30000);
+        }).catch(function () { showResult('<p class="ck-banner ck-banner--bad">Connection problem - reload the page.</p>'); });
+    }
     function loadEvents() {
         return call('GET', '/api/admin/ticketing/events').then(function (r) {
             if (r.status === 401 || r.status === 403) return needSignIn();
@@ -300,7 +346,7 @@
         if (!q) return;
         var t = tokenFrom(q);
         if (t) { lookup(t); return; }
-        call('GET', '/api/admin/ticketing/events/' + state.eventId + '/door?q=' + encodeURIComponent(q)).then(function (r) {
+        call('GET', api.search(q)).then(function (r) {
             if (r.status === 401 || r.status === 403) return needSignIn();
             var list = (r.json.results || []);
             $('ckFound').innerHTML = list.length ? list.map(function (t) {
@@ -311,5 +357,5 @@
         });
     });
 
-    loadEvents();
+    if (doorPass) loadDoorEvent(); else loadEvents();
 })();

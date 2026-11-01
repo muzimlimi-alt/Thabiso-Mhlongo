@@ -89,6 +89,16 @@ const ticketLookupRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ?
     message: { success: false, message: 'Too many requests from this device. Please wait a few minutes and try again.' }
 }) : (req, res, next) => next();
 
+// Door links (routes/public/ticketing-door.js): a busy door scans hundreds of tickets an hour, often from several phones on the venue's one
+// Wi-Fi address - so a generous 1200 per 10 minutes; the link itself (144-bit, per show, expiring) is the real protection.
+const doorRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
+    windowMs: 10 * 60 * 1000,
+    max: 1200,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many requests from this device. Please wait a minute and try again.' }
+}) : (req, res, next) => next();
+
 // Limiter for all authenticated admin routes (per IP) — bypassed in test mode, matching
 // bookingRateLimiter/mutateRateLimiter above: the integration suite runs many admin requests from
 // one IP across dozens of test files in the same 1-minute window, well beyond real admin usage.
@@ -231,6 +241,6 @@ module.exports = {
     bookingRateLimiter, contactRateLimiter, exportRateLimiter, sitemapRateLimiter, trackRateLimiter,
     otpRequestRateLimiter, mutateRateLimiter, adminRateLimiter, adminLoginRateLimiter,
     lookupRateLimiter, analyticsTrackLimiter, ipRateLimiter, popUploadRateLimiter,
-    ticketReserveRateLimiter, ticketLookupRateLimiter,
+    ticketReserveRateLimiter, ticketLookupRateLimiter, doorRateLimiter,
     PAYFAST_VALID_IPS, payfastItnRateLimiter,
 };

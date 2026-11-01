@@ -47,7 +47,7 @@
     <link href="css/admin/eft.css?v=2" rel="stylesheet">
     <link href="css/admin/business-profile.css?v=8" rel="stylesheet">
     <link href="css/admin/payfast-reconcile.css?v=1" rel="stylesheet">
-    <link href="css/admin/ticketing.css?v=6" rel="stylesheet">
+    <link href="css/admin/ticketing.css?v=7" rel="stylesheet">
     <link href="css/admin/redesign-admin.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
     <link rel="stylesheet" href="css/components/notifications.css">
@@ -5888,6 +5888,17 @@
                             <div id="tktSalesBody" hidden>
                                 <div class="tkt-stat-grid" id="tktStatGrid"></div>
                                 <div class="tkt-tier-table" id="tktTierTable"></div>
+                                <!-- Door links: a per-show check-in link for a volunteer without a portal account (lib/ticketing-door.js) -->
+                                <section class="tkt-manage tkt-doorpasses" id="tktDoorPasses" aria-labelledby="tktDoorPassesTitle">
+                                    <h4 class="um-section-label" id="tktDoorPassesTitle">Door links</h4>
+                                    <p class="tkt-muted">Let a volunteer check tickets in for <strong>this show only</strong> on their own phone - no portal account. They can't see buyers' e-mails, phone numbers or money. A link stops working after show night, or as soon as you switch it off.</p>
+                                    <form class="tkt-doorpasses__form" id="tktDoorPassForm">
+                                        <input type="text" id="tktDoorPassLabel" class="atl-input" maxlength="40" placeholder="e.g. Front door, or the volunteer's name" autocomplete="off" aria-label="Name for the door link">
+                                        <button type="submit" class="atl-btn atl-btn--primary"><i class="fa-solid fa-link"></i> Create door link</button>
+                                    </form>
+                                    <div id="tktDoorPassNew" hidden></div>
+                                    <ul class="tkt-doorpasses__list" id="tktDoorPassList"></ul>
+                                </section>
                                 <div class="tkt-manage">
                                     <div class="tkt-orders-bar">
                                         <div class="um-input-wrap" style="flex:1; min-width:180px;">
@@ -13569,7 +13580,7 @@
     <script src="js/admin/financials.js?v=2"></script>
     <script src="js/admin/eft.js?v=3"></script>
     <script src="js/admin/payfast-reconcile.js?v=2"></script>
-    <script src="js/admin/ticketing.js?v=5"></script>
+    <script src="js/admin/ticketing.js?v=6"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================
      FINANCE MODULE — JavaScript Engine

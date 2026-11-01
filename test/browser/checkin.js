@@ -232,6 +232,66 @@ async function paidOrder(eventId, tierId, n, buyerName) {
         await shot(adm, 'admin-3-event-tab');
         ok(adm.errs.length === 0, 'no script errors in the admin portal', adm.errs.join(' | '));
         await adm.close();
+
+        // ═══ door links: made in Ticket Sales, opened on a volunteer's phone with no portal account ═══
+        const vol = await mk(1962, 'ZZ Volunteer Show');
+        const V = await paidOrder(vol.id, vol.tier.id, 1, 'Vusi Volunteer');
+        const adm2 = await newPage(1440, 1000, true);
+        await adm2.goto(BASE + '/admin.html', { waitUntil: 'networkidle0', timeout: 90000 });
+        await adm2.waitForFunction(() => typeof window.switchTab === 'function' && !!window.currentUserRole, { timeout: 30000 });
+        await adm2.evaluate(() => window.switchTab('eventsAdmin'));
+        await sleep(800);
+        await adm2.click('#eventsAdmin [data-um-tab="evtPanelTickets"]');
+        await adm2.waitForFunction((id) => !!document.querySelector(`#tktSalesEvent option[value="${id}"]`), { timeout: 15000 }, vol.id);
+        await adm2.select('#tktSalesEvent', String(vol.id));
+        await adm2.waitForFunction(() => /No door links/.test((document.getElementById('tktDoorPassList') || {}).innerText || ''), { timeout: 15000 });
+        await adm2.type('#tktDoorPassLabel', 'Side entrance');
+        await adm2.$eval('#tktDoorPassForm button[type=submit]', el => el.click());
+        await adm2.waitForSelector('#tktDoorPassUrl', { visible: true, timeout: 10000 });
+        const link = await adm2.$eval('#tktDoorPassUrl', el => el.value);
+        await adm2.waitForFunction(() => /Side entrance/.test(document.getElementById('tktDoorPassList').innerText), { timeout: 10000 });
+        const listText = await text(adm2, '#tktDoorPassList');
+        ok(/\/checkin\?pass=[A-Za-z0-9_-]{24}$/.test(link) && await adm2.$eval('.tkt-doorpass-new__qr', el => el.complete && el.naturalWidth > 0) && /Works until/.test(listText) && /0 checked in/.test(listText),
+            'Ticket Sales -> Door links: "Create door link" shows the link and its QR code once, and lists it as working with 0 checked in', link + ' / ' + listText);
+        await adm2.$eval('#tktDoorPasses', el => el.scrollIntoView());
+        await shot(adm2, 'admin-4-door-link');
+
+        const phone = await newPage(390, 844, false);                            // the volunteer: NOT signed in
+        await phone.goto(link.replace(/^https?:\/\/[^/]+/, BASE), { waitUntil: 'networkidle0' });
+        await phone.waitForSelector('#ckManual:not([hidden])', { timeout: 10000 });
+        await waitFor(async () => /checked in/.test(await text(phone, '#ckCount')));
+        const head = await phone.evaluate(() => ({ url: location.href, select: document.getElementById('ckEvent').hidden, name: document.getElementById('ckEventName').innerText, label: document.getElementById('ckPassLabel').innerText, ph: document.getElementById('ckSearch').placeholder }));
+        ok(!/pass=/.test(head.url) && head.select && /ZZ Volunteer Show/.test(head.name) && /Side entrance/.test(head.label) && /^0 of 1 checked in$/.test(await text(phone, '#ckCount')) && !/e-mail/i.test(head.ph),
+            'the door link on a phone with no sign-in: the scanner opens for THAT show (no show picker), names the link, takes the secret out of the address bar, and search offers no e-mail', JSON.stringify(head));
+        await shot(phone, 'door-9-link-scanner');
+        await phone.type('#ckSearch', 'Vusi');
+        await phone.click('#ckSearchForm .ck-btn');
+        await phone.waitForSelector('#ckFound [data-checkin]', { timeout: 10000 });
+        await phone.click('#ckFound [data-checkin]');
+        await phone.waitForSelector('#ckResult .ck-banner', { timeout: 10000 });
+        const vr = await text(phone, '#ckResult .ck-banner');
+        await waitFor(async () => /^1 of 1/.test(await text(phone, '#ckCount')));
+        ok(vr === 'Admitted' && /^1 of 1 checked in$/.test(await text(phone, '#ckCount')) && (await one('SELECT checked_in_via FROM tickets WHERE id = ?', [V.tickets[0].id])).checked_in_via === 'Side entrance',
+            'through the door link: find by name -> Check In -> "Admitted", the counter moves, and the check-in is recorded as "Side entrance"', vr);
+        await phone.click('#ckNext');
+        await phone.$eval('#ckSearch', el => { el.value = ''; });
+        await phone.type('#ckSearch', X.tickets[0].token);
+        await phone.click('#ckSearchForm .ck-btn');
+        await phone.waitForSelector('#ckResult .ck-banner', { timeout: 10000 });
+        const vw = await text(phone, '#ckResult');
+        ok(/Wrong show - this ticket is for ZZ Other Night/.test(vw) && !/Xolani/.test(vw), 'another show\'s ticket through the door link: "Wrong show" - and not the guest\'s name', vw);
+
+        const pass = (await q('SELECT id FROM ticket_door_passes WHERE event_id = ?', [vol.id]))[0];
+        await api('DELETE', `/api/admin/ticketing/events/${vol.id}/door-passes/${pass.id}`);
+        await phone.reload({ waitUntil: 'networkidle0' });
+        await phone.waitForSelector('#ckSignin:not([hidden])', { timeout: 10000 });
+        const offText = await text(phone, '#ckSignin');
+        ok(/stopped working/.test(offText) && /new door link/.test(offText) && await phone.$eval('#ckCameraBox', el => el.hidden) && await phone.$eval('#ckSigninLink', el => el.hidden),
+            'once the link is switched off, the phone says so ("ask the organiser for a new door link") - no camera, no search', offText);
+        await shot(phone, 'door-10-link-off');
+        ok(phone.errs.length === 0 && adm2.errs.length === 0, 'no script errors on the door-link pages', phone.errs.concat(adm2.errs).join(' | '));
+        await phone.close();
+        await adm2.close();
     } catch (e) {
         fails++;
         console.log('FAIL unexpected error: ' + (e && e.stack || e));

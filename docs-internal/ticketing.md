@@ -47,6 +47,7 @@ New (ticketing's own code, in the repo's existing lib / routes / js/admin layout
 | `lib/ticketing-delivery.js` | QR codes, ticket PDF, the e-mails, admin alerts |
 | `lib/payfast-itn-checks.js` | the timestamp / source-IP / validate-POST steps, moved verbatim out of the booking ITN handler |
 | `routes/public/ticketing.js` | public API, `/t/<token>`, `/checkin` |
+| `lib/ticketing-door.js`, `routes/public/ticketing-door.js` | door links (migration 115): per-show volunteer links, and the door API they use |
 | `routes/admin/ticketing.js` | admin API (tiers, sales switch, orders, refunds, CSV, figures, door) |
 | `js/tickets-drawer.js`, `css/public/tickets.css` | the Get Tickets drawer + card buttons |
 | `js/admin/ticketing.js`, `css/admin/ticketing.css` | event drawer Tickets tab + Ticket Sales tab + order drawer |
@@ -103,7 +104,8 @@ payfast_reconcile_findings.ticket_order_id → ticket_orders (new nullable colum
 | Refund | order refunded, tickets voided, places back on sale (one transaction) | refunded ticket fails at the door |
 | Tokens | `crypto.randomBytes(18)` base64url (144 bits), never derived from ids | 2000 unique, shape |
 | Rate limits | reserve/checkout 10 per 10 min; lookups 120 per 10 min (per address) | production child test |
-| Secrets out of logs | request logger masks `/t/<token>`, order references, `?tickets=`, ticketing admin `?q=` | log scanned after the flow test |
+| Secrets out of logs | request logger masks `/t/<token>`, order references, `?tickets=`, `?pass=`, ticketing admin `?q=` | log scanned after the flow / door-link tests |
+| Door links | only a SHA-256 hash of the 144-bit secret is stored; scoped to ONE show (another show's ticket = "wrong show", nothing else); no buyer e-mail / phone / money; search by name / order / code only; expires 12 h after the show starts; switch-off works at once; each check-in records the link's name (`tickets.checked_in_via`) | `ticketing-door` (26) + browser |
 | POPIA | only name / e-mail / phone (+ optional names); consent time + policy version stored; full PayFast payload ONLY in `ticket_webhook_events`; `/t/<token>` shows strangers nothing personal | flow + browser tests |
 | Shared-connection writes | every ticketing write goes through the transaction queue (a bare write can be swept into another request's transaction and rolled back with it) | — (design rule, see `lib/ticketing.js` header) |
 | Roles | tiers / sales / orders / refunds / CSV: administrator + manager; check-in + door counts: every role; revenue hidden from assistants | RBAC checks |
@@ -115,6 +117,11 @@ payfast_reconcile_findings.ticket_order_id → ticket_orders (new nullable colum
 * Pick the show (it pre-selects the next one), **Start scanning**, allow the camera. Scan → check the name → **Check In**.
   The counter (X of Y checked in) updates from every phone every 30 s.
 * No QR / cracked screen: type the buyer's name, e-mail, order number or the printed code into **Find**.
+* **A volunteer without a portal account:** Events → Ticket Sales → pick the show → **Door links** → name the link (e.g. "Front door"
+  or the volunteer's name) → **Create door link**. Send the link (WhatsApp is fine) or let them scan the QR shown. It is shown ONCE.
+  On their phone it opens the same scanner, fixed to that show, with no buyer e-mails / phones and no money. It works until 12 hours
+  after the show starts; **Switch off** stops it at once (check-ins already made stay). The list shows how many each link checked in;
+  a re-scan says "Already scanned at 20:14 by Front door (door link)". Undo check-in (administrator / manager) clears it like any other.
 * Scanning with the phone's ordinary camera app also works: it opens the ticket link, which shows the Check In button to signed-in
   staff (and only "Valid ticket for …" to anyone else).
 * Camera needs HTTPS (the live site has it). On iPhones the bundled jsQR does the decoding; on Android Chrome the built-in reader.
@@ -143,7 +150,8 @@ end-to-end steps passed twice, plus a cancelled payment on PayFast's page.
   (3 key lines + "Read all ticket terms") and accepted with one checkbox together with the Privacy Policy; each order stores the version
   it accepted (`terms_version`, migration 114). To approve: say so, and rename the version (drop `-draft`). Any wording change = a new
   version. The owner's legal adviser should confirm it against the Consumer Protection Act before the first public sale.
-* **Undo check-in** and the **orders CSV** (PayFast payment ids, for reconciliation) were added on 2026-11-01.
+* **Undo check-in** and the **orders CSV** (PayFast payment ids, for reconciliation) were added on 2026-11-01, and **door links**
+  (volunteers without a portal account, migration 115) the same day.
 
 * **Privacy Policy wording** (needed before going live): the policy (`#privacyModal` in `index.html`, also served at `/privacy`)
   does not yet mention ticket buyers. Suggested addition, for the owner to approve or edit:
@@ -156,7 +164,6 @@ end-to-end steps passed twice, plus a cancelled payment on PayFast's page.
 * **Refunds** are made in the PayFast dashboard; the site only records them (Mark as refunded).
 * **Retention**: decide how long to keep `ticket_webhook_events.raw_payload` (it holds the buyer's name and e-mail) and add ticket
   buyers to the POPIA erasure flow (anonymise buyer fields, keep amounts).
-* **Undo check-in** is not built (a mistaken admission needs an administrator in the database).
 * Pre-existing issues noticed, not changed: `/api/public/events` returns every events column (ip, user agent, admin ids, …) and
   `ORDER BY ASC LIMIT 100` will drop future events past 100 rows; draft/cancelled standalone events still block booking dates; the
   existing CSV exports neither decode text nor guard against spreadsheet formulas; `GET /api/admin/settings` returns the PayFast key

@@ -11,6 +11,8 @@ const { logAudit } = require('../../lib/audit-log');
 const core = require('../../lib/ticketing-core');
 const ticketing = require('../../lib/ticketing');
 const delivery = require('../../lib/ticketing-delivery');
+const door = require('../../lib/ticketing-door');
+const { emailBaseUrl } = require('../../lib/email-context');
 const router = express.Router();
 
 const MANAGE = requireRole(['administrator', 'manager']);
@@ -220,17 +222,32 @@ router.get('/api/admin/ticketing/events/:id/attendees.csv', requireAdmin, MANAGE
 
 // ---------------------------------------------------------------- the door (every role)
 
-// What a scanned ticket is - for the staff view on /t/<token> and the scanner page. A GET never checks anyone in.
-function doorView(t) {
-    return t && {
-        token: t.token, event_id: t.event_id, event_title: core.tidy(t.event_title), when: core.formatSast(core.eventStart({ event_datetime: t.event_datetime })),
-        tier: t.tier_name, holder: t.holder_name || t.buyer_name || '', order_id: t.order_id,
-        status: t.voided_at || t.order_status !== 'paid' ? 'void' : (t.checked_in_at ? 'checked_in' : 'valid'),
-        checked_in_at: t.checked_in_at, checked_in_label: t.checked_in_at ? core.formatSast(t.checked_in_at, 'HH:mm') : null, checked_in_by: t.checked_in_by_name || null,
-        // by the SERVER's clock, so a door phone can tell "my own check-in a moment ago went through" without trusting its own clock
-        checked_in_seconds_ago: t.checked_in_at ? Math.max(0, Math.round((Date.now() - Date.parse(t.checked_in_at)) / 1000)) : null
-    };
-}
+// What a scanned ticket is - for the staff view on /t/<token> and the scanner page (lib/ticketing-door.js). A GET never checks anyone in.
+const { doorView } = door;
+
+// ── door links (administrators / managers): create, list, switch off ──
+router.get('/api/admin/ticketing/events/:id/door-passes', requireAdmin, MANAGE, async (req, res) => {
+    try { res.json({ success: true, passes: await door.listPasses(idParam(req.params.id)) }); }
+    catch (e) { fail(res, e, 'door passes'); }
+});
+
+// The link (and a QR code of it, to open it on the volunteer's phone) is returned ONCE - only its hash is kept.
+router.post('/api/admin/ticketing/events/:id/door-passes', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const { pass, secret } = await door.createPass(idParam(req.params.id), req.body && req.body.label, req.session.adminId);
+        const link = `${emailBaseUrl()}/checkin?pass=${secret}`;
+        await logAudit({ tableName: 'ticket_door_passes', recordId: pass.id, action: 'DOOR_LINK_CREATED', req, newValues: { event_id: pass.event_id, label: pass.label, expires_at: pass.expires_at } });
+        res.json({ success: true, pass, link, qr: await delivery.qrDataUri(link) });
+    } catch (e) { fail(res, e, 'create door pass'); }
+});
+
+router.delete('/api/admin/ticketing/events/:id/door-passes/:passId', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        await door.revokePass(idParam(req.params.id), idParam(req.params.passId));
+        await logAudit({ tableName: 'ticket_door_passes', recordId: idParam(req.params.passId), action: 'DOOR_LINK_SWITCHED_OFF', req });
+        res.json({ success: true, message: 'Door link switched off - it stops working straight away.' });
+    } catch (e) { fail(res, e, 'revoke door pass'); }
+});
 
 router.get('/api/admin/ticketing/tickets/:token', requireAdmin, async (req, res) => {
     try {
