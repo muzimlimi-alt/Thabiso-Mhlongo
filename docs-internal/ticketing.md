@@ -192,13 +192,10 @@ oversold; 10 simultaneous payments each notified twice -> exactly 10 tickets.
 * **DONE 2026-11-01 - owner confirmed `TRUST_PROXY_HOPS=2` on Render** (Cloudflare in front of Render). With 1, the app sees Cloudflare's address instead
   of the visitor's: every visitor shares the per-address rate limits (an on-sale would hit the 40-per-10-minutes limit for everyone at
   once), and PayFast's notifications are not recognised as PayFast's (source-IP check; and the notification limiter below).
-* **PayFast notification limiter (shared with bookings, NOT changed - owner's call):** `payfastItnRateLimiter` takes 20 notifications
-  a minute from any address PayFast is not known to use and answers the rest "200" without acting on them, so PayFast never retries them
-  (found by the load test). PayFast's own addresses are exempt, so this only bites if the address is misread (see above); the buyer's
-  return page and the 5-minute safety net then recover the payment from PayFast's history. Suggested: answer 429 / 503 instead of 200 so
-  PayFast retries.
-
-
+* **PayFast notification limiter - CHANGED 2026-11-01 (owner's call):** `payfastItnRateLimiter` (shared with bookings) takes 20 notifications
+  a minute from any address PayFast is not known to use; beyond that it now answers **503 "busy" + Retry-After** (it used to answer 200 and
+  silently drop them, so PayFast never retried - found by the load test). PayFast's own addresses are exempt, so this only bites if the
+  address is misread (`TRUST_PROXY_HOPS`, confirmed 2). Off under NODE_ENV=test. Test: `ticketing-limits`.
 * **Ticket terms - APPROVED by the owner on 2026-11-01** (version `ticket-terms-2026-11-01`): `lib/ticketing-core.js` `TICKET_TERMS` -
   the single source shown in the drawer (3 key lines + "Read all ticket terms") and accepted with one checkbox together with the Privacy
   Policy; each order stores the version it accepted (`terms_version`, migration 114). Any wording change = a new version. The owner's

@@ -225,7 +225,7 @@ if (process.env.NODE_ENV !== 'test') setInterval(refreshPayfastValidIps, 15 * 60
 // S4-4: Rate limiter for PayFast ITN — generous window to allow retries, but caps floods.
 // Known PayFast IPs skip the limit entirely; unknown IPs (misconfigured proxies) are throttled.
 // Off under NODE_ENV=test like its siblings: the whole suite posts synthetic notifications from one address, and over 20 a minute the
-// limiter answers 200 WITHOUT acting (see the handler) - payments in later test files then silently never arrive (found 2026-11-01).
+// limiter refuses (see the handler) - payments in later test files then never arrive (found 2026-11-01).
 const payfastItnRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
     windowMs: 60 * 1000, // 1-minute window
     max: 20,             // 20 ITNs/min is more than enough for all PayFast retry patterns
@@ -236,8 +236,12 @@ const payfastItnRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? r
         return PAYFAST_VALID_IPS.has(ip);
     },
     handler: (req, res) => {
-        console.warn(`[PayFast ITN] Rate limit hit from IP: ${req.ip}`);
-        res.sendStatus(200); // Always 200 to PayFast to prevent retries consuming the limit further
+        // 503 "busy", NOT 200 (owner's call, 2026-11-01): a 200 tells PayFast the notification was handled, so it never sends it again and a
+        // genuine payment that happened to be throttled would be lost until the safety net found it. A 503 makes PayFast retry it later.
+        // PayFast's own addresses skip this limit, so in practice only a misread address (proxy settings) ever gets here.
+        console.warn(`[PayFast ITN] Rate limit hit from IP: ${req.ip} - answering 503 so PayFast retries`);
+        res.set('Retry-After', '60');
+        res.sendStatus(503);
     }
 }) : (req, res, next) => next();
 
