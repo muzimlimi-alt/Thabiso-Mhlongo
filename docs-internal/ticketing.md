@@ -52,6 +52,7 @@ New (ticketing's own code, in the repo's existing lib / routes / js/admin layout
 | `js/tickets-drawer.js`, `css/public/tickets.css` | the Get Tickets drawer + card buttons |
 | `js/admin/ticketing.js`, `css/admin/ticketing.css` | event drawer Tickets tab + Ticket Sales tab + order drawer |
 | `checkin.html`, `js/checkin.js`, `css/public/checkin.css` | door scanner + the staff view on `/t/<token>` |
+| `js/event-share.js` | Share a show: Share buttons (card poster, details pop-up, drawer), system share sheet or WhatsApp / Facebook / X / Copy link menu; opens `/?event=<id>` from a shared link |
 | `js/vendor/jsQR-1.4.0.js` (+ LICENSE) | QR decoder for phones without a built-in one (Apache-2.0, served from the site) |
 
 Integration points in existing code (small, each commented in place): `database.js` (one call), `app.js` (two router mounts, the hold
@@ -125,6 +126,16 @@ payfast_reconcile_findings.ticket_order_id → ticket_orders (new nullable colum
 * Scanning with the phone's ordinary camera app also works: it opens the ticket link, which shows the Check In button to signed-in
   staff (and only "Valid ticket for …" to anyone else).
 * Camera needs HTTPS (the live site has it). On iPhones the bundled jsQR does the decoding; on Android Chrome the built-in reader.
+
+## 5a. Sharing a show
+
+Every upcoming show has a Share button (round, on the card's poster; "Share with friends" in the details pop-up and the Get Tickets
+drawer). Phones use the system share sheet; other browsers get a menu (WhatsApp, Facebook, X, Copy link). What is shared is the short
+link `/e/<event_id>` (`routes/public/site-content.js`): a tiny page whose Open Graph tags give chat apps the poster, title, date, venue
+and "Tickets on sale now", then a meta refresh to `/?event=<id>`, where `js/event-share.js` opens that show's Get Tickets drawer (or its
+details pop-up when tickets are not sold here). Same visibility rule as the events list: draft, cancelled and private-booking events are
+not shareable (302 to `/#events`). The share page is `noindex` and cached 5 minutes. Tests: `event-share` (7) + browser `event-share.js` (13).
+WhatsApp / Facebook cache a link's preview: after changing a poster, Facebook's Sharing Debugger can refresh it.
 
 ## 6. Configuration and jobs
 

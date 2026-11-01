@@ -28,6 +28,7 @@ button.ev-card__ticket-btn { line-height: 1.2; }
 @media (max-width: 420px) { #ticketDrawer .tk-event__poster { height: 150px; } }
 #ticketDrawer .tk-event__title { margin: 0; font-family: var(--f-display); font-size: 1.6rem; line-height: 1.2; color: var(--text-primary); }
 #ticketDrawer .tk-event__meta { margin: 4px 0 0; color: var(--text-secondary); font-size: var(--fs-sm); }
+#ticketDrawer .tk-share { margin-top: 10px; }
 #ticketDrawer .tk-price { font-family: var(--f-mono); color: var(--y-base); font-variant-numeric: tabular-nums; white-space: nowrap; }
 #ticketDrawer .tk-fine { margin: 10px 0 0; color: var(--text-secondary); font-size: .78rem; line-height: 1.5; }
 #ticketDrawer .tk-muted { color: var(--text-secondary); font-weight: 400; }
@@ -130,3 +131,32 @@ button.ev-card__ticket-btn { line-height: 1.2; }
     #ticketDrawer .tk-ticket__qr { width: 180px; height: 180px; }
     #ticketDrawer .tk-event__title { font-size: 1.35rem; }
 }
+
+/* ── Share a show (js/event-share.js): the card's round button on the poster, the pop-up and drawer buttons, the fallback menu ── */
+.ev-card__poster { position: relative; }
+.ev-card__share {
+    position: absolute; top: 10px; right: 10px; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
+    border: 1px solid rgba(255,255,255,.25); background: rgba(10,10,10,.65); color: #fff; font-size: 1rem; cursor: pointer;
+    -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); transition: background var(--t, .2s) ease, color var(--t, .2s) ease;
+}
+.ev-card__share:hover, .ev-card__share:focus-visible { background: var(--y-base); color: #0a0a0a; }
+.ev-card__share:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.tk-share, .evt-share-btn {
+    display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 16px; border-radius: var(--r-md, 8px); cursor: pointer;
+    font: inherit; font-size: var(--fs-sm, .875rem); font-weight: 600; color: var(--text-primary); background: transparent; border: 1px solid var(--border-default, rgba(255,255,255,.2));
+}
+.tk-share:hover, .tk-share:focus-visible, .evt-share-btn:hover, .evt-share-btn:focus-visible { border-color: var(--y-base); color: var(--y-base); }
+.evt-share-btn { width: 100%; justify-content: center; margin-top: 10px; }
+.tm-share-menu {
+    position: fixed; z-index: 3000; min-width: 220px; padding: 8px; border-radius: var(--r-lg, 12px);
+    background: var(--bg-elevated, #161616); border: 1px solid var(--border-default, rgba(255,255,255,.15)); box-shadow: 0 12px 32px rgba(0,0,0,.5);
+}
+.tm-share-menu__title { margin: 4px 8px 6px; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--text-secondary); }
+.tm-share-menu__item {
+    display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 8px 10px; border: 0; border-radius: var(--r-md, 8px);
+    background: transparent; color: var(--text-primary); font: inherit; text-align: left; text-decoration: none; cursor: pointer;
+}
+.tm-share-menu__item:hover, .tm-share-menu__item:focus-visible { background: rgba(255,255,255,.07); color: var(--y-base); outline: none; }
+.tm-share-menu__item i { width: 18px; text-align: center; }
+.tm-share-menu__note { margin: 4px 8px 2px; font-size: .8rem; color: var(--text-secondary); word-break: break-all; }
+.tm-share-menu__note:empty { display: none; }

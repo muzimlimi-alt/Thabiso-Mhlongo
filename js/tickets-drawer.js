@@ -79,7 +79,10 @@
         return '<div class="tk-event">' +
             (poster ? '<div class="tk-event__poster"><img src="' + esc(poster) + '" alt="Poster for ' + esc(ev.title) + '" onerror="this.parentNode.remove()"></div>' : '') +
             '<p class="tk-event__title">' + esc(ev.title) + '</p>' +
-            '<p class="tk-event__meta">' + esc([ev.starts_label, ev.venue_name].filter(Boolean).join(' · ')) + '</p></div>';
+            '<p class="tk-event__meta">' + esc([ev.starts_label, ev.venue_name].filter(Boolean).join(' · ')) + '</p>' +
+            // Share with friends (js/event-share.js): the show's short link, with its poster as the preview
+            '<button type="button" class="tk-share" data-share-event="' + Number(ev.event_id) + '" data-share-title="' + esc(ev.title) + '" data-share-when="' + esc(ev.starts_label || '') + '" data-share-venue="' + esc(ev.venue_name || '') + '">' +
+            '<i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share with friends</button></div>';
     }
     function messageBox(kind, text) { return text ? '<div class="tk-msg tk-msg--' + kind + '" role="' + (kind === 'error' ? 'alert' : 'status') + '">' + text + '</div>' : ''; }
     function loading(text) { body('<div class="tk-loading" role="status"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> ' + esc(text) + '</div>'); }

@@ -71,7 +71,7 @@
 	     stay last; nothing here needs to win a cascade tie against it. -->
 	<link rel="stylesheet" href="css/public/drawer.css?v=6">
 	<!-- Get Tickets drawer (event ticketing) - every selector is scoped to #ticketDrawer / .tk-*, so its position is not a cascade concern. -->
-	<link rel="stylesheet" href="css/public/tickets.css?v=4">
+	<link rel="stylesheet" href="css/public/tickets.css?v=5">
 
 	<!-- Google Places Visibility Fix -->
 	<!-- Booking wizard styles — extracted from the inline block that sat here. Must stay
@@ -2144,6 +2144,8 @@
                                 <a id="modalEventTicketBtn" href="#" target="_blank" class="evt-ticket-btn">
                                     <i class="fas fa-ticket-alt"></i>Purchase Tickets
                                 </a>
+                                <!-- Share this show (js/event-share.js): shown for upcoming shows -->
+                                <button type="button" id="modalEventShareBtn" class="evt-share-btn" hidden><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share with friends</button>
                                 <p class="evt-powered">Powered by Thabiso Mhlongo Management</p>
                             </div>
                         </div>
@@ -2350,7 +2352,9 @@
 	<script src="js/admin/components/drawer.js?v=3"></script>
 	<script src="js/notificationService.js?v=2.0.2"></script>
 	<!-- Event ticketing: the Get Tickets drawer + the event cards' ticket buttons (called by js/myscript.js). -->
-	<script src="js/tickets-drawer.js?v=6"></script>
+	<script src="js/tickets-drawer.js?v=7"></script>
+	<!-- Share a show with friends: Share buttons on cards / pop-up / drawer, and opening /?event=<id> from a shared link. -->
+	<script src="js/event-share.js?v=1"></script>
 	<!-- Client payment plans (Track Booking drawer): the shared rules module — the very file the server
 	     validates a plan with (routes/public/bookings.js) — and the plan builder built on it. Both must
 	     load before the tracking script below. -->

@@ -12,6 +12,8 @@ const { listPublicAccolades } = require('../../lib/accolades');
 const { getSettingsByKeys } = require('../../database/repositories/settings.repository');
 const { PUBLIC_SERVICE_COLUMNS, publicServiceList } = require('../../lib/service-pricing');
 const ticketing = require('../../lib/ticketing');
+const ticketingCore = require('../../lib/ticketing-core');
+const { emailBaseUrl } = require('../../lib/email-context');
 const router = express.Router();
 
 // Uses its own fixed-destination storage (not the shared `storage` in app.js, which picks a folder
@@ -161,6 +163,53 @@ router.get('/api/public/events', (req, res) => {
         const mapped = (siteEvents || []).map(e => ({...e, source: 'event', ticketing: summaries[e.event_id] || null}));
         res.json(mapped);
     });
+});
+
+// --- Share link for one show: /e/<event_id> (the Share buttons, js/event-share.js) ---
+// WhatsApp / Facebook / X read the Open Graph tags here to show the poster, title and date in the chat; people are sent straight on to
+// /?event=<id>, where the homepage opens that show's Get Tickets drawer (or its details pop-up). Same visibility rule as the list above:
+// a draft, cancelled or private-booking event is not shareable and the link just opens the homepage.
+const shareEsc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+router.get('/e/:id', async (req, res) => {
+    const id = /^\d{1,9}$/.test(req.params.id) ? Number(req.params.id) : null;
+    const ev = id && await new Promise((resolve) => db.get(
+        `SELECT e.* FROM events e LEFT JOIN bookings b ON b.id = e.booking_id
+         WHERE e.event_id = ? AND e.event_status NOT IN ('cancelled', 'draft') AND (e.booking_id IS NULL OR b.is_public = 1)`,
+        [id], (err, row) => resolve(err ? null : row)));
+    if (!ev) return res.redirect(302, '/#events');
+    const base = emailBaseUrl();
+    const title = unescapeHtml(ev.event_title || 'Live show');
+    const start = ticketingCore.eventStart(ev);
+    const summary = (await ticketing.summariesForEvents([ev]).catch(() => ({})))[ev.event_id];
+    const description = [start ? ticketingCore.formatSast(start) : '', unescapeHtml(ev.venue_name || ''), summary && summary.state === 'on_sale' ? 'Tickets on sale now' : '']
+        .filter(Boolean).join(' · ');
+    let image = `${base}/images/image-slider-1.jpg`;
+    try { if (ev.poster_image_path) image = new URL(unescapeHtml(ev.poster_image_path), base + '/').href; } catch (e) { /* keep the default */ }
+    const shareUrl = `${base}/e/${ev.event_id}`;
+    const target = `/?event=${ev.event_id}`;
+    res.set('Cache-Control', 'public, max-age=300');
+    res.type('html').send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, follow">
+<title>${shareEsc(title)} · Thabiso Mhlongo</title>
+<meta name="description" content="${shareEsc(description)}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Thabiso Mhlongo">
+<meta property="og:title" content="${shareEsc(title)}">
+<meta property="og:description" content="${shareEsc(description)}">
+<meta property="og:image" content="${shareEsc(image)}">
+<meta property="og:image:alt" content="Poster for ${shareEsc(title)}">
+<meta property="og:url" content="${shareEsc(shareUrl)}">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="${shareEsc(base + target)}">
+<meta http-equiv="refresh" content="0; url=${shareEsc(target)}">
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0a0a0a;color:#eee;font:16px/1.5 system-ui,sans-serif}a{color:#d4a017}</style>
+</head>
+<body><p><a href="${shareEsc(target)}">Open ${shareEsc(title)}</a></p></body>
+</html>`);
 });
 
 // --- Career Highlights ---
