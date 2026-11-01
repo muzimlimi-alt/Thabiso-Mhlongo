@@ -163,7 +163,7 @@ function ticketPage({ title, heading, line, state, token }) {
 <title>${h(title)}</title>
 <link rel="icon" href="/favicon.ico">
 <link href="/css/public/redesign.css?v=24" rel="stylesheet">
-<link href="/css/public/checkin.css?v=2" rel="stylesheet">
+<link href="/css/public/checkin.css?v=3" rel="stylesheet">
 </head>
 <body class="ck-body">
 <main class="ck-shell" id="ckMain" data-token="${h(token)}" data-state="${h(state)}">

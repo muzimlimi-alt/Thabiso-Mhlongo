@@ -109,6 +109,8 @@ button.ev-card__ticket-btn { line-height: 1.2; }
 #ticketDrawer .tk-terms ul, #ticketDrawer .tk-terms ol { margin: 0; padding-left: 18px; line-height: 1.5; }
 #ticketDrawer .tk-terms li + li { margin-top: 4px; }
 #ticketDrawer .tk-terms__all { margin-top: 8px; }
+/* links inside the consent line are underlined - gold on grey alone is not enough to tell them apart (WCAG link-in-text-block) */
+#ticketDrawer .bk-checkbox-text a { text-decoration: underline; text-underline-offset: 2px; }
 #ticketDrawer .tk-terms__all summary { cursor: pointer; color: var(--y-base); min-height: 32px; display: flex; align-items: center; }
 #ticketDrawer .tk-terms__all ol { margin-top: 6px; }
 #ticketDrawer .tk-names { margin: 4px 0 12px; padding: 12px 14px 2px; border-left: 2px solid var(--y-muted); }

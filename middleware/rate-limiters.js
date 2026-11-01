@@ -68,14 +68,16 @@ const popUploadRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? ra
     message: { success: false, message: 'Too many uploads from this device. Please wait an hour and try again, or email us your proof of payment.' }
 }) : (req, res, next) => next();
 
-// Event ticketing (routes/public/ticketing.js). Reserving tickets and starting a checkout: 10 per 10 minutes per address - enough for a buyer
-// who changes their mind a few times, not enough to hold a show's stock hostage (each hold also expires on its own after 10 minutes).
+// Event ticketing (routes/public/ticketing.js). Reserving tickets and starting a checkout: 40 per 10 minutes per address. A purchase uses two
+// (reserve + checkout), and at an on-sale many buyers share ONE address (mobile carriers' shared addresses, campus / office Wi-Fi), so 10 turned
+// the 6th buyer on a network away (load test, 2026-11-01). Hoarding stays bounded without it: one live hold per browser per show (hold_key),
+// max_per_order, and every hold expires after 10 minutes; bots are the Turnstile check's job.
 // Looking up an order / a ticket / the PDF: 120 per 10 minutes - the return page polls the order status every few seconds for up to two
 // minutes, and a /t/<token> lookup must not become a way to walk through tokens (144-bit, so it cannot be anyway). Both bypassed under
 // NODE_ENV=test like their siblings; test/rate-limiters.test.js checks production enforces them.
 const ticketReserveRateLimiter = (rateLimit && process.env.NODE_ENV !== 'test') ? rateLimit({
     windowMs: 10 * 60 * 1000,
-    max: 10,
+    max: 40,
     standardHeaders: true,
     legacyHeaders: false,
     message: { success: false, message: 'Too many ticket requests from this device. Please wait 10 minutes and try again.' }

@@ -1,4 +1,4 @@
-// Event ticketing rate limits (middleware/rate-limiters.js): reserving / starting a checkout is limited to 10 per 10 minutes per address and
+// Event ticketing rate limits (middleware/rate-limiters.js): reserving / starting a checkout is limited to 40 per 10 minutes per address and
 // looking up an order / ticket / PDF to 120 per 10 minutes - enforced in production, off under NODE_ENV=test like every sibling limiter (the
 // suite shares one address). The real limiters run in a child process (test/ticketing-limits.child.js) under each NODE_ENV.
 const { spawn } = require('child_process');
@@ -21,8 +21,8 @@ function runChild(nodeEnv) {
 
 module.exports = async function ({ check }) {
     const prod = await runChild('production');
-    check('production: 10 ticket reservations / checkouts from one address pass, the 11th and 12th are refused (429)',
-        !!prod.reserve && prod.reserve.slice(0, 10).every((s) => s === 200) && prod.reserve.slice(10).every((s) => s === 429), prod.reserve ? JSON.stringify(prod.reserve) : prod.out.slice(-600));
+    check('production: 40 ticket reservations / checkouts from one address pass (about 20 buyers sharing a network), the 41st and 42nd are refused (429)',
+        !!prod.reserve && prod.reserve.length === 42 && prod.reserve.slice(0, 40).every((s) => s === 200) && prod.reserve.slice(40).every((s) => s === 429), prod.reserve ? JSON.stringify(prod.reserve) : prod.out.slice(-600));
     check('production: 120 order / ticket lookups pass (the return page polls), the 121st and 122nd are refused (429)',
         !!prod.lookup && prod.lookup.slice(0, 120).every((s) => s === 200) && prod.lookup.slice(120).every((s) => s === 429), prod.lookup ? JSON.stringify(prod.lookup.slice(115)) : prod.out.slice(-600));
     const test = await runChild('test');

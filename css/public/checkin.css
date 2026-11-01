@@ -10,7 +10,7 @@
 }
 .ck-body [hidden] { display: none !important; }        /* .ck-btn's display would otherwise beat the hidden attribute (Stop camera showed early) */
 .ck-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-.ck-eyebrow { margin: 0; font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--y-base); font-weight: 700; }
+.ck-eyebrow { margin: 0; font-family: inherit; line-height: 1.4; font-size: .72rem; letter-spacing: .16em; text-transform: uppercase; color: var(--y-base); font-weight: 700; }
 .ck-title { margin: 8px 0 0; font-family: var(--f-display); font-weight: 400; font-size: 2rem; line-height: 1.15; }
 .ck-line { margin: 10px 0 0; color: var(--text-secondary); font-size: 1rem; line-height: 1.5; }
 .ck-h { margin: 0 0 10px; font-family: var(--f-display); font-weight: 400; font-size: 1.3rem; }
@@ -48,7 +48,7 @@
 .ck-cam-actions { display: flex; gap: 10px; margin-top: 10px; }
 
 .ck-banner { margin: 0 0 10px; padding: 16px; border-radius: var(--r-md); font-size: 1.35rem; font-weight: 700; text-align: center; color: #fff; }
-.ck-banner--ok { background: rgb(var(--status-available-rgb)); }
+.ck-banner--ok { background: rgb(var(--status-available-rgb)); color: #0a0a0a; }   /* white on this green is 2.8:1 - too faint (WCAG) */
 .ck-banner--bad { background: rgb(var(--status-blocked-rgb)); }
 .ck-banner--ready { background: var(--bg-elevated); color: var(--text-primary); }
 .ck-ticket { padding: 16px; border-radius: var(--r-lg); background: var(--bg-surface); border: 2px solid var(--border-default); margin-bottom: 8px; }

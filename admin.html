@@ -47,7 +47,7 @@
     <link href="css/admin/eft.css?v=2" rel="stylesheet">
     <link href="css/admin/business-profile.css?v=8" rel="stylesheet">
     <link href="css/admin/payfast-reconcile.css?v=1" rel="stylesheet">
-    <link href="css/admin/ticketing.css?v=7" rel="stylesheet">
+    <link href="css/admin/ticketing.css?v=8" rel="stylesheet">
     <link href="css/admin/redesign-admin.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
     <link rel="stylesheet" href="css/components/notifications.css">
@@ -5890,7 +5890,7 @@
                                 <div class="tkt-tier-table" id="tktTierTable"></div>
                                 <!-- Door links: a per-show check-in link for a volunteer without a portal account (lib/ticketing-door.js) -->
                                 <section class="tkt-manage tkt-doorpasses" id="tktDoorPasses" aria-labelledby="tktDoorPassesTitle">
-                                    <h4 class="um-section-label" id="tktDoorPassesTitle">Door links</h4>
+                                    <h3 class="um-section-label" id="tktDoorPassesTitle">Door links</h3>
                                     <p class="tkt-muted">Let a volunteer check tickets in for <strong>this show only</strong> on their own phone - no portal account. They can't see buyers' e-mails, phone numbers or money. A link stops working after show night, or as soon as you switch it off.</p>
                                     <form class="tkt-doorpasses__form" id="tktDoorPassForm">
                                         <input type="text" id="tktDoorPassLabel" class="atl-input" maxlength="40" placeholder="e.g. Front door, or the volunteer's name" autocomplete="off" aria-label="Name for the door link">
@@ -5917,7 +5917,7 @@
                                     </div>
                                     <div class="table-responsive">
                                         <table class="table tkt-table">
-                                            <thead><tr><th>Order</th><th>Buyer</th><th>Tickets</th><th>Total</th><th>Status</th><th>When</th><th></th></tr></thead>
+                                            <thead><tr><th>Order</th><th>Buyer</th><th>Tickets</th><th>Total</th><th>Status</th><th>When</th><th><span class="tkt-sr">Open order</span></th></tr></thead>
                                             <tbody id="tktOrdersBody"><tr><td colspan="7" class="tkt-empty">Loading…</td></tr></tbody>
                                         </table>
                                     </div>
@@ -13582,7 +13582,7 @@
     <script src="js/admin/financials.js?v=2"></script>
     <script src="js/admin/eft.js?v=3"></script>
     <script src="js/admin/payfast-reconcile.js?v=2"></script>
-    <script src="js/admin/ticketing.js?v=6"></script>
+    <script src="js/admin/ticketing.js?v=7"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================
      FINANCE MODULE — JavaScript Engine

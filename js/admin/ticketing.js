@@ -271,7 +271,7 @@
             $('#tktStatGrid').html(tiles.join(''));
             renderEventNotice(s);
             $('#tktTierTable').html('<table class="table tkt-table tkt-table--tiers"><thead><tr><th>Ticket type</th>' + (s.revenue_cents !== undefined ? '<th>Price</th>' : '') +
-                '<th>Sold</th><th>Held</th><th>Checked in</th><th class="tkt-col-bar"></th></tr></thead><tbody>' + s.tiers.map(function (t) {
+                '<th>Sold</th><th>Held</th><th>Checked in</th><th class="tkt-col-bar"><span class="tkt-sr">Sold, held and left</span></th></tr></thead><tbody>' + s.tiers.map(function (t) {
                     return '<tr><td><strong>' + esc(t.name) + '</strong>' + (t.is_active ? '' : ' <span class="tkt-muted">(closed)</span>') + '</td>' +
                         (t.price_cents !== undefined ? '<td class="tkt-num">' + esc(zar(t.price_cents)) + '</td>' : '') +
                         '<td class="tkt-num">' + t.sold + ' / ' + t.capacity + '</td><td class="tkt-num">' + t.reserved + '</td><td class="tkt-num">' + t.checked_in + ' / ' + t.sold + '</td>' +

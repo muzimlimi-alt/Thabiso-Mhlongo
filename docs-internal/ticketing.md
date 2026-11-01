@@ -104,7 +104,7 @@ payfast_reconcile_findings.ticket_order_id → ticket_orders (new nullable colum
 | Door | `UPDATE tickets SET checked_in_at … WHERE token = ? AND checked_in_at IS NULL AND voided_at IS NULL AND order paid`; POST only | double scan, two phones at once, GET never checks in |
 | Refund | order refunded, tickets voided, places back on sale (one transaction) | refunded ticket fails at the door |
 | Tokens | `crypto.randomBytes(18)` base64url (144 bits), never derived from ids | 2000 unique, shape |
-| Rate limits | reserve/checkout 10 per 10 min; lookups 120 per 10 min (per address) | production child test |
+| Rate limits | reserve/checkout 40 per 10 min (raised from 10 on 2026-11-01: one purchase uses 2, and buyers share addresses on mobile networks / Wi-Fi); lookups 120 per 10 min (per address) | production child test |
 | Secrets out of logs | request logger masks `/t/<token>`, order references, `?tickets=`, `?pass=`, ticketing admin `?q=` | log scanned after the flow / door-link tests |
 | Door links | only a SHA-256 hash of the 144-bit secret is stored; scoped to ONE show (another show's ticket = "wrong show", nothing else); no buyer e-mail / phone / money; search by name / order / code only; expires 12 h after the show starts; switch-off works at once; each check-in records the link's name (`tickets.checked_in_via`) | `ticketing-door` (26) + browser |
 | POPIA | only name / e-mail / phone (+ optional names); consent time + policy version stored; full PayFast payload ONLY in `ticket_webhook_events`; `/t/<token>` shows strangers nothing personal | flow + browser tests |
@@ -155,7 +155,25 @@ inbox-sync x3); ticketing browser 25/25 + 18/18; 13 of 13 single-safeguard mutat
 (isolated copy, fresh DB, ngrok, the owner's own sandbox merchant, safety net off so only a real notification could pay): all 13
 end-to-end steps passed twice, plus a cancelled payment on PayFast's page.
 
+**Accessibility + load (2026-11-01).** `test/browser/ticketing-a11y.js` runs axe-core 4.10.2 (fetched from cdnjs, nothing installed)
+over every ticketing screen - drawer (choose / details / errors / paid), card + Share menu, `/t/`, door-link scanner, admin Ticket
+Sales / order drawer / Tickets tab - and fails on critical / serious WCAG 2.1 AA findings. It found and we fixed: the Privacy Policy link
+in the consent line was told apart by colour only (now underlined); white on the green "Admitted" banner was 2.8:1 (now dark text);
+no page heading on `/checkin`; two empty admin table headers. `test/ticketing-load.test.js`: 100 simultaneous reservations for 50
+tickets -> exactly 50 holds + 50 "sold out" in ~0.6 s (homepage events list unaffected); 120 mixed-quantity buyers for 100 -> never
+oversold; 10 simultaneous payments each notified twice -> exactly 10 tickets.
+
 ## 8. Outstanding / owner decisions
+
+* **Check on Render: `TRUST_PROXY_HOPS` must be 2** (Cloudflare in front of Render). With 1, the app sees Cloudflare's address instead
+  of the visitor's: every visitor shares the per-address rate limits (an on-sale would hit the 40-per-10-minutes limit for everyone at
+  once), and PayFast's notifications are not recognised as PayFast's (source-IP check; and the notification limiter below).
+* **PayFast notification limiter (shared with bookings, NOT changed - owner's call):** `payfastItnRateLimiter` takes 20 notifications
+  a minute from any address PayFast is not known to use and answers the rest "200" without acting on them, so PayFast never retries them
+  (found by the load test). PayFast's own addresses are exempt, so this only bites if the address is misread (see above); the buyer's
+  return page and the 5-minute safety net then recover the payment from PayFast's history. Suggested: answer 429 / 503 instead of 200 so
+  PayFast retries.
+
 
 * **Ticket terms - APPROVED by the owner on 2026-11-01** (version `ticket-terms-2026-11-01`): `lib/ticketing-core.js` `TICKET_TERMS` -
   the single source shown in the drawer (3 key lines + "Read all ticket terms") and accepted with one checkbox together with the Privacy

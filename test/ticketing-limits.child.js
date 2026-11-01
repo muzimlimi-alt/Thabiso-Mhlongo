@@ -11,7 +11,7 @@ const server = app.listen(0, '127.0.0.1', async () => {
     const base = `http://127.0.0.1:${server.address().port}`;
     try {
         const reserve = [];
-        for (let i = 0; i < 12; i++) reserve.push((await fetch(`${base}/reserve`, { method: 'POST' })).status);
+        for (let i = 0; i < 42; i++) reserve.push((await fetch(`${base}/reserve`, { method: 'POST' })).status);
         console.log('RESERVE:' + JSON.stringify(reserve));
         const lookup = [];
         for (let i = 0; i < 122; i++) lookup.push((await fetch(`${base}/lookup`)).status);
