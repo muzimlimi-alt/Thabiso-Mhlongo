@@ -40,6 +40,16 @@ module.exports = async function ({ check }) {
         check('far too long, or not text, is refused (400) and nothing changes',
             long.status === 400 && notText.status === 400 && r.event_featuring === 'Skhumba Hlophe', JSON.stringify([long.status, notText.status, r]));
 
+        // the card's location line: the venue's town + province from the venues row (admin venue search) - and nothing private from it
+        const when2 = `${future(2051)}T20:00`;
+        const placed = (await api('POST', '/api/admin/events', { event_title: 'ZZ Credits Placed Show', event_datetime: when2, event_status: 'upcoming', sync_to_gcal: false,
+            venue_name: 'ZZ Credits Arena', venue_place_id: `zz-credits-place-${Date.now()}`, venue_city: 'Polokwane', venue_state: 'Limpopo', venue_country: 'South Africa' })).body;
+        made.push({ id: placed.id, title: 'ZZ Credits Placed Show', when: when2 });
+        const pl = ((await pub('GET', '/api/public/events')).body || []).find(e => e.event_id === placed.id);
+        check('the public events list gives the venue\'s town and province for the card - and none of the venue\'s private fields',
+            !!pl && pl.venue_city === 'Polokwane' && pl.venue_province === 'Limpopo' && !('contact_email' in pl) && !('contact_phone' in pl) && !('negotiated_rates' in pl) && !('notes' in pl),
+            JSON.stringify(pl && { city: pl.venue_city, prov: pl.venue_province, keys: Object.keys(pl).filter(k => /contact|rate|notes/.test(k)) }));
+
         const dup = (await api('POST', `/api/admin/events/${ev.id}/duplicate`, {})).body;
         if (dup && dup.id) made.push({ id: dup.id, title: title + ' (Copy)', when });
         const d = dup && dup.id && await one('SELECT event_featuring, event_organiser FROM events WHERE event_id = ?', [dup.id]);

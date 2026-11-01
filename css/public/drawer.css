@@ -59,61 +59,69 @@
     transition-delay: 0s;
 }
 
-/* ── Header — Cormorant title, gold accent rule, 44×44 close target ── */
+/* ── Header — the Event Details pop-up's look, shared with the public pop-ups (.tm-modal, css/public/redesign.css):
+   surface-coloured, Cormorant title on the left (an icon sits in a gold tile), the round 44×44 close button ── */
 .atl-drawer__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    padding: 22px 30px 20px;
-    background: var(--bg-elevated);
+    gap: 16px;
+    padding: 22px 28px;
+    background: var(--bg-surface);
     border-bottom: 1px solid var(--border-low);
     position: relative;
     flex-shrink: 0;
 }
-.atl-drawer__header::after {
-    content: '';
-    position: absolute;
-    bottom: 0; left: 30px;
-    width: 42px; height: 2px;
-    background: var(--y-base);
-    border-radius: 1px;
-}
 .atl-drawer__title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     margin: 0;
     color: var(--text-primary);
     font-family: var(--f-display);
-    font-weight: 400;
-    font-size: 1.55rem;
-    letter-spacing: .03em;
+    font-weight: 500;
+    font-size: 1.6rem;
+    line-height: 1.15;
 }
-.atl-drawer__title i { color: var(--y-base); margin-right: 10px; font-size: 1.1rem; }
+.atl-drawer__title > i {
+    flex-shrink: 0;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--r-md);
+    background: var(--y-muted);
+    color: var(--y-base);
+    font-size: .95rem;
+}
 .atl-drawer__close {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    width: 44px;
+    height: 44px;
     min-width: 44px;
     min-height: 44px;
     padding: 0;
     flex-shrink: 0;
-    color: var(--text-primary);
-    opacity: .55;
-    font-size: 28px;
+    border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.25);
+    background: rgba(10,10,10,.7);
+    color: #fff;
+    font-size: 1.5rem;
     line-height: 1;
-    background: transparent;
-    border: none;
     cursor: pointer;
     /* Explicit properties, NOT `all`: `all` also animates the *inherited* visibility, which kept
        this button un-focusable for ~150ms after the drawer opened (so the open-time focus failed). */
-    transition: opacity var(--t) var(--ease), color var(--t) var(--ease), transform var(--t) var(--ease);
+    transition: background var(--t) var(--ease), color var(--t) var(--ease), border-color var(--t) var(--ease);
 }
 .atl-drawer__close:hover,
 .atl-drawer__close:focus-visible {
-    opacity: 1;
-    color: var(--y-base);
-    transform: rotate(90deg);
+    background: var(--y-base);
+    border-color: var(--y-base);
+    color: var(--text-inverse);
 }
-.atl-drawer__close:focus-visible { outline: 2px solid var(--y-base); outline-offset: 2px; }
+.atl-drawer__close:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
 /* ── Body — independently scrollable ── */
 .atl-drawer__body {
@@ -208,8 +216,8 @@ body.atl-overlay-open #back-to-top {
     .atl-drawer__header {
         padding: max(18px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 16px max(20px, env(safe-area-inset-left));
     }
-    .atl-drawer__header::after { left: max(20px, env(safe-area-inset-left)); }
-    .atl-drawer__title { font-size: 1.25rem; }
+    .atl-drawer__title { font-size: 1.35rem; }
+    .atl-drawer__title > i { width: 32px; height: 32px; }
     .atl-drawer__body {
         --atl-pad-t: 20px; --atl-pad-b: 20px;
         --atl-pad-r: max(16px, env(safe-area-inset-right));

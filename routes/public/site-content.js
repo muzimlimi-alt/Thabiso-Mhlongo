@@ -148,9 +148,12 @@ router.get('/api/public/events', (req, res) => {
     // a booking-linked event should actually be listed here is bookings.is_public=1 (set only by the
     // explicit "Promote to public" action); the status filter alone let every private client's booking
     // details (event title, venue) leak onto the public tour-dates page.
+    // venue_city / venue_province: the town and province of the venue picked in the admin's venue search (venues row) for the
+    // card's location line. Only those two columns - a venues row also holds private contacts, notes and negotiated rates.
     db.all(
-        `SELECT e.* FROM events e
+        `SELECT e.*, v.city AS venue_city, v.state AS venue_province FROM events e
          LEFT JOIN bookings b ON b.id = e.booking_id
+         LEFT JOIN venues v ON v.id = e.venue_id
          WHERE e.event_status NOT IN ('cancelled', 'draft')
            AND (e.booking_id IS NULL OR b.is_public = 1)
          ORDER BY e.event_datetime ASC LIMIT ? OFFSET ?`,

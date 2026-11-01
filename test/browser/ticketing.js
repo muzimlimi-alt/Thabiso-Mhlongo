@@ -1,5 +1,5 @@
 // Event ticketing through the REAL homepage in headless Chrome on an isolated DB copy (test/support.js - the real database is never touched):
-// an event card's View Event -> the details pop-up's Get Tickets -> the drawer (focus trap, Esc / backdrop, focus back to the card's button) -> choose tickets -> details
+// an event card (its title button) -> the details pop-up's Get Tickets -> the drawer (focus trap, Esc / backdrop, focus back to the card's button) -> choose tickets -> details
 // with the countdown -> the PayFast hand-off (intercepted: nothing reaches PayFast) -> PayFast's notification (signed, sent by this test)
 // -> back on /?tickets=<ref>&payment=success the drawer shows the tickets. Also: the phone bottom sheet, sold out mid-checkout, a cancelled
 // payment, the event pop-up's button, and an event without tiers keeping its external link.
@@ -57,10 +57,10 @@ function itnFor(o) {
             });
             return page;
         };
-        // Cards show the price and View Event; Get Tickets is in the details pop-up (js/myscript.js, js/tickets-drawer.js)
-        const cardBtn = (id) => `#upcomingEventsGrid .live-event-card[data-payload*="%22event_id%22%3A${id}%2C"] .ev-card__view`;
+        // Cards show where and the price; the whole card (its title is the keyboard button) opens the details pop-up with Get Tickets (js/myscript.js, js/tickets-drawer.js)
+        const cardBtn = (id) => `#upcomingEventsGrid .live-event-card[data-payload*="%22event_id%22%3A${id}%2C"] .ev-card__open`;
         const modalShown = (page) => page.$eval('#eventDetailsModal', el => el.classList.contains('in') && getComputedStyle(el).display === 'block').catch(() => false);
-        // View Event (a script click: the cards may still be sliding in), wait out the pop-up's fade-in, then its Get Tickets
+        // the card's title button (a script click: the cards may still be sliding in), wait out the pop-up's fade-in, then its Get Tickets
         const openTickets = async (page, id) => {
             await page.$eval(cardBtn(id), el => { el.scrollIntoView({ block: 'center' }); el.focus(); el.click(); });
             await waitFor(() => modalShown(page));
@@ -83,9 +83,9 @@ function itnFor(o) {
         await gotoHome(page);
         await page.waitForSelector(cardBtn(ev.id), { timeout: 15000 });
         const btnText = await page.$eval(cardBtn(ev.id), el => el.closest('.ev-card').innerText);
-        ok(/VIEW EVENT/i.test(btnText) && /From R\s?150\.00/.test(btnText.replace(/ | /g, ' ')), 'the ticketed show\'s card shows "From R 150.00" and a View Event button', btnText);
+        ok(!/VIEW EVENT/i.test(btnText) && /Joburg Theatre/.test(btnText) && /From R\s?150\.00/.test(btnText.replace(/ | /g, ' ')), 'the ticketed show\'s card shows where (Joburg Theatre) and "From R 150.00" - no View Event button (the card itself opens the pop-up)', btnText);
         // a show without ticket types: no price on its card; the pop-up's Purchase Tickets is its external link, in a new tab, as before
-        const extCard = await page.evaluate((title) => { const card = [...document.querySelectorAll('.ev-card')].find(c => c.innerText.includes(title)); card.querySelector('.ev-card__view').click(); return card.innerText; }, 'ZZ External Link Show');
+        const extCard = await page.evaluate((title) => { const card = [...document.querySelectorAll('.ev-card')].find(c => c.innerText.includes(title)); card.querySelector('.ev-card__open').click(); return card.innerText; }, 'ZZ External Link Show');
         await waitFor(() => modalShown(page));
         const extLink = await page.$eval('#modalEventTicketBtn', el => ({ href: el.getAttribute('href'), target: el.getAttribute('target'), shown: !!el.offsetParent, text: el.innerText }));
         const extCredits = await page.evaluate(() => ['modalEventFeaturingPanel', 'modalEventOrganiserPanel'].map(id => !!document.getElementById(id).offsetParent));
@@ -97,7 +97,7 @@ function itnFor(o) {
         await waitFor(async () => !(await modalShown(page)));
         await sleep(400);
 
-        // keyboard only: View Event with Enter, then Get Tickets with Enter
+        // keyboard only: the card's title with Enter, then Get Tickets with Enter
         await page.$eval(cardBtn(ev.id), el => el.scrollIntoView({ block: 'center' }));
         await page.focus(cardBtn(ev.id));
         await page.keyboard.press('Enter');
@@ -119,7 +119,7 @@ function itnFor(o) {
         await waitFor(async () => !(await drawerOpen(page)));
         await sleep(450);
         const backOnBtn = await page.evaluate((sel) => document.activeElement === document.querySelector(sel), cardBtn(ev.id));
-        ok(!(await drawerOpen(page)) && backOnBtn, 'Esc closes it and focus goes back to the card\'s View Event button', '');
+        ok(!(await drawerOpen(page)) && backOnBtn, 'Esc closes it and focus goes back to the card\'s title button', '');
         await openTickets(page, ev.id);
         await waitFor(() => drawerOpen(page));
         await sleep(400);

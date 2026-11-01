@@ -97,7 +97,7 @@ async function paidOrder(eventId, tierId, n, buyerName) {
         await scan(pg, 'Share menu', '.tm-share-menu');
         await pg.keyboard.press('Escape');
         // View Event -> the details pop-up (scanned) -> its Get Tickets
-        await pg.$eval(cardSel + ' .ev-card__view', el => el.click());
+        await pg.$eval(cardSel + ' .ev-card__open', el => el.click());
         await pg.waitForSelector('#modalEventTicketBtn', { visible: true, timeout: 10000 });
         await sleep(700);
         await scan(pg, 'event details pop-up', '#eventDetailsModal');

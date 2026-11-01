@@ -334,10 +334,8 @@ $(function() {
             if (isVideo) {
                 mediaHtml = `<video src="${item.image_path}" muted autoplay loop playsinline onerror="this.outerHTML='<img src=\\'https://placehold.co/250x250/111/EEE?text=Video+Error\\'>'"></video>`;
             } else {
-                // the photo whole (never cropped) on a blurred copy of itself, so every tile is the same shape (as the Events cards);
-                // the copy comes second so the lightbox and "the tile's img" always mean the real photo
-                mediaHtml = `<img class="insta-item__img" src="${item.image_path}" alt="${safeAlt}" data-desc="${safeAlt}" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">` +
-                    `<img class="insta-item__bg" src="${item.image_path}" alt="" aria-hidden="true" loading="lazy" decoding="async" onerror="this.remove()">`;
+                // the photo fills its tile (every tile the same shape; the lightbox shows it whole)
+                mediaHtml = `<img class="insta-item__img" src="${item.image_path}" alt="${safeAlt}" data-desc="${safeAlt}" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">`;
             }
 
             return `
@@ -554,16 +552,17 @@ $(function() {
                 return;
             }
 
-            // Card: poster, date badge, title, short description, starting price, View Event (opens the details pop-up below).
-            // Stored text is entity-encoded once (title/venue go in as they are); the description is decoded, then escaped.
+            // Card: poster, date badge, title, where (venue + its town / province), short description, starting price. The whole card
+            // opens the details pop-up below; its title is a button so a keyboard reaches it too (no separate View Event button).
+            // Stored text is entity-encoded once (title/venue go in as they are); the rest is decoded, then escaped.
             var htmls = items.map(function(item) {
                 var displayDate = tmEventWhen(item);
                 var safeTitle = item.event_title ? item.event_title.replace(/"/g, '&quot;') : '';
-                var safeVenue = item.venue_name ? item.venue_name.replace(/"/g, '&quot;') : '';
                 var safePoster = item.poster_image_path ? item.poster_image_path : 'images/events/1.jpg';
                 var desc = tmEscHtml(decodeHtmlEntities(item.event_description || '').replace(/\s+/g, ' ').trim());
                 // Event ticketing (js/tickets-drawer.js): "From R 150.00" / Sold out / Tickets on sale <date>; null when tickets are not sold here
                 var price = window.tmTicketPrice ? window.tmTicketPrice(item) : null;
+                var where = tmEventWhere(item, true);
 
                 // the poster sits whole (never stretched or cropped) on a blurred copy of itself, so every card is the same shape
                 var mediaHtml = `<img class="ev-card__poster-bg" src="${safePoster}" alt="" aria-hidden="true" loading="lazy" decoding="async" onerror="this.remove()">` +
@@ -576,12 +575,10 @@ $(function() {
                         <div class="ev-card__poster">${mediaHtml}</div>
                         <div class="ev-card__info">
                             ${displayDate ? `<span class="ev-card__date"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i>${displayDate}</span>` : ''}
-                            <h4 class="ev-card__title" title="${safeTitle}">${safeTitle}</h4>
-                            ${desc ? `<p class="ev-card__desc">${desc}</p>` : item.venue_name ? `<p class="ev-card__desc"><i class="fas fa-map-marker-alt" aria-hidden="true"></i> ${safeVenue}</p>` : ''}
-                            <div class="ev-card__foot">
-                                ${price ? `<p class="ev-card__price ev-card__price--${price.state}">${tmEscHtml(price.text)}</p>` : ''}
-                                <button type="button" class="ev-card__view" aria-label="View event: ${safeTitle}">View Event</button>
-                            </div>
+                            <h4 class="ev-card__title" title="${safeTitle}"><button type="button" class="ev-card__open">${safeTitle}</button></h4>
+                            ${where ? `<p class="ev-card__where"><i class="fas fa-map-marker-alt" aria-hidden="true"></i><span>${where}</span></p>` : ''}
+                            ${desc ? `<p class="ev-card__desc">${desc}</p>` : ''}
+                            ${price ? `<div class="ev-card__foot"><p class="ev-card__price ev-card__price--${price.state}">${tmEscHtml(price.text)}</p></div>` : ''}
                         </div>
                     </article>
                 `;
@@ -640,6 +637,22 @@ $(function() {
         }
         return out;
     }
+    // Where the show is: the venue's town and province (from the venue picked in the admin's venue search), e.g. "Johannesburg,
+    // Gauteng" - a part already in the venue's own name is not repeated. withVenue: "Gallo Manor · Johannesburg, Gauteng".
+    // Returns escaped HTML-safe text, or '' when nothing is known.
+    function tmEventTown(item) {
+        var venue = decodeHtmlEntities(item && item.venue_name || '').toLowerCase();
+        var parts = [item && item.venue_city, item && item.venue_province]
+            .map(function (p) { return decodeHtmlEntities(p || '').trim(); })
+            .filter(function (p, i, all) { return p && all.indexOf(p) === i && venue.indexOf(p.toLowerCase()) === -1; });
+        return parts.join(', ');
+    }
+    function tmEventWhere(item, withVenue) {
+        var town = tmEventTown(item);
+        var venue = withVenue ? decodeHtmlEntities(item && item.venue_name || '').trim() : '';
+        return tmEscHtml([venue, town].filter(Boolean).join(' · '));
+    }
+
     // "In 29 days" / "Tomorrow" / "In 2 months" under the modal's date; past shows "Took place 3 months ago".
     function tmEventRelative(item) {
         var d = item && item.event_datetime ? new Date(item.event_datetime) : null;
@@ -674,6 +687,8 @@ $(function() {
         $('#modalEventPrice').text(price ? price.text : '').attr('data-state', price ? price.state : '').prop('hidden', !price);
 
         $('#modalEventVenue').text(decodeHtmlEntities(item.venue_name) || 'To be announced');
+        var town = tmEventTown(item);
+        $('#modalEventTown').text(town).prop('hidden', !town);
         // Featuring / Organiser: the event's own fields (admin event editor); a blank one is left out
         var featuring = decodeHtmlEntities(item.event_featuring || '').trim();
         var organiser = decodeHtmlEntities(item.event_organiser || '').trim();
@@ -705,7 +720,7 @@ $(function() {
         $('#modalEventPosterBg').attr('src', poster);
 
         // closing the pop-up puts focus back on the card's View Event button (and so does closing the Get Tickets drawer opened from it)
-        $('#eventDetailsModal').data('tmOpener', $(this).find('.ev-card__view')[0] || null);
+        $('#eventDetailsModal').data('tmOpener', $(this).find('.ev-card__open')[0] || null);
 
         $('#eventDetailsModal').modal('show');
     });
@@ -714,9 +729,9 @@ $(function() {
     var lightboxData = [];
     var currentLightboxIndex = 0;
 
-    $(document).on('click', '.insta-item img:not(.insta-item__bg)', function() {
+    $(document).on('click', '.insta-item img', function() {
         var $grid = $(this).closest('.insta-grid');
-        var $images = $grid.find('.insta-item img:not(.insta-item__bg)');   // not the blurred backdrop copies
+        var $images = $grid.find('.insta-item img');
         
         lightboxData = [];
         $images.each(function(index) {

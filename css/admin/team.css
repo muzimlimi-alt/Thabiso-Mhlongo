@@ -34,10 +34,11 @@
     background: var(--bg-surface, #141414);
     color: var(--text-primary, #f4f0e6);
 }
-/* The public member card (js/team-view.js), shown at the width it has on the site, centred in the drawer; no hover lift here. */
-#teamPublicPreview .team-layout { max-width: none; margin: 0; }
-#teamPublicPreview .team-grid { grid-template-columns: minmax(0, 300px); justify-content: center; }
-#teamPublicPreview .team-card:hover { transform: none; }
+/* The public rules switch to a row layout by viewport width; the drawer is a fixed-width column,
+   so pin the row layout here. */
+#teamPublicPreview .team-layout { flex-direction: row; align-items: flex-start; gap: 20px; max-width: none; margin: 0; }
+#teamPublicPreview .team-photos { overflow: visible; }
+#teamPublicPreview .team-row__inner { cursor: default; }
 .team-preview__stage.is-hidden .team-layout { opacity: .45; }
 
 .team-preview__note, .acl-preview__note {
