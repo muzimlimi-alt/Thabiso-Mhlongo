@@ -1,5 +1,5 @@
 // Event ticketing through the REAL homepage in headless Chrome on an isolated DB copy (test/support.js - the real database is never touched):
-// the Events section's Get Tickets button -> the drawer (focus trap, Esc / backdrop, focus back to the button) -> choose tickets -> details
+// an event card's View Event -> the details pop-up's Get Tickets -> the drawer (focus trap, Esc / backdrop, focus back to the card's button) -> choose tickets -> details
 // with the countdown -> the PayFast hand-off (intercepted: nothing reaches PayFast) -> PayFast's notification (signed, sent by this test)
 // -> back on /?tickets=<ref>&payment=success the drawer shows the tickets. Also: the phone bottom sheet, sold out mid-checkout, a cancelled
 // payment, the event pop-up's button, and an event without tiers keeping its external link.
@@ -57,7 +57,16 @@ function itnFor(o) {
             });
             return page;
         };
-        const cardBtn = (id) => `.tk-open[data-ticket-event="${id}"]`;
+        // Cards show the price and View Event; Get Tickets is in the details pop-up (js/myscript.js, js/tickets-drawer.js)
+        const cardBtn = (id) => `#upcomingEventsGrid .live-event-card[data-payload*="%22event_id%22%3A${id}%2C"] .ev-card__view`;
+        const modalShown = (page) => page.$eval('#eventDetailsModal', el => el.classList.contains('in') && getComputedStyle(el).display === 'block').catch(() => false);
+        // View Event (a script click: the cards may still be sliding in), wait out the pop-up's fade-in, then its Get Tickets
+        const openTickets = async (page, id) => {
+            await page.$eval(cardBtn(id), el => { el.scrollIntoView({ block: 'center' }); el.focus(); el.click(); });
+            await waitFor(() => modalShown(page));
+            await sleep(500);
+            await page.$eval('#modalEventTicketBtn', el => el.click());
+        };
         const drawerOpen = (page) => page.$eval('#ticketDrawer', el => el.classList.contains('atl-drawer--open')).catch(() => false);
         const drawerText = (page) => page.$eval('#ticketDrawerBody', el => el.innerText).catch(() => '');
         const gotoHome = async (page, qs = '') => {
@@ -73,12 +82,26 @@ function itnFor(o) {
         const page = await newPage(1440, 900);
         await gotoHome(page);
         await page.waitForSelector(cardBtn(ev.id), { timeout: 15000 });
-        const btnText = await page.$eval(cardBtn(ev.id), el => el.innerText);
-        ok(/GET TICKETS/i.test(btnText) && /R\s?150\.00/.test(btnText.replace(/ | /g, ' ')), 'the ticketed show\'s card says Get Tickets, from R 150.00', btnText);
-        const extLink = await page.evaluate((title) => { const card = [...document.querySelectorAll('.ev-card')].find(c => c.innerText.includes(title)); const a = card && card.querySelector('a.ev-card__ticket-btn'); return a ? a.getAttribute('href') : null; }, 'ZZ External Link Show');
-        ok(extLink === 'https://tickets.example.invalid/show', 'a show without ticket types keeps its external ticket link exactly as before', extLink);
+        const btnText = await page.$eval(cardBtn(ev.id), el => el.closest('.ev-card').innerText);
+        ok(/VIEW EVENT/i.test(btnText) && /From R\s?150\.00/.test(btnText.replace(/ | /g, ' ')), 'the ticketed show\'s card shows "From R 150.00" and a View Event button', btnText);
+        // a show without ticket types: no price on its card; the pop-up's Purchase Tickets is its external link, in a new tab, as before
+        const extCard = await page.evaluate((title) => { const card = [...document.querySelectorAll('.ev-card')].find(c => c.innerText.includes(title)); card.querySelector('.ev-card__view').click(); return card.innerText; }, 'ZZ External Link Show');
+        await waitFor(() => modalShown(page));
+        const extLink = await page.$eval('#modalEventTicketBtn', el => ({ href: el.getAttribute('href'), target: el.getAttribute('target'), shown: !!el.offsetParent, text: el.innerText }));
+        ok(extLink.href === 'https://tickets.example.invalid/show' && extLink.target === '_blank' && extLink.shown && /Purchase Tickets/i.test(extLink.text) && !/From R/.test(extCard),
+            'a show without ticket types keeps its external ticket link (in the pop-up) and its card shows no price', JSON.stringify(extLink));
+        await sleep(500);
+        await page.keyboard.press('Escape');
+        await waitFor(async () => !(await modalShown(page)));
+        await sleep(400);
 
+        // keyboard only: View Event with Enter, then Get Tickets with Enter
+        await page.$eval(cardBtn(ev.id), el => el.scrollIntoView({ block: 'center' }));
         await page.focus(cardBtn(ev.id));
+        await page.keyboard.press('Enter');
+        await waitFor(() => modalShown(page));
+        await sleep(500);
+        await page.focus('#modalEventTicketBtn');
         await page.keyboard.press('Enter');
         await waitFor(() => drawerOpen(page));
         await page.waitForSelector('#ticketDrawer .tk-tier', { timeout: 10000 });
@@ -94,8 +117,8 @@ function itnFor(o) {
         await waitFor(async () => !(await drawerOpen(page)));
         await sleep(450);
         const backOnBtn = await page.evaluate((sel) => document.activeElement === document.querySelector(sel), cardBtn(ev.id));
-        ok(!(await drawerOpen(page)) && backOnBtn, 'Esc closes it and focus goes back to the Get Tickets button', '');
-        await page.click(cardBtn(ev.id));
+        ok(!(await drawerOpen(page)) && backOnBtn, 'Esc closes it and focus goes back to the card\'s View Event button', '');
+        await openTickets(page, ev.id);
         await waitFor(() => drawerOpen(page));
         await sleep(400);
         await page.mouse.click(40, 450);                                     // the backdrop, left of the 600px drawer
@@ -104,7 +127,7 @@ function itnFor(o) {
 
         // step 1 -> step 2 (wait out the slide-in: a click mid-animation lands where the button WAS)
         await sleep(450);
-        await page.click(cardBtn(ev.id));
+        await openTickets(page, ev.id);
         await waitFor(() => drawerOpen(page));
         await page.waitForSelector('#ticketDrawer .tk-step[data-tier="' + gen.id + '"][data-d="1"]', { timeout: 10000 });
         await sleep(500);
@@ -182,6 +205,10 @@ function itnFor(o) {
         await page.waitForSelector('#eventDetailsModal.in, #eventDetailsModal.show', { timeout: 10000 });
         const modalBtn = await page.$eval('#modalEventTicketBtn', el => ({ text: el.innerText, ev: el.getAttribute('data-ticket-event'), target: el.getAttribute('target') }));
         ok(/Get Tickets/i.test(modalBtn.text) && Number(modalBtn.ev) === ev.id && !modalBtn.target, 'the event pop-up\'s ticket button says Get Tickets and opens the drawer (not a new tab)', JSON.stringify(modalBtn));
+        const pop = await page.evaluate(() => ({ title: document.getElementById('modalEventTitle').innerText, price: document.getElementById('modalEventPrice').innerText.replace(/\s/g, ' '),
+            venue: document.getElementById('modalEventVenue').innerText, poster: document.getElementById('modalEventPoster').getAttribute('src'), about: !!document.getElementById('modalEventAboutTitle').offsetParent }));
+        ok(pop.title === 'ZZ Ticket UI Show' && /Tickets start at R 150\.00/.test(pop.price) && pop.venue === 'Joburg Theatre' && pop.poster === 'images/events/1.jpg' && pop.about,
+            'the pop-up shows that show\'s title, "Tickets start at" its cheapest ticket, its venue, poster and About section', JSON.stringify(pop));
         await sleep(500);                                                     // the pop-up's fade-in
         await page.click('#modalEventTicketBtn');
         await waitFor(() => drawerOpen(page));
@@ -197,7 +224,7 @@ function itnFor(o) {
         // the page scrolls smoothly: let it settle, then press the button itself (a coordinate click mid-scroll can land on the card)
         await phone.evaluate((sel) => document.querySelector(sel).scrollIntoView({ block: 'center' }), cardBtn(ev.id));
         await sleep(900);
-        await phone.$eval(cardBtn(ev.id), el => el.click());
+        await openTickets(phone, ev.id);
         await waitFor(() => drawerOpen(phone));
         await phone.waitForSelector('#ticketDrawer .tk-tier', { timeout: 10000 });
         await sleep(600);

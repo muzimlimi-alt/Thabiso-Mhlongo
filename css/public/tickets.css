@@ -6,18 +6,7 @@
    Contrast: small text uses --text-secondary (the drawer surface makes --text-muted too faint for body copy).
    ===================================================================== */
 
-/* ── event cards ── */
-.ev-card__ticket-btn.tk-open { cursor: pointer; }
-button.ev-card__ticket-btn { line-height: 1.2; }
-.tk-from { font-family: var(--f-mono); font-weight: 500; letter-spacing: 0; text-transform: none; margin-left: 4px; opacity: .85; }
-.tk-state {
-    display: inline-flex; align-items: center; min-height: 32px; padding: 4px 12px; border-radius: var(--r-pill);
-    font-family: var(--f-body); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-    color: var(--text-secondary); border: 1px solid var(--border-default); background: transparent;
-}
-.tk-state--sold_out { color: rgb(var(--status-blocked-rgb)); border-color: rgba(var(--status-blocked-rgb), .45); }
-.tk-state--not_started { color: rgb(var(--status-reserved-rgb)); border-color: rgba(var(--status-reserved-rgb), .45); }
-#modalEventTicketBtn.tk-modal-state { cursor: default; opacity: .7; pointer-events: none; }
+/* event cards and the details pop-up: the price line + View Event / Get Tickets are css/public/redesign.css (Events) */
 
 /* ── drawer content ── */
 #ticketDrawer { font-family: var(--f-body); }

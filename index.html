@@ -63,7 +63,7 @@
 	
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
-	<link rel="stylesheet" href="css/public/redesign.css?v=24">
+	<link rel="stylesheet" href="css/public/redesign.css?v=25">
 	<link rel="stylesheet" href="css/public/tracking-modal.css?v=9">
 	<link rel="stylesheet" href="css/components/notifications.css">
 	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
@@ -71,7 +71,7 @@
 	     stay last; nothing here needs to win a cascade tie against it. -->
 	<link rel="stylesheet" href="css/public/drawer.css?v=6">
 	<!-- Get Tickets drawer (event ticketing) - every selector is scoped to #ticketDrawer / .tk-*, so its position is not a cascade concern. -->
-	<link rel="stylesheet" href="css/public/tickets.css?v=7">
+	<link rel="stylesheet" href="css/public/tickets.css?v=8">
 
 	<!-- Google Places Visibility Fix -->
 	<!-- Booking wizard styles — extracted from the inline block that sat here. Must stay
@@ -2110,48 +2110,57 @@
 
     <!-- Event Details Modal -->
     <div class="modal fade tm-modal" id="eventDetailsModal" tabindex="-1" role="dialog" aria-labelledby="modalEventTitle" aria-hidden="true">
-        <div class="modal-dialog modal-lg" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h4 class="modal-title" id="modalEventTitle">
-                        <i class="fa-solid fa-calendar-days"></i>Event Details
-                    </h4>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <div class="row no-gutters">
-                        <!-- Left: Poster -->
-                        <div class="col-md-5">
-                            <img id="modalEventPoster" src="" alt="Event Poster" class="evt-poster">
-                        </div>
-                        <!-- Right: Info -->
-                        <div class="col-md-7 evt-info-col">
-                            <div>
-                                <div class="evt-meta-label">When &amp; Where</div>
-                                <div class="evt-meta-value">
-                                    <i class="far fa-clock"></i><span id="modalEventDate">Oct 24, 2026 &mdash; 20:00</span><br>
-                                    <i class="fas fa-map-marker-alt"></i><span id="modalEventVenue">The Grand Hall</span>
-                                </div>
-                                <a id="modalEventVenueLink" href="#" target="_blank" class="evt-venue-link">View on Google Maps</a>
-                            </div>
-
-                            <div>
-                                <div class="evt-meta-label">About the Event</div>
-                                <p id="modalEventDesc" class="evt-desc">No description provided.</p>
-                            </div>
-
-                            <div>
-                                <a id="modalEventTicketBtn" href="#" target="_blank" class="evt-ticket-btn">
-                                    <i class="fas fa-ticket-alt"></i>Purchase Tickets
-                                </a>
-                                <!-- Share this show (js/event-share.js): shown for upcoming shows -->
-                                <button type="button" id="modalEventShareBtn" class="evt-share-btn" hidden><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share with friends</button>
-                                <p class="evt-powered">Powered by Thabiso Mhlongo Management</p>
-                            </div>
-                        </div>
+        <!-- Filled by js/myscript.js (the .live-event-card click handler) from the card's event record; the ticket button by
+             js/tickets-drawer.js (tmTicketModalCta). Top: poster | date, title, category, price, Get Tickets. Below: about | venue, featuring, organiser.
+             Phones: one column, full screen. Styles: css/public/redesign.css "Event Details Modal". -->
+        <div class="modal-dialog evd-dialog" role="document">
+            <div class="modal-content evd">
+                <button type="button" class="evd-close" data-dismiss="modal" aria-label="Close event details">
+                    <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+                </button>
+                <div class="evd-top">
+                    <div class="evd-poster">
+                        <img id="modalEventPosterBg" class="evd-poster__bg" src="" alt="" aria-hidden="true">
+                        <img id="modalEventPoster" class="evd-poster__img" src="" alt="Event poster">
                     </div>
+                    <div class="evd-summary">
+                        <div class="evd-when">
+                            <i class="fa-solid fa-calendar-days" aria-hidden="true"></i>
+                            <div>
+                                <span id="modalEventDate" class="evd-when__date"></span>
+                                <span id="modalEventRelative" class="evd-when__rel"></span>
+                            </div>
+                        </div>
+                        <h2 class="evd-title" id="modalEventTitle">Event Details</h2>
+                        <p id="modalEventCategory" class="evd-category" hidden></p>
+                        <p id="modalEventPrice" class="evd-price" hidden></p>
+                        <a id="modalEventTicketBtn" href="#" target="_blank" class="evt-ticket-btn">
+                            <i class="fas fa-ticket-alt"></i>Purchase Tickets
+                        </a>
+                        <!-- Share this show (js/event-share.js): shown for upcoming shows -->
+                        <button type="button" id="modalEventShareBtn" class="evt-share-btn" hidden><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share with friends</button>
+                    </div>
+                </div>
+                <div class="evd-bottom">
+                    <section class="evd-about" aria-labelledby="modalEventAboutTitle">
+                        <h3 id="modalEventAboutTitle" class="evd-h"><i class="fa-solid fa-align-left" aria-hidden="true"></i>About this event</h3>
+                        <p id="modalEventDesc" class="evd-desc">No description provided.</p>
+                    </section>
+                    <aside class="evd-side" aria-label="Event information">
+                        <div class="evd-panel">
+                            <h3 class="evd-panel__h"><i class="fas fa-map-marker-alt" aria-hidden="true"></i>Venue</h3>
+                            <p id="modalEventVenue" class="evd-panel__main">To be announced</p>
+                            <a id="modalEventVenueLink" href="#" target="_blank" rel="noopener noreferrer" class="evd-panel__link">View on Google Maps <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>
+                        </div>
+                        <div class="evd-panel">
+                            <h3 class="evd-panel__h"><i class="fa-solid fa-microphone" aria-hidden="true"></i>Featuring</h3>
+                            <p class="evd-panel__main">Thabiso Mhlongo</p>
+                        </div>
+                        <div class="evd-panel">
+                            <h3 class="evd-panel__h"><i class="fa-solid fa-user-tie" aria-hidden="true"></i>Organiser</h3>
+                            <p class="evd-panel__main">Thabiso Mhlongo Management</p>
+                        </div>
+                    </aside>
                 </div>
             </div>
         </div>
@@ -2345,7 +2354,7 @@
 	<script src="js/shared/location-utils.js?v=1"></script>
 	<!-- Shared location-search client (2026-10 Places audit) - the booking wizard uses its session tokens. -->
 	<script src="js/shared/places-client.js?v=1"></script>
-	<script src="js/myscript.js?v=1.9.14"></script>
+	<script src="js/myscript.js?v=1.9.15"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather
@@ -2354,9 +2363,9 @@
 	<script src="js/admin/components/drawer.js?v=3"></script>
 	<script src="js/notificationService.js?v=2.0.2"></script>
 	<!-- Event ticketing: the Get Tickets drawer + the event cards' ticket buttons (called by js/myscript.js). -->
-	<script src="js/tickets-drawer.js?v=8"></script>
+	<script src="js/tickets-drawer.js?v=9"></script>
 	<!-- Share a show with friends: Share buttons on cards / pop-up / drawer, and opening /?event=<id> from a shared link. -->
-	<script src="js/event-share.js?v=1"></script>
+	<script src="js/event-share.js?v=2"></script>
 	<!-- Client payment plans (Track Booking drawer): the shared rules module — the very file the server
 	     validates a plan with (routes/public/bookings.js) — and the plan builder built on it. Both must
 	     load before the tracking script below. -->

@@ -156,7 +156,8 @@
         Array.prototype.some.call(cards, function (c) { var it = payloadOf(c); if (it && Number(it.event_id) === wanted) { card = c; return true; } return false; });
         if (!card) { if (++tries < 50) setTimeout(look, 200); return; }   // the events list loads after the page (10 s at most)
         card.scrollIntoView({ block: 'center' });
-        var buy = card.querySelector('.tk-open[data-ticket-event]');      // on sale here: straight to Get Tickets
-        if (buy) buy.click(); else card.click();                         // otherwise the show's details pop-up
+        var it = payloadOf(card);                                        // on sale here: straight to Get Tickets
+        if (it && it.ticketing && it.ticketing.state === 'on_sale' && window.tmOpenTickets && card.closest('#upcomingEventsGrid')) window.tmOpenTickets(it.event_id);
+        else card.click();                                               // otherwise the show's details pop-up
     })();
 })();

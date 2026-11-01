@@ -123,7 +123,7 @@ const shot = async (page, name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursiv
         await sleep(600);
 
         // the Get Tickets drawer
-        await desk.$eval(`.tk-open[data-ticket-event="${tix}"]`, el => el.click());
+        await desk.evaluate((id) => window.tmOpenTickets(id), tix);                        // the Get Tickets drawer (cards: View Event -> pop-up -> Get Tickets)
         await desk.waitForSelector('#ticketDrawer .tk-share', { visible: true, timeout: 10000 });
         await sleep(500);
         await desk.click('#ticketDrawer .tk-share');

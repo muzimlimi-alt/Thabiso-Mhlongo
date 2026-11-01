@@ -16,8 +16,12 @@ shows the tickets after payment.
 
 1. **Admin** opens an event (Events → Upcoming → Edit) → **Tickets** tab → adds ticket types (name, price, places, max per order,
    optional sales window) → **Open sales**. Only *standalone* events (not a client booking's event) can sell tickets.
-2. **Public site**: the event's card shows **Get Tickets · from R…** (or Sold Out / Sales Closed / On sale <date>). An event with no
-   ticket types keeps its old external `ticket_sales_link` exactly as before.
+2. **Public site**: the event's card shows **From R…** (or Sold out / Ticket sales closed / Tickets on sale <date>) and **View Event**,
+   which opens the details pop-up (poster | date, title, category, "Tickets start at R…", **Get Tickets**; below: About | Venue,
+   Featuring, Organiser). Get Tickets appears only while tickets are on sale (`tmTicketPrice` / `tmTicketModalCta`). An event with no
+   ticket types keeps its old external `ticket_sales_link` (the pop-up's Purchase Tickets) exactly as before. A shared link `/?event=<id>`
+   still goes straight to the drawer for a show on sale (`window.tmOpenTickets`). Featuring / Organiser are site-wide text in
+   `index.html` (events have no such fields).
 3. **Drawer step 1**: choose quantities → **Continue** reserves them for **10 minutes** (`POST /api/public/ticket-orders`).
 4. **Drawer step 2**: name, e-mail, phone, optional names per ticket, POPIA consent, countdown → **Pay** → the server builds and signs
    the PayFast form (`POST …/checkout`) → the browser posts it to PayFast (`window.tmPostToPayfast`, shared with the booking tracker).
@@ -50,7 +54,7 @@ New (ticketing's own code, in the repo's existing lib / routes / js/admin layout
 | `lib/ticketing-issue.js` | migration 116: complimentary tickets (guest list) and void-and-reissue of one ticket |
 | `lib/ticketing-door.js`, `routes/public/ticketing-door.js` | door links (migration 115): per-show volunteer links, and the door API they use |
 | `routes/admin/ticketing.js` | admin API (tiers, sales switch, orders, refunds, CSV, figures, door) |
-| `js/tickets-drawer.js`, `css/public/tickets.css` | the Get Tickets drawer + card buttons |
+| `js/tickets-drawer.js`, `css/public/tickets.css` | the Get Tickets drawer + the card price line / pop-up button (card + pop-up layout: `css/public/redesign.css` Events) |
 | `js/admin/ticketing.js`, `css/admin/ticketing.css` | event drawer Tickets tab + Ticket Sales tab + order drawer |
 | `checkin.html`, `js/checkin.js`, `css/public/checkin.css` | door scanner + the staff view on `/t/<token>` |
 | `js/event-share.js` | Share a show: Share buttons (card poster, details pop-up, drawer), system share sheet or WhatsApp / Facebook / X / Copy link menu; opens `/?event=<id>` from a shared link |

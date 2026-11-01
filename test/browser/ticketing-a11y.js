@@ -91,12 +91,17 @@ async function paidOrder(eventId, tierId, n, buyerName) {
         await pg.waitForSelector(cardSel + ' .ev-card__share', { timeout: 10000 });
         await pg.$eval(cardSel, el => el.scrollIntoView({ block: 'center', behavior: 'instant' }));
         await sleep(1200);                                                            // the cards' reveal animation (contrast is measured)
-        await scan(pg, 'event card with Get Tickets + Share', cardSel);
+        await scan(pg, 'event card with price, View Event + Share', cardSel);
         await pg.$eval(cardSel + ' .ev-card__share', el => el.click());
         await pg.waitForSelector('.tm-share-menu', { visible: true, timeout: 5000 });
         await scan(pg, 'Share menu', '.tm-share-menu');
         await pg.keyboard.press('Escape');
-        await pg.$eval(`.tk-open[data-ticket-event="${ev.id}"]`, el => el.click());
+        // View Event -> the details pop-up (scanned) -> its Get Tickets
+        await pg.$eval(cardSel + ' .ev-card__view', el => el.click());
+        await pg.waitForSelector('#modalEventTicketBtn', { visible: true, timeout: 10000 });
+        await sleep(700);
+        await scan(pg, 'event details pop-up', '#eventDetailsModal');
+        await pg.$eval('#modalEventTicketBtn', el => el.click());
         await waitFor(() => drawerOpen(pg));
         await pg.waitForSelector('#ticketDrawer .tk-tier', { timeout: 10000 });
         await sleep(600);

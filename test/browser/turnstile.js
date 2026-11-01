@@ -40,11 +40,11 @@ const until = async (page, fn, ms = 30000) => { const end = Date.now() + ms; whi
         page.on('pageerror', e => errs.push(e.message.slice(0, 200)));
         page.on('console', m => { if (/Content Security Policy/i.test(m.text())) csp.push(m.text().slice(0, 200)); });
         await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded' });
-        await page.waitForSelector(`.tk-open[data-ticket-event="${ev.id}"]`, { timeout: 20000 });
+        await page.waitForSelector(`#upcomingEventsGrid .live-event-card[data-payload*="%22event_id%22%3A${ev.id}%2C"]`, { timeout: 20000 });
         await sleep(300);
         await page.evaluate(() => { const x = document.getElementById('cookieRejectAll'); if (x && x.offsetParent) x.click(); });
         await sleep(300);
-        await page.$eval(`.tk-open[data-ticket-event="${ev.id}"]`, el => el.click());
+        await page.evaluate((id) => window.tmOpenTickets(id), ev.id);                      // the Get Tickets drawer (cards: View Event -> pop-up -> Get Tickets)
         await page.waitForSelector('#ticketDrawer .tk-tier', { timeout: 15000 });
         await sleep(500);
         await page.$eval(`#ticketDrawer .tk-step[data-tier="${tier.id}"][data-d="1"]`, el => el.click());

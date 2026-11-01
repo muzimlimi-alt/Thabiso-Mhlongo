@@ -551,47 +551,36 @@ $(function() {
                 return;
             }
 
+            // Card: poster, date badge, title, short description, starting price, View Event (opens the details pop-up below).
+            // Stored text is entity-encoded once (title/venue go in as they are); the description is decoded, then escaped.
             var htmls = items.map(function(item) {
-                var displayDate = item.event_datetime;
-                if (item.event_datetime) {
-                    try {
-                        var d = new Date(item.event_datetime);
-                        if (!isNaN(d)) {
-                            displayDate = d.toLocaleString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-                        }
-                    } catch(e) {}
-                }
-
+                var displayDate = tmEventWhen(item);
                 var safeTitle = item.event_title ? item.event_title.replace(/"/g, '&quot;') : '';
                 var safeVenue = item.venue_name ? item.venue_name.replace(/"/g, '&quot;') : '';
                 var safePoster = item.poster_image_path ? item.poster_image_path : 'images/events/1.jpg';
+                var desc = tmEscHtml(decodeHtmlEntities(item.event_description || '').replace(/\s+/g, ' ').trim());
+                // Event ticketing (js/tickets-drawer.js): "From R 150.00" / Sold out / Tickets on sale <date>; null when tickets are not sold here
+                var price = window.tmTicketPrice ? window.tmTicketPrice(item) : null;
 
-                var mediaHtml = `<img src="${safePoster}" alt="${safeTitle}" loading="lazy" decoding="async" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">`;
+                // the poster sits whole (never stretched or cropped) on a blurred copy of itself, so every card is the same shape
+                var mediaHtml = `<img class="ev-card__poster-bg" src="${safePoster}" alt="" aria-hidden="true" loading="lazy" decoding="async" onerror="this.remove()">` +
+                    `<img class="ev-card__poster-img" src="${safePoster}" alt="Poster for ${safeTitle}" loading="lazy" decoding="async" onerror="this.src='https://placehold.co/250x250/111/EEE?text=Image+Missing'">`;
 
                 var encodedPayload = encodeURIComponent(JSON.stringify(item));
-                // Event ticketing (js/tickets-drawer.js): an event with ticket types gets Get Tickets / Sold Out / Sales Closed;
-                // without any (null) the card keeps its external ticket link exactly as before.
-                var ticketCta = window.tmTicketCta ? window.tmTicketCta(item, safeTitle) : null;
 
                 return `
-                    <div class="ev-card live-event-card reveal" data-payload="${encodedPayload}">
+                    <article class="ev-card live-event-card reveal" data-payload="${encodedPayload}">
                         <div class="ev-card__poster">${mediaHtml}</div>
                         <div class="ev-card__info">
-                            <h4 style="margin: 0 0 8px 0; font-family: var(--f-display), serif; font-size: 1.25rem; font-weight: 600; color: #fff; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${safeTitle}">${safeTitle}</h4>
-                            ${displayDate ? `<div class="ev-detail"><i class="far fa-clock ev-detail__ico"></i><span class="ev-detail__text">${displayDate}</span></div>` : ''}
-                            ${item.venue_name ? `<div class="ev-detail"><i class="fas fa-map-marker-alt ev-detail__ico"></i><span class="ev-detail__text">${safeVenue}</span></div>` : ''}
-                            ${ticketCta !== null ? ticketCta : (item.ticket_sales_link || item.ticket_link) ? `
-                            <div class="ev-card__ticket-cta">
-                                <a href="${item.ticket_sales_link || item.ticket_link}" target="_blank" rel="noopener noreferrer"
-                                   class="ev-card__ticket-btn"
-                                   onclick="event.stopPropagation();"
-                                   aria-label="Get tickets for ${safeTitle}">
-                                    <i class="fa-solid fa-ticket" style="margin-right:6px;"></i>Get Tickets
-                                    <i class="fa-solid fa-arrow-right" style="margin-left:4px;font-size:10px;"></i>
-                                </a>
-                            </div>` : ''}
+                            ${displayDate ? `<span class="ev-card__date"><i class="fa-solid fa-calendar-days" aria-hidden="true"></i>${displayDate}</span>` : ''}
+                            <h4 class="ev-card__title" title="${safeTitle}">${safeTitle}</h4>
+                            ${desc ? `<p class="ev-card__desc">${desc}</p>` : item.venue_name ? `<p class="ev-card__desc"><i class="fas fa-map-marker-alt" aria-hidden="true"></i> ${safeVenue}</p>` : ''}
+                            <div class="ev-card__foot">
+                                ${price ? `<p class="ev-card__price ev-card__price--${price.state}">${tmEscHtml(price.text)}</p>` : ''}
+                                <button type="button" class="ev-card__view" aria-label="View event: ${safeTitle}">View Event</button>
+                            </div>
                         </div>
-                    </div>
+                    </article>
                 `;
             });
 
@@ -628,6 +617,42 @@ $(function() {
         ta.innerHTML = str;
         return ta.value;
     }
+    function tmEscHtml(s) {
+        return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // "Wed, 30 Dec 2026, 20:00", plus the end when the event has one ("- 23:00" the same day, "- Thu, 31 Dec, 05:00" the next).
+    // event_end_time is either a full "YYYY-MM-DDTHH:MM" or a legacy "HH:MM" on the start day (js/admin/events.js).
+    function tmEventWhen(item) {
+        var d = item && item.event_datetime ? new Date(item.event_datetime) : null;
+        if (!d || isNaN(d)) return item && item.event_datetime ? tmEscHtml(item.event_datetime) : '';
+        var fmt = function (x, o) { try { return x.toLocaleString('en-ZA', o); } catch (e) { return x.toLocaleString(); } };
+        var time = { hour: '2-digit', minute: '2-digit', hour12: false };
+        var out = fmt(d, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+        var endRaw = item.event_end_time ? String(item.event_end_time) : '';
+        if (/^\d{2}:\d{2}$/.test(endRaw)) endRaw = String(item.event_datetime).split('T')[0] + 'T' + endRaw;
+        var end = endRaw ? new Date(endRaw) : null;
+        if (end && !isNaN(end) && end > d) {
+            out += ' - ' + (end.toDateString() === d.toDateString() ? fmt(end, time) : fmt(end, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }));
+        }
+        return out;
+    }
+    // "In 29 days" / "Tomorrow" / "In 2 months" under the modal's date; past shows "Took place 3 months ago".
+    function tmEventRelative(item) {
+        var d = item && item.event_datetime ? new Date(item.event_datetime) : null;
+        if (!d || isNaN(d) || !window.Intl || !Intl.RelativeTimeFormat) return '';
+        var rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+        var days = Math.round((d.getTime() - Date.now()) / 86400000);
+        var txt = Math.abs(days) < 45 ? rtf.format(days, 'day') : Math.abs(days) < 548 ? rtf.format(Math.round(days / 30.44), 'month') : rtf.format(Math.round(days / 365.25), 'year');
+        if (d.getTime() < Date.now()) return 'Took place ' + txt;
+        return txt.charAt(0).toUpperCase() + txt.slice(1);
+    }
+
+    // Bound once, before js/tickets-drawer.js's own one-off 'hidden' handler, so the drawer sees the card button as its opener.
+    $('#eventDetailsModal').on('hidden.bs.modal', function () {
+        var opener = $(this).data('tmOpener');
+        if (opener && document.body.contains(opener)) { try { opener.focus({ preventScroll: true }); } catch (e) { opener.focus(); } }
+    });
 
     // Event Modal Click Handler (delegated since grid dynamically generated)
     $(document).on('click', '.live-event-card', function() {
@@ -637,28 +662,23 @@ $(function() {
 
         // Populate Modal Fields
         $('#modalEventTitle').text(decodeHtmlEntities(item.event_title) || 'Event Details');
-        $('#modalEventDesc').text(decodeHtmlEntities(item.event_description) || '');
-        
-        var displayDateStr = item.event_datetime || 'TBA';
-        try {
-            var d = new Date(item.event_datetime);
-            if (!isNaN(d)) {
-                displayDateStr = d.toLocaleString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-            }
-        } catch(e) {}
-        $('#modalEventDate').text(displayDateStr);
+        $('#modalEventDesc').text(decodeHtmlEntities(item.event_description) || 'More details about this show coming soon.');
+        $('#modalEventDate').html(tmEventWhen(item) || 'Date to be announced');
+        $('#modalEventRelative').text(tmEventRelative(item));
+        var category = decodeHtmlEntities(item.event_type || '');
+        $('#modalEventCategory').text(category).prop('hidden', !category);
+        var price = window.tmTicketPrice ? window.tmTicketPrice(item, true) : null;
+        $('#modalEventPrice').text(price ? price.text : '').attr('data-state', price ? price.state : '').prop('hidden', !price);
 
-        $('#modalEventVenue').text(decodeHtmlEntities(item.venue_name) || 'TBA');
-        
-        // Maps linking logic
+        $('#modalEventVenue').text(decodeHtmlEntities(item.venue_name) || 'To be announced');
+
+        // Maps link: only when the event has one
         if(item.venue_map_link) {
-            $('#modalEventVenueLink').attr('href', item.venue_map_link);
-            $('#modalEventVenueLink').css('pointer-events', 'auto');
+            $('#modalEventVenueLink').attr('href', decodeHtmlEntities(item.venue_map_link)).show();
         } else {
-            $('#modalEventVenueLink').removeAttr('href'); 
-            $('#modalEventVenueLink').css('pointer-events', 'none');
+            $('#modalEventVenueLink').removeAttr('href').hide();
         }
-        
+
         // Ticket linking logic — supports both manually created events (ticket_sales_link)
         // and booking-promoted shows (ticket_link)
         var ticketUrl = item.ticket_sales_link || item.ticket_link;
@@ -670,7 +690,12 @@ $(function() {
             $('#modalEventTicketBtn').hide();
         }
 
-        $('#modalEventPoster').attr('src', item.poster_image_path || 'images/events/1.jpg');
+        var poster = item.poster_image_path || 'images/events/1.jpg';
+        $('#modalEventPoster').attr({ src: poster, alt: 'Poster for ' + (decodeHtmlEntities(item.event_title) || 'this event') });
+        $('#modalEventPosterBg').attr('src', poster);
+
+        // closing the pop-up puts focus back on the card's View Event button (and so does closing the Get Tickets drawer opened from it)
+        $('#eventDetailsModal').data('tmOpener', $(this).find('.ev-card__view')[0] || null);
 
         $('#eventDetailsModal').modal('show');
     });

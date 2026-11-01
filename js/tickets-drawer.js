@@ -87,37 +87,33 @@
     function messageBox(kind, text) { return text ? '<div class="tk-msg tk-msg--' + kind + '" role="' + (kind === 'error' ? 'alert' : 'status') + '">' + text + '</div>' : ''; }
     function loading(text) { body('<div class="tk-loading" role="status"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> ' + esc(text) + '</div>'); }
 
-    // ---------------------------------------------------------------- the Events section: the card / modal buttons
+    // ---------------------------------------------------------------- the Events section: the card price line / the details pop-up button
+    // Cards show the price and a View Event button (js/myscript.js); Get Tickets lives in the details pop-up.
 
-    // Called by js/myscript.js for every event card. Returns the card's ticket area, or null when the event has no ticket types
-    // (the card then keeps its external ticket link exactly as before).
-    window.tmTicketCta = function (item, safeTitle) {
+    // A friend arriving from a shared link (js/event-share.js) goes straight to Get Tickets for a show on sale here.
+    window.tmOpenTickets = function (eventId) { openForEvent(Number(eventId)); };
+
+    // The price / sale-state line on an event card and in the details pop-up: { state, text } or null (no tickets sold here, or a past
+    // show). The cheapest on-sale tier comes from the server (ticketing.from_cents); nothing is worked out here.
+    window.tmTicketPrice = function (item, inModal) {
         var t = item && item.ticketing;
-        if (!t) return null;
-        if (item.event_datetime && new Date(item.event_datetime).getTime() < Date.now()) return '';      // a past show: nothing to sell
-        if (t.state === 'on_sale') {
-            return '<div class="ev-card__ticket-cta"><button type="button" class="ev-card__ticket-btn tk-open" data-ticket-event="' + Number(item.event_id) + '" aria-label="Get tickets for ' + (safeTitle || '') + '">' +
-                '<i class="fa-solid fa-ticket" style="margin-right:6px;"></i>Get Tickets' + (t.from_cents ? ' <span class="tk-from">from ' + zar(t.from_cents) + '</span>' : '') +
-                '<i class="fa-solid fa-arrow-right" style="margin-left:4px;font-size:10px;"></i></button></div>';
-        }
-        var label = t.state === 'sold_out' ? 'Sold Out' : (t.state === 'not_started' && t.opens_at ? 'On sale ' + sast(t.opens_at) : 'Sales Closed');
-        return '<div class="ev-card__ticket-cta"><span class="tk-state tk-state--' + esc(t.state) + '">' + esc(label) + '</span></div>';
+        if (!t || (item.event_datetime && new Date(item.event_datetime).getTime() < Date.now())) return null;
+        if (t.state === 'on_sale') return t.from_cents ? { state: t.state, text: (inModal ? 'Tickets start at ' : 'From ') + zar(t.from_cents) } : null;
+        if (t.state === 'sold_out') return { state: t.state, text: 'Sold out' };
+        if (t.state === 'not_started' && t.opens_at) return { state: t.state, text: 'Tickets on sale ' + sast(t.opens_at) };
+        return { state: 'closed', text: 'Ticket sales closed' };
     };
 
     // Called by js/myscript.js when the event details modal opens. Returns true when it set the modal's ticket button itself.
+    // Get Tickets only while tickets are on sale; otherwise the button is hidden and the price line says why (tmTicketPrice).
     window.tmTicketModalCta = function (item, $btn) {
         var t = item && item.ticketing;
         $btn.removeAttr('data-ticket-event').removeClass('tk-open tk-modal-state').attr('target', '_blank');
         if (!t) return false;
         var past = item.event_datetime && new Date(item.event_datetime).getTime() < Date.now();
-        if (past) { $btn.hide(); return true; }
-        if (t.state === 'on_sale') {
-            $btn.attr({ href: '#', 'data-ticket-event': Number(item.event_id) }).removeAttr('target').addClass('tk-open')
-                .html('<i class="fas fa-ticket-alt"></i>Get Tickets').show();
-        } else {
-            $btn.attr('href', '#').removeAttr('target').addClass('tk-modal-state')
-                .html(t.state === 'sold_out' ? 'Sold Out' : 'Sales Closed').show();
-        }
+        if (past || t.state !== 'on_sale') { $btn.hide(); return true; }
+        $btn.attr({ href: '#', 'data-ticket-event': Number(item.event_id) }).removeAttr('target').addClass('tk-open')
+            .html('<i class="fas fa-ticket-alt"></i>Get Tickets').show();
         return true;
     };
 
