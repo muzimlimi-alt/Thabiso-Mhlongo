@@ -487,7 +487,14 @@
     /* the portal styles every h3 in a section large (!important) - these are small group labels */
     #dbInsights .db-group__head h3 { margin: 0 !important; font-family: inherit !important; font-size: 15px !important; font-weight: 600 !important; line-height: 1.3 !important; color: var(--atl-ink) !important; letter-spacing: .02em !important; }
     .db-group__head .db-card-note { margin: 4px 0 0; }
-    .db-metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+    /* the cards share the row evenly - column counts come from gridCols() in dashboard-insights.js */
+    .db-metric-grid { --db-cols: var(--db-cols-3, 3); display: flex; flex-wrap: wrap; gap: 12px; }
+    @media (min-width: 1100px) { .db-metric-grid { --db-cols: var(--db-cols-4, 4); } }
+    @media (min-width: 1400px) { .db-metric-grid { --db-cols: var(--db-cols-6, 6); } }
+    .db-metric-grid > .db-metric { flex: 1 1 calc((100% - (var(--db-cols) - 1) * 12px) / var(--db-cols) - 0.5px); min-width: 0; }
+    /* the blocks each tab draws (groups, pairs of panels) are spaced like the panel's own children */
+    #dbOverview, #dbOverviewCf, #dbTrafficMix, #dbTrafficExtra, #dbGeoCf, #dbGeoExtra, #dbPerf, #dbFinance { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+    #dbInsights .um-panel > div:empty, #dbOverviewCf:empty { display: none; }
     .db-metric {
         display: flex; flex-direction: column; gap: 6px;
         padding: 14px 16px;
@@ -539,7 +546,7 @@
         .db-insights > .atl-tab-bar, .db-insights > .db-range { flex: 0 0 100%; }
         .db-range { justify-content: space-between; }
         .db-range-select { flex: 1 1 auto; }
-        .db-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .db-metric-grid { --db-cols: 2; }
         .db-metric__value { font-size: 20px; }
     }
     .db-consent-note { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 14px; border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); background: var(--atl-surface2); }

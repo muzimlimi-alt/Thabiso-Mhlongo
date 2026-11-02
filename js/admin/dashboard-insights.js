@@ -51,7 +51,12 @@
     }
     function group(title, note, cardsHtml) {
         return '<section class="db-group"><div class="db-group__head"><h3>' + esc(title) + '</h3>' + (note ? '<p class="db-card-note">' + note + '</p>' : '') + '</div>' +
-            '<div class="db-metric-grid">' + cardsHtml + '</div></section>';
+            '<div class="db-metric-grid" style="' + gridCols(cardsHtml) + '">' + cardsHtml + '</div></section>';
+    }
+    // balanced columns per screen width (at most 6 / 4 / 3): 11 cards make rows of 6 + 5, never 7 + 4, and the cards stretch to fill the row
+    function gridCols(cardsHtml) {
+        var n = (cardsHtml.match(/class="db-metric[ "]/g) || []).length || 1;
+        return [6, 4, 3].map(function (max) { return '--db-cols-' + max + ':' + Math.ceil(n / Math.ceil(n / max)); }).join(';');
     }
     function rankList(rows, valueFmt, subFmt, empty) {
         if (!rows || !rows.length) return '<div class="db-rank-empty">' + esc(empty || 'Nothing in this period.') + '</div>';
