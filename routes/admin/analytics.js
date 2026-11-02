@@ -65,9 +65,10 @@ router.get('/api/admin/analytics/summary', requireAdmin, (req, res) => {
 // GET /api/admin/analytics/visits-over-time?period=7d|30d|90d
 router.get('/api/admin/analytics/visits-over-time', requireAdmin, (req, res) => {
     const { start, end } = getAnalyticsDates(req.query);
-    const period = req.query.period || '30d';
-    // 90-day view groups by week; otherwise by day
-    const groupFmt = period === '90d' ? `strftime('%Y-W%W', viewed_at)` : `date(viewed_at)`;
+    // by hour for a day or two, by day up to about a quarter, by week beyond (the old ?period=90d kept its weekly view)
+    const spanDays = Math.round((Date.parse(end) - Date.parse(start)) / 864e5) + 1;
+    const groupFmt = spanDays <= 2 ? `strftime('%Y-%m-%d %H:00', viewed_at)`
+        : (spanDays > 92 || req.query.period === '90d') ? `strftime('%Y-W%W', viewed_at)` : `date(viewed_at)`;
     db.all(`
         SELECT
             ${groupFmt}                  AS label,
@@ -157,7 +158,10 @@ router.get('/api/admin/analytics/countries', requireAdmin, (req, res) => {
         [start, end],
         (err, rows) => {
             if (err) return res.status(500).json({ success: false });
-            res.json({ success: true, rows: rows || [] });
+            // total visitors in the range, for each country's share
+            db.get(`SELECT COUNT(DISTINCT visitor_id) AS n FROM analytics_pageviews WHERE date(viewed_at) BETWEEN ? AND ?`, [start, end], (e2, t) => {
+                res.json({ success: true, rows: rows || [], totalVisitors: (t && t.n) || 0 });
+            });
         }
     );
 });
@@ -168,13 +172,13 @@ router.get('/api/admin/analytics/top-pages', requireAdmin, (req, res) => {
     const { start, end } = getAnalyticsDates(req.query);
     db.all(`
         SELECT
-            page                        AS page,
+            CASE WHEN page IN ('/index.html', '/index') THEN '/' ELSE page END AS page,   -- the same home page
             COUNT(*)                    AS pageviews,
             COUNT(DISTINCT visitor_id)  AS visitors
         FROM analytics_pageviews
         WHERE date(viewed_at) BETWEEN ? AND ?
           AND page IS NOT NULL AND page != ''
-        GROUP BY page
+        GROUP BY 1
         ORDER BY pageviews DESC
         LIMIT 8`,
         [start, end],
@@ -256,6 +260,115 @@ router.get('/api/admin/analytics/todays-schedule', requireAdmin, (req, res) => {
             }
         );
     });
+});
+
+// ── What visitors look at and do on the one-page site (tracker.js -> analytics_events; consenting visitors only) ──────────────────
+
+// The page's sections, top to bottom (tracker.js SECTIONS) and what the dashboard calls them.
+const SECTION_LABELS = {
+    hero: 'Home (top of the page)', features: 'Highlights strip', services: 'What I do (services)', about: 'About', career: 'Career milestones',
+    accolades: 'Accolades & Recognition', footprint: 'Footprint (countries)', team: 'Management Team', gallery: 'Gallery', social: 'Social videos',
+    events: 'Events', newsletter: 'Newsletter', testimonials: 'Testimonials', contact: 'Contact'
+};
+const SECTION_ORDER = Object.keys(SECTION_LABELS);
+const allQ = (sql, p) => new Promise((resolve, reject) => db.all(sql, p, (e, r) => e ? reject(e) : resolve(r || [])));
+const getQ = (sql, p) => new Promise((resolve, reject) => db.get(sql, p, (e, r) => e ? reject(e) : resolve(r || {})));
+
+// GET /api/admin/analytics/sections?range=... - for each section: visits that reached it, and the share of all tracked visits
+router.get('/api/admin/analytics/sections', requireAdmin, async (req, res) => {
+    const { start, end } = getAnalyticsDates(req.query);
+    try {
+        const visits = await getQ(`SELECT COUNT(*) AS n FROM analytics_sessions WHERE date(started_at) BETWEEN ? AND ?`, [start, end]);
+        const rows = await allQ(`SELECT name, COUNT(DISTINCT session_id) AS visits, COUNT(DISTINCT visitor_id) AS visitors
+                                 FROM analytics_events WHERE event_type = 'section_view' AND date(occurred_at) BETWEEN ? AND ? GROUP BY name`, [start, end]);
+        const total = Number(visits.n) || 0;
+        const out = SECTION_ORDER.map(k => {
+            const r = rows.find(x => x.name === k) || {};
+            return { key: k, label: SECTION_LABELS[k], visits: Number(r.visits) || 0, visitors: Number(r.visitors) || 0, share: total ? Math.round(((Number(r.visits) || 0) / total) * 1000) / 10 : null };
+        });
+        res.json({ success: true, totalVisits: total, rows: out });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+// GET /api/admin/analytics/interactions?range=... - what people did, and two journeys counted in visits:
+// booking (form opened -> step 2 -> 3 -> 4 -> sent) and tickets (event opened -> Get Tickets -> tickets held -> sent to PayFast)
+const INTERACTION_LABELS = {
+    event_opened: 'Event details opened', get_tickets: 'Get Tickets pressed', tickets_reserved: 'Tickets held', tickets_checkout: 'Sent to PayFast',
+    event_shared: 'Show shared', booking_opened: 'Booking form opened', booking_submitted: 'Booking request sent', contact_sent: 'Contact message sent',
+    newsletter_signup: 'Newsletter sign-up', gallery_photo: 'Gallery photo opened', video_played: 'Video played'
+};
+const BK_SOURCE_LABELS = {
+    'header-cta': 'Top menu "Book Me"', 'mobile-nav': 'Phone menu "Book Me"', 'hero-cta': 'Hero "Make Booking"', footer: 'Footer "Book Me"',
+    'service-club-theatre': 'Service: club & theatre', 'service-corporate-events': 'Service: corporate events', 'service-private-functions': 'Service: private functions',
+    'service-writing-creative': 'Service: writing & creative', 'service-acting-voice-brand': 'Service: acting, voice & brand'
+};
+router.get('/api/admin/analytics/interactions', requireAdmin, async (req, res) => {
+    const { start, end } = getAnalyticsDates(req.query);
+    try {
+        const counts = await allQ(`SELECT name, COUNT(*) AS n, COUNT(DISTINCT session_id) AS visits FROM analytics_events
+                                   WHERE event_type = 'interaction' AND date(occurred_at) BETWEEN ? AND ? GROUP BY name`, [start, end]);
+        const steps = await allQ(`SELECT detail, COUNT(DISTINCT session_id) AS visits FROM analytics_events
+                                  WHERE event_type = 'interaction' AND name = 'booking_step' AND date(occurred_at) BETWEEN ? AND ? GROUP BY detail`, [start, end]);
+        const sources = await allQ(`SELECT COALESCE(detail, 'other') AS detail, COUNT(*) AS n FROM analytics_events
+                                    WHERE event_type = 'interaction' AND name = 'booking_opened' AND date(occurred_at) BETWEEN ? AND ? GROUP BY 1 ORDER BY n DESC`, [start, end]);
+        const visitsOf = (name) => Number((counts.find(c => c.name === name) || {}).visits) || 0;
+        const stepVisits = (n) => Number((steps.find(s => String(s.detail) === String(n)) || {}).visits) || 0;
+        res.json({
+            success: true,
+            rows: Object.keys(INTERACTION_LABELS).map(k => { const c = counts.find(x => x.name === k) || {}; return { key: k, label: INTERACTION_LABELS[k], count: Number(c.n) || 0, visits: Number(c.visits) || 0 }; }),
+            booking: [
+                { label: 'Opened the booking form', visits: visitsOf('booking_opened') },
+                { label: 'Reached step 2 (your details)', visits: stepVisits(2) },
+                { label: 'Reached step 3 (venue)', visits: stepVisits(3) },
+                { label: 'Reached step 4 (review)', visits: stepVisits(4) },
+                { label: 'Sent the request', visits: visitsOf('booking_submitted') }
+            ],
+            tickets: [
+                { label: 'Opened an event', visits: visitsOf('event_opened') },
+                { label: 'Pressed Get Tickets', visits: visitsOf('get_tickets') },
+                { label: 'Held tickets', visits: visitsOf('tickets_reserved') },
+                { label: 'Went to PayFast', visits: visitsOf('tickets_checkout') }
+            ],
+            bookingSources: sources.map(s => ({ label: BK_SOURCE_LABELS[s.detail] || s.detail, count: Number(s.n) || 0 }))
+        });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+// GET /api/admin/analytics/visitor-mix?range=... - new vs returning visitors, engagement, browsers
+router.get('/api/admin/analytics/visitor-mix', requireAdmin, async (req, res) => {
+    const { start, end } = getAnalyticsDates(req.query);
+    try {
+        // returning = first seen before the range began (on this browser - a cleared cookie or another device counts as new)
+        const mix = await getQ(`SELECT COUNT(*) AS visitors,
+                                       COUNT(CASE WHEN first_seen < ? THEN 1 END) AS returning_n
+                                FROM (SELECT p.visitor_id, (SELECT MIN(date(p2.viewed_at)) FROM analytics_pageviews p2 WHERE p2.visitor_id = p.visitor_id) AS first_seen
+                                      FROM analytics_pageviews p WHERE date(p.viewed_at) BETWEEN ? AND ? GROUP BY p.visitor_id)`, [start, start, end]);
+        const eng = await getQ(`SELECT COUNT(*) AS visits, AVG(total_dwell_seconds) AS avg_secs,
+                                       COUNT(CASE WHEN total_dwell_seconds >= 30 THEN 1 END) AS engaged
+                                FROM analytics_sessions WHERE date(started_at) BETWEEN ? AND ?`, [start, end]);
+        const browsers = await allQ(`SELECT TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(browser,'0',''),'1',''),'2',''),'3',''),'4',''),'5',''),'6',''),'7',''),'8',''),'9','')) AS name,
+                                            COUNT(*) AS visits
+                                     FROM analytics_sessions WHERE date(started_at) BETWEEN ? AND ? GROUP BY 1 ORDER BY visits DESC LIMIT 6`, [start, end]);
+        const visitors = Number(mix.visitors) || 0, returning = Number(mix.returning_n) || 0, visits = Number(eng.visits) || 0;
+        res.json({
+            success: true,
+            visitors, returning, new: visitors - returning,
+            visits, avgVisitSeconds: visits ? Math.round(Number(eng.avg_secs) || 0) : null,
+            engagedVisits: Number(eng.engaged) || 0, engagedShare: visits ? Math.round(((Number(eng.engaged) || 0) / visits) * 1000) / 10 : null,
+            browsers: browsers.map(b => ({ name: b.name || 'Unknown', visits: Number(b.visits) || 0 }))
+        });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
+// GET /api/admin/analytics/cities?range=... - top cities (geoip; recorded since migration 117, so older visits have none)
+router.get('/api/admin/analytics/cities', requireAdmin, async (req, res) => {
+    const { start, end } = getAnalyticsDates(req.query);
+    try {
+        const rows = await allQ(`SELECT city, MAX(country_code) AS code, COUNT(DISTINCT visitor_id) AS visitors, COUNT(*) AS visits
+                                 FROM analytics_sessions WHERE city IS NOT NULL AND city <> '' AND date(started_at) BETWEEN ? AND ?
+                                 GROUP BY city ORDER BY visitors DESC, visits DESC LIMIT 10`, [start, end]);
+        res.json({ success: true, rows });
+    } catch (e) { res.status(500).json({ success: false }); }
 });
 
 module.exports = router;

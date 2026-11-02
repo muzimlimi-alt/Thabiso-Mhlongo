@@ -414,6 +414,14 @@
         return String.fromCodePoint(0x1F1E6 + (cc.charCodeAt(0) - 65))
              + String.fromCodePoint(0x1F1E6 + (cc.charCodeAt(1) - 65));
     }
+    // The tracker stores the two-letter code as the "name" too (geoip-lite): show the country's real name where the browser knows it
+    function dbCountryName(code, fallback) {
+        var cc = String(code || '').toUpperCase();
+        if (/^[A-Z]{2}$/.test(cc) && cc !== 'ZZ' && window.Intl && Intl.DisplayNames) {
+            try { return new Intl.DisplayNames(['en'], { type: 'region' }).of(cc) || fallback || cc; } catch (e) {}
+        }
+        return cc === 'ZZ' ? 'Unknown' : (fallback || 'Unknown');
+    }
     // Turn a raw page path into a friendly label (Home, Events, Gallery, …)
     function dbPrettyPage(p) {
         if (!p) return 'Home';
@@ -453,11 +461,12 @@
         fetch('/api/admin/analytics/countries?' + dbPeriodQs(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
+                var total = d && d.totalVisitors ? d.totalVisitors : 0;
                 dbRenderRankList('db-listCountries', d && d.success ? d.rows : [], {
                     empty: 'No location data tracked yet.',
                     value: function (r) { return r.visitors || 0; },
-                    label: function (r) { return dbCountryFlag(r.code) + ' ' + dbEsc(r.country || 'Unknown'); },
-                    sub:   function (r) { return dbFmtNum(r.pageviews) + ' views'; }
+                    label: function (r) { return dbCountryFlag(r.code) + ' ' + dbEsc(dbCountryName(r.code, r.country)); },
+                    sub:   function (r) { return (total ? Math.round(((r.visitors || 0) / total) * 1000) / 10 + '% of visitors · ' : '') + dbFmtNum(r.pageviews) + ' views'; }
                 });
             })
             .catch(function () {});

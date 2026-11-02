@@ -182,6 +182,7 @@ $(function() {
 
             if (result.success) {
                 window.notificationService.showSuccess((result.message || 'Your message has been sent. Thank you for getting in touch.') + (result.reference ? ' Your reference is ' + result.reference + '.' : ''));
+                if (window.tmTrack) window.tmTrack('contact_sent');               // tracker.js: counted only with analytics consent
                 this.reset();
                 contactFormStartedAt = Date.now();
             } else {
@@ -1795,6 +1796,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     throw new Error(result.message || 'Subscription failed');
                 } else {
                     $newsletterForm[0].reset();
+                    if (window.tmTrack) window.tmTrack('newsletter_signup');
                     window.notificationService.showSuccess(result.message || 'Almost there! Check your email to confirm your subscription.');
                 }
 
@@ -3013,6 +3015,7 @@ document.addEventListener("DOMContentLoaded", function() {
             $('#bookStep' + step).addClass('active');
             bkPlaceDraftLine(step);
             currentStep = step;
+            if (step > _bkFurthestStep && step > 1 && window.tmTrack) window.tmTrack('booking_step', String(step));   // how far people get in the form
             _bkFurthestStep = Math.max(_bkFurthestStep, step);
             // Wait past the 350ms tmFadeIn animation before measuring input position
             if (step === 3) {
@@ -3637,6 +3640,7 @@ $bookingForm.on('blur', '#bookName', function() {
                 var result = await response.json();
 
                 if (response.ok && result.success) {
+                    if (window.tmTrack) window.tmTrack('booking_submitted');
                     // Show success screen
                     $('#bookingStepBar').hide();
                     $('.book-step-panel').hide();

@@ -260,6 +260,7 @@
         $b.html('<i class="fa-solid fa-circle-notch fa-spin"></i> Holding your tickets…');
         call('POST', '/api/public/ticket-orders', { event_id: state.eventId, items: items, hold_key: holdKey, turnstile_token: botToken || undefined }).then(function (r) {
             if (r.status === 201) {
+                if (window.tmTrack) window.tmTrack('tickets_reserved', String(state.eventId));   // tracker.js: only with analytics consent
                 state.order = r.json.order;
                 noteSkew(state.order.server_now);
                 store({ ref: state.order.reference, eventId: state.eventId });
@@ -405,6 +406,7 @@
         }).then(function (r) {
             if (r.ok && r.json.pfData) {
                 stopTimers();
+                if (window.tmTrack) window.tmTrack('tickets_checkout', String(state.eventId));
                 if (window.tmPostToPayfast) window.tmPostToPayfast(r.json.pfHost, r.json.pfData);
                 return;
             }

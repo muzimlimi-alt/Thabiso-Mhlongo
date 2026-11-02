@@ -2356,7 +2356,7 @@
 	<script src="js/shared/location-utils.js?v=1"></script>
 	<!-- Shared location-search client (2026-10 Places audit) - the booking wizard uses its session tokens. -->
 	<script src="js/shared/places-client.js?v=1"></script>
-	<script src="js/myscript.js?v=1.9.19"></script>
+	<script src="js/myscript.js?v=1.9.20"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather
@@ -2365,7 +2365,7 @@
 	<script src="js/admin/components/drawer.js?v=3"></script>
 	<script src="js/notificationService.js?v=2.0.2"></script>
 	<!-- Event ticketing: the Get Tickets drawer + the event cards' ticket buttons (called by js/myscript.js). -->
-	<script src="js/tickets-drawer.js?v=9"></script>
+	<script src="js/tickets-drawer.js?v=10"></script>
 	<!-- Share a show with friends: Share buttons on cards / pop-up / drawer, and opening /?event=<id> from a shared link. -->
 	<script src="js/event-share.js?v=2"></script>
 	<!-- Client payment plans (Track Booking drawer): the shared rules module — the very file the server
@@ -4612,6 +4612,8 @@ $(document).on('click', '.trk-lookup-row', function() {
     prefs.essential  = true;
     prefs.timestamp  = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+    // tracker.js listens: it starts on an Analytics "yes" and stops (and forgets this browser) on a "no" - no reload needed
+    try { window.dispatchEvent(new CustomEvent('tm:consent', { detail: { analytics: !!prefs.analytics } })); } catch (e) {}
   }
 
   function loadScripts(prefs) {
@@ -4812,6 +4814,6 @@ $(document).on('click', '.trk-lookup-row', function() {
 </script>
 
 <!-- First-party analytics tracker -->
-<script src="/tracker.js" data-site="thabiso" async></script>
+<script src="/tracker.js?v=2" data-site="thabiso" async></script>
 </body>
 </html>

@@ -213,6 +213,66 @@
         });
     }
 
+    // ---------------------------------------------------------------- Traffic & Visitors / Geography (tracker.js: consenting visitors)
+
+    function journey(steps) {
+        var top = Math.max(1, steps[0].visits);
+        return '<div class="db-funnel">' + steps.map(function (s) {
+            var pct = Math.round((s.visits / top) * 100);
+            return '<div class="db-funnel__row"><span class="db-funnel__label">' + esc(s.label) + '</span><span class="db-funnel__bar"><span style="width:' + Math.max(2, pct) + '%"></span></span>' +
+                '<span class="db-funnel__n">' + count(s.visits) + (steps[0].visits ? ' <small>' + pct + '%</small>' : '') + '</span></div>';
+        }).join('') + '</div>';
+    }
+    function mins(secs) {
+        if (secs == null) return '—';
+        var m = Math.floor(secs / 60), s = secs % 60;
+        return m ? m + 'm ' + s + 's' : s + 's';
+    }
+    function loadTraffic() {
+        var qs = window.dbInsights.rangeQs();
+        if (!qs) return;
+        var mix = $id('dbTrafficMix'), extra = $id('dbTrafficExtra'), geo = $id('dbGeoExtra');
+        if (mix) getJson('/api/admin/analytics/visitor-mix?' + qs).then(function (r) {
+            var d = r.body;
+            if (!r.ok || !d.success) { mix.innerHTML = ''; return; }
+            mix.innerHTML = group('Who visited', null,
+                card({ label: 'New visitors', value: count(d.new), tip: 'First visit from this browser in the period. A cleared cookie or another device counts as new.' }) +
+                card({ label: 'Returning visitors', value: count(d.returning), tip: 'Had visited before the period began (on this browser).' }) +
+                card({ label: 'Average visit', value: mins(d.avgVisitSeconds), tip: 'How long a visit lasted, on average (time with the page open and in view).' }) +
+                card({ label: 'Engaged visits', value: d.engagedShare == null ? '—' : d.engagedShare + '%', tip: 'Visits that lasted 30 seconds or more.', small: count(d.engagedVisits) + ' of ' + count(d.visits) + ' visits' }) +
+                (d.browsers.length ? card({ label: 'Top browser', value: esc(d.browsers[0].name), tip: 'The browser used for most visits.', small: d.browsers.slice(1, 4).map(function (b) { return esc(b.name) + ' ' + count(b.visits); }).join(' · ') }) : ''));
+        });
+        if (extra) Promise.all([getJson('/api/admin/analytics/sections?' + qs), getJson('/api/admin/analytics/interactions?' + qs)]).then(function (res) {
+            var sec = res[0].body, act = res[1].body;
+            if (!res[0].ok || !sec.success || !res[1].ok || !act.success) { extra.innerHTML = ''; return; }
+            var secRows = sec.rows.map(function (r) { return { label: r.label, value: r.visits, share: r.share }; });
+            var secHtml = sec.rows.some(function (r) { return r.visits; })
+                ? rankList(secRows, count, function (r) { return r.share == null ? '' : r.share + '% of visits'; })
+                : '<div class="db-rank-empty">No section views recorded yet in this period. They are counted from this update on.</div>';
+            var acts = act.rows.filter(function (r) { return r.count; }).sort(function (a, b) { return b.count - a.count; });
+            var actHtml = acts.length ? rankList(acts.map(function (r) { return { label: r.label, value: r.count, visits: r.visits }; }), count, function (r) { return count(r.visits) + ' visit' + (r.visits === 1 ? '' : 's'); })
+                : '<div class="db-rank-empty">Nothing recorded yet in this period.</div>';
+            var src = act.bookingSources.length ? rankList(act.bookingSources.map(function (r) { return { label: r.label, value: r.count }; }), count) : '<div class="db-rank-empty">The booking form was not opened in this period.</div>';
+            extra.innerHTML =
+                '<div class="db-pair">' +
+                    panel('Sections people look at', 'fa-layer-group', secHtml, 'Top to bottom of the page: how many visits reached each section (on screen for a second). The site is one page, so this replaces page views.') +
+                    panel('What people did', 'fa-hand-pointer', actHtml, 'Each action, and in how many visits it happened.') +
+                '</div>' +
+                '<div class="db-pair">' +
+                    panel('Booking enquiries: where people drop off', 'fa-route', journey(act.booking), 'Visits that got to each step of the booking form.') +
+                    panel('Tickets: from event to payment', 'fa-ticket', journey(act.tickets), 'Visits that got to each step of buying tickets.') +
+                '</div>' +
+                panel('Which "Book Me" buttons are used', 'fa-arrow-pointer', src, 'Where the booking form was opened from.');
+        });
+        if (geo) getJson('/api/admin/analytics/cities?' + qs).then(function (r) {
+            var d = r.body;
+            if (!r.ok || !d.success) { geo.innerHTML = ''; return; }
+            var rows = d.rows.map(function (c) { return { label: c.city + (c.code && c.code !== 'ZZ' ? ' (' + c.code + ')' : ''), value: c.visitors, visits: c.visits }; });
+            geo.innerHTML = panel('Top cities', 'fa-city', rankList(rows, count, function (c) { return count(c.visits) + ' visit' + (c.visits === 1 ? '' : 's'); }, 'No city data yet in this period - cities are recorded from this update on.'),
+                'Worked out from the visitor\'s internet address (which is then discarded), so a city can be approximate - often the nearest big city of the internet provider.');
+        });
+    }
+
     // ---------------------------------------------------------------- loading
 
     function setLabel(text, isError) {
@@ -243,6 +303,7 @@
             if (tab) tab.hidden = !state.seesMoney;
             setLabel(describe(r.body.range));
             renderOverview(r.body);
+            loadTraffic();
             if (isOpen('dbPanelFinance')) loadFinance();
         });
     }

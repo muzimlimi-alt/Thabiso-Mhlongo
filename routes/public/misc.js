@@ -127,6 +127,14 @@ router.post('/upload', (req, res, next) => {
     });
 });
 
+// What tracker.js may send besides visits: the ids it makes (uuid), section ids, and the interactions it knows (js/myscript.js,
+// js/tickets-drawer.js and its own click watcher). Anything else is dropped.
+const TRACK_ID = /^[A-Za-z0-9-]{8,64}$/;
+const TRACK_SECTIONS = new Set(['hero', 'features', 'services', 'about', 'career', 'accolades', 'footprint', 'team', 'gallery', 'social',
+    'events', 'newsletter', 'testimonials', 'contact']);
+const TRACK_INTERACTIONS = new Set(['booking_opened', 'booking_step', 'booking_submitted', 'event_opened', 'get_tickets', 'event_shared',
+    'tickets_reserved', 'tickets_checkout', 'contact_sent', 'newsletter_signup', 'gallery_photo', 'video_played', 'drawer_opened', 'cta']);
+
 // POST /api/public/analytics/track — no auth required; IP discarded after geo lookup
 router.post('/api/public/analytics/track', analyticsTrackLimiter, (req, res) => {
     // Respond immediately so the beacon gets a fast 204
@@ -137,12 +145,27 @@ router.post('/api/public/analytics/track', analyticsTrackLimiter, (req, res) => 
                 utm_source, utm_medium, utm_campaign, dwell } = req.body || {};
 
         if (!visitor_id || !session_id || !event) return;
+        if (!TRACK_ID.test(String(visitor_id)) || !TRACK_ID.test(String(session_id))) return;
 
-        // Geo — extract country from IP then discard the IP
+        // A section looked at / something done (tracker.js; consenting visitors only). Names from a fixed list; a section once per visit.
+        if (event === 'section_view' || event === 'interaction') {
+            const name = String(req.body.name || '');
+            if (event === 'section_view' ? !TRACK_SECTIONS.has(name) : !TRACK_INTERACTIONS.has(name)) return;
+            const detail = String(req.body.detail || '').replace(/[^\w .:/-]/g, '').slice(0, 80) || null;
+            db.run(`INSERT INTO analytics_events (session_id, visitor_id, event_type, name, detail)
+                    SELECT ?, ?, ?, ?, ?
+                    WHERE ? = 'interaction' OR NOT EXISTS (SELECT 1 FROM analytics_events WHERE session_id = ? AND event_type = 'section_view' AND name = ?)`,
+                [session_id, visitor_id, event, name, detail, event, session_id, name],
+                (err) => { if (err) console.error('[analytics] event insert:', err.message); });
+            return;
+        }
+
+        // Geo — extract country (and city) from IP then discard the IP
         const ip  = req.ip || '';
         const geo = geoip.lookup(ip) || {};
         const countryCode = geo.country || 'ZZ';
         const countryName = geo.country || 'Unknown'; // geoip-lite returns ISO alpha-2
+        const city = geo.city ? String(geo.city).slice(0, 80) : null;
 
         // UA parsing — no raw storage of UA string
         const uaResult  = new UAParser(req.headers['user-agent']).getResult();
@@ -161,8 +184,8 @@ router.post('/api/public/analytics/track', analyticsTrackLimiter, (req, res) => 
             db.run(`INSERT INTO analytics_sessions
                         (session_id, visitor_id, started_at, entry_page, exit_page,
                          country_code, country_name, device_type, browser, os,
-                         channel, referrer_host, utm_source, utm_medium, utm_campaign)
-                    VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         channel, referrer_host, utm_source, utm_medium, utm_campaign, city)
+                    VALUES (?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(session_id) DO UPDATE SET
                         exit_page   = excluded.entry_page,
                         page_count  = page_count + 1,
@@ -170,7 +193,7 @@ router.post('/api/public/analytics/track', analyticsTrackLimiter, (req, res) => 
                         ended_at    = CURRENT_TIMESTAMP`,
                 [session_id, visitor_id, page || '/', page || '/',
                  countryCode, countryName, deviceType, browser.trim(), os,
-                 channel, referrerHost, utm_source || '', utm_medium || '', utm_campaign || ''],
+                 channel, referrerHost, utm_source || '', utm_medium || '', utm_campaign || '', city],
                 (err) => { if (err) console.error('[analytics] session upsert:', err.message); }
             );
 
@@ -178,11 +201,11 @@ router.post('/api/public/analytics/track', analyticsTrackLimiter, (req, res) => 
             db.run(`INSERT INTO analytics_pageviews
                         (session_id, visitor_id, page, referrer, referrer_host, channel,
                          utm_source, utm_medium, utm_campaign, country_code, country_name,
-                         device_type, browser, os)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                         device_type, browser, os, city)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [session_id, visitor_id, page || '/', referrer || '', referrerHost, channel,
                  utm_source || '', utm_medium || '', utm_campaign || '',
-                 countryCode, countryName, deviceType, browser.trim(), os],
+                 countryCode, countryName, deviceType, browser.trim(), os, city],
                 (err) => { if (err) console.error('[analytics] pageview insert:', err.message); }
             );
 

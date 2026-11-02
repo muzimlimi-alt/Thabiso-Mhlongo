@@ -542,3 +542,5 @@
         .db-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .db-metric__value { font-size: 20px; }
     }
+    .db-consent-note { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 14px; border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); background: var(--atl-surface2); }
+    .db-consent-note i { color: var(--atl-amber); margin-top: 2px; }

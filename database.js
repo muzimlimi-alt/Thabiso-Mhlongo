@@ -2948,6 +2948,26 @@ function initializeDatabase() {
             total_dwell_secs INTEGER DEFAULT 0
         )`);
 
+        // Migration 117 (additive): what visitors look at and do on the one-page site (tracker.js, consenting visitors only) - a section
+        // seen ('section_view', once per visit) or something done ('interaction': an event opened, Get Tickets, the booking form opened /
+        // sent, ...). Events of a visit, never page views. Plus the visitor's city (geoip) for the Geography tab.
+        db.run(`CREATE TABLE IF NOT EXISTS analytics_events (
+            id          INTEGER  PRIMARY KEY AUTOINCREMENT,
+            session_id  TEXT     NOT NULL,
+            visitor_id  TEXT     NOT NULL,
+            event_type  TEXT     NOT NULL CHECK (event_type IN ('section_view', 'interaction')),
+            name        TEXT     NOT NULL,
+            detail      TEXT,
+            occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, () => {
+            db.run(`CREATE INDEX IF NOT EXISTS idx_aev_date ON analytics_events(occurred_at)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_aev_type_name ON analytics_events(event_type, name)`);
+            db.run(`CREATE INDEX IF NOT EXISTS idx_aev_session ON analytics_events(session_id, event_type, name)`);
+        });
+        db.run("ALTER TABLE analytics_sessions ADD COLUMN city TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: analytics_sessions.city: ' + err.message); });
+        db.run("ALTER TABLE analytics_pageviews ADD COLUMN city TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: analytics_pageviews.city: ' + err.message); });
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (117, 'analytics_events_and_city')");
+
         // Admin login and activity logs table
         db.run(`CREATE TABLE IF NOT EXISTS admin_login_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -684,6 +684,8 @@
 
                         <!-- ===== Traffic & Visitors (the site's own tracker, tracker.js) ===== -->
                         <div class="um-panel" id="dbPanelTraffic" role="tabpanel">
+                            <p class="db-card-note db-consent-note"><i class="fa-solid fa-user-shield" aria-hidden="true"></i> Counted for visitors who accepted analytics cookies (the cookie pop-up) - people who said no are not tracked. Cloudflare counts all traffic anonymously (Performance &amp; Security tab).</p>
+                            <div id="dbTrafficMix"></div>
                     <!-- Web Analytics KPI Cards -->
                     <div class="db-analytics-kpi-grid">
                         <div class="db-analytics-kpi-card">
@@ -726,6 +728,8 @@
                         </div>
                     </div>
 
+                    <div id="dbTrafficExtra"></div>
+
                     <!-- Traffic Sources + Device Breakdown (2-col) -->
                     <div class="db-analytics-pair-grid">
                         <div class="atl-card atl-card--flush">
@@ -742,33 +746,11 @@
                     <div class="atl-card atl-card--flush">
                         <div class="atl-card-header">
                             <h3><i class="fa-solid fa-fire" style="color:var(--atl-amber);margin-right:8px;"></i>Top Pages</h3>
-                            <p class="db-card-note">Web addresses visited. The website is one page, so almost every visit shows as Home ("/"); the others are the separate pages (Privacy, Terms, shared show links). Which <em>sections</em> people look at is coming in the next phase.</p>
+                            <p class="db-card-note">Web addresses visited. The website is one page, so almost every visit shows as Home ("/"); the others are the separate pages (Privacy, Terms, shared show links). Which <em>sections</em> people look at is in "Sections people look at" above.</p>
                         </div>
                         <div class="atl-card-body">
                             <div class="db-rank-list" id="db-listPages">
                                 <div class="db-rank-empty">Loading…</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Sparklines Grid -->
-                    <div class="db-spark-grid">
-                        <div class="atl-card atl-card--flush db-spark-card">
-                            <div class="atl-card-header">
-                                <h3><i class="fa-solid fa-users" style="color:var(--atl-amber); margin-right:8px;"></i>Total Users</h3>
-                                <span class="db-spark-value">—</span>
-                            </div>
-                            <div class="atl-card-body">
-                                <div id="sparkTotalUsers"></div>
-                            </div>
-                        </div>
-                        <div class="atl-card atl-card--flush db-spark-card">
-                            <div class="atl-card-header">
-                                <h3><i class="fa-solid fa-eye" style="color:var(--atl-amber); margin-right:8px;"></i>Page Views</h3>
-                                <span class="db-spark-value">—</span>
-                            </div>
-                            <div class="atl-card-body">
-                                <div id="sparkPageViews"></div>
                             </div>
                         </div>
                     </div>
@@ -794,6 +776,7 @@
                         </div>
                     </div>
 
+                            <div id="dbGeoExtra"></div>
                         </div>
 
                         <!-- ===== Performance & Security (Cloudflare - phase 3) ===== -->
@@ -814,7 +797,7 @@
                     </div>
                 </div>
 
-                <link rel="stylesheet" href="css/admin/dashboard-widget.css?v=3">
+                <link rel="stylesheet" href="css/admin/dashboard-widget.css?v=4">
             </div>
 
 
@@ -7810,7 +7793,7 @@
     <script src="js/shared/stored-text.js"></script>
     <script src="js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="js/myscript.js?v=18"></script>
+    <script src="js/myscript.js?v=19"></script>
     <script>document.getElementById('admin-year') && (document.getElementById('admin-year').textContent = new Date().getFullYear());</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
     <script>
@@ -9185,8 +9168,8 @@
         // (bundled together with the Dashboard Analytics module below it in the document —
         // see that file's header comment for full detail). Loaded once, here.
     </script>
-    <script src="js/admin/dashboard.js?v=5"></script>
-    <script src="js/admin/dashboard-insights.js?v=3"></script>
+    <script src="js/admin/dashboard.js?v=6"></script>
+    <script src="js/admin/dashboard-insights.js?v=4"></script>
     <script>
 
         // ==========================================
