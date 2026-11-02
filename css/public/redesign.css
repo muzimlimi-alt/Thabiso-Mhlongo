@@ -1581,136 +1581,209 @@ header .navbar {
 }
 
 /* ---------- MANAGEMENT TEAM ---------- */
-.tm-team{ background:var(--bg-surface); }
-/* max-width + margin:auto keeps this as a compact, centered cluster inside the wider
-   .tm-container — without it, .team-list's flex:1 stretches across the full container while the
-   photo grid stays compact, which reads as everything bunched on the left. align-items:center
-   (overridden back to flex-start once we switch to the row layout at 768px) also centers the
-   photo grid horizontally while stacked on mobile, where it would otherwise stretch full-width via
-   flex's default cross-axis "stretch" and leave its columns hugging the left edge. */
-.team-layout{ display:flex; flex-direction:column; align-items:center; gap:32px; max-width:960px; margin:0 auto; }
-@media (min-width:768px){
-  /* justify-content:center centers the photos+list PAIR as one block when there are few enough
-     members that it doesn't fill the row (team-list gives up flex:1 below, at the same breakpoint,
-     for exactly this reason — a flex:1 item claims all leftover space before justify-content gets
-     a say, which is what used to pin the photos left and stretch the list across the rest). */
-  .team-layout{ flex-direction:row; align-items:flex-start; justify-content:center; gap:40px; }
+/* A staggered photo collage beside a numbered list (js/team-view.js - also the admin's live preview). One member is always in
+   the spotlight: their photo lifts into colour with a gold glow and a name tag, their row becomes a gold-tinted panel with the
+   biography and links. The spotlight moves on by itself every few seconds (a gold line under the lit row shows the time) until
+   the visitor hovers, clicks, taps or tabs in. */
+.tm-team{ background:var(--bg-surface); position:relative; overflow:hidden; }
+/* a soft stage light behind the collage */
+.tm-team::before{
+  content:""; position:absolute; pointer-events:none;
+  width:900px; height:900px; left:50%; top:55%; transform:translate(-62%,-50%);
+  background:radial-gradient(closest-side, rgba(212,175,55,.10), rgba(212,175,55,.03) 55%, transparent 75%);
 }
-@media (min-width:1024px){ .team-layout{ gap:56px; } }
+.tm-team .tm-container{ position:relative; }
 
-/* Photo grid — three columns, each a different card size, staggered vertically. Numbers below
-   mirror the reference component's own px values (w-[110px]/h-[120px] etc. per column/breakpoint)
-   rather than a single uniform card size, which is what gives it the editorial-collage look. */
-.team-photos{ display:flex; gap:8px; flex-shrink:0; overflow-x:auto; padding-bottom:2px; }
-@media (min-width:768px){ .team-photos{ gap:12px; overflow-x:visible; } }
-.team-photo-col{ display:flex; flex-direction:column; gap:8px; flex-shrink:0; }
-@media (min-width:768px){ .team-photo-col{ gap:12px; } }
-.team-photo-col:nth-child(2){ margin-top:48px; }
-.team-photo-col:nth-child(3){ margin-top:22px; }
+/* max-width + margin:auto keeps photos + list a compact, centred cluster inside the wider .tm-container (a flex:1 list used to
+   stretch across the container and bunch everything on the left). Stacked on phones and tablets (photos over
+   the list), side by side from 1024px - beside a full-size collage a tablet's list would be squeezed. */
+.team-layout{ display:flex; flex-direction:column; align-items:center; gap:32px; max-width:1000px; margin:0 auto; }
+@media (min-width:1024px){
+  /* justify-content:center centres the photos+list PAIR; the list gives up flex:1 at the same breakpoint (a flex:1 item claims all
+     leftover space before justify-content gets a say, which is what used to pin the photos left). */
+  .team-layout{ flex-direction:row; align-items:center; justify-content:center; gap:64px; }
+}
+
+/* ── Photo collage — up to three columns of different card sizes, staggered vertically (the editorial look) ──
+   Phones: the columns share the screen width (no sideways scrolling) and keep their proportions. Tablets: mid sizes, so the list
+   keeps a readable width beside them. Desktop: full size. */
+.team-photos{ display:flex; gap:10px; width:100%; max-width:440px; }
+@media (min-width:640px){ .team-photos{ width:auto; max-width:none; gap:12px; } }
+.team-photo-col{ display:flex; flex-direction:column; gap:10px; flex:1 1 0; min-width:0; }
+@media (min-width:640px){ .team-photo-col{ flex:0 0 auto; gap:12px; } }
+.team-photo-col:nth-child(2){ margin-top:40px; }
+.team-photo-col:nth-child(3){ margin-top:20px; }
 @media (min-width:640px){
   .team-photo-col:nth-child(2){ margin-top:56px; }
   .team-photo-col:nth-child(3){ margin-top:26px; }
 }
-@media (min-width:768px){
-  .team-photo-col:nth-child(2){ margin-top:68px; }
-  .team-photo-col:nth-child(3){ margin-top:32px; }
+@media (min-width:1024px){
+  .team-photo-col:nth-child(2){ margin-top:72px; }
+  .team-photo-col:nth-child(3){ margin-top:34px; }
 }
 
 .team-photo-card{
   position:relative;
-  border-radius:var(--r);
+  width:100%;
+  border-radius:var(--r-lg);
   overflow:hidden;
   cursor:pointer;
   background:var(--bg-elevated);
-  flex-shrink:0;
-  transition:opacity .4s var(--ease);
+  border:1px solid var(--border-low);
+  box-shadow:0 6px 18px rgba(0,0,0,.35);
+  transition:transform .5s var(--ease-out), box-shadow .5s var(--ease), border-color .5s var(--ease), opacity .4s var(--ease);
 }
-/* ~15% larger than the reference component's original sizes at every breakpoint, same per-column
-   proportions (col 2 biggest, col 3 in between) that give the staggered collage its look. */
-.team-photo-col:nth-child(1) .team-photo-card{ width:125px; height:140px; }
-.team-photo-col:nth-child(2) .team-photo-card{ width:140px; height:150px; }
-.team-photo-col:nth-child(3) .team-photo-card{ width:130px; height:145px; }
+/* phones: proportions only (the column widths come from the screen) */
+.team-photo-col:nth-child(1) .team-photo-card{ aspect-ratio:125/140; }
+.team-photo-col:nth-child(2) .team-photo-card{ aspect-ratio:140/150; }
+.team-photo-col:nth-child(3) .team-photo-card{ aspect-ratio:130/145; }
 @media (min-width:640px){
-  .team-photo-col:nth-child(1) .team-photo-card{ width:150px; height:160px; }
-  .team-photo-col:nth-child(2) .team-photo-card{ width:165px; height:180px; }
-  .team-photo-col:nth-child(3) .team-photo-card{ width:155px; height:170px; }
+  .team-photo-col:nth-child(1) .team-photo-card{ width:150px; height:160px; aspect-ratio:auto; }
+  .team-photo-col:nth-child(2) .team-photo-card{ width:165px; height:180px; aspect-ratio:auto; }
+  .team-photo-col:nth-child(3) .team-photo-card{ width:155px; height:170px; aspect-ratio:auto; }
 }
-@media (min-width:768px){
-  .team-photo-col:nth-child(1) .team-photo-card{ width:180px; height:190px; }
-  .team-photo-col:nth-child(2) .team-photo-card{ width:200px; height:210px; }
-  .team-photo-col:nth-child(3) .team-photo-card{ width:185px; height:200px; }
+@media (min-width:1024px){
+  .team-photo-col:nth-child(1) .team-photo-card{ width:190px; height:205px; }
+  .team-photo-col:nth-child(2) .team-photo-card{ width:210px; height:230px; }
+  .team-photo-col:nth-child(3) .team-photo-card{ width:195px; height:215px; }
 }
 .team-photo-card img{
+  display:block;
   width:100%; height:100%; object-fit:cover;
-  filter:grayscale(0.75) brightness(0.82);
-  transition:filter .5s var(--ease);
+  filter:grayscale(.85) brightness(.75) contrast(1.05);
+  transform:scale(1.01);
+  transition:filter .6s var(--ease), transform 1.2s var(--ease-out);
 }
-.team-photo-card.is-active img{ filter:grayscale(0) brightness(1); }
-.team-photo-card.is-dimmed{ opacity:.6; }
+/* the spotlight: colour, a gentle zoom, lifted with a gold glow */
+.team-photo-card.is-active{
+  transform:translateY(-6px);
+  border-color:var(--y-base);
+  box-shadow:0 0 0 1px var(--y-base), 0 18px 40px rgba(0,0,0,.55), 0 0 36px var(--y-glow);
+}
+.team-photo-card.is-active img{ filter:none; transform:scale(1.06); }
+.team-photo-card.is-dimmed{ opacity:.55; }
+/* the name tag on the lit photo */
+.team-photo-card__tag{
+  position:absolute; left:0; right:0; bottom:0; z-index:1;
+  display:flex; flex-direction:column; gap:2px;
+  padding:28px 10px 9px;
+  background:linear-gradient(180deg, transparent, rgba(8,8,8,.88));
+  opacity:0; transform:translateY(8px);
+  transition:opacity .4s var(--ease), transform .4s var(--ease-out);
+  pointer-events:none;
+}
+.team-photo-card.is-active .team-photo-card__tag{ opacity:1; transform:none; }
+.team-photo-card__tag-name{
+  font-family:var(--f-display); font-size:1rem; font-weight:600; line-height:1.15; color:#fff;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.team-photo-card__tag-role{
+  font-family:var(--f-body); font-size:.58rem; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--y-base);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+@media (max-width:639px){
+  .team-photo-card__tag{ padding:22px 7px 7px; }
+  .team-photo-card__tag-name{ font-size:.85rem; }
+  .team-photo-card__tag-role{ font-size:.5rem; letter-spacing:.1em; }
+}
 .team-photo-card--monogram{
   display:flex; align-items:center; justify-content:center;
-  font-family:var(--f-display); font-size:1.6rem; font-weight:500;
-  color:var(--text-inverse); background:var(--y-base);
+  background:linear-gradient(150deg, var(--y-base), var(--y-dark));
+}
+.team-photo-card__initial{
+  font-family:var(--f-display); font-size:2.6rem; font-weight:500; line-height:1; color:var(--text-inverse);
 }
 
-.team-list{ flex:1; width:100%; display:flex; flex-direction:column; gap:18px; }
-@media (min-width:640px) and (max-width:767px){
-  .team-list{ display:grid; grid-template-columns:1fr 1fr; gap:20px 28px; }
+/* ── The list — numbered rows; the lit one is a gold-tinted panel with the biography and links ── */
+.team-list{ flex:1; width:100%; display:flex; flex-direction:column; gap:6px; }
+/* tablets: two columns under the photos */
+@media (min-width:640px) and (max-width:1023px){
+  .team-list{ display:grid; grid-template-columns:1fr 1fr; gap:8px 16px; max-width:720px; }
 }
-@media (min-width:768px){
-  /* Caps at a comfortable reading width instead of flex:1 (which used to stretch it across
-     whatever the photo cluster left over) — the pair centers as a compact block instead. */
-  .team-list{ flex:0 1 420px; width:auto; gap:20px; }
+@media (min-width:1024px){
+  /* a comfortable reading width instead of flex:1, so the pair centres as one compact block */
+  .team-list{ flex:0 1 430px; width:auto; min-width:300px; }
 }
-.team-row{ transition:opacity .3s var(--ease); }
-.team-row.is-dimmed{ opacity:.5; }
-.team-row__inner{ cursor:pointer; border-radius:var(--r); }
+.team-row{
+  position:relative;
+  padding:14px 16px 14px 14px;
+  border-left:2px solid var(--border-low);
+  border-radius:0 var(--r-lg) var(--r-lg) 0;
+  transition:background .4s var(--ease), border-color .4s var(--ease), opacity .3s var(--ease);
+}
+.team-row.is-active{
+  background:linear-gradient(95deg, rgba(212,175,55,.12), rgba(212,175,55,.03) 60%, transparent);
+  border-left-color:var(--y-base);
+}
+.team-row.is-dimmed{ opacity:.6; }
+/* the spotlight's timer: a gold line under the lit row that fills while it waits to move on */
+.team-row::after{
+  content:""; position:absolute; left:0; bottom:0; height:2px; width:0;
+  background:linear-gradient(90deg, var(--y-base), rgba(212,175,55,.2));
+}
+.team-layout.is-cycling .team-row.is-active::after{ animation:teamSpotlight var(--team-cycle, 5s) linear forwards; }
+@keyframes teamSpotlight{ from{ width:0; } to{ width:100%; } }
+
+.team-row__inner{ cursor:pointer; border-radius:var(--r); outline-offset:6px; }
+.team-row__inner:focus-visible{ outline:2px solid var(--y-base); }
 .team-row__head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+/* the member's number */
 .team-row__dot{
-  width:16px; height:12px; border-radius:5px; flex-shrink:0;
-  background:var(--border-strong);
-  transition:width var(--t) var(--ease), background var(--t) var(--ease);
+  flex-shrink:0; width:22px;
+  font-family:var(--f-mono); font-size:.72rem; font-weight:500; letter-spacing:.04em;
+  color:var(--text-muted);
+  transition:color var(--t) var(--ease);
 }
-.team-row.is-active .team-row__dot{ width:20px; background:var(--y-base); }
+.team-row.is-active .team-row__dot{ color:var(--y-base); }
 .team-row__name{
   font-family:var(--f-display); font-weight:500;
-  font-size:clamp(1.05rem,.98rem + .3vw,1.25rem);
+  font-size:clamp(1.15rem,1.05rem + .4vw,1.45rem);
+  line-height:1.2;
   color:var(--text-secondary);
   transition:color var(--t) var(--ease);
 }
 .team-row.is-active .team-row__name{ color:var(--text-primary); }
+.team-row:has(.team-row__social){ padding-right:64px; }
 .team-row__social{
-  display:flex; align-items:center; gap:4px; margin-left:2px;
+  position:absolute; top:8px; right:12px;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
   opacity:0; transform:translateX(-8px);
-  transition:opacity .2s var(--ease), transform .2s var(--ease);
+  transition:opacity .25s var(--ease), transform .25s var(--ease);
   pointer-events:none;
 }
 .team-row.is-active .team-row__social{ opacity:1; transform:none; pointer-events:auto; }
-.team-row__social .social-icon-wrapper{ width:44px; height:44px; border:1px solid rgba(212,175,55,.22); }
-.team-row__social .social-icon-wrapper:hover{ transform:scale(1.1); }
-.team-row__social .social-icon-wrapper i{ font-size:11px !important; }
+.team-row__social .social-icon-wrapper{ width:44px; height:44px; border:1px solid rgba(212,175,55,.3); }
+.team-row__social .social-icon-wrapper:hover,
+.team-row__social .social-icon-wrapper:focus-visible{ border-color:var(--y-base); transform:translateY(-2px); }
+.team-row__social .social-icon-wrapper i{ font-size:.85rem !important; }
 .team-row__role{
-  margin:6px 0 0; padding-left:26px;
-  font-family:var(--f-body); font-weight:500;
-  font-size:.68rem; letter-spacing:.2em; text-transform:uppercase;
+  margin:6px 0 0; padding-left:32px;
+  font-family:var(--f-body); font-weight:600;
+  font-size:.66rem; letter-spacing:.2em; text-transform:uppercase;
   color:var(--text-muted);
+  transition:color var(--t) var(--ease);
 }
-/* Biography — revealed with the social icons (hover / tap / Enter), same active state. It sits
-   beside the button (not inside it) in the DOM so assistive tech reads it. Height is capped for the
-   reveal animation only; the admin limits a bio to 600 characters (lib/team.js BIO_MAX), which fits. */
+.team-row.is-active .team-row__role{ color:var(--y-base); }
+/* Biography — shown on the lit row. It sits beside the button (not inside it) so assistive tech reads it. Height is capped for the
+   reveal only; the admin limits a bio to 600 characters (lib/team.js BIO_MAX), which fits. */
 .team-row__bio{
-  margin:0; padding-left:26px;
+  margin:0; padding-left:32px;
   max-height:0; opacity:0; overflow:hidden;
-  font-family:var(--f-body); font-size:.88rem; line-height:1.6;
+  font-family:var(--f-body); font-size:.9rem; line-height:1.65;
   color:var(--text-secondary);
   white-space:pre-line;
-  transition:max-height .35s var(--ease), opacity .25s var(--ease), margin-top .35s var(--ease);
+  transition:max-height .45s var(--ease), opacity .3s var(--ease), margin-top .45s var(--ease);
 }
-.team-row.is-active .team-row__bio{ max-height:26em; opacity:1; margin-top:8px; }
+.team-row.is-active .team-row__bio{ max-height:26em; opacity:1; margin-top:10px; }
 /* Featured — a star beside the name and an accent ring on the photo. */
-.team-row__star{ font-size:.7rem; color:var(--y-base); }
-.team-row--featured .team-row__dot{ background:var(--y-base); }
-.team-photo-card--featured{ box-shadow:0 0 0 1px var(--y-base); }
+.team-row__star{ font-size:.75rem; color:var(--y-base); }
+.team-photo-card--featured{ border-color:rgba(212,175,55,.5); }
+
+@media (prefers-reduced-motion: reduce){
+  .team-photo-card, .team-photo-card img, .team-photo-card__tag, .team-row, .team-row__bio{ transition:none; }
+  .team-photo-card.is-active{ transform:none; }
+  .team-photo-card.is-active img{ transform:none; }
+}
 
 /* ---------- VIEW MORE / VIEW LESS (Gallery photos / Past Shows — see tmPaginateGrid() in js/myscript.js) ----------
    .btn is inline-flex (redesign.css ~line 556), so it doesn't stretch to center itself via margin:auto —

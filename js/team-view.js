@@ -7,7 +7,8 @@
  * rules in css/public/redesign.css. Requires jQuery.
  *
  * The photo grid is decorative (aria-hidden); the list beside it is the accessible source of truth
- * (name + role always visible; biography and links revealed on hover / tap / Enter — not hover-only).
+ * (name + role always visible; biography and links shown for the member in the spotlight — one is
+ * always lit, the spotlight moves on by itself until the visitor hovers, clicks, taps or tabs in).
  */
 (function (global) {
     'use strict';
@@ -40,13 +41,21 @@
         var $card = $('<div>').addClass('team-photo-card').attr('data-id', m.id);
         if (m.featured == 1) $card.addClass('team-photo-card--featured');
         if (opts && opts.active) $card.addClass('is-active');
+        // a name / role tag that slides up on the highlighted photo (the grid is aria-hidden; the list stays the accessible source)
+        var tag = function () {
+            var $tag = $('<span>').addClass('team-photo-card__tag');
+            $tag.append($('<span>').addClass('team-photo-card__tag-name').text(m.name || ''));
+            if (m.role) $tag.append($('<span>').addClass('team-photo-card__tag-role').text(m.role));
+            return $tag;
+        };
         if (m.image_path) {
-            $card.append($('<img>').attr({ src: m.image_path, alt: '', loading: 'lazy' }).on('error', function () {
-                $card.addClass('team-photo-card--monogram').empty().text(initial);
+            $card.append($('<img>').attr({ src: m.image_path, alt: '', loading: 'lazy', decoding: 'async' }).on('error', function () {
+                $card.addClass('team-photo-card--monogram').empty().append($('<span>').addClass('team-photo-card__initial').text(initial), tag());
             }));
         } else {
-            $card.addClass('team-photo-card--monogram').text(initial);
+            $card.addClass('team-photo-card--monogram').append($('<span>').addClass('team-photo-card__initial').text(initial));
         }
+        $card.append(tag());
         return $card;
     }
 
@@ -60,7 +69,9 @@
             'aria-label': (m.name || 'Team member') + (m.role ? (', ' + m.role) : '')
         });
         var $head = $('<div>').addClass('team-row__head');
-        $head.append($('<span>').addClass('team-row__dot').attr('aria-hidden', 'true'));
+        // the member's number (01, 02 ...) in place of the plain dot
+        var num = (opts && opts.index != null) ? opts.index + 1 : null;
+        $head.append($('<span>').addClass('team-row__dot').attr('aria-hidden', 'true').text(num ? (num < 10 ? '0' : '') + num : ''));
         $head.append($('<span>').addClass('team-row__name').text(m.name || ''));
         if (m.featured == 1) {
             $head.append($('<i>').addClass('fa-solid fa-star team-row__star').attr('aria-hidden', 'true'));
@@ -106,7 +117,7 @@
         cols.forEach(function (c) { $photos.append(c); });
         members.forEach(function (m, i) {
             cols[i % numCols].append(buildPhotoCard(m, opts));
-            $list.append(buildRow(m, opts));
+            $list.append(buildRow(m, $.extend({}, opts, { index: i })));
         });
     }
 
@@ -124,26 +135,69 @@
                 $(this).attr('aria-pressed', (id !== null && String(rowId) === String(id)) ? 'true' : 'false');
             });
         }
-        var activeId = null;
+        // Spotlight: one member is always lit (bio + links showing). While nobody is interacting and the section is on screen, it
+        // moves to the next member every CYCLE_MS, with a gold progress line under the lit name (.is-cycling, redesign.css).
+        // Hover pauses it (mouse leaving resumes); a click, tap or keyboard use hands control to the visitor for good. Visitors who
+        // ask for reduced motion get no automatic changes at all.
+        var CYCLE_MS = 5000;
+        var ids = $list.find('.team-row').map(function () { return String($(this).data('id')); }).get();
+        var reduceMotion = !!(global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)').matches);
+        var activeId = ids.length ? ids[0] : null;
+        var timer = null, hovering = false, userTookOver = false, onScreen = false;
+
+        function stopCycle() {
+            if (timer) { clearTimeout(timer); timer = null; }
+            $layout.removeClass('is-cycling');
+        }
+        function startCycle() {
+            stopCycle();
+            if (reduceMotion || userTookOver || hovering || !onScreen || ids.length < 2) return;
+            void $layout[0].offsetWidth;                                   // restart the progress line's animation
+            $layout.addClass('is-cycling');
+            timer = setTimeout(function () {
+                var i = ids.indexOf(String(activeId));
+                activeId = ids[(i + 1) % ids.length];
+                setActive(activeId);
+                startCycle();
+            }, CYCLE_MS);
+        }
+        function takeOver() { userTookOver = true; stopCycle(); }
+
+        setActive(activeId);
+        $layout.css('--team-cycle', CYCLE_MS + 'ms');
+
         $photos.add($list).on('mouseenter', '.team-photo-card, .team-row', function () {
-            activeId = $(this).data('id');
+            hovering = true;
+            stopCycle();
+            activeId = String($(this).data('id'));
             setActive(activeId);
         });
         $layout.on('mouseleave', function () {
-            activeId = null;
-            setActive(null);
+            hovering = false;
+            startCycle();                                                  // the last member hovered stays lit; the cycle carries on from there
         });
         $photos.add($list).on('click', '.team-photo-card, .team-row__inner', function () {
-            var id = $(this).closest('[data-id]').data('id');
-            activeId = (activeId !== null && String(activeId) === String(id)) ? null : id;
+            takeOver();
+            activeId = String($(this).closest('[data-id]').data('id'));
             setActive(activeId);
         });
+        $layout.on('focusin touchstart', takeOver);
         $list.on('keydown', '.team-row__inner', function (e) {
             if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
                 e.preventDefault();
                 $(this).trigger('click');
             }
         });
+
+        // only cycle while at least 40% of the section is on screen
+        if ('IntersectionObserver' in global) {
+            new IntersectionObserver(function (entries) {
+                var was = onScreen;
+                onScreen = entries[0].isIntersecting;
+                if (onScreen && !was) startCycle();                        // only on a change: a repeat "still on screen" must not reset the timer
+                else if (!onScreen && was) stopCycle();
+            }, { threshold: 0.4 }).observe($layout[0]);
+        }
     }
 
     global.TeamView = { LINKS: LINKS, safeHref: safeHref, initialOf: initialOf, linksOf: linksOf, buildPhotoCard: buildPhotoCard, buildRow: buildRow, render: render, bindInteractions: bindInteractions };
