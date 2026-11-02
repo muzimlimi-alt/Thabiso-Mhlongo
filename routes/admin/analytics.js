@@ -360,6 +360,28 @@ router.get('/api/admin/analytics/visitor-mix', requireAdmin, async (req, res) =>
     } catch (e) { res.status(500).json({ success: false }); }
 });
 
+// GET /api/admin/analytics/consent?range=... - answers to the cookie pop-up (anonymous, everyone): analytics yes / no, by button, changes
+router.get('/api/admin/analytics/consent', requireAdmin, async (req, res) => {
+    const { start, end } = getAnalyticsDates(req.query);
+    try {
+        const r = await getQ(`SELECT COUNT(*) AS answers,
+                                     COUNT(CASE WHEN analytics = 1 THEN 1 END) AS yes,
+                                     COUNT(CASE WHEN choice = 'accept_all' THEN 1 END) AS accept_all,
+                                     COUNT(CASE WHEN choice = 'reject_all' THEN 1 END) AS reject_all,
+                                     COUNT(CASE WHEN choice = 'custom' THEN 1 END) AS custom,
+                                     COUNT(CASE WHEN is_change = 1 THEN 1 END) AS changes,
+                                     COUNT(CASE WHEN is_change = 1 AND analytics = 0 THEN 1 END) AS changed_to_no
+                              FROM analytics_consent_choices WHERE date(occurred_at) BETWEEN ? AND ?`, [start, end]);
+        const answers = Number(r.answers) || 0, yes = Number(r.yes) || 0;
+        res.json({
+            success: true, answers, analyticsYes: yes, analyticsNo: answers - yes,
+            yesShare: answers ? Math.round((yes / answers) * 1000) / 10 : null,
+            byChoice: { accept_all: Number(r.accept_all) || 0, reject_all: Number(r.reject_all) || 0, custom: Number(r.custom) || 0 },
+            changes: Number(r.changes) || 0, changedToNo: Number(r.changed_to_no) || 0
+        });
+    } catch (e) { res.status(500).json({ success: false }); }
+});
+
 // GET /api/admin/analytics/cities?range=... - top cities (geoip; recorded since migration 117, so older visits have none)
 router.get('/api/admin/analytics/cities', requireAdmin, async (req, res) => {
     const { start, end } = getAnalyticsDates(req.query);

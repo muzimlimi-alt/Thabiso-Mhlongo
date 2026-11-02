@@ -232,10 +232,16 @@
         var qs = window.dbInsights.rangeQs();
         if (!qs) return;
         var mix = $id('dbTrafficMix'), extra = $id('dbTrafficExtra'), geo = $id('dbGeoExtra');
-        if (mix) getJson('/api/admin/analytics/visitor-mix?' + qs).then(function (r) {
-            var d = r.body;
+        if (mix) Promise.all([getJson('/api/admin/analytics/visitor-mix?' + qs), getJson('/api/admin/analytics/consent?' + qs)]).then(function (res) {
+            var r = res[0], d = r.body, c = res[1].body;
             if (!r.ok || !d.success) { mix.innerHTML = ''; return; }
-            mix.innerHTML = group('Who visited', null,
+            // the cookie pop-up's answers (anonymous, counted for everyone) - how much of the traffic the figures below can see
+            var consent = !res[1].ok || !c.success ? '' : group('Cookie choices', 'Every answer to the cookie pop-up, counted anonymously - also for visitors who decline tracking. Only the "yes" visitors appear in the figures below.',
+                card({ label: 'Said yes to analytics', value: count(c.analyticsYes), tip: 'Answers that switched analytics on (Accept all, or analytics ticked in their own selection).', small: c.yesShare == null ? '' : c.yesShare + '% of answers' }) +
+                card({ label: 'Said no to analytics', value: count(c.analyticsNo), tip: 'Answers that left analytics off. These visitors are not tracked at all.', small: c.yesShare == null ? '' : Math.round((100 - c.yesShare) * 10) / 10 + '% of answers' }) +
+                card({ label: 'Button pressed', value: count(c.answers), tip: 'All answers to the pop-up, by the button used.', small: 'Accept all ' + count(c.byChoice.accept_all) + ' · Reject ' + count(c.byChoice.reject_all) + ' · Own choice ' + count(c.byChoice.custom) }) +
+                card({ label: 'Changed their mind', value: count(c.changes), tip: 'Answers given later through "Cookie Settings" in the footer, after a first answer.', small: count(c.changedToNo) + ' switched analytics off' }));
+            mix.innerHTML = consent + group('Who visited', null,
                 card({ label: 'New visitors', value: count(d.new), tip: 'First visit from this browser in the period. A cleared cookie or another device counts as new.' }) +
                 card({ label: 'Returning visitors', value: count(d.returning), tip: 'Had visited before the period began (on this browser).' }) +
                 card({ label: 'Average visit', value: mins(d.avgVisitSeconds), tip: 'How long a visit lasted, on average (time with the page open and in view).' }) +

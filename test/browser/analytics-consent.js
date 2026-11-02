@@ -19,6 +19,10 @@ function recordBeacons() {
         if (String(url).indexOf('analytics/track') !== -1 && data && data.text) {
             data.text().then(function (t) { try { window.__beacons.push(JSON.parse(t)); } catch (e) {} });
         }
+        // the cookie pop-up's own anonymous note of the answer, kept apart
+        if (String(url).indexOf('analytics/consent') !== -1 && data && data.text) {
+            data.text().then(function (t) { try { (window.__choices = window.__choices || []).push(JSON.parse(t)); } catch (e) {} });
+        }
         return orig(url, data);
     };
 }
@@ -60,11 +64,17 @@ function recordBeacons() {
         await scrollTo(p, '#contact');
         let s = await sent(p);
         ok(s.length === 0 && !(await cookie(p)), 'Reject non-essential: nothing sent and no visitor cookie, even after scrolling the page', JSON.stringify([s, await cookie(p)]));
+        const choices = await p.evaluate(() => window.__choices || []);
+        ok(choices.length === 1 && choices[0].choice === 'reject_all' && choices[0].analytics === false && choices[0].change === false &&
+            !Object.keys(choices[0]).some(k => /visitor|session/.test(k)),
+            '...but the answer itself is noted anonymously (reject, analytics no, first answer - no visitor or session id)', JSON.stringify(choices));
 
         // ── switched on later: starts at once ──
         await scrollTo(p, '#hero');
         await settings(p, true);
         s = await sent(p);
+        const changed = (await p.evaluate(() => window.__choices || [])).slice(-1)[0];
+        ok(!!changed && changed.choice === 'custom' && changed.analytics === true && changed.change === true, 'changing the answer in Cookie Settings is noted as a change (own choice, analytics yes)', JSON.stringify(changed));
         const vidCookie = await cookie(p);
         const pv = s.filter(b => b.event === 'pageview');
         ok(pv.length === 1 && !!vidCookie && pv[0].visitor_id === vidCookie.value, 'Analytics switched on in Cookie Settings: the visit is counted straight away (no reload) and the visitor cookie is set', JSON.stringify(s));

@@ -4608,10 +4608,16 @@ $(document).on('click', '.trk-lookup-row', function() {
     } catch (e) { return null; }
   }
 
-  function savePreferences(prefs) {
+  // choice: 'accept_all' | 'reject_all' | 'custom' - recorded anonymously (no visitor id, no cookie) so the Dashboard can show how many
+  // visitors said yes / no to analytics, including the ones who are never tracked (routes/public/misc.js /api/public/analytics/consent)
+  function savePreferences(prefs, choice) {
     prefs.essential  = true;
     prefs.timestamp  = Date.now();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+    try {
+      var note = JSON.stringify({ choice: choice || 'custom', analytics: !!prefs.analytics, functional: !!prefs.functional, marketing: !!prefs.marketing, change: !!hasPriorConsent });
+      if (navigator.sendBeacon) navigator.sendBeacon('/api/public/analytics/consent', new Blob([note], { type: 'application/json' }));
+    } catch (e) {}
     // tracker.js listens: it starts on an Analytics "yes" and stops (and forgets this browser) on a "no" - no reload needed
     try { window.dispatchEvent(new CustomEvent('tm:consent', { detail: { analytics: !!prefs.analytics } })); } catch (e) {}
   }
@@ -4707,7 +4713,7 @@ $(document).on('click', '.trk-lookup-row', function() {
   /* ---------- Button handlers ---------- */
   document.getElementById('cookieAcceptAll').addEventListener('click', function () {
     var prefs = { essential: true, analytics: true, functional: true, marketing: true };
-    savePreferences(prefs);
+    savePreferences(prefs, 'accept_all');
     loadScripts(prefs);
     applyToggles(prefs);
     hasPriorConsent = true;
@@ -4716,7 +4722,7 @@ $(document).on('click', '.trk-lookup-row', function() {
 
   document.getElementById('cookieRejectAll').addEventListener('click', function () {
     var prefs = { essential: true, analytics: false, functional: false, marketing: false };
-    savePreferences(prefs);
+    savePreferences(prefs, 'reject_all');
     applyToggles(prefs);
     hasPriorConsent = true;
     closeModal();
@@ -4724,7 +4730,7 @@ $(document).on('click', '.trk-lookup-row', function() {
 
   document.getElementById('cookieSavePrefs').addEventListener('click', function () {
     var prefs = readToggles();
-    savePreferences(prefs);
+    savePreferences(prefs, 'custom');
     loadScripts(prefs);
     hasPriorConsent = true;
     closeModal();

@@ -2968,6 +2968,21 @@ function initializeDatabase() {
         db.run("ALTER TABLE analytics_pageviews ADD COLUMN city TEXT", (err) => { if (err && !err.message.includes('duplicate column name')) console.log('Note: analytics_pageviews.city: ' + err.message); });
         db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (117, 'analytics_events_and_city')");
 
+        // Migration 118 (additive): every answer to the cookie pop-up, anonymously (no visitor id, no cookie, no IP) - so the Dashboard can
+        // say how many visitors accepted or declined analytics, including the ones who are never tracked (index.html savePreferences).
+        db.run(`CREATE TABLE IF NOT EXISTS analytics_consent_choices (
+            id          INTEGER  PRIMARY KEY AUTOINCREMENT,
+            choice      TEXT     NOT NULL CHECK (choice IN ('accept_all', 'reject_all', 'custom')),
+            analytics   INTEGER  NOT NULL DEFAULT 0 CHECK (analytics IN (0, 1)),
+            functional  INTEGER  NOT NULL DEFAULT 0 CHECK (functional IN (0, 1)),
+            marketing   INTEGER  NOT NULL DEFAULT 0 CHECK (marketing IN (0, 1)),
+            is_change   INTEGER  NOT NULL DEFAULT 0 CHECK (is_change IN (0, 1)),
+            occurred_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`, () => {
+            db.run(`CREATE INDEX IF NOT EXISTS idx_acc_date ON analytics_consent_choices(occurred_at)`);
+        });
+        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (118, 'analytics_consent_choices')");
+
         // Admin login and activity logs table
         db.run(`CREATE TABLE IF NOT EXISTS admin_login_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -135,6 +135,20 @@ const TRACK_SECTIONS = new Set(['hero', 'features', 'services', 'about', 'career
 const TRACK_INTERACTIONS = new Set(['booking_opened', 'booking_step', 'booking_submitted', 'event_opened', 'get_tickets', 'event_shared',
     'tickets_reserved', 'tickets_checkout', 'contact_sent', 'newsletter_signup', 'gallery_photo', 'video_played', 'drawer_opened', 'cta']);
 
+// POST /api/public/analytics/consent — the cookie pop-up's answer, recorded anonymously: which button, analytics yes / no, first answer
+// or a change. Nothing that identifies the visitor is stored (no visitor id, no cookie, no IP), so it is counted for everyone - also for
+// those who decline tracking. index.html savePreferences sends it; the Dashboard's Traffic tab shows the totals.
+const CONSENT_CHOICES = new Set(['accept_all', 'reject_all', 'custom']);
+router.post('/api/public/analytics/consent', analyticsTrackLimiter, (req, res) => {
+    res.status(204).end();
+    const b = req.body || {};
+    if (!CONSENT_CHOICES.has(b.choice)) return;
+    const bit = (v) => (v === true || v === 'true' || v === 1 ? 1 : 0);
+    db.run(`INSERT INTO analytics_consent_choices (choice, analytics, functional, marketing, is_change) VALUES (?, ?, ?, ?, ?)`,
+        [b.choice, bit(b.analytics), bit(b.functional), bit(b.marketing), bit(b.change)],
+        (err) => { if (err) console.error('[analytics] consent insert:', err.message); });
+});
+
 // POST /api/public/analytics/track — no auth required; IP discarded after geo lookup
 router.post('/api/public/analytics/track', analyticsTrackLimiter, (req, res) => {
     // Respond immediately so the beacon gets a fast 204

@@ -54,6 +54,19 @@ module.exports = async function ({ check }) {
     const cities = (await api('GET', '/api/admin/analytics/cities?' + R)).body;
     const countries = (await api('GET', '/api/admin/analytics/countries?' + R)).body;
     check('cities and countries answer (countries carry the total for each share)', cities.success && Array.isArray(cities.rows) && countries.success && countries.totalVisitors >= 1, JSON.stringify([cities, countries.totalVisitors]));
+    // the cookie pop-up's answers: anonymous, counted for everyone
+    const c0 = (await api('GET', '/api/admin/analytics/consent?' + R)).body;
+    await pub('POST', '/api/public/analytics/consent', { choice: 'accept_all', analytics: true, functional: true, marketing: true, change: false });
+    await pub('POST', '/api/public/analytics/consent', { choice: 'reject_all', analytics: false, functional: false, marketing: false, change: false });
+    await pub('POST', '/api/public/analytics/consent', { choice: 'custom', analytics: false, functional: true, marketing: false, change: true });
+    await pub('POST', '/api/public/analytics/consent', { choice: 'hack', analytics: true });                         // not a choice: dropped
+    const c1 = await waitFor(async () => { const b = (await api('GET', '/api/admin/analytics/consent?' + R)).body; return b.answers >= c0.answers + 3 ? b : null; });
+    check('cookie choices: each answer counted (yes / no to analytics, by button, changes) - an unknown choice dropped',
+        !!c1 && c1.answers === c0.answers + 3 && c1.analyticsYes === c0.analyticsYes + 1 && c1.analyticsNo === c0.analyticsNo + 2 &&
+        c1.byChoice.reject_all === c0.byChoice.reject_all + 1 && c1.changes === c0.changes + 1 && c1.changedToNo === c0.changedToNo + 1, JSON.stringify([c0, c1]));
+    const cols = (await require('./support').q(`PRAGMA table_info(analytics_consent_choices)`)).map(c => c.name);
+    check('a cookie choice stores nothing that identifies the visitor (no visitor id, session, IP or agent column)', !cols.some(c => /visitor|session|ip|agent|email/.test(c)), cols.join(','));
+
     const anon = await pub('GET', '/api/admin/analytics/sections?' + R);
     check('the dashboard figures need a login', anon.status === 401 || anon.status === 403, String(anon.status));
 };
