@@ -1597,29 +1597,30 @@ header .navbar {
 /* max-width + margin:auto keeps photos + list a compact, centred cluster inside the wider .tm-container (a flex:1 list used to
    stretch across the container and bunch everything on the left). Stacked on phones and tablets (photos over
    the list), side by side from 1024px - beside a full-size collage a tablet's list would be squeezed. */
-.team-layout{ display:flex; flex-direction:column; align-items:center; gap:32px; max-width:1000px; margin:0 auto; }
+.team-layout{ display:flex; flex-direction:column; align-items:center; gap:36px; max-width:1200px; margin:0 auto; }
 @media (min-width:1024px){
   /* justify-content:center centres the photos+list PAIR; the list gives up flex:1 at the same breakpoint (a flex:1 item claims all
      leftover space before justify-content gets a say, which is what used to pin the photos left). */
-  .team-layout{ flex-direction:row; align-items:center; justify-content:center; gap:64px; }
+  .team-layout{ flex-direction:row; align-items:center; justify-content:center; gap:44px; }
 }
+@media (min-width:1280px){ .team-layout{ gap:56px; } }
 
 /* ── Photo collage — up to three columns of different card sizes, staggered vertically (the editorial look) ──
-   Phones: the columns share the screen width (no sideways scrolling) and keep their proportions. Tablets: mid sizes, so the list
-   keeps a readable width beside them. Desktop: full size. */
-.team-photos{ display:flex; gap:10px; width:100%; max-width:440px; }
+   Phones: the columns share the whole screen width (no sideways scrolling) and keep their proportions. Tablets and small laptops:
+   mid sizes; wide screens (1280px+): full size, still leaving the list a readable width beside them. */
+.team-photos{ display:flex; gap:10px; width:100%; max-width:520px; }
 @media (min-width:640px){ .team-photos{ width:auto; max-width:none; gap:12px; } }
 .team-photo-col{ display:flex; flex-direction:column; gap:10px; flex:1 1 0; min-width:0; }
 @media (min-width:640px){ .team-photo-col{ flex:0 0 auto; gap:12px; } }
 .team-photo-col:nth-child(2){ margin-top:40px; }
 .team-photo-col:nth-child(3){ margin-top:20px; }
 @media (min-width:640px){
-  .team-photo-col:nth-child(2){ margin-top:56px; }
-  .team-photo-col:nth-child(3){ margin-top:26px; }
+  .team-photo-col:nth-child(2){ margin-top:66px; }
+  .team-photo-col:nth-child(3){ margin-top:32px; }
 }
-@media (min-width:1024px){
-  .team-photo-col:nth-child(2){ margin-top:72px; }
-  .team-photo-col:nth-child(3){ margin-top:34px; }
+@media (min-width:1280px){
+  .team-photo-col:nth-child(2){ margin-top:86px; }
+  .team-photo-col:nth-child(3){ margin-top:40px; }
 }
 
 .team-photo-card{
@@ -1633,19 +1634,19 @@ header .navbar {
   box-shadow:0 6px 18px rgba(0,0,0,.35);
   transition:transform .5s var(--ease-out), box-shadow .5s var(--ease), border-color .5s var(--ease), opacity .4s var(--ease);
 }
-/* phones: proportions only (the column widths come from the screen) */
-.team-photo-col:nth-child(1) .team-photo-card{ aspect-ratio:125/140; }
-.team-photo-col:nth-child(2) .team-photo-card{ aspect-ratio:140/150; }
-.team-photo-col:nth-child(3) .team-photo-card{ aspect-ratio:130/145; }
+/* phones: proportions only (the column widths come from the screen) - taller than the desktop cards, so they read bigger */
+.team-photo-col:nth-child(1) .team-photo-card{ aspect-ratio:125/160; }
+.team-photo-col:nth-child(2) .team-photo-card{ aspect-ratio:140/172; }
+.team-photo-col:nth-child(3) .team-photo-card{ aspect-ratio:130/165; }
 @media (min-width:640px){
-  .team-photo-col:nth-child(1) .team-photo-card{ width:150px; height:160px; aspect-ratio:auto; }
-  .team-photo-col:nth-child(2) .team-photo-card{ width:165px; height:180px; aspect-ratio:auto; }
-  .team-photo-col:nth-child(3) .team-photo-card{ width:155px; height:170px; aspect-ratio:auto; }
+  .team-photo-col:nth-child(1) .team-photo-card{ width:180px; height:194px; aspect-ratio:auto; }
+  .team-photo-col:nth-child(2) .team-photo-card{ width:198px; height:216px; aspect-ratio:auto; }
+  .team-photo-col:nth-child(3) .team-photo-card{ width:186px; height:206px; aspect-ratio:auto; }
 }
-@media (min-width:1024px){
-  .team-photo-col:nth-child(1) .team-photo-card{ width:190px; height:205px; }
-  .team-photo-col:nth-child(2) .team-photo-card{ width:210px; height:230px; }
-  .team-photo-col:nth-child(3) .team-photo-card{ width:195px; height:215px; }
+@media (min-width:1280px){
+  .team-photo-col:nth-child(1) .team-photo-card{ width:230px; height:248px; }
+  .team-photo-col:nth-child(2) .team-photo-card{ width:254px; height:278px; }
+  .team-photo-col:nth-child(3) .team-photo-card{ width:236px; height:260px; }
 }
 .team-photo-card img{
   display:block;
@@ -1674,7 +1675,7 @@ header .navbar {
 }
 .team-photo-card.is-active .team-photo-card__tag{ opacity:1; transform:none; }
 .team-photo-card__tag-name{
-  font-family:var(--f-display); font-size:1rem; font-weight:600; line-height:1.15; color:#fff;
+  font-family:var(--f-display); font-size:1.1rem; font-weight:600; line-height:1.15; color:#fff;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
 .team-photo-card__tag-role{
@@ -1702,7 +1703,7 @@ header .navbar {
 }
 @media (min-width:1024px){
   /* a comfortable reading width instead of flex:1, so the pair centres as one compact block */
-  .team-list{ flex:0 1 430px; width:auto; min-width:300px; }
+  .team-list{ flex:0 1 400px; width:auto; min-width:300px; }
 }
 .team-row{
   position:relative;
