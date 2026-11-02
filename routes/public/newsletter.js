@@ -26,13 +26,13 @@ async function sendNewsletterConfirmationEmail(email, first_name, unsubscribe_to
     const banner = await bannerRegistry.resolveBanner('newsletter_welcome');
     const greeting = applyMergeFields('Hi {{first_name}},', { first_name }, confirmUrl);
     const emailBody = emailComponents.renderPremiumEmail({
-        preheaderText: 'One more step — confirm your subscription.',
+        preheaderText: 'One more step: confirm your subscription.',
         bannerSrc: banner?.src, bannerAlt: banner?.alt,
         headline: 'Confirm Your Subscription',
         bodyHtml:
             `<p style="text-align:center;">${greeting}</p>` +
-            `<p style="text-align:center;">Please confirm your email address to start receiving Thabiso Mhlongo's newsletter — tour dates, new releases, and exclusive content.</p>` +
-            `<p style="text-align:center; color:#B0B0B0;">If you didn't request this, you can safely ignore this email — you won't be subscribed unless you confirm.</p>`,
+            `<p style="text-align:center;">Please confirm your email address to start receiving Thabiso Mhlongo's newsletter: tour dates, new releases, and exclusive content.</p>` +
+            `<p style="text-align:center; color:#B0B0B0;">If you didn't request this, you can safely ignore this email. You won't be subscribed unless you confirm.</p>`,
         cta: { label: 'Confirm My Subscription', url: confirmUrl },
         socialLinks
     });

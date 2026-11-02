@@ -78,9 +78,9 @@ router.post('/api/admin/settings/test-notification', requireAdmin, requireRole([
         const to = await getNotificationEmail();
         const result = await sendEmailDirectly({
             to,
-            subject: 'Test Notification — Thabiso Mhlongo Admin',
+            subject: 'Test Notification: Thabiso Mhlongo Admin',
             htmlContent: emailComponents.renderSystemEmail({
-                preheaderText: `Test notification — confirming admin routing to ${to}.`,
+                preheaderText: `Test notification: confirming admin routing to ${to}.`,
                 category: 'System',
                 severity: 'info',
                 leadFact: `This is a test email confirming that admin notifications are correctly routed to <strong style="color:#FAFAFA;">${to}</strong>.`,

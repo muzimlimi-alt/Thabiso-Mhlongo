@@ -63,7 +63,7 @@ router.put('/api/admin/email-templates/assign', requireAdmin, requireRole(['admi
 router.get('/api/admin/email-templates/:key/preview', requireAdmin, requireRole(['administrator', 'manager']), async (req, res) => {
     const key = req.params.key;
     if (SYSTEM_TRACK_TEMPLATE_KEYS.includes(key)) {
-        return res.status(400).json({ success: false, message: 'This template uses the SYSTEM track — banners are not used; there is no banner preview for it.' });
+        return res.status(400).json({ success: false, message: 'This template uses the SYSTEM track, so banners are not used and there is no banner preview for it.' });
     }
     db.get('SELECT category FROM email_template_banners WHERE template_key = ?', [key], async (err, row) => {
         if (err) return res.status(500).json({ success: false, message: err.message });
@@ -78,7 +78,7 @@ router.get('/api/admin/email-templates/:key/preview', requireAdmin, requireRole(
         const previewBannerSrc = banner ? banner.src.replace(bannerRegistry.emailBaseUrl(), '') : null;
 
         const html = emailComponents.renderPremiumEmail(Object.assign({}, sample, {
-            preheaderText: `Preview: ${row.category} — ${key}`,
+            preheaderText: `Preview: ${row.category} (${key})`,
             bannerSrc: previewBannerSrc,
             bannerAlt: banner && banner.alt,
             subtitle: (banner && banner.subtitle) || sample.subtitle,

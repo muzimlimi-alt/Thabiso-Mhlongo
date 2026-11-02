@@ -45,11 +45,11 @@ const pngSize = (buf) => ({ w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) });
     const staticIcon = (/<link rel="icon" href="([^"]+)"/.exec(fs.readFileSync(path.join(__dirname, '..', '..', 'index.html'), 'utf8')) || [])[1];
     ok(/^\/favicon\.ico\?v=\d+$/.test(staticIcon || '') && big.links.length === 1 && big.links[0] === staticIcon, 'public: an oversized branding favicon (1.8 MB) is ignored - the small static icon (/favicon.ico) stays', JSON.stringify({ staticIcon, links: big.links }));
     ok(big.errs.length === 0, 'public: no page errors with an oversized branding favicon', big.errs.join(' | '));
-    const small = await firstIcon('images/icon/mic-favicon-96.png');           // 12 KB
+    const small = await firstIcon('images/icon/favicon-48x48.png');            // 4 KB
     // js/applyBranding.js (2026-10-16 favicon fix) replaces ALL the page's icon links with the branded one - swapping only
     // the first left the browser free to keep picking a built-in mic icon - and makes its path root-relative.
-    ok(small.links.length === 1 && small.links[0] === '/images/icon/mic-favicon-96.png', 'public: a small branding favicon is applied as the page\'s only icon (the admin\'s Branding setting keeps working)', JSON.stringify(small.links));
-    ok(small.touch === '/images/icon/mic-apple-touch-icon.png', 'public: the iOS home-screen icon (apple-touch-icon, a separate rel) is left untouched', String(small.touch));
+    ok(small.links.length === 1 && small.links[0] === '/images/icon/favicon-48x48.png', 'public: a small branding favicon is applied as the page\'s only icon (the admin\'s Branding setting keeps working)', JSON.stringify(small.links));
+    ok(small.touch === '/images/icon/favicon-180x180.png', 'public: the iOS home-screen icon (apple-touch-icon, a separate rel) is left untouched', String(small.touch));
     // A branding favicon whose FILE is missing (deleted, or never copied to this machine - the development database points at one) used to
     // raise the full-page "Page Not Found" overlay on every public page: applyBranding probes the file with fetch() and the global fetch
     // wrapper (notificationService.js) turns any non-API 404 into that overlay. The probe now opts out of the wrapper.

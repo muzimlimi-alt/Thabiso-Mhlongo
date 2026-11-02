@@ -231,7 +231,7 @@ async function loadFootprint() {
         const items = Array.isArray(rows) ? rows : [];
         $list.empty();
         if (!items.length) {
-            $list.html('<div class="um-empty-state" style="grid-column:1/-1; padding:30px 20px;"><i class="fa-solid fa-earth-africa" style="font-size:22px;color:var(--atl-muted-dim);display:block;margin-bottom:8px;"></i>No countries yet — add the first one.</div>');
+            $list.html('<div class="um-empty-state" style="grid-column:1/-1; padding:30px 20px;"><i class="fa-solid fa-earth-africa" style="font-size:22px;color:var(--atl-muted-dim);display:block;margin-bottom:8px;"></i>No countries yet. Add the first one.</div>');
             return;
         }
         items.forEach(function (item) {

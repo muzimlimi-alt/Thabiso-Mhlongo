@@ -937,14 +937,25 @@ header .navbar {
   .tm-services__grid{ grid-template-columns:repeat(5,1fr); }
   .tm-service, .tm-service:nth-child(4), .tm-service:nth-child(5){ grid-column:auto; }
 }
+/* The same card finish as the Gallery tiles, Event cards, Social cards and the Footprint flags: the large corner radius, a hairline border,
+   the resting shadow, and on hover the 4px lift + gold-dark border + deep shadow (keyboard focus gets the global gold ring, :focus-visible). */
 .tm-service{
   position:relative;
   aspect-ratio:3/4;
   overflow:hidden;
-  border-radius:var(--r);
+  border-radius:var(--r-lg);
+  border:1px solid var(--border-low);
+  box-shadow:0 4px 18px rgba(0,0,0,.35);
   background:var(--dark);
   display:block;
   cursor:pointer;
+  /* opacity stays in the list: the card also carries .tm-reveal, whose fade-in this transition would otherwise replace */
+  transition:opacity .8s var(--ease-out), border-color var(--t) var(--ease), transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
+}
+.tm-service:hover, .tm-service:focus-visible{
+  border-color:var(--y-dark);
+  transform:translateY(-4px);
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
 }
 .tm-service__bg{
   position:absolute; inset:0;
@@ -959,8 +970,8 @@ header .navbar {
 .tm-service__bg--3{ background-image: url('../../images/services/services-01.jpg'); }   /* Private Functions, Weddings & Year-End Events */
 .tm-service__bg--4{ background-image: url('../../images/services/services-03.jpg'); }   /* Writing & Creative Services */
 .tm-service__bg--5{ background-image: url('../../images/services/services-04.jpg'); transform:scaleX(-1); }   /* Acting, Voice-Over & Brand Campaigns */
-.tm-service:hover .tm-service__bg{ transform:scale(1.06); }
-.tm-service:hover .tm-service__bg--5{ transform:scaleX(-1) scale(1.06); }
+.tm-service:hover .tm-service__bg{ transform:scale(1.03); }
+.tm-service:hover .tm-service__bg--5{ transform:scaleX(-1) scale(1.03); }
 /* "Most Booked": the rate card's designation of its Corporate & Events group. */
 .tm-service__tag{
   position:absolute; top:22px; left:18px; z-index:2;
@@ -1578,18 +1589,23 @@ header .navbar {
   justify-content:center;
   gap:20px;
 }
+/* The same card finish as the Gallery tiles, Event cards and Social cards (.insta-item, .ev-card, .sm-card): the large corner radius, the
+   resting shadow, the 4px lift + gold-dark border + deep shadow on hover, and the gold-dark border while something inside has focus. */
 .fp-card{
   background:var(--bg-surface);
   border:1px solid var(--border-low);
-  border-radius:var(--r);
+  border-radius:var(--r-lg);
   overflow:hidden;
+  box-shadow:0 4px 18px rgba(0,0,0,.35);
   transition:border-color var(--t) var(--ease), transform var(--t) var(--ease), box-shadow var(--t) var(--ease);
 }
 .fp-card:hover{
-  border-color:var(--y-base);
-  transform:translateY(-2px);
-  box-shadow:var(--sh-lg);
+  border-color:var(--y-dark);
+  transform:translateY(-4px);
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
 }
+.fp-card:focus-within{ border-color:var(--y-dark); }
+.fp-card:focus-visible{ outline:2px solid var(--y-base); outline-offset:3px; }
 .fp-flag{
   display:block;
   width:100%;
@@ -1598,7 +1614,7 @@ header .navbar {
   filter:saturate(0.85) contrast(1.02);
   transition:transform .5s cubic-bezier(.25,.46,.45,.94);
 }
-.fp-card:hover .fp-flag{ transform:scale(1.05); }
+.fp-card:hover .fp-flag{ transform:scale(1.03); }
 .fp-name{
   margin:0;
   padding:14px 16px;

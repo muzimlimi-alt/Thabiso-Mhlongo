@@ -98,7 +98,7 @@ async function loadSectionVisibility(force) {
         });
         _sectionsLoaded = true;
     } catch (e) {
-        if (window.notificationService) window.notificationService.showError('Could not load website sections — please refresh.');
+        if (window.notificationService) window.notificationService.showError('Could not load website sections. Please refresh.');
     } finally { $('#secLoading').hide(); }
 }
 
@@ -181,32 +181,40 @@ function stSmtpFromLegacyApi(s) {
 }
 
 // Show the password box for password sign-in, the three Microsoft fields for OAuth.
-function stToggleAuth() {
-    var oauth = $('#stSmtpAuth').val() === 'oauth';
-    $('#stSmtpPassGroup').toggle(!oauth);
-    $('#stSmtpOauthGroup').toggle(oauth);
+// The form exists twice (Email Setup and the Calendar settings' Microsoft 365 card): ids are <prefix>Smtp... with prefix st / cm.
+var ST_SMTP_PREFIXES = ['st', 'cm'];
+function stPrefixOf(el) { var c = el && $(el).closest('[data-smtp-prefix]'); return (c && c.length && c.attr('data-smtp-prefix')) || 'st'; }
+function stToggleAuth(p) {
+    p = typeof p === 'string' ? p : 'st';
+    var oauth = $('#' + p + 'SmtpAuth').val() === 'oauth';
+    $('#' + p + 'SmtpPassGroup').toggle(!oauth);
+    $('#' + p + 'SmtpOauthGroup').toggle(oauth);
 }
-$(document).on('change', '#stSmtpAuth', stToggleAuth);
+$(document).on('change', '[id$="SmtpAuth"]', function () { stToggleAuth(stPrefixOf(this)); });
 
 function stApplySmtp(m) {
-    if (!m) { _smtpEditable = false; $('#stSmtpCard').hide(); $('#stInboxBlock').hide(); return; }
+    if (!m) { _smtpEditable = false; ST_SMTP_PREFIXES.forEach(function (p) { $('#' + p + 'SmtpCard').hide(); }); $('#stInboxBlock').hide(); return; }
     _smtpEditable = true;
-    $('#stSmtpCard').show();
-    $('#stSmtpHost').val(m.host || '');
-    $('#stSmtpPort').val(m.port || '');
-    $('#stSmtpSecure').val(m.secure === 'ssl' ? 'ssl' : 'starttls');
-    $('#stSmtpAuth').val(m.auth === 'oauth' ? 'oauth' : 'password');
-    $('#stSmtpUser').val(m.user || '');
-    $('#stSmtpFrom').val(m.from || '');
-    $('#stSmtpFromName').val(m.fromName || '');
-    $('#stSmtpTenant').val(m.oauthTenant || '');
-    $('#stSmtpClient').val(m.oauthClient || '');
-    // Never render a secret - only a masked indicator so the admin knows one is saved (blank = keep it)
-    var dots = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022  (saved \u2014 leave blank to keep current)';
-    $('#stSmtpPass').val('').attr('placeholder', m.passwordSet ? dots : 'mailbox password');
-    $('#stSmtpSecret').val('').attr('placeholder', m.secretSet ? dots : 'secret VALUE');
-    stToggleAuth();
-    $('#stSmtpStatus').text(stSmtpStatusText(m));
+    // Both copies of the form always show the same saved settings
+    ST_SMTP_PREFIXES.forEach(function (p) {
+        var f = function (n) { return $('#' + p + 'Smtp' + n); };
+        $('#' + p + 'SmtpCard').show();
+        f('Host').val(m.host || '');
+        f('Port').val(m.port || '');
+        f('Secure').val(m.secure === 'ssl' ? 'ssl' : 'starttls');
+        f('Auth').val(m.auth === 'oauth' ? 'oauth' : 'password');
+        f('User').val(m.user || '');
+        f('From').val(m.from || '');
+        f('FromName').val(m.fromName || '');
+        f('Tenant').val(m.oauthTenant || '');
+        f('Client').val(m.oauthClient || '');
+        // Never render a secret - only a masked indicator so the admin knows one is saved (blank = keep it)
+        var dots = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022  (saved \u2014 leave blank to keep current)';
+        f('Pass').val('').attr('placeholder', m.passwordSet ? dots : 'mailbox password');
+        f('Secret').val('').attr('placeholder', m.secretSet ? dots : 'secret VALUE');
+        stToggleAuth(p);
+        f('Status').text(stSmtpStatusText(m));
+    });
     loadInboxSyncStatus();
 }
 
@@ -285,7 +293,7 @@ function fillPayfast(s) {
     if (s.payfast_merchant_key) $('#stPayfastKey').val(s.payfast_merchant_key);
     // Never render the passphrase — only show a masked indicator so the admin knows one is set
     if (s.payfast_passphrase) {
-        $('#stPayfastPass').val('').attr('placeholder', '••••••••  (set — leave blank to keep current)');
+        $('#stPayfastPass').val('').attr('placeholder', '••••••••  (set, leave blank to keep current)');
         $('#stPayfastPass').data('has-existing', true);
     } else {
         $('#stPayfastPass').attr('placeholder', '(leave blank if none)');
@@ -338,52 +346,56 @@ window.loadIntegrations = function() {
 
 // The SMTP form as the API wants it. Passwords/secrets are read with the native .value (not jQuery's patched .val()) so they
 // reach the server exactly as typed. Only the fields of the chosen sign-in method are sent.
-function stSmtpFormValues() {
-    var oauth = $('#stSmtpAuth').val() === 'oauth';
+function stSmtpFormValues(p) {
+    p = p || 'st';
+    var f = function (n) { return $('#' + p + 'Smtp' + n); };
+    var oauth = f('Auth').val() === 'oauth';
     var v = {
-        smtp_host: $('#stSmtpHost').val(),
-        smtp_port: $('#stSmtpPort').val(),
-        smtp_secure: $('#stSmtpSecure').val(),
+        smtp_host: f('Host').val(),
+        smtp_port: f('Port').val(),
+        smtp_secure: f('Secure').val(),
         smtp_auth: oauth ? 'oauth' : 'password',
-        smtp_user: $('#stSmtpUser').val(),
-        smtp_from: $('#stSmtpFrom').val(),
-        smtp_from_name: $('#stSmtpFromName').val()
+        smtp_user: f('User').val(),
+        smtp_from: f('From').val(),
+        smtp_from_name: f('FromName').val()
     };
     if (oauth) {
-        v.smtp_oauth_tenant = $('#stSmtpTenant').val();
-        v.smtp_oauth_client = $('#stSmtpClient').val();
-        v.smtp_oauth_secret = document.getElementById('stSmtpSecret').value;
+        v.smtp_oauth_tenant = f('Tenant').val();
+        v.smtp_oauth_client = f('Client').val();
+        v.smtp_oauth_secret = document.getElementById(p + 'SmtpSecret').value;
     } else {
-        v.smtp_pass = document.getElementById('stSmtpPass').value;
+        v.smtp_pass = document.getElementById(p + 'SmtpPass').value;
     }
     return v;
 }
 
 // Inline per-field checks shared by Save and Test Connection. Returns true when everything entered is acceptable.
-function stValidateSmtp(v) {
-    const _fe = (id, msg) => { const e = document.getElementById(id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
-    ['errStHost', 'errStPort', 'errStSecure', 'errStAuth', 'errStUser', 'errStTenant', 'errStClient', 'errStSecret', 'errStFrom', 'errStFromName'].forEach(function (id) { _fe(id, ''); });
+function stValidateSmtp(v, p) {
+    p = p || 'st';
+    const E = p === 'cm' ? 'errCm' : 'errSt';
+    const _fe = (id, msg) => { const e = document.getElementById(E + id); if (e) { e.textContent = msg || ''; e.style.display = msg ? 'block' : 'none'; } };
+    ['Host', 'Port', 'Secure', 'Auth', 'User', 'Tenant', 'Client', 'Secret', 'From', 'FromName'].forEach(function (id) { _fe(id, ''); });
     const _emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const _guid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let bad = false;
     const host = String(v.smtp_host || '').trim();
-    if (host && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(host)) { _fe('errStHost', 'Enter just the server name, e.g. smtp.office365.com.'); bad = true; }
+    if (host && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$/i.test(host)) { _fe('Host', 'Enter just the server name, e.g. smtp.office365.com.'); bad = true; }
     const port = String(v.smtp_port || '').trim();
-    if (port && (!/^\d+$/.test(port) || +port < 1 || +port > 65535)) { _fe('errStPort', 'Port must be a number between 1 and 65535.'); bad = true; }
-    if (port === '587' && v.smtp_secure === 'ssl') { _fe('errStSecure', 'Port 587 uses STARTTLS.'); bad = true; }
-    if (port === '465' && v.smtp_secure === 'starttls') { _fe('errStSecure', 'Port 465 uses SSL/TLS.'); bad = true; }
-    if (v.smtp_from && !_emailRe.test(v.smtp_from)) { _fe('errStFrom', 'Enter a valid email address.'); bad = true; }
-    if (/[\r\n]/.test(v.smtp_from_name || '')) { _fe('errStFromName', 'No line breaks, please.'); bad = true; }
+    if (port && (!/^\d+$/.test(port) || +port < 1 || +port > 65535)) { _fe('Port', 'Port must be a number between 1 and 65535.'); bad = true; }
+    if (port === '587' && v.smtp_secure === 'ssl') { _fe('Secure', 'Port 587 uses STARTTLS.'); bad = true; }
+    if (port === '465' && v.smtp_secure === 'starttls') { _fe('Secure', 'Port 465 uses SSL/TLS.'); bad = true; }
+    if (v.smtp_from && !_emailRe.test(v.smtp_from)) { _fe('From', 'Enter a valid email address.'); bad = true; }
+    if (/[\r\n]/.test(v.smtp_from_name || '')) { _fe('FromName', 'No line breaks, please.'); bad = true; }
     if (v.smtp_auth === 'oauth') {
         const user = String(v.smtp_user || '').trim();
-        if (user && user.indexOf('@') < 0) { _fe('errStUser', 'For OAuth this must be the mailbox address.'); bad = true; }
+        if (user && user.indexOf('@') < 0) { _fe('User', 'For OAuth this must be the mailbox address.'); bad = true; }
         const tenant = String(v.smtp_oauth_tenant || '').trim();
-        if (tenant && !_guid.test(tenant) && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(tenant)) { _fe('errStTenant', 'Enter the tenant ID (a GUID) or your tenant domain.'); bad = true; }
+        if (tenant && !_guid.test(tenant) && !/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(tenant)) { _fe('Tenant', 'Enter the tenant ID (a GUID) or your tenant domain.'); bad = true; }
         const client = String(v.smtp_oauth_client || '').trim();
-        if (client && !_guid.test(client)) { _fe('errStClient', 'Enter the Application (client) ID - a GUID.'); bad = true; }
+        if (client && !_guid.test(client)) { _fe('Client', 'Enter the Application (client) ID - a GUID.'); bad = true; }
         const secret = String(v.smtp_oauth_secret || '');
-        if (secret && /\s/.test(secret)) { _fe('errStSecret', 'The secret VALUE has no spaces.'); bad = true; }
-        else if (secret && _guid.test(secret.trim())) { _fe('errStSecret', 'That looks like the Secret ID. Use the secret VALUE.'); bad = true; }
+        if (secret && /\s/.test(secret)) { _fe('Secret', 'The secret VALUE has no spaces.'); bad = true; }
+        else if (secret && _guid.test(secret.trim())) { _fe('Secret', 'That looks like the Secret ID. Use the secret VALUE.'); bad = true; }
     }
     return !bad;
 }
@@ -416,17 +428,18 @@ window.savePayfastSettings = async function(btn) {
 // details do not work, none of them is saved.
 window.saveEmailSettings = async function(btn) {
     if (!_smtpEditable) return;   // only administrators ever see (or send) the SMTP card
+    const p = stPrefixOf(btn);
     const $btn = btn ? $(btn) : $('#btnSaveSmtp');
     const origHtml = $btn.html();
-    const settings = stSmtpFormValues();
-    if (!stValidateSmtp(settings)) { window.notificationService.showError('Please fix the highlighted fields.'); return; }
+    const settings = stSmtpFormValues(p);
+    if (!stValidateSmtp(settings, p)) { window.notificationService.showError('Please fix the highlighted fields.'); return; }
     $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin" style="margin-right:6px;"></i>Saving…');
     // Remove blank keys (a blank password therefore means "keep the saved one")
     Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
     try {
         const r = await apiCall('/api/admin/settings', 'PUT', { settings });
         if (r && r.smtp) stApplySmtp(r.smtp);
-        $('#stSmtpTestResult').text('');
+        ST_SMTP_PREFIXES.forEach(function (q) { $('#' + q + 'SmtpTestResult').text(''); });
         window.notificationService.showSuccess('Email settings saved.');
         (r && r.warnings || []).forEach(function (w) { window.notificationService.showWarning('Email settings', w); });
     } catch(e) {
@@ -457,12 +470,13 @@ window.saveAlertEmail = async function(btn) {
 };
 
 // Connection test: signs in with what is on screen (saved or not) without sending an email.
-window.testSmtpConnection = async function() {
-    const $btn = $('#stSmtpTestBtn');
+window.testSmtpConnection = async function(btn) {
+    const p = stPrefixOf(btn);
+    const $btn = $('#' + p + 'SmtpTestBtn');
     const orig = $btn.html();
-    const $out = $('#stSmtpTestResult');
-    const v = stSmtpFormValues();
-    if (!stValidateSmtp(v)) { window.notificationService.showError('Please fix the highlighted fields.'); return; }
+    const $out = $('#' + p + 'SmtpTestResult');
+    const v = stSmtpFormValues(p);
+    if (!stValidateSmtp(v, p)) { window.notificationService.showError('Please fix the highlighted fields.'); return; }
     Object.keys(v).forEach(function (k) { if (!v[k]) delete v[k]; });
     $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Testing...');
     $out.text('').css('color', '');

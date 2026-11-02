@@ -24,7 +24,7 @@ window.loadPolicies = async function() {
         }
     } catch(e) {
         console.error('Failed to load policies:', e);
-        window.notificationService.showError('Could not load booking policies — please refresh.');
+        window.notificationService.showError('Could not load booking policies. Please refresh.');
     }
 };
 

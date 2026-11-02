@@ -246,7 +246,7 @@ async function sendContractEmail(booking, contractPdfPath) {
 
     const result = await sendEmail({
         to: email,
-        subject: `Your booking contract — ${event_name || event_type} (Booking #${id})`,
+        subject: `Your booking contract: ${event_name || event_type} (Booking #${id})`,
         htmlContent,
         preWrapped: true,
         attachments,
@@ -478,7 +478,7 @@ router.post('/api/admin/bookings/:id/reopen', requireAdmin, (req, res) => {
                      VALUES ('bookings', ?, 'REOPEN', ?, ?, ?, CURRENT_TIMESTAMP)`,
                     [bookingId,
                      JSON.stringify({ status: 'EXPIRED' }),
-                     JSON.stringify({ status: 'PENDING', note: 'Reopened by admin — previous quote cleared' }),
+                     JSON.stringify({ status: 'PENDING', note: 'Reopened by admin, previous quote cleared' }),
                      req.session.adminId || 'admin']
                 );
                 res.json({ success: true, message: 'Booking reopened and returned to PENDING.' });
@@ -700,7 +700,7 @@ router.post('/api/admin/bookings/:id/contract', requireAdmin, (req, res, next) =
         if (existing && (existing.status === 'signed' || existing.is_frozen === 1)) {
             return res.status(400).json({
                 success: false,
-                message: `Cannot overwrite: this contract was already signed by "${existing.signed_by}" on ${existing.signed_date}. You cannot replace a signed contract — create a separate amendment instead.`
+                message: `Cannot overwrite: this contract was already signed by "${existing.signed_by}" on ${existing.signed_date}. You cannot replace a signed contract. Create a separate amendment instead.`
             });
         }
 
@@ -897,7 +897,7 @@ router.post('/api/admin/bookings/:id/contract/remind', requireAdmin, mutateRateL
                 const banner = await bannerRegistry.resolveBanner('contract_sign_reminder');
                 return sendEmail({
                     to: b.email,
-                    subject: `Action Required: Please sign your booking contract — ${b.event_name}`,
+                    subject: `Action Required: Please sign your booking contract (${b.event_name})`,
                     htmlContent: emailComponents.renderPremiumEmail({
                         preheaderText: `Your booking contract for ${b.event_name} is awaiting your signature.`,
                         bannerSrc: banner?.src, bannerAlt: banner?.alt, subtitle: banner?.subtitle,
@@ -1042,7 +1042,7 @@ router.post('/api/admin/bookings/:id/book-again', requireAdmin, async (req, res)
                     return res.status(409).json({
                         success: false,
                         conflict: true,
-                        message: `${orig.date} is no longer free — it has since been booked or blocked. Choose a different date, or pass override_conflict:true to rebook on this date anyway.`
+                        message: `${orig.date} is no longer free, as it has since been booked or blocked. Choose a different date, or pass override_conflict:true to rebook on this date anyway.`
                     });
                 }
             } catch (availErr) {
@@ -1069,7 +1069,7 @@ router.post('/api/admin/bookings/:id/book-again', requireAdmin, async (req, res)
                     `INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, change_timestamp)
                      VALUES ('bookings', ?, 'REBOOKED', ?, ?, CURRENT_TIMESTAMP)`,
                     [originalId,
-                     JSON.stringify({ new_booking_id: newId, note: 'Client rebooked — new booking created from this cancelled record' }),
+                     JSON.stringify({ new_booking_id: newId, note: 'Client rebooked: new booking created from this cancelled record' }),
                      req.session.adminId || 'admin']
                 );
                 // Audit on new booking
@@ -1620,7 +1620,7 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
                 };
                 if (perDaySvcIds.length && !req.body.override_conflict) {
                     db.all(`SELECT name FROM services WHERE id IN (${perDaySvcIds.map(() => '?').join(',')}) AND availability_rule = 'per_day'`, perDaySvcIds, (_, perDayRows) => {
-                        sendResponse((perDayRows || []).map(s => `"${s.name}" is limited to one booking per day — verify no date conflicts exist.`));
+                        sendResponse((perDayRows || []).map(s => `"${s.name}" is limited to one booking per day. Verify no date conflicts exist.`));
                     });
                 } else {
                     sendResponse([]);
@@ -2745,7 +2745,7 @@ router.post('/api/admin/bookings/:id/payment-schedules/rebalance', requireAdmin,
 
         getActivePaymentSchedules(bookingId, (err, schedules) => {
             if (err) return res.status(500).json({ success: false, message: err.message });
-            if (!schedules || schedules.length === 0) return res.status(400).json({ success: false, message: 'No payment schedule to rebalance — set up milestones first.' });
+            if (!schedules || schedules.length === 0) return res.status(400).json({ success: false, message: 'No payment schedule to rebalance. Set up milestones first.' });
 
             const isPaid = s => String(s.status).toLowerCase() === 'paid';
             const paid = schedules.filter(isPaid);
@@ -2758,7 +2758,7 @@ router.post('/api/admin/bookings/:id/payment-schedules/rebalance', requireAdmin,
             }
             if (pending.length === 0) {
                 if (Math.abs(remaining) <= 0.01) return res.json({ success: true, message: 'Schedule already matches the booking total.' });
-                return res.status(400).json({ success: false, message: 'All milestones are already paid — edit the booking total to reconcile.' });
+                return res.status(400).json({ success: false, message: 'All milestones are already paid. Edit the booking total to reconcile.' });
             }
 
             // Proportional split of the remaining amount across pending milestones; the last row
@@ -2987,7 +2987,7 @@ router.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => 
             const totalPaid = calc.totalPaid;
             const refundDue       = isForceMajeure ? totalPaid : calc.refund;
             const retentionAmount = isForceMajeure ? 0          : calc.retention;
-            const policyRule      = isForceMajeure ? 'Force Majeure — Full Refund Granted' : calc.rule;
+            const policyRule      = isForceMajeure ? 'Force Majeure: Full Refund Granted' : calc.rule;
 
             // Everything a cancellation implies is one atomic unit. The audit row and the four
             // cascades (holds, invoices, payment schedules, events) used to run AFTER `COMMIT` with

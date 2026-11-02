@@ -46,10 +46,10 @@ async function renderEventsList(highlightId) {
 
     if (data === null) {
         // Network / API failure — distinct from an empty list
-        var errState = '<div class="um-empty-state" style="padding: 40px 20px; text-align:center;"><i class="fa-solid fa-triangle-exclamation" style="font-size:28px;color:var(--atl-clay);display:block;margin-bottom:10px;"></i><p style="color:var(--atl-muted);margin:0;">Failed to load events — please refresh.</p></div>';
+        var errState = '<div class="um-empty-state" style="padding: 40px 20px; text-align:center;"><i class="fa-solid fa-triangle-exclamation" style="font-size:28px;color:var(--atl-clay);display:block;margin-bottom:10px;"></i><p style="color:var(--atl-muted);margin:0;">Failed to load events. Please refresh.</p></div>';
         $upcomingList.append(errState);
         $pastList.append(errState);
-        window.notificationService.showError('Could not load events — please check your connection and refresh.');
+        window.notificationService.showError('Could not load events. Please check your connection and refresh.');
         return;
     }
 

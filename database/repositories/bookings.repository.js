@@ -154,7 +154,7 @@ function getOverdueQuotedBookings(todayLocal, callback) {
             AND quote_expiry_date < ?`, [todayLocal], callback);
 }
 function expireQuotedBooking(bookingId) {
-    db.run(`UPDATE bookings SET status = 'EXPIRED', expired_reason = 'quote_expiry', message = COALESCE(message,'') || '\n[System: Quote expired — no response from client]' WHERE id = ? AND status = 'QUOTED'`, [bookingId]);
+    db.run(`UPDATE bookings SET status = 'EXPIRED', expired_reason = 'quote_expiry', message = COALESCE(message,'') || '\n[System: Quote expired, no response from client]' WHERE id = ? AND status = 'QUOTED'`, [bookingId]);
 }
 function clearBookingGoogleEventId(bookingId) {
     db.run("UPDATE bookings SET google_event_id = NULL WHERE id = ?", [bookingId]);

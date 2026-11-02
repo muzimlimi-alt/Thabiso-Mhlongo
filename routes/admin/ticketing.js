@@ -13,6 +13,7 @@ const ticketing = require('../../lib/ticketing');
 const delivery = require('../../lib/ticketing-delivery');
 const door = require('../../lib/ticketing-door');
 const issue = require('../../lib/ticketing-issue');
+const ticketFinance = require('../../lib/ticket-finance');
 const { emailBaseUrl } = require('../../lib/email-context');
 const router = express.Router();
 
@@ -130,6 +131,25 @@ router.get('/api/admin/ticketing/orders/:id', requireAdmin, MANAGE, async (req, 
         if (!d) return res.status(404).json({ success: false, message: 'Order not found.' });
         res.json({ success: true, ...d, issue: await issue.issueDetails(d.order.id) });
     } catch (e) { fail(res, e, 'order detail'); }
+});
+
+// ---------------------------------------------------------------- Finance: ticket sales as money (lib/ticket-finance.js - read-only)
+router.get('/api/admin/ticketing/finance', requireAdmin, MANAGE, async (req, res) => {
+    try { res.json({ success: true, ...(await ticketFinance.overview(req.query.date_from, req.query.date_to)) }); } catch (e) { fail(res, e, 'finance overview'); }
+});
+router.get('/api/admin/ticketing/finance/events/:id/orders', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const id = idParam(req.params.id);
+        if (!id) return res.status(404).json({ success: false, message: 'Event not found.' });
+        res.json({ success: true, orders: await ticketFinance.eventOrders(id) });
+    } catch (e) { fail(res, e, 'finance event orders'); }
+});
+router.get('/api/admin/ticketing/finance/orders/:id', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const p = await ticketFinance.orderPayment(idParam(req.params.id));
+        if (!p) return res.status(404).json({ success: false, message: 'Order not found.' });
+        res.json({ success: true, payment: p });
+    } catch (e) { fail(res, e, 'finance order'); }
 });
 
 router.post('/api/admin/ticketing/orders/:id/resend', requireAdmin, MANAGE, async (req, res) => {

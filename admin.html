@@ -28,7 +28,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Thabiso Mhlongo | Admin Portal</title>
-    <link rel="icon" href="/favicon.ico?v=3">
+    <link rel="icon" href="/favicon.ico?v=4">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     <link href="css/vendor/bootstrap.min.css?v=2" rel="stylesheet">
 
@@ -99,7 +99,7 @@
     <link rel="stylesheet" href="css/overrides/flatpickr.css">
     <link rel="stylesheet" href="css/overrides/plugins-light.css">
 
-    <link rel="stylesheet" href="css/admin/14-finance.css">
+    <link rel="stylesheet" href="css/admin/14-finance.css?v=3">
     <link rel="stylesheet" href="css/admin/email-logs-2.css">
     <link rel="stylesheet" href="css/admin/15-services-catalogue.css?v=3">
     <link rel="stylesheet" href="css/admin/legal-compliance.css">
@@ -612,7 +612,7 @@
                             <div class="db-stat-icon"><i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-orange);"></i></div>
                             <div class="db-stat-content">
                                 <span class="db-stat-label">Needs Action</span>
-                                <span class="db-stat-value" id="dashNeedsActionCount">—</span>
+                                <span class="db-stat-value" id="dashNeedsActionCount">-</span>
                             </div>
                         </div>
                     </div>
@@ -808,8 +808,8 @@
                                 <div class="um-avatar-xl" id="umMyAvatarHero">A</div>
                                 <div class="um-profile-hero__info">
                                     <h3 class="um-profile-hero__name" id="umMyDisplayName">Administrator</h3>
-                                    <span class="um-profile-hero__role"><i class="fa-solid fa-shield-halved"></i> <span id="umMyRoleText">—</span></span>
-                                    <span class="um-profile-hero__since" id="umMyJoinDate">Member since —</span>
+                                    <span class="um-profile-hero__role"><i class="fa-solid fa-shield-halved"></i> <span id="umMyRoleText">-</span></span>
+                                    <span class="um-profile-hero__since" id="umMyJoinDate">Member since: not recorded</span>
                                 </div>
                             </div>
 
@@ -1330,7 +1330,7 @@
                         </div>
                         <div id="inqPagination" class="inq-pagination" style="display:none;">
                             <button id="inqPrevBtn" class="um-btn um-btn--ghost um-btn--sm"><i class="fa-solid fa-chevron-left" aria-hidden="true"></i> Prev</button>
-                            <span id="inqPageInfo" class="inq-page-info">—</span>
+                            <span id="inqPageInfo" class="inq-page-info">-</span>
                             <button id="inqNextBtn" class="um-btn um-btn--ghost um-btn--sm">Next <i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
                         </div>
                     </main>
@@ -1345,7 +1345,7 @@
                     <div id="emLoading" style="display:none; text-align:center; padding:24px; color:var(--atl-muted);"><i class="fa fa-spinner fa-spin" style="margin-right:8px;"></i> Loading email settings…</div>
 
                     <!-- Card: Email (SMTP) -->
-                    <div class="atl-card um-settings-card" id="stSmtpCard">
+                    <div class="atl-card um-settings-card" id="stSmtpCard" data-smtp-prefix="st">
                         <div class="um-icon-header">
                             <div class="um-icon-header__icon"><i class="fa-solid fa-envelopes-bulk"></i></div>
                             <div>
@@ -1413,7 +1413,7 @@
                         </div>
                         <div class="row" style="align-items:center;">
                             <div class="col-md-4">
-                                <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stSmtpTestBtn" onclick="testSmtpConnection()">
+                                <button type="button" class="atl-btn atl-btn--ghost btn-block" id="stSmtpTestBtn" onclick="testSmtpConnection(this)">
                                     <i class="fa-solid fa-plug-circle-check" style="margin-right:5px;"></i>Test Connection
                                 </button>
                             </div>
@@ -1820,7 +1820,7 @@
 
                     <!-- ===== PANEL: Archive (Completed / Expired / Cancelled) ===== -->
                     <div class="um-panel" id="bkPanelArchive">
-                        <p class="um-section-desc" style="margin:0 0 16px;">Bookings that have reached a final state — completed engagements, expired enquiries, and cancellations. Kept separate from the Pipeline so that view stays focused on bookings still in play.</p>
+                        <p class="um-section-desc" style="margin:0 0 16px;">Bookings that have reached a final state: completed engagements, expired enquiries, and cancellations. Kept separate from the Pipeline so that view stays focused on bookings still in play.</p>
 
                         <section aria-labelledby="archiveFiltersHeading" class="mb-8">
                             <h2 id="archiveFiltersHeading" class="atl-sr-only">Archive filters and status counts</h2>
@@ -2502,46 +2502,93 @@
                                     <div id="stGoogleResult" role="status" aria-live="polite" class="um-section-desc" style="margin:10px 0 0; white-space:pre-line;"></div>
                                 </div>
 
-                                <!-- Card: Microsoft 365 calendar (information + shortcuts; its controls live on the Calendar page) -->
-                                <div class="atl-card um-settings-card">
+                                <!-- Card: Microsoft 365 calendar. The same Outgoing Mail form as Email -> Inquiries -> Setup (one app, one set of saved settings); sync itself is switched on from the Calendar page -->
+                                <div class="atl-card um-settings-card" id="cmSmtpCard" data-smtp-prefix="cm">
                                     <div class="um-icon-header">
                                         <div class="um-icon-header__icon"><i class="fa-brands fa-microsoft"></i></div>
                                         <div>
                                             <h4 class="um-section-label" style="margin-bottom:4px;">Microsoft 365 Calendar</h4>
-                                            <p class="um-section-desc">Two-way sync with the shared Microsoft 365 calendar is switched on and monitored from the Calendar page. It signs in with the same Microsoft 365 app as email, which is set up under Email &rarr; Inquiries &rarr; Setup.</p>
+                                            <p class="um-section-desc">Two-way sync with the shared Microsoft 365 calendar is switched on and monitored from the Calendar page. It signs in with the same Microsoft 365 app as email, so these are the same settings as Email &rarr; Inquiries &rarr; Setup: change them in either place.</p>
                                         </div>
                                     </div>
                                     <div class="um-divider"></div>
-                                    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                                    <p class="um-section-desc" id="cmSmtpStatus" role="status" style="margin:0 0 14px;"></p>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="cmSmtpHost">SMTP Host</label><div class="um-input-wrap"><i class="fa-solid fa-server um-input-icon"></i><input type="text" class="um-input" id="cmSmtpHost" placeholder="smtp.office365.com" autocomplete="off" spellcheck="false"></div></div>
+                                            <div class="atl-field-error" id="errCmHost" style="display:none;"></div>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <div class="um-field-group"><label class="um-label" for="cmSmtpPort">Port</label><div class="um-input-wrap"><i class="fa-solid fa-ethernet um-input-icon"></i><input type="number" class="um-input" id="cmSmtpPort" placeholder="587"></div></div>
+                                            <div class="atl-field-error" id="errCmPort" style="display:none;"></div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="um-field-group"><label class="um-label" for="cmSmtpSecure">Encryption</label><div class="um-input-wrap"><i class="fa-solid fa-shield-halved um-input-icon"></i><select class="um-input" id="cmSmtpSecure"><option value="starttls">STARTTLS (587, recommended)</option><option value="ssl">SSL/TLS (465)</option></select></div></div>
+                                            <div class="atl-field-error" id="errCmSecure" style="display:none;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="um-field-group"><label class="um-label" for="cmSmtpAuth">Sign-in method</label><div class="um-input-wrap"><i class="fa-solid fa-key um-input-icon"></i><select class="um-input" id="cmSmtpAuth"><option value="password">Mailbox password</option><option value="oauth">Microsoft 365 OAuth (recommended)</option></select></div></div>
+                                            <div class="atl-field-error" id="errCmAuth" style="display:none;"></div>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <div class="um-field-group"><label class="um-label" for="cmSmtpUser">SMTP User <small style="color: var(--atl-muted); font-weight:400; text-transform:none; letter-spacing:0;">(the mailbox)</small></label><div class="um-input-wrap"><i class="fa-solid fa-user um-input-icon"></i><input type="text" class="um-input" id="cmSmtpUser" placeholder="bookings@thabisomhlongo.com" autocomplete="off" spellcheck="false"></div></div>
+                                            <div class="atl-field-error" id="errCmUser" style="display:none;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="row" id="cmSmtpPassGroup">
+                                        <div class="col-md-12">
+                                            <div class="um-field-group"><label class="um-label" for="cmSmtpPass">SMTP Password</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="cmSmtpPass" placeholder="mailbox password" autocomplete="new-password"></div></div>
+                                        </div>
+                                    </div>
+                                    <div id="cmSmtpOauthGroup" style="display:none;">
+                                        <div class="row">
+                                            <div class="col-md-4">
+                                                <div class="um-field-group"><label class="um-label" for="cmSmtpTenant">Directory (tenant) ID</label><div class="um-input-wrap"><i class="fa-solid fa-building um-input-icon"></i><input type="text" class="um-input" id="cmSmtpTenant" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off" spellcheck="false"></div></div>
+                                                <div class="atl-field-error" id="errCmTenant" style="display:none;"></div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="um-field-group"><label class="um-label" for="cmSmtpClient">Application (client) ID</label><div class="um-input-wrap"><i class="fa-solid fa-id-card um-input-icon"></i><input type="text" class="um-input" id="cmSmtpClient" placeholder="from the app registration" autocomplete="off" spellcheck="false"></div></div>
+                                                <div class="atl-field-error" id="errCmClient" style="display:none;"></div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="um-field-group"><label class="um-label" for="cmSmtpSecret">Client secret</label><div class="um-input-wrap"><i class="fa-solid fa-lock um-input-icon"></i><input type="password" class="um-input" id="cmSmtpSecret" placeholder="secret VALUE" autocomplete="new-password"></div></div>
+                                                <div class="atl-field-error" id="errCmSecret" style="display:none;"></div>
+                                            </div>
+                                        </div>
+                                        <p class="um-section-desc" style="margin:0 0 14px;"><i class="fa-solid fa-circle-info" style="margin-right:6px; color:var(--atl-amber);"></i>No mailbox password is used. This needs a one-time setup in Microsoft Entra and Exchange &mdash; the steps are under <strong style="color:var(--atl-ink);">About</strong> in Email &rarr; Inquiries.</p>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="cmSmtpFrom">From Address</label><div class="um-input-wrap"><i class="fa-solid fa-envelope um-input-icon"></i><input type="email" class="um-input" id="cmSmtpFrom" placeholder="bookings@thabisomhlongo.com" autocomplete="off"></div></div>
+                                            <div class="atl-field-error" id="errCmFrom" style="display:none;"></div>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="um-field-group"><label class="um-label" for="cmSmtpFromName">Sender Name</label><div class="um-input-wrap"><i class="fa-solid fa-signature um-input-icon"></i><input type="text" class="um-input" id="cmSmtpFromName" placeholder="Thabiso Mhlongo" maxlength="100" autocomplete="off"></div></div>
+                                            <div class="atl-field-error" id="errCmFromName" style="display:none;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="row" style="align-items:center;">
+                                        <div class="col-md-4">
+                                            <button type="button" class="atl-btn atl-btn--ghost btn-block" id="cmSmtpTestBtn" onclick="testSmtpConnection(this)">
+                                                <i class="fa-solid fa-plug-circle-check" style="margin-right:5px;"></i>Test Connection
+                                            </button>
+                                        </div>
+                                        <div class="col-md-8">
+                                            <p class="um-section-desc" id="cmSmtpTestResult" role="status" aria-live="polite" style="margin:0;"></p>
+                                        </div>
+                                    </div>
+                                    <div class="um-settings-save" style="margin-top:18px;">
+                                        <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Changed connection details are tested first; if the test fails nothing is saved.</span>
+                                        <button id="btnSaveSmtpCm" class="atl-btn atl-btn--primary" onclick="saveEmailSettings(this)">
+                                            <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save email settings
+                                        </button>
+                                    </div>
+                                    <div style="margin-top:14px;">
                                         <button type="button" class="atl-btn atl-btn--ghost" data-nav-go="calendarAdmin"><i class="fa-solid fa-calendar-days" style="margin-right:6px;"></i>Open Calendar</button>
-                                        <button type="button" class="atl-btn atl-btn--ghost" data-nav-go="inquiriesAdmin" data-nav-tab="inqSetupPanel"><i class="fa-solid fa-envelopes-bulk" style="margin-right:6px;"></i>Open Email Setup (Inquiries &rarr; Setup)</button>
                                     </div>
                                 </div>
-
-                        <div class="atl-card um-settings-card">
-                                    <!-- Google Calendar -->
-                                    <div class="um-role-info" style="margin-bottom:16px;">
-                                        <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-brands fa-google" style="color:var(--atl-amber);"></i> Google Calendar</p>
-                                        <p class="um-role-info__desc">Connects the website to the Google account that owns your calendar. Confirmed bookings and public events are added to its <strong style="color:var(--atl-ink);">main calendar</strong>, and appointments you put on it block those times on the booking calendar. Only administrators see this card.</p>
-                                        <ul class="um-role-list">
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">OAuth client ID &amp; Client secret</strong> &mdash; from your Google Cloud project (below). The secret is stored encrypted and is never shown again; leave it blank to keep the saved one.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Redirect address</strong> &mdash; where Google sends you back after you allow access. It must be listed, exactly as shown, on the OAuth client in Google Cloud.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Save &amp; connect Google</strong> &mdash; saves the client, then opens Google. Sign in with the account that owns the calendar and allow access; you land back here, connected. No technical values to copy.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Test connection</strong> &mdash; signs in to Google again with what is saved and reads the calendar, then reports each step. Run it after any change on the Google side.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Disconnect</strong> &mdash; forgets the saved sign-in and asks Google to revoke it. The client ID and secret stay, so reconnecting is one click.</li>
-                                            <li class="can"><i class="fa-solid fa-check"></i> Values the server already has in its environment (<code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REFRESH_TOKEN</code>) keep working. Anything saved here takes precedence.</li>
-                                        </ul>
-                                        <p class="um-section-label" style="margin:14px 0 6px;">One-time Google Cloud setup</p>
-                                        <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.8;">
-                                            <li>In <strong style="color:var(--atl-ink);">console.cloud.google.com</strong> choose (or create) a project, then <strong style="color:var(--atl-ink);">APIs &amp; Services &rarr; Library &rarr; Google Calendar API &rarr; Enable</strong>.</li>
-                                            <li><strong style="color:var(--atl-ink);">OAuth consent screen</strong> (Google Auth platform): user type <em>External</em>, app name and your email. While testing, add the calendar&rsquo;s Google account as a <em>Test user</em>. When it works, set the publishing status to <strong style="color:var(--atl-ink);">In production</strong> &mdash; while it says &ldquo;Testing&rdquo;, Google cancels the sign-in every 7 days and the sync silently stops.</li>
-                                            <li><strong style="color:var(--atl-ink);">Credentials &rarr; Create credentials &rarr; OAuth client ID &rarr; Web application</strong>. Under <strong style="color:var(--atl-ink);">Authorized redirect URIs</strong> add the <em>Redirect address</em> shown in the card (press Copy). Save, then copy the Client ID and Client secret.</li>
-                                            <li>Paste both into the card and press <strong style="color:var(--atl-ink);">Save &amp; connect Google</strong>. Google may say <em>&ldquo;Google hasn&rsquo;t verified this app&rdquo;</em> &mdash; it is your own app: choose <strong style="color:var(--atl-ink);">Advanced &rarr; Go to (your app)</strong> and allow calendar access.</li>
-                                            <li>Back here, press <strong style="color:var(--atl-ink);">Test connection</strong>. Three green ticks mean the website can add and change events on that calendar.</li>
-                                        </ol>
-                                        <p class="um-role-info__desc" style="margin:8px 0 0;"><i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-right:6px;"></i>If a booking or event stops appearing on Google Calendar, run <strong style="color:var(--atl-ink);">Test connection</strong> first &mdash; it says whether Google has cancelled the sign-in (then press <em>Reconnect Google</em>) or the Calendar API has been switched off.</p>
-                                    </div>
-                        </div>
                     </div>
 
                     <!-- ===== PANEL: About (calendar documentation) ===== -->
@@ -2611,9 +2658,17 @@
                                     </div>
                                     <ul class="um-role-list">
                                         <li class="can"><i class="fa-solid fa-check"></i> The strip above the calendar shows whether Google Calendar is connected, and to which account</li>
-                                        <li class="can"><i class="fa-solid fa-check"></i> Administrators set it up, test it or disconnect it under <strong style="color:var(--atl-ink);">System &rarr; Integrations &rarr; Google Calendar</strong> (the <strong style="color:var(--atl-ink);">Set up</strong> button on the strip goes straight there)</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Administrators set it up, test it or disconnect it under <strong style="color:var(--atl-ink);">Calendar &rarr; Settings &rarr; Google Calendar</strong> (the <strong style="color:var(--atl-ink);">Set up</strong> button on the strip goes straight there)</li>
                                         <li class="can"><i class="fa-solid fa-check"></i> Once connected, confirmed bookings and public events are added to that Google account&rsquo;s main calendar, and its appointments block the same times on the booking form</li>
                                         <li class="cannot"><i class="fa-solid fa-xmark"></i> It is separate from the Microsoft 365 calendar above &mdash; each is connected on its own</li>
+
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">OAuth client ID &amp; Client secret</strong> &mdash; from your Google Cloud project (below). The secret is stored encrypted and is never shown again; leave it blank to keep the saved one.</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Redirect address</strong> &mdash; where Google sends you back after you allow access. It must be listed, exactly as shown, on the OAuth client in Google Cloud.</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Save &amp; connect Google</strong> &mdash; saves the client, then opens Google. Sign in with the account that owns the calendar and allow access; you land back here, connected. No technical values to copy.</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Test connection</strong> &mdash; signs in to Google again with what is saved and reads the calendar, then reports each step. Run it after any change on the Google side.</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> <strong style="color:var(--atl-ink);">Disconnect</strong> &mdash; forgets the saved sign-in and asks Google to revoke it. The client ID and secret stay, so reconnecting is one click.</li>
+                                        <li class="can"><i class="fa-solid fa-check"></i> Values the server already has in its environment (<code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>, <code>GOOGLE_REFRESH_TOKEN</code>) keep working. Anything saved here takes precedence.</li>
+                                        
                                     </ul>
                                 </div>
                                 <div class="um-role-info">
@@ -2627,6 +2682,16 @@
                                     </ul>
                                 </div>
                             </div>
+
+                            <h4 class="um-section-label" style="margin: 4px 0 12px;"><i class="fa-brands fa-google" style="color:var(--atl-amber); margin-right:6px;"></i>One-time Google Cloud setup</h4>
+<ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.8;">
+                                <li>In <strong style="color:var(--atl-ink);">console.cloud.google.com</strong> choose (or create) a project, then <strong style="color:var(--atl-ink);">APIs &amp; Services &rarr; Library &rarr; Google Calendar API &rarr; Enable</strong>.</li>
+                                <li><strong style="color:var(--atl-ink);">OAuth consent screen</strong> (Google Auth platform): user type <em>External</em>, app name and your email. While testing, add the calendar&rsquo;s Google account as a <em>Test user</em>. When it works, set the publishing status to <strong style="color:var(--atl-ink);">In production</strong> &mdash; while it says &ldquo;Testing&rdquo;, Google cancels the sign-in every 7 days and the sync silently stops.</li>
+                                <li><strong style="color:var(--atl-ink);">Credentials &rarr; Create credentials &rarr; OAuth client ID &rarr; Web application</strong>. Under <strong style="color:var(--atl-ink);">Authorized redirect URIs</strong> add the <em>Redirect address</em> shown in the card (press Copy). Save, then copy the Client ID and Client secret.</li>
+                                <li>Paste both into the card and press <strong style="color:var(--atl-ink);">Save &amp; connect Google</strong>. Google may say <em>&ldquo;Google hasn&rsquo;t verified this app&rdquo;</em> &mdash; it is your own app: choose <strong style="color:var(--atl-ink);">Advanced &rarr; Go to (your app)</strong> and allow calendar access.</li>
+                                <li>Back here, press <strong style="color:var(--atl-ink);">Test connection</strong>. Three green ticks mean the website can add and change events on that calendar.</li>
+                            </ol>
+                            <p class="um-role-info__desc" style="margin:10px 0 0;"><i class="fa-solid fa-lightbulb" style="color:var(--atl-amber); margin-right:6px;"></i>If a booking or event stops appearing on Google Calendar, run <strong style="color:var(--atl-ink);">Test connection</strong> first &mdash; it says whether Google has cancelled the sign-in (then press <em>Reconnect Google</em>) or the Calendar API has been switched off.</p>
 
                             <h4 class="um-section-label" style="margin: 4px 0 12px;">Common tasks</h4>
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
@@ -2693,7 +2758,7 @@
                                         <div class="fin-card__icon"><i class="fa-solid fa-percent"></i></div>
                                         <div class="fin-card__label">Profit Margin</div>
                                     </div>
-                                    <div class="fin-card__value" id="finStat-Margin">—</div>
+                                    <div class="fin-card__value" id="finStat-Margin">-</div>
                                     <div class="fin-card__sub">Net profit &divide; revenue</div>
                                 </div>
                                 <div class="fin-card" style="--c:var(--atl-orange);">
@@ -2787,6 +2852,9 @@
                                 </div>-->
                             </div>
 
+                            <!-- Consolidated revenue sources (client bookings + event tickets + other): js/admin/finance-tickets.js -->
+                            <div class="fts-sources" id="ftsSources" aria-live="polite"></div>
+
                             <!-- Ledger tabs (migrated from Bootstrap nav-tabs to the platform atl-tab-bar) -->
                             <div class="atl-tab-bar" id="finTabBar" role="tablist">
                                 <button class="atl-tab-btn active" data-um-tab="finTransactions" role="tab" aria-selected="true">Recent Transactions</button>
@@ -2794,6 +2862,7 @@
                                 <button class="atl-tab-btn" data-um-tab="finExpenses" role="tab" aria-selected="false"><i class="fa-solid fa-receipt" style="margin-right:5px; color:var(--atl-clay);"></i>Expenses</button>
                                 <button class="atl-tab-btn" data-um-tab="finReconciliation" role="tab" aria-selected="false"><i class="fa-solid fa-scale-balanced" style="margin-right:5px; color: var(--atl-amber);"></i>Reconciliation</button>
                                 <button class="atl-tab-btn" data-um-tab="finEft" id="finEftTabBtn" role="tab" aria-selected="false"><i class="fa-solid fa-building-columns" style="margin-right:5px; color: var(--atl-blue);"></i>EFT Payments<span class="eft-pending-badge" id="eftPendingBadge" style="display:none;" title="Proofs of payment waiting for review">0</span></button>
+                                <button class="atl-tab-btn" data-um-tab="finTickets" id="finTicketsTabBtn" role="tab" aria-selected="false"><i class="fa-solid fa-ticket" style="margin-right:5px; color:var(--atl-amber);"></i>Ticket Sales</button>
                                 <button class="atl-tab-btn" data-um-tab="finReminders" role="tab" aria-selected="false"><i class="fa-solid fa-bell" style="margin-right:5px; color:var(--atl-purple);"></i>Reminders</button>
                                 <button class="atl-tab-btn" data-um-tab="finAnalytics" role="tab" aria-selected="false"><i class="fa-solid fa-chart-pie" style="margin-right:5px; color:var(--atl-sage);"></i>Analytics &amp; Reports</button>
                                 <button class="atl-tab-btn" data-um-tab="finAbout" role="tab" aria-selected="false"><i class="fa-solid fa-circle-info" style="margin-right:5px;"></i>About</button>
@@ -3092,6 +3161,11 @@
                                     </div>
                                 </div>
 
+                                <div role="tabpanel" class="um-panel" id="finTickets">
+                                    <div class="fts-toolbar"><span>Event ticket sales as money: confirmed payments, refunds, PayFast fees and what is still only a projection.</span><button type="button" id="ftsRefresh" class="atl-btn atl-btn--ghost"><i class="fa-solid fa-rotate-right" style="margin-right:5px;"></i>Refresh</button></div>
+                                    <div class="fts-tab"><p class="fts-empty">Open this tab to load ticket sales.</p></div>
+                                </div>
+
                                 <div role="tabpanel" class="um-panel" id="finAnalytics">
                                     <div style="padding:10px 0 12px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between;">
                                         <div style="color: var(--atl-muted); font-size:12px;">Financial intelligence, monthly revenue trend, outstanding debt aging, and top client insights.</div>
@@ -3372,28 +3446,28 @@
                         <div class="col-xs-6 col-md-3" style="margin-bottom:12px;">
                             <div class="fin-tile">
                                 <div class="fin-tile-label"><i class="fa-solid fa-layer-group" style="color:var(--atl-amber);margin-right:5px;"></i>Total Services</div>
-                                <div id="svcStat-Total" style="font-size:26px;font-weight:bold;color:var(--atl-ink);margin:8px 0;">—</div>
+                                <div id="svcStat-Total" style="font-size:26px;font-weight:bold;color:var(--atl-ink);margin:8px 0;">-</div>
                                 <div class="text-muted small">All non-deleted entries</div>
                             </div>
                         </div>
                         <div class="col-xs-6 col-md-3" style="margin-bottom:12px;">
                             <div class="fin-tile">
                                 <div class="fin-tile-label"><i class="fa-solid fa-circle-check" style="color:var(--atl-sage);margin-right:5px;"></i>Active</div>
-                                <div id="svcStat-Active" style="font-size:26px;font-weight:bold;color:var(--atl-sage);margin:8px 0;">—</div>
+                                <div id="svcStat-Active" style="font-size:26px;font-weight:bold;color:var(--atl-sage);margin:8px 0;">-</div>
                                 <div class="text-muted small">Available for new bookings</div>
                             </div>
                         </div>
                         <div class="col-xs-6 col-md-3" style="margin-bottom:12px;">
                             <div class="fin-tile">
                                 <div class="fin-tile-label"><i class="fa-solid fa-ban" style="color:var(--atl-clay);margin-right:5px;"></i>Inactive</div>
-                                <div id="svcStat-Inactive" style="font-size:26px;font-weight:bold;color:var(--atl-clay);margin:8px 0;">—</div>
+                                <div id="svcStat-Inactive" style="font-size:26px;font-weight:bold;color:var(--atl-clay);margin:8px 0;">-</div>
                                 <div class="text-muted small">Hidden from booking form</div>
                             </div>
                         </div>
                         <div class="col-xs-6 col-md-3" style="margin-bottom:12px;">
                             <div class="fin-tile">
                                 <div class="fin-tile-label"><i class="fa-solid fa-archive" style="color:var(--atl-muted);margin-right:5px;"></i>Archived</div>
-                                <div id="svcStat-Archived" style="font-size:26px;font-weight:bold;color:var(--atl-muted);margin:8px 0;">—</div>
+                                <div id="svcStat-Archived" style="font-size:26px;font-weight:bold;color:var(--atl-muted);margin:8px 0;">-</div>
                                 <div class="text-muted small">Soft-deleted services</div>
                             </div>
                         </div>
@@ -3594,7 +3668,7 @@
                                     <div class="um-input-wrap">
                                         <i class="fa-solid fa-hourglass-half um-input-icon"></i>
                                         <select id="svcPriceUnit" class="um-input">
-                                            <option value="">— not applicable —</option>
+                                            <option value="">Not applicable</option>
                                         </select>
                                     </div>
                                 </div>
@@ -3640,7 +3714,7 @@
                                     <div class="um-input-wrap">
                                         <i class="fa-solid fa-layer-group um-input-icon"></i>
                                         <select id="svcGroup" class="um-input">
-                                            <option value="">— none (add-on / other) —</option>
+                                            <option value="">None (add-on / other)</option>
                                         </select>
                                     </div>
                                 </div>
@@ -3683,7 +3757,7 @@
                                     </div>
                                 </div>
                                 <div class="um-field-group" id="svcBasePriceField">
-                                    <label class="um-label" for="svcBasePrice">Booking Rate Override (R) <span style="font-weight:400;font-size:10px;color:var(--atl-muted);">optional — rarely needed</span></label>
+                                    <label class="um-label" for="svcBasePrice">Booking Rate Override (R) <span style="font-weight:400;font-size:10px;color:var(--atl-muted);">optional, rarely needed</span></label>
                                     <div class="um-input-wrap">
                                         <i class="fa-solid fa-receipt um-input-icon"></i>
                                         <input type="number" id="svcBasePrice" class="um-input" placeholder="Leave blank to use the price above" min="0" step="0.01">
@@ -4160,11 +4234,11 @@
                     <div id="lcPanelOverview" class="um-panel active">
                         <div class="lc-panel-inner">
                             <div class="lc-stat-grid" style="margin-bottom:22px;">
-                                <div class="atl-card" style="text-align:center; padding:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--atl-muted);margin-bottom:6px;">Active Documents</div><div id="lcStatDocs" style="font-size:28px;font-weight:800;color:var(--atl-amber);font-family:var(--atl-mono,'JetBrains Mono',monospace);">—</div></div>
-                                <div class="atl-card" style="text-align:center; padding:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--atl-muted);margin-bottom:6px;">Published Versions</div><div id="lcStatVersions" style="font-size:28px;font-weight:800;color:var(--atl-amber);font-family:var(--atl-mono,'JetBrains Mono',monospace);">—</div></div>
-                                <div class="atl-card" style="text-align:center; padding:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--atl-muted);margin-bottom:6px;">Consent Records</div><div id="lcStatConsent" style="font-size:28px;font-weight:800;color:var(--atl-amber);font-family:var(--atl-mono,'JetBrains Mono',monospace);">—</div></div>
-                                <div class="atl-card" style="text-align:center; padding:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--atl-muted);margin-bottom:6px;">Signed Contracts</div><div id="lcStatSigned" style="font-size:28px;font-weight:800;color:var(--atl-amber);font-family:var(--atl-mono,'JetBrains Mono',monospace);">—</div></div>
-                                <div class="atl-card" style="text-align:center; padding:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--atl-muted);margin-bottom:6px;">Draft Contracts</div><div id="lcStatDraft" style="font-size:28px;font-weight:800;color:var(--atl-amber);font-family:var(--atl-mono,'JetBrains Mono',monospace);">—</div></div>
+                                <div class="atl-card" style="text-align:center; padding:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--atl-muted);margin-bottom:6px;">Active Documents</div><div id="lcStatDocs" style="font-size:28px;font-weight:800;color:var(--atl-amber);font-family:var(--atl-mono,'JetBrains Mono',monospace);">-</div></div>
+                                <div class="atl-card" style="text-align:center; padding:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--atl-muted);margin-bottom:6px;">Published Versions</div><div id="lcStatVersions" style="font-size:28px;font-weight:800;color:var(--atl-amber);font-family:var(--atl-mono,'JetBrains Mono',monospace);">-</div></div>
+                                <div class="atl-card" style="text-align:center; padding:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--atl-muted);margin-bottom:6px;">Consent Records</div><div id="lcStatConsent" style="font-size:28px;font-weight:800;color:var(--atl-amber);font-family:var(--atl-mono,'JetBrains Mono',monospace);">-</div></div>
+                                <div class="atl-card" style="text-align:center; padding:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--atl-muted);margin-bottom:6px;">Signed Contracts</div><div id="lcStatSigned" style="font-size:28px;font-weight:800;color:var(--atl-amber);font-family:var(--atl-mono,'JetBrains Mono',monospace);">-</div></div>
+                                <div class="atl-card" style="text-align:center; padding:18px;"><div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--atl-muted);margin-bottom:6px;">Draft Contracts</div><div id="lcStatDraft" style="font-size:28px;font-weight:800;color:var(--atl-amber);font-family:var(--atl-mono,'JetBrains Mono',monospace);">-</div></div>
                             </div>
                             <div class="atl-card">
                                 <h4 class="um-section-label" style="margin-bottom:14px;"><i class="fa-solid fa-clock-rotate-left" style="color:var(--atl-amber);margin-right:8px;"></i>Recent Legal Activity</h4>
@@ -4185,8 +4259,8 @@
                             <div class="lc-editor-grid">
                                 <div class="atl-card">
                                     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
-                                        <div><h4 class="um-section-label" style="margin:0 0 4px 0;">Privacy Policy</h4><p class="um-section-desc" style="margin:0;" id="lcPrivacyMeta">—</p></div>
-                                        <span class="lc-doc-status lc-doc-status--draft" id="lcPrivacyStatus">—</span>
+                                        <div><h4 class="um-section-label" style="margin:0 0 4px 0;">Privacy Policy</h4><p class="um-section-desc" style="margin:0;" id="lcPrivacyMeta">-</p></div>
+                                        <span class="lc-doc-status lc-doc-status--draft" id="lcPrivacyStatus">-</span>
                                     </div>
                                     <div class="lc-quill-host"><div id="legalPrivacyEditor"></div></div>
                                     <input type="text" id="lcPrivacyChangeSummary" class="atl-input" style="margin-top:14px;" placeholder="Brief description of changes…">
@@ -4210,8 +4284,8 @@
                             <div class="lc-editor-grid">
                                 <div class="atl-card">
                                     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
-                                        <div><h4 class="um-section-label" style="margin:0 0 4px 0;">Terms of Use</h4><p class="um-section-desc" style="margin:0;" id="lcTermsMeta">—</p></div>
-                                        <span class="lc-doc-status lc-doc-status--draft" id="lcTermsStatus">—</span>
+                                        <div><h4 class="um-section-label" style="margin:0 0 4px 0;">Terms of Use</h4><p class="um-section-desc" style="margin:0;" id="lcTermsMeta">-</p></div>
+                                        <span class="lc-doc-status lc-doc-status--draft" id="lcTermsStatus">-</span>
                                     </div>
                                     <div class="lc-quill-host"><div id="legalTermsEditor"></div></div>
                                     <input type="text" id="lcTermsChangeSummary" class="atl-input" style="margin-top:14px;" placeholder="Brief description of changes…">
@@ -4235,8 +4309,8 @@
                             <div class="lc-editor-grid">
                                 <div class="atl-card">
                                     <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
-                                        <div><h4 class="um-section-label" style="margin:0 0 4px 0;">Cookie &amp; Consent Wording</h4><p class="um-section-desc" style="margin:0;" id="lcCookieMeta">—</p></div>
-                                        <span class="lc-doc-status lc-doc-status--draft" id="lcCookieStatus">—</span>
+                                        <div><h4 class="um-section-label" style="margin:0 0 4px 0;">Cookie &amp; Consent Wording</h4><p class="um-section-desc" style="margin:0;" id="lcCookieMeta">-</p></div>
+                                        <span class="lc-doc-status lc-doc-status--draft" id="lcCookieStatus">-</span>
                                     </div>
                                     <div class="um-security-tips" style="margin-bottom:14px;">
                                         <i class="fa-solid fa-globe"></i>
@@ -4277,7 +4351,7 @@
                                 <div id="lcConsentEmpty" style="display:none; padding:24px; text-align:center; color:var(--atl-muted);">No consent records found.</div>
                                 <div class="lc-pagination">
                                     <button class="um-btn um-btn--ghost um-btn--sm" id="lcConsentPrev"><i class="fa-solid fa-chevron-left"></i> Prev</button>
-                                    <span id="lcConsentPageInfo" style="font-size:12px;color:var(--atl-muted-dim);">—</span>
+                                    <span id="lcConsentPageInfo" style="font-size:12px;color:var(--atl-muted-dim);">-</span>
                                     <button class="um-btn um-btn--ghost um-btn--sm" id="lcConsentNext">Next <i class="fa-solid fa-chevron-right"></i></button>
                                 </div>
                             </div>
@@ -4396,7 +4470,7 @@
                                 <div id="lcContractsEmpty" style="display:none; padding:24px; text-align:center; color:var(--atl-muted);">No contracts found.</div>
                                 <div class="lc-pagination">
                                     <button class="um-btn um-btn--ghost um-btn--sm" id="lcContractsPrev"><i class="fa-solid fa-chevron-left"></i> Prev</button>
-                                    <span id="lcContractsPageInfo" style="font-size:12px;color:var(--atl-muted-dim);">—</span>
+                                    <span id="lcContractsPageInfo" style="font-size:12px;color:var(--atl-muted-dim);">-</span>
                                     <button class="um-btn um-btn--ghost um-btn--sm" id="lcContractsNext">Next <i class="fa-solid fa-chevron-right"></i></button>
                                 </div>
                             </div>
@@ -5158,7 +5232,7 @@
                             </div>
                             <div class="um-divider"></div>
                             <p class="um-section-desc" style="width:100%; margin-bottom:18px;">
-                                Each card is a <strong style="color:var(--atl-ink);">country name</strong> and a <strong style="color:var(--atl-ink);">flag image</strong>. Add a country any time you perform somewhere new, or remove one — the public grid always reflects exactly what's listed here.
+                                Each card is a <strong style="color:var(--atl-ink);">country name</strong> and a <strong style="color:var(--atl-ink);">flag image</strong>. Add a country any time you perform somewhere new, or remove one. The public grid always reflects exactly what's listed here.
                             </p>
                             <p class="um-section-desc" style="margin-top:14px; display:flex; gap:8px; align-items:flex-start; background:color-mix(in srgb, var(--atl-clay) 8%, transparent); border:1px solid color-mix(in srgb, var(--atl-clay) 22%, transparent); border-radius:8px; padding:12px 14px;">
                                 <i class="fa-solid fa-triangle-exclamation" style="color:var(--atl-clay); margin-top:2px;"></i>
@@ -5228,7 +5302,7 @@
                         <div>
                             <p class="atl-section-eyebrow">Social Proof</p>
                             <h2 class="atl-section-heading"><i class="fa-solid fa-quote-left"></i> Testimonials</h2>
-                            <p class="atl-section-sub">Visitors can submit a testimonial from the public site — review and approve before it appears.</p>
+                            <p class="atl-section-sub">Visitors can submit a testimonial from the public site. Review and approve before it appears.</p>
                         </div>
                         <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
                             <button id="testimonialsAddNewBtn" class="atl-btn atl-btn--primary">
@@ -6387,7 +6461,7 @@
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-list"></i></div>
                                 <div>
                                     <h4 class="um-section-label" style="margin:0 0 4px 0;">Campaigns</h4>
-                                    <p class="um-section-desc" style="margin:0;">Sent, scheduled and failed campaigns — reuse, edit, cancel or delete.</p>
+                                    <p class="um-section-desc" style="margin:0;">Sent, scheduled and failed campaigns: reuse, edit, cancel or delete.</p>
                                 </div>
                             </div>
                             <div class="um-divider" style="margin-top:0;"></div>
@@ -6466,15 +6540,15 @@
                                 <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px;">
                                     <div class="db-stat-card" style="padding:14px 18px;">
                                         <div class="db-stat-label">Total Subscribers</div>
-                                        <div class="db-stat-value" id="subKpiTotal">—</div>
+                                        <div class="db-stat-value" id="subKpiTotal">-</div>
                                     </div>
                                     <div class="db-stat-card" style="padding:14px 18px;">
                                         <div class="db-stat-label">Active</div>
-                                        <div class="db-stat-value" id="subKpiActive">—</div>
+                                        <div class="db-stat-value" id="subKpiActive">-</div>
                                     </div>
                                     <div class="db-stat-card" style="padding:14px 18px;">
                                         <div class="db-stat-label">New (Last 7 Days)</div>
-                                        <div class="db-stat-value" id="subKpiNew7d">—</div>
+                                        <div class="db-stat-value" id="subKpiNew7d">-</div>
                                     </div>
                                 </div>
 
@@ -6533,7 +6607,7 @@
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-cake-candles"></i></div>
                                 <div>
                                     <h4 class="um-section-label" style="margin:0 0 4px 0;">Birthday Automation</h4>
-                                    <p class="um-section-desc" style="margin:0;">Automatically email subscribers on their birthday — day &amp; month only, never a year.</p>
+                                    <p class="um-section-desc" style="margin:0;">Automatically email subscribers on their birthday (day &amp; month only, never a year).</p>
                                 </div>
                             </div>
                             <div class="um-divider" style="margin-top:0;"></div>
@@ -6909,7 +6983,7 @@
                             </div>
                             <hr class="um-divider" style="margin-top:0;">
                             <select id="brandThemeFont" class="um-input" style="width:100%;min-height:44px;" onchange="updateBrandFontPreview()">
-                                <option value="" selected>— Open Sans (Default) —</option>
+                                <option value="" selected>Open Sans (Default)</option>
                                 <option value="'Farsan', cursive">Farsan</option>
                                 <option value="'Outfit', sans-serif">Outfit</option>
                                 <option value="'Inter', sans-serif">Inter</option>
@@ -7004,7 +7078,7 @@
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-palette"></i></div>
                                 <div>
                                     <h4 class="um-section-label" style="margin-bottom:4px;">Appearance</h4>
-                                    <p class="um-section-desc">Finish, house accent and layout density. Applies instantly and is saved to this browser — it does not affect other admins.</p>
+                                    <p class="um-section-desc">Finish, house accent and layout density. Applies instantly and is saved to this browser. It does not affect other admins.</p>
                                 </div>
                             </div>
                             <div class="um-divider"></div>
@@ -7612,7 +7686,7 @@
                                     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; flex-wrap:wrap;">
                                         <div>
                                             <h4 class="um-section-label"><i class="fa-solid fa-user-slash" style="margin-right:8px;"></i>POPIA Data Erasure Requests</h4>
-                                            <p class="um-section-desc" style="font-size:13px;">Review, approve and process client requests to anonymise their personal information. Financial records (bookings, invoices, transactions) are retained for the legally required 5-year period — only personal identifiers are replaced. Processing is irreversible.</p>
+                                            <p class="um-section-desc" style="font-size:13px;">Review, approve and process client requests to anonymise their personal information. Financial records (bookings, invoices, transactions) are retained for the legally required 5-year period. Only personal identifiers are replaced. Processing is irreversible.</p>
                                         </div>
                                         <span id="popiaPendingBadge" class="atl-badge atl-badge--pending" style="display:none;"></span>
                                     </div>
@@ -8079,7 +8153,7 @@
             var hint = document.getElementById('atlAppearanceHint');
             if (hint) hint.textContent = finish + ' · ' + accent;
             var btn = document.getElementById('atlAppearanceBtn');
-            if (btn) btn.setAttribute('aria-label', 'Appearance — ' + finish + ', ' + accent);
+            if (btn) btn.setAttribute('aria-label', 'Appearance: ' + finish + ', ' + accent);
         }
 
         function atlCloseAccountMenu() {
@@ -8377,7 +8451,7 @@
                     if (!data || !data.success) return;
                     var opts = data.templates
                         .filter(function (t) { return BNR_SYSTEM_TRACK_KEYS.indexOf(t.template_key) === -1; })
-                        .map(function (t) { return '<option value="' + t.template_key + '">' + t.category + ' — ' + t.template_key + '</option>'; })
+                        .map(function (t) { return '<option value="' + t.template_key + '">' + t.category + ': ' + t.template_key + '</option>'; })
                         .join('');
                     $('#bnrPreviewTemplateSelect').append(opts);
                 }).catch(function (err) { console.error('Failed to load templates for preview picker:', err); });
@@ -8401,7 +8475,7 @@
                 var data = await apiCall('/api/admin/email-templates/' + encodeURIComponent(key) + '/preview');
                 if (!data || !data.success) throw new Error('Invalid response');
                 $frame.attr('srcdoc', data.html);
-                $status.text(data.banner_assigned ? 'Showing the banner currently assigned to this template.' : 'No banner assigned — showing the text-headline fallback.');
+                $status.text(data.banner_assigned ? 'Showing the banner currently assigned to this template.' : 'No banner assigned. Showing the text-headline fallback.');
             } catch (err) {
                 console.error('Failed to load preview:', err);
                 $status.text('Could not load the preview.');
@@ -8567,7 +8641,7 @@
             };
             img.onerror = function () {
                 URL.revokeObjectURL(objectUrl);
-                $('#bnrImageError').text('Could not read the image — the file may be corrupt.').show();
+                $('#bnrImageError').text('Could not read the image. The file may be corrupt.').show();
                 input.value = '';
             };
             img.src = objectUrl;
@@ -8643,7 +8717,7 @@
             if (usageCount > 0) {
                 var ok = await window.notificationService.showConfirm({
                     title: 'Archive banner?',
-                    message: 'This banner is used by ' + usageCount + ' template(s) — they will fall back to the text headline block. Archive anyway?',
+                    message: 'This banner is used by ' + usageCount + ' template(s). They will fall back to the text headline block. Archive anyway?',
                     isDestructive: true
                 });
                 if (!ok) return;
@@ -8823,7 +8897,7 @@
             return '<span style="display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:600; color:' + c[0] + '; background:' + c[1] + ';">' + abEsc(label) + '</span>';
         }
         function abTimeAgo(ts) {
-            if (!ts) return '—';
+            if (!ts) return '-';
             var d = new Date(String(ts).replace(' ', 'T') + 'Z');
             if (isNaN(d)) return abEsc(ts);
             var mins = Math.floor((Date.now() - d.getTime()) / 60000);
@@ -8920,8 +8994,8 @@
                     + '<select class="atl-filter-select ab-status-select" data-id="' + it.id + '" style="height:30px; font-size:12px; padding:2px 6px; vertical-align:middle;">'
                     + '<option value="">Mark…</option><option value="WON">Won</option><option value="LOST">Lost</option><option value="CLOSED">Closed</option></select>';
                 return '<tr style="border-bottom:1px solid var(--atl-line);">'
-                    + '<td style="padding:11px 14px; vertical-align:top;"><div style="color:var(--atl-ink); font-weight:600;">' + abEsc(it.name || '—') + '</div><div style="color:var(--atl-muted); font-size:12px;">' + abEsc(it.email || '') + '</div></td>'
-                    + '<td style="padding:11px 14px; vertical-align:top;"><div style="color:var(--atl-ink-dim);">' + abEsc(it.event_name || it.event_type || '—') + '</div>' + (it.event_date ? '<div style="color:var(--atl-muted); font-size:12px;">' + abEsc(it.event_date) + '</div>' : '') + '</td>'
+                    + '<td style="padding:11px 14px; vertical-align:top;"><div style="color:var(--atl-ink); font-weight:600;">' + abEsc(it.name || '-') + '</div><div style="color:var(--atl-muted); font-size:12px;">' + abEsc(it.email || '') + '</div></td>'
+                    + '<td style="padding:11px 14px; vertical-align:top;"><div style="color:var(--atl-ink-dim);">' + abEsc(it.event_name || it.event_type || '-') + '</div>' + (it.event_date ? '<div style="color:var(--atl-muted); font-size:12px;">' + abEsc(it.event_date) + '</div>' : '') + '</td>'
                     + '<td style="padding:11px 14px; vertical-align:top;"><span style="display:inline-block; padding:3px 9px; border-radius:6px; font-size:11px; font-weight:600; color:var(--atl-ink-dim); background:var(--atl-card); border:1px solid var(--atl-line);">' + abEsc(abStageLabel(it.furthest_step)) + '</span>' + (it.consent_given ? ' <i class="fa-solid fa-circle-check" title="Consented to reminders" style="color:var(--atl-green); font-size:11px;"></i>' : '') + '</td>'
                     + '<td style="padding:11px 14px; vertical-align:top;">' + abStatusBadge(it.status) + '</td>'
                     + '<td style="padding:11px 14px; vertical-align:top; text-align:center; color:var(--atl-ink-dim);">' + (it.reminders_sent || 0) + '</td>'
@@ -9573,7 +9647,7 @@
                             <div class="um-input-wrap">
                                 <i class="fa-solid fa-tag um-input-icon"></i>
                                 <select id="eventsType" class="um-input">
-                                    <option value="">— Select Category —</option>
+                                    <option value="">Select Category</option>
                                     <option value="Corporate Event">Corporate Event</option>
                                     <option value="Festival / Concert">Festival / Concert</option>
                                     <option value="Private Function">Private Function</option>
@@ -9656,8 +9730,8 @@
                             <select id="eventsStatus" class="um-input">
                                 <option value="upcoming">Published (Visible on main site)</option>
                                 <option value="draft">Draft (Hidden from main site)</option>
-                                <option value="sold_out">Sold Out (Visible — tickets unavailable)</option>
-                                <option value="postponed">Postponed (Visible — new date TBD)</option>
+                                <option value="sold_out">Sold Out (Visible, tickets unavailable)</option>
+                                <option value="postponed">Postponed (Visible, new date TBD)</option>
                                 <option value="live">Live (Active / In-Progress)</option>
                                 <option value="completed">Completed (Archived)</option>
                                 <option value="cancelled">Cancelled</option>
@@ -10027,7 +10101,7 @@
                             <option value="" disabled selected>Select a country&hellip;</option>
                         </select>
                     </div>
-                    <small class="help-block">The flag loads automatically — no image upload needed.</small>
+                    <small class="help-block">The flag loads automatically. No image upload needed.</small>
                 </div>
                 <div id="footprintFlagPreview" style="display:none; margin-top:14px; border-radius:var(--atl-r-md); overflow:hidden; position:relative; max-width:180px;">
                     <img id="footprintFlagPreviewImg" src="" alt="Flag preview" style="display:block; width:100%; aspect-ratio:3/2; object-fit:cover; border-radius:var(--atl-r-md); border:1px solid var(--atl-line); background:var(--atl-surface2);">
@@ -10141,7 +10215,7 @@
         </div>
         <div class="atl-drawer__body">
             <form id="popiaAnonymizeNowForm" class="um-form" autocomplete="off">
-                <p class="um-section-desc" style="font-size:12px; margin-bottom:16px;">Creates a request, approves it and anonymizes the client's personal data immediately — in one step. Financial records are retained. This cannot be undone.</p>
+                <p class="um-section-desc" style="font-size:12px; margin-bottom:16px;">Creates a request, approves it and anonymizes the client's personal data immediately, in one step. Financial records are retained. This cannot be undone.</p>
                 <div class="um-field-group">
                     <label class="um-label" for="popiaAnonEmail">Client Email Address</label>
                     <div class="um-input-wrap">
@@ -10292,7 +10366,7 @@
                     <div style="display:flex; gap:10px; margin-top:8px;">
                         <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" id="btnTeamClearImage"><i class="fa-solid fa-image-slash"></i> Remove photo</button>
                     </div>
-                    <small class="help-block">Optional — members without a photo show an initial in place of a headshot.</small>
+                    <small class="help-block">Optional: members without a photo show an initial in place of a headshot.</small>
                 </div>
                 <div class="um-field-group">
                     <label class="um-label" for="teamName">Name <span class="um-req">*</span></label>
@@ -10347,7 +10421,7 @@
                         </div>
                     </div>
                 </div>
-                <small class="help-block" style="display:block; margin:-6px 0 4px;">Only links you fill in are shown on the website, as icons — leave any of these blank to hide that icon. Links must start with https:// or http://.</small>
+                <small class="help-block" style="display:block; margin:-6px 0 4px;">Only links you fill in are shown on the website, as icons. Leave any of these blank to hide that icon. Links must start with https:// or http://.</small>
 
                 <h5 style="color:var(--atl-amber); margin:20px 0 12px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-address-book"></i> Internal contact <span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--atl-muted);">&mdash; never published</span></h5>
                 <div class="um-form-grid">
@@ -10517,7 +10591,7 @@
                         <i class="fa-solid fa-location-dot um-input-icon" aria-hidden="true"></i>
                         <input type="text" class="um-input" id="aclLocation" maxlength="120" placeholder="Search a city or venue…" autocomplete="off" aria-describedby="aclLocationHelp aclLocationErr">
                     </div>
-                    <small class="help-block" id="aclLocationHelp">Pick a suggestion, or type your own — e.g. Johannesburg.</small>
+                    <small class="help-block" id="aclLocationHelp">Pick a suggestion, or type your own, e.g. Johannesburg.</small>
                     <small class="acl-field-error" id="aclLocationErr"></small>
                 </div>
                 <div class="um-field-group">
@@ -10628,7 +10702,7 @@
                     <label class="um-label" for="bnrName">Name <span style="color:var(--atl-clay);">*</span></label>
                     <div class="um-input-wrap">
                         <i class="fa-solid fa-tag um-input-icon"></i>
-                        <input type="text" class="um-input" id="bnrName" placeholder="e.g. Confirmations — Gold Spotlight" required>
+                        <input type="text" class="um-input" id="bnrName" placeholder="e.g. Confirmations: Gold Spotlight" required>
                     </div>
                 </div>
                 <div class="um-field-group">
@@ -10942,7 +11016,7 @@
                          Branding -> Banners; assign/unassign under its Assign action. -->
                     <p class="um-section-desc" style="width:100%; margin:-4px 0 14px; display:flex; gap:6px; align-items:flex-start;">
                         <i class="fa-solid fa-panorama" style="color:var(--atl-amber); margin-top:2px;"></i>
-                        <span>Banner is resolved automatically from the <strong style="color:var(--atl-ink);">Contact &amp; Support</strong> category — manage it under <strong style="color:var(--atl-ink);">Branding &rarr; Banners</strong>.</span>
+                        <span>Banner is resolved automatically from the <strong style="color:var(--atl-ink);">Contact &amp; Support</strong> category. Manage it under <strong style="color:var(--atl-ink);">Branding &rarr; Banners</strong>.</span>
                     </p>
 
                     <!-- Personalization Tokens Bar -->
@@ -11248,10 +11322,10 @@
                 <div id="umAuditGroup" style="display:none; margin-top:20px; padding:12px; background:var(--atl-surface2); border: 1px solid var(--atl-line); border-radius:6px; font-size:12px; color:var(--atl-muted);">
                     <h5 style="color:var(--atl-amber); margin:0 0 8px; font-size:12px; text-transform:uppercase; letter-spacing:0.5px;"><i class="fa-solid fa-clock-rotate-left"></i> Audit Trail</h5>
                     <div style="display:flex; flex-direction:column; gap:6px;">
-                        <div><strong>Created By:</strong> <span id="umAuditCreatedBy">—</span></div>
-                        <div><strong>Created On:</strong> <span id="umAuditCreatedOn">—</span></div>
-                        <div><strong>Modified By:</strong> <span id="umAuditModifiedBy">—</span></div>
-                        <div><strong>Modified On:</strong> <span id="umAuditModifiedOn">—</span></div>
+                        <div><strong>Created By:</strong> <span id="umAuditCreatedBy">-</span></div>
+                        <div><strong>Created On:</strong> <span id="umAuditCreatedOn">-</span></div>
+                        <div><strong>Modified By:</strong> <span id="umAuditModifiedBy">-</span></div>
+                        <div><strong>Modified On:</strong> <span id="umAuditModifiedOn">-</span></div>
                     </div>
                 </div>
                 <!-- Change History (read-only, edit mode only) — full audit_log trail for this account -->
@@ -11262,7 +11336,7 @@
                 <!-- Create-mode notice: the new user sets their own password via an emailed invite link -->
                 <div class="um-invite-notice" id="umInviteNotice" style="display:none;">
                     <i class="fa-solid fa-paper-plane"></i>
-                    <span>No password needed — an invitation email will be sent so the new user can securely set their own password. The link expires in 72 hours.</span>
+                    <span>No password needed. An invitation email will be sent so the new user can securely set their own password. The link expires in 72 hours.</span>
                 </div>
                 <div class="um-security-tips" id="umDrawerPwdTips">
                     <i class="fa-solid fa-circle-info"></i>
@@ -11309,7 +11383,7 @@
                         </div>
                     </div>
                     <div class="um-field-group">
-                        <label class="um-label">Birthday <span style="color:var(--atl-muted); font-weight:400;">(day &amp; month only — no year)</span></label>
+                        <label class="um-label">Birthday <span style="color:var(--atl-muted); font-weight:400;">(day &amp; month only, no year)</span></label>
                         <div style="display:flex; gap:10px;">
                             <div class="um-input-wrap" style="flex:1;">
                                 <select class="um-input" id="editSubscriberBirthdayDay" aria-label="Birthday day">
@@ -11373,7 +11447,7 @@
                     <div class="form-group">
                         <label class="mb-label" for="rpProofOfPayment">Proof of Payment <span class="atl-req">*</span></label>
                         <input type="file" id="rpProofOfPayment" class="atl-input" accept=".pdf,.jpg,.jpeg,.png,.webp" style="background: var(--atl-paper);color: var(--atl-ink);padding:8px;">
-                        <small style="color: var(--atl-muted);font-size:11px;">PDF, JPEG, PNG, or WEBP — a bank app screenshot or EFT confirmation is fine. Required to save.</small>
+                        <small style="color: var(--atl-muted);font-size:11px;">PDF, JPEG, PNG, or WEBP. A bank app screenshot or EFT confirmation is fine. Required to save.</small>
                     </div>
         </div>
         <div class="atl-drawer__footer">
@@ -11409,7 +11483,7 @@
                         <textarea id="cancelReason" class="atl-input" rows="4" style="background:var(--atl-input-bg);color: var(--atl-ink);" placeholder="Brief explanation for the client..."></textarea>
                     </div>
                     <div class="form-group">
-                        <label class="mb-label" for="cancelRefundAmount">Refund Amount (R) <span style="font-weight:400;text-transform:none;letter-spacing:0;">— 0 if non-refundable</span></label>
+                        <label class="mb-label" for="cancelRefundAmount">Refund Amount (R) <span style="font-weight:400;text-transform:none;letter-spacing:0;">(0 if non-refundable)</span></label>
                         <input type="number" id="cancelRefundAmount" class="atl-input" style="background:var(--atl-input-bg);color: var(--atl-ink);" value="0" min="0" step="0.01">
                         <small id="cancelPaidNote" style="color: var(--atl-muted);font-size:11px;"></small>
                     </div>
@@ -11681,7 +11755,7 @@
                     <div class="form-group">
                         <label class="mb-label" for="manualTxBooking">Link to Booking <span style="font-weight:400;text-transform:none;">(optional)</span></label>
                         <select id="manualTxBooking" class="atl-input" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                            <option value="">— No booking —</option>
+                            <option value="">No booking</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -12574,7 +12648,7 @@
         // Grouped as on the rate card, each option showing the price as published ("R28,000", "R12,000 – R25,000",
         // "From R50,000", "Enquire …"). A range / "from" / enquiry service is booked with NO amount: it is quoted later.
         const mbEsc = (t) => String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        let optionsHtml = '<option value="">— Select service —</option>';
+        let optionsHtml = '<option value="">Select service</option>';
         const mbGroupOrder = [], mbGroups = {};
         allServices.forEach(s => {
             const g = s.service_group_label || 'Add-ons & other';
@@ -12584,7 +12658,7 @@
         mbGroupOrder.forEach(g => {
             optionsHtml += `<optgroup label="${mbEsc(g)}">`;
             mbGroups[g].forEach(s => {
-                optionsHtml += `<option value="${s.id}" ${s.id == selectedServiceId ? 'selected' : ''}>${s.name} — ${mbEsc(s.price_label || (s.pricing_model === 'flat_fee' ? 'Flat' : s.pricing_model))}</option>`;
+                optionsHtml += `<option value="${s.id}" ${s.id == selectedServiceId ? 'selected' : ''}>${s.name}: ${mbEsc(s.price_label || (s.pricing_model === 'flat_fee' ? 'Flat' : s.pricing_model))}</option>`;
             });
             optionsHtml += '</optgroup>';
         });
@@ -13223,7 +13297,7 @@
                     items.push({
                         type: 'booking',
                         icon: 'fa-solid fa-calendar-check',
-                        title: (b.event_name || b.company_name || 'Booking') + ' — Pending',
+                        title: (b.event_name || b.company_name || 'Booking') + ' (Pending)',
                         meta: timeAgo(b.created_at || b.date),
                         action: function() { switchTab('bookingsAdmin'); },
                         unread: true
@@ -13394,7 +13468,7 @@
                     html += '<button class="adm-search__result" data-type="inquiry" data-id="' + id + '">' +
                         '<i class="fa-solid fa-envelope"></i>' +
                         '<span class="adm-search__result-main">' +
-                            '<span class="adm-search__result-title">' + escHtml(item.sender_name||'') + ' — ' + escHtml(item.subject||'') + '</span>' +
+                            '<span class="adm-search__result-title">' + escHtml(item.sender_name||'') + ': ' + escHtml(item.subject||'') + '</span>' +
                             '<span class="adm-search__result-sub">' + escHtml(item.sender_email||'') + '</span>' +
                         '</span>' +
                         '<span class="adm-search__result-badge adm-search__result-badge--inquiry">' + escHtml(item.status||'') + '</span>' +
@@ -13507,7 +13581,7 @@
                 ['link'],
                 ['clean']
             ];
-            window.aboutQuill1 = new Quill('#aboutEditorP1', { theme: 'snow', placeholder: 'Lead paragraph — introduce Thabiso…', modules: { toolbar: aboutToolbar } });
+            window.aboutQuill1 = new Quill('#aboutEditorP1', { theme: 'snow', placeholder: 'Lead paragraph: introduce Thabiso…', modules: { toolbar: aboutToolbar } });
             window.aboutQuill2 = new Quill('#aboutEditorP2', { theme: 'snow', placeholder: 'Second paragraph…', modules: { toolbar: aboutToolbar } });
             window.aboutQuill3 = new Quill('#aboutEditorP3', { theme: 'snow', placeholder: 'Third paragraph…', modules: { toolbar: aboutToolbar } });
             [window.aboutQuill1, window.aboutQuill2, window.aboutQuill3].forEach(function(q) {
@@ -13610,10 +13684,11 @@
     <script src="js/admin/policies.js?v=2"></script>
     <script src="js/admin/branding.js?v=4"></script>
     <script src="js/admin/security-audit.js"></script>
-    <script src="js/admin/system-settings.js?v=nav5"></script>
+    <script src="js/admin/system-settings.js?v=nav6"></script>
     <script src="js/admin/business-profile.js?v=8"></script>
-    <script src="js/admin/google-calendar.js?v=3"></script>
-    <script src="js/admin/financials.js?v=2"></script>
+    <script src="js/admin/google-calendar.js?v=4"></script>
+    <script src="js/admin/financials.js?v=3"></script>
+    <script src="js/admin/finance-tickets.js?v=1"></script>
     <script src="js/admin/eft.js?v=3"></script>
     <script src="js/admin/payfast-reconcile.js?v=2"></script>
     <script src="js/admin/ticketing.js?v=9"></script>
@@ -13642,7 +13717,7 @@
     // midnight, which a browser west of UTC displays as the day before.
     const fmtScheduleDue = (value) => {
         const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value || ''));
-        if (!m) return value ? escSchedText(value) : '—';
+        if (!m) return value ? escSchedText(value) : '-';
         return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString('en-ZA');
     };
     // bookings.payment_plan_changed_at is a SQLite CURRENT_TIMESTAMP: UTC with no zone marker.
@@ -13692,7 +13767,7 @@
                     return `
                         <tr>
                             <td>${escSchedText(s.description)}${lockedHtml}</td>
-                            <td>${s.due_date ? fmtScheduleDue(s.due_date) : '—'}</td>
+                            <td>${s.due_date ? fmtScheduleDue(s.due_date) : '-'}</td>
                             <td class="right" style="font-weight:700;">R ${parseFloat(s.expected_amount).toFixed(2)}</td>
                             <td style="color:${sc};font-size:11px;font-weight:700;text-transform:uppercase;">${escSchedText(status)}</td>
                         </tr>
@@ -13824,7 +13899,7 @@
                 var diffColor = m.diff > 0 ? 'var(--atl-orange)' : 'var(--atl-clay)';
                 return '<tr>'
                     + '<td style="padding-left:20px;"><a href="#" class="atl-det-link fin-open-booking" data-id="' + m.id + '">#' + m.id + ' · ' + esc(m.name) + '</a></td>'
-                    + '<td>' + esc(m.event_name || m.event_type || '—') + (m.date ? ' · ' + esc(m.date) : '') + '</td>'
+                    + '<td>' + esc(m.event_name || m.event_type || '-') + (m.date ? ' · ' + esc(m.date) : '') + '</td>'
                     + '<td style="text-align:right;">' + money(m.total_amount) + '</td>'
                     + '<td style="text-align:right;">' + money(m.scheduled_total) + '</td>'
                     + '<td style="text-align:right;color:' + diffColor + ';font-weight:700;">' + (m.diff > 0 ? '+' : '') + money(m.diff) + '</td>'
@@ -14241,7 +14316,7 @@
             window.defaultGapCache  = data.min_booking_gap_minutes || 30;
         } catch(e) {
             console.error('[loadWorkingHours]', e);
-            window.notificationService.showError('Could not load working hours schedule — please refresh.');
+            window.notificationService.showError('Could not load working hours schedule. Please refresh.');
         }
     };
 
@@ -14767,7 +14842,7 @@
                             </div>
                             <!-- End Date (optional, for multi-day blocks) -->
                             <div class="form-group" style="margin-bottom:14px;">
-                                <label class="mb-label" for="boEndDate">End Date <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional — for multi-day blocks)</span></label>
+                                <label class="mb-label" for="boEndDate">End Date <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional, for multi-day blocks)</span></label>
                                 <input type="date" id="boEndDate" class="atl-input" style="background: var(--atl-paper);color: var(--atl-ink);border-radius:6px;">
                             </div>
                             <!-- Category -->
@@ -14938,7 +15013,7 @@
     <div class="atl-drawer__header">
         <h5 id="bookingFinancialsDrawerLabel">
             <i class="fa-solid fa-chart-line" style="margin-right:8px;color:var(--atl-amber);"></i>
-            Financial Controls — <span id="bf-modal-title"></span>
+            Financial Controls: <span id="bf-modal-title"></span>
         </h5>
         <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('bookingFinancialsDrawer')" aria-label="Close">×</button>
     </div>
@@ -15043,7 +15118,7 @@
     <div class="atl-drawer__header">
         <h5 id="bookingEmailDrawerLabel">
             <i class="fa-solid fa-envelope" style="margin-right:8px;color:var(--atl-sage);"></i>
-            Email Client — <span id="bookingEmailClientName"></span>
+            Email Client: <span id="bookingEmailClientName"></span>
         </h5>
         <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('bookingEmailDrawer')" aria-label="Close">×</button>
     </div>
@@ -15091,11 +15166,11 @@
 <!-- dealViewDrawer -->
 <aside id="dealViewDrawer" class="atl-drawer atl-drawer--760" role="dialog" aria-labelledby="dvTitle" aria-modal="true">
     <div class="atl-drawer__header">
-        <div class="dv-breadcrumb">Bookings <span aria-hidden="true">&rsaquo;</span> <span class="cur" id="dvBreadcrumbCur">#—</span></div>
+        <div class="dv-breadcrumb">Bookings <span aria-hidden="true">&rsaquo;</span> <span class="cur" id="dvBreadcrumbCur">#-</span></div>
         <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('dealViewDrawer')" aria-label="Close deal view">&times;</button>
     </div>
     <div class="dv-subhead">
-        <h2 class="dv-title" id="dvTitle">—</h2>
+        <h2 class="dv-title" id="dvTitle">-</h2>
         <div class="dv-subtitle" id="dvSubtitle"></div>
         <div class="dv-statusrow" id="dvStatusRow"></div>
         <div class="dv-chips" id="dvChips"></div>
@@ -15175,7 +15250,7 @@
           <div>
             <label class="mb-label" for="mbEventType">Event Type <span class="atl-req">*</span></label>
             <select class="atl-input" id="mbEventType">
-              <option value="">— Select type —</option>
+              <option value="">Select type</option>
               <option>Corporate Event</option>
               <option>Festival / Concert</option>
               <option>Private Function</option>
@@ -15216,7 +15291,7 @@
           <div>
             <label class="mb-label" for="mbBudget">Budget Range</label>
             <select class="atl-input" id="mbBudget">
-              <option value="">— Not specified —</option>
+              <option value="">Not specified</option>
               <option>Below R10,000</option>
               <option>R10,000 – R25,000</option>
               <option>R25,000 – R50,000</option>

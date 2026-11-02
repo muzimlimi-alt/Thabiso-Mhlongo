@@ -87,7 +87,7 @@ const domClick = (p, sel) => p.$eval(sel, e => e.click());
             return { found: !!opt, label: opt && opt.getAttribute('aria-label'), text: h && h.textContent };
         }, CLEAN_TITLE);
         ok(ms.found, 'public: the clean highlight shows its title as typed (one encoding layer is decoded once)', JSON.stringify(ms));
-        ok(ms.label === '2024 — ' + CLEAN_TITLE, 'public: its aria-label is the decoded title, not "&amp;" / "&quot;" text', JSON.stringify(ms));
+        ok(ms.label === '2024: ' + CLEAN_TITLE, 'public: its aria-label is the decoded title, not "&amp;" / "&quot;" text', JSON.stringify(ms));
 
         const ld = await p.evaluate(() => { const s = document.getElementById('events-jsonld'); return s ? JSON.parse(s.textContent) : null; });
         const e = ld && ld['@graph'] && ld['@graph'].find(x => x.name === "Mother's Day & Friends");

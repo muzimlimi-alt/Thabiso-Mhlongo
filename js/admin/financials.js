@@ -98,6 +98,10 @@ window.loadFinancialStats = async function() {
             // Outstanding
             $('#finStat-Outstanding').text(fmtCurr(s.outstanding));
 
+            // Consolidated sources + Ticket Sales tab (js/admin/finance-tickets.js) re-read the same period
+            window._finLastStats = s; window._finLastPeriod = { from: from, to: to };
+            if (window.refreshFinanceTickets) window.refreshFinanceTickets();
+
             // Pending Quotes — now uses REAL data from quotations table
             $('#finStat-Pending').text(fmtCurr(s.pending_quotes_value));
             $('#finStat-PendingCount').text(s.pending_quotes_count || 0);
@@ -130,7 +134,7 @@ window.loadFinancialStats = async function() {
                 // Profit margin % (net profit ÷ revenue) — derived from existing stats, no backend
                 const marginVal = (s.revenue && s.revenue > 0) ? (netVal / s.revenue * 100) : null;
                 $('#finStat-Margin')
-                    .text(marginVal === null ? '—' : marginVal.toFixed(1) + '%')
+                    .text(marginVal === null ? '-' : marginVal.toFixed(1) + '%')
                     .css('color', marginVal === null ? '' : (marginVal >= 0 ? 'var(--atl-sage)' : 'var(--atl-clay)'));
 
                 // Previous-period delta
@@ -175,7 +179,7 @@ window.loadFinancialStats = async function() {
         }
     } catch (e) {
         console.error('Finance Stats Error:', e);
-        window.notificationService.showError('Failed to load financial stats — please refresh.');
+        window.notificationService.showError('Failed to load financial stats. Please refresh.');
     }
 };
 
@@ -191,7 +195,7 @@ function renderTransactions(list) {
     }
 
     $body.html(list.map(t => {
-        const date = t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('en-ZA') : '—';
+        const date = t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('en-ZA') : '-';
         const txTypeRaw    = (t.transaction_type || '').toLowerCase();
         const isRefund     = txTypeRaw === 'refund';
         const isAdjustment = txTypeRaw === 'adjustment';
@@ -209,7 +213,7 @@ function renderTransactions(list) {
         const txTypeKey = isRefund ? 'refund' : isAdjustment ? 'adjustment' : 'payment';
         return `<tr data-date="${t.transaction_date || ''}" data-type="${txTypeKey}" data-search="${(t.client_name||'').toLowerCase()} ${(t.reference||'').toLowerCase()}">
             <td style="font-size:12px;">${date}</td>
-            <td style="font-family:monospace;font-size:12px;color:var(--atl-muted);">${t.reference || '—'}</td>
+            <td style="font-family:monospace;font-size:12px;color:var(--atl-muted);">${t.reference || '-'}</td>
             <td>${t.client_name || ('<a href="#" class="bk-nav-link" data-id="' + t.booking_id + '" style="color:var(--atl-amber);">Booking #' + t.booking_id + '</a>')}</td>
             <td style="font-size:12px;"><i class="fa-solid fa-credit-card" style="margin-right:5px;opacity:0.5;"></i>${t.payment_method || 'PayFast'}</td>
             <td>${typeBadge}</td>
@@ -283,7 +287,7 @@ const remindersTable = new DataTable({
         }
     },
     renderRow: function (rem) {
-            const sentAt = rem.sent_at ? new Date(rem.sent_at).toLocaleString('en-ZA') : '—';
+            const sentAt = rem.sent_at ? new Date(rem.sent_at).toLocaleString('en-ZA') : '-';
             const sc = rem.status === 'sent' ? 'var(--atl-sage)' : 'var(--atl-clay)';
             let deliveryBadge;
             if (rem.bounce_reason) {
@@ -293,15 +297,15 @@ const remindersTable = new DataTable({
             } else if (rem.status === 'sent') {
                 deliveryBadge = `<span style="font-size:10px;background:rgba(212,175,55,0.1);color:var(--atl-amber);border:1px solid rgba(212,175,55,0.2);padding:2px 7px;border-radius:20px;font-weight:700;">Pending</span>`;
             } else {
-                deliveryBadge = `<span style="font-size:10px;color:var(--atl-muted);">—</span>`;
+                deliveryBadge = `<span style="font-size:10px;color:var(--atl-muted);">-</span>`;
             }
             return `<tr>
                 <td style="font-size:12px;color:#aaa;">${sentAt}</td>
                 <td>${rem.client_name || rem.recipient_email}</td>
                 <td><a href="#" class="bk-nav-link" style="color: var(--atl-amber);" data-id="${rem.booking_id}">#${rem.booking_id}</a></td>
-                <td>${rem.due_date || '—'}</td>
+                <td>${rem.due_date || '-'}</td>
                 <td style="text-align:center;">${rem.days_before}d</td>
-                <td style="font-weight:700;color: var(--atl-ink);">${rem.amount_due != null ? fmtCurr(rem.amount_due) : '—'}</td>
+                <td style="font-weight:700;color: var(--atl-ink);">${rem.amount_due != null ? fmtCurr(rem.amount_due) : '-'}</td>
                 <td><span style="color:${sc};font-size:11px;font-weight:700;text-transform:uppercase;">${rem.status}</span>${rem.error_message ? `<br><span style="font-size:10px;color: var(--atl-muted);" title="${rem.error_message}">⚠ ${rem.error_message.substring(0,40)}</span>` : ''}</td>
                 <td>${deliveryBadge}</td>
             </tr>`;
@@ -339,8 +343,8 @@ window.applyInvoiceFilter = function() {
     const statusColors = { PAID:'var(--atl-sage)', OVERDUE:'var(--atl-clay)', VOID:'var(--atl-muted-dim)', SENT:'var(--atl-orange)', DRAFT:'var(--atl-muted)' };
 
     $body.html(list.map(inv => {
-        const issueDate = inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString('en-ZA') : '—';
-        const dueDate   = inv.due_date    ? new Date(inv.due_date).toLocaleDateString('en-ZA') : '—';
+        const issueDate = inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString('en-ZA') : '-';
+        const dueDate   = inv.due_date    ? new Date(inv.due_date).toLocaleDateString('en-ZA') : '-';
         const isOverdue = inv.status === 'SENT' && inv.due_date && inv.due_date < today;
         const dueDateHtml = isOverdue
             ? `<span style="color:var(--atl-clay);font-weight:700;">${dueDate} ⚠</span>`
@@ -509,8 +513,8 @@ window.openGenerateInvoiceModal = function() {
         }
         const bk = eligible.find(b => b.id == val);
         if (bk) {
-            $('#giClientName').text(bk.name || '—');
-            $('#giEventDate').text(bk.date ? new Date(bk.date).toLocaleDateString('en-ZA') : '—');
+            $('#giClientName').text(bk.name || '-');
+            $('#giEventDate').text(bk.date ? new Date(bk.date).toLocaleDateString('en-ZA') : '-');
             $('#giTotalAmount').text(bk.total_amount ? `R ${parseFloat(bk.total_amount).toFixed(2)}` : 'R 0.00');
             $('#giBookingDetails').show();
         } else {
@@ -599,7 +603,7 @@ window.loadFinAnalytics = async function() {
                 tcEl.innerHTML = clients.map(function(c, i) {
                     const val  = parseFloat(c.total_spent || 0);
                     const pct  = Math.max(4, Math.round(val / tcMax * 100));
-                    const name = (c.client_name || '—') + (c.company_name ? ' · ' + c.company_name : '');
+                    const name = (c.client_name || '-') + (c.company_name ? ' · ' + c.company_name : '');
                     const n    = c.booking_count || 0;
                     return '<div class="db-rank-item">' +
                             '<span class="db-rank-idx">' + (i + 1) + '</span>' +
@@ -634,10 +638,10 @@ window.loadFinAnalytics = async function() {
                 <tr>
                     <td style="font-weight:700;color:var(--atl-amber);">${i.invoice_number}</td>
                     <td>
-                        <div style="font-weight:600;color:var(--atl-ink);">${i.client_name || '—'}</div>
+                        <div style="font-weight:600;color:var(--atl-ink);">${i.client_name || '-'}</div>
                         <div style="font-size:11px;color:var(--atl-muted);">${i.event_name || ''}</div>
                     </td>
-                    <td>${i.due_date ? new Date(i.due_date).toLocaleDateString('en-ZA') : '—'}</td>
+                    <td>${i.due_date ? new Date(i.due_date).toLocaleDateString('en-ZA') : '-'}</td>
                     <td style="text-align:right;color:var(--atl-clay);font-weight:700;">${i.days_overdue || 0}d</td>
                     <td style="text-align:right;font-weight:700;color:var(--atl-ink);">${R_FMT(i.total_amount)}</td>
                 </tr>

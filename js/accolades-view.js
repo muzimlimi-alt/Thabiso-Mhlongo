@@ -309,7 +309,7 @@
         if (hasDetails(item)) {
             $cap.append($('<button>').addClass('acc-tl__title').attr({ type: 'button', title: item.title || '', 'data-acc-id': item.id, 'aria-haspopup': 'dialog' })
                 .append($('<span>').text(item.title || ''))
-                .append($('<span>').addClass('sr-only').text(' — ' + meta.cta)));
+                .append($('<span>').addClass('sr-only').text(', ' + meta.cta)));
         } else {
             $cap.append($('<p>').addClass('acc-tl__title acc-tl__title--static').attr('title', item.title || '').text(item.title || ''));
         }

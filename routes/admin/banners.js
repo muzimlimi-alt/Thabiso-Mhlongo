@@ -33,7 +33,7 @@ function validateBannerImageBuffer(file) {
     }
     let dims;
     try { dims = imageSize(file.buffer); } catch (e) {
-        return { ok: false, message: 'Could not read the image — the file may be corrupt.' };
+        return { ok: false, message: 'Could not read the image. The file may be corrupt.' };
     }
     if (dims.width < BANNER_MIN_WIDTH || dims.width > BANNER_MAX_WIDTH) {
         return { ok: false, message: `Image width must be between ${BANNER_MIN_WIDTH} and ${BANNER_MAX_WIDTH}px for retina display (received ${dims.width}px).` };

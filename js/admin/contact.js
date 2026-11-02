@@ -21,7 +21,7 @@ async function loadContactData() {
         }
     } catch (e) {
         console.error("Failed to load contact info from API:", e);
-        if (window.notificationService) window.notificationService.showError('Could not load contact settings — please refresh.');
+        if (window.notificationService) window.notificationService.showError('Could not load contact settings. Please refresh.');
     }
 }
 window.loadContactData = loadContactData;
@@ -44,7 +44,7 @@ async function loadManagerData() {
         }
     } catch (e) {
         console.error("Failed to load manager details from API:", e);
-        if (window.notificationService) window.notificationService.showError('Could not load manager details — please refresh.');
+        if (window.notificationService) window.notificationService.showError('Could not load manager details. Please refresh.');
     }
 }
 

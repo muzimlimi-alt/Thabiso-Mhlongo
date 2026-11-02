@@ -15,18 +15,18 @@
     async function loadDashboardKPIs() {
         const tiles = {
             homeAdmin:         { endpoint: '/api/admin/home-slider',              handler: arr => arr.length },
-            aboutAdmin:        { endpoint: '/api/admin/about-me',                handler: obj => obj && obj.image_path ? 'Set' : '—' },
+            aboutAdmin:        { endpoint: '/api/admin/about-me',                handler: obj => obj && obj.image_path ? 'Set' : '-' },
             careerAdmin:       { endpoint: '/api/public/highlights',             handler: arr => arr.length },
             galleryAdmin:      { endpoint: '/api/public/gallery',                handler: arr => arr.length },
             socialAdmin:       { endpoint: '/api/admin/social_links',            handler: arr => arr.filter(s => s.is_active).length },
             eventsAdmin:       { endpoint: '/api/admin/events',                  handler: arr => arr.filter(e => e.event_status === 'upcoming').length },
-            contactAdmin:      { endpoint: '/api/public/contact_info',           handler: obj => (obj && obj.email) ? 'Configured' : '—' },
+            contactAdmin:      { endpoint: '/api/public/contact_info',           handler: obj => (obj && obj.email) ? 'Configured' : '-' },
             inquiriesAdmin:    { endpoint: '/api/admin/inquiries',               handler: d => (d && d.counts) ? d.counts.unread : 0 },
             bookingsAdmin:     { endpoint: '/api/admin/bookings/full',           handler: arr => arr.filter(b => b.status === 'PENDING').length },
             calendarAdmin:     { endpoint: '/api/admin/calendar/events',         handler: arr => arr.filter(ev => ev.start && new Date(ev.start) > new Date()).length },
-            financeAdmin:      { endpoint: '/api/admin/financials/stats',        handler: res => res.stats ? 'R ' + (res.stats.revenue / 1000).toFixed(0) + 'k' : '—' },
+            financeAdmin:      { endpoint: '/api/admin/financials/stats',        handler: res => res.stats ? 'R ' + (res.stats.revenue / 1000).toFixed(0) + 'k' : '-' },
             servicesAdmin:     { endpoint: '/api/admin/services',                handler: arr => arr.filter(s => s.is_active !== 0).length },
-            policiesAdmin:     { endpoint: '/api/admin/policies',                handler: obj => (obj && obj.policies && Object.keys(obj.policies).length) ? 'Active' : '—' },
+            policiesAdmin:     { endpoint: '/api/admin/policies',                handler: obj => (obj && obj.policies && Object.keys(obj.policies).length) ? 'Active' : '-' },
             emailLogsAdmin:    { endpoint: '/api/admin/email-logs?limit=1',      handler: res => res.total || 0 },
             securityAdmin:     { endpoint: '/api/admin/audit_log?limit=500',     handler: res => (res.logs || []).length },
             usersAdmin:        { endpoint: '/api/admin/users',                   handler: arr => arr.length },
@@ -44,12 +44,12 @@
                 // Update aria label
                 const tile = el && el.closest('.dashboard-tile');
                 if (tile) {
-                    const label = tile.querySelector('h4').textContent + ' — ' + value;
+                    const label = tile.querySelector('h4').textContent + ': ' + value;
                     tile.setAttribute('aria-label', label);
                 }
             } catch (e) {
                 const el = document.getElementById('dashStat-' + id);
-                if (el) el.textContent = '—';
+                if (el) el.textContent = '-';
             }
         });
 
@@ -132,13 +132,13 @@
 
     // ── 2. Format helpers ─────────────────────────────────────────────────────
     function dbFmtDuration(secs) {
-        if (!secs || secs < 1) return '—';
+        if (!secs || secs < 1) return '-';
         var m = Math.floor(secs / 60);
         var s = secs % 60;
         return m > 0 ? m + 'm ' + s + 's' : s + 's';
     }
     function dbFmtNum(n) {
-        return n === undefined || n === null ? '—' : Number(n).toLocaleString('en-ZA');
+        return n === undefined || n === null ? '-' : Number(n).toLocaleString('en-ZA');
     }
 
     // ── 3. Period selector wiring ─────────────────────────────────────────────
@@ -293,7 +293,7 @@
                     _dbChartVisitors = new ApexCharts(el, Object.assign({}, base, {
                         series: [{ name: 'Page Views', data: [] }, { name: 'Unique Visitors', data: [] }],
                         chart: Object.assign({}, base.chart, { type: 'area', height: 260 }),
-                        noData: { text: 'No visits tracked yet — embed tracker.js to start collecting data.', style: { color: 'var(--atl-muted)', fontSize: '13px' } },
+                        noData: { text: 'No visits tracked yet. Embed tracker.js to start collecting data.', style: { color: 'var(--atl-muted)', fontSize: '13px' } },
                         xaxis: { labels: { show: false } }, yaxis: { min: 0 },
                         stroke: { curve: 'smooth', width: 2 }, dataLabels: { enabled: false }
                     }));
@@ -333,7 +333,7 @@
                     _dbChartSources = new ApexCharts(el, Object.assign({}, base, {
                         series: [1], labels: ['No data yet'],
                         chart: Object.assign({}, base.chart, { type: 'donut', height: 240 }),
-                        plotOptions: { pie: { donut: { size: '68%', labels: { show: true, total: { show: true, label: 'Sources', formatter: function() { return '—'; } } } } } },
+                        plotOptions: { pie: { donut: { size: '68%', labels: { show: true, total: { show: true, label: 'Sources', formatter: function() { return '-'; } } } } } },
                         colors: ['var(--atl-line)'],
                         dataLabels: { enabled: false },
                         legend: { show: false },
@@ -373,7 +373,7 @@
                     _dbChartDevices = new ApexCharts(el, Object.assign({}, base, {
                         series: [1], labels: ['No data yet'],
                         chart: Object.assign({}, base.chart, { type: 'donut', height: 240 }),
-                        plotOptions: { pie: { donut: { size: '68%', labels: { show: true, total: { show: true, label: 'Devices', formatter: function() { return '—'; } } } } } },
+                        plotOptions: { pie: { donut: { size: '68%', labels: { show: true, total: { show: true, label: 'Devices', formatter: function() { return '-'; } } } } } },
                         colors: ['var(--atl-line)'],
                         dataLabels: { enabled: false },
                         legend: { show: false },
@@ -655,7 +655,7 @@
                         '<i class="fa-solid ' + icon + '" style="color:' + color + ';font-size:13px;flex-shrink:0;margin-right:6px;"></i>' +
                         '<div class="db-schedule-title" style="flex:1;"></div>' +
                         '<div class="db-schedule-desc"></div>';
-                    item.querySelector('.db-schedule-time').textContent  = ev.start_time || '—';
+                    item.querySelector('.db-schedule-time').textContent  = ev.start_time || '-';
                     item.querySelector('.db-schedule-title').textContent = window.decodeStoredText(ev.title || 'Untitled');   // stored text is entity-encoded - js/shared/stored-text.js
                     item.querySelector('.db-schedule-desc').textContent  = window.decodeStoredText(desc);
                     list.insertBefore(item, spinner || null);

@@ -331,7 +331,7 @@ $(function() {
             var mediaHtml = '';
             // Falls back to a real description, not '', so untitled photos still get indexed by
             // Google Image Search and read sensibly by screen readers.
-            var safeAlt = item.title ? item.title.replace(/"/g, '&quot;') : 'Thabiso Mhlongo — gallery photo';
+            var safeAlt = item.title ? item.title.replace(/"/g, '&quot;') : 'Thabiso Mhlongo: gallery photo';
             if (isVideo) {
                 mediaHtml = `<video src="${item.image_path}" muted autoplay loop playsinline onerror="this.outerHTML='<img src=\\'https://placehold.co/250x250/111/EEE?text=Video+Error\\'>'"></video>`;
             } else {
@@ -375,7 +375,7 @@ $(function() {
     // Only overrides a field when the DB has a value for it, so the static markup is the fallback.
 
     // Admin-controlled public section visibility. `sel` = the section element; `nav` = hrefs of nav
-    // links (desktop <li> + mobile <a>) to hide alongside it so nothing scrolls to a hidden section.
+    // links (desktop <li>, mobile <a>, footer <li>) to hide alongside it so nothing scrolls to a hidden section.
     // The Announcement bar is handled separately (it shares the announcement_enabled setting).
     var SECTION_MAP = {
         hero:       { sel: '#hero',        nav: ['#hero'] },
@@ -402,7 +402,7 @@ $(function() {
             var visible = sections[key] !== false; // absent/true => visible
             $(conf.sel).toggleClass('tm-section-hidden', !visible);
             (conf.nav || []).forEach(function (href) {
-                $('.tm-navlinks a[href="' + href + '"], .tm-mobile-menu a[href="' + href + '"]').each(function () {
+                $('.tm-navlinks a[href="' + href + '"], .tm-mobile-menu a[href="' + href + '"], .tm-footer__col a[href="' + href + '"]').each(function () {
                     var $li = $(this).closest('li');
                     ($li.length ? $li : $(this)).toggle(visible);
                 });
@@ -926,7 +926,7 @@ $(function() {
                 .attr({
                     role: 'button', tabindex: '0',
                     'aria-expanded': index === 0 ? 'true' : 'false',
-                    'aria-label': (item.year ? item.year + ' — ' : '') + decodeHtmlEntities(item.title),
+                    'aria-label': (item.year ? item.year + ': ' : '') + decodeHtmlEntities(item.title),
                     'data-embed-url': embedUrl || '',
                     'data-watch-url': watchUrl || ''
                 });
@@ -1083,21 +1083,18 @@ $(function() {
         }
 
         $grid.empty();
-        countries.forEach(function (c) {
-            var $card = $('<div>').addClass('fp-card tm-reveal').attr('role', 'listitem');
-            $card.append($('<img>').addClass('fp-flag').attr({ src: c.flag_image_path, alt: 'Flag of ' + c.country_name, loading: 'lazy' }));
-            $card.append($('<p>').addClass('fp-name').text(c.country_name));
-            $grid.append($card);
+        // Same technique as the Gallery and Past Shows: the first 8 countries, then View More / View Less (tmPaginateGrid, above).
+        // Cards are built as HTML (decoded-once stored text, escaped here) so a later page can be appended on click; tmPaginateGrid also
+        // registers each revealed card with the scroll-reveal observer.
+        var htmls = countries.map(function (c) {
+            return '<div class="fp-card tm-reveal reveal" role="listitem">' +
+                '<img class="fp-flag" src="' + tmEscHtml(c.flag_image_path) + '" alt="Flag of ' + tmEscHtml(c.country_name) + '" loading="lazy">' +
+                '<p class="fp-name">' + tmEscHtml(c.country_name) + '</p></div>';
         });
-
-        // Newly-injected .tm-reveal cards need to be registered with the page's IntersectionObserver
-        // reveal system (it only auto-wires elements present at initial page load).
-        $grid.find('.tm-reveal').addClass('reveal');
-        if ('IntersectionObserver' in window && typeof revealObserver !== 'undefined') {
-            $grid.find('.reveal').each(function () { revealObserver.observe(this); });
-        } else {
-            $grid.find('.reveal').addClass('active');
-        }
+        tmPaginateGrid($grid, htmls, {
+            moreLabel: 'View More Countries', moreAriaLabel: 'View more countries performed in',
+            lessLabel: 'View Less Countries', lessAriaLabel: 'View fewer countries, back to the first 8'
+        });
     }
     renderFootprint();
 
@@ -1841,7 +1838,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     byLabel[label].items.push(s);
                 });
                 groups.forEach(function(g) {
-                    var $og = $('<optgroup>').attr('label', g.label + (g.featured ? ' — Most Booked' : ''));
+                    var $og = $('<optgroup>').attr('label', g.label + (g.featured ? ' (Most Booked)' : ''));
                     g.items.forEach(function(s) {
                         $og.append('<option value="' + s.id + '">' + s.name + '</option>');
                     });
@@ -2181,7 +2178,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 if (!stillCurrent()) return;
                 dateAvailable = true;
                 $('#bookNext1').prop('disabled', false);
-                setDateStatus('warn', 'We couldn\'t confirm this date\'s availability just now. You can continue — we\'ll confirm it with you.');
+                setDateStatus('warn', 'We couldn\'t confirm this date\'s availability just now. You can continue, and we\'ll confirm it with you.');
                 renderTimeSlots();
                 return;
             }
@@ -2337,7 +2334,7 @@ document.addEventListener("DOMContentLoaded", function() {
             $grid.empty().removeAttr('aria-busy');
 
             if (cfg.is_working_day === false) {
-                $grid.append(bkSlotMsg('Not a working day — contact us for special arrangements.', 'bk-slot-msg--warn'));
+                $grid.append(bkSlotMsg('Not a working day. Contact us for special arrangements.', 'bk-slot-msg--warn'));
                 return;
             }
 
@@ -2394,8 +2391,8 @@ document.addEventListener("DOMContentLoaded", function() {
                 if (reason) {
                     const why = reason === 'blocked' ? 'Blocked' : 'After hours';
                     $chip.addClass('busy').prop('disabled', true).attr({
-                        'aria-label': time + ' — unavailable (' + (reason === 'blocked' ? 'already booked or blocked' : 'exceeds working hours for ' + durMins + ' minutes') + ')',
-                        title: reason === 'blocked' ? 'Already booked or blocked' : `Requires ${durMins} min — exceeds working hours`
+                        'aria-label': time + ': unavailable (' + (reason === 'blocked' ? 'already booked or blocked' : 'exceeds working hours for ' + durMins + ' minutes') + ')',
+                        title: reason === 'blocked' ? 'Already booked or blocked' : `Requires ${durMins} min, which exceeds working hours`
                     }).append($('<span class="bk-time-slot__end"></span>').text(why));
                 } else {
                     $chip.attr({ 'aria-pressed': 'false', 'aria-label': time + ' to ' + slotEndStr })
@@ -2441,7 +2438,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 $('#bkSlotTo').val('');
                 $('#bookSlot').val('');
                 bkSlotHint();
-                $grid.prepend(bkSlotMsg('Your earlier start time (' + currentFrom + ') doesn\'t fit this date or duration — please choose another.', 'bk-slot-msg--warn'));
+                $grid.prepend(bkSlotMsg('Your earlier start time (' + currentFrom + ') doesn\'t fit this date or duration. Please choose another.', 'bk-slot-msg--warn'));
             }
         }
 
@@ -2574,7 +2571,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 // dead search box; offer manual entry instead.
                 $dd.hide();
                 $('#bookLocation').attr('aria-expanded', 'false');
-                venueStatus('No matching venues found — you can enter the address manually.', 'muted');
+                venueStatus('No matching venues found. You can enter the address manually.', 'muted');
                 $('.manual-address-toggle-wrap').show();
                 return;
             }
@@ -2610,7 +2607,7 @@ document.addEventListener("DOMContentLoaded", function() {
                     venueStatus('');
                     if (!detailData || !detailData.result) {
                         $input.val(main);
-                        venueStatus('We couldn\'t fetch the full address — please check the details below.', 'warn');
+                        venueStatus('We couldn\'t fetch the full address. Please check the details below.', 'warn');
                         $('.manual-address-toggle-wrap').show();
                         return;
                     }
@@ -2643,7 +2640,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 },
                 error: function() {
                     $input.val(main);
-                    venueStatus('We couldn\'t fetch the full address — please check the details below.', 'warn');
+                    venueStatus('We couldn\'t fetch the full address. Please check the details below.', 'warn');
                     $('.manual-address-toggle-wrap').show();
                 }
             });
@@ -2687,8 +2684,8 @@ document.addEventListener("DOMContentLoaded", function() {
                             if (status === 'abort' || seq !== _venueReqSeq) return;
                             venueClose();
                             venueStatus(xhr && xhr.status === 429
-                                ? 'Too many searches just now — please enter the address manually or try again shortly.'
-                                : 'Venue search isn\'t available right now — you can enter the address manually.', 'warn');
+                                ? 'Too many searches just now. Please enter the address manually or try again shortly.'
+                                : 'Venue search isn\'t available right now. You can enter the address manually.', 'warn');
                             $('.manual-address-toggle-wrap').show();
                         }
                     });
@@ -3417,7 +3414,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 $('#bookingFormError')
                     .html('<i class="fa-solid fa-circle-xmark" style="margin-right:6px;color:#ef5350;"></i>' +
                           'Duplicate booking detected: You already have an active booking on this date (<strong>#' + clash.id + '</strong>' +
-                          (clash.event_name ? ' — ' + clash.event_name : '') + '). ' +
+                          (clash.event_name ? ', ' + clash.event_name : '') + '). ' +
                           'Please choose another date or <a href="#" id="trackDuplicateBtn2" style="color:var(--y-base);text-decoration:underline;">track booking #' + clash.id + ' &rarr;</a>')
                     .css('background', 'rgba(239,83,80,0.08)')
                     .show();
@@ -3522,7 +3519,7 @@ $bookingForm.on('blur', '#bookName', function() {
                         $('#bookingFormError')
                             .html('<i class="fa-solid fa-circle-xmark" style="margin-right:6px;color:#ef5350;"></i>' +
                                   'Duplicate booking detected: You already have an active booking on this date (<strong>#' + clash.id + '</strong>' +
-                                  (clash.event_name ? ' — ' + clash.event_name : '') + '). ' +
+                                  (clash.event_name ? ', ' + clash.event_name : '') + '). ' +
                                   'Please choose another date or <a href="#" id="trackDuplicateBtn" style="color:var(--y-base);text-decoration:underline;">track booking #' + clash.id + ' &rarr;</a>')
                             .css('background', 'rgba(239,83,80,0.08)')
                             .show();
@@ -3964,7 +3961,7 @@ $bookingForm.on('blur', '#bookName', function() {
                         $('#bkDraftBanner').remove();
                         var _savedAt = draft.savedAt ? new Date(draft.savedAt) : null;
                         var _timeLabel = _savedAt
-                            ? ' — saved ' + _savedAt.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' })
+                            ? ' (saved ' + _savedAt.toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) + ')'
                             : '';
                         $('#bkDraftStatus').closest('div').before(
                             '<div id="bkDraftBanner" style="' +
@@ -4359,8 +4356,8 @@ window.onbeforeunload = function() {
         if (!todayStart) { todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0); }
         var date = fromDateStr(ds);
         var notice = 'bookings need at least ' + state.minAdvanceHours + ' hours\' notice';
-        if (date < todayStart) return { key: 'past', tip: 'Past date', msg: 'This date has passed — pick a later one.', clickable: false };
-        if (state.nonWorkingDows.indexOf(date.getDay()) >= 0) return { key: 'nonworking', tip: 'Not a working day', msg: 'Not a working day — pick another date.', clickable: false };
+        if (date < todayStart) return { key: 'past', tip: 'Past date', msg: 'This date has passed. Pick a later one.', clickable: false };
+        if (state.nonWorkingDows.indexOf(date.getDay()) >= 0) return { key: 'nonworking', tip: 'Not a working day', msg: 'Not a working day. Pick another date.', clickable: false };
         var m = state.months[ds.slice(0, 7)];               // that month's view, once loaded
         var v = state.verdicts[ds];                          // what the per-date check said about exactly this date
         var held = v ? v === 'held' : !!m && m.held.indexOf(ds) >= 0;
@@ -4372,10 +4369,10 @@ window.onbeforeunload = function() {
         if (held) return { key: 'held', tip: 'Blocked', msg: 'This date is blocked.', clickable: false };
         // An untimed booking/event occupies the whole day: the per-date check would refuse it, so it is shown as
         // reserved (orange) but is not selectable.
-        if (full) return { key: 'booked', extra: ' tm-cal-cell--full', tip: 'Reserved — the whole day is taken', msg: 'Reserved — this whole day is taken. Please choose another date.', icon: 'fa-solid fa-calendar-xmark', clickable: false };
-        if (soon) return { key: 'soon', tip: 'Too soon — ' + notice, msg: 'Too soon — ' + notice + '.', clickable: false };
-        if (unconfirmed) return { key: 'unknown', tip: 'Availability not confirmed — select to check this date', msg: 'Availability not confirmed yet.', clickable: true };
-        if (partial) return { key: 'booked', tip: 'Reserved — other times may still be open', msg: 'Reserved — some times are taken, other times are still open.', clickable: true };
+        if (full) return { key: 'booked', extra: ' tm-cal-cell--full', tip: 'Reserved: the whole day is taken', msg: 'Reserved: this whole day is taken. Please choose another date.', icon: 'fa-solid fa-calendar-xmark', clickable: false };
+        if (soon) return { key: 'soon', tip: 'Too soon: ' + notice, msg: 'Too soon: ' + notice + '.', clickable: false };
+        if (unconfirmed) return { key: 'unknown', tip: 'Availability not confirmed. Select to check this date', msg: 'Availability not confirmed yet.', clickable: true };
+        if (partial) return { key: 'booked', tip: 'Reserved: other times may still be open', msg: 'Reserved: some times are taken, other times are still open.', clickable: true };
         return { key: 'avail', tip: 'Available', msg: 'This date is available!', clickable: true };
     }
 
@@ -4405,7 +4402,7 @@ window.onbeforeunload = function() {
         var m = state.msg && state.msg.ds === picked ? state.msg : null;
         var key, text, msg, icon;
         if (!ds) {
-            key = 'none'; text = 'No date selected — pick one from the calendar above.'; icon = STATE_ICON.none;
+            key = 'none'; text = 'No date selected. Pick one from the calendar above.'; icon = STATE_ICON.none;
             msg = m && m.kind === 'text' ? m.html : '';
         } else {
             var st = dateState(ds);
@@ -4470,7 +4467,7 @@ window.onbeforeunload = function() {
             if (st.clickable) cls += ' tm-cal-cell--clickable';
             if (isToday)      cls += ' tm-cal-cell--today';
 
-            var label = longDate(ds) + (isToday ? ' (today)' : '') + ' — ' + st.tip;
+            var label = longDate(ds) + (isToday ? ' (today)' : '') + '. ' + st.tip;
             cells.push(
                 '<div class="' + cls + '" data-date="' + ds + '" data-state="' + st.key + '" title="' + st.tip.replace(/"/g, '&quot;') + '"' +
                 ' role="button" tabindex="-1" aria-label="' + label.replace(/"/g, '&quot;') + '"' +

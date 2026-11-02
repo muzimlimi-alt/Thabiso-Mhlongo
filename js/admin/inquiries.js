@@ -132,13 +132,13 @@ async function loadInquiries(resetPage) {
         data = await apiCall('/api/admin/inquiries?page=' + inqPage + '&limit=50&status=' + encodeURIComponent(statusParam) + (isMine ? '&mine=1' : '') + '&sort=' + encodeURIComponent(sort) + '&search=' + encodeURIComponent(search));
     } catch (e) {
         $('#inqListBody').html('<div class="inq-empty-state"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><p>Failed to load messages.</p></div>');
-        window.notificationService.showError('Could not load messages — please check your connection and try again.');
+        window.notificationService.showError('Could not load messages. Please check your connection and try again.');
         $('#inqPagination').hide();
         return;
     }
     if (!data || !data.success || !Array.isArray(data.inquiries)) {
         $('#inqListBody').html('<div class="inq-empty-state"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><p>Failed to load messages.</p></div>');
-        window.notificationService.showError('Could not load messages — please try again.');
+        window.notificationService.showError('Could not load messages. Please try again.');
         $('#inqPagination').hide();
         return;
     }

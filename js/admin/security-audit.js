@@ -45,7 +45,7 @@ const AUDIT_TABLE_LABELS = {
 };
 function auditSectionLabel(tableName) {
     if (AUDIT_TABLE_LABELS[tableName]) return AUDIT_TABLE_LABELS[tableName];
-    return String(tableName || '—').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return String(tableName || '-').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
 // snake_case/camelCase column name -> readable label ("total_amount" -> "Total Amount").
@@ -53,7 +53,7 @@ function prettyFieldKey(k) {
     return String(k || '').replace(/_/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\b\w/g, c => c.toUpperCase());
 }
 function formatAuditFieldValue(v) {
-    if (v === null || v === undefined || v === '') return '—';
+    if (v === null || v === undefined || v === '') return '-';
     if (typeof v === 'object') { try { return JSON.stringify(v); } catch (e) { return String(v); } }
     var s = String(v);
     // Rich-text fields (e.g. About Me's Quill paragraphs) store raw HTML - show the plain text
@@ -121,7 +121,7 @@ window.loadChangeHistoryCard = async function(containerId, tableName, recordId) 
         el.innerHTML = data.logs.map(function(log) {
             const actorName = log.actor_full_name || log.actor_username || log.changed_by || 'System';
             const actorRole = log.actor_role ? (log.actor_role.charAt(0).toUpperCase() + log.actor_role.slice(1)) : '';
-            const when = log.change_timestamp ? new Date(log.change_timestamp).toLocaleString('en-ZA') : '—';
+            const when = log.change_timestamp ? new Date(log.change_timestamp).toLocaleString('en-ZA') : '-';
             return '<div style="padding:8px 0; border-bottom:1px solid var(--atl-line);">' +
                 '<div style="display:flex; justify-content:space-between; gap:8px; font-size:12px;">' +
                 '<strong style="color:var(--atl-ink);">' + window.escHtml(String(log.action || '').toUpperCase()) + '</strong>' +
@@ -184,15 +184,15 @@ const auditLogsTable = new DataTable({
     renderRow: function (log) {
         const date = new Date(log.change_timestamp || log.timestamp).toLocaleString();
         const actionColor = log.action === 'UPDATE' ? 'var(--atl-orange)' : (log.action === 'INSERT' ? 'var(--atl-sage)' : 'var(--atl-clay)');
-        const actorName = log.actor_full_name || log.actor_username || log.changed_by || '—';
-        const actorRole = log.actor_role ? (log.actor_role.charAt(0).toUpperCase() + log.actor_role.slice(1)) : '—';
+        const actorName = log.actor_full_name || log.actor_username || log.changed_by || '-';
+        const actorRole = log.actor_role ? (log.actor_role.charAt(0).toUpperCase() + log.actor_role.slice(1)) : '-';
         const cells = `
                     <td style="padding:12px; font-weight:bold; color: var(--atl-amber);">${escHtml(log.table_name)} <span style="font-size:10px; opacity:0.5; font-weight:normal;">#${log.record_id}</span></td>
                     <td style="padding:12px; font-size:12px;">${escHtml(auditSectionLabel(log.table_name))}</td>
                     <td style="padding:12px;"><span style="color:${actionColor}; font-weight:bold; font-size:11px;">${escHtml(log.action)}</span></td>
                     <td style="padding:12px; font-size:12px;">${escHtml(actorName)}</td>
                     <td style="padding:12px; font-size:11px; opacity:0.75;">${escHtml(actorRole)}</td>
-                    <td style="padding:12px; font-size:11px; opacity:0.6; font-family:'JetBrains Mono',monospace;">${escHtml(log.ip_address || '—')}</td>
+                    <td style="padding:12px; font-size:11px; opacity:0.6; font-family:'JetBrains Mono',monospace;">${escHtml(log.ip_address || '-')}</td>
                     <td style="padding:12px; font-size:11px; opacity:0.6;">${date}</td>
                 `;
         return '<tr>' + cells + '</tr>';
@@ -325,10 +325,10 @@ function renderPopiaRow(r) {
         actions += '<button type="button" class="atl-btn atl-btn--ghost popia-approve-btn" data-id="' + r.id + '" title="Approve" style="color:#34d399;"><i class="fa-solid fa-check"></i></button>'
                  + '<button type="button" class="atl-btn atl-btn--ghost popia-view-btn" data-id="' + r.id + '" title="Reject (opens review)" style="color:#f87171;"><i class="fa-solid fa-xmark"></i></button>';
     } else if (r.status === 'approved') {
-        actions += '<button type="button" class="atl-btn atl-btn--ghost popia-process-btn" data-id="' + r.id + '" title="Process — Anonymize Now" style="color:var(--atl-clay);"><i class="fa-solid fa-user-slash"></i></button>';
+        actions += '<button type="button" class="atl-btn atl-btn--ghost popia-process-btn" data-id="' + r.id + '" title="Process: Anonymize Now" style="color:var(--atl-clay);"><i class="fa-solid fa-user-slash"></i></button>';
     }
     tr.innerHTML = ''
-        + '<td style="padding:12px; font-weight:bold; color: var(--atl-amber); font-family:\'JetBrains Mono\',monospace; font-size:11px;">' + escHtml(r.reference_number || '—') + '</td>'
+        + '<td style="padding:12px; font-weight:bold; color: var(--atl-amber); font-family:\'JetBrains Mono\',monospace; font-size:11px;">' + escHtml(r.reference_number || '-') + '</td>'
         + '<td style="padding:12px; font-size:12px;">' + escHtml(r.email) + '</td>'
         + '<td style="padding:12px; font-size:12px;">' + escHtml(reasonLabel) + '</td>'
         + '<td style="padding:12px; font-size:12px; text-transform:capitalize;">' + escHtml(r.source) + '</td>'
@@ -377,15 +377,15 @@ async function openPopiaRequestDrawer(id) {
 
         let html = ''
             + '<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">'
-            + '<span style="font-family:\'JetBrains Mono\',monospace; font-size:13px; color:var(--atl-amber);">' + escHtml(r.reference_number || '—') + '</span>'
+            + '<span style="font-family:\'JetBrains Mono\',monospace; font-size:13px; color:var(--atl-amber);">' + escHtml(r.reference_number || '-') + '</span>'
             + '<span class="atl-badge ' + badgeClass + '">' + escHtml(r.status) + '</span></div>'
             + '<div class="um-field-group"><label class="um-label">Email</label><div style="font-size:14px;">' + escHtml(r.email) + '</div></div>'
-            + '<div class="um-field-group"><label class="um-label">Reason</label><div style="font-size:13px;">' + escHtml(reasonLabel) + (r.reason === 'other' && r.reason_other_text ? ' — ' + escHtml(r.reason_other_text) : '') + '</div></div>'
+            + '<div class="um-field-group"><label class="um-label">Reason</label><div style="font-size:13px;">' + escHtml(reasonLabel) + (r.reason === 'other' && r.reason_other_text ? ': ' + escHtml(r.reason_other_text) : '') + '</div></div>'
             + (r.additional_comments ? '<div class="um-field-group"><label class="um-label">Additional Comments</label><div style="font-size:13px; white-space:pre-wrap;">' + escHtml(r.additional_comments) + '</div></div>' : '')
             + '<div class="um-field-group"><label class="um-label">Source</label><div style="font-size:13px; text-transform:capitalize;">' + escHtml(r.source) + ' &middot; ' + (r.requested_ip ? escHtml(r.requested_ip) : 'IP not recorded') + '</div></div>'
-            + '<div class="um-field-group"><label class="um-label">Requested</label><div style="font-size:13px;">' + (r.requested_at ? new Date(r.requested_at).toLocaleString() : '—') + '</div></div>'
-            + (r.reviewed_at ? '<div class="um-field-group"><label class="um-label">Reviewed</label><div style="font-size:13px;">' + new Date(r.reviewed_at).toLocaleString() + ' by ' + escHtml(r.reviewed_by_name || '—') + (r.review_notes ? '<br><span style="opacity:0.8;">' + escHtml(r.review_notes) + '</span>' : '') + '</div></div>' : '')
-            + (r.processed_at ? '<div class="um-field-group"><label class="um-label">Processed</label><div style="font-size:13px;">' + new Date(r.processed_at).toLocaleString() + ' by ' + escHtml(r.processed_by_name || '—') + '</div></div>' : '')
+            + '<div class="um-field-group"><label class="um-label">Requested</label><div style="font-size:13px;">' + (r.requested_at ? new Date(r.requested_at).toLocaleString() : '-') + '</div></div>'
+            + (r.reviewed_at ? '<div class="um-field-group"><label class="um-label">Reviewed</label><div style="font-size:13px;">' + new Date(r.reviewed_at).toLocaleString() + ' by ' + escHtml(r.reviewed_by_name || '-') + (r.review_notes ? '<br><span style="opacity:0.8;">' + escHtml(r.review_notes) + '</span>' : '') + '</div></div>' : '')
+            + (r.processed_at ? '<div class="um-field-group"><label class="um-label">Processed</label><div style="font-size:13px;">' + new Date(r.processed_at).toLocaleString() + ' by ' + escHtml(r.processed_by_name || '-') + '</div></div>' : '')
             + (r.error_message ? '<div class="um-field-group"><label class="um-label" style="color:var(--atl-clay);">Error</label><div style="font-size:12px; color:var(--atl-clay);">' + escHtml(r.error_message) + '</div></div>' : '')
             + '<hr class="um-divider">'
             + '<div class="um-field-group"><label class="um-label">' + (affected ? 'Records Anonymized' : 'Records That Will Be Affected') + '</label>'
@@ -398,7 +398,7 @@ async function openPopiaRequestDrawer(id) {
         if (bookingImpact.length) {
             html += ''
                 + '<hr class="um-divider">'
-                + '<div class="um-field-group"><label class="um-label" style="color:var(--atl-clay);">Booking Impact' + (r.status === 'awaiting_refund' ? ' — cancelled, refund status' : ' — will be cancelled on Process') + '</label>'
+                + '<div class="um-field-group"><label class="um-label" style="color:var(--atl-clay);">Booking Impact' + (r.status === 'awaiting_refund' ? ' (cancelled, refund status)' : ' (will be cancelled on Process)') + '</label>'
                 + bookingImpact.map(function(b) {
                     const blocked = pendingRefundBookingIds.indexOf(b.booking_id) !== -1;
                     const hasRefundedFigure = b.refunded_so_far !== undefined;
@@ -406,7 +406,7 @@ async function openPopiaRequestDrawer(id) {
                         ? 'Refunded so far: R ' + parseFloat(b.refunded_so_far || 0).toFixed(2) + ' / R ' + parseFloat(b.estimated_refund_due || 0).toFixed(2) + ' due'
                         : 'Est. refund due: R ' + parseFloat(b.estimated_refund_due || 0).toFixed(2);
                     return '<div style="border:1px solid ' + (blocked ? 'var(--atl-clay)' : 'var(--atl-line)') + '; border-radius:8px; padding:10px 12px; margin-top:8px; font-size:12px;">'
-                        + '<div style="display:flex; justify-content:space-between; font-weight:600;"><span>#' + b.booking_id + ' — ' + escHtml(b.event_name || b.event_type || 'Event') + '</span><span>' + escHtml(b.date || '') + '</span></div>'
+                        + '<div style="display:flex; justify-content:space-between; font-weight:600;"><span>#' + b.booking_id + ': ' + escHtml(b.event_name || b.event_type || 'Event') + '</span><span>' + escHtml(b.date || '') + '</span></div>'
                         + (b.policy_rule ? '<div style="color:var(--atl-muted); margin-top:4px;">' + escHtml(b.policy_rule) + '</div>' : '')
                         + '<div style="display:flex; justify-content:space-between; margin-top:6px;"><span>Amount paid: R ' + parseFloat(b.amount_paid || 0).toFixed(2) + '</span><span style="color:var(--atl-clay); font-weight:600;">' + refundLine + '</span></div>'
                         + (blocked ? '<div style="color:var(--atl-clay); margin-top:6px;"><i class="fa-solid fa-triangle-exclamation"></i> Blocking anonymization until this refund is recorded</div>' : '')
@@ -429,7 +429,7 @@ async function openPopiaRequestDrawer(id) {
                 + '</div>';
         } else if (r.status === 'approved') {
             html += '<div class="um-form-actions" style="justify-content:flex-end; gap:10px;">'
-                + '<button type="button" class="atl-btn" style="background:var(--atl-clay); color:#fff; border:none;" id="popiaProcessBtn"><i class="fa-solid fa-user-slash"></i> Process — Anonymize Now</button></div>';
+                + '<button type="button" class="atl-btn" style="background:var(--atl-clay); color:#fff; border:none;" id="popiaProcessBtn"><i class="fa-solid fa-user-slash"></i> Process: Anonymize Now</button></div>';
         }
 
         bodyEl.innerHTML = html;
@@ -481,7 +481,7 @@ async function popiaProcess(id) {
     try {
         const res = await popiaFetch('/api/admin/popia/requests/' + id + '/process', 'POST');
         window.notificationService.showSuccess(res.awaiting_refund
-            ? 'Booking cancelled — a refund is now owing. Record it, then complete anonymization.'
+            ? 'Booking cancelled. A refund is now owing. Record it, then complete anonymization.'
             : 'Data anonymized successfully.');
         closeAtlDrawer('popiaRequestDrawer');
         loadPopiaRequests();
@@ -490,7 +490,7 @@ async function popiaProcess(id) {
 async function popiaCompleteAnonymization(id) {
     try {
         await popiaFetch('/api/admin/popia/requests/' + id + '/complete-anonymization', 'POST');
-        window.notificationService.showSuccess('Refund resolved — data anonymized successfully.');
+        window.notificationService.showSuccess('Refund resolved. Data anonymized successfully.');
         closeAtlDrawer('popiaRequestDrawer');
         loadPopiaRequests();
     } catch (e) { window.notificationService.showError(e.message); }

@@ -49,7 +49,7 @@ async function loadAboutData() {
         console.error('Failed to load About Me data:', e);
         // Runs at parse time, before notificationService.js (last script in admin.html) has loaded —
         // a fast failure such as a 401 can land first.
-        if (window.notificationService) window.notificationService.showError('Could not load About Me content — please refresh.');
+        if (window.notificationService) window.notificationService.showError('Could not load About Me content. Please refresh.');
     }
 }
 window.loadAboutData = loadAboutData;
@@ -201,7 +201,7 @@ async function loadSiteContent(force) {
         renderSvcPreview();
         renderFeatPreview();
     } catch (e) {
-        if (window.notificationService) window.notificationService.showError('Could not load homepage content — please refresh.');
+        if (window.notificationService) window.notificationService.showError('Could not load homepage content. Please refresh.');
     }
 }
 
@@ -237,7 +237,7 @@ function collectSvcItems() {
 
 function renderHeroPreview() {
     var t = $('#taglineInput').val();
-    $('#taglinePrev').text((t && t.trim()) ? t : '—');
+    $('#taglinePrev').text((t && t.trim()) ? t : '-');
     var v = $('#heroInput').val();
     $('#heroPrev').html((v && v.trim()) ? v : '&mdash;');
 }

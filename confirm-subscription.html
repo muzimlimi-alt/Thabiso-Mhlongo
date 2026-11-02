@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
     <title>Confirm Subscription | Thabiso Mhlongo</title>
-    <link rel="icon" href="/favicon.ico?v=3">
+    <link rel="icon" href="/favicon.ico?v=4">
 
     <!-- Core Stylesheets matching index.html theme -->
     <link href="css/vendor/bootstrap.min.css" rel="stylesheet">
@@ -232,9 +232,9 @@
                 statusView.style.display = 'block';
 
                 if (data.alreadyConfirmed) {
-                    statusText.innerHTML = `<span class="success-text">Your subscription is already confirmed.</span><br><br>You're all set — no further action needed.`;
+                    statusText.innerHTML = `<span class="success-text">Your subscription is already confirmed.</span><br><br>You're all set. No further action needed.`;
                 } else if (data.success) {
-                    statusText.innerHTML = `<span class="success-text">You're confirmed! Welcome to the list.</span><br><br>Thank you for confirming — you'll now receive updates from Thabiso Mhlongo.`;
+                    statusText.innerHTML = `<span class="success-text">You're confirmed! Welcome to the list.</span><br><br>Thank you for confirming. You'll now receive updates from Thabiso Mhlongo.`;
                 } else {
                     statusText.innerHTML = `<span class="error-text">${data.message || 'An error occurred.'}</span><br><br>Please try again later or sign up again from the website.`;
                 }

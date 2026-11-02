@@ -297,7 +297,7 @@ async function gotoServices(p) {
             groups: [...document.querySelectorAll('#bkServiceDropdown optgroup')].map(g => ({ label: g.label, n: g.querySelectorAll('option').length })),
             optionText: [...document.querySelectorAll('#bkServiceDropdown option')].map(o => o.textContent).join(' | ')
         }));
-        ok(dd.groups.length === 6 && dd.groups[0].label === 'Club & Theatre' && dd.groups[1].label === 'Corporate & Events — Most Booked' && dd.groups[1].n === 7 && dd.groups[4].label === 'Acting, Voice-Over & Brand Campaigns' && /Add-ons/.test(dd.groups[5].label),
+        ok(dd.groups.length === 6 && dd.groups[0].label === 'Club & Theatre' && dd.groups[1].label === 'Corporate & Events (Most Booked)' && dd.groups[1].n === 7 && dd.groups[4].label === 'Acting, Voice-Over & Brand Campaigns' && /Add-ons/.test(dd.groups[5].label),
             'public form: services are grouped as on the rate card, Corporate & Events marked "Most Booked"', JSON.stringify(dd.groups));
         ok(!/R\s?\d|price|from r|enquire/i.test(dd.optionText), 'public form: not one option shows a price or a price word', dd.optionText.slice(0, 300));
         ok(svcBodies.length > 0 && !/default_price|base_price|price_type|price_min|revenue_gl_code|financial_category/.test(svcBodies[0]), 'public form: the services response carries no price or accounting field', (svcBodies[0] || '').slice(0, 200));

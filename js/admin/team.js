@@ -150,11 +150,11 @@ function initDraggableTeam() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ order: newOrder })
             });
-            if (!res.ok) window.notificationService.showError('Reorder failed — please refresh and try again.');
+            if (!res.ok) window.notificationService.showError('Reorder failed. Please refresh and try again.');
             else await loadTeam(); // re-read from the server so every card's "site position" is the real one
         } catch (e) {
             console.error("Reorder failed:", e);
-            window.notificationService.showError('Reorder failed — please refresh and try again.');
+            window.notificationService.showError('Reorder failed. Please refresh and try again.');
         }
         draggedItem = null;
     });
@@ -215,8 +215,8 @@ function refreshTeamPreview() {
     var active = $('#teamActiveSwitch').attr('aria-checked') === 'true';
     var sectionOn = window.teamSectionVisible !== false;
     var text, cls;
-    if (!sectionOn) { text = 'Hidden — the Team section is switched off in Settings'; cls = 'is-hidden'; }
-    else if (!active) { text = 'Hidden — Inactive members are not shown'; cls = 'is-hidden'; }
+    if (!sectionOn) { text = 'Hidden: the Team section is switched off in Settings'; cls = 'is-hidden'; }
+    else if (!active) { text = 'Hidden: Inactive members are not shown'; cls = 'is-hidden'; }
     else { text = teamEditId === null ? 'Will appear at the end of the list' : 'Shown on the website'; cls = 'is-live'; }
     $('#teamPreviewState').text(text).removeClass('is-live is-hidden').addClass(cls);
     $('#teamPublicPreview .team-preview__stage').toggleClass('is-hidden', cls === 'is-hidden');

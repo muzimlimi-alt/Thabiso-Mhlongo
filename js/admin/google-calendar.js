@@ -91,7 +91,7 @@
         // Never render a secret - only a masked hint so the administrator knows one is saved (blank = keep it)
         var secret = $('stGoogleSecret');
         secret.value = '';
-        secret.setAttribute('placeholder', s.secretSet ? '••••••••  (saved — leave blank to keep)' : 'GOCSPX-…');
+        secret.setAttribute('placeholder', s.secretSet ? '••••••••  (saved, leave blank to keep)' : 'GOCSPX-…');
         $('stGoogleRedirect').value = s.redirectUri || '';
         renderButtons(s);
     }
@@ -306,7 +306,10 @@
     window.calM365Init = function () {
         var r = typeof prevInit === 'function' ? prevInit.apply(this, arguments) : undefined;
         loadStrip();
-        if (isAdmin()) window.loadGoogleCalendarCard();   // the Settings tab's card lives on this page now
+        if (isAdmin()) {
+            window.loadGoogleCalendarCard();   // the Settings tab's card lives on this page now
+            if (window.loadEmailSetup) window.loadEmailSetup();   // ...and so does the Microsoft 365 card's mail form (the same one as Email Setup)
+        }
         return r;
     };
     setInterval(function () { var s = $('calGoogleStrip'); if (s && s.offsetParent !== null && document.visibilityState === 'visible') loadStrip(); }, 60000);

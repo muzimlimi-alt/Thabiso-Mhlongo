@@ -31,9 +31,9 @@ function gallery() {
     const inner = `
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" align="center" style="width:600px; max-width:600px;">
       <tr><td style="padding:28px 0 8px; font-family:${C.TOKENS.serif}; font-size:26px; color:${C.TOKENS.gold};">Email Component Gallery</td></tr>
-      <tr><td style="padding:0 0 18px; font-family:${C.TOKENS.body}; font-size:13px; color:${C.TOKENS.muted};">js/emailComponents.js — every partial with sample data.</td></tr>
+      <tr><td style="padding:0 0 18px; font-family:${C.TOKENS.body}; font-size:13px; color:${C.TOKENS.muted};">js/emailComponents.js: every partial with sample data.</td></tr>
       ${item('banner_slot (image src)', C.bannerSlot({ bannerSrc: 'https://via.placeholder.com/600x176/111111/D4AF37?text=BANNER+ART', alt: 'Banner', headline: 'Fallback' }))}
-      ${item('banner_slot (fallback — no src)', C.bannerSlot({ headline: 'Your Booking Is Confirmed', subtitle: 'Officially funny since 2014' }))}
+      ${item('banner_slot (fallback, no src)', C.bannerSlot({ headline: 'Your Booking Is Confirmed', subtitle: 'Officially funny since 2014' }))}
       ${item('system_header', C.systemHeader({ category: 'Payments & Invoices', severity: 'alert' }))}
       ${item('cta_button', C.ctaButton({ label: 'View Your Invoice', url: '#' }))}
       ${item('info_card', C.infoCard({ title: 'Booking Details', rows: [
@@ -62,10 +62,10 @@ function gallery() {
 /* ── 2. Full PREMIUM sample email ── */
 function samplePremium() {
     return C.renderPremiumEmail({
-        preheaderText: 'Your booking #100045 is confirmed — here are the details.',
+        preheaderText: 'Your booking #100045 is confirmed. Here are the details.',
         headline: 'Your Booking Is Confirmed',            // banner falls back to this text headline
         greeting: 'Hi Naledi,',
-        bodyHtml: `Thank you for booking Thabiso Mhlongo. Your event is locked in and we can't wait to bring the house down. Below is a summary of your booking — keep it for your records.`,
+        bodyHtml: `Thank you for booking Thabiso Mhlongo. Your event is locked in and we can't wait to bring the house down. Below is a summary of your booking. Keep it for your records.`,
         cards: [{
             title: 'Booking Summary',
             rows: [
@@ -114,9 +114,9 @@ const files = {
 const P = (o) => C.renderPremiumEmail(Object.assign({ socialLinks: SAMPLE_SOCIAL }, o));
 const premium = {
     'booking-received-client.html': P({
-        preheaderText: "We've received your booking request — Ref #100045.",
+        preheaderText: "We've received your booking request. Ref #100045.",
         headline: "We've Received Your Request", greeting: 'Hi Naledi,',
-        bodyHtml: `Thank you for reaching out to book Thabiso Mhlongo for your upcoming <strong style="color:#D4AF37;">Corporate Year-End</strong> on <strong style="color:#D4AF37;">Sat, 14 Aug 2026</strong>. Our management team has received your enquiry and will be in touch shortly to confirm availability and discuss pricing.<br><br><span style="color:#B0B0B0; font-size:13px;">Keep your booking reference <strong style="color:#D4AF37;">#100045</strong> safe — you'll need it to track your booking status.</span>`,
+        bodyHtml: `Thank you for reaching out to book Thabiso Mhlongo for your upcoming <strong style="color:#D4AF37;">Corporate Year-End</strong> on <strong style="color:#D4AF37;">Sat, 14 Aug 2026</strong>. Our management team has received your enquiry and will be in touch shortly to confirm availability and discuss pricing.<br><br><span style="color:#B0B0B0; font-size:13px;">Keep your booking reference <strong style="color:#D4AF37;">#100045</strong> safe. You'll need it to track your booking status.</span>`,
         cards: [{ title: 'Booking Summary · Ref #100045', rows: [
             { label: 'Event Type', value: 'Corporate Year-End', mono: false },
             { label: 'Event Date', value: 'Sat, 14 Aug 2026 at 19:00' },
@@ -126,9 +126,9 @@ const premium = {
         cta: { label: 'Track Your Booking', url: '#' }
     }),
     'booking-under-review.html': P({
-        preheaderText: 'Ref #100045 — your booking is now with our management team.',
+        preheaderText: 'Ref #100045: your booking is now with our management team.',
         headline: 'Your Booking Is Under Review', greeting: 'Hi Naledi,',
-        bodyHtml: `Great news — your request for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> is now being actively reviewed by our management team. We're confirming availability and preparing a tailored quotation.`,
+        bodyHtml: `Great news: your request for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> is now being actively reviewed by our management team. We're confirming availability and preparing a tailored quotation.`,
         cards: [{ title: 'Booking · Ref #100045', rows: [
             { label: 'Event', value: 'Corporate Year-End', mono: false },
             { label: 'Date', value: 'Sat, 14 Aug 2026' },
@@ -145,8 +145,8 @@ const premium = {
         cta: { label: 'Review & Accept Quote', url: '#' }
     }),
     'quote-accepted.html': P({
-        preheaderText: 'Booking #100045 accepted — invoice issued.',
-        headline: 'Invoice Sent — Awaiting Payment', greeting: 'Hi Naledi,',
+        preheaderText: 'Booking #100045 accepted. Invoice issued.',
+        headline: 'Invoice Sent: Awaiting Payment', greeting: 'Hi Naledi,',
         bodyHtml: `We've received your acceptance of the quote for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>. Your booking reference is <strong style="color:#D4AF37;">#100045</strong>, and our team will formally confirm your booking shortly.`,
         cards: [{ title: 'Payment Schedule', rows: [
             { label: '50% Deposit · due 20 Jul 2026', value: 'R 9,250.00', highlight: true },
@@ -157,7 +157,7 @@ const premium = {
     'quote-expired.html': P({
         preheaderText: 'Your quote for booking #100045 has expired.',
         headline: 'Your Quote Has Expired', greeting: 'Hi Naledi,',
-        bodyHtml: `Your quote for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> has expired and is no longer valid.<br><br>If you're still interested in booking Thabiso Mhlongo, we'd be glad to prepare a fresh quote — just submit a new enquiry.`,
+        bodyHtml: `Your quote for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> has expired and is no longer valid.<br><br>If you're still interested in booking Thabiso Mhlongo, we'd be glad to prepare a fresh quote. Just submit a new enquiry.`,
         cta: { label: 'Submit a New Enquiry', url: '#' }
     }),
     'quote-expiry-warning.html': P({
@@ -169,9 +169,9 @@ const premium = {
 
     /* ── Batch 2: confirm & lifecycle ── */
     'booking-confirmed.html': P({
-        preheaderText: 'Booking #100045 is confirmed — see you on Sat, 14 Aug 2026!',
+        preheaderText: 'Booking #100045 is confirmed. See you on Sat, 14 Aug 2026!',
         headline: 'Your Booking Is Confirmed', greeting: 'Hi Naledi,',
-        bodyHtml: `Wonderful news — your booking for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> at <strong style="color:#FAFAFA;">The Venue, Sandton</strong> is now fully <strong style="color:#D4AF37;">CONFIRMED</strong>.<br><br>Thabiso Mhlongo is excited to be part of your event, and our team will be in touch with any final logistics closer to the date.<br><br><span style="color:#B0B0B0; font-size:13px;">We've attached a calendar invite (.ics) so you can save the event to your calendar.</span>`,
+        bodyHtml: `Wonderful news: your booking for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> at <strong style="color:#FAFAFA;">The Venue, Sandton</strong> is now fully <strong style="color:#D4AF37;">CONFIRMED</strong>.<br><br>Thabiso Mhlongo is excited to be part of your event, and our team will be in touch with any final logistics closer to the date.<br><br><span style="color:#B0B0B0; font-size:13px;">We've attached a calendar invite (.ics) so you can save the event to your calendar.</span>`,
         cards: [{ title: 'Confirmed Booking', rows: [
             { label: 'Event', value: 'Corporate Year-End', mono: false },
             { label: 'Date', value: 'Sat, 14 Aug 2026' },
@@ -182,9 +182,9 @@ const premium = {
         cta: { label: 'View Your Booking', url: '#' }
     }),
     'booking-completed.html': P({
-        preheaderText: 'Thank you — booking #100045 is complete. We hope it was a blast!',
-        headline: 'Event Completed — Thank You!', greeting: 'Hi Naledi,',
-        bodyHtml: `We hope you had an absolutely wonderful time! Your event — <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> at <strong style="color:#FAFAFA;">The Venue, Sandton</strong> — has been marked as completed.<br><br>It was a pleasure working with you. Here's a summary of your booking <span style="color:#B0B0B0; font-size:13px;">(reference #100045)</span>:`,
+        preheaderText: 'Thank you, booking #100045 is complete. We hope it was a blast!',
+        headline: 'Event Completed: Thank You!', greeting: 'Hi Naledi,',
+        bodyHtml: `We hope you had an absolutely wonderful time! Your event, <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> at <strong style="color:#FAFAFA;">The Venue, Sandton</strong>, has been marked as completed.<br><br>It was a pleasure working with you. Here's a summary of your booking <span style="color:#B0B0B0; font-size:13px;">(reference #100045)</span>:`,
         cards: [
             { title: 'Services Delivered', rows: [
                 { label: 'Stand-up Set (60 min)', value: 'R 15,000.00' },
@@ -199,13 +199,13 @@ const premium = {
     'review-request.html': P({
         preheaderText: "How was your event? We'd love your feedback on booking #100045.",
         headline: "We'd Love Your Feedback", greeting: 'Hi Naledi,',
-        bodyHtml: `We hope your event — <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> — was everything you imagined!<br><br>If you enjoyed working with Thabiso, a short review or testimonial would mean the world to us.`,
+        bodyHtml: `We hope your event, <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>, was everything you imagined!<br><br>If you enjoyed working with Thabiso, a short review or testimonial would mean the world to us.`,
         cta: { label: 'Send Your Review', url: '#' }
     }),
     'date-changed.html': P({
         preheaderText: 'Booking #100045: the event date changed to Sat, 21 Aug 2026.',
         headline: 'Event Date Updated', greeting: 'Hi Naledi,',
-        bodyHtml: `Please note that the date for your booking <strong style="color:#FAFAFA;">#100045</strong> — <strong style="color:#FAFAFA;">Corporate Year-End</strong> — has been updated. Please update your calendar accordingly.<br><br><span style="color:#B0B0B0; font-size:13px;">If this change was made in error or you have any concerns, please contact us immediately at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</span>`,
+        bodyHtml: `Please note that the date for your booking <strong style="color:#FAFAFA;">#100045</strong> (<strong style="color:#FAFAFA;">Corporate Year-End</strong>) has been updated. Please update your calendar accordingly.<br><br><span style="color:#B0B0B0; font-size:13px;">If this change was made in error or you have any concerns, please contact us immediately at <a href="mailto:bookings@thabisomhlongo.com" style="color:#D4AF37;">bookings@thabisomhlongo.com</a>.</span>`,
         cards: [{ title: 'Date Change', rows: [
             { label: 'Previous Date', rawValue: '<span style="text-decoration:line-through; color:#707070;">Sat, 14 Aug 2026</span>' },
             { label: 'New Date', value: 'Sat, 21 Aug 2026', highlight: true }
@@ -217,14 +217,14 @@ const premium = {
         headline: 'Booking Cancelled', greeting: 'Hi Naledi,',
         bodyHtml: `We regret to inform you that your booking for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> has been cancelled.<br><br><strong style="color:#FAFAFA;">Reason:</strong> Venue no longer available` +
             C.spacer(14) +
-            C.alertStrip({ severity: 'info', text: `<strong style="color:#B0B0B0;">Cancellation Policy Applied</strong><br>Cancelled more than 30 days before the event — 100% of the deposit is refundable.<br><span style="font-size:12px;color:#B0B0B0;">Days until event at time of cancellation: <strong>33</strong></span>` }) +
+            C.alertStrip({ severity: 'info', text: `<strong style="color:#B0B0B0;">Cancellation Policy Applied</strong><br>Cancelled more than 30 days before the event, so 100% of the deposit is refundable.<br><span style="font-size:12px;color:#B0B0B0;">Days until event at time of cancellation: <strong>33</strong></span>` }) +
             `<p style="margin:14px 0 0;"><strong style="color:#D4AF37;">Refund Due: R 9,250.00</strong><br><span style="color:#B0B0B0;">Your refund will be processed within 5&ndash;7 business days.</span></p>` +
             `<p style="margin:12px 0 0; color:#B0B0B0;">If you have any questions, please contact us directly. <span style="font-size:13px;">(Booking reference #100045)</span></p>`
     }),
     'pending-expired.html': P({
-        preheaderText: 'Enquiry #100045 has expired — you can submit a new one any time.',
+        preheaderText: 'Enquiry #100045 has expired. You can submit a new one any time.',
         headline: 'Your Enquiry Has Expired', greeting: 'Hi Naledi,',
-        bodyHtml: `Your booking enquiry for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> has expired due to inactivity.<br><br>If you're still interested, we'd love to help make your event special — just submit a new enquiry. <span style="color:#B0B0B0; font-size:13px;">(Original reference #100045)</span>`,
+        bodyHtml: `Your booking enquiry for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> has expired due to inactivity.<br><br>If you're still interested, we'd love to help make your event special. Just submit a new enquiry. <span style="color:#B0B0B0; font-size:13px;">(Original reference #100045)</span>`,
         cta: { label: 'Submit a New Enquiry', url: '#' }
     }),
 
@@ -251,7 +251,7 @@ const premium = {
         cta: { label: 'Pay Now', url: '#' }
     }),
     'invoice-overdue.html': P({
-        preheaderText: 'Invoice INV-2026-100045 is overdue — R 9250.00 outstanding.',
+        preheaderText: 'Invoice INV-2026-100045 is overdue: R 9250.00 outstanding.',
         headline: 'Invoice Overdue', greeting: 'Hi Naledi,',
         bodyHtml: `Your invoice for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> was due on <strong style="color:#E8A83E;">2026-08-07</strong> and is now <strong style="color:#E8A83E;">overdue</strong>.` +
             C.spacer(14) +
@@ -265,7 +265,7 @@ const premium = {
         cta: { label: 'Pay Now', url: '#' }
     }),
     'payment-received.html': P({
-        preheaderText: 'Partial Payment Received for booking #100045 — R9250.00.',
+        preheaderText: 'Partial Payment Received for booking #100045: R9250.00.',
         headline: 'Partial Payment Received', greeting: 'Hi Naledi,',
         bodyHtml: `We've successfully processed a payment for the booking of <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>.` +
             `<p style="margin:12px 0 0; color:#E6E6E6;">Your booking will be fully confirmed once the remaining balance is settled. <span style="color:#B0B0B0; font-size:13px;">(Booking reference #100045)</span></p>`,
@@ -279,7 +279,7 @@ const premium = {
 
     /* ── Batch 4: payment-critical B ── */
     'deposit-balance-due.html': P({
-        preheaderText: 'Deposit received — balance of R9250.00 due for booking #100045.',
+        preheaderText: 'Deposit received: balance of R9250.00 due for booking #100045.',
         headline: 'Deposit Received', greeting: 'Hi Naledi,',
         bodyHtml: `Thank you for your deposit payment for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>. Your booking is confirmed.` +
             `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">Please ensure payment is received at least 48 hours before the event. (Booking reference #100045)</p>`,
@@ -292,13 +292,13 @@ const premium = {
         bodyHtml: `We noticed that your payment for <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> was not completed successfully.` +
             `<p style="margin:12px 0 0;"><strong style="color:#D4AF37;">Amount Due:</strong> R18500.00</p>` +
             `<p style="margin:10px 0 0; color:#E6E6E6;">Please try again via your booking tracker, or contact us directly if you need assistance. <span style="color:#B0B0B0; font-size:13px;">(Booking reference #100045)</span></p>` +
-            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">If this was a mistake, no action is needed — your booking remains active.</p>`,
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">If this was a mistake, no action is needed. Your booking remains active.</p>`,
         cta: { label: 'Try Payment Again', url: '#' }
     }),
     'refund-processed.html': P({
         preheaderText: 'Your refund of R 9250.00 for booking #100045 has been processed.',
         headline: 'Refund Confirmation', greeting: 'Hi Naledi,',
-        bodyHtml: `We are writing to confirm that your refund for Booking <strong style="color:#FAFAFA;">#100045</strong> — <strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong> — has been processed.` +
+        bodyHtml: `We are writing to confirm that your refund for Booking <strong style="color:#FAFAFA;">#100045</strong> (<strong style="color:#FAFAFA;">Corporate Year-End</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>) has been processed.` +
             `<p style="margin:14px 0 0; color:#E6E6E6;">Please allow 3&ndash;5 business days for the funds to reflect in your account, depending on your bank or payment method.</p>`,
         cards: [{ title: 'Refund Details', rows: [
             { label: 'Refund Amount', value: 'R 9250.00', highlight: true },
@@ -336,12 +336,12 @@ const premium = {
         headline: 'Your Quote Awaits', greeting: 'Hi Naledi,',
         bodyHtml: `This is a friendly reminder that you have an open quotation for your upcoming <strong style="color:#FAFAFA;">Corporate</strong> on <strong style="color:#FAFAFA;">Sat, 14 Aug 2026</strong>.` +
             `<p style="margin:10px 0 0; color:#B0B0B0;">Your quote of <strong style="color:#D4AF37;">R 18500.00</strong> is still awaiting your response. Please note your quote expires on <strong style="color:#D4AF37;">2026-08-04</strong>.</p>` +
-            `<p style="margin:10px 0 0; color:#E6E6E6;">Use the button below to review and accept — the date is still available for you.</p>`,
+            `<p style="margin:10px 0 0; color:#E6E6E6;">Use the button below to review and accept. The date is still available for you.</p>`,
         cta: { label: 'Review & Accept Quote', url: '#' }
     }),
     'balance-payment-reminder.html': P({
-        preheaderText: 'Balance of R 9250.00 due — event in 5 days.',
-        headline: 'Balance Due — Event Approaching', greeting: 'Hi Naledi,',
+        preheaderText: 'Balance of R 9250.00 due: event in 5 days.',
+        headline: 'Balance Due: Event Approaching', greeting: 'Hi Naledi,',
         bodyHtml: `Your event <strong style="color:#FAFAFA;">Corporate Year-End</strong> is coming up in <strong style="color:#D4AF37;">5 days</strong>!` +
             `<p style="margin:10px 0 0; color:#E6E6E6;">We wanted to remind you that a <strong style="color:#D4AF37;">balance payment of R 9250.00</strong> is still outstanding for your booking.</p>`,
         cards: [{ title: 'Balance Due', rows: [
@@ -374,18 +374,18 @@ const premium = {
     'inquiry-reply.html': P({
         preheaderText: 'Re: Availability enquiry for December',
         headline: 'Management Response',
-        bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Inquiry #Availability enquiry for December</p>Thanks so much for reaching out! Thabiso is available on that date — I've sent a formal quote through to your email.`
+        bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Inquiry #Availability enquiry for December</p>Thanks so much for reaching out! Thabiso is available on that date, and I've sent a formal quote through to your email.`
     }),
     'direct-compose.html': P({
         preheaderText: 'A message from Thabiso Mhlongo Management.',
         headline: 'Direct Message',
-        bodyHtml: `Just confirming we received your deposit — looking forward to the show!`
+        bodyHtml: `Just confirming we received your deposit. Looking forward to the show!`
     }),
     'abandoned-booking-recovery.html': P({
-        preheaderText: 'You started a booking request — pick up right where you left off.',
+        preheaderText: 'You started a booking request. Pick up right where you left off.',
         headline: 'Finish Your Booking Request', greeting: 'Hi there,',
-        bodyHtml: `It looks like you started a booking request for <strong style="color:#D4AF37;">Thabiso Mhlongo</strong> but didn't quite finish. Good news — your details are saved, so you can pick up right where you left off.` +
-            `<p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">Submitting a request doesn't confirm a booking — our team reviews each one and sends a personalised quote, usually within 2 business days.</p>`,
+        bodyHtml: `It looks like you started a booking request for <strong style="color:#D4AF37;">Thabiso Mhlongo</strong> but didn't quite finish. Good news: your details are saved, so you can pick up right where you left off.` +
+            `<p style="margin:12px 0 0; color:#B0B0B0; font-size:12px;">Submitting a request doesn't confirm a booking. Our team reviews each one and sends a personalised quote, usually within 2 business days.</p>`,
         cards: [{ title: 'Your Booking So Far', rows: [
             { label: 'Event', value: 'Birthday Party', mono: false },
             { label: 'Date', value: '2026-09-12' },
@@ -397,14 +397,14 @@ const premium = {
 
     /* ── Batch 6: visitor & subscriber ── */
     'contact-auto-reply.html': P({
-        preheaderText: "We've received your message — thanks for reaching out, Naledi!",
+        preheaderText: "We've received your message. Thanks for reaching out, Naledi!",
         headline: "We've Received Your Message", greeting: 'Hi Naledi,',
         bodyHtml: `Thank you for reaching out to Thabiso Mhlongo Management. We have successfully received your inquiry regarding <strong style="color:#D4AF37;">"Availability for a private event"</strong> and our team will review it shortly.` +
             `<p style="margin:10px 0 0; color:#E6E6E6;">In the meantime, feel free to follow Thabiso on social media for the latest updates and tour dates.</p>` +
             `<p style="margin:18px 0 0; color:#B0B0B0;">Stay funny,<br><span style="font-family:'Cormorant Garamond',Georgia,serif; font-size:18px; color:#D4AF37;">Thabiso Mhlongo Management</span></p>`
     }),
     'newsletter-welcome.html': P({
-        preheaderText: "You're on the list — welcome to the newsletter!",
+        preheaderText: "You're on the list. Welcome to the newsletter!",
         headline: "You're On The List!",
         bodyHtml: `<p style="text-align:center;">Thank you for subscribing to my official newsletter. I truly appreciate your support. You will now be the first to know about my upcoming stand-up tour dates, new video releases, and exclusive content.</p>` +
             `<p style="text-align:center; color:#B0B0B0;">Rest assured, your email address will be used responsibly and will never be shared with third parties.</p>` +
@@ -414,7 +414,7 @@ const premium = {
     'newsletter-campaign.html': P({
         preheaderText: 'New Tour Dates Just Announced!',
         headline: 'New Tour Dates Just Announced!',
-        bodyHtml: `<p>Hey there!</p><p>I'm thrilled to announce four new stand-up dates across Gauteng this September. Tickets go live Friday at 9am — subscribers get first access.</p><p>See you in the front row,<br>Thabiso</p>`,
+        bodyHtml: `<p>Hey there!</p><p>I'm thrilled to announce four new stand-up dates across Gauteng this September. Tickets go live Friday at 9am. Subscribers get first access.</p><p>See you in the front row,<br>Thabiso</p>`,
         unsubscribeUrl: '#'
     }),
 
@@ -423,7 +423,7 @@ const premium = {
     'booking-management-response.html': P({
         preheaderText: 'Re: Booking Request #100045',
         headline: 'Management Response',
-        bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Booking Request #100045</p>Hi Naledi, thanks for your patience — I've reviewed the updated guest count and the quote will be revised shortly.`
+        bodyHtml: `<p style="color:#B0B0B0; font-size:13px; margin:0 0 12px;">In reference to Booking Request #100045</p>Hi Naledi, thanks for your patience. I've reviewed the updated guest count and the quote will be revised shortly.`
     })
 };
 
@@ -454,7 +454,7 @@ const system = {
         ] }]
     }),
     'payment-received-notification.html': S({
-        preheaderText: 'Payment received for booking #100045 — R9250.00.',
+        preheaderText: 'Payment received for booking #100045: R9250.00.',
         category: 'Payments & Invoices', severity: 'info',
         leadFact: 'Payment received for booking <strong style="color:#FAFAFA;">#100045</strong>.',
         cards: [{ rows: [
@@ -471,9 +471,9 @@ const system = {
         preheaderText: 'Naledi Mokoena changed the payment plan for booking #100045.',
         category: 'Payments & Invoices', severity: 'action',
         leadFact: '<strong style="color:#FAFAFA;">Naledi Mokoena</strong> changed the payment plan for booking <strong style="color:#FAFAFA;">#100045</strong>.',
-        bodyHtml: `<p style="margin:0; color:#E6E6E6;">Applied immediately — no approval needed. You can still change it under Setup Milestones.</p>` +
+        bodyHtml: `<p style="margin:0; color:#E6E6E6;">Applied immediately, no approval needed. You can still change it under Setup Milestones.</p>` +
             `<p style="margin:8px 0 0; color:#B0B0B0; font-size:12px;">The invoice PDF now shows the new schedule (same invoice number, nothing re-sent).</p>` +
-            C.spacer(12) + C.alertStrip({ severity: 'action', text: 'The contract was already sent to the client and still lists the previous payment schedule. It was left unchanged — regenerate and re-send it if the new schedule should be part of the agreement.' }),
+            C.spacer(12) + C.alertStrip({ severity: 'action', text: 'The contract was already sent to the client and still lists the previous payment schedule. It was left unchanged. Regenerate and re-send it if the new schedule should be part of the agreement.' }),
         cards: [
             { title: 'Booking', rows: [
                 { label: 'Client', rawValue: 'Naledi Mokoena (<a href="mailto:naledi@example.com" style="color:#D4AF37; text-decoration:none;">naledi@example.com</a>)' },
@@ -495,7 +495,7 @@ const system = {
         ]
     }),
     'quote-accepted-notification.html': S({
-        preheaderText: 'Naledi Mokoena accepted the quote for booking #100045 — invoice auto-generated.',
+        preheaderText: 'Naledi Mokoena accepted the quote for booking #100045. Invoice auto-generated.',
         category: 'Quotes & Proposals', severity: 'action',
         leadFact: '<strong style="color:#FAFAFA;">Naledi Mokoena</strong> (naledi@example.com) has accepted the quote for booking <strong style="color:#FAFAFA;">#100045</strong>.',
         bodyHtml: `<p style="margin:0; color:#E6E6E6;">An invoice has been auto-generated. Log in to confirm the booking.</p>`,
@@ -514,10 +514,10 @@ const system = {
         preheaderText: 'Naledi Mokoena left a 5/5 review for booking #100045.',
         category: 'Thank You & Reviews', severity: 'info',
         leadFact: '<strong style="color:#FAFAFA;">Naledi Mokoena</strong> has submitted a <strong style="color:#D4AF37;">5/5</strong> review for Booking <strong style="color:#FAFAFA;">#100045</strong>.',
-        bodyHtml: `<blockquote style="border-left:3px solid #D4AF37; padding:10px 16px; margin:0 0 12px; color:#E6E6E6; background:#1A1A1A;">Thabiso was an absolute hit at our year-end function — professional and hilarious!</blockquote><p style="margin:0; color:#B0B0B0;">Log in to the admin panel to approve or manage reviews.</p>`
+        bodyHtml: `<blockquote style="border-left:3px solid #D4AF37; padding:10px 16px; margin:0 0 12px; color:#E6E6E6; background:#1A1A1A;">Thabiso was an absolute hit at our year-end function. Professional and hilarious!</blockquote><p style="margin:0; color:#B0B0B0;">Log in to the admin panel to approve or manage reviews.</p>`
     }),
     'contract-signed-notice.html': S({
-        preheaderText: 'Naledi Mokoena signed the contract for booking #100045 — countersignature due.',
+        preheaderText: 'Naledi Mokoena signed the contract for booking #100045. Countersignature due.',
         category: 'Contracts & Signatures', severity: 'action',
         leadFact: '<strong style="color:#FAFAFA;">Naledi Mokoena</strong> has signed the contract for booking <strong style="color:#FAFAFA;">#100045</strong> online.',
         bodyHtml: `<p style="margin:0; color:#E6E6E6;">Log in to the admin panel to countersign and finalise it.</p>`
@@ -544,7 +544,7 @@ const system = {
         ] }]
     }),
     'completion-summary.html': S({
-        preheaderText: 'Booking #100045 completed — Corporate Year-End.',
+        preheaderText: 'Booking #100045 completed: Corporate Year-End.',
         category: 'Booking Confirmations', severity: 'info',
         leadFact: '<strong style="color:#FAFAFA;">Booking #100045</strong> has been marked as <strong style="color:#D4AF37;">COMPLETED</strong>.',
         bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Open the Financials modal for full transaction history and VAT breakdown.</p>`,
@@ -567,9 +567,9 @@ const system = {
         leadFact: 'There are <strong style="color:#FAFAFA;">3</strong> notification(s) stuck in the queue for more than 10 minutes.',
         bodyHtml: `<p style="margin:0; color:#E6E6E6;">This may indicate that the background queue processor is down, experiencing high latency, or has crashed.</p>`,
         cards: [{ title: 'Stuck Notifications', rows: [
-            { label: '#4821 — pending', value: 'To naledi@example.com · 2026-07-12 08:14:02', mono: false },
-            { label: '#4820 — sending', value: 'To thabiso@example.com · 2026-07-12 08:10:41', mono: false },
-            { label: '#4819 — pending', value: 'To admin@example.com · 2026-07-12 08:09:55', mono: false }
+            { label: '#4821 (pending)', value: 'To naledi@example.com · 2026-07-12 08:14:02', mono: false },
+            { label: '#4820 (sending)', value: 'To thabiso@example.com · 2026-07-12 08:10:41', mono: false },
+            { label: '#4819 (pending)', value: 'To admin@example.com · 2026-07-12 08:09:55', mono: false }
         ] }]
     }),
     'website-inquiry.html': S({
@@ -588,7 +588,7 @@ const system = {
         ] }]
     }),
     'test-notification.html': S({
-        preheaderText: 'Test notification — confirming admin routing.',
+        preheaderText: 'Test notification: confirming admin routing.',
         category: 'System', severity: 'info',
         leadFact: 'This is a test email confirming that admin notifications are correctly routed to <strong style="color:#FAFAFA;">admin@thabisomhlongo.com</strong>.',
         timestamp: '2026-07-12 08:00 UTC'
@@ -598,11 +598,11 @@ const system = {
     'digest-enquiries-expiring.html': S({
         preheaderText: '2 enquiry(ies) expiring within ~24 hours.',
         category: 'Booking Requests', severity: 'action',
-        leadFact: 'The following enquiries will <strong style="color:#FAFAFA;">auto-expire within the next ~24 hours</strong> unless a quote is sent — after which the client is notified their request lapsed.',
+        leadFact: 'The following enquiries will <strong style="color:#FAFAFA;">auto-expire within the next ~24 hours</strong> unless a quote is sent. After that, the client is notified that their request lapsed.',
         bodyHtml: `<p style="margin:0; color:#E6E6E6;">Open the Bookings pipeline and send a quote to keep them alive.</p>`,
         cards: [{ title: 'Expiring Enquiries', rows: [
-            { label: '#100050 — Priya Naidoo', value: 'Corporate (event 2026-08-20)', mono: false },
-            { label: '#100051 — Sipho Zulu', value: 'Birthday Party (event 2026-08-22)', mono: false }
+            { label: '#100050: Priya Naidoo', value: 'Corporate (event 2026-08-20)', mono: false },
+            { label: '#100051: Sipho Zulu', value: 'Birthday Party (event 2026-08-22)', mono: false }
         ] }]
     }),
     'digest-overdue-payments.html': S({
@@ -610,8 +610,8 @@ const system = {
         category: 'Payments & Invoices', severity: 'alert',
         leadFact: 'The following confirmed bookings have unpaid balances with past event dates.',
         cards: [{ title: 'Overdue Bookings', rows: [
-            { label: '#100050 — Priya Naidoo', value: 'R3250.50 outstanding', mono: false },
-            { label: '#100051 — Sipho Zulu', value: 'R1899.99 outstanding', mono: false }
+            { label: '#100050: Priya Naidoo', value: 'R3250.50 outstanding', mono: false },
+            { label: '#100051: Sipho Zulu', value: 'R1899.99 outstanding', mono: false }
         ] }]
     }),
     'digest-stalled-bookings.html': S({
@@ -620,8 +620,8 @@ const system = {
         leadFact: 'The following bookings have been in <strong style="color:#D4AF37;">ACCEPTED</strong> status for more than 3 days with no invoice generated.',
         bodyHtml: `<p style="margin:0; color:#B0B0B0; font-size:12px;">Log in to the admin portal to generate invoices for these bookings.</p>`,
         cards: [{ title: 'Stalled Bookings', rows: [
-            { label: '#100050 — Priya Naidoo', value: 'Corporate · Event: 2026-08-20 · Accepted: 2026-07-08', mono: false },
-            { label: '#100051 — Sipho Zulu', value: 'Birthday Party · Event: 2026-08-22 · Accepted: 2026-07-07', mono: false }
+            { label: '#100050: Priya Naidoo', value: 'Corporate · Event: 2026-08-20 · Accepted: 2026-07-08', mono: false },
+            { label: '#100051: Sipho Zulu', value: 'Birthday Party · Event: 2026-08-22 · Accepted: 2026-07-07', mono: false }
         ] }]
     }),
     'digest-ledger-discrepancy.html': S({
@@ -629,7 +629,7 @@ const system = {
         category: 'Payments & Invoices', severity: 'alert',
         leadFact: 'The following bookings have a mismatch between <strong style="color:#FAFAFA;">bookings.amount_paid</strong> and the <strong style="color:#FAFAFA;">sum of completed non-duplicate transactions</strong>. Please investigate and correct manually.',
         cards: [{ title: 'Payment Ledger Discrepancies', rows: [
-            { label: '#100045 — Naledi Mokoena · Corporate Year-End', value: 'Recorded R 18500.00 · Tx Sum R 17500.00 · Drift R 1000.00', mono: false }
+            { label: '#100045: Naledi Mokoena · Corporate Year-End', value: 'Recorded R 18500.00 · Tx Sum R 17500.00 · Drift R 1000.00', mono: false }
         ] }]
     }),
     'digest-payfast-stuck.html': S({
@@ -637,13 +637,13 @@ const system = {
         category: 'Payments & Invoices', severity: 'alert',
         leadFact: 'The following PayFast transactions have been in <strong style="color:#FAFAFA;">PENDING</strong> status for more than 1 hour. PayFast may have not sent an ITN. Please check the PayFast dashboard and confirm or void manually.',
         cards: [{ title: 'Stuck PayFast Transactions', rows: [
-            { label: '#100050 — Priya Naidoo', value: 'R3250.50 · Started 2026-07-12 06:45:00', mono: false }
+            { label: '#100050: Priya Naidoo', value: 'R3250.50 · Started 2026-07-12 06:45:00', mono: false }
         ] }]
     }),
 
     /* ── Batch 4: PayFast ITN alerts (HIGH — figures verbatim) ── */
     'itn-missing-total.html': S({
-        preheaderText: 'PayFast ITN for booking #100099 rejected — no total_amount set.',
+        preheaderText: 'PayFast ITN for booking #100099 rejected: no total_amount set.',
         category: 'Payments & Invoices', severity: 'alert',
         leadFact: 'A PayFast ITN for booking <strong style="color:#FAFAFA;">#100099</strong> (R750.00) was <strong style="color:#E8A83E;">rejected</strong> because the booking has no total_amount set.',
         bodyHtml: `<p style="margin:0; color:#E6E6E6;">Set the booking total and replay the transaction manually.</p>`
@@ -655,13 +655,13 @@ const system = {
         bodyHtml: `<p style="margin:0; color:#E6E6E6;">The booking ledger is unchanged. Replay manually.</p>`
     }),
     'itn-overpayment.html': S({
-        preheaderText: 'Overpayment detected for booking #100099 — credit NOT applied.',
+        preheaderText: 'Overpayment detected for booking #100099: credit NOT applied.',
         category: 'Payments & Invoices', severity: 'alert',
         leadFact: 'PayFast sent <strong style="color:#FAFAFA;">R1200.00</strong> for booking <strong style="color:#FAFAFA;">#100099</strong> but crediting it would exceed the R750.00 booking total.',
         bodyHtml: `<p style="margin:0; color:#E6E6E6;">Credit was <strong style="color:#E8A83E;">NOT applied</strong>. Manual review required.</p>`
     }),
     'itn-balance-payment-failed.html': S({
-        preheaderText: 'Balance payment failed for booking #100099 — deposit remains on record.',
+        preheaderText: 'Balance payment failed for booking #100099: deposit remains on record.',
         category: 'Payments & Invoices', severity: 'alert',
         leadFact: 'A balance payment attempt by <strong style="color:#FAFAFA;">Priya Naidoo</strong> for Booking <strong style="color:#FAFAFA;">#100099</strong> has failed.',
         bodyHtml: `<p style="margin:0; color:#E6E6E6;">The booking still has a deposit on record. Payment status remains <strong style="color:#D4AF37;">DEPOSIT_PAID</strong>. Please follow up with the client.</p>`,
@@ -672,7 +672,7 @@ const system = {
     'dashboard-invite.html': S({
         preheaderText: "You've been added as a Manager to the Thabiso Mhlongo dashboard.",
         category: 'User Accounts & Security', severity: 'action',
-        leadFact: 'Hello <strong style="color:#FAFAFA;">Naledi</strong> — you\'ve been added as a <strong style="color:#FAFAFA;">Manager</strong> to the Thabiso Mhlongo management dashboard.',
+        leadFact: 'Hello <strong style="color:#FAFAFA;">Naledi</strong>, you\'ve been added as a <strong style="color:#FAFAFA;">Manager</strong> to the Thabiso Mhlongo management dashboard.',
         bodyHtml:
             `<p style="margin:0 0 18px; color:#E6E6E6;">To activate your account, set your password using the secure link below. This link will safely expire in 72 hours.</p>` +
             C.ctaButton({ label: 'Set Your Password', url: '#' }) +
@@ -682,7 +682,7 @@ const system = {
     'password-reset.html': S({
         preheaderText: 'A password reset was requested for your dashboard account.',
         category: 'User Accounts & Security', severity: 'action',
-        leadFact: 'Hello <strong style="color:#FAFAFA;">admin</strong> — we received a request to reset the administrative password associated with this email address.',
+        leadFact: 'Hello <strong style="color:#FAFAFA;">admin</strong>, we received a request to reset the administrative password associated with this email address.',
         bodyHtml:
             `<p style="margin:0 0 18px; color:#E6E6E6;">You can reset your password by clicking the secure link below. This link will safely expire in 1 hour.</p>` +
             C.ctaButton({ label: 'Reset Password', url: '#' }) +

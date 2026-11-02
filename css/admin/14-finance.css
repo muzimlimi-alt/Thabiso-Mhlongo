@@ -181,3 +181,71 @@
    css/admin/email-logs-2.css — see that file's header comment for why it stayed
    separate from the other .log-row block (now css/admin/email-logs.css) instead
    of being combined. */
+
+/* ===== Finance <- Event ticketing (js/admin/finance-tickets.js): the revenue-sources strip and the Ticket Sales tab ===== */
+.fts-sources { margin: 0 0 22px; padding: 20px 22px; background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: 14px; }
+.fts-sources:empty { display: none; }
+.fts-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; flex-wrap: wrap; margin-bottom: 14px; }
+.fts-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--atl-muted); }
+.fts-eyebrow span { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.fts-total { font-family: 'JetBrains Mono', monospace; font-size: 34px; font-weight: 700; color: var(--atl-ink); line-height: 1.15; margin: 4px 0; }
+.fts-profit { text-align: right; min-width: 200px; }
+.fts-profit__v { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; margin: 4px 0; }
+.fts-note { font-size: 12px; color: var(--atl-muted); max-width: 520px; }
+.fts-profit .fts-note { margin-left: auto; }
+.fts-bar { display: flex; gap: 3px; height: 12px; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+.fts-bar__seg { display: block; min-width: 4px; }
+.fts-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.fts-src { padding: 14px 16px; border: 1px solid var(--atl-line); border-top: 3px solid var(--c, var(--atl-amber)); border-radius: 10px; background: var(--atl-paper); min-width: 0; }
+.fts-src--link { cursor: pointer; transition: border-color .15s, transform .15s; }
+.fts-src--link:hover, .fts-src--link:focus-visible { border-color: var(--c); transform: translateY(-1px); outline: none; }
+.fts-src__top { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; color: var(--atl-muted); text-transform: uppercase; letter-spacing: .06em; }
+.fts-src__top i { color: var(--c); }
+.fts-src__top b { margin-left: auto; color: var(--atl-ink); font-family: 'JetBrains Mono', monospace; letter-spacing: 0; }
+.fts-src__v { font-family: 'JetBrains Mono', monospace; font-size: 21px; font-weight: 700; color: var(--atl-ink); margin: 8px 0 4px; overflow-wrap: anywhere; }
+.fts-src__sub { font-size: 12px; color: var(--atl-muted); line-height: 1.55; }
+.fts-src__sub b { color: var(--atl-ink); font-family: 'JetBrains Mono', monospace; font-weight: 600; }
+.fts-src--owed .fts-src__sub { margin-top: 8px; }
+@media (max-width: 1100px) { .fts-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 600px) { .fts-grid { grid-template-columns: 1fr; } .fts-profit { text-align: left; } .fts-profit .fts-note { margin-left: 0; } .fts-total { font-size: 28px; } }
+
+.fts-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 0 12px; color: var(--atl-muted); font-size: 12px; }
+.fts-period { font-size: 12px; color: var(--atl-muted); margin: 0 0 14px; }
+.fts-period b { color: var(--atl-ink); }
+.fts-empty { color: var(--atl-muted-dim, var(--atl-muted)); font-size: 13px; padding: 10px 0; margin: 0; }
+.fts-hint { font-weight: 400; color: var(--atl-muted); margin-left: 8px; font-size: 11px; }
+.fts-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-bottom: 20px; }
+@media (max-width: 1000px) { .fts-pair { grid-template-columns: 1fr; } }
+.fts-block { margin-bottom: 20px; }
+.fts-notrev { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; margin: 0 0 20px; border: 1px dashed var(--atl-line-strong, var(--atl-line)); border-radius: 10px; }
+.fts-notrev__h { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--atl-muted); }
+.fts-notrev__row { display: flex; gap: 10px 26px; flex-wrap: wrap; font-size: 13px; color: var(--atl-ink); }
+.fts-notrev em { color: var(--atl-muted); font-style: normal; font-size: 12px; }
+.fts-table { margin: 0; }
+.fts-table th.r, .fts-table td.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fts-table td, .fts-table th { vertical-align: middle; }
+.fts-w { width: 22%; min-width: 90px; }
+.fts-sub { font-size: 11px; color: var(--atl-muted); }
+.fts-meter { display: block; height: 8px; border-radius: 6px; background: var(--atl-line); overflow: hidden; }
+.fts-meter i { display: block; height: 100%; background: var(--atl-amber); border-radius: 6px; }
+.fts-table--click .fts-ev { cursor: pointer; }
+.fts-table--click .fts-ev:hover > td, .fts-table--click .fts-ev:focus-visible > td { background: var(--atl-amber-dim, rgba(212,175,55,.08)); }
+.fts-ev:focus-visible, .fts-ord:focus-visible { outline: 2px solid var(--atl-amber); outline-offset: -2px; }
+.fts-chev { font-size: 10px; color: var(--atl-muted); width: 12px; }
+.fts-drill > td { padding: 0 0 0 28px !important; background: var(--atl-paper); }
+.fts-table--inner { margin: 6px 0 10px; }
+.fts-ord { cursor: pointer; }
+.fts-trail > td { background: var(--atl-card); }
+.fts-trail__grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px 18px; padding: 10px 4px 4px; }
+.fts-trail__grid span { display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .07em; color: var(--atl-muted); }
+.fts-trail__grid b { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--atl-ink); overflow-wrap: anywhere; }
+.fts-mono { font-size: 11px !important; }
+.fts-notes { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: var(--atl-muted); }
+.fts-proj { border-style: dashed; }
+.fts-proj__n { color: var(--atl-muted); font-style: italic; }
+.fts-issues { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.7; }
+.fts-orderpanel { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--atl-line); border-radius: 10px; background: var(--atl-card); }
+.fts-orderpanel__h { margin: 0 0 6px; font-size: 14px; }
+.fts-table--inner tbody tr, .fts-table--inner tbody td { background: transparent; color: var(--atl-ink); }
+.fts-table--inner tbody tr.fts-ord:hover > td, .fts-table--inner tbody tr.fts-ord:focus-visible > td { background: var(--atl-amber-dim, rgba(212,175,55,.08)); }
+.fts-table--inner thead th { background: transparent; }

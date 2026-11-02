@@ -90,7 +90,7 @@ function baseLayout({ preheaderText = '', contentHtml = '', footerHtml = '', tit
 <title>${esc(title)}</title>
 <!--[if mso]><noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript><![endif]-->
 <style>
-  /* Progressive enhancement ONLY — no critical layout lives here. */
+  /* Progressive enhancement ONLY: no critical layout lives here. */
   a { text-decoration: none; }
   .tm-btn:hover { background-color: ${TOKENS.goldHover} !important; }
   @media screen and (max-width: 600px) {

@@ -471,8 +471,8 @@ function initializeDatabase() {
             db.get("SELECT COUNT(*) AS c FROM testimonials", (err, row) => {
                 if (err || !row || row.c > 0) return;
                 const seed = [
-                    ['Naledi Khumalo', 'Corporate Events Lead', "Thabiso hosted our year-end function and had the whole floor — interns to the CFO — crying with laughter. Professional, punctual, and impossibly funny."],
-                    ['Sipho Maseko', 'Festival Director', "He switched between isiSwati and English mid-punchline and somehow the whole tent got the joke. We've booked him twice since — the crowd asks for him by name."],
+                    ['Naledi Khumalo', 'Corporate Events Lead', "Thabiso hosted our year-end function and had the whole floor, from interns to the CFO, crying with laughter. Professional, punctual, and impossibly funny."],
+                    ['Sipho Maseko', 'Festival Director', "He switched between isiSwati and English mid-punchline and somehow the whole tent got the joke. We've booked him twice since. The crowd asks for him by name."],
                     ['Annelie Botha', 'Private Client', "From the first quote to the final bow, everything was effortless. He made my father's 60th feel like a sold-out theatre show."],
                 ];
                 seed.forEach(([name, designation, quote]) => {
@@ -1587,7 +1587,7 @@ function initializeDatabase() {
                 ['<strong>Funny Business </strong> World Wide ']);
             db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('hero_tagline', 'Officially funny since 2014')`);
             db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('hero_subtitle', ?)`,
-                ["An award winning South African stand-up comedian, writer, actor, podcaster and TV presenter from Barberton — bringing a decade of stage-craft, razor-sharp wit and premium entertainment to South Africa's biggest rooms."]);
+                ["An award winning South African stand-up comedian, writer, actor, podcaster and TV presenter from Barberton, bringing a decade of stage-craft, razor-sharp wit and premium entertainment to South Africa's biggest rooms."]);
             db.run(`INSERT OR IGNORE INTO settings (setting_key, setting_value) VALUES ('features_items', ?)`,
                 [JSON.stringify([
                     { title: '10+ Years', description: 'On stage since 2014' },

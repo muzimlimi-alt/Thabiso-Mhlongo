@@ -26,7 +26,7 @@
     (function () {
         if (typeof window.formatDate !== 'function') {
             window.formatDate = function (dateStr) {
-                if (!dateStr) return '—';
+                if (!dateStr) return '-';
                 var d = new Date(dateStr);
                 return isNaN(d.getTime()) ? dateStr :
                     (d.toLocaleDateString('en-ZA', { day: '2-digit', month: 'short', year: 'numeric' }) +
@@ -79,7 +79,7 @@
                 if (card) {
                     var n = document.createElement('div');
                     n.id = noticeId; n.className = 'um-security-tips'; n.style.marginTop = '14px';
-                    n.innerHTML = '<i class="fa-solid fa-lock"></i><span>Read-only — administrator access is required to edit legal documents.</span>';
+                    n.innerHTML = '<i class="fa-solid fa-lock"></i><span>Read-only: administrator access is required to edit legal documents.</span>';
                     card.appendChild(n);
                 }
             } else if (admin && existing) { existing.remove(); }
@@ -121,7 +121,7 @@
                 var published = doc.status === 'published';
                 statusEl.textContent = published ? 'Published' : 'Draft';
                 statusEl.className = 'lc-doc-status ' + (published ? 'lc-doc-status--published' : 'lc-doc-status--draft');
-                document.getElementById(cfg.meta).textContent = 'Version ' + (doc.current_version_number || '—') +
+                document.getElementById(cfg.meta).textContent = 'Version ' + (doc.current_version_number || '-') +
                     (doc.last_published_by ? ' · by ' + doc.last_published_by : '') +
                     (doc.last_published_at ? ' · ' + formatDate(doc.last_published_at) : '');
                 lcRenderMiniVersions(cfg.versions, type, (doc.versions || []).slice(0, 5));
@@ -171,11 +171,11 @@
                 var r = await apiCall('/api/admin/legal/overview');
                 if (!r || !r.success) throw new Error('overview failed');
                 var s = r.stats || {};
-                document.getElementById('lcStatDocs').textContent = s.active_documents != null ? s.active_documents : '—';
-                document.getElementById('lcStatVersions').textContent = s.published_versions != null ? s.published_versions : '—';
-                document.getElementById('lcStatConsent').textContent = s.total_consent_records != null ? s.total_consent_records : '—';
-                document.getElementById('lcStatSigned').textContent = s.signed_contracts != null ? s.signed_contracts : '—';
-                document.getElementById('lcStatDraft').textContent = s.draft_contracts != null ? s.draft_contracts : '—';
+                document.getElementById('lcStatDocs').textContent = s.active_documents != null ? s.active_documents : '-';
+                document.getElementById('lcStatVersions').textContent = s.published_versions != null ? s.published_versions : '-';
+                document.getElementById('lcStatConsent').textContent = s.total_consent_records != null ? s.total_consent_records : '-';
+                document.getElementById('lcStatSigned').textContent = s.signed_contracts != null ? s.signed_contracts : '-';
+                document.getElementById('lcStatDraft').textContent = s.draft_contracts != null ? s.draft_contracts : '-';
                 var act = r.recent_activity || [];
                 var host = document.getElementById('lcRecentActivity');
                 host.innerHTML = act.length ? act.map(function (a) {
@@ -183,7 +183,7 @@
                         '<div class="lc-version-meta">' + (a.is_published == 1 ? 'Published' : 'Draft') + ' · ' + formatDate(a.created_at) + (a.change_summary ? ' · ' + esc(a.change_summary) : '') + '</div></div></div>';
                 }).join('') : '<p class="text-muted">No recent activity.</p>';
             } catch (e) {
-                ['lcStatDocs', 'lcStatVersions', 'lcStatConsent', 'lcStatSigned', 'lcStatDraft'].forEach(function (id) { var el = document.getElementById(id); if (el) el.textContent = '—'; });
+                ['lcStatDocs', 'lcStatVersions', 'lcStatConsent', 'lcStatSigned', 'lcStatDraft'].forEach(function (id) { var el = document.getElementById(id); if (el) el.textContent = '-'; });
                 window.notificationService.showError('Could not load legal overview.');
             }
         };
@@ -205,9 +205,9 @@
                     tb.innerHTML = r.records.map(function (rec) {
                         return '<tr><td>' + rec.id + '</td><td>' + formatDate(rec.consented_at) + '</td>' +
                             '<td><span class="atl-badge atl-badge--info">' + esc(rec.consent_source || 'public_form') + '</span></td>' +
-                            '<td>' + esc(rec.booking_name || '—') + '<br><small style="color:var(--atl-muted)">' + esc(rec.booking_email || rec.source_email || '—') + '</small></td>' +
-                            '<td style="font-family:var(--atl-mono,monospace);font-size:11px;">' + esc(rec.ip_address || '—') + '</td>' +
-                            '<td>' + esc(rec.consent_type || 'booking') + '</td><td>' + esc(rec.policy_version || '—') + '</td></tr>';
+                            '<td>' + esc(rec.booking_name || '-') + '<br><small style="color:var(--atl-muted)">' + esc(rec.booking_email || rec.source_email || '-') + '</small></td>' +
+                            '<td style="font-family:var(--atl-mono,monospace);font-size:11px;">' + esc(rec.ip_address || '-') + '</td>' +
+                            '<td>' + esc(rec.consent_type || 'booking') + '</td><td>' + esc(rec.policy_version || '-') + '</td></tr>';
                     }).join('');
                 }
                 document.getElementById('lcConsentPageInfo').textContent = 'Page ' + r.page + ' of ' + (r.pages || 1) + ' · ' + r.total + ' records';
@@ -227,7 +227,7 @@
                 var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                 var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'consent-audit-' + new Date().toISOString().slice(0, 10) + '.csv';
                 document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
-            } catch (e) { window.notificationService.showError('Export failed — try again or reduce the range.'); }
+            } catch (e) { window.notificationService.showError('Export failed. Try again or reduce the range.'); }
         };
         $(document).on('input', '#lcConsentSearch', lcDebounce(function () { loadConsentAudit(true); }, 300));
         $(document).on('change', '#lcConsentType, #lcConsentLimit', function () { loadConsentAudit(true); });
@@ -251,7 +251,7 @@
                     tb.innerHTML = r.contracts.map(function (c) {
                         var st = c.status === 'signed' ? '<span class="atl-badge atl-badge--confirmed">Signed</span>' : '<span class="atl-badge atl-badge--pending">' + esc(c.status || 'draft') + '</span>';
                         var client = c.client_name ? esc(c.client_name) : '<em style="color:var(--atl-muted)">Deleted Booking</em>';
-                        var act = c.booking_id ? '<button class="um-btn um-btn--ghost um-btn--sm" onclick="lcViewBooking(' + c.booking_id + ')">View Booking</button>' : '—';
+                        var act = c.booking_id ? '<button class="um-btn um-btn--ghost um-btn--sm" onclick="lcViewBooking(' + c.booking_id + ')">View Booking</button>' : '-';
                         if (c.booking_id && c.pdf_url && c.status !== 'signed' && c.is_frozen !== 1) {
                             act += ' <button class="um-btn um-btn--ghost um-btn--sm" onclick="lcSendContract(' + c.booking_id + ', this)">' + (c.status === 'draft' ? 'Send' : 'Re-send') + '</button>';
                         }
@@ -260,16 +260,16 @@
                         // paid — including via a client's own self-service deposit, which can
                         // auto-confirm with no admin click at all) while this contract is still
                         // unsigned. Flag that specific combination in clay; otherwise render plainly.
-                        var bStatus = c.booking_status || '—';
+                        var bStatus = c.booking_status || '-';
                         var pStatus = c.booking_payment_status || '';
                         var payLblMap = { PAID: '✓ Paid', DEPOSIT_PAID: '◐ Deposit', PARTIALLY_PAID: '◑ Partial', UNPAID: '○ Unpaid' };
                         var payText = payLblMap[pStatus] || pStatus || '';
                         var riskyGap = ['ACCEPTED', 'CONFIRMED', 'COMPLETED'].includes(bStatus) && c.status !== 'signed' && c.is_frozen !== 1;
                         var bookingCell = '<span' + (riskyGap ? ' style="color:var(--atl-clay);font-weight:600;" title="Booking has moved past acceptance but this contract is not signed"' : '') + '>' + esc(bStatus) + (payText ? ' · ' + esc(payText) : '') + '</span>';
                         return '<tr><td>' + c.id + '</td><td>' + client + '<br><small style="color:var(--atl-muted)">' + esc(c.client_email || '') + '</small></td>' +
-                            '<td>' + esc(c.event_name || '—') + '</td><td>' + (c.event_date ? formatDate(c.event_date) : '—') + '</td><td>' + st + '</td>' +
+                            '<td>' + esc(c.event_name || '-') + '</td><td>' + (c.event_date ? formatDate(c.event_date) : '-') + '</td><td>' + st + '</td>' +
                             '<td>' + bookingCell + '</td>' +
-                            '<td>' + esc(c.template_version || '—') + '</td><td>' + esc(c.signed_by || '—') + '</td><td>' + (c.signed_date ? formatDate(c.signed_date) : '—') + '</td><td>' + act + '</td></tr>';
+                            '<td>' + esc(c.template_version || '-') + '</td><td>' + esc(c.signed_by || '-') + '</td><td>' + (c.signed_date ? formatDate(c.signed_date) : '-') + '</td><td>' + act + '</td></tr>';
                     }).join('');
                 }
                 document.getElementById('lcContractsPageInfo').textContent = 'Page ' + r.page + ' of ' + (r.pages || 1) + ' · ' + r.total + ' contracts';
@@ -293,7 +293,7 @@
             try {
                 var r = await apiCall('/api/admin/bookings/' + bookingId + '/contract/send', 'POST', {});
                 if (r && r.success) {
-                    window.notificationService.showSuccess('Contract sent — the client can now review and sign it online.');
+                    window.notificationService.showSuccess('Contract sent. The client can now review and sign it online.');
                     loadLegalContracts();
                 } else {
                     window.notificationService.showError((r && r.message) || 'Could not send the contract.');
@@ -326,7 +326,7 @@
                 var titles = { privacy_policy: 'Privacy Policy', terms_of_use: 'Terms of Use', cookie_policy: 'Cookie & Consent' };
                 host.innerHTML = merged.map(function (v) {
                     var badge = v.is_published == 1 ? '<span class="lc-doc-status lc-doc-status--published">Published</span>' : '<span class="lc-doc-status lc-doc-status--draft">Draft</span>';
-                    return '<div class="lc-version-item" style="align-items:flex-start;"><div style="min-width:0;"><div style="margin-bottom:4px;"><span class="lc-version-num">' + esc(titles[v.__type] || v.__type) + ' — v' + esc(v.version_number) + '</span> ' + badge + '</div>' +
+                    return '<div class="lc-version-item" style="align-items:flex-start;"><div style="min-width:0;"><div style="margin-bottom:4px;"><span class="lc-version-num">' + esc(titles[v.__type] || v.__type) + ' v' + esc(v.version_number) + '</span> ' + badge + '</div>' +
                         '<div class="lc-version-meta">' + (v.published_by ? 'By ' + esc(v.published_by) + ' · ' : '') + formatDate(v.created_at) + (v.change_summary ? ' · ' + esc(v.change_summary) : '') + '</div></div>' +
                         '<div style="display:flex;gap:6px;flex-shrink:0;"><button class="um-btn um-btn--ghost um-btn--sm" onclick="lcPreviewVersion(' + v.id + ',\'' + v.__type + '\')">Preview</button>' +
                         (lcIsAdmin() ? '<button class="um-btn um-btn--ghost um-btn--sm" onclick="restoreLegalVersion(\'' + v.__type + '\',' + v.id + ')">Restore</button>' : '') + '</div></div>';
@@ -339,7 +339,7 @@
                 var v = (r.versions || []).find(function (x) { return x.id === versionId; });
                 if (!v) { window.notificationService.showError('Version not found.'); return; }
                 var titles = { privacy_policy: 'Privacy Policy', terms_of_use: 'Terms of Use', cookie_policy: 'Cookie & Consent' };
-                document.getElementById('lcPreviewModalTitle').textContent = (titles[type] || type) + ' — v' + v.version_number;
+                document.getElementById('lcPreviewModalTitle').textContent = (titles[type] || type) + ' v' + v.version_number;
                 document.getElementById('lcPreviewModalBody').innerHTML = v.content_html || '<p>(empty)</p>';
                 $('#lcPreviewModal').modal('show');
             } catch (e) { window.notificationService.showError('Could not preview version.'); }

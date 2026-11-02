@@ -838,7 +838,7 @@ class PDFService {
                     schedules.forEach((s, i) => {
                         pageBreakGuard();
                         doc.font('Helvetica').fontSize(8.5).fillColor('#333333')
-                           .text(`${i + 1}. ${s.description || 'Milestone'} — due ${s.due_date || 'TBC'}`, LEFT + 6, doc.y, { continued: true })
+                           .text(`${i + 1}. ${s.description || 'Milestone'}, due ${s.due_date || 'TBC'}`, LEFT + 6, doc.y, { continued: true })
                            .font('Helvetica-Bold').fillColor(DARK).text('   ' + money(s.expected_amount));
                     });
                 }
@@ -953,7 +953,7 @@ class PDFService {
                     rosItems.forEach((item) => {
                         pageBreakGuard();
                         doc.font('Helvetica-Bold').fontSize(9).fillColor(DARK)
-                           .text(`${item.time_label || '—'}   ${item.title}`, LEFT, doc.y);
+                           .text(`${item.time_label || '-'}   ${item.title}`, LEFT, doc.y);
                         const meta = [item.detail, item.responsible ? 'Responsible: ' + item.responsible : ''].filter(Boolean).join('  ·  ');
                         if (meta) doc.font('Helvetica').fontSize(8).fillColor(GREY).text(meta, LEFT + 8, doc.y);
                         doc.moveDown(0.35);

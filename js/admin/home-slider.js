@@ -60,7 +60,7 @@ async function fetchHomeSlider() {
         renderHomeList(data);
     } catch (err) {
         console.error("Failed to fetch slider items:", err);
-        window.notificationService.showError('Could not load slider items — please refresh.');
+        window.notificationService.showError('Could not load slider items. Please refresh.');
     }
 }
 window.fetchHomeSlider = fetchHomeSlider;
@@ -143,10 +143,10 @@ function initDraggableSlider() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ order: newOrder })
             });
-            if (!res.ok) window.notificationService.showError('Reorder failed — please refresh and try again.');
+            if (!res.ok) window.notificationService.showError('Reorder failed. Please refresh and try again.');
         } catch (e) {
             console.error("Reorder failed:", e);
-            window.notificationService.showError('Reorder failed — please refresh and try again.');
+            window.notificationService.showError('Reorder failed. Please refresh and try again.');
         }
         draggedItem = null;
     });

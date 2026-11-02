@@ -85,7 +85,7 @@
             } catch(e) {
                 console.error('[loadBookings]', e);
                 $container.html('<div class="bkr-empty"><i class="fa-solid fa-triangle-exclamation"></i><p>Failed to load bookings. Please refresh.</p></div>');
-                window.notificationService.showError('Could not load bookings — please check your connection and refresh.');
+                window.notificationService.showError('Could not load bookings. Please check your connection and refresh.');
             }
         }
 
@@ -153,7 +153,7 @@
                 var tot  = qty * unit;
                 subtotal += tot;
                 return '<tr>'
-                    + '<td data-label="Description">' + (item.description || '—') + '</td>'
+                    + '<td data-label="Description">' + (item.description || '-') + '</td>'
                     + '<td data-label="Qty" class="right atl-det-tabular">' + qty + '</td>'
                     + '<td data-label="Unit" class="right atl-det-tabular">R ' + unit.toFixed(2) + '</td>'
                     + '<td data-label="Total" class="right atl-det-tabular" style="font-weight:700;">R ' + tot.toFixed(2) + '</td>'
@@ -236,7 +236,7 @@
                 var tot  = qty * unit;
                 subtotal += tot;
                 return '<tr>'
-                    + '<td data-label="Description">' + (item.description || '—') + '</td>'
+                    + '<td data-label="Description">' + (item.description || '-') + '</td>'
                     + '<td data-label="Qty" class="right atl-det-tabular">' + qty + '</td>'
                     + '<td data-label="Unit" class="right atl-det-tabular">R ' + unit.toFixed(2) + '</td>'
                     + '<td data-label="Total" class="right atl-det-tabular" style="font-weight:700;">R ' + tot.toFixed(2) + '</td>'
@@ -366,7 +366,7 @@
             const hint = (icon, color, bg, border, label, detail) => ({ icon, color, bg, border, label, detail });
 
             if (s === 'EXPIRED') return hint('fa-rotate-left', 'var(--atl-clay)', 'rgba(192,54,44,0.08)', 'rgba(192,54,44,0.25)', 'Reopen Booking', 'This enquiry has expired. Use Reopen Booking to restore it to Pending and prepare a fresh quote.');
-            if ((s === 'NEW' || s === 'PENDING') && !bkHasQuote(row)) return hint('fa-file-invoice-dollar', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Quote', 'Review the enquiry details and use the Send Quote button to generate and email a formal quote to the client.' + (Number(row.unpriced_lines) > 0 ? ' This booking includes services that are priced individually — enter the agreed amount for each one in the quote.' : ''));
+            if ((s === 'NEW' || s === 'PENDING') && !bkHasQuote(row)) return hint('fa-file-invoice-dollar', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Quote', 'Review the enquiry details and use the Send Quote button to generate and email a formal quote to the client.' + (Number(row.unpriced_lines) > 0 ? ' This booking includes services that are priced individually. Enter the agreed amount for each one in the quote.' : ''));
             if ((s === 'NEW' || s === 'PENDING') && bkHasQuote(row)) return hint('fa-file-pen', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Revise Quote', 'A quote has already been sent. Review the booking and resend a revised quote if the client has not yet responded.');
             if (s === 'QUOTED' && !row.accepted_at && quotedAgeDays >= 7) return hint('fa-bell', 'var(--atl-clay)', 'rgba(192,54,44,0.08)', 'rgba(192,54,44,0.25)', 'Follow Up', `The quote has been pending for over ${quotedAgeDays} days. Consider sending a follow-up email to prompt the client to respond.`);
             if (s === 'QUOTED' && !row.accepted_at) return hint('fa-hourglass-half', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Awaiting Client', "The quote has been sent. Waiting for the client to accept. No action needed unless you'd like to follow up.");
@@ -383,7 +383,7 @@
                     : contractSent ? " The contract is also still awaiting the client's signature."
                     : contractExists ? ' The contract has also been drafted but not sent yet.'
                     : ' No contract has been built yet either.';
-                if (acceptedStage === 'none') return hint('fa-file-invoice-dollar', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Generate Invoice', 'No invoice yet. Click Generate Invoice to create a draft for review — it is not emailed until you Send it.' + contractFlagNote);
+                if (acceptedStage === 'none') return hint('fa-file-invoice-dollar', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Generate Invoice', 'No invoice yet. Click Generate Invoice to create a draft for review. It is not emailed until you Send it.' + contractFlagNote);
                 if (acceptedStage === 'invoice_draft') return hint('fa-paper-plane', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Send Invoice', 'A draft invoice is ready. Review it, then use Send Invoice on the Invoices & Payments tab to email it to the client.' + contractFlagNote);
                 // Once the invoice is out and there's nothing left to actively chase on the money
                 // side, surface the contract if it still needs building/sending/signing — otherwise
@@ -415,7 +415,7 @@
                 if (!contractFinalised && contractClientSigned) return hint('fa-signature', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', 'Countersign Contract', 'The client has signed the contract online. Countersign it on the Offer & Contract tab to finalise the agreement.');
                 if (!row.google_event_id) return hint('fa-calendar-plus', 'var(--atl-blue)', 'rgba(96,165,250,0.1)', 'rgba(96,165,250,0.25)', 'Sync to Calendar', 'Booking is confirmed and paid. Sync to Google Calendar to lock in the date and send the client a calendar invite.');
                 if (daysUntilEvent <= 14) return hint('fa-calendar-exclamation', 'var(--atl-amber)', 'rgba(212,175,55,0.08)', 'var(--atl-line)', `Event in ${daysUntilEvent}d`, `The event is in ${daysUntilEvent} day${daysUntilEvent === 1 ? '' : 's'}. Review the booking details, confirm logistics, and ensure everything is in order for the client.`);
-                return hint('fa-circle-check', 'var(--atl-sage)', 'rgba(74,222,128,0.1)', 'rgba(74,222,128,0.25)', 'All Confirmed', 'Booking is fully confirmed, paid, and contracted. The event is upcoming — no urgent action required.');
+                return hint('fa-circle-check', 'var(--atl-sage)', 'rgba(74,222,128,0.1)', 'rgba(74,222,128,0.25)', 'All Confirmed', 'Booking is fully confirmed, paid, and contracted. The event is upcoming, so no urgent action is required.');
             }
             if (s === 'COMPLETED') return hint('fa-star', 'var(--atl-sage)', 'rgba(74,222,128,0.1)', 'rgba(74,222,128,0.25)', 'Request Review', "Booking is complete. Send the client a review request to build Thabiso's profile and gather testimonials.");
             if (s === 'CANCELLED' && row.refund_amount) return hint('fa-calendar-plus', 'var(--atl-blue)', 'rgba(129,140,248,0.1)', 'rgba(129,140,248,0.25)', 'Book Again', 'Refund has been recorded. If the client wishes to rebook, use Book Again to create a new booking from this record.');
@@ -506,7 +506,7 @@
 
             return [
                 { label: 'Quote sent', state: isQuoteSent ? 'done' : (quoteStale ? 'overdue' : 'pending'),
-                  detail: isQuoteSent ? (row.quote_amount ? 'R ' + parseFloat(row.quote_amount).toFixed(2) + ' sent to client' : 'Sent to client') : (quoteStale ? `Pending ${quotedAgeDays} days with no response — consider a follow-up.` : 'Not yet sent to the client.') },
+                  detail: isQuoteSent ? (row.quote_amount ? 'R ' + parseFloat(row.quote_amount).toFixed(2) + ' sent to client' : 'Sent to client') : (quoteStale ? `Pending ${quotedAgeDays} days with no response. Consider a follow-up.` : 'Not yet sent to the client.') },
                 { label: 'Client accepted', state: isAccepted ? 'done' : 'pending',
                   detail: isAccepted ? 'Accepted by the client' : 'Awaiting client acceptance of the quote.' },
                 { label: 'Contract signed', state: contractFinalised ? 'done' : (contractUnsigned ? 'overdue' : 'pending'),
@@ -516,7 +516,7 @@
                 { label: 'Invoice sent', state: invoiceSent ? 'done' : 'pending',
                   detail: invoiceSent ? 'Emailed to the client' : (hasInvoice ? 'Drafted but not yet emailed to the client.' : 'Generate the invoice first.') },
                 { label: 'Payment received', state: isPaid ? 'done' : (invoiceOverdue ? 'overdue' : 'pending'),
-                  detail: isPaid ? 'Paid in full' : (invoiceOverdue ? `Overdue since ${row.invoice_due_date} — follow up with the client.` : 'No payment recorded yet.') },
+                  detail: isPaid ? 'Paid in full' : (invoiceOverdue ? `Overdue since ${row.invoice_due_date}. Follow up with the client.` : 'No payment recorded yet.') },
                 { label: 'Synced to calendar', state: isCalSynced ? 'done' : 'pending',
                   detail: isCalSynced ? 'Google Calendar event created' : 'Not yet synced to Google Calendar.' },
                 { label: 'POPIA consent', state: isPopiaDone ? 'done' : 'pending',
@@ -558,12 +558,12 @@
                     <span class="atl-tag-badge atl-tag-badge--venue" style="display:${row.venue_id ? 'inline-flex' : 'none'};">Venue linked</span>
                     <span class="atl-tag-badge atl-tag-badge--invoice" style="display:${hasInvoice && !invoiceSent && !invoiceOverdue ? 'inline-flex' : 'none'};">Invoice</span>
                     <span class="atl-tag-badge atl-tag-badge--invoice-sent" style="display:${invoiceSent && !invoiceOverdue && ps !== 'PAID' ? 'inline-flex' : 'none'};">Inv. Sent</span>
-                    <span class="atl-tag-badge atl-tag-badge--overdue" style="display:${invoiceOverdue ? 'inline-flex' : 'none'};" title="Invoice overdue — payment not received">Overdue</span>
+                    <span class="atl-tag-badge atl-tag-badge--overdue" style="display:${invoiceOverdue ? 'inline-flex' : 'none'};" title="Invoice overdue: payment not received">Overdue</span>
                     <span class="atl-tag-badge atl-tag-badge--cal" style="display:${isCalSynced ? 'inline-flex' : 'none'};">Cal synced</span>
                     <span class="atl-tag-badge atl-tag-badge--quote" style="display:${isQuoteSent ? 'inline-flex' : 'none'};">Quote sent</span>
                     <span class="atl-tag-badge atl-tag-badge--accepted" style="display:${isAccepted ? 'inline-flex' : 'none'};" title="Booking has been accepted by the client.">Accepted</span>
                     <span class="atl-tag-badge atl-tag-badge--contract-unsigned" style="display:${contractUnsigned ? 'inline-flex' : 'none'};" title="Booking has moved past acceptance but the contract isn't signed & finalised yet.">Unsigned Contract</span>
-                    <span class="atl-tag-badge atl-tag-badge--triaged" style="display:${isTriaged ? 'inline-flex' : 'none'};" title="Soft-declined — excluded from the active pipeline and conversion counts">${disposition === 'not_a_fit' ? 'Not a Fit' : 'Archived'}</span>
+                    <span class="atl-tag-badge atl-tag-badge--triaged" style="display:${isTriaged ? 'inline-flex' : 'none'};" title="Soft-declined: excluded from the active pipeline and conversion counts">${disposition === 'not_a_fit' ? 'Not a Fit' : 'Archived'}</span>
                     <span class="atl-tag-badge atl-tag-badge--attached" style="display:${hasAttachments ? 'inline-flex' : 'none'};">Brief attached</span>
                     <span class="atl-tag-badge atl-tag-badge--popia" style="display:${isPopiaDone ? 'inline-flex' : 'none'};">POPIA</span>
                     <span class="atl-tag-badge atl-tag-badge--refunded" style="display:${isRefunded ? 'inline-flex' : 'none'};">Refunded</span>
@@ -682,13 +682,13 @@
             </h5>
             <div class="bk-event-view">
             <p class="atl-lead" style="margin-bottom:8px;">
-              ${row.event_name || row.event_type || '—'}
+              ${row.event_name || row.event_type || '-'}
             </p>
             <dl class="atl-det-dl">
               <dt>Date</dt>
-              <dd>${row.date || '—'}${row.event_start_time ? ' · ' + row.event_start_time : ''}${computeDaysUntilEventBadge(row)}</dd>
+              <dd>${row.date || '-'}${row.event_start_time ? ' · ' + row.event_start_time : ''}${computeDaysUntilEventBadge(row)}</dd>
               <dt>Location</dt>
-              <dd>${row.event_location || '—'}</dd>
+              <dd>${row.event_location || '-'}</dd>
               ${row.event_type           ? `<dt>Type</dt><dd>${row.event_type}</dd>` : ''}
               ${row.performance_slot     ? `<dt>Slot</dt><dd>${row.performance_slot}</dd>` : ''}
               ${row.performance_duration ? `<dt>Duration</dt><dd>${row.performance_duration}</dd>` : ''}
@@ -709,7 +709,7 @@
                         const types = ['Corporate Event', 'Festival / Concert', 'Private Function', 'Comedy Club', 'University / College', 'Charity / Fundraiser', 'Virtual Event', 'Other'];
                         if (row.event_type && types.indexOf(row.event_type) === -1) types.unshift(row.event_type);
                         // No type yet: an explicit "not set" first, so saving a date change never quietly assigns one.
-                        return (row.event_type ? '' : '<option value="" selected>— Not set —</option>') +
+                        return (row.event_type ? '' : '<option value="" selected>Not set</option>') +
                             types.map(t => `<option value="${bkAttrEsc(t)}"${t === row.event_type ? ' selected' : ''}>${bkAttrEsc(t)}</option>`).join('');
                     })()}
                   </select></div>
@@ -788,7 +788,7 @@
                 ? `<dd class="atl-det-tabular ${parseFloat(row.amount_outstanding)>0 ? 'atl-det-negative' : 'atl-det-positive'}">
                 R ${parseFloat(row.amount_outstanding||0).toFixed(2)}
               </dd>`
-                : `<dd class="atl-det-tabular" style="color:var(--atl-muted);" title="Nothing is owed until a quotation has been agreed.">—</dd>`}
+                : `<dd class="atl-det-tabular" style="color:var(--atl-muted);" title="Nothing is owed until a quotation has been agreed.">-</dd>`}
               ${row.payment_date
                 ? `<dt>Last payment</dt>
                    <dd>${new Date(row.payment_date).toLocaleDateString('en-ZA')}
@@ -807,7 +807,7 @@
               </button>
             </div>
             <p class="atl-lead" style="font-family:'Cormorant Garamond',serif; font-size:clamp(15px,4.5vw,17px);">
-              ${row.venue_name || row.event_location || '—'}
+              ${row.venue_name || row.event_location || '-'}
             </p>
             <p class="atl-sub">
               ${row.venue_city ? row.venue_city + ' · ' : ''}
@@ -827,7 +827,7 @@
             <h5 class="atl-det-title"><i class="fa-solid fa-location-dot"></i>Venue
               <span style="font-size:10px;color:var(--atl-clay);margin-left:2px;font-weight:400;text-transform:none;letter-spacing:normal;">· Unlinked</span>
             </h5>
-            <p class="atl-sub" style="margin-bottom:10px;">${row.event_location || '—'}</p>
+            <p class="atl-sub" style="margin-bottom:10px;">${row.event_location || '-'}</p>
             <div class="bkr-venue-edit-row" id="venue-edit-row-${row.id}" style="display:none; margin-top:8px;">
               <input type="text" id="venue-loc-${row.id}" placeholder="Venue / location name" value="${row.event_location || ''}" class="atl-venue-input" style="margin-bottom:6px;">
               <input type="text" id="venue-addr-${row.id}" placeholder="Street address (optional)" value="${row.venue_address || ''}" class="atl-venue-input" style="margin-bottom:6px;">
@@ -900,11 +900,11 @@
             <div class="atl-promote-preview ${row.is_public ? '' : 'atl-promote-preview--hidden'}" id="promote-preview-${row.id}">
               <div class="atl-promote-preview__eyebrow"><i class="fa-solid fa-eye" style="margin-right:4px;"></i>Public listing preview</div>
               <div>
-                <div class="atl-promote-preview__name">${row.event_name || row.event_type || '— No event name set —'}</div>
+                <div class="atl-promote-preview__name">${row.event_name || row.event_type || 'No event name set'}</div>
                 <div class="atl-promote-preview__meta">
-                  <span><i class="fa-regular fa-calendar" style="margin-right:4px; opacity:.6;"></i>${row.date || '—'}</span>
+                  <span><i class="fa-regular fa-calendar" style="margin-right:4px; opacity:.6;"></i>${row.date || '-'}</span>
                   ${row.event_start_time ? `<span><i class="fa-regular fa-clock" style="margin-right:4px; opacity:.6;"></i>${row.event_start_time}</span>` : ''}
-                  <span><i class="fa-solid fa-location-dot" style="margin-right:4px; opacity:.6;"></i>${row.event_location || row.venue_name || '— No venue set —'}</span>
+                  <span><i class="fa-solid fa-location-dot" style="margin-right:4px; opacity:.6;"></i>${row.event_location || row.venue_name || 'No venue set'}</span>
                   ${row.event_type ? `<span><i class="fa-solid fa-tag" style="margin-right:4px; opacity:.6;"></i>${row.event_type}</span>` : ''}
                 </div>
                 ${row.ticket_link ? `<div style="margin-top:8px; font-size:12px;"><i class="fa-solid fa-ticket" style="margin-right:6px; color:var(--atl-amber);"></i><a href="${row.ticket_link}" target="_blank" rel="noopener" class="atl-det-link" style="word-break:break-all;">${row.ticket_link}</a></div>` : ''}
@@ -1195,7 +1195,7 @@
         <p>Once confirmed, build the run-of-show, technical rider, hospitality and show-day contacts here, then send one pack to the client and the venue.</p>
         <button type="button" class="atl-btn atl-btn--primary" disabled title="Confirm this booking first"><i class="fa-solid fa-lock" style="margin-right:6px;"></i>Advancing pack locked</button>
       </div>
-      <div class="dv-ghost-label">— what this tab will hold —</div>
+      <div class="dv-ghost-label">What this tab will hold</div>
       <div class="dv-ghost-sketch">
         <div class="dv-ghost-card"><div class="gt">Run-of-show</div><div class="dv-ghost-line m"></div><div class="dv-ghost-line s"></div><div class="dv-ghost-line m"></div></div>
         <div class="dv-ghost-grid">
@@ -1205,7 +1205,7 @@
           <div class="dv-ghost-card"><div class="gt">Travel &amp; stay</div><div class="dv-ghost-line m"></div><div class="dv-ghost-line s"></div></div>
         </div>
       </div>
-      <div class="atl-callout"><i class="fa-solid fa-circle-info"></i>Contacts &amp; load-in time are already on the linked venue record — the pack would pre-fill from there rather than re-typing.</div>`;
+      <div class="atl-callout"><i class="fa-solid fa-circle-info"></i>Contacts &amp; load-in time are already on the linked venue record. The pack would pre-fill from there rather than re-typing.</div>`;
         }
 
         // A labelled text field bound to PUT /advancing via data-field — collected by
@@ -1248,7 +1248,7 @@
                 return `
             <div class="atl-adv-contact">
               <div class="atl-lead" style="font-size:13px;">${c.role} <span class="co">· auto-sourced from ${originLbl}</span></div>
-              <div class="atl-sub">${c.name || '—'}${c.phone ? ' · ' + c.phone : ''}${c.email ? ' · ' + c.email : ''}</div>
+              <div class="atl-sub">${c.name || '-'}${c.phone ? ' · ' + c.phone : ''}${c.email ? ' · ' + c.email : ''}</div>
             </div>`;
             }).join('');
 
@@ -1258,7 +1258,7 @@
               <div class="atl-lead" style="font-size:13px;">${c.role || 'Contact'}
                 <button type="button" class="adv-contact-delete" data-id="${c.id}" style="background:none;border:none;color:var(--atl-clay);cursor:pointer;font-size:11px;margin-left:8px;" title="Remove"><i class="fa-solid fa-trash-can"></i></button>
               </div>
-              <div class="atl-sub">${c.name || '—'}${c.phone ? ' · ' + c.phone : ''}${c.email ? ' · ' + c.email : ''}</div>
+              <div class="atl-sub">${c.name || '-'}${c.phone ? ' · ' + c.phone : ''}${c.email ? ' · ' + c.email : ''}</div>
             </div>`;
             }).join('');
 
@@ -1324,7 +1324,7 @@
           <h5 class="atl-det-title"><i class="fa-solid fa-plane"></i>Travel &amp; Accommodation</h5>
           <label class="atl-panel-label" style="margin-bottom:4px;display:block;">Travel type</label>
           <select class="atl-input adv-field" data-field="travel_type" style="margin-bottom:10px;width:100%;">
-            <option value="" ${!pack.travel_type ? 'selected' : ''}>—</option>
+            <option value="" ${!pack.travel_type ? 'selected' : ''}>-</option>
             <option value="local" ${pack.travel_type === 'local' ? 'selected' : ''}>Local</option>
             <option value="out_of_town" ${pack.travel_type === 'out_of_town' ? 'selected' : ''}>Out of town</option>
           </select>
@@ -1335,7 +1335,7 @@
 
         <div class="atl-det-card">
           <h5 class="atl-det-title"><i class="fa-solid fa-note-sticky"></i>Notes</h5>
-          <textarea class="atl-textarea adv-field" data-field="internal_notes" rows="3" placeholder="Internal notes — never sent to the client or venue…" style="width:100%;">${pack.internal_notes || ''}</textarea>
+          <textarea class="atl-textarea adv-field" data-field="internal_notes" rows="3" placeholder="Internal notes: never sent to the client or venue…" style="width:100%;">${pack.internal_notes || ''}</textarea>
         </div>
       </div>`;
         }
@@ -1419,7 +1419,7 @@
                 } else if ((s === 'NEW' || s === 'PENDING') && bkHasQuote(row)) {
                     nextStepHtml =`<span class="atl-status-badge" title="A quote has already been sent. Review the booking and resend a revised quote if the client has not yet responded." aria-label="Next step: Revise the quote" style="background:rgba(212,175,55,0.08); color:var(--atl-amber); border:1px solid var(--atl-line);"><i class="fa-solid fa-file-pen"></i> Revise Quote</span>`;
                 } else if (s === 'QUOTED' && !row.accepted_at && quotedAgeDays >= 7) {
-                    nextStepHtml = `<span class="atl-status-badge" title="The quote has been pending for over ${quotedAgeDays} days. Consider sending a follow-up email to prompt the client to respond." aria-label="Next step: Follow up with client — quote is stale" style="background:rgba(192,54,44,0.08); color:var(--atl-clay); border:1px solid rgba(192,54,44,0.25);"><i class="fa-solid fa-bell"></i> Follow Up</span>`;
+                    nextStepHtml = `<span class="atl-status-badge" title="The quote has been pending for over ${quotedAgeDays} days. Consider sending a follow-up email to prompt the client to respond." aria-label="Next step: Follow up with client, quote is stale" style="background:rgba(192,54,44,0.08); color:var(--atl-clay); border:1px solid rgba(192,54,44,0.25);"><i class="fa-solid fa-bell"></i> Follow Up</span>`;
                 } else if (s === 'QUOTED' && !row.accepted_at) {
                     nextStepHtml = `<span class="atl-status-badge" title="The quote has been sent. Waiting for the client to accept. No action needed unless you'd like to follow up." aria-label="Next step: Awaiting client response" style="background:rgba(212,175,55,0.08); color:var(--atl-amber); border:1px solid var(--atl-line);"><i class="fa-solid fa-hourglass-half"></i> Awaiting Client</span>`;
                 } else if (s === 'ACCEPTED' && acceptedStage === 'none') {
@@ -1433,13 +1433,13 @@
                 } else if (s === 'CONFIRMED' && hasInvoice && !invoiceSent && ps !== 'PAID' && !eventPassed) {
                     nextStepHtml = `<span class="atl-status-badge" title="An invoice has been generated but not yet emailed to the client. Use 'Send Invoice' on the Invoice card below to deliver it." aria-label="Next step: Send invoice to client" style="background:rgba(96,165,250,0.1); color:var(--atl-blue); border:1px solid rgba(96,165,250,0.25);"><i class="fa-solid fa-paper-plane"></i> Send Invoice</span>`;
                 } else if (s === 'CONFIRMED' && invoiceOverdue) {
-                    nextStepHtml = `<span class="atl-status-badge" title="The invoice payment was due on ${row.invoice_due_date} and is now overdue. Follow up with the client immediately." aria-label="Next step: Invoice overdue — follow up now" style="background:rgba(192,54,44,0.12); color:var(--atl-clay); border:1px solid rgba(192,54,44,0.35);"><i class="fa-solid fa-triangle-exclamation"></i> Invoice Overdue</span>`;
+                    nextStepHtml = `<span class="atl-status-badge" title="The invoice payment was due on ${row.invoice_due_date} and is now overdue. Follow up with the client immediately." aria-label="Next step: Invoice overdue, follow up now" style="background:rgba(192,54,44,0.12); color:var(--atl-clay); border:1px solid rgba(192,54,44,0.35);"><i class="fa-solid fa-triangle-exclamation"></i> Invoice Overdue</span>`;
                 } else if (s === 'CONFIRMED' && invDueSoon) {
                     nextStepHtml = `<span class="atl-status-badge" title="Payment is due in ${invDueDays} day${invDueDays === 1 ? '' : 's'} (${row.invoice_due_date}). Consider sending a payment reminder to the client." aria-label="Next step: Payment due soon" style="background:rgba(251,146,60,0.1); color:var(--atl-amber-light); border:1px solid rgba(251,146,60,0.3);"><i class="fa-solid fa-clock"></i> Due in ${invDueDays}d</span>`;
                 } else if (s === 'CONFIRMED' && hasInvoice && invoiceSent && ps !== 'PAID' && !eventPassed) {
                     nextStepHtml = `<span class="atl-status-badge" title="Invoice has been sent to the client. Awaiting payment. Record payment below once funds are received." aria-label="Next step: Awaiting invoice payment" style="background:rgba(251,146,60,0.1); color:var(--atl-amber-light); border:1px solid rgba(251,146,60,0.25);"><i class="fa-solid fa-hourglass-half"></i> Awaiting Payment</span>`;
                 } else if (s === 'CONFIRMED' && ps !== 'PAID' && eventPassed) {
-                    nextStepHtml = `<span class="atl-status-badge" title="The event has already occurred but payment is still outstanding. Collect payment then mark the booking as completed." aria-label="Next step: Collect payment — event has passed" style="background:rgba(192,54,44,0.08); color:var(--atl-clay); border:1px solid rgba(192,54,44,0.25);"><i class="fa-solid fa-triangle-exclamation"></i> Collect &amp; Close</span>`;
+                    nextStepHtml = `<span class="atl-status-badge" title="The event has already occurred but payment is still outstanding. Collect payment then mark the booking as completed." aria-label="Next step: Collect payment, event has passed" style="background:rgba(192,54,44,0.08); color:var(--atl-clay); border:1px solid rgba(192,54,44,0.25);"><i class="fa-solid fa-triangle-exclamation"></i> Collect &amp; Close</span>`;
                 } else if (s === 'CONFIRMED' && ps !== 'PAID') {
                     nextStepHtml = `<span class="atl-status-badge" title="Booking is confirmed but payment has not been recorded yet. Use Record Payment below when funds are received." aria-label="Next step: Collect payment" style="background:rgba(251,146,60,0.1); color:var(--atl-amber-light); border:1px solid rgba(251,146,60,0.25);"><i class="fa-solid fa-money-bill-wave"></i> Collect Payment</span>`;
                 } else if (s === 'CONFIRMED' && ps === 'PAID' && eventPassed) {
@@ -1447,9 +1447,9 @@
                 } else if (s === 'CONFIRMED' && ps === 'PAID' && !eventPassed && !row.google_event_id) {
                     nextStepHtml = `<span class="atl-status-badge" title="Booking is confirmed and paid. Sync to Google Calendar to lock in the date and send the client a calendar invite." aria-label="Next step: Sync booking to Google Calendar" style="background:rgba(96,165,250,0.1); color:var(--atl-blue); border:1px solid rgba(96,165,250,0.25);"><i class="fa-solid fa-calendar-plus"></i> Sync to Calendar</span>`;
                 } else if (s === 'CONFIRMED' && ps === 'PAID' && !eventPassed && daysUntilEvent <= 14) {
-                    nextStepHtml = `<span class="atl-status-badge" title="The event is in ${daysUntilEvent} day${daysUntilEvent === 1 ? '' : 's'}. Review the booking details, confirm logistics, and ensure everything is in order for the client." aria-label="Next step: Event approaching — review final details" style="background:rgba(212,175,55,0.08); color:var(--atl-amber); border:1px solid var(--atl-line);"><i class="fa-solid fa-calendar-exclamation"></i> Event in ${daysUntilEvent}d</span>`;
+                    nextStepHtml = `<span class="atl-status-badge" title="The event is in ${daysUntilEvent} day${daysUntilEvent === 1 ? '' : 's'}. Review the booking details, confirm logistics, and ensure everything is in order for the client." aria-label="Next step: Event approaching, review final details" style="background:rgba(212,175,55,0.08); color:var(--atl-amber); border:1px solid var(--atl-line);"><i class="fa-solid fa-calendar-exclamation"></i> Event in ${daysUntilEvent}d</span>`;
                 } else if (s === 'CONFIRMED' && ps === 'PAID' && !eventPassed) {
-                    nextStepHtml = `<span class="atl-status-badge" title="Booking is fully confirmed and payment is recorded. The event is upcoming — no urgent action required." aria-label="Booking status: All confirmed and on track" style="background:rgba(74,222,128,0.1); color:var(--atl-sage); border:1px solid rgba(74,222,128,0.25);"><i class="fa-solid fa-circle-check"></i> All Confirmed</span>`;
+                    nextStepHtml = `<span class="atl-status-badge" title="Booking is fully confirmed and payment is recorded. The event is upcoming, so no urgent action is required." aria-label="Booking status: All confirmed and on track" style="background:rgba(74,222,128,0.1); color:var(--atl-sage); border:1px solid rgba(74,222,128,0.25);"><i class="fa-solid fa-circle-check"></i> All Confirmed</span>`;
                 } else if (s === 'COMPLETED') {
                     nextStepHtml = `<span class="atl-status-badge" title="Booking is complete. Send the client a review request to build Thabiso's profile and gather testimonials." aria-label="Next step: Request a client review" style="background:rgba(74,222,128,0.1); color:var(--atl-sage); border:1px solid rgba(74,222,128,0.25);"><i class="fa-solid fa-star"></i> Request Review</span>`;
                 } else if (s === 'CANCELLED' && row.refund_amount) {
@@ -1575,10 +1575,10 @@
                 // individually there is no amount to estimate at all — "To be quoted", never a misleading R0.00 / dash.
                 const unpricedLines = Number(row.unpriced_lines) || 0;
                 const feeHtml = bkHasQuote(row)
-                    ? (feeAmount ? 'R ' + feeAmount.toFixed(2) : '—')
+                    ? (feeAmount ? 'R ' + feeAmount.toFixed(2) : '-')
                     : (unpricedLines > 0
-                        ? `<span class="atl-bk-fee-tbq" title="${unpricedLines === 1 ? 'One service is' : unpricedLines + ' services are'} priced individually — the amount is agreed when the quote is prepared.">To be quoted</span>`
-                        : (feeAmount ? `R ${feeAmount.toFixed(2)} <span class="atl-bk-fee-est" title="Catalogue estimate — no quote has been sent yet.">est.</span>` : '—'));
+                        ? `<span class="atl-bk-fee-tbq" title="${unpricedLines === 1 ? 'One service is' : unpricedLines + ' services are'} priced individually. The amount is agreed when the quote is prepared.">To be quoted</span>`
+                        : (feeAmount ? `R ${feeAmount.toFixed(2)} <span class="atl-bk-fee-est" title="Catalogue estimate: no quote has been sent yet.">est.</span>` : '-'));
 
                 // Compact table row (Pipeline + Archive) — mirrors atelier-deal-view-mockup.html's
                 // reference table. The inline next-step hint, per-row action buttons, and tag badges
@@ -1591,11 +1591,11 @@
   <td class="atl-bk-select-cell"><label class="bk-select-box" title="Select booking"><input type="checkbox" class="bk-select-cb" data-id="${row.id}" aria-label="Select booking #${row.id}"></label></td>
   <td class="atl-bk-ref">#${row.id}</td>
   <td>
-    <div class="atl-bk-ev">${row.event_name || row.event_type || '—'}</div>
+    <div class="atl-bk-ev">${row.event_name || row.event_type || '-'}</div>
     <div class="atl-card-actions-bar" style="display:none;" aria-hidden="true">${actionButtonsHtml}</div>
   </td>
   <td class="atl-bk-client">${row.name}${row.company ? ` · ${row.company}` : ''}</td>
-  <td class="atl-bk-date">${evDate || '—'}</td>
+  <td class="atl-bk-date">${evDate || '-'}</td>
   <td class="atl-bk-status">
     <span class="atl-status-badge" style="background:${colors.tint}; color:${colors.color}; padding:4px 10px; border-radius:999px; font-weight:600; display:inline-flex; align-items:center; gap:6px;">
       <span class="atl-pill-dot" style="background:${colors.color}; width:7px; height:7px; border-radius:50%; display:inline-block;"></span>
@@ -1916,7 +1916,7 @@
             if (!ids.length) { window.notificationService && window.notificationService.showWarning('Nothing selected', 'Select one or more bookings to cancel.'); return; }
             var confirmed = window.notificationService ? await window.notificationService.showConfirm({
                 title: 'Cancel ' + ids.length + ' booking' + (ids.length !== 1 ? 's' : '') + '?',
-                message: 'This cancels each selected booking (voiding invoices, releasing holds, applying the refund policy) — exactly like cancelling them one by one. It cannot be undone.',
+                message: 'This cancels each selected booking (voiding invoices, releasing holds, applying the refund policy), exactly like cancelling them one by one. It cannot be undone.',
                 confirmText: 'Cancel ' + ids.length,
                 isDestructive: true
             }) : confirm('Cancel ' + ids.length + ' bookings?');
@@ -1991,7 +1991,7 @@
             if (!booking) return;
 
             // Title
-            $('#bi-modal-title').text('Booking #' + booking.id + ' — ' + (booking.name || 'Unknown'));
+            $('#bi-modal-title').text('Booking #' + booking.id + ': ' + (booking.name || 'Unknown'));
 
             // Client Info
             $('#bi-name').text(booking.name || 'N/A');
@@ -2061,7 +2061,7 @@
             $('#bookingFinancialsDrawer').data('booking-id', bookingId);
 
             // Title
-            $('#bf-modal-title').text('Booking #' + booking.id + ' — ' + (booking.name || ''));
+            $('#bf-modal-title').text('Booking #' + booking.id + ': ' + (booking.name || ''));
 
             // Payment ledger
             const ps = (booking.payment_status || 'UNPAID').toUpperCase();
@@ -2072,7 +2072,7 @@
             const agreed = bkAmountAgreed(booking);
             $('#bf-total').text(agreed ? 'R ' + parseFloat(booking.total_amount || 0).toFixed(2) : 'Not yet quoted');
             $('#bf-paid').text('R ' + parseFloat(booking.amount_paid || 0).toFixed(2));
-            $('#bf-outstanding').text(agreed ? 'R ' + parseFloat(booking.amount_outstanding || 0).toFixed(2) : '—');
+            $('#bf-outstanding').text(agreed ? 'R ' + parseFloat(booking.amount_outstanding || 0).toFixed(2) : '-');
 
             // Last payment info
             if (booking.last_payment_date) {
@@ -2222,7 +2222,7 @@
                 if (result.success) {
                     window.notificationService && window.notificationService.showSuccess('Date ' + date + ' held for Booking #' + id + '.');
                 } else {
-                    window.notificationService && window.notificationService.showError(result.message || 'Could not create hold — date may already be held.');
+                    window.notificationService && window.notificationService.showError(result.message || 'Could not create hold. The date may already be held.');
                 }
             } catch(e) {
                 window.notificationService && window.notificationService.showError('Failed to hold date.');

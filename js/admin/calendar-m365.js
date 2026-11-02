@@ -95,7 +95,7 @@
         if (!status.enabled) {
             setStrip('off', 'Microsoft 365 calendar sharing is off. Bookings and events stay on the website only.');
         } else if (status.lastError && status.consecutiveFailures > 0) {
-            setStrip('bad', "Microsoft 365: can't sync right now — " + reason(status.lastErrorCategory) + (status.lastSuccessAt ? ' Last good sync ' + ago(status.lastSuccessAt) + '.' : ''));
+            setStrip('bad', "Microsoft 365: can't sync right now: " + reason(status.lastErrorCategory) + (status.lastSuccessAt ? ' Last good sync ' + ago(status.lastSuccessAt) + '.' : ''));
         } else if (attn > 0) {
             setStrip('warn', 'Microsoft 365: connected · synced ' + ago(status.lastSuccessAt) + '.');
         } else {
@@ -158,7 +158,7 @@
         }
         html += '<details class="cal-m365-help"><summary>What is shared, and what is not</summary><ul>' +
             '<li><strong>Confirmed</strong> bookings appear as busy, <strong>accepted</strong> ones as tentative. Enquiries and quotes are never shared. Cancelled bookings are removed.</li>' +
-            '<li>Only the title, time, venue and a link back to the admin are shared — never the client’s e-mail, phone number or notes.</li>' +
+            '<li>Only the title, time, venue and a link back to the admin are shared, never the client’s e-mail, phone number or notes.</li>' +
             '<li>Changing a shared entry in Outlook does <strong>not</strong> change the booking. The entry is flagged here and an administrator or manager decides.</li>' +
             '<li>Other people’s <em>busy</em> appointments in the shared calendar block those dates on the public booking form.</li>' +
             '<li>The calendar is checked every couple of minutes, and a few seconds after a booking changes.</li></ul></details>';
@@ -238,13 +238,13 @@
         synced: { icon: 'fa-check', label: 'Synced with Microsoft 365', group: 'synced' },
         pending: { icon: 'fa-hourglass-half', label: 'Waiting to sync with Microsoft 365', group: 'pending' },
         error: { icon: 'fa-exclamation', label: 'Could not sync with Microsoft 365', group: 'attention' },
-        conflict: { icon: 'fa-code-compare', label: 'Changed in Microsoft 365 — needs a decision', group: 'attention' },
+        conflict: { icon: 'fa-code-compare', label: 'Changed in Microsoft 365: needs a decision', group: 'attention' },
         external_deleted: { icon: 'fa-link-slash', label: 'Deleted in Microsoft 365', group: 'attention' }
     };
     window.calM365Badge = function (arg, props) {
         var el = arg.el;
         if (props.type === 'external') {
-            addBadge(el, 'fa-brands fa-microsoft', 'External', 'From the shared Microsoft 365 calendar — edit it in Outlook');
+            addBadge(el, 'fa-brands fa-microsoft', 'External', 'From the shared Microsoft 365 calendar. Edit it in Outlook');
             return;
         }
         if (props.type !== 'booking' && props.type !== 'public_event') return;
@@ -339,7 +339,7 @@
             var url = API + '/entries/' + m.id + '/' + (act === 'keep_website' || act === 'accept_microsoft' ? 'resolve' : act);
             call('POST', url, act === 'keep_website' || act === 'accept_microsoft' ? { choice: act } : {}).then(function (d) {
                 if (d && d.success) {
-                    toast('showSuccess', act === 'retry' ? 'Retrying — it will sync in a moment.' : act === 'recreate' ? 'It will be put back in Microsoft 365 in a moment.' : act === 'keep_website' ? 'The website version will be sent to Microsoft 365 in a moment.' : 'The booking now follows the Microsoft 365 time.');
+                    toast('showSuccess', act === 'retry' ? 'Retrying. It will sync in a moment.' : act === 'recreate' ? 'It will be put back in Microsoft 365 in a moment.' : act === 'keep_website' ? 'The website version will be sent to Microsoft 365 in a moment.' : 'The booking now follows the Microsoft 365 time.');
                     closePopup(); refetch(); loadStatus();
                     setTimeout(function () { refetch(); loadStatus(); }, 7000);   // the follow-up sync runs a few seconds later
                 } else {
@@ -366,7 +366,7 @@
             '<div>Shown as: <span style="color:var(--atl-ink);">' + esc(SHOW_AS[props.showAs] || props.showAs || 'Busy') + '</span></div>' +
             '<div>Blocks the booking form: <span style="color:' + (props.blocks ? 'var(--atl-clay)' : 'var(--atl-muted)') + ';font-weight:700;">' + (props.blocks ? 'Yes' : 'No') + '</span></div>' +
             (props.recurring ? '<div>Repeats: <span style="color:var(--atl-muted);">part of a series</span></div>' : '') +
-            '</div><div class="cal-m365-fine" style="margin-top:8px;">This appointment lives in Outlook. Change or delete it there — the website only shows it.</div>' +
+            '</div><div class="cal-m365-fine" style="margin-top:8px;">This appointment lives in Outlook. Change or delete it there. The website only shows it.</div>' +
             '<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;">' +
             (props.webLink ? '<a class="cal-m365-strip__btn" href="' + esc(props.webLink) + '" target="_blank" rel="noopener noreferrer">Open in Outlook <i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"></i></a>' : '') +
             (props.joinUrl ? '<a class="cal-m365-strip__btn" href="' + esc(props.joinUrl) + '" target="_blank" rel="noopener noreferrer">Join online meeting</a>' : '') + '</div>';

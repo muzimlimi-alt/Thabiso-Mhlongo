@@ -325,7 +325,7 @@
             if (!r.json.items.length) { $('#tktOrdersBody').html('<tr><td colspan="7" class="tkt-empty">' + (q || status ? 'No orders match.' : 'No orders for this event yet.') + '</td></tr>'); return; }
             $('#tktOrdersBody').html(r.json.items.map(function (o) {
                 return '<tr class="tkt-order-row" data-id="' + o.id + '"><td class="tkt-num">#' + o.id + '</td>' +
-                    '<td><span class="tkt-buyer">' + esc(o.buyer_name || '—') + '</span><span class="tkt-sub">' + esc(o.buyer_email || '') + '</span></td>' +
+                    '<td><span class="tkt-buyer">' + esc(o.buyer_name || '-') + '</span><span class="tkt-sub">' + esc(o.buyer_email || '') + '</span></td>' +
                     '<td class="tkt-num">' + o.ticket_count + '</td><td class="tkt-num">' + esc(zar(o.total_cents)) + '</td>' +
                     '<td>' + orderBadge(o) + '</td><td class="tkt-sub">' + esc(sast(o.paid_at || o.created_at)) + '</td>' +
                     '<td><button type="button" class="atl-btn atl-btn--ghost tkt-order-open" data-id="' + o.id + '">View</button></td></tr>';
@@ -359,7 +359,7 @@
         var html = '<div class="tkt-order">';
         html += '<div class="tkt-order__head">' + orderBadge(o) + '<span class="tkt-price">' + esc(zar(o.total_cents)) + '</span></div>';
         if (o.status === 'paid' && o.refund_required) html += '<p class="tkt-warn">This payment arrived after the hold ended and the tickets had sold out - no tickets were issued. Refund it in the PayFast dashboard, then mark it refunded below.</p>';
-        html += '<dl class="tkt-kv"><dt>Buyer</dt><dd>' + esc(o.buyer_name || '—') + '</dd><dt>Email</dt><dd>' + esc(o.buyer_email || '—') + '</dd><dt>Phone</dt><dd>' + esc(o.buyer_phone || '—') + '</dd>' +
+        html += '<dl class="tkt-kv"><dt>Buyer</dt><dd>' + esc(o.buyer_name || '-') + '</dd><dt>Email</dt><dd>' + esc(o.buyer_email || '-') + '</dd><dt>Phone</dt><dd>' + esc(o.buyer_phone || '-') + '</dd>' +
             '<dt>Show</dt><dd>' + esc(d.event ? d.event.title : '') + '</dd>' +
             '<dt>Ordered</dt><dd>' + esc(sast(o.created_at)) + '</dd>' + (o.paid_at ? '<dt>' + (o.complimentary ? 'Issued' : 'Paid') + '</dt><dd>' + esc(sast(o.paid_at)) + '</dd>' : '') +
             (o.gateway_payment_id ? '<dt>PayFast id</dt><dd class="tkt-mono">' + esc(o.gateway_payment_id) + '</dd>' : '') +

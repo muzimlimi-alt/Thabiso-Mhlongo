@@ -167,13 +167,13 @@ const confirms = (p) => p.evaluate(() => window.__confirms.slice());
         ok(/Quoted total\s*Not yet quoted/.test(dvF.overview), 'Deal View ledger: not yet quoted', dvF.overview.slice(0, 300));
         // Phase 6: an estimate is a published rate, not money owed - no "Outstanding" chip, no Outstanding balance, before a quotation exists
         ok(!/Outstanding/.test(dvF.chips), 'Deal View header: no "Outstanding R 5000.00" chip for a booking that was never quoted', dvF.chips);
-        ok(/Outstanding\s*—/.test(dvF.overview) && !/Outstanding\s*R\s*5000/.test(dvF.overview), 'Deal View ledger: Outstanding is "—", not the R5,000 estimate', dvF.overview.slice(0, 500));
+        ok(/Outstanding\s*-/.test(dvF.overview) && !/Outstanding\s*R\s*5000/.test(dvF.overview), 'Deal View ledger: Outstanding is "-", not the R5,000 estimate', dvF.overview.slice(0, 500));
         await p.evaluate(() => window.closeAtlDrawer('dealViewDrawer'));
 
         // Financial Controls (More menu): Total / Outstanding must not be the estimate either
         const openFinancials = async (id) => { await p.evaluate((id) => { const b = document.createElement('button'); b.className = 'bk-action-financials'; b.setAttribute('data-id', id); document.body.appendChild(b); b.click(); b.remove(); }, id); await sleep(500); return p.evaluate(() => ({ total: $('#bf-total').text(), paid: $('#bf-paid').text(), out: $('#bf-outstanding').text() })); };
         let fin = await openFinancials(bF);
-        ok(fin.total === 'Not yet quoted' && fin.out === '—' && fin.paid === 'R 0.00', 'Financial Controls: an unquoted booking shows "Not yet quoted" and "—" (not R5,000 total / R5,000 outstanding)', JSON.stringify(fin));
+        ok(fin.total === 'Not yet quoted' && fin.out === '-' && fin.paid === 'R 0.00', 'Financial Controls: an unquoted booking shows "Not yet quoted" and "-" (not R5,000 total / R5,000 outstanding)', JSON.stringify(fin));
         await p.evaluate(() => window.closeAtlDrawer && window.closeAtlDrawer('bookingFinancialsDrawer'));
 
         // Bulk CSV export from the pipeline: estimates are blank, with the basis stated
@@ -196,7 +196,7 @@ const confirms = (p) => p.evaluate(() => window.__confirms.slice());
         await p.evaluate(() => window.loadReconciliation());
         await p.waitForFunction((id) => !!document.querySelector('#reconTableBody tr[data-booking-id="' + id + '"]'), { timeout: 20000 }, bF);
         const reconF = await p.evaluate((id) => { const tr = document.querySelector('#reconTableBody tr[data-booking-id="' + id + '"]'); return { quoted: tr.querySelector('[data-label="Quoted"]').textContent.trim(), out: tr.querySelector('[data-label="Outstanding"]').textContent.trim() }; }, bF);
-        ok(reconF.quoted === 'Not quoted' && reconF.out === '—', 'Reconciliation: an unquoted booking reads "Not quoted" / "—", not R5,000.00', JSON.stringify(reconF));
+        ok(reconF.quoted === 'Not quoted' && reconF.out === '-', 'Reconciliation: an unquoted booking reads "Not quoted" / "-", not R5,000.00', JSON.stringify(reconF));
 
         // ═══════════ Quote Builder: where each amount comes from ═══════════
         // (a) NEVER quoted + rate raised after the booking was made -> the CURRENT catalogue fee, and no "already has a quote" prompt

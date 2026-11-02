@@ -112,10 +112,10 @@ function initDraggableGallery() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ order: newOrder })
             });
-            if (!res.ok) window.notificationService.showError('Reorder failed — please refresh and try again.');
+            if (!res.ok) window.notificationService.showError('Reorder failed. Please refresh and try again.');
         } catch (e) {
             console.error("Reorder failed:", e);
-            window.notificationService.showError('Reorder failed — please refresh and try again.');
+            window.notificationService.showError('Reorder failed. Please refresh and try again.');
         }
         draggedItem = null;
     });
@@ -253,7 +253,7 @@ $(document).on('submit', '#addMediaForm', async function (e) {
     var hadVideo = imageFiles.length < allFiles.length;
     if (!urlInput && imageFiles.length === 0) {
         window.notificationService.showError(hadVideo
-            ? 'Videos cannot be uploaded to the gallery — please choose image files or paste a URL.'
+            ? 'Videos cannot be uploaded to the gallery. Please choose image files or paste a URL.'
             : 'Please provide either an image URL or choose files to upload.');
         return;
     }

@@ -227,7 +227,7 @@
                 const fmtAmt = n => 'R ' + parseFloat(n).toLocaleString('en-ZA', { minimumFractionDigits: 2 });
                 const fmtDate = ds => { try { return new Date(ds).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }); } catch(ex) { return ds; } };
                 milestonesText = 'PAYMENT SCHEDULE:\n' + msData.schedules.map((s, i) =>
-                    `  ${i + 1}. ${s.description} — ${fmtAmt(s.expected_amount)} due ${fmtDate(s.due_date)}`
+                    `  ${i + 1}. ${s.description}: ${fmtAmt(s.expected_amount)} due ${fmtDate(s.due_date)}`
                 ).join('\n');
                 milestonesText += '\n\nCANCELLATION POLICY:\n' + cancellationPolicy;
                 // Store raw data so calcQuoteTotal() can proportionally scale amounts when totals change
@@ -391,7 +391,7 @@
         const out = [];
         if (window.qbVatActive && $('#qbApplyVat').is(':checked') && (parseFloat(total) || 0) > (window.qbFullTaxInvoiceOver || 5000)) {
             if (!c.name) out.push('A full tax invoice needs the customer’s name.');
-            if (!c.billingAddress) out.push('A full tax invoice (over R' + (window.qbFullTaxInvoiceOver || 5000).toLocaleString('en-ZA') + ') needs the customer’s address — none is on record.');
+            if (!c.billingAddress) out.push('A full tax invoice (over R' + (window.qbFullTaxInvoiceOver || 5000).toLocaleString('en-ZA') + ') needs the customer’s address, but none is on record.');
             if (c.company && !c.vatNumber) out.push('The customer is a company with no VAT number on record. If it is a VAT vendor its VAT number must appear on this tax invoice.');
         }
         if (!out.length) { $box.hide(); return; }
@@ -442,7 +442,7 @@
                     // The price exactly as the rate card publishes it. A range / "from" / enquiry is only a guide:
                     // the line is added with NO amount and the agreed amount is entered on the quote.
                     const label = s.price_label || ('R ' + parseFloat(s.catalogue_unit_price || 0).toLocaleString('en-ZA', {minimumFractionDigits:0}));
-                    $group.append($('<option></option>').val(s.id).html(`${s.name} — ${_qbEsc(label)}`));
+                    $group.append($('<option></option>').val(s.id).html(`${s.name}: ${_qbEsc(label)}`));
                 });
                 $sel.append($group);
             });
@@ -472,7 +472,7 @@
             const modelDisp = isPerMinute ? 'per min' : (isPerHour ? 'per hr' : 'flat fee');
             // the price as the rate card publishes it; a range / "from" / enquiry only gets its amount on the quote
             $preview.text(service.quote_required
-                ? `Selected: ${service.price_label || 'priced individually'} — enter the agreed amount on the line`
+                ? `Selected: ${service.price_label || 'priced individually'} . Enter the agreed amount on the line`
                 : `Selected: ${service.price_label || ('R ' + price.toLocaleString())} (${modelDisp})`).fadeIn(200);
             
             let defaultQty = 1;
@@ -660,7 +660,7 @@
             if (rawMs.length > 0 && finalTotal > 0) {
                 const lines = rawMs.map((s, i) => {
                     const amt = props[i] != null ? Math.round(finalTotal * props[i] * 100) / 100 : parseFloat(s.expected_amount);
-                    return `  ${i + 1}. ${s.description} — R ${_fmtR(amt)} due ${_fmtDate(s.due_date)}`;
+                    return `  ${i + 1}. ${s.description}: R ${_fmtR(amt)} due ${_fmtDate(s.due_date)}`;
                 });
                 const cancelText = $('#polCancellation').val() || 'Standard cancellation policy applies.';
                 $('#quoteModalDetails').val(`PAYMENT SCHEDULE:\n${lines.join('\n')}\n\nCANCELLATION POLICY:\n${cancelText}`);
@@ -739,7 +739,7 @@
             const confirmed = await window.notificationService.showConfirm({
                 title: qbContractSigned ? 'This Will Invalidate a Signed Contract' : 'This Will Reset an In-Progress Contract',
                 message: qbContractSigned
-                    ? 'This booking has a SIGNED contract at the current amount. Saving a new quote will reset that contract to draft and clear the signature — the client will need to sign again at the new figure.'
+                    ? 'This booking has a SIGNED contract at the current amount. Saving a new quote will reset that contract to draft and clear the signature. The client will need to sign again at the new figure.'
                     : 'This booking has a contract that has already been sent to the client for signing. Saving a new quote will reset it to draft, and it will need to be re-sent.',
                 confirmText: 'Re-Quote Anyway',
                 cancelText: 'Cancel',

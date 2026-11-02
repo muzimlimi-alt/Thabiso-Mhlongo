@@ -60,7 +60,7 @@
             $('#finExpensesList').html(expenses.map(e => {
                 const cat = EXPENSE_CATEGORY_LABELS[e.category] || e.category;
                 const color = EXPENSE_CATEGORY_COLORS[e.category] || '#888';
-                const bookingRef = e.event_name ? `<span style="font-size:11px;color: var(--atl-muted);">#${e.booking_id} – ${e.event_name}</span>` : '<span style="color:#555;font-size:11px;">—</span>';
+                const bookingRef = e.event_name ? `<span style="font-size:11px;color: var(--atl-muted);">#${e.booking_id} – ${e.event_name}</span>` : '<span style="color:#555;font-size:11px;">-</span>';
                 return `<tr>
                     <td style="font-size:12px;">${new Date(e.expense_date).toLocaleDateString('en-ZA')}</td>
                     <td><span style="background:rgba(${hexToRgb(color)},0.15);color:${color};border:1px solid ${color};padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;">${cat}</span></td>
@@ -182,7 +182,7 @@
         } catch(e) {
             console.error('Failed to load bookings for expense association:', e);
             // Runs at parse time, before notificationService.js (last script in admin.html) has loaded.
-            if (window.notificationService) window.notificationService.showError('Could not load bookings for expense association — the dropdown will be empty.');
+            if (window.notificationService) window.notificationService.showError('Could not load bookings for expense association. The dropdown will be empty.');
         }
     }
     populateExpenseBookingList();
@@ -378,7 +378,7 @@
         $('#manualTxDirection').val('credit');
         $('#manualTxMethod').val('');
         $('#manualTxMsg').text('');
-        var $sel = $('#manualTxBooking').empty().append('<option value="">— No booking —</option>');
+        var $sel = $('#manualTxBooking').empty().append('<option value="">No booking</option>');
         try {
             var bd = await apiCall('/api/admin/bookings', 'GET');
             var list = Array.isArray(bd) ? bd : (bd.bookings || []);
@@ -475,7 +475,7 @@
                     + '<td style="white-space:nowrap;">' + (l.statement_date || '') + '</td>'
                     + '<td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (l.description||'').replace(/"/g,'&quot;') + '">' + (l.description || '') + '</td>'
                     + '<td style="text-align:right;font-weight:600;' + amtStyle + '">R ' + parseFloat(l.amount).toLocaleString('en-ZA',{minimumFractionDigits:2}) + '</td>'
-                    + '<td style="color:var(--atl-muted);">' + (l.reference || '—') + '</td>'
+                    + '<td style="color:var(--atl-muted);">' + (l.reference || '-') + '</td>'
                     + '<td>' + matchBadge + '</td>'
                     + '<td style="white-space:nowrap;">' + matchBtn + ' <button class="atl-btn atl-btn--ghost" style="font-size:11px;padding:3px 6px;color:var(--atl-clay);" onclick="deleteBankLine(' + l.id + ')" title="Remove line"><i class="fa-solid fa-trash-can"></i></button></td>'
                     + '</tr>';
@@ -552,7 +552,7 @@
         try {
             var bd = await apiCall('/api/admin/bookings', 'GET');
             var list = Array.isArray(bd) ? bd : (bd.bookings || []);
-            var opts = '<option value="">— Select booking —</option>' + list.map(function(b) {
+            var opts = '<option value="">Select booking</option>' + list.map(function(b) {
                 return '<option value="' + b.id + '">#' + b.id + ' – ' + (b.name || '') + (b.event_name ? ' · ' + b.event_name : '') + '</option>';
             }).join('');
             $actionCell.html(
@@ -637,16 +637,16 @@
                         <td style="text-align:center;" data-label="Details"><i class="fa-solid fa-chevron-right recon-chevron-${r.booking_id}" style="font-size:10px;color:var(--atl-muted-dim);transition:transform 0.2s;"></i></td>
                         <td style="font-size:12px;color: var(--atl-muted);" data-label="ID">#${r.booking_id}</td>
                         <td data-label="Client / Event">
-                            <div style="font-weight:600;font-size:13px;">${r.client_name || '—'}</div>
+                            <div style="font-weight:600;font-size:13px;">${r.client_name || '-'}</div>
                             <div style="font-size:11px;color: var(--atl-muted);">${r.event_name || ''}</div>
                         </td>
-                        <td style="font-size:12px;" data-label="Date">${r.event_date ? new Date(r.event_date).toLocaleDateString('en-ZA') : '—'}</td>
+                        <td style="font-size:12px;" data-label="Date">${r.event_date ? new Date(r.event_date).toLocaleDateString('en-ZA') : '-'}</td>
                         <td style="font-weight:600;" data-label="Quoted">${r.amount_basis === 'none' ? '<span style="color:var(--atl-muted);font-weight:400;font-style:italic;" title="No quotation has been issued yet: the booking only carries the service-catalogue estimate, which is a published rate, not a quoted amount.">Not quoted</span>' : R_FMT(r.quoted_amount)}</td>
                         <td style="color:#2196F3;" data-label="PayFast">${R_FMT(r.payfast_total)}</td>
                         <td style="color:#9C27B0;" data-label="Manual">${R_FMT(r.manual_total)}</td>
                         <td style="color:${effectiveColor};font-weight:700;" data-label="Effective">${R_FMT(r.effective_received)}</td>
-                        <td style="color:var(--atl-orange);" data-label="Outstanding">${r.amount_basis === 'none' ? '<span style="color:var(--atl-muted);">—</span>' : R_FMT(r.outstanding)}</td>
-                        <td data-label="Status"><span style="color:${psColor};font-size:11px;font-weight:700;">${r.payment_status || '—'}</span></td>
+                        <td style="color:var(--atl-orange);" data-label="Outstanding">${r.amount_basis === 'none' ? '<span style="color:var(--atl-muted);">-</span>' : R_FMT(r.outstanding)}</td>
+                        <td data-label="Status"><span style="color:${psColor};font-size:11px;font-weight:700;">${r.payment_status || '-'}</span></td>
                         <td data-label="Warning">${warnBadge}</td>
                     </tr>
                     <tr id="recon-detail-${r.booking_id}" style="display:none;background:#0d0d0d;">
@@ -726,13 +726,13 @@
                                 <tr style="border-top:1px solid var(--atl-line);${isDupe ? 'opacity:0.5;' : ''}">
                                     <td style="padding:6px 10px;">${new Date(t.transaction_date).toLocaleDateString('en-ZA')}</td>
                                     <td><span style="color:${srcColor};font-weight:700;font-size:10px;text-transform:uppercase;">${t.source || 'manual'}</span></td>
-                                    <td style="color:var(--atl-muted);">${t.payment_method || '—'}</td>
-                                    <td style="color:var(--atl-muted-dim);font-size:11px;">${t.reference || '—'}</td>
+                                    <td style="color:var(--atl-muted);">${t.payment_method || '-'}</td>
+                                    <td style="color:var(--atl-muted-dim);font-size:11px;">${t.reference || '-'}</td>
                                     <td style="font-weight:600;color: var(--atl-ink);">${R_FMT(t.amount)}</td>
                                     <td style="text-align:center;">
                                         ${t.proof_of_payment_path
                                             ? `<a href="/api/admin/transactions/${t.id}/proof" target="_blank" rel="noopener" title="Download proof of payment" style="color:var(--atl-amber);"><i class="fa-solid fa-file-arrow-down"></i></a>`
-                                            : (t.source === 'manual' ? `<i class="fa-solid fa-triangle-exclamation" title="No proof of payment on file" style="color:var(--atl-muted-dim);"></i>` : '—')}
+                                            : (t.source === 'manual' ? `<i class="fa-solid fa-triangle-exclamation" title="No proof of payment on file" style="color:var(--atl-muted-dim);"></i>` : '-')}
                                     </td>
                                     <td style="text-align:center;">
                                         <input type="checkbox" title="Flag as duplicate (audit-safe)"

@@ -60,7 +60,7 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, getTr
         },
         {
             label: 'expireQuotedBooking (QUOTED->EXPIRED, past quote_expiry_date)',
-            sql: `UPDATE bookings SET status = 'EXPIRED', expired_reason = 'quote_expiry', message = COALESCE(message,'') || '\n[System: Quote expired — no response from client]' WHERE id = ? AND status = 'QUOTED'`,
+            sql: `UPDATE bookings SET status = 'EXPIRED', expired_reason = 'quote_expiry', message = COALESCE(message,'') || '\n[System: Quote expired, no response from client]' WHERE id = ? AND status = 'QUOTED'`,
             rightStatus: 'QUOTED', wrongStatus: 'CONFIRMED', expectStatusAfter: 'EXPIRED',
         },
         {
@@ -107,7 +107,7 @@ module.exports = async function ({ check, api, pub, one, q, future, sleep, getTr
         await run("UPDATE bookings SET status='PENDING' WHERE id=?", [idPending]);
         await run(`UPDATE bookings SET status = 'EXPIRED', expired_reason = 'pending_inactivity', message = COALESCE(message,'') || '\n[System: Expired due to 48h inactivity]' WHERE id = ? AND status = 'PENDING'`, [idPending]);
         await run("UPDATE bookings SET status='QUOTED' WHERE id=?", [idQuoted]);
-        await run(`UPDATE bookings SET status = 'EXPIRED', expired_reason = 'quote_expiry', message = COALESCE(message,'') || '\n[System: Quote expired — no response from client]' WHERE id = ? AND status = 'QUOTED'`, [idQuoted]);
+        await run(`UPDATE bookings SET status = 'EXPIRED', expired_reason = 'quote_expiry', message = COALESCE(message,'') || '\n[System: Quote expired, no response from client]' WHERE id = ? AND status = 'QUOTED'`, [idQuoted]);
 
         const rowP = await one('SELECT expired_reason FROM bookings WHERE id=?', [idPending]);
         const rowQ = await one('SELECT expired_reason FROM bookings WHERE id=?', [idQuoted]);

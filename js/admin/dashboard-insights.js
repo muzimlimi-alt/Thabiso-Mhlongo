@@ -11,11 +11,11 @@
     function $id(id) { return document.getElementById(id); }
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
     function zar(n) {
-        if (n == null) return '—';
+        if (n == null) return '-';
         var v = Math.round(Number(n) * 100) / 100;
         return (v < 0 ? '-R ' : 'R ') + Math.abs(v).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    function count(n) { return n == null ? '—' : Number(n).toLocaleString('en-ZA'); }
+    function count(n) { return n == null ? '-' : Number(n).toLocaleString('en-ZA'); }
     function apexBase() { return typeof dbApexBase === 'function' ? dbApexBase() : {}; }
     function accents(n) { return typeof dbAccentShades === 'function' ? dbAccentShades(n) : ['#D4AF37', '#E8C14B', '#9A7B2C']; }
 
@@ -138,7 +138,7 @@
             return '<div class="db-funnel__row"><span class="db-funnel__label">' + esc(s[0]) + '</span><span class="db-funnel__bar"><span style="width:' + Math.max(2, pct) + '%"></span></span><span class="db-funnel__n">' + count(s[1]) + (c.enquiries ? ' <small>' + pct + '%</small>' : '') + '</span></div>';
         }).join('') + '</div>' + (c.cancelled ? '<p class="db-card-note">' + count(c.cancelled) + ' of these enquiries were cancelled.</p>' : '');
         html += group('Bookings and sales', null,
-            card({ label: 'Conversion', value: bk.conversion == null ? '—' : bk.conversion + '%', tip: 'Of the enquiries received in the period, the share that has been confirmed so far.' }) +
+            card({ label: 'Conversion', value: bk.conversion == null ? '-' : bk.conversion + '%', tip: 'Of the enquiries received in the period, the share that has been confirmed so far.' }) +
             card({ label: 'Average booking value', value: zar(bk.averageValue), tip: 'The agreed total of bookings confirmed in the period.' }) +
             card({ label: 'Confirmed in period', value: count(bk.period.confirmed), change: pct(bk.period.confirmed, bk.period.previous.confirmed), tip: 'Bookings confirmed in the period (whenever they were enquired).' }) +
             card({ label: 'Cancelled in period', value: count(bk.period.cancelled), lowerIsBetter: true, change: pct(bk.period.cancelled, bk.period.previous.cancelled), tip: 'Bookings cancelled in the period.' }));
@@ -229,7 +229,7 @@
         }).join('') + '</div>';
     }
     function mins(secs) {
-        if (secs == null) return '—';
+        if (secs == null) return '-';
         var m = Math.floor(secs / 60), s = secs % 60;
         return m ? m + 'm ' + s + 's' : s + 's';
     }
@@ -251,7 +251,7 @@
                 card({ label: 'Visits', value: count(d.visits), tip: 'Separate visits. One visitor can visit several times.' }) +
                 card({ label: 'Page views', value: count(d.pageViews), tip: 'Times the page was loaded. The site is one page, so see "Sections people look at" below for what was looked at.' }) +
                 card({ label: 'Average visit', value: mins(d.avgVisitSeconds), tip: 'How long a visit lasted, on average (time with the page open and in view).' }) +
-                card({ label: 'Engaged visits', value: d.engagedShare == null ? '—' : d.engagedShare + '%', tip: 'Visits that lasted 30 seconds or more. The rest left sooner.', small: count(d.engagedVisits) + ' of ' + count(d.visits) + ' visits' }) +
+                card({ label: 'Engaged visits', value: d.engagedShare == null ? '-' : d.engagedShare + '%', tip: 'Visits that lasted 30 seconds or more. The rest left sooner.', small: count(d.engagedVisits) + ' of ' + count(d.visits) + ' visits' }) +
                 (d.browsers.length ? card({ label: 'Top browser', value: esc(d.browsers[0].name), tip: 'The browser used for most visits.', small: d.browsers.slice(1, 4).map(function (b) { return esc(b.name) + ' ' + count(b.visits); }).join(' · ') }) : ''));
         });
         if (extra) Promise.all([getJson('/api/admin/analytics/sections?' + qs), getJson('/api/admin/analytics/interactions?' + qs)]).then(function (res) {
@@ -288,7 +288,7 @@
     // ---------------------------------------------------------------- Cloudflare (all traffic, no cookies)
 
     function bytes(n) {
-        if (n == null) return '—';
+        if (n == null) return '-';
         var u = ['B', 'KB', 'MB', 'GB', 'TB'], i = 0, v = Number(n);
         while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
         return (i ? v.toFixed(v >= 100 ? 0 : 1) : v) + ' ' + u[i];
@@ -335,21 +335,21 @@
         var html = group('Bandwidth and caching', 'Render counts the data your server sends: the less that has to come from the server, the further the hosting allowance goes.',
             card({ label: 'Total bandwidth', value: bytes(t.bytes), change: cfChange(t.bytes, prev('bytes')), tip: 'All data sent to visitors.' }) +
             card({ label: 'From your server (Render)', tone: 'lead', value: bytes(t.originBytes), change: cfChange(t.originBytes, prev('originBytes')), lowerIsBetter: true, tip: 'Data that had to come from the website server - this is what uses the hosting allowance.' }) +
-            card({ label: 'Saved by caching', value: t.bandwidthSavedRatio == null ? '—' : t.bandwidthSavedRatio + '%', tip: 'Share of the data served straight from Cloudflare\'s cache, without asking your server.', small: bytes(t.cachedBytes) + ' from cache' }) +
-            card({ label: 'Cache hit ratio', value: t.cacheHitRatio == null ? '—' : t.cacheHitRatio + '%', tip: 'Share of requests answered from Cloudflare\'s cache.', small: count(t.cachedRequests) + ' of ' + count(t.requests) + ' requests' }) +
+            card({ label: 'Saved by caching', value: t.bandwidthSavedRatio == null ? '-' : t.bandwidthSavedRatio + '%', tip: 'Share of the data served straight from Cloudflare\'s cache, without asking your server.', small: bytes(t.cachedBytes) + ' from cache' }) +
+            card({ label: 'Cache hit ratio', value: t.cacheHitRatio == null ? '-' : t.cacheHitRatio + '%', tip: 'Share of requests answered from Cloudflare\'s cache.', small: count(t.cachedRequests) + ' of ' + count(t.requests) + ' requests' }) +
             card({ label: 'HTTP requests', value: count(t.requests), change: cfChange(t.requests, prev('requests')), tip: 'Every file fetched.' }));
         html += '<div class="db-pair">' + panel('Bandwidth over time', 'fa-chart-area', '<div id="dbCfBytes" class="db-chart"></div>', 'Served from cache vs from your server.') +
             panel('Requests over time', 'fa-chart-column', '<div id="dbCfReqs" class="db-chart"></div>', 'Cached vs fetched from your server.') + '</div>';
         html += panel('What uses the bandwidth', 'fa-boxes-stacked', rankList(d.resources.map(function (r) { return { label: r.label, value: r.bytes, requests: r.requests }; }), bytes, function (r) { return count(r.requests) + ' requests'; }, 'No data in this period.'),
             'By type of file. Images are usually the biggest - smaller images save the most hosting allowance.');
         html += group('Website health', 'Server response times are not part of Cloudflare\'s free plan, so they are not shown.',
-            card({ label: 'Error rate', tone: t.errorRate > 5 ? 'warn' : '', value: t.errorRate == null ? '—' : t.errorRate + '%', lowerIsBetter: true, change: p ? cfChange(t.errors4xx + t.errors5xx, (p.errors4xx || 0) + (p.errors5xx || 0)) : undefined, tip: 'Requests answered with an error (4xx or 5xx).' }) +
+            card({ label: 'Error rate', tone: t.errorRate > 5 ? 'warn' : '', value: t.errorRate == null ? '-' : t.errorRate + '%', lowerIsBetter: true, change: p ? cfChange(t.errors4xx + t.errors5xx, (p.errors4xx || 0) + (p.errors5xx || 0)) : undefined, tip: 'Requests answered with an error (4xx or 5xx).' }) +
             card({ label: 'Not found / refused (4xx)', value: count(t.errors4xx), tip: 'Missing files, blocked or unauthorised requests. Bots probing for weak spots cause many of these.' }) +
             card({ label: 'Server errors (5xx)', tone: t.errors5xx ? 'warn' : '', value: count(t.errors5xx), tip: 'The website server failed to answer - e.g. while restarting after a deploy. Should stay near zero.' }));
         html += '<div class="db-pair">' + panel('Responses by type', 'fa-circle-check', rankList(d.statusClasses.map(function (s) { return { label: s.label, value: s.requests }; }), count)) +
             panel('Most common response codes', 'fa-list-ol', rankList(d.topStatuses.map(function (s) { return { label: String(s.code) + ' ' + (STATUS_TEXT[s.code] || ''), value: s.requests }; }), count)) + '</div>';
         html += group('Security and automated traffic', 'Cloudflare\'s view of who is asking. Automated traffic never shows in the visitor figures of the Traffic tab.',
-            card({ label: 'Automated traffic', value: t.automatedShare == null ? '—' : t.automatedShare + '%', tip: 'Requests from search-engine crawlers, monitoring services, scanners and known bad hosts.', small: count(t.automatedRequests) + ' requests' }) +
+            card({ label: 'Automated traffic', value: t.automatedShare == null ? '-' : t.automatedShare + '%', tip: 'Requests from search-engine crawlers, monitoring services, scanners and known bad hosts.', small: count(t.automatedRequests) + ' requests' }) +
             card({ label: 'Threats stopped', tone: t.threats ? 'warn' : '', value: count(t.threats), change: cfChange(t.threats, prev('threats')), lowerIsBetter: true, tip: 'Requests Cloudflare identified as attacks and blocked or challenged.' }));
         html += panel('Who is asking', 'fa-robot', rankList(d.traffic.map(function (x) { return { label: x.label + (x.automated ? ' (automated)' : ''), value: x.requests }; }), count, null, 'No data in this period.'));
         if (perf) perf.innerHTML = html;

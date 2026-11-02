@@ -159,7 +159,7 @@ $(document).on('click', '.testimonial-approve-btn', async function () {
     var id = $(this).data('id');
     try {
         await apiCall('/api/admin/testimonials/' + id, 'PUT', { status: 'approved' });
-        window.notificationService.showSuccess('Testimonial approved — now live on the public site.');
+        window.notificationService.showSuccess('Testimonial approved, now live on the public site.');
         loadTestimonials();
     } catch (err) {
         console.error('Approve testimonial failed:', err);
@@ -181,7 +181,7 @@ $(document).on('click', '.testimonial-retract-btn', async function () {
     var id = $(this).data('id');
     try {
         await apiCall('/api/admin/testimonials/' + id, 'PUT', { status: 'pending' });
-        window.notificationService.showSuccess('Moved back to Pending Review — no longer visible on the public site.');
+        window.notificationService.showSuccess('Moved back to Pending Review, no longer visible on the public site.');
         loadTestimonials();
     } catch (err) {
         console.error('Retract testimonial failed:', err);

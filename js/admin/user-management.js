@@ -20,7 +20,7 @@
     function esc(str) { return String(window.decodeStoredText(str || '')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }   // decode the stored form first - js/shared/stored-text.js
     function initial(name) { return (name || '?').charAt(0).toUpperCase(); }
     function fmtDate(dt) {
-        if (!dt) return '—';
+        if (!dt) return '-';
         try { return new Date(dt).toLocaleDateString('en-ZA', { year:'numeric', month:'short', day:'numeric' }); } catch(e) { return dt; }
     }
 
@@ -109,8 +109,8 @@
                 if (hiddenId) hiddenId.value = id;
                 if (displayName) displayName.textContent = shownName;
                 if (avatarHero) avatarHero.textContent = initial(shownName);
-                if (joinDateEl) joinDateEl.textContent = joined ? 'Member since ' + fmtDate(joined) : 'Member since —';
-                if (roleTextEl) roleTextEl.textContent = role ? (role.charAt(0).toUpperCase() + role.slice(1)) : '—';
+                if (joinDateEl) joinDateEl.textContent = joined ? 'Member since ' + fmtDate(joined) : 'Member since: not recorded';
+                if (roleTextEl) roleTextEl.textContent = role ? (role.charAt(0).toUpperCase() + role.slice(1)) : '-';
             })
             .catch(function() { /* silent */ });
 
@@ -387,12 +387,12 @@
             if (auditGroup) {
                 auditGroup.style.display = 'block';
                 var creatorDisplay = user.creator_name ? (user.creator_name + ' (' + user.creator_email + ')') : (user.creator_email || 'System / Initial');
-                var modifierDisplay = user.modifier_name ? (user.modifier_name + ' (' + user.modifier_email + ')') : (user.modifier_email || '—');
+                var modifierDisplay = user.modifier_name ? (user.modifier_name + ' (' + user.modifier_email + ')') : (user.modifier_email || '-');
                 
                 qs('#umAuditCreatedBy').textContent = creatorDisplay;
-                qs('#umAuditCreatedOn').textContent = user.created_on ? fmtDate(user.created_on) : (user.created_at ? fmtDate(user.created_at) : '—');
+                qs('#umAuditCreatedOn').textContent = user.created_on ? fmtDate(user.created_on) : (user.created_at ? fmtDate(user.created_at) : '-');
                 qs('#umAuditModifiedBy').textContent = modifierDisplay;
-                qs('#umAuditModifiedOn').textContent = user.modified_on ? fmtDate(user.modified_on) : '—';
+                qs('#umAuditModifiedOn').textContent = user.modified_on ? fmtDate(user.modified_on) : '-';
             }
             var histGroup = qs('#umChangeHistoryGroup');
             if (histGroup) {
@@ -509,7 +509,7 @@
                             var mBy = qs('#umAuditModifiedBy'), mOn = qs('#umAuditModifiedOn');
                             var roleLabel = data.last_updated.role ? (data.last_updated.role.charAt(0).toUpperCase() + data.last_updated.role.slice(1)) : '';
                             if (mBy) mBy.textContent = data.last_updated.name + (roleLabel ? ' (' + roleLabel + ')' : '');
-                            if (mOn) mOn.textContent = data.last_updated.at ? fmtDate(data.last_updated.at) : '—';
+                            if (mOn) mOn.textContent = data.last_updated.at ? fmtDate(data.last_updated.at) : '-';
                         }
                         umCloseDrawer();
                         loadAllUsers();
@@ -642,14 +642,14 @@
                 : '<span class="um-status-cell">' +
                       '<label class="um-toggle"><input type="checkbox" class="um-status-toggle" data-id="' + esc(u.id) + '"' + (isSuspended ? '' : ' checked') + ' aria-label="Toggle active status for ' + esc(name) + '"><span class="um-toggle__track"><span class="um-toggle__thumb"></span></span></label>' +
                       (pending
-                          ? '<span class="um-status-badge um-status-badge--pending" title="Invitation sent — awaiting first sign-in">Pending</span>'
+                          ? '<span class="um-status-badge um-status-badge--pending" title="Invitation sent, awaiting first sign-in">Pending</span>'
                           : '<span class="um-status-cell__label">' + statusWord + '</span>') +
                   '</span>';
 
             var createdDate = u.created_on || u.created_at;
             var creatorDisplay = u.creator_email ? u.creator_email : 'System / Initial';
-            var modifierDisplay = u.modifier_email ? u.modifier_email : '—';
-            var modifiedDate = u.modified_on ? fmtDate(u.modified_on) : '—';
+            var modifierDisplay = u.modifier_email ? u.modifier_email : '-';
+            var modifiedDate = u.modified_on ? fmtDate(u.modified_on) : '-';
             var auditTooltip = 'Created by: ' + creatorDisplay + ' on ' + fmtDate(createdDate) + '\nLast modified by: ' + modifierDisplay + ' on ' + modifiedDate;
 
             return '<tr class="um-user-row" data-user-id="' + esc(u.id) + '">' +
@@ -666,13 +666,13 @@
                         '</div>' +
                     '</div>' +
                 '</td>' +
-                '<td style="border:none; padding:12px; color:var(--atl-ink-dim);">' + esc(u.email || '—') + '</td>' +
+                '<td style="border:none; padding:12px; color:var(--atl-ink-dim);">' + esc(u.email || '-') + '</td>' +
                 '<td style="border:none; padding:12px;">' + roleCell + '</td>' +
                 '<td class="um-lastlogin-cell" style="border:none; padding:12px; font-size:12px;">' + (u.last_login_at ? fmtDate(u.last_login_at) : '<span style="color:var(--atl-muted-dim);">Never</span>') + '</td>' +
                 '<td style="border:none; padding:12px;">' + statusCell + '</td>' +
                 '<td style="border:none; padding:12px; border-radius:0 8px 8px 0; white-space:nowrap;">' +
                     (isSelf
-                        ? '<span style="font-size:11px; color:var(--atl-muted-dim);">—</span>'
+                        ? '<span style="font-size:11px; color:var(--atl-muted-dim);">-</span>'
                         : (pending ? '<button class="um-icon-btn um-resend-btn" data-id="' + esc(u.id) + '" data-name="' + esc(u.email || u.username) + '" title="Resend invitation" aria-label="Resend invitation"><i class="fa-solid fa-paper-plane"></i></button>' : '') +
                           '<button class="um-icon-btn um-edit-btn" data-id="' + esc(u.id) + '" title="Edit" aria-label="Edit user"><i class="fa-solid fa-pen"></i></button>' +
                           '<button class="um-icon-btn um-icon-btn--danger um-del-btn" data-id="' + esc(u.id) + '" data-name="' + esc(u.email || u.username) + '" title="Delete" aria-label="Delete user"><i class="fa-solid fa-trash-can"></i></button>'
@@ -1076,7 +1076,7 @@
     }
 
     function formatDateTimeLocal(isoString) {
-        if (!isoString) return '—';
+        if (!isoString) return '-';
         try {
             var d = new Date(isoString);
             var pad = function(n) { return n < 10 ? '0' + n : n; };
@@ -1125,7 +1125,7 @@
                    '  <td style="border:none; padding:12px; font-family:\'JetBrains Mono\', monospace; font-size:12px;">' + formatDateTimeLocal(l.login_at) + '</td>' +
                    '  <td style="border:none; padding:12px; font-family:\'JetBrains Mono\', monospace; font-size:12px;">' + formatDateTimeLocal(l.last_activity_at) + '</td>' +
                    '  <td style="border:none; padding:12px; font-family:\'JetBrains Mono\', monospace; font-size:12px;">' + duration + ' ' + statusBadge + '</td>' +
-                   '  <td style="border:none; padding:12px; font-family:\'JetBrains Mono\', monospace; font-size:12px;">' + esc(l.ip_address || '—') + '</td>' +
+                   '  <td style="border:none; padding:12px; font-family:\'JetBrains Mono\', monospace; font-size:12px;">' + esc(l.ip_address || '-') + '</td>' +
                    '  <td style="border:none; padding:12px; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:180px;" title="' + esc(l.user_agent) + '">' + esc(formatUserAgent(l.user_agent)) + '</td>' +
                    '</tr>';
         },

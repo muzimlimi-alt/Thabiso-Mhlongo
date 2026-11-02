@@ -30,7 +30,7 @@ const router = express.Router();
 // (non-preWrapped) path — not the newer bespoke emailComponents.js template system, which is a
 // separate, larger piece of work. pack.internal_notes is never included — office-only.
 async function sendAdvancingPackEmail(booking, venue, pdfPath) {
-    const subject = `Advancing Pack — ${booking.event_name || booking.event_type || 'Your Event'} (${booking.date})`;
+    const subject = `Advancing Pack: ${booking.event_name || booking.event_type || 'Your Event'} (${booking.date})`;
     const html = `
         <p>Hi,</p>
         <p>Please find attached the advancing pack for <strong>${encodeUserHtml(booking.event_name || booking.event_type || 'the event')}</strong> on <strong>${encodeUserHtml(booking.date || '')}</strong>${booking.event_location ? ' at ' + encodeUserHtml(booking.event_location) : ''}.</p>

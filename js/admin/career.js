@@ -87,7 +87,7 @@ async function loadHighlights() {
         });
     } catch (err) {
         console.error('Failed to load career highlights:', err);
-        window.notificationService.showError('Could not load career highlights — please refresh.');
+        window.notificationService.showError('Could not load career highlights. Please refresh.');
         $list.html(`
             <div class="atl-empty-state">
                 <i class="fa-solid fa-triangle-exclamation" style="font-size:28px; color:var(--atl-clay); margin-bottom:14px; display:block;"></i>

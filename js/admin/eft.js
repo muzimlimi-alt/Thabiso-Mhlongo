@@ -61,7 +61,7 @@
                     '<td>' + esc(day(s.created_at)) + '</td>' +
                     '<td><div class="eft-client">' + esc(s.client_name || '') + '</div><div class="eft-sub">Booking #' + s.booking_id + ' · ' + esc(s.event_name || '') + '</div></td>' +
                     '<td class="eft-amount">' + money(s.claimed_amount) + flag + '</td>' +
-                    '<td>' + esc(s.invoice_number || '—') + '</td>' +
+                    '<td>' + esc(s.invoice_number || '-') + '</td>' +
                     '<td class="eft-amount">' + money(s.amount_outstanding) + '</td>' +
                     '<td><span class="atl-badge ' + (STATUS_BADGE[s.status] || '') + '">' + esc(STATUS_LABEL[s.status] || s.status) + '</span></td>' +
                     '<td style="text-align:right;"><button type="button" class="atl-btn atl-btn--ghost eft-open" data-id="' + s.id + '" style="font-size:12px;">' + (s.status === 'pending' ? 'Review' : 'View') + '</button></td>' +
@@ -263,7 +263,7 @@
                 return '<tr><td><strong>v' + v.version + '</strong>' + (v.is_active ? ' <span class="atl-badge atl-badge--paid">active</span>' : '') + '</td>' +
                     '<td>' + esc(v.bank_name) + ' · ' + esc(v.account_number_masked) + '</td>' +
                     '<td>' + esc(day(v.created_at)) + (v.created_by_name ? ' · ' + esc(v.created_by_name) : '') + '</td>' +
-                    '<td>' + (v.retired_at ? esc(day(v.retired_at)) : '—') + '</td>' +
+                    '<td>' + (v.retired_at ? esc(day(v.retired_at)) : '-') + '</td>' +
                     '<td>' + (v.invoice_count || 0) + '</td></tr>';
             }).join(''));
             return call('GET', '/api/admin/eft/settings').then(function (s) {

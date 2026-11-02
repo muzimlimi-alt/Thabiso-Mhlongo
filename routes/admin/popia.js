@@ -168,13 +168,13 @@ router.post('/api/admin/popia/requests/:id/process', requireAdmin, requireRole([
     if (outcome.awaitingRefund) {
         return res.json({
             success: true,
-            message: 'An active/partially-paid booking was cancelled and a refund is now owing — anonymization will complete once that refund is recorded.',
+            message: 'An active/partially-paid booking was cancelled and a refund is now owing. Anonymization will complete once that refund is recorded.',
             awaiting_refund: true,
             pending_booking_ids: outcome.pendingBookingIds
         });
     }
     await deletePopiaFiles(outcome.filesToDelete);
-    res.json({ success: true, message: 'Request processed — data anonymized.', affected: outcome.affected });
+    res.json({ success: true, message: 'Request processed. Data anonymized.', affected: outcome.affected });
 });
 
 // Called once an admin has recorded a sufficient refund (via the existing PUT .../refund route) for
@@ -184,7 +184,7 @@ router.post('/api/admin/popia/requests/:id/complete-anonymization', requireAdmin
     const outcome = await completePopiaAnonymization(req.params.id, req.session.adminId, req.session.username);
     if (!outcome.ok) return res.status(outcome.status).json(outcome.body);
     await deletePopiaFiles(outcome.filesToDelete);
-    res.json({ success: true, message: 'Refund(s) resolved — data anonymized.', affected: outcome.affected });
+    res.json({ success: true, message: 'Refund(s) resolved. Data anonymized.', affected: outcome.affected });
 });
 
 // Admin-initiated create — this is what the request list's "Anonymize Now" quick action calls.
@@ -219,7 +219,7 @@ router.post('/api/admin/popia/requests', requireAdmin, requireRole(['administrat
     if (processed.awaitingRefund) {
         return res.json({
             success: true,
-            message: 'Request created. An active/partially-paid booking was cancelled and a refund is now owing — anonymization will complete once that refund is recorded.',
+            message: 'Request created. An active/partially-paid booking was cancelled and a refund is now owing. Anonymization will complete once that refund is recorded.',
             id: created.id, reference_number: created.reference_number,
             awaiting_refund: true, pending_booking_ids: processed.pendingBookingIds
         });
@@ -227,7 +227,7 @@ router.post('/api/admin/popia/requests', requireAdmin, requireRole(['administrat
 
     await deletePopiaFiles(processed.filesToDelete);
 
-    res.json({ success: true, message: 'Request created and processed — data anonymized.', id: created.id, reference_number: created.reference_number, affected: processed.affected });
+    res.json({ success: true, message: 'Request created and processed. Data anonymized.', id: created.id, reference_number: created.reference_number, affected: processed.affected });
 });
 
 // --- GDPR / POPIA Data Deletion (Anonymization) ---
@@ -264,7 +264,7 @@ router.post('/api/admin/gdpr/delete', requireAdmin, requireRole(['administrator'
     if (processed.awaitingRefund) {
         return res.json({
             success: true,
-            message: `An active/partially-paid booking was cancelled for ${emailNorm} and a refund is now owing — anonymization will complete once that refund is recorded.`,
+            message: `An active/partially-paid booking was cancelled for ${emailNorm} and a refund is now owing. Anonymization will complete once that refund is recorded.`,
             reference_number: created.reference_number,
             awaiting_refund: true,
             pending_booking_ids: processed.pendingBookingIds

@@ -72,6 +72,23 @@ async function centering(p, itemsSel, withinSel) {
         await p.close();
     }
 
+    // ══════════ FOOTPRINT: 8 at a time, View More / View Less (the Gallery / Past Shows technique) ══════════
+    {
+        for (let i = 0; i < 12; i++) {
+            const r = await api('POST', '/api/admin/footprint', { country_name: 'PS Land ' + i, fallback_url: PIXEL });
+            ok(r.status === 200 && r.body.success, 'seed: footprint country ' + i, JSON.stringify(r.body));
+        }
+        const p = await openHome(browser, { width: 1440, height: 1000 });
+        await p.waitForSelector('#footprintGrid .fp-card', { timeout: 15000 });
+        const count = () => p.$$eval('#footprintGrid .fp-card', els => els.length);
+        ok(await count() === 8, 'Footprint: shows exactly 8 flags to start, however many countries exist', String(await count()));
+        const btnText = await p.$eval('#footprint .tm-view-more', e => e.textContent.trim());
+        ok(/view more/i.test(btnText), 'Footprint: button says something like "View More"', btnText);
+        await exhaustThenCollapse(p, '#footprint', count, 'Footprint');
+        ok(p._errs.length === 0, 'Footprint pagination: no page errors', p._errs.join(' | '));
+        await p.close();
+    }
+
     // ══════════ MANAGEMENT TEAM: centered at both the row (desktop) and stacked (mobile) layouts ══════════
     {
         const p = await openHome(browser, { width: 1440, height: 1000 });

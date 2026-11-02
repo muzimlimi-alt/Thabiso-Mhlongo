@@ -65,7 +65,7 @@ const subscribersTable = new DataTable({
             }
             if (!data || !data.success || !Array.isArray(data.subscribers)) {
                 $('#subscriberCount').text('0');
-                window.notificationService.showError('Could not load subscribers — please refresh and try again.');
+                window.notificationService.showError('Could not load subscribers. Please refresh and try again.');
                 $('#subscriberListEmpty').html(subscribersEmptyState('fa-solid fa-triangle-exclamation', 'Could not load subscribers.')).show();
                 subscribersData = [];
                 return DataTable.ABORT;
@@ -143,10 +143,10 @@ function injectSubscribers(dataArray) {
 
         var safeEmail = $('<span>').text(sub.email || '').html();
         var safeEmailLower = $('<span>').text((sub.email || '').toLowerCase()).html();
-        var safeName = sub.first_name ? $('<span>').text(sub.first_name).html() : '<span style="color:var(--atl-muted);">—</span>';
+        var safeName = sub.first_name ? $('<span>').text(sub.first_name).html() : '<span style="color:var(--atl-muted);">-</span>';
         var birthdayHtml = (sub.birthday_day && sub.birthday_month)
             ? sub.birthday_day + ' ' + MONTH_ABBR[sub.birthday_month - 1]
-            : '<span style="color:var(--atl-muted);">—</span>';
+            : '<span style="color:var(--atl-muted);">-</span>';
         var isActive = sub.status === 'active';
         var isPending = sub.status === 'pending_confirmation';
         var statusHtml = isActive
@@ -353,7 +353,7 @@ $(document).on('click', '#startImportBtn', async function() {
         }
     } catch(e) {
         $('#importProgress').hide();
-        window.notificationService.showError('Import failed', 'Network error — check your connection and try again.');
+        window.notificationService.showError('Import failed', 'Network error. Check your connection and try again.');
         $btn.prop('disabled', false).html(original);
     }
 });
@@ -877,7 +877,7 @@ $('#draftSaveBtn').on('click', async () => {
         $('#draftStatus').text('Draft saved at ' + new Date().toLocaleTimeString()).css('color', 'var(--atl-sage)');
         loadDraftsList();
     } catch(e) {
-        window.notificationService.showError('Draft not saved', 'Could not save the draft — check your connection.');
+        window.notificationService.showError('Draft not saved', 'Could not save the draft. Check your connection.');
         $('#draftStatus').text('Save failed.').css('color', 'var(--atl-clay)');
     }
 });
@@ -899,7 +899,7 @@ $('#draftUpdateBtn').on('click', async () => {
         $('#draftStatus').text('Draft updated at ' + new Date().toLocaleTimeString()).css('color', 'var(--atl-sage)');
         loadDraftsList();
     } catch(e) {
-        window.notificationService.showError('Draft not saved', 'Could not save the draft — check your connection.');
+        window.notificationService.showError('Draft not saved', 'Could not save the draft. Check your connection.');
         $('#draftStatus').text('Save failed.').css('color', 'var(--atl-clay)');
     }
 });
@@ -912,7 +912,7 @@ async function loadDraftsList() {
         $sel.find('option:not(:first)').remove();
         if (drafts && drafts.length) {
             drafts.forEach(d => {
-                const label = (d.subject || 'No subject') + ' — ' + new Date(d.updated_at).toLocaleString();
+                const label = (d.subject || 'No subject') + ' (' + new Date(d.updated_at).toLocaleString() + ')';
                 $sel.append(`<option value="${d.id}">${label}</option>`);
             });
         }
@@ -1106,7 +1106,7 @@ $('#newsletterScheduleBtn').on('click', async function() {
         // Surface the freshly scheduled item by switching to the Campaigns tab.
         $('[data-um-tab="newsletterCampaignsPanel"]').trigger('click');
     } catch(e) {
-        window.notificationService.showError('Could not process — check your connection and try again.');
+        window.notificationService.showError('Could not process. Check your connection and try again.');
     } finally {
         $btn.prop('disabled', false).html(origHtml);
     }
@@ -1166,7 +1166,7 @@ const campaignsTable = new DataTable({
         const statusColors = { sent:'var(--atl-green)', scheduled:'var(--atl-orange)', failed:'var(--atl-clay)', cancelled:'var(--atl-muted)' };
         const raw = c.date || '';
         const d = raw ? new Date(raw.includes('T') ? raw : raw.replace(' ','T')+'Z') : null;
-        const dateStr = d && !isNaN(d) ? d.toLocaleString() : '—';
+        const dateStr = d && !isNaN(d) ? d.toLocaleString() : '-';
         const sc = statusColors[c.display_status] || 'var(--atl-muted)';
         const label = c.display_status.charAt(0).toUpperCase() + c.display_status.slice(1);
         const isPending = c.display_status === 'scheduled';

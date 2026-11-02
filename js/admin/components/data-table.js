@@ -40,7 +40,7 @@
             throw new Error('DataTable: config needs exactly one of `client` or `server`');
         }
         if (config.client && config.server) {
-            throw new Error('DataTable: config has both `client` and `server` — pick one');
+            throw new Error('DataTable: config has both `client` and `server`. Pick one');
         }
         this.cfg = config;
         this.bodyEl = resolveEl(config.body);

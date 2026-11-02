@@ -790,7 +790,7 @@ router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, re
             const status = (row.status || '').toUpperCase();
             if (!['ACCEPTED', 'CONFIRMED'].includes(status)) {
                 console.log(`[DEBUG] Pay failed: status is ${status}`);
-                return res.status(400).json({ success: false, message: `Payment not available — booking status is ${status}. Quote must be accepted first.` });
+                return res.status(400).json({ success: false, message: `Payment not available: booking status is ${status}. Quote must be accepted first.` });
             }
 
             // Duplicate payment guard
@@ -812,7 +812,7 @@ router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, re
                     }
                     if (nextRow.id !== schedId) {
                         return res.status(409).json({ success: false, message:
-                            `That installment isn't payable yet — please pay "${nextRow.description}" (R${parseFloat(nextRow.expected_amount).toFixed(2)}) first.` });
+                            `That installment isn't payable yet. Please pay "${nextRow.description}" (R${parseFloat(nextRow.expected_amount).toFixed(2)}) first.` });
                     }
                     buildAndSendPfData(row, nextRow.expected_amount, nextRow.description, `${row.id}_SCHED${nextRow.id}`, req, res);
                 });
@@ -944,9 +944,9 @@ router.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateL
                     // Notify the admin that the client signed and a countersignature is due.
                     getNotificationEmail().then(notifEmail => notifEmail && sendEmail({
                         to: notifEmail,
-                        subject: `Contract signed by client — Booking #${bookingId}`,
+                        subject: `Contract signed by client: Booking #${bookingId}`,
                         htmlContent: emailComponents.renderSystemEmail({
-                            preheaderText: `${signatoryName} signed the contract for booking #${bookingId} — countersignature due.`,
+                            preheaderText: `${signatoryName} signed the contract for booking #${bookingId}. Countersignature due.`,
                             category: 'Contracts & Signatures',
                             severity: 'action',
                             leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(signatoryName)}</strong> has signed the contract for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> online.`,
@@ -956,7 +956,7 @@ router.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateL
                         titleOverride: 'Client Signed Contract',
                         trigger_event: 'Admin: Client Signed Contract'
                     })).catch(() => {});
-                    res.json({ success: true, message: 'Thank you — your signature has been recorded. Our team will countersign to finalise the contract.' });
+                    res.json({ success: true, message: 'Thank you, your signature has been recorded. Our team will countersign to finalise the contract.' });
                 }
             );
         });
@@ -1193,7 +1193,7 @@ router.post('/api/public/bookings/:id/correction-request', mutateRateLimiter, ip
             trigger_event: 'Booking: Correction Request'
         })).catch((e) => console.error('[Correction Request] Team e-mail failed for booking #' + row.id + ':', e.message));
 
-        res.json({ success: true, message: 'Thanks — we have sent this to our team. We will update it and let you know.' });
+        res.json({ success: true, message: 'Thanks, we have sent this to our team. We will update it and let you know.' });
     } catch (e) {
         console.error('[Correction Request] Failed for booking #' + req.params.id + ':', e.message);
         res.status(500).json({ success: false, message: 'We could not send your request. Please try again.' });
@@ -1222,7 +1222,7 @@ async function sendAdminQuoteAcceptedNotification(booking, opts = {}) {
         }))
         : [{ label: 'No milestones on record', value: 'Set them up under Setup Milestones', mono: false }];
     const body = emailComponents.renderSystemEmail({
-        preheaderText: `${name} accepted the quote for booking #${id} — invoice auto-generated.`,
+        preheaderText: `${name} accepted the quote for booking #${id}. Invoice auto-generated.`,
         category: 'Quotes & Proposals',
         severity: 'action',
         leadFact: `<strong style="color:#FAFAFA;">${emailComponents.esc(name)}</strong> (${emailComponents.esc(email)}) has accepted the quote for booking <strong style="color:#FAFAFA;">#${emailComponents.esc(id)}</strong>.`,
@@ -1458,7 +1458,7 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
     }
 });
 
-const PLAN_CHANGED_MESSAGE = 'Your payment plan was updated elsewhere — please review the latest plan and try again.';
+const PLAN_CHANGED_MESSAGE = 'Your payment plan was updated elsewhere. Please review the latest plan and try again.';
 
 // Calls one of the payment-plan notifications without awaiting it. They never reject and resolve
 // sendEmail's { success } — but a missing export or a surprise throw must still not touch the

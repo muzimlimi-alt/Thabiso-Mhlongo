@@ -183,7 +183,7 @@ router.post('/api/admin/forgot-password', (req, res) => {
                         preheaderText: 'A password reset was requested for your dashboard account.',
                         category: 'User Accounts & Security',
                         severity: 'action',
-                        leadFact: `Hello <strong style="color:#FAFAFA;">${admin.username}</strong> — we received a request to reset the administrative password associated with this email address.`,
+                        leadFact: `Hello <strong style="color:#FAFAFA;">${admin.username}</strong>, we received a request to reset the administrative password associated with this email address.`,
                         bodyHtml:
                             `<p style="margin:0 0 18px; color:#E6E6E6;">You can reset your password by clicking the secure link below. This link will safely expire in 1 hour.</p>` +
                             emailComponents.ctaButton({ label: 'Reset Password', url: resetLink }) +

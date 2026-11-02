@@ -414,11 +414,11 @@
 
             var configs = {
                 400: { icon:'fa-solid fa-triangle-exclamation', title:'Bad Request',
-                    message:'The server couldn’t understand this request — something in the address or submitted data looks off. This usually clears up with a fresh attempt.',
+                    message:'The server couldn’t understand this request. Something in the address or submitted data looks off. This usually clears up with a fresh attempt.',
                     tips:['Check the web address for typos or stray characters.','Go back, clear the form, and re-enter your details.','If you followed a link, it may be malformed.'] },
                 401: { icon:'fa-solid fa-lock', title:'Sign-in Required',
                     message:'You need to be signed in to view this page. Your session may have expired, or you haven’t logged in yet.',
-                    tips:['Sign in with your account credentials.','If you were signed in, your session likely timed out — log in again.','Make sure cookies are enabled for this site.'] },
+                    tips:['Sign in with your account credentials.','If you were signed in, your session likely timed out, so please log in again.','Make sure cookies are enabled for this site.'] },
                 403: { icon:'fa-solid fa-ban', title:'Access Forbidden',
                     message:'You don’t have permission to view this resource. It may be reserved for administrators or a different account.',
                     tips:['Confirm you’re signed in with the correct account.','This area may be restricted to staff or admins.','Contact us if you believe you should have access.'] },
@@ -429,7 +429,7 @@
                     message:'The request took too long to complete and was stopped. This is often a slow or dropped connection.',
                     tips:['Check your internet connection.','Refresh the page to try again.','On a slow network, give it a moment before retrying.'] },
                 409: { icon:'fa-solid fa-code-branch', title:'Conflict',
-                    message:'This action clashed with the current state of the resource — it may have changed since you loaded the page.',
+                    message:'This action clashed with the current state of the resource, as it may have changed since you loaded the page.',
                     tips:['Refresh to load the latest version.','Review the current details before trying again.'] },
                 410: { icon:'fa-solid fa-box-archive', title:'Gone',
                     message:'This page has been permanently removed and won’t be coming back. There’s no forwarding address for it.',
@@ -438,7 +438,7 @@
                     message:'You’ve sent a lot of requests in a short space of time, so we’ve briefly paused things to keep the site healthy.',
                     tips:['Wait a minute, then try again.','Avoid refreshing repeatedly.','Automated tools may trigger this limit.'] },
                 500: { icon:'fa-solid fa-server', title:'Server Error',
-                    message:'Something went wrong backstage. This is on our side, not yours — the team has been notified and is looking into it.',
+                    message:'Something went wrong backstage. This is on our side, not yours. The team has been notified and is looking into it.',
                     tips:['Try again in a few moments.','This is a problem on our end, not your device.','If it keeps happening, send us the reference below.'] },
                 501: { icon:'fa-solid fa-screwdriver-wrench', title:'Not Implemented',
                     message:'The server doesn’t support the action needed to fulfil this request. This feature may not be available yet.',
@@ -447,7 +447,7 @@
                     message:'We received an invalid response from an upstream service. It’s usually a brief hiccup between servers.',
                     tips:['Wait a moment and try again.','Refreshing often resolves a temporary gateway error.'] },
                 503: { icon:'fa-solid fa-hand', title:'Service Unavailable',
-                    message:'The site is temporarily unavailable — likely brief maintenance or unusually heavy traffic. We’ll be back shortly.',
+                    message:'The site is temporarily unavailable, likely because of brief maintenance or unusually heavy traffic. We’ll be back shortly.',
                     tips:['Please wait a few moments and try again.','We may be performing quick maintenance.','No action is needed on your side.'] },
                 504: { icon:'fa-solid fa-hourglass-end', title:'Gateway Timeout',
                     message:'An upstream service took too long to respond. The request was stopped before it could finish.',
@@ -456,7 +456,7 @@
 
             var cfg = configs[code] || {
                 icon:'fa-solid fa-circle-exclamation', title:'Something Went Wrong',
-                message:'An unexpected error occurred. You can head back and try again, or return to the home page — no harm done.',
+                message:'An unexpected error occurred. You can head back and try again, or return to the home page. No harm done.',
                 tips:['Return to the home page and try again.','Go back to the previous page.','Contact us if the problem continues.']
             };
 
@@ -474,7 +474,7 @@
                       Math.random().toString(36).slice(2, 6).toUpperCase();
 
             // Reflect the code in the tab title.
-            document.title = (code ? code + ' — ' : '') + cfg.title + ' | Thabiso Mhlongo';
+            document.title = (code ? code + ': ' : '') + cfg.title + ' | Thabiso Mhlongo';
 
             // Retry handler (exposed for the Try Again button).
             window.__errRetry = function () {

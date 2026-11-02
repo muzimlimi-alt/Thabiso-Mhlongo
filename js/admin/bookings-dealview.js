@@ -99,9 +99,9 @@
             // signed (see PUT /contract/sign in server.js). integrity_verified is NULL when there was
             // nothing to compare against (e.g. a forced countersign before the client signed).
             if (c.integrity_verified === 1) {
-                html += '<p style="font-size:11px;color:var(--atl-sage);margin:0 0 4px;"><i class="fa-solid fa-shield-halved" style="margin-right:4px;"></i>Document integrity verified — unchanged since the client signed.</p>';
+                html += '<p style="font-size:11px;color:var(--atl-sage);margin:0 0 4px;"><i class="fa-solid fa-shield-halved" style="margin-right:4px;"></i>Document integrity verified: unchanged since the client signed.</p>';
             } else if (c.integrity_verified === 0) {
-                html += '<div class="atl-callout" style="border-color:var(--atl-clay);color:var(--atl-clay);margin:0 0 8px;"><i class="fa-solid fa-triangle-exclamation"></i><span>Integrity check FAILED — this PDF changed after the client signed it. Investigate before relying on this contract.</span></div>';
+                html += '<div class="atl-callout" style="border-color:var(--atl-clay);color:var(--atl-clay);margin:0 0 8px;"><i class="fa-solid fa-triangle-exclamation"></i><span>Integrity check FAILED: this PDF changed after the client signed it. Investigate before relying on this contract.</span></div>';
             }
             if (c.uploaded_by) {
                 html += '<p style="font-size:11px;color:var(--atl-muted);margin:0;">' + (c.uploaded_by === 'system' ? 'Auto-generated' : 'Uploaded by ' + c.uploaded_by) + '</p>';
@@ -152,22 +152,22 @@
       <div class="atl-det-col ctb-editor" data-booking-id="${bookingId}">
         <div class="atl-det-card">
           <h5 class="atl-det-title"><i class="fa-solid fa-users"></i>Parties</h5>
-          <p class="atl-sub">Artist: ${artist.name || '—'} (${artist.email || '—'})</p>
-          <p class="atl-sub">Client: ${b.name || '—'}${b.company ? ' / ' + b.company : ''} (${b.email || '—'}${b.cell ? ' · ' + b.cell : ''})</p>
+          <p class="atl-sub">Artist: ${artist.name || '-'} (${artist.email || '-'})</p>
+          <p class="atl-sub">Client: ${b.name || '-'}${b.company ? ' / ' + b.company : ''} (${b.email || '-'}${b.cell ? ' · ' + b.cell : ''})</p>
           ${b.vat_number ? `<p class="atl-sub">Client VAT No: ${b.vat_number}</p>` : ''}
-          <div class="atl-callout"><i class="fa-solid fa-circle-info"></i>Sourced from the booking &amp; client record — edit there, not here.</div>
+          <div class="atl-callout"><i class="fa-solid fa-circle-info"></i>Sourced from the booking &amp; client record. Edit there, not here.</div>
         </div>
 
         <div class="atl-det-card">
           <h5 class="atl-det-title"><i class="fa-solid fa-calendar-day"></i>Performance Details</h5>
-          <p class="atl-sub">${b.event_name || b.event_type || '—'}${b.event_type ? ' · ' + b.event_type : ''}</p>
+          <p class="atl-sub">${b.event_name || b.event_type || '-'}${b.event_type ? ' · ' + b.event_type : ''}</p>
           <p class="atl-sub">${b.date || 'TBC'} · ${b.event_location || 'TBC'}</p>
         </div>
 
         <div class="atl-det-card">
           <h5 class="atl-det-title"><i class="fa-solid fa-file-invoice-dollar"></i>Fee &amp; Payment</h5>
           <p class="atl-sub">Total fee: <strong>${money(fee.total)}${fee.applyVat ? ' (VAT incl.)' : ''}</strong></p>
-          ${!fee.total ? '<div class="atl-callout"><i class="fa-solid fa-circle-info"></i>No accepted quote found — the contract will still generate with a placeholder fee line.</div>' : ''}
+          ${!fee.total ? '<div class="atl-callout"><i class="fa-solid fa-circle-info"></i>No accepted quote found. The contract will still generate with a placeholder fee line.</div>' : ''}
           ${ctbField('paymentTerms', 'Payment Terms', c.paymentTerms, 3)}
         </div>
 
@@ -199,7 +199,7 @@
         <div class="atl-det-card">
           <h5 class="atl-det-title"><i class="fa-solid fa-signature"></i>E-Sign Settings</h5>
           <p class="atl-sub">Template: Standard Agreement</p>
-          <p class="atl-sub">Once sent, ${b.email || 'the client'} will receive a signing link by email — no separate settings needed here.</p>
+          <p class="atl-sub">Once sent, ${b.email || 'the client'} will receive a signing link by email. No separate settings needed here.</p>
         </div>
 
         <div class="atl-det-card" id="ctb-preview-card-${bookingId}" style="display:none;">
@@ -252,7 +252,7 @@
             try {
                 var res = await apiCall('/api/admin/bookings/' + id + '/contract/send', 'POST', {});
                 if (res && res.success) {
-                    if (window.notificationService) window.notificationService.showSuccess('Contract sent — the client can now review and sign it online.');
+                    if (window.notificationService) window.notificationService.showSuccess('Contract sent. The client can now review and sign it online.');
                     var fresh = await fetch('/api/admin/bookings/' + id + '/contract', { credentials: 'same-origin' }).then(function(r){ return r.json(); }).catch(function(){ return null; });
                     renderInlineContractPanel(id, fresh && fresh.contract);
                     // Keep the legacy standalone drawer in sync too, if it happens to be open on the same booking.
@@ -642,7 +642,7 @@
 
             // ── Header ──
             $('#dvBreadcrumbCur').text('#' + row.id);
-            $('#dvTitle').text(row.event_name || row.event_type || '—');
+            $('#dvTitle').text(row.event_name || row.event_type || '-');
             $('#dvSubtitle').html(`${row.event_type ? row.event_type + ' · ' : ''}<b>${row.name}</b>${row.company ? ' · ' + row.company : ''}`);
             const dvDisposition = row.disposition || 'active';
             $('#dvStatusRow').html(
@@ -651,7 +651,7 @@
                     ${s === 'ACCEPTED' ? 'Accepted' : (sLbl[s] || s)}
                  </span>
                  <span class="atl-payment-badge">${payLbl[ps] || ps}</span>
-                 ${dvDisposition !== 'active' ? `<span class="atl-tag-badge atl-tag-badge--triaged" title="Soft-declined — excluded from the active pipeline and conversion counts">${dvDisposition === 'not_a_fit' ? 'Not a Fit' : 'Archived'}</span>` : ''}`
+                 ${dvDisposition !== 'active' ? `<span class="atl-tag-badge atl-tag-badge--triaged" title="Soft-declined: excluded from the active pipeline and conversion counts">${dvDisposition === 'not_a_fit' ? 'Not a Fit' : 'Archived'}</span>` : ''}`
             );
             const chips = [];
             if (row.date) chips.push(`<span class="dv-chip"><i class="fa-regular fa-calendar"></i>&nbsp;${row.date}${row.event_start_time ? ' · ' + row.event_start_time : ''}</span>`);
@@ -742,10 +742,10 @@
                         return '<tr>'
                             // line_description: what the line was called when it was booked / quoted - a later rename of the service
                             // (the rate card renamed three) must not re-title a past booking.
-                            + '<td data-label="Service">'      + (li.line_description || li.service_name || li.description || '—') + '</td>'
+                            + '<td data-label="Service">'      + (li.line_description || li.service_name || li.description || '-') + '</td>'
                             + '<td data-label="Qty" class="right atl-det-tabular">'   + qty + ' ' + (li.display_unit || 'min') + '</td>'
                             + '<td data-label="Unit" class="right atl-det-tabular">' + (tbq ? '<span style="color:var(--atl-muted);">To be quoted</span>' + band : 'R ' + unit.toFixed(2)) + '</td>'
-                            + '<td data-label="Total" class="right atl-det-tabular" style="font-weight:700;">' + (tbq ? '—' : 'R ' + tot.toFixed(2)) + '</td>'
+                            + '<td data-label="Total" class="right atl-det-tabular" style="font-weight:700;">' + (tbq ? '-' : 'R ' + tot.toFixed(2)) + '</td>'
                             + '</tr>';
                     }).join('');
 
@@ -784,12 +784,12 @@
                               + 'padding:1px 5px;border-radius:3px;margin-right:4px;font-weight:700;">REFUND</span>'
                             : '';
                         var dateStr = t.transaction_date
-                            ? new Date(t.transaction_date).toLocaleDateString('en-ZA') : '—';
+                            ? new Date(t.transaction_date).toLocaleDateString('en-ZA') : '-';
                         return '<tr>'
                             + '<td data-label="Date">' + dateStr + '</td>'
-                            + '<td data-label="Method">' + refundBadge + (t.payment_method || '—') + '</td>'
+                            + '<td data-label="Method">' + refundBadge + (t.payment_method || '-') + '</td>'
                             + '<td data-label="Reference" style="font-size:11px;opacity:.75;">'
-                              + (t.reference || t.reference_number || '—') + '</td>'
+                              + (t.reference || t.reference_number || '-') + '</td>'
                             + '<td data-label="Amount" class="right atl-det-tabular" style="' + amtStyle + '">'
                               + (isRefund ? '–' : '') + 'R ' + parseFloat(t.amount).toFixed(2) + '</td>'
                             + '<td data-label="Status" style="color:' + sc + ';font-size:11px;">' + t.status + '</td>'
@@ -821,10 +821,10 @@
                 if (history.length >= 2) {
                     var histRows = history.map(function(q) {
                         var active  = !q.archived;
-                        var qDate   = q.created_at ? new Date(q.created_at).toLocaleDateString('en-ZA') : '—';
+                        var qDate   = q.created_at ? new Date(q.created_at).toLocaleDateString('en-ZA') : '-';
                         var pdfLink = q.pdf_url
                             ? '<a href="' + q.pdf_url + '" target="_blank" rel="noopener" class="atl-det-link">View PDF</a>'
-                            : '—';
+                            : '-';
                         var stHtml = active
                             ? '<span style="color:var(--atl-sage);font-weight:600;">● Active</span>'
                             : '<span style="color:var(--atl-muted);">Superseded</span>';

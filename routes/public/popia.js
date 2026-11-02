@@ -173,10 +173,10 @@ router.post('/api/public/popia/erasure-requests', ipRateLimiter, mutateRateLimit
     try {
         const { socialLinks } = await getEmailFooterContext();
         const html = emailComponents.renderPremiumEmail({
-            preheaderText: `We've received your data erasure request — Ref #${outcome.reference_number}.`,
+            preheaderText: `We've received your data erasure request. Ref #${outcome.reference_number}.`,
             headline: 'Data Erasure Request Received',
             greeting: 'Hello,',
-            bodyHtml: `We've received your request to have your personal information anonymised under POPIA. Your reference number is <strong style="color:#D4AF37;">${outcome.reference_number}</strong> — please keep this for your records.<br><br>Our team will review your request and process it in accordance with our data retention obligations. You'll receive a further email once it has been actioned.`,
+            bodyHtml: `We've received your request to have your personal information anonymised under POPIA. Your reference number is <strong style="color:#D4AF37;">${outcome.reference_number}</strong>. Please keep this for your records.<br><br>Our team will review your request and process it in accordance with our data retention obligations. You'll receive a further email once it has been actioned.`,
             cards: [{
                 title: 'Request Summary',
                 rows: [
@@ -189,7 +189,7 @@ router.post('/api/public/popia/erasure-requests', ipRateLimiter, mutateRateLimit
         });
         await sendEmail({
             to: emailNorm,
-            subject: `Data Erasure Request Received — Ref #${outcome.reference_number}`,
+            subject: `Data Erasure Request Received (Ref #${outcome.reference_number})`,
             htmlContent: html,
             preWrapped: true,
             titleOverride: 'Data Erasure Request Received',

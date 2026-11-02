@@ -602,7 +602,7 @@
         if (/\.pdf$/i.test(name)) $thumb.append('<i class="fa-solid fa-file-pdf" aria-hidden="true"></i>');
         else $thumb.append($('<img alt="">').attr('src', src).on('error', function () { $(this).replaceWith('<i class="fa-solid fa-image" aria-hidden="true"></i>'); }));
         var $info = $('<div class="acl-media__info">')
-            .append($('<strong>').text(m.file ? 'New file — uploaded when you save' : 'Current file'))
+            .append($('<strong>').text(m.file ? 'New file, uploaded when you save' : 'Current file'))
             .append($('<span>').text(name));
         if (!m.file && m.path) $info.append(' ').append($('<a target="_blank" rel="noopener noreferrer">').attr('href', '/' + m.path).text('Open'));
         var $remove = $('<button type="button" class="atl-btn atl-btn--ghost um-btn--sm">')
@@ -695,8 +695,8 @@
         var active = switchOn('aclActiveSwitch');
         var saved = editor.id !== null ? byId(editor.id) : null;
         var text, cls;
-        if (!state.sectionVisible) { text = 'Hidden — the Accolades section is switched off in Settings'; cls = 'is-hidden'; }
-        else if (!active) { text = 'Hidden — Inactive (a draft). Switch on Active to publish.'; cls = 'is-hidden'; }
+        if (!state.sectionVisible) { text = 'Hidden: the Accolades section is switched off in Settings'; cls = 'is-hidden'; }
+        else if (!active) { text = 'Hidden: Inactive (a draft). Switch on Active to publish.'; cls = 'is-hidden'; }
         else if (saved && saved.is_public) { text = 'Live on the website · position ' + saved.public_position; cls = 'is-live'; }
         else { text = 'Will be published under ' + item.year + ' when you save'; cls = 'is-live'; }
         $('#aclPreviewState').text(text).removeClass('is-live is-hidden').addClass(cls);
@@ -951,7 +951,7 @@
                 if (!m || !m.file) continue;
                 var path = await uploadFileToServer(m.file, 'accolades');
                 if (!path) {
-                    showFieldError(keys[i], 'This file could not be uploaded — please try again.');
+                    showFieldError(keys[i], 'This file could not be uploaded. Please try again.');
                     throw new Error('upload');
                 }
                 revokeMedia(m);

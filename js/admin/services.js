@@ -72,8 +72,8 @@ function _populateSvcSelects() {
     }
     fill('#svcPriceType', null, _svcMeta.price_types || []);
     fill('#svcPriceTypeFilter', 'All Price Types', _svcMeta.price_types || []);
-    fill('#svcPriceUnit', '— not applicable —', _svcMeta.price_units || []);
-    fill('#svcGroup', '— none (add-on / other) —', _svcGroups());
+    fill('#svcPriceUnit', 'Not applicable', _svcMeta.price_units || []);
+    fill('#svcGroup', 'None (add-on / other)', _svcGroups());
 }
 
 // Validity of the published rates (printed on every quotation + quotation email) — a banner, with the date editable.
@@ -89,10 +89,10 @@ function _renderRateCardBanner() {
     var status;
     if (rc.expired) {
         $b.addClass('svc-ratecard--expired');
-        status = 'Expired on ' + longDate + ' (' + plural(Math.abs(d)) + ' ago). Quotations no longer print a rate-validity line — update the fees and this date.';
+        status = 'Expired on ' + longDate + ' (' + plural(Math.abs(d)) + ' ago). Quotations no longer print a rate-validity line. Update the fees and this date.';
     } else if (d !== null && d <= 45) {
         $b.addClass('svc-ratecard--soon');
-        status = 'Valid until ' + longDate + ' — ' + plural(d) + ' left. Plan the rate update.';
+        status = 'Valid until ' + longDate + ' (' + plural(d) + ' left). Plan the rate update.';
     } else {
         status = 'Valid until ' + longDate + (d !== null ? ' (' + plural(d) + ' left).' : '.');
     }
@@ -184,7 +184,7 @@ window.loadAdminServices = async function() {
         filterServicesTable();
     } catch(e) {
         console.error('Failed to load services:', e);
-        window.notificationService.showError('Could not load services — please refresh.');
+        window.notificationService.showError('Could not load services. Please refresh.');
         $grid.html('<div class="svc-empty-state"><i class="fa-solid fa-circle-exclamation" style="color:var(--atl-clay);"></i><p style="color:var(--atl-clay);">Failed to load services. Please refresh.</p></div>');
     }
 };
@@ -574,6 +574,6 @@ window.deleteService = async function(id) {
         window.notificationService.showSuccess('Service archived.');
     } catch(e) {
         console.error('Failed to archive service:', e);
-        window.notificationService.showError('Could not archive service — please try again.');
+        window.notificationService.showError('Could not archive service. Please try again.');
     }
 };

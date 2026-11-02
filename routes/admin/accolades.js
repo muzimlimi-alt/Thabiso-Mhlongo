@@ -54,7 +54,7 @@ function duplicateBody(dup) {
         success: false,
         duplicate_id: dup ? dup.id : null,
         message: 'This accolade is already recorded' + (dup && dup.status !== 'active' ? ' (it is currently hidden from the website)' : '')
-            + ' — edit the existing entry instead of adding it again.'
+            + '. Edit the existing entry instead of adding it again.'
     };
 }
 
@@ -116,7 +116,7 @@ router.put('/api/admin/accolades/reorder', requireAdmin, async (req, res) => {
             const known = (await dbAll('SELECT id FROM accolades')).map(r => r.id);
             const knownSet = new Set(known);
             if (known.length !== ids.length || !ids.every(id => knownSet.has(id))) {
-                return failed(409, 'The list changed since it was loaded — refresh and try again.');
+                return failed(409, 'The list changed since it was loaded. Refresh and try again.');
             }
             try {
                 await dbRun('BEGIN IMMEDIATE');
@@ -162,7 +162,7 @@ router.post('/api/admin/accolades/bulk', requireAdmin,
         try {
             const outcome = await withDbTransaction(async () => {
                 const rows = await dbAll(`SELECT * FROM accolades WHERE id IN (${ids.map(() => '?').join(',')})`, ids);
-                if (rows.length !== ids.length) return failed(404, 'Some of the selected accolades no longer exist — refresh and try again.');
+                if (rows.length !== ids.length) return failed(404, 'Some of the selected accolades no longer exist. Refresh and try again.');
                 // Rows already in the requested state are left alone (and not audited as a no-op change).
                 const targets = change ? rows.filter(r => Object.keys(change).some(k => r[k] != change[k])) : rows;
                 if (!targets.length) return { status: 200, body: { success: true, changed: 0 }, targets };

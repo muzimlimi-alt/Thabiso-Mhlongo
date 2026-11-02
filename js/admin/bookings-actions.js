@@ -70,7 +70,7 @@
                             if (fresh && fresh.invoice_id) created.push('a draft invoice'); else missing.push('invoice');
                             if (fresh && fresh.contract_status) created.push('a draft contract'); else missing.push('contract');
                             if (created.length) window.notificationService.showSuccess(`Booking #${id}: ${created.join(' + ')} ready for review.`);
-                            if (missing.length) window.notificationService.showError(`Booking #${id}: ${missing.join(' & ')} didn't auto-create — check the relevant tab or generate manually.`);
+                            if (missing.length) window.notificationService.showError(`Booking #${id}: ${missing.join(' & ')} didn't auto-create. Check the relevant tab or generate manually.`);
                             await loadBookings();
                             const $dv = $('#dealViewDrawer');
                             if ($dv.hasClass('atl-drawer--open') && $dv.data('bookingId') == id && typeof window.toggleBookingDetail === 'function') {
@@ -101,7 +101,7 @@
         const disposition = $(this).data('disposition');
         const actions = { active: `Restore booking #${id} to Active?`, not_a_fit: `Mark booking #${id} as Not a Fit?`, archived: `Archive booking #${id}?` };
         const msg = (actions[disposition] || `Change the disposition of booking #${id}?`)
-            + (disposition !== 'active' ? ' This removes it from the active pipeline view and conversion counts — it can be restored at any time.' : '');
+            + (disposition !== 'active' ? ' This removes it from the active pipeline view and conversion counts. It can be restored at any time.' : '');
         if (!(await window.notificationService.showConfirm({ message: msg, isDestructive: false }))) return;
         try {
             const r = await fetch(`/api/admin/bookings/${id}/disposition`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ disposition }) });
@@ -446,7 +446,7 @@
         try {
             const d = await apiCall(`/api/admin/bookings/${id}/reopen`, 'POST');
             if (d && d.success) {
-                window.notificationService.showSuccess('Booking reopened — ready for a new quote.');
+                window.notificationService.showSuccess('Booking reopened. Ready for a new quote.');
                 await loadBookings();
             } else {
                 window.notificationService.showError(d.message || 'Failed to reopen booking.');

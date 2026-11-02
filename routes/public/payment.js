@@ -50,7 +50,7 @@ async function sendPaymentFailedEmail(booking) {
             `We noticed that your payment for <strong style="color:#FAFAFA;">${event_name || event_type}</strong> on <strong style="color:#FAFAFA;">${date}</strong> was not completed successfully.` +
             (displayTotal > 0 ? `<p style="margin:12px 0 0;"><strong style="color:#D4AF37;">Amount Due:</strong> R${parseFloat(displayTotal).toFixed(2)}</p>` : '') +
             `<p style="margin:10px 0 0; color:#E6E6E6;">Please try again via your booking tracker, or contact us directly if you need assistance. <span style="color:#B0B0B0; font-size:13px;">(Booking reference #${id})</span></p>` +
-            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">If this was a mistake, no action is needed — your booking remains active.</p>`,
+            `<p style="margin:10px 0 0; color:#B0B0B0; font-size:13px;">If this was a mistake, no action is needed. Your booking remains active.</p>`,
         cta: { label: 'Try Payment Again', url: `${emailBaseUrl()}/?track=${id}&email=${encodeURIComponent(email)}` },
         socialLinks
     });
@@ -257,7 +257,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
                         to: notifEmail,
                         subject: `PayFast ITN Rejected – Missing Total – Booking #${bookingId}`,
                         htmlContent: emailComponents.renderSystemEmail({
-                            preheaderText: `PayFast ITN for booking #${bookingId} rejected — no total_amount set.`,
+                            preheaderText: `PayFast ITN for booking #${bookingId} rejected: no total_amount set.`,
                             category: 'Payments & Invoices',
                             severity: 'alert',
                             leadFact: `A PayFast ITN for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> (R${itnAmount.toFixed(2)}) was <strong style="color:#E8A83E;">rejected</strong> because the booking has no total_amount set.`,
@@ -357,7 +357,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
                     sendEmail({ to: notifEmail,
                         subject: `Overpayment Detected – Booking #${bookingId}`,
                         htmlContent: emailComponents.renderSystemEmail({
-                            preheaderText: `Overpayment detected for booking #${bookingId} — credit NOT applied.`,
+                            preheaderText: `Overpayment detected for booking #${bookingId}: credit NOT applied.`,
                             category: 'Payments & Invoices',
                             severity: 'alert',
                             leadFact: `PayFast sent <strong style="color:#FAFAFA;">R${itnAmount.toFixed(2)}</strong> for booking <strong style="color:#FAFAFA;">#${bookingId}</strong> but crediting it would exceed the R${currentTotal.toFixed(2)} booking total.`,
@@ -441,7 +441,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
                             to: notifEmail,
                             subject: `⚠️ Balance Payment Failed – Booking #${bookingId}`,
                             htmlContent: emailComponents.renderSystemEmail({
-                                preheaderText: `Balance payment failed for booking #${bookingId} — deposit remains on record.`,
+                                preheaderText: `Balance payment failed for booking #${bookingId}: deposit remains on record.`,
                                 category: 'Payments & Invoices',
                                 severity: 'alert',
                                 leadFact: `A balance payment attempt by <strong style="color:#FAFAFA;">${failedRow.name || failedRow.client_name}</strong> for Booking <strong style="color:#FAFAFA;">#${bookingId}</strong> has failed.`,
