@@ -87,6 +87,26 @@ async function centering(p, itemsSel, withinSel) {
         await exhaustThenCollapse(p, '#footprint', count, 'Footprint');
         ok(p._errs.length === 0, 'Footprint pagination: no page errors', p._errs.join(' | '));
         await p.close();
+
+        // flags per row: 4 on a desktop, 2 on a tablet, 2 on a phone - and no sideways scrolling
+        for (const [vp, w, h, want] of [['desktop', 1440, 1000, 4], ['tablet', 820, 1100, 2], ['phone', 390, 844, 2]]) {
+            const q = await openHome(browser, { width: w, height: h });
+            await q.waitForSelector('#footprintGrid .fp-card', { timeout: 15000 });
+            const r = await q.evaluate(() => {
+                const tops = [...document.querySelectorAll('#footprintGrid .fp-card')].map(c => Math.round(c.getBoundingClientRect().top + window.scrollY));
+                return { first: tops.filter(t => t === tops[0]).length, rows: new Set(tops).size, n: tops.length, overflow: document.documentElement.scrollWidth - window.innerWidth };
+            });
+            const shown = vp === 'phone' ? 4 : 8;   // a phone starts with 4 flags
+            ok(r.n === shown && r.first === want && r.rows === shown / want, `Footprint ${vp}: ${want} flag(s) per row (${shown} shown to start, in ${shown / want} row(s))`, JSON.stringify(r));
+            if (vp === 'phone') {
+                await q.evaluate(() => document.querySelector('#footprint .tm-view-more').click()); await sleep(400);
+                ok(await q.$$eval('#footprintGrid .fp-card', e => e.length) === 8, 'Footprint phone: "View More Countries" reveals 4 more (4 -> 8)', '');
+                await q.evaluate(() => document.querySelector('#footprint .tm-view-less').click()); await sleep(300);
+                ok(await q.$$eval('#footprintGrid .fp-card', e => e.length) === 4, 'Footprint phone: "View Less Countries" goes back to 4', '');
+            }
+            ok(r.overflow <= 1, `Footprint ${vp}: no sideways scrolling`, String(r.overflow));
+            await q.close();
+        }
     }
 
     // ══════════ MANAGEMENT TEAM: centered at both the row (desktop) and stacked (mobile) layouts ══════════

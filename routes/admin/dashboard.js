@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
-const { getSettingVal } = require('../../database/repositories/settings.repository');
+const { getSettingVal, upsertSetting } = require('../../database/repositories/settings.repository');
 const router = express.Router();
 
 // =============================================
@@ -170,6 +170,53 @@ router.post('/api/admin/dashboard/social_kpis', requireAdmin, requireRole(['admi
                 res.json({ success: true, message: `Social media stats updated for ${platform_name}.` });
             }
         );
+    });
+});
+
+// Per-account dashboard preferences: what ONE administrator chose for THEIR dashboard, remembered on the server (the settings table, one key per
+// account) so it follows the account to any browser or device. Today: whether the Social Media Channels cards show (default: shown).
+// A choice made before this existed was saved for everyone (dashboard_show_social_cards); it is used until the account makes its own.
+const prefKey = (adminId) => `dashboard_pref_${Number(adminId)}_social_cards`;
+router.get('/api/admin/dashboard/preferences', requireAdmin, async (req, res) => {
+    try {
+        const own = await getSettingVal(prefKey(req.session.adminId));
+        const legacy = own === null || own === undefined ? await getSettingVal('dashboard_show_social_cards') : null;
+        const v = own !== null && own !== undefined ? own : legacy;
+        res.set('Cache-Control', 'no-store');
+        res.json({ success: true, preferences: { social_cards: String(v === null || v === undefined ? '1' : v) !== '0' } });
+    } catch (e) { res.status(500).json({ success: false, message: 'Could not load your dashboard preferences.' }); }
+});
+router.put('/api/admin/dashboard/preferences', requireAdmin, (req, res) => {
+    const b = req.body || {};
+    if (typeof b.social_cards !== 'boolean') return res.status(400).json({ success: false, message: 'social_cards must be true or false.' });
+    upsertSetting(prefKey(req.session.adminId), b.social_cards ? '1' : '0', (err) => {
+        if (err) return res.status(500).json({ success: false, message: 'Could not save your dashboard preference.' });
+        res.json({ success: true, preferences: { social_cards: b.social_cards } });
+    });
+});
+
+// The admin's look (Finish / House accent / Presence, js/appearance.js), per account like the preference above. The browser keeps a copy in
+// localStorage so the page paints right away; this is the copy that follows the account to another machine. Values are checked against the
+// same lists the page uses. GET gives { appearance: null } until the account has chosen.
+const APPEARANCE = { theme: ['dark', 'light', 'ember'], accent: ['gold', 'vetiver', 'cassis', 'cuivre'], presence: ['editorial', 'boutique', 'operations'] };
+const appearanceKey = (adminId) => `admin_pref_${Number(adminId)}_appearance`;
+router.get('/api/admin/preferences/appearance', requireAdmin, async (req, res) => {
+    try {
+        const raw = await getSettingVal(appearanceKey(req.session.adminId));
+        let a = null;
+        try { a = raw ? JSON.parse(raw) : null; } catch (e) { a = null; }
+        if (a && !Object.keys(APPEARANCE).every(k => APPEARANCE[k].includes(a[k]))) a = null;
+        res.set('Cache-Control', 'no-store');
+        res.json({ success: true, appearance: a });
+    } catch (e) { res.status(500).json({ success: false, message: 'Could not load your appearance.' }); }
+});
+router.put('/api/admin/preferences/appearance', requireAdmin, (req, res) => {
+    const b = req.body || {};
+    if (!Object.keys(APPEARANCE).every(k => APPEARANCE[k].includes(b[k]))) return res.status(400).json({ success: false, message: 'Unknown appearance value.' });
+    const clean = { theme: b.theme, accent: b.accent, presence: b.presence };
+    upsertSetting(appearanceKey(req.session.adminId), JSON.stringify(clean), (err) => {
+        if (err) return res.status(500).json({ success: false, message: 'Could not save your appearance.' });
+        res.json({ success: true, appearance: clean });
     });
 });
 

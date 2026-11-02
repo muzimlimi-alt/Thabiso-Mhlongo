@@ -429,6 +429,8 @@ $(function() {
             }
             if (a.enabled === false) $('.tm-announcement').hide(); else $('.tm-announcement').show();
             if (a.rotate === false) $('.tm-announcement').addClass('no-rotate'); else $('.tm-announcement').removeClass('no-rotate');
+            // scroll speed 1..10 (5 = the original 18 s a pass): the time one pass takes is 90 / speed seconds
+            if (a.speed >= 1 && a.speed <= 10) $('.tm-announcement .tm-announce-marquee').css('animation-duration', Math.round(90 / a.speed) + 's');
             if (data.hero_tagline && data.hero_tagline.trim()) $('.tm-hero__tagline').text(data.hero_tagline);
             if (data.hero_subtitle && data.hero_subtitle.trim()) $('.tm-hero__subtitle').html(data.hero_subtitle);
             var s = data.services || {};
@@ -436,6 +438,13 @@ $(function() {
             if (s.heading && s.heading.trim()) $('#servicesTitle').html(s.heading);
             if (Array.isArray(s.items) && s.items.length) {
                 var $cards = $('.tm-services__grid .tm-service');
+                // "Most Booked": once the admin has chosen (a card, or none), the badge follows the choice; before that the page keeps its built-in one
+                if (s.items.some(function (it) { return it && typeof it.featured === 'boolean'; })) {
+                    $cards.find('.tm-service__tag').remove();
+                    s.items.forEach(function (it, i) {
+                        if (it && it.featured && $cards.eq(i).length) $cards.eq(i).find('.tm-service__overlay').after('<span class="tm-service__tag">Most Booked</span>');
+                    });
+                }
                 s.items.forEach(function (item, i) {
                     var $c = $cards.eq(i);
                     if (!$c.length || !item) return;
@@ -1091,10 +1100,20 @@ $(function() {
                 '<img class="fp-flag" src="' + tmEscHtml(c.flag_image_path) + '" alt="Flag of ' + tmEscHtml(c.country_name) + '" loading="lazy">' +
                 '<p class="fp-name">' + tmEscHtml(c.country_name) + '</p></div>';
         });
-        tmPaginateGrid($grid, htmls, {
-            moreLabel: 'View More Countries', moreAriaLabel: 'View more countries performed in',
-            lessLabel: 'View Less Countries', lessAriaLabel: 'View fewer countries, back to the first 8'
-        });
+        // A phone shows 4 flags (2 rows of 2) until View More is pressed, a tablet / desktop 8 (rows of 2 / 4). Crossing the phone breakpoint
+        // (rotating the device, resizing) starts the list again from its first page.
+        var phone = window.matchMedia('(max-width: 575px)');
+        function paginate() {
+            var size = phone.matches ? 4 : 8;
+            $grid.empty();
+            tmPaginateGrid($grid, htmls, {
+                pageSize: size,
+                moreLabel: 'View More Countries', moreAriaLabel: 'View more countries performed in',
+                lessLabel: 'View Less Countries', lessAriaLabel: 'View fewer countries, back to the first ' + size
+            });
+        }
+        paginate();
+        if (phone.addEventListener) phone.addEventListener('change', paginate); else if (phone.addListener) phone.addListener(paginate);
     }
     renderFootprint();
 
@@ -1600,8 +1619,21 @@ $(function() {
                         if (/^Embedded media from [^.]+\.$/.test(mDesc)) mDesc = '';
                         var mDate = '';
                         if (meta.publishDate && !isNaN(new Date(meta.publishDate))) {
-                            try { mDate = new Date(meta.publishDate).toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) {}
+                            try { mDate = new Date(meta.publishDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Johannesburg' }); } catch (e) {}
                         }
+                        // Views as the platform reports them (the server keeps them fresh, lib/social-stats.js). 0 / missing = not known: say nothing.
+                        var mViews = '', mViewsTitle = '';
+                        var vc = parseInt(meta.viewCount, 10);
+                        if (vc > 0) {
+                            var vShort = vc >= 1000000 ? (vc / 1000000).toFixed(1).replace(/\.0$/, '') + 'M'
+                                : vc >= 10000 ? Math.round(vc / 1000) + 'K'
+                                : vc >= 1000 ? (vc / 1000).toFixed(1).replace(/\.0$/, '') + 'K' : String(vc);
+                            mViews = vShort + (vc === 1 ? ' view' : ' views');
+                            mViewsTitle = vc.toLocaleString('en-ZA') + ' views';
+                        }
+                        var mStats = [];
+                        if (mViews) mStats.push('<span title="' + mViewsTitle + '">' + mViews + '</span>');
+                        if (mDate) mStats.push('Uploaded ' + mDate);
                         var thumbAttr = tmEscHtml(safeThumb);
                         embedHtml = `
                         <article class="sm-card youtube-custom-card reveal" style="--sm-color:${pColor};">
@@ -1611,9 +1643,10 @@ $(function() {
                                 <span class="sm-card__play" aria-hidden="true"><i class="${pIcon}"></i></span>
                             </div>
                             <div class="sm-card__info">
-                                <span class="sm-card__badge"><i class="${pIcon}" aria-hidden="true"></i>${tmEscHtml(item.platform_name)}${mDate ? ' &middot; ' + mDate : ''}</span>
+                                <span class="sm-card__badge"><i class="${pIcon}" aria-hidden="true"></i>${tmEscHtml(item.platform_name)}</span>
                                 <h4 class="sm-card__title" title="${mTitle}">${mTitle}</h4>
                                 <p class="sm-card__channel">${mChannel}</p>
+                                ${mStats.length ? `<p class="sm-card__stats">${mStats.join(' &middot; ')}</p>` : ''}
                                 ${mDesc ? `<p class="sm-card__desc">${mDesc}</p>` : ''}
                             </div>
                         </article>

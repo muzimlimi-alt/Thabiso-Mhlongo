@@ -395,7 +395,7 @@ $(document).on('submit', '#socialEmbedForm', function(e) {
             description: "Embedded media from " + platform + ".",
             tags: [platform],
             channelName: platform + " User",
-            publishDate: new Date().toISOString(),
+            publishDate: "", // unknown: never the day it was added, which is not the upload date
             thumbnail: thumb,
             viewCount: 0,
             likeCount: 0,
@@ -640,6 +640,7 @@ function loadSocialData() {
 }
 window.loadSocialData = loadSocialData;
 
+window.loadSocialKpiSettings = loadSocialKpiSettings;
 function loadSocialKpiSettings() {
     fetch('/api/admin/dashboard/social_kpis', { credentials: 'same-origin' })
         .then(function (r) { return r.ok ? r.json() : null; })

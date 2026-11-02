@@ -462,6 +462,7 @@
         document.querySelectorAll('#dbInsights > .um-panel').forEach(function (p) { p.classList.toggle('active', p.id === target); });
         setTimeout(function () {
             if (target === 'dbPanelFinance') loadFinance();
+            if (target === 'dbPanelSocial' && typeof window.loadSocialKpiSettings === 'function') window.loadSocialKpiSettings();
             if (target === 'dbPanelGeo' && typeof dbLoadCountryMap === 'function') dbLoadCountryMap();
             window.dispatchEvent(new Event('resize'));
         }, 30);

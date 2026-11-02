@@ -88,7 +88,16 @@ router.get('/api/admin/banners', requireAdmin, requireRole(['administrator', 'ma
             (err2, rows) => {
                 if (err2) return res.status(500).json({ success: false, message: err2.message });
                 const total = countRow.total;
-                res.json({ success: true, banners: rows, total, page, pages: Math.ceil(total / limit) || 1 });
+                // which outgoing emails use each banner (the same rows the single-banner route returns as used_by)
+                const ids = rows.map(b => b.id);
+                if (!ids.length) return res.json({ success: true, banners: rows, total, page, pages: Math.ceil(total / limit) || 1 });
+                db.all(`SELECT template_key, category, banner_id FROM email_template_banners WHERE banner_id IN (${ids.map(() => '?').join(',')}) ORDER BY category, template_key`, ids, (err3, used) => {
+                    if (err3) return res.status(500).json({ success: false, message: err3.message });
+                    const byBanner = {};
+                    (used || []).forEach(u => { (byBanner[u.banner_id] = byBanner[u.banner_id] || []).push({ template_key: u.template_key, category: u.category }); });
+                    rows.forEach(b => { b.used_by = byBanner[b.id] || []; });
+                    res.json({ success: true, banners: rows, total, page, pages: Math.ceil(total / limit) || 1 });
+                });
             }
         );
     });

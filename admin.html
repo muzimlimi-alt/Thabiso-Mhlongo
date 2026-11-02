@@ -83,7 +83,7 @@
     <link rel="stylesheet" href="css/admin/07-components.css?v=1">
     <link rel="stylesheet" href="css/admin/08-finance-tiles-note.css">
     <link rel="stylesheet" href="css/admin/inquiries.css">
-    <link rel="stylesheet" href="css/admin/09-users-security.css?v=3">
+    <link rel="stylesheet" href="css/admin/09-users-security.css?v=7">
     <link rel="stylesheet" href="css/admin/calendar.css?v=m365-5">
     <link rel="stylesheet" href="css/admin/10-content-management.css">
     <link rel="stylesheet" href="css/admin/security-audit.css">
@@ -626,6 +626,7 @@
                                 <button class="atl-tab-btn" data-um-tab="dbPanelGeo" role="tab" aria-selected="false"><i class="fa-solid fa-earth-africa"></i> Geography</button>
                                 <button class="atl-tab-btn" data-um-tab="dbPanelPerf" role="tab" aria-selected="false"><i class="fa-solid fa-shield-halved"></i> Performance &amp; Security</button>
                                 <button class="atl-tab-btn" data-um-tab="dbPanelFinance" role="tab" aria-selected="false" id="dbTabFinance"><i class="fa-solid fa-sack-dollar"></i> Finance</button>
+                                <button class="atl-tab-btn" data-um-tab="dbPanelSocial" role="tab" aria-selected="false" id="dbTabSocial"><i class="fa-solid fa-share-nodes"></i> Social KPIs</button>
                             </div>
                             <div class="db-range" role="group" aria-label="Date range">
                                 <label class="atl-sr-only" for="dbRange">Date range</label>
@@ -757,6 +758,35 @@
                         <!-- ===== Finance (administrators and managers) ===== -->
                         <div class="um-panel" id="dbPanelFinance" role="tabpanel">
                             <div id="dbFinance"><div class="db-rank-empty">Loading…</div></div>
+                        </div>
+
+                        <!-- ===== Social KPIs: the Social Media Channels cards (moved here from Social Media > Dashboard KPIs) ===== -->
+                        <div class="um-panel" id="dbPanelSocial" role="tabpanel">
+                            <!-- Show / hide the Social Media Channels cards on the admin dashboard -->
+                            <div class="atl-card" style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:16px;">
+                                <div style="min-width:0;">
+                                    <h4 class="um-section-label" style="margin:0 0 4px 0;">Social Media cards on the dashboard</h4>
+                                    <p class="um-section-desc" style="margin:0;">Show or hide the <strong style="color:var(--atl-ink);">Social Media Channels</strong> cards on your admin dashboard. This is saved to your account, so it is the same on every device you sign in on.</p>
+                                </div>
+                                <label class="um-toggle" title="Show or hide the Social Media cards on the dashboard" aria-label="Show Social Media cards on the dashboard">
+                                    <input type="checkbox" id="dashSocialCardsToggle" checked>
+                                    <span class="um-toggle__track"><span class="um-toggle__thumb"></span></span>
+                                </label>
+                            </div>
+                            <div class="atl-card">
+                                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--atl-line);">
+                                    <div>
+                                        <h4 class="um-section-label" style="margin:0 0 4px 0;">Dashboard Social KPIs Settings</h4>
+                                        <p class="um-section-desc" style="margin:0;">Configure whether your dashboard displays live API counts or manually adjusted follower metrics.</p>
+                                    </div>
+                                </div>
+                                <div class="kpi-cfg-grid" id="kpiSettingsContainer">
+                                    <!-- Platform setting cards will be loaded here via JS -->
+                                </div>
+                                <div style="margin-top:20px; display:flex; justify-content:flex-end;">
+                                    <button type="button" class="atl-btn atl-btn--primary" id="saveKpiSettingsBtn" onclick="saveSocialKpiSettings()"><i class="fa-solid fa-floppy-disk"></i> Save KPI Settings</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -5505,9 +5535,6 @@
                         <button type="button" class="atl-tab-btn" data-um-tab="socialEmbedsPanel" role="tab" aria-selected="false">
                             <i class="fa-solid fa-code"></i> Media Embeds
                         </button>
-                        <button type="button" class="atl-tab-btn" data-um-tab="socialKpiPanel" role="tab" aria-selected="false">
-                            <i class="fa-solid fa-chart-line"></i> Dashboard KPIs
-                        </button>
                         <button type="button" class="atl-tab-btn" data-um-tab="socialAboutPanel" role="tab" aria-selected="false">
                             <i class="fa-solid fa-circle-info"></i> About
                         </button>
@@ -5557,35 +5584,6 @@
                         </div>
                     </div>
                     
-                    <!-- Panel: Dashboard KPIs -->
-                    <div id="socialKpiPanel" class="um-panel">
-                        <!-- Show / hide the Social Media Channels cards on the admin dashboard -->
-                        <div class="atl-card" style="display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap; margin-bottom:16px;">
-                            <div style="min-width:0;">
-                                <h4 class="um-section-label" style="margin:0 0 4px 0;">Social Media cards on the dashboard</h4>
-                                <p class="um-section-desc" style="margin:0;">Show or hide the <strong style="color:var(--atl-ink);">Social Media Channels</strong> cards on your admin dashboard.</p>
-                            </div>
-                            <label class="um-toggle" title="Show or hide the Social Media cards on the dashboard" aria-label="Show Social Media cards on the dashboard">
-                                <input type="checkbox" id="dashSocialCardsToggle" checked>
-                                <span class="um-toggle__track"><span class="um-toggle__thumb"></span></span>
-                            </label>
-                        </div>
-                        <div class="atl-card">
-                            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; padding-bottom:16px; border-bottom:1px solid var(--atl-line);">
-                                <div>
-                                    <h4 class="um-section-label" style="margin:0 0 4px 0;">Dashboard Social KPIs Settings</h4>
-                                    <p class="um-section-desc" style="margin:0;">Configure whether your dashboard displays live API counts or manually adjusted follower metrics.</p>
-                                </div>
-                            </div>
-                            <div class="kpi-cfg-grid" id="kpiSettingsContainer">
-                                <!-- Platform setting cards will be loaded here via JS -->
-                            </div>
-                            <div style="margin-top:20px; display:flex; justify-content:flex-end;">
-                                <button type="button" class="atl-btn atl-btn--primary" id="saveKpiSettingsBtn" onclick="saveSocialKpiSettings()"><i class="fa-solid fa-floppy-disk"></i> Save KPI Settings</button>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Panel: About -->
                     <div id="socialAboutPanel" class="um-panel">
                         <div class="atl-card">
@@ -5671,13 +5669,13 @@
                             <ol class="um-section-desc" style="width:100%; margin:0 0 4px; padding-left:20px; line-height:1.95;">
                                 <li><strong style="color:var(--atl-ink);">Add a profile link</strong> &mdash; on the <strong style="color:var(--atl-ink);">Social Links</strong> tab, click <strong style="color:var(--atl-ink);">Add Social Link</strong>, pick the platform, paste the URL and save.</li>
                                 <li><strong style="color:var(--atl-ink);">Embed a video or post</strong> &mdash; on the <strong style="color:var(--atl-ink);">Media Embeds</strong> tab, click <strong style="color:var(--atl-ink);">Add Media Embed</strong> and paste the link or embed code.</li>
-                                <li><strong style="color:var(--atl-ink);">Configure Dashboard KPIs</strong> &mdash; on the <strong style="color:var(--atl-ink);">Dashboard KPIs</strong> tab, select your preferred data source for each platform. If "Manual Input" is chosen, specify your follower counts and trend rates, then click <strong style="color:var(--atl-ink);">Save KPI Settings</strong>.</li>
+                                <li><strong style="color:var(--atl-ink);">Configure Dashboard KPIs</strong> &mdash; under <strong style="color:var(--atl-ink);">Dashboard &rarr; Social KPIs</strong>, select your preferred data source for each platform. If "Manual Input" is chosen, specify your follower counts and trend rates, then click <strong style="color:var(--atl-ink);">Save KPI Settings</strong>.</li>
                                 <li><strong style="color:var(--atl-ink);">Hide something temporarily</strong> &mdash; set the item <strong style="color:var(--atl-ink);">Inactive</strong> instead of deleting it, so you can bring it back later.</li>
                             </ol>
 
                             <h4 class="um-section-label" style="margin: 24px 0 14px;">Understanding Dashboard KPIs</h4>
                             <p class="um-section-desc" style="width:100%; margin-bottom:16px; line-height:1.6;">
-                                The <strong style="color:var(--atl-ink);">Dashboard KPIs</strong> tab feeds the five follower cards in the <em>Social Media Channels</em> grid at the top of the main dashboard, giving you your aggregate digital footprint in one view. Configure each platform independently, then click <strong style="color:var(--atl-ink);">Save KPI Settings</strong> &mdash; the dashboard updates immediately. Here's what each field controls:
+                                The <strong style="color:var(--atl-ink);">Social KPIs</strong> tab of the Dashboard feeds the five follower cards in the <em>Social Media Channels</em> grid at the top of the main dashboard, giving you your aggregate digital footprint in one view. Configure each platform independently, then click <strong style="color:var(--atl-ink);">Save KPI Settings</strong> &mdash; the dashboard updates immediately. Here's what each field controls:
                             </p>
 
                             <div class="um-roles-grid" style="margin-bottom:4px;">
@@ -7078,7 +7076,7 @@
                                 <div class="um-icon-header__icon"><i class="fa-solid fa-palette"></i></div>
                                 <div>
                                     <h4 class="um-section-label" style="margin-bottom:4px;">Appearance</h4>
-                                    <p class="um-section-desc">Finish, house accent and layout density. Applies instantly and is saved to this browser. It does not affect other admins.</p>
+                                    <p class="um-section-desc">Finish, house accent and layout density. Applies instantly and is saved to your account, so it is the same on every machine you sign in on. It does not affect other admins.</p>
                                 </div>
                             </div>
                             <div class="um-divider"></div>
@@ -7218,8 +7216,8 @@
                             <div class="um-divider"></div>
 
                             <div class="um-role-info" style="margin-bottom:16px;">
-                                <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-palette" style="color:var(--atl-amber);"></i> Appearance &mdash; this browser only</p>
-                                <p class="um-role-info__desc">Finish, house accent and layout density. It applies instantly and is remembered by this browser only, so it never changes what other admins see. The same controls are in the account menu (top right &rarr; Appearance) for every role.</p>
+                                <p class="um-feature-title" style="margin-bottom:6px;"><i class="fa-solid fa-palette" style="color:var(--atl-amber);"></i> Appearance &mdash; saved to your account</p>
+                                <p class="um-role-info__desc">Finish, house accent and layout density. It applies instantly and is saved to your account, so it is the same on every machine you sign in on, and it never changes what other admins see. The same controls are in the account menu (top right &rarr; Appearance) for every role.</p>
                             </div>
 
                             <div class="um-role-info" style="margin-bottom:16px;">
@@ -7300,6 +7298,9 @@
                         </select>
                         <button type="button" class="atl-clear-btn" onclick="clearBnrFilters()">Clear filters</button>
                     </div>
+
+                    <!-- Which outgoing emails have a banner and which do not (filled by loadBnrCoverage) -->
+                    <div id="bnrCoverage" class="bnr-coverage" aria-live="polite"></div>
 
                     <div id="bnrCardGrid" class="evt-card-grid"></div>
                     <div style="text-align:center; margin-top:20px;">
@@ -7831,7 +7832,7 @@
     <script src="js/shared/stored-text.js"></script>
     <script src="js/bootstrap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="js/myscript.js?v=19"></script>
+    <script src="js/myscript.js?v=20"></script>
     <script>document.getElementById('admin-year') && (document.getElementById('admin-year').textContent = new Date().getFullYear());</script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.js"></script>
     <script>
@@ -8261,7 +8262,7 @@
          register with it. See js/overlay-stack.js for the defect it fixes. -->
     <script src="js/overlay-stack.js?v=2"></script>
     <!-- Appearance axes controller. Single writer for data-theme / data-accent / data-presence. -->
-    <script src="js/appearance.js"></script>
+    <script src="js/appearance.js?v=2"></script>
     <script src="js/admin/components/drawer.js?v=3"></script>
     <script src="js/admin/sidebar-nav.js?v=2"></script>
     <script src="js/admin/components/data-table.js"></script>
@@ -8280,7 +8281,7 @@
         // window.atlActivateDrawerTab and uploadFileToServer are called from the moved code but
         // NOT moved — both shared Phase 7 "Shared candidates".
     </script>
-    <script src="js/admin/about.js?v=3"></script>
+    <script src="js/admin/about.js?v=5"></script>
     <script>
 
         // Phase 6 (HOUSEKEEPING-NOTES.md): the "Website Sections" block (SECTION_REGISTRY/
@@ -8519,6 +8520,7 @@
                 if (!data || !data.success) throw new Error('Invalid response');
                 bnrCardsCache = (bnrPage === 1) ? data.banners : bnrCardsCache.concat(data.banners);
                 renderBnrCards();
+                loadBnrCoverage();
                 $('#bnrLoadMoreBtn').toggle(bnrPage < (data.pages || 1));
             } catch (err) {
                 console.error('Failed to load banners:', err);
@@ -8531,6 +8533,40 @@
             return status === 'active'
                 ? '<span class="um-status-badge um-status-badge--active">Active</span>'
                 : '<span class="um-status-badge um-status-badge--archived">Archived</span>';
+        }
+
+        // "booking_confirmation" -> "Booking confirmation": the stored key, made readable
+        function bnrEmailLabel(key) {
+            var s = String(key || '').replace(/^admin_/i, 'Admin: ').replace(/[_-]+/g, ' ').trim();
+            return s.charAt(0).toUpperCase() + s.slice(1);
+        }
+        function bnrChipsHtml(b) {
+            var used = b.used_by || [];
+            if (!used.length) {
+                return '<p class="bnr-used bnr-used--none"><i class="fa-regular fa-envelope" aria-hidden="true"></i> Not assigned to any outgoing email yet. ' +
+                    '<button type="button" class="bnr-used__link" onclick="openBnrAssignDrawer(' + b.id + ')">Assign</button></p>';
+            }
+            return '<div class="bnr-used">' +
+                '<p class="bnr-used__head"><i class="fa-solid fa-envelope" aria-hidden="true"></i> Used in ' + used.length + ' outgoing email' + (used.length === 1 ? '' : 's') + '</p>' +
+                '<ul class="bnr-chips">' + used.map(function (u) {
+                    return '<li><button type="button" class="bnr-chip" onclick="openBnrAssignDrawer(' + b.id + ')" title="' + escHtml(u.category + ' \u2014 ' + u.template_key) + '">' +
+                        '<span class="bnr-chip__name">' + escHtml(bnrEmailLabel(u.template_key)) + '</span><span class="bnr-chip__cat">' + escHtml(u.category) + '</span></button></li>';
+                }).join('') + '</ul></div>';
+        }
+        // Coverage strip: how many outgoing emails have a banner, and which still have none
+        async function loadBnrCoverage() {
+            var $c = $('#bnrCoverage');
+            try {
+                var res = await apiCall('/api/admin/email-templates');
+                var t = (res && res.templates) || [];
+                if (!t.length) { $c.empty(); return; }
+                var missing = t.filter(function (x) { return !x.banner_id; });
+                $c.html('<div class="bnr-coverage__row"><span class="bnr-coverage__num">' + (t.length - missing.length) + ' of ' + t.length + '</span> outgoing emails have a banner' +
+                    (missing.length ? ' &middot; <strong>' + missing.length + ' without</strong>' : ' &middot; all covered') + '</div>' +
+                    (missing.length ? '<ul class="bnr-chips bnr-chips--missing">' + missing.map(function (x) {
+                        return '<li><span class="bnr-chip bnr-chip--missing" title="' + escHtml(x.category + ' \u2014 ' + x.template_key) + '"><span class="bnr-chip__name">' + escHtml(bnrEmailLabel(x.template_key)) + '</span><span class="bnr-chip__cat">' + escHtml(x.category) + '</span></span></li>';
+                    }).join('') + '</ul>' : ''));
+            } catch (e) { $c.empty(); }
         }
 
         function renderBnrCards() {
@@ -8555,8 +8591,9 @@
                           '</div>' +
                           '<div style="flex:1; min-width:0;">' +
                             '<h3 class="atl-edit-card__title">' + escHtml(b.name) + '</h3>' +
-                            '<p class="atl-edit-card__subtitle">' + escHtml(b.category) + ' &middot; Used by ' + (b.usage_count || 0) + ' &middot; ' + updated + '</p>' +
+                            '<p class="atl-edit-card__subtitle">' + escHtml(b.category) + ' &middot; ' + updated + '</p>' +
                             '<div style="margin-top:6px;">' + bnrStatusBadgeHtml(b.status) + '</div>' +
+                            bnrChipsHtml(b) +
                           '</div>' +
                           '<div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">' +
                             '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="openBnrEditDrawer(' + b.id + ')" title="Edit banner"><i class="fa-solid fa-pen"></i></button>' +
@@ -8768,7 +8805,7 @@
                 });
                 bnrAssignOriginallyChecked = {};
                 var html = '';
-                BNR_CATEGORIES.forEach(function (cat) {
+                BNR_CATEGORIES.concat(Object.keys(byCategory).filter(function (c) { return BNR_CATEGORIES.indexOf(c) === -1; })).forEach(function (cat) {
                     var rows = byCategory[cat];
                     if (!rows || !rows.length) return;
                     html += '<div style="margin-bottom:16px;">' +
@@ -8840,7 +8877,7 @@
         // prevention + several commented-out legacy init calls spanning many other sections)
         // was NOT moved — it belongs to no single section.
     </script>
-    <script src="js/admin/social.js"></script>
+    <script src="js/admin/social.js?v=2"></script>
     <script>
 
         // Initial render
@@ -9206,8 +9243,8 @@
         // (bundled together with the Dashboard Analytics module below it in the document —
         // see that file's header comment for full detail). Loaded once, here.
     </script>
-    <script src="js/admin/dashboard.js?v=6"></script>
-    <script src="js/admin/dashboard-insights.js?v=8"></script>
+    <script src="js/admin/dashboard.js?v=7"></script>
+    <script src="js/admin/dashboard-insights.js?v=9"></script>
     <script>
 
         // ==========================================
@@ -9223,6 +9260,8 @@
 
             // Which sidebar links, groups, headings, dashboard tiles and account-menu items this role sees: js/admin/nav-config.js.
             window.admNav.applyRole(effectiveRole);
+            // The account's saved look (Finish / accent / Presence) from the server: the same on every machine this account signs in on (js/appearance.js).
+            if (window.atlAppearance && window.atlAppearance.syncFromServer) window.atlAppearance.syncFromServer();
         }
 
         // ==========================================
@@ -9850,15 +9889,25 @@
         <div class="atl-drawer__body">
             <form id="announceForm" class="um-form">
                 <div class="um-field-group">
-                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; color:var(--atl-ink);">
-                        <input type="checkbox" id="announceEnabled" style="width:16px; height:16px; accent-color:var(--atl-amber);">
-                        Show the announcement bar on the site
+                    <!-- two identical check rows: the box never shrinks, sits level with the first line of its text, and neither row is indented -->
+                    <label class="ann-check" for="announceEnabled">
+                        <input type="checkbox" id="announceEnabled">
+                        <span>Show the announcement bar on the site</span>
                     </label>
-                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:14px; color:var(--atl-ink); margin-top:12px; padding-left:26px;">
-                        <input type="checkbox" id="announceRotate" style="width:16px; height:16px; accent-color:var(--atl-amber);">
-                        Rotate (scroll) the announcement text
+                    <label class="ann-check" for="announceRotate">
+                        <input type="checkbox" id="announceRotate">
+                        <span>Rotate (scroll) the announcement text</span>
                     </label>
-                    <small class="help-block" style="padding-left:26px;">When off, the message stays still and centred instead of scrolling across the bar.</small>
+                    <small class="help-block ann-check__help">When off, the message stays still and centred instead of scrolling across the bar.</small>
+                </div>
+                <div class="um-field-group" id="announceSpeedRow">
+                    <label class="um-label" for="announceSpeed">Scroll speed</label>
+                    <div class="ann-speed">
+                        <span>Slow</span>
+                        <input type="range" id="announceSpeed" min="1" max="10" step="1" value="5" aria-describedby="announceSpeedHelp">
+                        <span>Fast</span>
+                    </div>
+                    <small class="help-block" id="announceSpeedHelp">How fast the message crosses the bar (5 is the usual speed). It only applies while the text is set to scroll.</small>
                 </div>
                 <div class="um-field-group">
                     <label class="um-label" for="announceInput">Message</label>
@@ -9909,6 +9958,11 @@
                     <small class="help-block">Wrap a word in <code>&lt;em&gt;&hellip;&lt;/em&gt;</code> to italicise it (as in the current heading).</small>
                 </div>
                 <hr class="um-divider">
+                <div class="um-field-group">
+                    <label class="um-label" for="homeFeaturedCard">&ldquo;Most Booked&rdquo; badge</label>
+                    <div class="um-input-wrap"><select id="homeFeaturedCard" class="um-input"></select></div>
+                    <small class="help-block">The gold badge on one service card. Pick the card, or &ldquo;No card&rdquo; to show none.</small>
+                </div>
                 <p class="um-section-desc" style="margin:0 0 12px;">Service cards</p>
                 <div id="svcCardsEditor"><!-- card editors injected by JS --></div>
                 <button type="submit" class="atl-btn atl-btn--primary" id="servicesSubmitBtn" style="width:100%; justify-content:center;">

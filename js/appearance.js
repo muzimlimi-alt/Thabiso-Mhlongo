@@ -84,7 +84,53 @@
         document.documentElement.setAttribute(spec.attr, value);
         try { global.localStorage.setItem(spec.key, value); } catch (e) { /* still applies for the session */ }
         afterChange();
+        saveToServer();
         return get();
+    }
+
+    // ── Per-account copy (the account's look follows it to any machine) ──────
+    // localStorage stays the pre-paint cache; the server copy is what a NEW machine learns from. It is read once per sign-in
+    // (syncFromServer, called when the session is confirmed) and written whenever the admin changes something.
+    var syncing = false, userChanged = false;   // userChanged: the admin picked something since the page opened - a slower server answer must not undo it
+    function saveToServer() {
+        if (syncing) return;
+        userChanged = true;                       // applying what the server said must not echo it back
+        try {
+            global.fetch('/api/admin/preferences/appearance', {
+                method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(get()), bypassInterceptor: true
+            }).catch(function () { /* the look still applies here; it is saved again on the next change */ });
+        } catch (e) { /* no fetch */ }
+    }
+    function syncFromServer() {
+        if (typeof global.fetch !== 'function') return Promise.resolve(get());
+        return global.fetch('/api/admin/preferences/appearance', { credentials: 'same-origin', cache: 'no-store', bypassInterceptor: true })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) {
+                if (!d || !d.success || userChanged) return get();
+                var s = d.appearance;
+                if (!s) {
+                    // This account has not saved a look yet. A browser that already carries one (chosen before this was kept on the server)
+                    // gives it to the account, so the first machine's look is what the others get.
+                    var local = get();
+                    var isDefault = Object.keys(AXES).every(function (k) { return local[k] === AXES[k].def; });
+                    if (!isDefault) saveToServer();
+                    return local;
+                }
+                var cur = get();
+                if (Object.keys(AXES).every(function (k) { return cur[k] === s[k]; })) return cur;
+                syncing = true;
+                try {
+                    Object.keys(AXES).forEach(function (k) {
+                        if (AXES[k].values.indexOf(s[k]) === -1) return;
+                        document.documentElement.setAttribute(AXES[k].attr, s[k]);
+                        try { global.localStorage.setItem(AXES[k].key, s[k]); } catch (e) { /* cache only */ }
+                    });
+                    afterChange();
+                } finally { syncing = false; }
+                return get();
+            })
+            .catch(function () { return get(); });
     }
 
     function reset() {
@@ -93,6 +139,7 @@
             try { global.localStorage.removeItem(AXES[axis].key); } catch (e) {}
         });
         afterChange();
+        saveToServer();
         return get();
     }
 
@@ -202,7 +249,7 @@
     });
 
     global.atlAppearance = {
-        apply: apply, get: get, set: set, reset: reset,
+        apply: apply, get: get, set: set, reset: reset, syncFromServer: syncFromServer,
         buildPanel: buildPanel, syncPanel: syncPanel,
         AXES: AXES, SWATCH: SWATCH
     };

@@ -230,6 +230,8 @@ router.put('/api/admin/site-content', requireAdmin, (req, res) => {
     if (typeof b.announcement_text === 'string') updates.announcement_text = sanitizeAboutHtml(b.announcement_text).slice(0, 300);
     if (typeof b.announcement_enabled !== 'undefined') updates.announcement_enabled = b.announcement_enabled ? '1' : '0';
     if (typeof b.announcement_rotate !== 'undefined') updates.announcement_rotate = b.announcement_rotate ? '1' : '0';
+    // scroll speed 1 (slowest) .. 10 (fastest); 5 is the speed the bar always had
+    if (typeof b.announcement_speed !== 'undefined') { const sp = Math.round(Number(b.announcement_speed)); if (sp >= 1 && sp <= 10) updates.announcement_speed = String(sp); }
     if (b.section_visibility && typeof b.section_visibility === 'object') {
         // Whitelist keys + coerce to booleans so only known sections are ever stored.
         const clean = {};
@@ -243,8 +245,12 @@ router.put('/api/admin/site-content', requireAdmin, (req, res) => {
         const clean = b.services_items.slice(0, 12).map(it => ({
             title: String((it && it.title) || '').replace(/<[^>]*>/g, '').slice(0, 120),
             description: String((it && it.description) || '').replace(/<[^>]*>/g, '').slice(0, 300),
-            image: String((it && it.image) || '').slice(0, 500)
+            image: String((it && it.image) || '').slice(0, 500),
+            featured: !!(it && it.featured)   // the "Most Booked" badge: saved on every card so "none" is different from "never chosen"
         }));
+        // at most one card carries the badge
+        let seenFeatured = false;
+        clean.forEach(c => { if (c.featured && seenFeatured) c.featured = false; if (c.featured) seenFeatured = true; });
         updates.services_items = JSON.stringify(clean);
     }
     if (typeof b.hero_tagline === 'string') updates.hero_tagline = b.hero_tagline.replace(/<[^>]*>/g, '').slice(0, 160);

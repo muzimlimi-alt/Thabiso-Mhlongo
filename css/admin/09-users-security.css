@@ -247,3 +247,31 @@
 .um-toggle input:checked + .um-toggle__track { background: color-mix(in srgb, var(--atl-sage) 28%, transparent); border-color: var(--atl-sage); }
 .um-toggle input:checked + .um-toggle__track .um-toggle__thumb { left: 21px; background: var(--atl-sage); }
 .um-toggle input:focus-visible + .um-toggle__track { box-shadow: 0 0 0 3px var(--atl-amber-dim); }
+
+/* Announcement drawer: check rows and the scroll-speed slider (js/admin/about.js) */
+.ann-check { display: flex; align-items: flex-start; gap: 10px; margin: 0 0 12px; cursor: pointer; font-size: 14px; line-height: 1.4; font-weight: 500; color: var(--atl-ink); text-transform: none; letter-spacing: 0; background: transparent; padding: 0; }
+.ann-check input[type="checkbox"] { flex: 0 0 auto; width: 16px !important; height: 16px !important; min-height: 0 !important; padding: 0 !important; margin: 2px 0 0 !important; accent-color: var(--atl-amber); }
+.ann-check__help { display: block; margin: -4px 0 0 26px; }
+.ann-speed { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--atl-muted); }
+.ann-speed input[type="range"] { flex: 1; min-width: 0; accent-color: var(--atl-amber); }
+#announceSpeedRow.is-off { opacity: .5; }
+
+/* Banner Library: which outgoing emails use each banner, and the coverage strip (admin.html renderBnrCards / loadBnrCoverage) */
+.bnr-used { margin-top: 12px; }
+.bnr-used__head { margin: 0 0 8px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--atl-muted); }
+.bnr-used__head i { color: var(--atl-amber); margin-right: 6px; }
+.bnr-used--none { margin: 12px 0 0; font-size: 12.5px; color: var(--atl-muted); }
+.bnr-used__link { all: unset; cursor: pointer; color: var(--atl-amber); font-weight: 600; text-decoration: underline; }
+.bnr-used__link:focus-visible { outline: 2px solid var(--atl-amber); outline-offset: 2px; border-radius: 3px; }
+.bnr-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.bnr-chip { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; flex-direction: column; gap: 1px; padding: 5px 10px; border: 1px solid var(--atl-line); border-radius: 8px; background: var(--atl-paper); max-width: 100%; }
+button.bnr-chip:hover, button.bnr-chip:focus-visible { border-color: var(--atl-amber); }
+button.bnr-chip:focus-visible { outline: 2px solid var(--atl-amber); outline-offset: 2px; }
+.bnr-chip__name { font-size: 12.5px; font-weight: 600; color: var(--atl-ink); line-height: 1.3; }
+.bnr-chip__cat { font-size: 10.5px; color: var(--atl-muted); line-height: 1.3; }
+.bnr-chip--missing { cursor: default; border-style: dashed; }
+.bnr-coverage { margin: 0 0 16px; }
+.bnr-coverage:empty { display: none; }
+.bnr-coverage__row { font-size: 13px; color: var(--atl-muted); margin-bottom: 8px; }
+.bnr-coverage__num { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--atl-ink); }
+.bnr-coverage__row strong { color: var(--atl-clay); }

@@ -691,6 +691,7 @@
         dbLoadBookingsChart();
         dbLoadSocialKPIs();
         applyDashboardSocialVisibility();
+        if (!window.__dashSocialPrefLoaded && typeof initDashboardSocialPref === 'function') { window.__dashSocialPrefLoaded = true; initDashboardSocialPref(); }
         // Schedule is loaded separately via loadTodaysSchedule() hook in switchTab
     }
 
@@ -706,10 +707,9 @@
     }
     async function initDashboardSocialPref() {
         try {
-            const r = await apiCall('/api/admin/settings');
-            if (r && r.settings && typeof r.settings.dashboard_show_social_cards !== 'undefined') {
-                window.__dashShowSocial = String(r.settings.dashboard_show_social_cards) !== '0';
-            }
+            // per account (server side), so the choice follows this login to any device
+            const r = await apiCall('/api/admin/dashboard/preferences');
+            if (r && r.success && r.preferences) window.__dashShowSocial = r.preferences.social_cards !== false;
         } catch (e) { /* keep default (shown) on failure */ }
         var cb = document.getElementById('dashSocialCardsToggle');
         if (cb) cb.checked = (window.__dashShowSocial !== false);
@@ -720,7 +720,7 @@
         window.__dashShowSocial = show;
         applyDashboardSocialVisibility();
         try {
-            await apiCall('/api/admin/settings', 'PUT', { settings: { dashboard_show_social_cards: show ? '1' : '0' } });
+            await apiCall('/api/admin/dashboard/preferences', 'PUT', { social_cards: show });
             if (window.notificationService) {
                 window.notificationService.showSuccess(show ? 'Social Media cards shown on the dashboard.' : 'Social Media cards hidden from the dashboard.');
             }

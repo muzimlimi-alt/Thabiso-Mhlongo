@@ -14,6 +14,7 @@ const { PUBLIC_SERVICE_COLUMNS, publicServiceList } = require('../../lib/service
 const ticketing = require('../../lib/ticketing');
 const ticketingCore = require('../../lib/ticketing-core');
 const { emailBaseUrl } = require('../../lib/email-context');
+const { enrichEmbeds } = require('../../lib/social-stats');
 const router = express.Router();
 
 // Uses its own fixed-destination storage (not the shared `storage` in app.js, which picks a folder
@@ -43,7 +44,7 @@ const publicImageUpload = multer({
 // Stored as key-value rows in `settings`. hero_subtitle + services_heading may contain simple
 // admin-authored HTML (e.g. <em>) and are sanitised; eyebrow + card fields are plain text
 // (rendered client-side via .text()). Values fall back to the static index.html when unset.
-const SITE_CONTENT_KEYS = ['announcement_text', 'announcement_enabled', 'announcement_rotate', 'hero_tagline', 'hero_subtitle', 'services_eyebrow', 'services_heading', 'services_items', 'features_items', 'section_visibility'];
+const SITE_CONTENT_KEYS = ['announcement_text', 'announcement_enabled', 'announcement_rotate', 'announcement_speed', 'hero_tagline', 'hero_subtitle', 'services_eyebrow', 'services_heading', 'services_items', 'features_items', 'section_visibility'];
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendAdminPaymentNotification/sendAdminCompletionSummaryEmail
 // moved to lib/booking-notifications.js — see the require near the top of this file for the
@@ -352,9 +353,11 @@ router.get('/api/public/about-me', (req, res) => {
 });
 
 router.get('/api/public/social_embeds', (req, res) => {
-    db.all("SELECT * FROM social_embeds WHERE is_active = 1 ORDER BY display_order ASC", [], (err, rows) => {
+    db.all("SELECT * FROM social_embeds WHERE is_active = 1 ORDER BY display_order ASC", [], async (err, rows) => {
         if (err) return res.status(500).json({ error: err.message });
-        res.json(rows);
+        // Real upload date / channel / views are filled in server-side (lib/social-stats.js). The stored API key is the admin's, never the public's.
+        const enriched = await enrichEmbeds(rows).catch(() => rows);
+        res.json(enriched.map(({ platform_api_key, ...pub }) => pub));
     });
 });
 
@@ -374,7 +377,7 @@ router.get('/api/public/site-content', (req, res) => {
         SECTION_KEYS.forEach(k => { sections[k] = sectionVis[k] !== false; });
         res.json({
             success: true,
-            announcement: { text: map.announcement_text || '', enabled: map.announcement_enabled !== '0', rotate: map.announcement_rotate !== '0' },
+            announcement: { text: map.announcement_text || '', enabled: map.announcement_enabled !== '0', rotate: map.announcement_rotate !== '0', speed: Math.min(10, Math.max(1, parseInt(map.announcement_speed, 10) || 5)) },
             hero_tagline: map.hero_tagline || '',
             hero_subtitle: map.hero_subtitle || '',
             services: {

@@ -101,6 +101,7 @@ async function spawnAndWait() {
             // internally, resolves null, no test depends on a real calendar write succeeding.
             // TEST_SMTP_MOCK=false lets a scratch run exercise the REAL transport against test/fake-smtp.js (set SMTP_* in the runner's env).
             SMTP_MOCK: process.env.TEST_SMTP_MOCK === 'false' ? 'false' : 'true',
+            SOCIAL_STATS_MOCK: process.env.TEST_SOCIAL_STATS_LIVE === 'true' ? 'false' : 'true', // the social cards' view counts / dates are fetched from YouTube: never in a test unless a scratch run asks
             // Fixed key so test/smtp.test.js can decrypt the SMTP password the API stores (settings.smtp_pass is AES-encrypted).
             SETTINGS_ENCRYPTION_KEY: 'test-only-settings-encryption-key',
             GOOGLE_REFRESH_TOKEN: 'test-mode-invalid-refresh-token',

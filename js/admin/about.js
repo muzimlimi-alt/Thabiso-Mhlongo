@@ -190,11 +190,13 @@ async function loadSiteContent(force) {
         $('#announceInput').val(data.announcement.text || '');
         $('#announceEnabled').prop('checked', data.announcement.enabled !== false);
         $('#announceRotate').prop('checked', data.announcement.rotate !== false);
+        $('#announceSpeed').val(data.announcement.speed || 5);
         $('#taglineInput').val(data.hero_tagline || '');
         $('#heroInput').val(data.hero_subtitle || '');
         $('#svcEyebrow').val(data.services.eyebrow || '');
         $('#svcHeading').val(data.services.heading || '');
         buildSvcCardEditors(data.services.items);
+        buildFeaturedChooser(data.services.items);
         buildFeatEditors(data.features.items);
         renderAnnouncePreview();
         renderHeroPreview();
@@ -223,6 +225,18 @@ function buildSvcCardEditors(items) {
     $('#svcCardsEditor').html(html);
 }
 
+// "Most Booked" badge: one card, or none. Before the owner has ever chosen, the page shows it on Corporate & Events (card 2), so that is
+// what the chooser starts on.
+function buildFeaturedChooser(items) {
+    var chosen = (items || []).some(function (it) { return it && typeof it.featured === 'boolean'; })
+        ? (items || []).findIndex(function (it) { return it && it.featured; })
+        : 1;
+    var opts = '<option value="-1">No card</option>' + (items || []).map(function (it, i) {
+        return '<option value="' + i + '">Card ' + (i + 1) + ' \u2014 ' + siteEsc(it.title) + '</option>';
+    }).join('');
+    $('#homeFeaturedCard').html(opts).val(String(chosen));
+}
+
 function collectSvcItems() {
     var items = [];
     $('#svcCardsEditor .svc-card-title').each(function () {
@@ -231,6 +245,7 @@ function collectSvcItems() {
         items[i].title = $(this).val();
         items[i].description = $('#svcCardsEditor .svc-card-desc[data-idx="' + i + '"]').val();
         items[i].image = $('#svcCardsEditor .svc-card-image[data-idx="' + i + '"]').val();
+        items[i].featured = String($('#homeFeaturedCard').val()) === String(i);
     });
     return items.filter(Boolean);
 }
@@ -249,9 +264,11 @@ function renderAnnouncePreview() {
     $('#announcePrev').html((txt && txt.trim()) ? txt : '&mdash;');
     $('#announcePrevWrap').css('opacity', on ? '1' : '0.35');
     $('#announcePrevOff').toggle(!on);
+    $('#announceSpeedRow').toggleClass('is-off', !rot);
+    $('#announceSpeed').prop('disabled', !rot);
     $('#announcePrevMotion')
         .html(rot
-            ? '<i class="fa-solid fa-arrows-left-right"></i> Rotating &mdash; the text scrolls across the bar'
+            ? '<i class="fa-solid fa-arrows-left-right"></i> Rotating &mdash; the text scrolls across the bar (speed ' + (parseInt($('#announceSpeed').val(), 10) || 5) + ' of 10)'
             : '<i class="fa-solid fa-align-center"></i> Static &mdash; the text stays still and centred')
         .toggle(on);
 }
@@ -266,6 +283,7 @@ function renderSvcPreview() {
             : 'background:linear-gradient(135deg, var(--atl-card), var(--atl-line));';
         return '<div style="position:relative; border-radius:8px; overflow:hidden; min-height:130px; ' + bg + ' border:1px solid var(--atl-line);">'
             + '<div style="position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,0.78), rgba(0,0,0,0.1));"></div>'
+            + (it.featured ? '<span style="position:absolute; top:8px; left:8px; background:var(--atl-amber); color:var(--atl-on-amber,#111); font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:2px 6px; border-radius:3px;">Most Booked</span>' : '')
             + '<div style="position:absolute; left:10px; right:10px; bottom:8px;">'
             + '<div style="color:var(--atl-amber); font-size:10px; font-weight:700;">0' + (i + 1) + '</div>'
             + '<div style="color:#fff; font-weight:600; font-size:13px; line-height:1.2;">' + siteEsc(it.title) + '</div>'
@@ -313,7 +331,11 @@ function renderFeatPreview() {
 // Live preview wiring (delegated — editors live in drawers parsed after this script)
 $(document).on('input', '#taglineInput, #heroInput', renderHeroPreview);
 $(document).on('input', '#svcEyebrow, #svcHeading', renderSvcPreview);
+$(document).on('input change', '#announceSpeed', renderAnnouncePreview);
 $(document).on('input', '#svcCardsEditor input', renderSvcPreview);
+$(document).on('change', '#homeFeaturedCard', renderSvcPreview);
+// the chooser lists the cards by their current titles
+$(document).on('input', '#svcCardsEditor .svc-card-title', function () { var i = $(this).data('idx'); $('#homeFeaturedCard option[value="' + i + '"]').text('Card ' + (i + 1) + ' \u2014 ' + ($(this).val() || '')); });
 $(document).on('input', '#featCardsEditor input', renderFeatPreview);
 $(document).on('input', '#announceInput', renderAnnouncePreview);
 $(document).on('change', '#announceEnabled', renderAnnouncePreview);
@@ -370,8 +392,9 @@ $(document).on('submit', '#announceForm', async function (e) {
     try {
         var enabled = $('#announceEnabled').is(':checked');
         var rotate = $('#announceRotate').is(':checked');
-        await apiCall('/api/admin/site-content', 'PUT', { announcement_text: $('#announceInput').val(), announcement_enabled: enabled, announcement_rotate: rotate });
-        if (_siteContent) _siteContent.announcement = { text: $('#announceInput').val(), enabled: enabled, rotate: rotate };
+        var speed = parseInt($('#announceSpeed').val(), 10) || 5;
+        await apiCall('/api/admin/site-content', 'PUT', { announcement_text: $('#announceInput').val(), announcement_enabled: enabled, announcement_rotate: rotate, announcement_speed: speed });
+        if (_siteContent) _siteContent.announcement = { text: $('#announceInput').val(), enabled: enabled, rotate: rotate, speed: speed };
         renderAnnouncePreview();
         if (window.notificationService) window.notificationService.showSuccess('Announcement bar published.');
         if (window.closeAtlDrawer) closeAtlDrawer('announceDrawer');
@@ -399,7 +422,8 @@ $(document).on('submit', '#servicesForm', async function (e) {
             items.push({
                 title: $('#svcCardsEditor .svc-card-title[data-idx="' + i + '"]').val(),
                 description: $('#svcCardsEditor .svc-card-desc[data-idx="' + i + '"]').val(),
-                image: image
+                image: image,
+                featured: String($('#homeFeaturedCard').val()) === String(i)
             });
         }
         await apiCall('/api/admin/site-content', 'PUT', {
@@ -409,6 +433,7 @@ $(document).on('submit', '#servicesForm', async function (e) {
         });
         if (_siteContent) _siteContent.services = { eyebrow: $('#svcEyebrow').val(), heading: $('#svcHeading').val(), items: items };
         buildSvcCardEditors(items); // reflect uploaded URLs back into the editor
+        buildFeaturedChooser(items);
         renderSvcPreview();
         if (window.notificationService) window.notificationService.showSuccess('What I Do section published.');
         if (window.closeAtlDrawer) closeAtlDrawer('servicesDrawer');

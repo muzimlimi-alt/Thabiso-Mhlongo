@@ -1583,12 +1583,19 @@ header .navbar {
    pinning the real cards to the left with dead space on the right. auto-fit collapses the empty
    tracks instead, and the capped max (220px, vs the old bare 1fr) leaves real leftover width for
    justify-content to center the actual row of cards in, rather than stretching them to fill it. */
+/* Fixed columns per screen: 4 flags across on a desktop, 2 on a tablet, 2 on a phone (the page size is 8, so every page fills whole rows).
+   Flex-wrap + justify-content:center - not a grid - so a last row with fewer cards (or a short list) still sits centered as a group. */
 .fp-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(180px, 220px));
+  --fp-cols:4;
+  --fp-gap:20px;
+  display:flex;
+  flex-wrap:wrap;
   justify-content:center;
-  gap:20px;
+  gap:var(--fp-gap);
 }
+.fp-grid > .fp-card{ flex:0 0 calc((100% - (var(--fp-cols) - 1) * var(--fp-gap)) / var(--fp-cols)); min-width:0; }
+@media (max-width:991px){ .fp-grid{ --fp-cols:2; } }
+@media (max-width:575px){ .fp-grid{ --fp-gap:14px; } }   /* phones keep 2 per row, with a tighter gap */
 /* The same card finish as the Gallery tiles, Event cards and Social cards (.insta-item, .ev-card, .sm-card): the large corner radius, the
    resting shadow, the 4px lift + gold-dark border + deep shadow on hover, and the gold-dark border while something inside has focus. */
 .fp-card{
@@ -2150,6 +2157,13 @@ header .navbar {
   font-family:var(--f-body);
   font-size:.82rem;
   font-weight:600;
+}
+.sm-card__stats{
+  margin:-4px 0 0;
+  color:var(--text-secondary);
+  font-family:var(--f-body);
+  font-size:.8rem;
+  line-height:1.4;
 }
 .sm-card__desc{
   margin:0;

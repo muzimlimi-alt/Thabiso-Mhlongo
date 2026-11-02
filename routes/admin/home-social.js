@@ -6,6 +6,7 @@ const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { logAudit } = require('../../lib/audit-log');
 const { PROJECT_ROOT } = require('../../lib/runtime-paths');
+const { refreshEmbed } = require('../../lib/social-stats');
 const router = express.Router();
 
 router.get('/api/admin/home-slider', requireAdmin, (req, res) => {
@@ -125,6 +126,16 @@ router.get('/api/admin/social_embeds', requireAdmin, (req, res) => {
     });
 });
 
+// A just-saved embed gets its real upload date / channel / views from the platform before the admin list reloads
+// (the browser cannot read these without an API key). Best effort: a slow or blocked platform never fails the save.
+function refreshStatsThenRespond(embedId, respond) {
+    db.get("SELECT * FROM social_embeds WHERE id = ?", [embedId], (err, row) => {
+        if (err || !row) return respond();
+        const timer = new Promise((resolve) => setTimeout(resolve, 5000));
+        Promise.race([refreshEmbed(row), timer]).catch(() => {}).then(respond);
+    });
+}
+
 router.post('/api/admin/social_embeds', requireAdmin, (req, res) => {
     const { id, platform_name, embed_code, platform_api_key, metadata, display_order, is_active } = req.body;
     const adminId = req.session.adminId;
@@ -143,14 +154,15 @@ router.post('/api/admin/social_embeds', requireAdmin, (req, res) => {
                 WHERE id = ?`, 
             [platform_name, embed_code, platform_api_key || '', metaString || '', display_order || 0, is_active !== false ? 1 : 0, adminId, ip, ua, path, id], function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            res.json({ success: true, message: 'Social embed updated successfully.', id: id });
+            refreshStatsThenRespond(id, () => res.json({ success: true, message: 'Social embed updated successfully.', id: id }));
         });
     } else {
         db.run(`INSERT INTO social_embeds (platform_name, embed_code, platform_api_key, metadata, display_order, is_active, created_by, ip_address, user_agent, routing_path) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, 
             [platform_name, embed_code, platform_api_key || '', metaString || '', display_order || 0, is_active !== false ? 1 : 0, adminId, ip, ua, path], function(err) {
             if (err) return res.status(500).json({ error: err.message });
-            res.json({ success: true, message: 'Social embed added successfully.', id: this.lastID });
+            const newId = this.lastID;
+            refreshStatsThenRespond(newId, () => res.json({ success: true, message: 'Social embed added successfully.', id: newId }));
         });
     }
 });
