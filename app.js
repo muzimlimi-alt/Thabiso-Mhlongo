@@ -531,6 +531,7 @@ app.use(require('./routes/admin/newsletter-campaigns'));
 app.use(require('./routes/admin/inquiries'));
 app.use(require('./routes/admin/direct-emails'));
 app.use(require('./routes/admin/analytics'));
+app.use(require('./routes/admin/insights'));         // Dashboard tabs: Overview + Finance for a date range (lib/insights.js)
 app.use(require('./routes/admin/legal'));
 app.use(require('./routes/admin/popia'));
 app.use(require('./routes/admin/abandoned-bookings'));

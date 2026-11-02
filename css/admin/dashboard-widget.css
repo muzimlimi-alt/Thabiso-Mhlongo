@@ -157,6 +157,9 @@
 
     /* ── Schedule list ────────────────────────────────────────────── */
     .db-schedule-list   { display: flex; flex-direction: column; gap: 10px; }
+    /* the week view: a small heading per day (js/admin/dashboard.js loadTodaysSchedule) */
+    .db-schedule-day { margin-top: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--atl-line); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--atl-amber); }
+    .db-schedule-day:first-child { margin-top: 0; }
     .db-schedule-item {
         display: flex;
         align-items: center;
@@ -456,3 +459,86 @@
         transition: color var(--atl-t-fast);
     }
     .kpi-eye:hover { color: var(--atl-amber); }
+
+    /* ── Dashboard tabs + date range (js/admin/dashboard-insights.js) ───────────────────────────────────────────────────────── */
+    /* the tab bar, the date selector, then (full width) the range label and the panels - the tab bar sits beside its panels, as the
+       portal's shared tab code expects */
+    .db-insights { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 12px; }
+    .db-insights > .atl-tab-bar { margin-bottom: 0; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+    .db-insights > .atl-tab-bar::-webkit-scrollbar { display: none; }
+    .db-insights > .atl-tab-bar .atl-tab-btn { white-space: nowrap; }
+    .db-insights > .db-range-label, .db-insights > .um-panel { flex: 0 0 100%; min-width: 0; }
+    .db-range { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    #dbInsights .db-range-select { width: auto !important; min-width: 190px; height: 38px; }
+    .db-range-custom { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--atl-muted); font-size: 13px; }
+    .db-range-custom[hidden] { display: none; }
+    #dbInsights .db-range-custom input { height: 38px; width: auto !important; }
+    .db-range-label { margin: -2px 0 6px; font-size: 13px; color: var(--atl-muted); }
+    .db-range-label--error { color: var(--atl-clay); }
+    #dbInsights .um-panel { display: none; }
+    #dbInsights .um-panel.active { display: flex; flex-direction: column; gap: 22px; }
+    #dbInsights .db-group + .db-group { margin-top: 4px; }
+
+    .db-card-note { margin: 0 0 12px; font-size: 12.5px; line-height: 1.5; color: var(--atl-muted); }
+    .atl-card-header .db-card-note { margin: 6px 0 0; flex-basis: 100%; }
+
+    /* groups of metric cards */
+    .db-group { display: flex; flex-direction: column; gap: 10px; }
+    /* the portal styles every h3 in a section large (!important) - these are small group labels */
+    #dbInsights .db-group__head h3 { margin: 0 !important; font-family: inherit !important; font-size: 15px !important; font-weight: 600 !important; line-height: 1.3 !important; color: var(--atl-ink) !important; letter-spacing: .02em !important; }
+    .db-group__head .db-card-note { margin: 4px 0 0; }
+    .db-metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+    .db-metric {
+        display: flex; flex-direction: column; gap: 6px;
+        padding: 14px 16px;
+        background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: var(--atl-r-md);
+        box-shadow: var(--atl-shadow-card);
+        transition: border-color var(--atl-t-fast);
+    }
+    .db-metric:hover { border-color: var(--atl-amber); }
+    .db-metric--lead { border-color: var(--atl-amber); background: linear-gradient(160deg, var(--atl-amber-dim), var(--atl-card) 70%); }
+    .db-metric--warn { border-color: var(--atl-clay); }
+    .db-metric__head { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+    .db-metric__label { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--atl-muted); }
+    .db-metric__tip { color: var(--atl-muted); font-size: 12px; cursor: help; border-radius: 50%; }
+    .db-metric__tip:hover, .db-metric__tip:focus-visible { color: var(--atl-amber); }
+    .db-metric__tip:focus-visible { outline: 2px solid var(--atl-amber); outline-offset: 2px; }
+    .db-metric__value { font-size: 24px; font-weight: 700; line-height: 1.15; color: var(--atl-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    .db-metric__small { font-size: 12px; color: var(--atl-muted); }
+    .db-change { align-self: flex-start; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--atl-surface2); color: var(--atl-muted); }
+    .db-change--good { color: var(--atl-sage); background: var(--atl-sage-dim); }
+    .db-change--bad { color: var(--atl-clay); background: color-mix(in srgb, var(--atl-clay) 12%, transparent); }
+
+    /* two panels side by side */
+    .db-pair { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+    @media (min-width: 992px) { .db-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    .db-panel-card .atl-card-body { padding: 14px 16px 16px; }
+    .db-chart { min-height: 220px; }
+    .db-chart--donut { min-height: 200px; margin-bottom: 8px; }
+
+    /* enquiry -> payment funnel */
+    .db-funnel { display: flex; flex-direction: column; gap: 10px; }
+    .db-funnel__row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 80px; align-items: center; gap: 12px; font-size: 13px; }
+    .db-funnel__label { color: var(--atl-ink); }
+    .db-funnel__bar { height: 10px; background: var(--atl-line); border-radius: 5px; overflow: hidden; }
+    .db-funnel__bar span { display: block; height: 100%; background: var(--atl-amber); border-radius: 5px; }
+    .db-funnel__n { text-align: right; font-weight: 600; color: var(--atl-ink); font-variant-numeric: tabular-nums; }
+    .db-funnel__n small { color: var(--atl-muted); font-weight: 400; margin-left: 4px; }
+    @media (max-width: 575px) { .db-funnel__row { grid-template-columns: 110px minmax(0, 1fr) 64px; gap: 8px; } }
+
+    .db-facts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: 13px; color: var(--atl-ink); }
+    .db-facts li { padding-left: 14px; position: relative; line-height: 1.5; }
+    .db-facts li::before { content: ""; position: absolute; left: 0; top: .6em; width: 5px; height: 5px; border-radius: 50%; background: var(--atl-amber); }
+    .db-facts small { color: var(--atl-muted); }
+
+    .db-connect-card h3 { margin: 0 0 8px; font-size: 16px; color: var(--atl-ink); }
+    .db-connect-card h3 i { color: var(--atl-amber); margin-right: 6px; }
+    .db-connect-card p { margin: 0 0 10px; color: var(--atl-muted); font-size: 13.5px; line-height: 1.6; max-width: 760px; }
+
+    @media (max-width: 767px) {
+        .db-insights > .atl-tab-bar, .db-insights > .db-range { flex: 0 0 100%; }
+        .db-range { justify-content: space-between; }
+        .db-range-select { flex: 1 1 auto; }
+        .db-metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .db-metric__value { font-size: 20px; }
+    }

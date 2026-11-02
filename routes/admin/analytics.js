@@ -2,11 +2,19 @@ const express = require('express');
 const db = require('../../database');
 const { requireAdmin } = require('../../middleware/auth');
 const { getBookingsTrend } = require('../../database/repositories/bookings.repository');
-const { getActiveDateHoldsForToday } = require('../../database/repositories/calendar.repository');
+const { getActiveDateHoldsBetween } = require('../../database/repositories/calendar.repository');
+const moment = require('moment-timezone');
+const { resolveRange } = require('../../lib/insights-range');
 const router = express.Router();
 
 // ── Helper: parse ?period= query param into a [start, end] date range ────────
+// The Dashboard's date selector sends ?range=<preset>|custom&from=&to= (lib/insights-range.js resolves it the same way as the Overview
+// and Finance tabs); ?period=7d|30d|90d still works for any older caller.
 function getAnalyticsDates(query) {
+    if (query.range) {
+        const r = resolveRange(query);
+        if (!r.error) return { start: r.from, end: r.to };
+    }
     const period = query.period || '30d';
     const days   = period === '7d' ? 7 : period === '90d' ? 90 : 30;
     const end    = new Date();
@@ -189,10 +197,13 @@ router.get('/api/admin/analytics/bookings-trend', requireAdmin, (req, res) => {
     );
 });
 
-// GET /api/admin/analytics/todays-schedule
-// Returns today's full calendar: confirmed bookings + active holds + public events
+// GET /api/admin/analytics/todays-schedule[?days=7]
+// The Dashboard's schedule: confirmed bookings + active holds + public events for today and the days after it (?days=1..14, default 1 =
+// today only), each row with its date. Days are South African calendar days (the UTC date was the wrong day from midnight to 02:00).
 router.get('/api/admin/analytics/todays-schedule', requireAdmin, (req, res) => {
-    const today = new Date().toISOString().split('T')[0];
+    const days = Math.min(14, Math.max(1, parseInt(req.query.days, 10) || 1));
+    const today = moment.tz('Africa/Johannesburg').format('YYYY-MM-DD');
+    const last = moment.tz(today, 'Africa/Johannesburg').add(days - 1, 'days').format('YYYY-MM-DD');
     const results = [];
 
     db.serialize(() => {
@@ -203,42 +214,45 @@ router.get('/api/admin/analytics/todays-schedule', requireAdmin, (req, res) => {
                    COALESCE(v.name, b.event_location)   AS location,
                    b.status                             AS type,
                    'booking'                            AS source,
-                   COALESCE(c.full_name, b.name)        AS client_name
+                   COALESCE(c.full_name, b.name)        AS client_name,
+                   b.date                               AS date
             FROM bookings b
             LEFT JOIN clients c ON b.client_id = c.id
             LEFT JOIN venues  v ON b.venue_id  = v.id
-            WHERE b.date = ? AND b.status IN ('CONFIRMED','ACCEPTED','COMPLETED')`,
-            [today],
+            WHERE b.date BETWEEN ? AND ? AND b.status IN ('CONFIRMED','ACCEPTED','COMPLETED')`,
+            [today, last],
             (err, rows) => { if (!err && rows) results.push(...rows); }
         );
 
         // 2. Active date holds / manual calendar blocks
-        getActiveDateHoldsForToday(
-            today,
+        getActiveDateHoldsBetween(
+            today, last,
             (err, rows) => { if (!err && rows) results.push(...rows); }
         );
 
-        // 3. Public events scheduled today (non-draft)
+        // 3. Public events (not drafts, not cancelled); the time comes from event_datetime when no separate start time is set
         db.all(`
             SELECT e.event_title      AS title,
-                   e.event_start_time AS start_time,
-                   v.name             AS location,
+                   COALESCE(NULLIF(e.event_start_time, ''), NULLIF(strftime('%H:%M', e.event_datetime), '00:00')) AS start_time,
+                   COALESCE(v.name, e.venue_name) AS location,
                    e.event_status     AS type,
                    'event'            AS source,
-                   NULL               AS client_name
+                   NULL               AS client_name,
+                   date(e.event_datetime) AS date
             FROM events e
             LEFT JOIN venues v ON e.venue_id = v.id
-            WHERE date(e.event_datetime) = ? AND e.event_status != 'draft'`,
-            [today],
+            WHERE date(e.event_datetime) BETWEEN ? AND ? AND e.event_status NOT IN ('draft', 'cancelled')`,
+            [today, last],
             (err, rows) => {
                 if (!err && rows) results.push(...rows);
-                // Sort by start_time ASC, nulls last
+                // By day, then start time (no time last)
                 results.sort((a, b) => {
+                    if (a.date !== b.date) return String(a.date).localeCompare(String(b.date));
                     if (!a.start_time) return 1;
                     if (!b.start_time) return -1;
                     return a.start_time.localeCompare(b.start_time);
                 });
-                res.json({ success: true, rows: results.slice(0, 15) });
+                res.json({ success: true, from: today, to: last, rows: results.slice(0, 40) });
             }
         );
     });

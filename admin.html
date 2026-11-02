@@ -617,16 +617,73 @@
                         </div>
                     </div>
 
-                    <!-- Analytics Period Selector + Refresh (matches Finance Analytics control bar) -->
-                    <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; justify-content:space-between; margin-bottom:4px;">
-                        <div class="db-period-bar" role="group" aria-label="Analytics period">
-                            <button class="db-period-btn"        data-period="7d"  id="dbPeriod-7d">7 days</button>
-                            <button class="db-period-btn active" data-period="30d" id="dbPeriod-30d">30 days</button>
-                            <button class="db-period-btn"        data-period="90d" id="dbPeriod-90d">90 days</button>
-                        </div>
-                        <button class="atl-btn atl-btn--ghost" onclick="loadAnalyticsDashboard()"><i class="fa-solid fa-rotate-right" style="margin-right:5px;"></i>Refresh</button>
-                    </div>
+                    <!-- Dashboard tabs + one date range for all of them (js/admin/dashboard-insights.js). The operational tiles above stay
+                         outside the tabs: they are today's to-do list, not a report. -->
+                    <div class="db-insights" id="dbInsights">
+                            <div class="atl-tab-bar" id="dbTabBar" role="tablist" aria-label="Dashboard reports">
+                                <button class="atl-tab-btn active" data-um-tab="dbPanelOverview" role="tab" aria-selected="true"><i class="fa-solid fa-gauge-high"></i> Overview</button>
+                                <button class="atl-tab-btn" data-um-tab="dbPanelTraffic" role="tab" aria-selected="false"><i class="fa-solid fa-chart-line"></i> Traffic &amp; Visitors</button>
+                                <button class="atl-tab-btn" data-um-tab="dbPanelGeo" role="tab" aria-selected="false"><i class="fa-solid fa-earth-africa"></i> Geography</button>
+                                <button class="atl-tab-btn" data-um-tab="dbPanelPerf" role="tab" aria-selected="false"><i class="fa-solid fa-shield-halved"></i> Performance &amp; Security</button>
+                                <button class="atl-tab-btn" data-um-tab="dbPanelFinance" role="tab" aria-selected="false" id="dbTabFinance"><i class="fa-solid fa-sack-dollar"></i> Finance</button>
+                            </div>
+                            <div class="db-range" role="group" aria-label="Date range">
+                                <label class="atl-sr-only" for="dbRange">Date range</label>
+                                <select id="dbRange" class="um-input db-range-select">
+                                    <option value="24h">Last 24 hours</option>
+                                    <option value="7d">Last 7 days</option>
+                                    <option value="30d" selected>Last 30 days</option>
+                                    <option value="90d">Last 90 days</option>
+                                    <option value="month">This month</option>
+                                    <option value="last_month">Last month</option>
+                                    <option value="fy">This financial year</option>
+                                    <option value="custom">Custom range…</option>
+                                </select>
+                                <span class="db-range-custom" id="dbRangeCustom" hidden>
+                                    <label class="atl-sr-only" for="dbRangeFrom">From</label><input type="date" id="dbRangeFrom" class="um-input">
+                                    <span aria-hidden="true">to</span>
+                                    <label class="atl-sr-only" for="dbRangeTo">To</label><input type="date" id="dbRangeTo" class="um-input">
+                                    <button type="button" class="atl-btn atl-btn--primary um-btn--sm" id="dbRangeApply">Apply</button>
+                                </span>
+                                <button type="button" class="atl-btn atl-btn--ghost um-btn--sm" onclick="loadAnalyticsDashboard()" title="Load the figures again"><i class="fa-solid fa-rotate-right"></i><span class="atl-sr-only">Refresh</span></button>
+                            </div>
+                        <p class="db-range-label" id="dbRangeLabel" aria-live="polite"></p>
 
+                        <!-- ===== Overview ===== -->
+                        <div class="um-panel active" id="dbPanelOverview" role="tabpanel">
+                            <div id="dbOverview"><div class="db-rank-empty">Loading…</div></div>
+                    <!-- Main Content Grid -->
+                    <div class="db-main-grid">
+                        <!-- Chart Card -->
+                        <div class="atl-card atl-card--flush db-chart-card">
+                            <div class="atl-card-header">
+                                <h3><i class="fa-solid fa-calendar-check" style="color:var(--atl-amber); margin-right:8px;"></i>Bookings Overview</h3>
+                            </div>
+                            <div class="atl-card-body">
+                                <div id="bookingsChart"></div>
+                            </div>
+                        </div>
+
+                        <!-- Schedule Card -->
+                        <div class="atl-card atl-card--flush db-schedule-card">
+                            <div class="atl-card-header">
+                                <h3><i class="fa-solid fa-calendar-day" style="color:var(--atl-amber); margin-right:8px;"></i>This Week</h3>
+                            </div>
+                            <div class="atl-card-body">
+                                <div class="db-schedule-list" id="dbScheduleList">
+                                    <div class="db-schedule-empty" id="dbScheduleEmpty" style="display:none;">
+                                        <i class="fa-regular fa-calendar-xmark" style="font-size:24px; color:var(--atl-muted); margin-bottom:8px;"></i>
+                                        <p style="color:var(--atl-muted); font-size:13px; margin:0;">Nothing scheduled in the next 7 days</p>
+                                    </div>
+                                    <div class="atl-spinner" id="dbScheduleSpinner" aria-label="Loading schedule..."></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                        </div>
+
+                        <!-- ===== Traffic & Visitors (the site's own tracker, tracker.js) ===== -->
+                        <div class="um-panel" id="dbPanelTraffic" role="tabpanel">
                     <!-- Web Analytics KPI Cards -->
                     <div class="db-analytics-kpi-grid">
                         <div class="db-analytics-kpi-card">
@@ -681,27 +738,11 @@
                         </div>
                     </div>
 
-                    <!-- Visits by Country — world map + ranked list (audience geography) -->
-                    <div class="atl-card atl-card--flush">
-                        <div class="atl-card-header">
-                            <h3><i class="fa-solid fa-earth-africa" style="color:var(--atl-amber);margin-right:8px;"></i>Visits by Country</h3>
-                        </div>
-                        <div class="atl-card-body">
-                            <div class="db-geo-grid">
-                                <div class="db-geo-map">
-                                    <div id="db-mapCountries"></div>
-                                </div>
-                                <div class="db-rank-list db-geo-list" id="db-listCountries">
-                                    <div class="db-rank-empty">Loading…</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- Top Pages — content reach -->
                     <div class="atl-card atl-card--flush">
                         <div class="atl-card-header">
                             <h3><i class="fa-solid fa-fire" style="color:var(--atl-amber);margin-right:8px;"></i>Top Pages</h3>
+                            <p class="db-card-note">Web addresses visited. The website is one page, so almost every visit shows as Home ("/"); the others are the separate pages (Privacy, Terms, shared show links). Which <em>sections</em> people look at is coming in the next phase.</p>
                         </div>
                         <div class="atl-card-body">
                             <div class="db-rank-list" id="db-listPages">
@@ -732,37 +773,48 @@
                         </div>
                     </div>
 
-                    <!-- Main Content Grid -->
-                    <div class="db-main-grid">
-                        <!-- Chart Card -->
-                        <div class="atl-card atl-card--flush db-chart-card">
-                            <div class="atl-card-header">
-                                <h3><i class="fa-solid fa-calendar-check" style="color:var(--atl-amber); margin-right:8px;"></i>Bookings Overview</h3>
-                            </div>
-                            <div class="atl-card-body">
-                                <div id="bookingsChart"></div>
-                            </div>
                         </div>
 
-                        <!-- Schedule Card -->
-                        <div class="atl-card atl-card--flush db-schedule-card">
-                            <div class="atl-card-header">
-                                <h3><i class="fa-solid fa-calendar-day" style="color:var(--atl-amber); margin-right:8px;"></i>Today's Schedule</h3>
-                            </div>
-                            <div class="atl-card-body">
-                                <div class="db-schedule-list" id="dbScheduleList">
-                                    <div class="db-schedule-empty" id="dbScheduleEmpty" style="display:none;">
-                                        <i class="fa-regular fa-calendar-xmark" style="font-size:24px; color:var(--atl-muted); margin-bottom:8px;"></i>
-                                        <p style="color:var(--atl-muted); font-size:13px; margin:0;">No events scheduled for today</p>
-                                    </div>
-                                    <div class="atl-spinner" id="dbScheduleSpinner" aria-label="Loading schedule..."></div>
+                        <!-- ===== Geography ===== -->
+                        <div class="um-panel" id="dbPanelGeo" role="tabpanel">
+                    <!-- Visits by Country — world map + ranked list (audience geography) -->
+                    <div class="atl-card atl-card--flush">
+                        <div class="atl-card-header">
+                            <h3><i class="fa-solid fa-earth-africa" style="color:var(--atl-amber);margin-right:8px;"></i>Visits by Country</h3>
+                        </div>
+                        <div class="atl-card-body">
+                            <div class="db-geo-grid">
+                                <div class="db-geo-map">
+                                    <div id="db-mapCountries"></div>
+                                </div>
+                                <div class="db-rank-list db-geo-list" id="db-listCountries">
+                                    <div class="db-rank-empty">Loading…</div>
                                 </div>
                             </div>
                         </div>
                     </div>
+
+                        </div>
+
+                        <!-- ===== Performance & Security (Cloudflare - phase 3) ===== -->
+                        <div class="um-panel" id="dbPanelPerf" role="tabpanel">
+                            <div class="atl-card db-connect-card">
+                                <div class="atl-card-body">
+                                    <h3><i class="fa-brands fa-cloudflare" aria-hidden="true"></i> Cloudflare not connected yet</h3>
+                                    <p>Bandwidth, caching, HTTP requests, response codes, data centres and bot traffic come from Cloudflare, which sits in front of the website. Once a read-only Cloudflare API key is added on Render, this tab shows them for the date range above. The key stays on the server; it is never sent to a browser.</p>
+                                    <p class="db-card-note">Coming in the next phase, with step-by-step instructions for creating the key.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ===== Finance (administrators and managers) ===== -->
+                        <div class="um-panel" id="dbPanelFinance" role="tabpanel">
+                            <div id="dbFinance"><div class="db-rank-empty">Loading…</div></div>
+                        </div>
+                    </div>
                 </div>
 
-                <link rel="stylesheet" href="css/admin/dashboard-widget.css">
+                <link rel="stylesheet" href="css/admin/dashboard-widget.css?v=3">
             </div>
 
 
@@ -9133,7 +9185,8 @@
         // (bundled together with the Dashboard Analytics module below it in the document —
         // see that file's header comment for full detail). Loaded once, here.
     </script>
-    <script src="js/admin/dashboard.js?v=3"></script>
+    <script src="js/admin/dashboard.js?v=5"></script>
+    <script src="js/admin/dashboard-insights.js?v=3"></script>
     <script>
 
         // ==========================================

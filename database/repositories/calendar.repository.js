@@ -88,6 +88,21 @@ function insertDateHoldFromGoogleSync(date, summary, startTime, endTime, googleE
 }
 
 // ── Admin dashboard / grid reads ──
+// The Dashboard's week view: active holds / manual blocks from one date to another (inclusive), each with its date.
+function getActiveDateHoldsBetween(fromStr, toStr, callback) {
+    db.all(
+        `SELECT COALESCE(NULLIF(notes, ''), block_type, 'Hold') AS title,
+                start_time,
+                NULL          AS location,
+                block_type    AS type,
+                'hold'        AS source,
+                NULL          AS client_name,
+                hold_date     AS date
+         FROM date_holds
+         WHERE hold_date BETWEEN ? AND ? AND status = 'active'`,
+        [fromStr, toStr], callback
+    );
+}
 function getActiveDateHoldsForToday(dateStr, callback) {
     db.all(
         `SELECT COALESCE(NULLIF(notes, ''), block_type, 'Hold') AS title,
@@ -400,7 +415,7 @@ module.exports = {
     getActiveDateHoldsForEventConflict, getDateHoldsForDateConflict,
     getCalendarSyncHoldIds, deleteDateHoldByGoogleEventId, getCalendarSyncHoldDetails,
     updateDateHoldFromGoogleSync, insertDateHoldFromGoogleSync,
-    getActiveDateHoldsForToday, getActiveDateHoldsForCalendarGrid, getActiveDateHoldsForIcsFeed,
+    getActiveDateHoldsForToday, getActiveDateHoldsBetween, getActiveDateHoldsForCalendarGrid, getActiveDateHoldsForIcsFeed,
     insertDateHold, deleteDateHoldById, getDateHoldTimesById, updateDateHoldDate,
     insertDateHoldForNewEvent, clearDateHoldEventId, updateDateHoldDateForBooking,
     releaseDateHoldsForBooking, releaseDateHoldsForBookingAsync,

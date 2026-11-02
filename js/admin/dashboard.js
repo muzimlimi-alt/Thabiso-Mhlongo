@@ -142,6 +142,11 @@
     }
 
     // ── 3. Period selector wiring ─────────────────────────────────────────────
+    // The dates every card here uses: the Dashboard's one date selector (js/admin/dashboard-insights.js) once it has worked the range out
+    // (the exact from / to the Overview and Finance tabs use, financial year included); the old 7 / 30 / 90-day period otherwise.
+    function dbPeriodQs() {
+        return (window.dbInsights && window.dbInsights.rangeQs()) || ('period=' + _dbPeriod);
+    }
     function dbSetPeriod(period) {
         _dbPeriod = period;
         document.querySelectorAll('.db-period-btn').forEach(function (btn) {
@@ -220,7 +225,7 @@
 
     // ── 4. KPI summary ───────────────────────────────────────────────────────
     function dbLoadKpiSummary() {
-        fetch('/api/admin/analytics/summary?period=' + _dbPeriod, { credentials: 'same-origin' })
+        fetch('/api/admin/analytics/summary?' + dbPeriodQs(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 if (!d || !d.success) return;
@@ -279,7 +284,7 @@
     function dbLoadVisitorsChart() {
         var el = document.getElementById('db-chartVisitors');
         if (!el) return;
-        fetch('/api/admin/analytics/visits-over-time?period=' + _dbPeriod, { credentials: 'same-origin' })
+        fetch('/api/admin/analytics/visits-over-time?' + dbPeriodQs(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 var base = dbApexBase();
@@ -319,7 +324,7 @@
     function dbLoadSourcesChart() {
         var el = document.getElementById('db-chartSources');
         if (!el) return;
-        fetch('/api/admin/analytics/traffic-sources?period=' + _dbPeriod, { credentials: 'same-origin' })
+        fetch('/api/admin/analytics/traffic-sources?' + dbPeriodQs(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 var base = dbApexBase();
@@ -359,7 +364,7 @@
     function dbLoadDevicesChart() {
         var el = document.getElementById('db-chartDevices');
         if (!el) return;
-        fetch('/api/admin/analytics/devices?period=' + _dbPeriod, { credentials: 'same-origin' })
+        fetch('/api/admin/analytics/devices?' + dbPeriodQs(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 var base = dbApexBase();
@@ -445,7 +450,7 @@
     }
     function dbLoadCountries() {
         if (!document.getElementById('db-listCountries')) return;
-        fetch('/api/admin/analytics/countries?period=' + _dbPeriod, { credentials: 'same-origin' })
+        fetch('/api/admin/analytics/countries?' + dbPeriodQs(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 dbRenderRankList('db-listCountries', d && d.success ? d.rows : [], {
@@ -459,7 +464,7 @@
     }
     function dbLoadTopPages() {
         if (!document.getElementById('db-listPages')) return;
-        fetch('/api/admin/analytics/top-pages?period=' + _dbPeriod, { credentials: 'same-origin' })
+        fetch('/api/admin/analytics/top-pages?' + dbPeriodQs(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 dbRenderRankList('db-listPages', d && d.success ? d.rows : [], {
@@ -476,7 +481,7 @@
     function dbLoadCountryMap() {
         var el = document.getElementById('db-mapCountries');
         if (!el || typeof jsVectorMap === 'undefined') return;
-        fetch('/api/admin/analytics/countries?period=' + _dbPeriod, { credentials: 'same-origin' })
+        fetch('/api/admin/analytics/countries?' + dbPeriodQs(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 var rows = (d && d.success && d.rows) ? d.rows : [];
@@ -555,7 +560,7 @@
     function dbLoadBookingsChart() {
         var el = document.querySelector('#bookingsChart');
         if (!el) return;
-        fetch('/api/admin/analytics/bookings-trend?period=' + _dbPeriod, { credentials: 'same-origin' })
+        fetch('/api/admin/analytics/bookings-trend?' + dbPeriodQs(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 if (!d || !d.success) return;
@@ -603,7 +608,9 @@
         if (empty)   empty.style.display   = 'none';
         list.querySelectorAll('.db-schedule-item').forEach(function (el) { el.remove(); });
 
-        fetch('/api/admin/analytics/todays-schedule', { credentials: 'same-origin' })
+        // The week ahead (today + 6 days), grouped by day: Today / Tomorrow / Thu 5 Nov ...
+        list.querySelectorAll('.db-schedule-day').forEach(function (el) { el.remove(); });
+        fetch('/api/admin/analytics/todays-schedule?days=7', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 if (spinner) spinner.style.display = 'none';
@@ -613,7 +620,22 @@
                 }
                 var iconMap  = { booking: 'fa-calendar-check', hold: 'fa-ban', event: 'fa-star' };
                 var colorMap = { booking: 'var(--atl-amber)', hold: 'var(--atl-clay)', event: 'var(--atl-sage)' };
+                var dayName = function (ds) {
+                    if (ds === d.from) return 'Today';
+                    var t = new Date(d.from + 'T00:00:00'); t.setDate(t.getDate() + 1);
+                    var tomorrow = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
+                    if (ds === tomorrow) return 'Tomorrow';
+                    return new Date(ds + 'T00:00:00').toLocaleDateString('en-ZA', { weekday: 'short', day: 'numeric', month: 'short' });
+                };
+                var lastDay = null;
                 d.rows.forEach(function (ev) {
+                    if (ev.date && ev.date !== lastDay) {
+                        lastDay = ev.date;
+                        var head = document.createElement('div');
+                        head.className = 'db-schedule-day';
+                        head.textContent = dayName(ev.date);
+                        list.insertBefore(head, spinner || null);
+                    }
                     var icon  = iconMap[ev.source]  || 'fa-calendar';
                     var color = colorMap[ev.source] || 'var(--atl-amber)';
                     var desc  = ev.location || ev.client_name || '';
@@ -642,6 +664,14 @@
         var dash = document.getElementById('dashboardAdmin');
         if (!dash || dash.style.display === 'none') return;
 
+        // The tabs work the date range out first (and fill Overview / Finance); then every card below loads for that same range.
+        if (window.dbInsights) {
+            window.dbInsights.load().then(dbLoadCards, dbLoadCards);
+            return;
+        }
+        dbLoadCards();
+    }
+    function dbLoadCards() {
         dbLoadKpiSummary();
         dbLoadVisitorsChart();
         dbLoadSourcesChart();
