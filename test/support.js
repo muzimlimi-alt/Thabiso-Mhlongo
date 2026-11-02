@@ -77,6 +77,10 @@ async function spawnAndWait() {
             // Turnstile (lib/turnstile.js) stays OFF for test servers even if the local .env has real keys; a test that needs it sets TEST_TURNSTILE_*.
             TURNSTILE_SITE_KEY: process.env.TEST_TURNSTILE_SITE_KEY || '',
             TURNSTILE_SECRET_KEY: process.env.TEST_TURNSTILE_SECRET_KEY || '',
+            // Cloudflare analytics (lib/cloudflare-analytics.js) likewise never calls the real Cloudflare from a test server
+            CLOUDFLARE_API_TOKEN: process.env.TEST_CLOUDFLARE_API_TOKEN || '',
+            CLOUDFLARE_ZONE_ID: process.env.TEST_CLOUDFLARE_ZONE_ID || '',
+            CLOUDFLARE_API_BASE: process.env.TEST_CLOUDFLARE_API_BASE || '',
             TURNSTILE_VERIFY_URL: process.env.TEST_TURNSTILE_VERIFY_URL || '',
             PAYFAST_MERCHANT_ID: '10000100',
             // PayFast's public SANDBOX test account (merchant 10000100, this key, no passphrase). Set explicitly because dotenv never

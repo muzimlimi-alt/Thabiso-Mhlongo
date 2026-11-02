@@ -9,6 +9,7 @@ const { requireRole } = require('../../middleware/rbac');
 const { resolveRange } = require('../../lib/insights-range');
 const insights = require('../../lib/insights');
 const businessProfile = require('../../lib/business-profile');
+const cloudflare = require('../../lib/cloudflare-analytics');
 const router = express.Router();
 
 const CACHE_MS = 60 * 1000;
@@ -54,6 +55,19 @@ router.get('/api/admin/insights/finance', requireAdmin, requireRole(MONEY_ROLES)
     } catch (e) {
         console.error('[insights] finance failed:', e.message);
         res.status(500).json({ success: false, error: 'The finance figures could not be worked out just now.' });
+    }
+});
+
+// Cloudflare's traffic figures (all traffic, no cookies): bandwidth, caching, requests, status codes, countries, people vs automated.
+// Not money, so every admin role sees them. { connected: false } until CLOUDFLARE_API_TOKEN + CLOUDFLARE_ZONE_ID are set on the server.
+router.get('/api/admin/insights/cloudflare', requireAdmin, async (req, res) => {
+    const range = await rangeFor(req);
+    if (range.error) return res.status(400).json({ success: false, error: range.error });
+    try {
+        res.json({ success: true, range, ...(await cloudflare.zoneAnalytics(range)) });
+    } catch (e) {
+        console.error('[insights] cloudflare failed:', e.message);
+        res.status(500).json({ success: false, error: 'The Cloudflare figures could not be loaded just now.' });
     }
 });
 

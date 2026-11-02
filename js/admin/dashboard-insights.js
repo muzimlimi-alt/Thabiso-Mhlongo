@@ -86,7 +86,7 @@
         biz += card({ label: 'Booking enquiries', value: count(b.enquiries.value), change: b.enquiries.change, tip: 'New booking requests received in this period.' });
         biz += card({ label: 'Bookings confirmed', value: count(b.confirmedBookings.value), change: b.confirmedBookings.change, tip: 'Bookings that became confirmed in this period.' });
         biz += card({ label: 'Tickets sold', value: count(b.ticketsSold.value), change: b.ticketsSold.change, tip: 'Show tickets paid for in this period (refunded and complimentary tickets not counted).' });
-        $id('dbOverview').innerHTML = html + group('Business', null, biz);
+        $id('dbOverview').innerHTML = html + '<div id="dbOverviewCf"></div>' + group('Business', null, biz);
     }
 
     // ---------------------------------------------------------------- Finance
@@ -279,6 +279,101 @@
         });
     }
 
+    // ---------------------------------------------------------------- Cloudflare (all traffic, no cookies)
+
+    function bytes(n) {
+        if (n == null) return '—';
+        var u = ['B', 'KB', 'MB', 'GB', 'TB'], i = 0, v = Number(n);
+        while (v >= 1000 && i < u.length - 1) { v /= 1000; i++; }
+        return (i ? v.toFixed(v >= 100 ? 0 : 1) : v) + ' ' + u[i];
+    }
+    function cfChange(cur, prev) { return prev == null ? undefined : (prev ? Math.round(((cur - prev) / prev) * 1000) / 10 : null); }
+
+    var CONNECT_STEPS = '<ol class="db-steps">' +
+        '<li>In Cloudflare, open <strong>My Profile → API Tokens → Create Token</strong>, and choose <strong>Create Custom Token</strong>.</li>' +
+        '<li>Name it e.g. <em>Website dashboard (read only)</em>. Permissions: <strong>Zone → Analytics → Read</strong> - nothing else.</li>' +
+        '<li>Zone Resources: <strong>Include → Specific zone → thabisomhlongo.com</strong>. Create the token and copy it (Cloudflare shows it once).</li>' +
+        '<li>Copy the <strong>Zone ID</strong> from the domain\'s <strong>Overview</strong> page in Cloudflare (right-hand column, under API).</li>' +
+        '<li>On Render, open the website service → <strong>Environment</strong> and add <code>CLOUDFLARE_API_TOKEN</code> (the token) and <code>CLOUDFLARE_ZONE_ID</code> (the zone ID). Save - Render restarts the site.</li>' +
+        '</ol><p class="db-card-note">The token can only read statistics: it cannot change anything in Cloudflare. It stays on the server and is never sent to a browser. Do not paste it into an e-mail or chat.</p>';
+
+    function renderCloudflare(d) {
+        var perf = $id('dbPerf'), geo = $id('dbGeoCf'), ov = $id('dbOverviewCf');
+        if (!d.connected) {
+            if (perf) perf.innerHTML = '<div class="atl-card db-connect-card"><div class="atl-card-body"><h3><i class="fa-brands fa-cloudflare" aria-hidden="true"></i> Connect Cloudflare</h3>' +
+                '<p>Bandwidth, caching, HTTP requests, response codes and bot traffic come from Cloudflare, which sits in front of the website and counts every request - no cookies, so visitors who decline analytics are included. ' +
+                (d.partial ? '<strong>Only one of the two settings is on the server - both are needed.</strong>' : 'It needs a read-only key, added once:') + '</p>' + CONNECT_STEPS + '</div></div>';
+            if (geo) geo.innerHTML = '';
+            if (ov) ov.innerHTML = '';
+            return;
+        }
+        if (d.error) {
+            var msg = '<div class="atl-card db-connect-card"><div class="atl-card-body"><h3><i class="fa-brands fa-cloudflare" aria-hidden="true"></i> Cloudflare figures unavailable</h3><p>' + esc(d.error) + '</p>' +
+                '<p class="db-card-note">If the key was refused, create a new one with the steps below and replace CLOUDFLARE_API_TOKEN on Render. If a range is refused, your Cloudflare plan does not keep data that far back - choose a shorter range.</p>' + CONNECT_STEPS + '</div></div>';
+            if (perf) perf.innerHTML = msg;
+            if (geo) geo.innerHTML = '';
+            if (ov) ov.innerHTML = '';
+            return;
+        }
+        var t = d.totals, p = d.previous || null;
+        var prev = function (k) { return p ? p[k] : null; };
+        // Overview: all traffic
+        if (ov) ov.innerHTML = group('All traffic (Cloudflare)', 'Every request that reached the site, people and automated, counted without cookies.',
+            card({ label: 'HTTP requests', value: count(t.requests), change: cfChange(t.requests, prev('requests')), tip: 'Every file fetched - the page, images, scripts, data. One visit makes many requests.' }) +
+            card({ label: 'Bandwidth', value: bytes(t.bytes), change: cfChange(t.bytes, prev('bytes')), tip: 'Data sent to visitors in total (from Cloudflare\'s cache and from your server).' }) +
+            card({ label: 'Visitors (Cloudflare)', value: count(t.uniquesSum), change: cfChange(t.uniquesSum, prev('uniquesSum')), tip: 'Different internet addresses, added up day by day - so a returning visitor counts once per day. Includes visitors who decline analytics and some automated traffic.' }) +
+            card({ label: 'Page views (Cloudflare)', value: count(t.pageViews), change: cfChange(t.pageViews, prev('pageViews')), tip: 'Pages loaded as Cloudflare counts them, including by people who decline analytics.' }));
+
+        // Performance & Security
+        var series = d.series.map(function (r) { return { label: d.hourly ? new Date(r.bucket).toLocaleTimeString('en-ZA', { hour: '2-digit', minute: '2-digit' }) : bucketLabel(r.bucket), r: r }; });
+        var html = group('Bandwidth and caching', 'Render counts the data your server sends: the less that has to come from the server, the further the hosting allowance goes.',
+            card({ label: 'Total bandwidth', value: bytes(t.bytes), change: cfChange(t.bytes, prev('bytes')), tip: 'All data sent to visitors.' }) +
+            card({ label: 'From your server (Render)', tone: 'lead', value: bytes(t.originBytes), change: cfChange(t.originBytes, prev('originBytes')), lowerIsBetter: true, tip: 'Data that had to come from the website server - this is what uses the hosting allowance.' }) +
+            card({ label: 'Saved by caching', value: t.bandwidthSavedRatio == null ? '—' : t.bandwidthSavedRatio + '%', tip: 'Share of the data served straight from Cloudflare\'s cache, without asking your server.', small: bytes(t.cachedBytes) + ' from cache' }) +
+            card({ label: 'Cache hit ratio', value: t.cacheHitRatio == null ? '—' : t.cacheHitRatio + '%', tip: 'Share of requests answered from Cloudflare\'s cache.', small: count(t.cachedRequests) + ' of ' + count(t.requests) + ' requests' }) +
+            card({ label: 'HTTP requests', value: count(t.requests), change: cfChange(t.requests, prev('requests')), tip: 'Every file fetched.' }));
+        html += '<div class="db-pair">' + panel('Bandwidth over time', 'fa-chart-area', '<div id="dbCfBytes" class="db-chart"></div>', 'Served from cache vs from your server.') +
+            panel('Requests over time', 'fa-chart-column', '<div id="dbCfReqs" class="db-chart"></div>', 'Cached vs fetched from your server.') + '</div>';
+        html += panel('What uses the bandwidth', 'fa-boxes-stacked', rankList(d.resources.map(function (r) { return { label: r.label, value: r.bytes, requests: r.requests }; }), bytes, function (r) { return count(r.requests) + ' requests'; }, 'No data in this period.'),
+            'By type of file. Images are usually the biggest - smaller images save the most hosting allowance.');
+        html += group('Website health', 'Server response times are not part of Cloudflare\'s free plan, so they are not shown.',
+            card({ label: 'Error rate', tone: t.errorRate > 5 ? 'warn' : '', value: t.errorRate == null ? '—' : t.errorRate + '%', lowerIsBetter: true, change: p ? cfChange(t.errors4xx + t.errors5xx, (p.errors4xx || 0) + (p.errors5xx || 0)) : undefined, tip: 'Requests answered with an error (4xx or 5xx).' }) +
+            card({ label: 'Not found / refused (4xx)', value: count(t.errors4xx), tip: 'Missing files, blocked or unauthorised requests. Bots probing for weak spots cause many of these.' }) +
+            card({ label: 'Server errors (5xx)', tone: t.errors5xx ? 'warn' : '', value: count(t.errors5xx), tip: 'The website server failed to answer - e.g. while restarting after a deploy. Should stay near zero.' }));
+        html += '<div class="db-pair">' + panel('Responses by type', 'fa-circle-check', rankList(d.statusClasses.map(function (s) { return { label: s.label, value: s.requests }; }), count)) +
+            panel('Most common response codes', 'fa-list-ol', rankList(d.topStatuses.map(function (s) { return { label: String(s.code) + ' ' + (STATUS_TEXT[s.code] || ''), value: s.requests }; }), count)) + '</div>';
+        html += group('Security and automated traffic', 'Cloudflare\'s view of who is asking. Automated traffic never shows in the visitor figures of the Traffic tab.',
+            card({ label: 'Automated traffic', value: t.automatedShare == null ? '—' : t.automatedShare + '%', tip: 'Requests from search-engine crawlers, monitoring services, scanners and known bad hosts.', small: count(t.automatedRequests) + ' requests' }) +
+            card({ label: 'Threats stopped', tone: t.threats ? 'warn' : '', value: count(t.threats), change: cfChange(t.threats, prev('threats')), lowerIsBetter: true, tip: 'Requests Cloudflare identified as attacks and blocked or challenged.' }));
+        html += panel('Who is asking', 'fa-robot', rankList(d.traffic.map(function (x) { return { label: x.label + (x.automated ? ' (automated)' : ''), value: x.requests }; }), count, null, 'No data in this period.'));
+        if (perf) perf.innerHTML = html;
+        chart('dbCfBytes', {
+            chart: { type: 'area', height: 240, stacked: true },
+            series: [{ name: 'From cache', data: series.map(function (s) { return s.r.cachedBytes; }) }, { name: 'From your server', data: series.map(function (s) { return Math.max(0, s.r.bytes - s.r.cachedBytes); }) }],
+            xaxis: { categories: series.map(function (s) { return s.label; }) }, yaxis: { labels: { formatter: bytes } }, tooltip: { y: { formatter: bytes } },
+            dataLabels: { enabled: false }, colors: [accents(3)[0], accents(3)[2]]
+        });
+        chart('dbCfReqs', {
+            chart: { type: 'bar', height: 240, stacked: true },
+            series: [{ name: 'Cached', data: series.map(function (s) { return s.r.cachedRequests; }) }, { name: 'From your server', data: series.map(function (s) { return s.r.requests - s.r.cachedRequests; }) }],
+            xaxis: { categories: series.map(function (s) { return s.label; }) }, dataLabels: { enabled: false }, colors: [accents(3)[0], accents(3)[2]]
+        });
+
+        // Geography: every request by country
+        var total = d.countries.reduce(function (a, c) { return a + c.requests; }, 0) || 1;
+        if (geo) geo.innerHTML = panel('All traffic by country (Cloudflare)', 'fa-globe', rankList(d.countries.map(function (c) {
+            return { label: (typeof dbCountryFlag === 'function' ? dbCountryFlag(c.code) + ' ' : '') + (typeof dbCountryName === 'function' ? dbCountryName(c.code, c.code) : c.code), value: c.requests, share: Math.round((c.requests / total) * 1000) / 10, bytes: c.bytes };
+        }), count, function (c) { return c.share + '% · ' + bytes(c.bytes); }, 'No data in this period.'), 'Requests from each country, people and automated - so crawlers based in the US often show up high here. The map above counts consenting visitors only.');
+    }
+    var STATUS_TEXT = { 200: 'OK', 204: 'No content', 206: 'Partial content', 301: 'Moved permanently', 302: 'Found (redirect)', 304: 'Not modified (cached copy still good)', 400: 'Bad request', 401: 'Not signed in', 403: 'Forbidden', 404: 'Not found', 405: 'Method not allowed', 429: 'Too many requests', 499: 'Visitor gave up', 500: 'Server error', 502: 'Bad gateway (server down / restarting)', 503: 'Busy / unavailable', 504: 'Server took too long' };
+
+    function loadCloudflare() {
+        getJson('/api/admin/insights/cloudflare?' + queryString()).then(function (r) {
+            if (!r.ok || !r.body.success) { renderCloudflare({ connected: true, error: (r.body && r.body.error) || 'The Cloudflare figures could not be loaded just now.' }); return; }
+            renderCloudflare(r.body);
+        });
+    }
+
     // ---------------------------------------------------------------- loading
 
     function setLabel(text, isError) {
@@ -310,6 +405,7 @@
             setLabel(describe(r.body.range));
             renderOverview(r.body);
             loadTraffic();
+            loadCloudflare();
             if (isOpen('dbPanelFinance')) loadFinance();
         });
     }

@@ -776,18 +776,14 @@
                         </div>
                     </div>
 
+                            <div id="dbGeoCf"></div>
                             <div id="dbGeoExtra"></div>
                         </div>
 
                         <!-- ===== Performance & Security (Cloudflare - phase 3) ===== -->
                         <div class="um-panel" id="dbPanelPerf" role="tabpanel">
-                            <div class="atl-card db-connect-card">
-                                <div class="atl-card-body">
-                                    <h3><i class="fa-brands fa-cloudflare" aria-hidden="true"></i> Cloudflare not connected yet</h3>
-                                    <p>Bandwidth, caching, HTTP requests, response codes, data centres and bot traffic come from Cloudflare, which sits in front of the website. Once a read-only Cloudflare API key is added on Render, this tab shows them for the date range above. The key stays on the server; it is never sent to a browser.</p>
-                                    <p class="db-card-note">Coming in the next phase, with step-by-step instructions for creating the key.</p>
-                                </div>
-                            </div>
+                            <!-- filled by js/admin/dashboard-insights.js from /api/admin/insights/cloudflare: the figures, or how to connect -->
+                            <div id="dbPerf"><div class="db-rank-empty">Loading…</div></div>
                         </div>
 
                         <!-- ===== Finance (administrators and managers) ===== -->
@@ -797,7 +793,7 @@
                     </div>
                 </div>
 
-                <link rel="stylesheet" href="css/admin/dashboard-widget.css?v=4">
+                <link rel="stylesheet" href="css/admin/dashboard-widget.css?v=5">
             </div>
 
 
@@ -9169,7 +9165,7 @@
         // see that file's header comment for full detail). Loaded once, here.
     </script>
     <script src="js/admin/dashboard.js?v=6"></script>
-    <script src="js/admin/dashboard-insights.js?v=5"></script>
+    <script src="js/admin/dashboard-insights.js?v=6"></script>
     <script>
 
         // ==========================================

@@ -544,3 +544,6 @@
     }
     .db-consent-note { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 14px; border: 1px solid var(--atl-line); border-radius: var(--atl-r-md); background: var(--atl-surface2); }
     .db-consent-note i { color: var(--atl-amber); margin-top: 2px; }
+    /* Cloudflare connection steps (Performance & Security tab) */
+    .db-steps { margin: 0 0 12px; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; color: var(--atl-ink); font-size: 13.5px; line-height: 1.55; max-width: 820px; }
+    .db-steps code { padding: 1px 6px; border-radius: 4px; background: var(--atl-surface2); color: var(--atl-amber); font-size: 12.5px; }
