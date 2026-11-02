@@ -77,90 +77,211 @@ window.handleRemoveHold = async function(dbId) {
     }
 };
 
-function showCalEventPopup(info) {
-    var props = info.event.extendedProps;
-    var existing = document.getElementById('calEventPopup');
-    if (existing) existing.remove();
+/* ── Calendar item details ───────────────────────────────────────────────────────────────────────────────────────────────
+   Clicking ANY calendar item (booking, hold, payment milestone, public event, Outlook appointment) opens this one detail view.
+   Viewing is separate from managing: nothing is removed, cancelled or changed by the click itself - the actions sit in the footer,
+   and the ones that destroy something (Remove hold) still ask for confirmation. On a phone the view is a bottom sheet; on a larger
+   screen it sits next to the item, kept inside the window, and scrolls inside itself when the content is taller than the screen. */
+function _calMoney(n) { return 'R ' + Number(n).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function _calDay(iso) {
+    if (!iso) return '';
+    var d = new Date(String(iso).slice(0, 10) + 'T00:00:00');
+    return isNaN(d) ? String(iso).slice(0, 10) : d.toLocaleDateString('en-ZA', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+function _calClock(hhmm) {
+    var m = /^(\d{1,2}):(\d{2})/.exec(hhmm || '');
+    if (!m) return '';
+    var h = +m[1], ap = h >= 12 ? 'PM' : 'AM';
+    return ((h % 12) || 12) + ':' + m[2] + ' ' + ap;
+}
+function _calSpan(mins) {
+    if (!(mins > 0)) return '';
+    var h = Math.floor(mins / 60), m = mins % 60;
+    return (h ? h + ' h' : '') + (h && m ? ' ' : '') + (m ? m + ' min' : '');
+}
+/* the date, the start / end time and the length of an item, from what FullCalendar holds */
+function _calWhen(ev) {
+    var s = ev.startStr || '', e = ev.endStr || '';
+    var timed = !ev.allDay && s.length > 10;
+    var out = { date: s.slice(0, 10), allDay: !timed, start: timed ? s.slice(11, 16) : '', end: '', minutes: 0 };
+    if (timed && e.length > 10) {
+        out.end = e.slice(11, 16);
+        if (ev.start && ev.end) out.minutes = Math.round((ev.end - ev.start) / 60000);
+    }
+    return out;
+}
+function _calOpenBooking(id) {
+    switchTab('bookingsAdmin');
+    $('#bookingStatusFilter').val('All').trigger('change');
+    setTimeout(function () {
+        var el = document.getElementById('bookingDetail-' + id);
+        if (el) { $(el).collapse('show'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    }, 300);
+}
+function _calOpenEvent(id) {
+    switchTab('eventsAdmin');
+    setTimeout(function () {
+        if (typeof window.openEvtEditDrawer === 'function') {
+            window.openEvtEditDrawer(id);
+            var $c = $('.atl-event-card[data-id="' + id + '"]');
+            if ($c.length) $('html,body').animate({ scrollTop: $c.offset().top - 70 }, 400);
+        }
+    }, 300);
+}
+function _calClosePopup(returnTo) {
+    var p = document.getElementById('calEventPopup');
+    if (p) p.remove();
+    if (returnTo && document.body.contains(returnTo) && returnTo.focus) { try { returnTo.focus({ preventScroll: true }); } catch (e) { /* focus is a courtesy */ } }
+}
+function _calRow(label, valueHtml) { return valueHtml ? '<dt>' + label + '</dt><dd>' + valueHtml + '</dd>' : ''; }
+function _calChip(text) { return '<span class="cal-pop__chip">' + text + '</span>'; }
 
-    var rect = info.el.getBoundingClientRect();
-    var popup = document.createElement('div');
-    popup.id = 'calEventPopup';
-    popup.style.cssText = 'position:fixed;z-index:9999;background: var(--atl-card);border:1px solid var(--atl-line);border-radius:10px;padding:18px 20px;min-width:260px;max-width:320px;box-shadow:0 8px 30px rgba(0,0,0,0.6);';
-    popup.style.top = Math.min(rect.bottom + 6, window.innerHeight - 220) + 'px';
-    popup.style.left = Math.min(rect.left, window.innerWidth - 340) + 'px';
+/* what each kind of item shows: { icon, label, tone, title, status, statusTone, chips, rows, text, note, actions } */
+function _calDetails(info) {
+    var ev = info.event, props = ev.extendedProps || {}, w = _calWhen(ev);
+    var timeText = w.allDay ? 'All day' : _calClock(w.start) + (w.end ? ' – ' + _calClock(w.end) : '');
+    var d = { icon: 'fa-calendar', label: 'Calendar item', tone: 'var(--atl-blue)', title: _esc(ev.title), rows: '', actions: [] };
 
     if (props.type === 'booking') {
-        var sMap = { NEW:'var(--atl-muted)', PENDING:'var(--atl-muted)', QUOTED:'var(--atl-orange)', ACCEPTED:'var(--atl-blue)', CONFIRMED:'var(--atl-amber)', COMPLETED:'var(--atl-sage)', CANCELLED:'var(--atl-clay)', EXPIRED:'var(--atl-clay)' };
-        var statusColor = sMap[(props.status || '').toUpperCase()] || 'var(--atl-amber-hover)';
-        var outstanding = (props.amountOutstanding != null && props.amountOutstanding > 0) ? 'R ' + Number(props.amountOutstanding).toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2}) : null;
-        popup.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
-            '<strong style="color: var(--atl-amber);font-size:14px;"><i class="fa-solid fa-calendar-check"></i> Booking</strong>' +
-            '<button onclick="document.getElementById(\'calEventPopup\').remove()" style="background:none;border:none;color:var(--atl-muted);font-size:18px;cursor:pointer;line-height:1;">&times;</button>' +
-            '</div>' +
-            '<div style="font-size:13px;line-height:1.75;color:var(--atl-ink-dim);">' +
-            '<div style="margin-bottom:4px;"><strong style="color:var(--atl-ink);">' + _esc(info.event.title) + '</strong></div>' +
-            '<div>Date: <span style="color:var(--atl-ink);">' + (info.event.startStr || '').split('T')[0] + '</span></div>' +
-            '<div>Status: <span style="color:' + statusColor + ';font-weight:700;">' + (props.status || '—') + '</span></div>' +
-            '<div>Payment: <span style="color:var(--atl-muted);">' + (props.payment || '—') + '</span></div>' +
-            (outstanding ? '<div>Outstanding: <span style="color:var(--atl-clay);font-weight:700;">' + outstanding + '</span></div>' : '') +
-            (props.venueName ? '<div>Venue: <span style="color:var(--atl-muted);">' + props.venueName + (props.city ? ', ' + props.city : '') + '</span></div>' : '') +
-            '</div>' +
-            (props.isCalSynced || props.isAccepted || props.isPopiaDone || props.hasAttachments ? (
-                '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;">' +
-                (props.isCalSynced    ? '<span style="background:var(--atl-amber-dim);color:var(--atl-amber);border:1px solid var(--atl-amber-border);border-radius:999px;font-size:10px;font-weight:700;padding:2px 8px;">📅 Cal</span>' : '') +
-                (props.isAccepted     ? '<span style="background:var(--atl-amber-dim);color:var(--atl-amber);border:1px solid var(--atl-amber-border);border-radius:999px;font-size:10px;font-weight:700;padding:2px 8px;">✓ Accepted</span>' : '') +
-                (props.isPopiaDone    ? '<span style="background:var(--atl-amber-dim);color:var(--atl-amber);border:1px solid var(--atl-amber-border);border-radius:999px;font-size:10px;font-weight:700;padding:2px 8px;">🔒 POPIA</span>' : '') +
-                (props.hasAttachments ? '<span style="background:var(--atl-amber-dim);color:var(--atl-amber);border:1px solid var(--atl-amber-border);border-radius:999px;font-size:10px;font-weight:700;padding:2px 8px;">📁 Brief</span>' : '') +
-                '</div>'
-            ) : '') +
-            '<div style="margin-top:14px;display:flex;gap:6px;flex-wrap:wrap;">' +
-            '<button onclick="switchTab(\'bookingsAdmin\'); $(\'#bookingStatusFilter\').val(\'All\').trigger(\'change\'); setTimeout(() => { const el = document.getElementById(\'bookingDetail-\' + \'' + props.dbId + '\'); if(el) { $(el).collapse(\'show\'); el.scrollIntoView({behavior:\'smooth\',block:\'center\'}); } }, 300); document.getElementById(\'calEventPopup\').remove();" style="flex:1;min-width:80px;background:var(--atl-amber);color:var(--atl-on-amber);border:none;border-radius:6px;padding:7px 10px;font-size:12px;font-weight:700;cursor:pointer;"><i class="fa-solid fa-eye"></i> View</button>' +
-            (props.clientPhone ? '<button onclick="navigator.clipboard.writeText(\'' + props.clientPhone.replace(/'/g, '') + '\').then(function(){window.notificationService&&window.notificationService.showSuccess(\'Phone copied\')});" style="background:var(--atl-surface2);color:var(--atl-muted);border:1px solid var(--atl-line);border-radius:6px;padding:7px 10px;font-size:12px;cursor:pointer;" title="Copy client phone"><i class="fa-solid fa-phone"></i></button>' : '') +
-            '</div>';
+        var sMap = { NEW: 'var(--atl-muted)', PENDING: 'var(--atl-muted)', QUOTED: 'var(--atl-orange)', ACCEPTED: 'var(--atl-blue)', CONFIRMED: 'var(--atl-amber)', COMPLETED: 'var(--atl-sage)', CANCELLED: 'var(--atl-clay)', EXPIRED: 'var(--atl-clay)' };
+        var contact = [props.clientEmail, props.clientPhone].filter(Boolean).map(_esc).join('<br>');
+        var outstanding = props.amountOutstanding != null && props.amountOutstanding > 0 ? _calMoney(props.amountOutstanding) : null;
+        d.icon = 'fa-calendar-check'; d.label = 'Booking'; d.tone = 'var(--atl-amber)';
+        d.status = props.status || null; d.statusTone = sMap[(props.status || '').toUpperCase()] || 'var(--atl-amber-hover)';
+        d.rows = _calRow('Client', props.clientName ? '<strong>' + _esc(props.clientName) + '</strong>' + (contact ? '<br>' + contact : '') : contact) +
+            _calRow('Date', _esc(_calDay(w.date))) +
+            _calRow('Time', _esc(timeText) + (w.minutes ? ' <span class="cal-pop__muted">(' + _esc(_calSpan(w.minutes)) + ')</span>' : '')) +
+            _calRow('Venue', props.venueName ? _esc(props.venueName + (props.city ? ', ' + props.city : '')) : '') +
+            _calRow('Payment', props.payment ? _esc(props.payment) : '') +
+            _calRow('Agreed total', props.bookingTotal != null ? _calMoney(props.bookingTotal) : '') +
+            _calRow('Paid so far', props.amountPaid != null ? _calMoney(props.amountPaid) : '') +
+            _calRow('Outstanding', outstanding ? '<strong style="color:var(--atl-clay)">' + outstanding + '</strong>' : '') +
+            _calRow('Quote expires', props.quoteExpiryDate && String(props.status).toUpperCase() === 'QUOTED' ? _esc(_calDay(props.quoteExpiryDate)) : '');
+        d.chips = (props.isCalSynced ? _calChip('📅 Cal') : '') + (props.isAccepted ? _calChip('✓ Accepted') : '') + (props.isPopiaDone ? _calChip('🔒 POPIA') : '') + (props.hasAttachments ? _calChip('📁 Brief') : '');
+        d.actions.push({ label: 'View booking', icon: 'fa-eye', kind: 'primary', run: function () { _calOpenBooking(props.dbId); } });
+        if (props.clientPhone) d.actions.push({ label: 'Copy phone', icon: 'fa-phone', run: function () { navigator.clipboard.writeText(String(props.clientPhone)).then(function () { window.notificationService && window.notificationService.showSuccess('Phone copied'); }); }, keepOpen: true });
+    } else if (props.type === 'hold') {
+        var bt = (props.blockType || props.block_type || '').toLowerCase();
+        var tones = { travel: 'var(--atl-sage)', personal: 'var(--atl-blue)', maintenance: 'var(--atl-orange)' };
+        var kinds = { travel: 'Hold: Travel', personal: 'Hold: Personal', maintenance: 'Hold: Maintenance', calendar_sync: 'Hold: Google Calendar' };
+        var fromGoogle = props.source === 'google';
+        d.icon = 'fa-ban'; d.label = kinds[bt] || 'Hold / Unavailable'; d.tone = tones[bt] || 'var(--atl-clay)';
+        d.title = _esc(props.description || ev.title || 'Blocked');
+        d.status = 'Active'; d.statusTone = 'var(--atl-clay)';
+        d.rows = _calRow('Date', _esc(_calDay(w.date))) +
+            _calRow('Starts', w.allDay ? 'All day' : _esc(_calClock(w.start))) +
+            _calRow('Ends', w.allDay ? '' : _esc(_calClock(w.end))) +
+            _calRow('Duration', w.allDay ? 'The whole day' : _esc(_calSpan(w.minutes))) +
+            _calRow('Source', fromGoogle ? 'Imported from Google Calendar' : 'Added in the admin portal') +
+            _calRow('Linked event', props.linkedEvent ? _esc(props.linkedEvent) : '') +
+            _calRow('Booking', props.bookingId ? '#' + _esc(props.bookingId) : '') +
+            _calRow('Created', props.createdAt ? _esc(String(props.createdAt).slice(0, 16).replace('T', ' ')) + (props.createdBy ? ' by ' + _esc(props.createdBy) : '') : (props.createdBy ? 'By ' + _esc(props.createdBy) : '')) +
+            _calRow('Expires', props.expiresAt ? _esc(String(props.expiresAt).slice(0, 16).replace('T', ' ')) : '');
+        d.note = fromGoogle ? 'This hold comes from your Google Calendar. Removing it here does not delete the Google entry, and the next sync can bring it back - change or delete it in Google Calendar to stop it blocking the date.' : '';
+        d.actions.push({ label: 'Remove hold', icon: 'fa-trash', kind: 'danger', run: function () { window.handleRemoveHold(props.dbId, ev); }, keepOpen: true });
     } else if (props.type === 'milestone') {
-        var isOverdue = !!props.isOverdue;
-        var mColor = isOverdue ? 'var(--atl-clay)' : 'var(--atl-orange)';
-        var mIcon  = props.milestoneType === 'quote_expiry' ? 'fa-file-invoice' : 'fa-circle-dollar-to-slot';
-        var mLabel = props.milestoneType === 'quote_expiry' ? 'Quote Expiry' : 'Payment Due';
-        var mAmount = (props.amount != null && props.amount > 0) ? 'R ' + Number(props.amount).toLocaleString('en-ZA', {minimumFractionDigits:2, maximumFractionDigits:2}) : null;
-        popup.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
-            '<strong style="color:' + mColor + ';font-size:14px;"><i class="fa-solid ' + mIcon + '"></i> ' + mLabel + '</strong>' +
-            '<button onclick="document.getElementById(\'calEventPopup\').remove()" style="background:none;border:none;color:var(--atl-muted);font-size:18px;cursor:pointer;line-height:1;">&times;</button>' +
-            '</div>' +
-            '<div style="font-size:13px;line-height:1.75;color:var(--atl-ink-dim);">' +
-            '<div style="margin-bottom:4px;"><strong style="color:var(--atl-ink);">' + _esc(info.event.title) + '</strong></div>' +
-            '<div>Date: <span style="color:' + (isOverdue ? 'var(--atl-clay)' : 'var(--atl-ink)') + ';font-weight:' + (isOverdue ? '700' : 'normal') + ';">' + (info.event.startStr || '').split('T')[0] + (isOverdue ? ' — OVERDUE' : '') + '</span></div>' +
-            (mAmount ? '<div>Amount: <span style="color:' + mColor + ';font-weight:700;">' + mAmount + '</span></div>' : '') +
-            '</div>' +
-            (props.dbId ? '<div style="margin-top:14px;"><button onclick="switchTab(\'bookingsAdmin\'); $(\'#bookingStatusFilter\').val(\'All\').trigger(\'change\'); setTimeout(() => { const el = document.getElementById(\'bookingDetail-' + props.dbId + '\'); if(el) { $(el).collapse(\'show\'); el.scrollIntoView({behavior:\'smooth\',block:\'center\'}); } }, 300); document.getElementById(\'calEventPopup\').remove();" style="width:100%;background:var(--atl-amber);color:var(--atl-on-amber);border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:700;cursor:pointer;"><i class="fa-solid fa-eye"></i> View Booking</button></div>' : '');
+        var quote = props.milestoneType === 'quote_expiry', overdue = !!props.isOverdue;
+        d.icon = quote ? 'fa-file-invoice' : 'fa-circle-dollar-to-slot'; d.label = quote ? 'Quote expiry' : 'Payment due'; d.tone = overdue ? 'var(--atl-clay)' : 'var(--atl-orange)';
+        d.status = overdue ? 'Overdue' : (quote ? 'Quote expires' : ((props.paymentStatus || 'pending').charAt(0).toUpperCase() + (props.paymentStatus || 'pending').slice(1)));
+        d.statusTone = d.tone;
+        d.rows = _calRow(quote ? 'Expires' : 'Due date', _esc(_calDay(w.date))) +
+            _calRow('Amount', props.amount != null && props.amount > 0 ? '<strong style="color:' + d.tone + '">' + _calMoney(props.amount) + '</strong>' : '') +
+            _calRow('Payment', !quote ? _esc((props.paymentStatus || 'pending').replace(/^./, function (c) { return c.toUpperCase(); })) : '') +
+            _calRow('Description', props.description ? _esc(props.description) : '') +
+            _calRow('Client', props.clientName ? _esc(props.clientName) : '') +
+            _calRow('Booking', props.bookingName ? _esc(props.bookingName) + (props.dbId ? ' <span class="cal-pop__muted">#' + _esc(props.dbId) + '</span>' : '') : (props.dbId ? '#' + _esc(props.dbId) : '')) +
+            _calRow('Event date', props.eventDate ? _esc(_calDay(props.eventDate)) : '');
+        if (props.dbId) d.actions.push({ label: 'View booking', icon: 'fa-eye', kind: 'primary', run: function () { _calOpenBooking(props.dbId); } });
     } else if (props.type === 'public_event') {
-        popup.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
-            '<strong style="color:var(--atl-blue);font-size:14px;"><i class="fa-solid fa-star"></i> Public Event</strong>' +
-            '<button onclick="document.getElementById(\'calEventPopup\').remove()" style="background:none;border:none;color:var(--atl-muted);font-size:18px;cursor:pointer;line-height:1;">&times;</button>' +
-            '</div>' +
-            '<div style="font-size:13px;line-height:1.75;color:var(--atl-ink-dim);">' +
-            '<div style="margin-bottom:4px;"><strong style="color:var(--atl-ink);">' + _esc(info.event.title.replace('[EVENT] ', '')) + '</strong></div>' +
-            '<div>Date: <span style="color:var(--atl-ink);">' + (info.event.startStr || '').split('T')[0] + '</span></div>' +
-            (props.venue ? '<div>Venue: <span style="color:var(--atl-muted);">' + props.venue + '</span></div>' : '') +
-            '</div>' +
-            '<div style="margin-top:14px;">' +
-            '<button onclick="switchTab(\'eventsAdmin\'); setTimeout(() => { if(typeof window.openEvtEditDrawer===\'function\'){ window.openEvtEditDrawer(' + props.dbId + '); var $c=$(\'.atl-event-card[data-id=&quot;' + props.dbId + '&quot;]\'); if($c.length) $(\'html,body\').animate({scrollTop:$c.offset().top-70},400); } document.getElementById(\'calEventPopup\').remove(); }, 300);" style="width:100%;background:var(--atl-amber);color:var(--atl-on-amber);border:none;border-radius:6px;padding:7px;font-size:12px;font-weight:700;cursor:pointer;"><i class="fa-solid fa-pen-to-square"></i> Edit Event</button>' +
-            '</div>';
-    } else if (props.type === 'external' && window.calM365ExternalPopupHtml) {
-        popup.innerHTML = window.calM365ExternalPopupHtml(info, props);
+        d.icon = 'fa-star'; d.label = 'Public event'; d.tone = 'var(--atl-blue)';
+        d.title = _esc(String(ev.title || '').replace('[EVENT] ', ''));
+        d.rows = _calRow('Date', _esc(_calDay(w.date))) + _calRow('Time', _esc(timeText)) + (w.minutes ? _calRow('Duration', _esc(_calSpan(w.minutes))) : '') + _calRow('Venue', props.venue ? _esc(props.venue) : '');
+        d.actions.push({ label: 'Edit event', icon: 'fa-pen-to-square', kind: 'primary', run: function () { _calOpenEvent(props.dbId); } });
     } else {
-        popup.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-            '<strong style="color:var(--atl-blue);font-size:13px;">' + _esc(info.event.title) + '</strong>' +
-            '<button onclick="document.getElementById(\'calEventPopup\').remove()" style="background:none;border:none;color:var(--atl-muted);font-size:18px;cursor:pointer;line-height:1;">&times;</button>' +
-            '</div>';
+        d.rows = _calRow('Date', _esc(_calDay(w.date))) + _calRow('Time', _esc(timeText));
+    }
+    return d;
+}
+
+function showCalEventPopup(info) {
+    var props = info.event.extendedProps || {};
+    _calClosePopup();
+
+    var popup = document.createElement('div');
+    popup.id = 'calEventPopup';
+    popup.className = 'cal-pop';
+    popup.setAttribute('role', 'dialog');
+    popup.setAttribute('tabindex', '-1');
+    var opener = info.el;
+
+    if (props.type === 'external' && window.calM365ExternalPopupHtml) {
+        /* an Outlook appointment: its own view (js/admin/calendar-m365.js), shown inside the same scrolling, window-safe frame */
+        popup.className += ' cal-pop--bare';
+        popup.setAttribute('aria-label', 'Microsoft 365 appointment');
+        popup.innerHTML = '<div class="cal-pop__body">' + window.calM365ExternalPopupHtml(info, props) + '</div>';
+    } else {
+        var d = _calDetails(info);
+        popup.setAttribute('aria-label', d.label + ' details');
+        popup.innerHTML =
+            '<div class="cal-pop__head"><span class="cal-pop__kind" style="--cal-tone:' + d.tone + '"><i class="fa-solid ' + d.icon + '" aria-hidden="true"></i> ' + _esc(d.label) + '</span>' +
+            '<button type="button" class="cal-pop__close" aria-label="Close details">&times;</button></div>' +
+            '<div class="cal-pop__body">' +
+                '<div class="cal-pop__title">' + d.title + '</div>' +
+                (d.status ? '<span class="cal-pop__pill" style="--cal-tone:' + d.statusTone + '">' + _esc(d.status) + '</span>' : '') +
+                (d.chips ? '<div class="cal-pop__chips">' + d.chips + '</div>' : '') +
+                (d.rows ? '<dl class="cal-pop__rows">' + d.rows + '</dl>' : '') +
+                (d.note ? '<p class="cal-pop__note">' + _esc(d.note) + '</p>' : '') +
+            '</div>' +
+            (d.actions.length ? '<div class="cal-pop__foot"></div>' : '');
+        var foot = popup.querySelector('.cal-pop__foot');
+        d.actions.forEach(function (a) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'cal-pop__btn' + (a.kind ? ' cal-pop__btn--' + a.kind : '');
+            b.innerHTML = '<i class="fa-solid ' + a.icon + '" aria-hidden="true"></i> ' + _esc(a.label);
+            b.addEventListener('click', function () { if (!a.keepOpen) _calClosePopup(); a.run(); });
+            foot.appendChild(b);
+        });
+        popup.querySelector('.cal-pop__close').addEventListener('click', function () { _calClosePopup(opener); });
     }
 
     if (window.calM365PopupSection) {
-        try { var m365Sec = window.calM365PopupSection(props, info); if (m365Sec) popup.appendChild(m365Sec); }
+        try { var m365Sec = window.calM365PopupSection(props, info); if (m365Sec) popup.querySelector('.cal-pop__body').appendChild(m365Sec); }
         catch (secErr) { console.error('Microsoft 365 section failed:', secErr); }
     }
+
+    popup.style.visibility = 'hidden';
     document.body.appendChild(popup);
-    setTimeout(() => { document.addEventListener('click', function dismiss(e) { if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('click', dismiss); } }); }, 50);
+
+    /* a bottom sheet on phones (CSS); beside the item elsewhere - below it when it fits, above it otherwise, always inside the window */
+    if (window.innerWidth >= 768) {
+        var rect = opener.getBoundingClientRect(), pad = 12;
+        var w = popup.offsetWidth, h = popup.offsetHeight, vw = window.innerWidth, vh = window.innerHeight;
+        var left = Math.max(pad, Math.min(rect.left, vw - w - pad));
+        var top = rect.bottom + 6;
+        if (top + h > vh - pad) top = rect.top - h - 6 >= pad ? rect.top - h - 6 : Math.max(pad, vh - h - pad);
+        popup.style.left = left + 'px';
+        popup.style.top = top + 'px';
+    }
+    popup.style.visibility = '';
+    // opened from the keyboard (Enter / Space on the item): move focus into the view; with the mouse a focus ring round the whole view would only be noise
+    if (info.jsEvent && info.jsEvent.detail === 0) { try { popup.querySelector('.cal-pop__close, button, a').focus({ preventScroll: true }); } catch (e) { /* focus is a courtesy */ } }
+
+    setTimeout(function () {
+        document.addEventListener('click', function dismiss(e) {
+            if (!document.body.contains(popup)) { document.removeEventListener('click', dismiss); return; }
+            if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('click', dismiss); }
+        });
+    }, 50);
+    document.addEventListener('keydown', function esc(e) {
+        if (!document.body.contains(popup)) { document.removeEventListener('keydown', esc); return; }
+        if (e.key === 'Escape') { _calClosePopup(opener); document.removeEventListener('keydown', esc); }
+    });
+    var openedAt = window.innerWidth;   // a rotation / window resize makes the item's position stale; a phone's address bar showing or hiding is not a resize
+    window.addEventListener('resize', function onResize() {
+        if (!document.body.contains(popup)) { window.removeEventListener('resize', onResize); return; }
+        if (window.innerWidth !== openedAt) { window.removeEventListener('resize', onResize); popup.remove(); }
+    });
 }
 
 function initAdminCalendar() {
@@ -224,10 +345,6 @@ function initAdminCalendar() {
             eventClick: function(info) {
                 const props = info.event.extendedProps || {};
                 if (props.isBgFill) return;
-                if (props.type === 'hold') {
-                    window.handleRemoveHold(props.dbId, info.event);
-                    return;
-                }
                 showCalEventPopup(info);
             },
             eventDrop: async function(info) {
@@ -255,7 +372,7 @@ function initAdminCalendar() {
                     }).then(r => r.json()).then(d => {
                         if (!d.success) { info.revert(); window.notificationService && window.notificationService.showError('Could not move hold.'); }
                         else { renderWorkingSchedule(); }
-                    }).catch(() => { info.revert(); window.notificationService && window.notificationService.showError('Network error — hold not moved.'); });
+                    }).catch(() => { info.revert(); window.notificationService && window.notificationService.showError('Network error. Hold not moved.'); });
                     return;
                 }
 
@@ -276,7 +393,7 @@ function initAdminCalendar() {
                     }).then(r => r.json()).then(d => {
                         if (!d.success) { info.revert(); window.notificationService && window.notificationService.showError('Could not move event: ' + (d.message || 'unknown error')); }
                         else { renderWorkingSchedule(); if (typeof renderEventsList === 'function') renderEventsList(); }
-                    }).catch(() => { info.revert(); window.notificationService && window.notificationService.showError('Network error — event date not updated.'); });
+                    }).catch(() => { info.revert(); window.notificationService && window.notificationService.showError('Network error. Event date not updated.'); });
                     return;
                 }
 
@@ -292,7 +409,7 @@ function initAdminCalendar() {
                 }).then(r => r.json()).then(d => {
                     if (!d.success) { info.revert(); window.notificationService && window.notificationService.showError('Could not update booking: ' + (d.message || 'unknown error')); }
                     else { renderWorkingSchedule(); }
-                }).catch(() => { info.revert(); window.notificationService && window.notificationService.showError('Network error — booking date not updated.'); });
+                }).catch(() => { info.revert(); window.notificationService && window.notificationService.showError('Network error. Booking date not updated.'); });
             },
             selectable: true,
             selectMirror: true,

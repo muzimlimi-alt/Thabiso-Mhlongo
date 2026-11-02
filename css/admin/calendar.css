@@ -252,3 +252,56 @@ body.admin-body .cal-sync-filter select { min-height: 32px; padding: 3px 8px; bo
     body.admin-body .cal-sync-filter select { flex: 1 1 auto; min-height: 44px !important; height: 44px !important; }
     .cal-m365-dl dt { flex-basis: 100%; }
 }
+
+/* ── Calendar item details (js/admin/calendar.js, showCalEventPopup) ───────────────────────────────────────────────────
+   One layout for bookings, holds, payment milestones and public events: a header with the kind and a round close button, a body that
+   scrolls when it is taller than the screen, and a footer that always stays in view with the actions. A bottom sheet below 768px. */
+#calEventPopup.cal-pop {
+    position: fixed; z-index: 9999; display: flex; flex-direction: column; overflow: hidden;
+    width: min(380px, calc(100vw - 24px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px);
+    background: var(--atl-card); border: 1px solid var(--atl-line); border-radius: var(--atl-r-lg, 14px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, .6); color: var(--atl-ink-dim); font-size: 13px; line-height: 1.55;
+}
+#calEventPopup:focus { outline: none; }
+#calEventPopup .cal-pop__head { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px 8px 18px; border-bottom: 1px solid var(--atl-line); }
+#calEventPopup .cal-pop__kind { color: var(--cal-tone, var(--atl-amber)); font-weight: 700; font-size: 13px; letter-spacing: .02em; }
+#calEventPopup .cal-pop__kind i { margin-right: 6px; }
+#calEventPopup .cal-pop__close {
+    flex: 0 0 auto; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+    border: 1px solid var(--atl-line); border-radius: 50%; background: var(--atl-surface2); color: var(--atl-muted); font-size: 20px; line-height: 1; cursor: pointer;
+}
+#calEventPopup .cal-pop__close:hover, #calEventPopup .cal-pop__close:focus-visible { color: var(--atl-ink); border-color: var(--atl-amber); outline: none; }
+#calEventPopup .cal-pop__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 16px 18px; }
+#calEventPopup .cal-pop__title { margin: 0 0 8px; font-size: 16px; font-weight: 700; line-height: 1.35; color: var(--atl-ink); overflow-wrap: anywhere; white-space: pre-wrap; }
+#calEventPopup .cal-pop__pill { display: inline-block; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--cal-tone, var(--atl-line)); color: var(--cal-tone, var(--atl-muted)); font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+#calEventPopup .cal-pop__chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+#calEventPopup .cal-pop__chip { background: var(--atl-amber-dim); color: var(--atl-amber); border: 1px solid var(--atl-amber-border); border-radius: 999px; font-size: 10px; font-weight: 700; padding: 2px 8px; }
+#calEventPopup .cal-pop__rows { display: grid; grid-template-columns: minmax(78px, auto) minmax(0, 1fr); gap: 7px 14px; margin: 14px 0 0; }
+#calEventPopup .cal-pop__rows dt { margin: 0; font-weight: 600; color: var(--atl-muted); }
+#calEventPopup .cal-pop__rows dd { margin: 0; color: var(--atl-ink); overflow-wrap: anywhere; }
+#calEventPopup .cal-pop__muted { color: var(--atl-muted); font-weight: 400; }
+#calEventPopup .cal-pop__note { margin: 14px 0 0; padding: 10px 12px; border-radius: var(--atl-r-md, 8px); background: var(--atl-surface2); color: var(--atl-muted); font-size: 12.5px; }
+#calEventPopup .cal-pop__foot { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--atl-line); background: var(--atl-card); }
+#calEventPopup .cal-pop__btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 8px 14px; flex: 1 1 auto;
+    border: 1px solid var(--atl-line); border-radius: var(--atl-r-md, 8px); background: var(--atl-surface2); color: var(--atl-ink); font-size: 13px; font-weight: 700; cursor: pointer;
+}
+#calEventPopup .cal-pop__btn:hover, #calEventPopup .cal-pop__btn:focus-visible { border-color: var(--atl-amber); outline: none; }
+#calEventPopup .cal-pop__btn--primary { background: var(--atl-amber); border-color: var(--atl-amber); color: var(--atl-on-amber); }
+#calEventPopup .cal-pop__btn--danger { background: transparent; border-color: var(--atl-clay); color: var(--atl-clay); }
+#calEventPopup .cal-pop__btn--danger:hover, #calEventPopup .cal-pop__btn--danger:focus-visible { background: var(--atl-clay); color: #fff; }
+/* an Outlook appointment brings its own header; only the frame (and its scrolling) is shared */
+#calEventPopup.cal-pop--bare .cal-pop__body { padding: 18px 20px; }
+
+@media (max-width: 767px) {
+    #calEventPopup.cal-pop {
+        left: 0; right: 0; bottom: 0; top: auto; width: 100%; max-height: 88vh; max-height: 88dvh;
+        border-radius: 16px 16px 0 0; border-bottom: 0; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .55);   /* the box-shadow dims the calendar behind the sheet and goes when the sheet does */
+    }
+    #calEventPopup .cal-pop__head { padding-top: 12px; position: relative; }
+    #calEventPopup .cal-pop__head::before { content: ""; position: absolute; top: 5px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--atl-line); }
+    #calEventPopup .cal-pop__close { width: 44px; height: 44px; }
+    #calEventPopup .cal-pop__foot { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+    #calEventPopup .cal-pop__btn { flex: 1 1 calc(50% - 8px); min-height: 46px; }
+    #calEventPopup .cal-pop__btn--primary { flex-basis: 100%; }
+}

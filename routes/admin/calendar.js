@@ -95,7 +95,7 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                        b.event_start_time, b.performance_end_time, b.performance_duration,
                        b.status, b.total_amount, b.payment_status,
                        b.amount_paid, b.amount_outstanding, b.quote_expiry_date,
-                       b.cell, COALESCE(v.name, b.event_location) AS venue_name, b.city,
+                       b.cell, COALESCE(v.name, b.event_location) AS venue_name, b.city, c.email AS client_email, b.total_amount AS booking_total,
                        e.event_title AS linked_event_title, b.event_id,
                        b.google_event_id, b.accepted_at, b.popia_consent, b.attachment_files,
                        CASE WHEN ${agreedAmountSql('b')} THEN 1 ELSE 0 END AS amount_agreed
@@ -133,6 +133,8 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                         venueName: b.venue_name || null,
                         city: b.city || null,
                         clientPhone: b.cell || null,
+                        clientName: b.name || null, clientEmail: b.client_email || null,
+                        bookingTotal: b.amount_agreed && b.booking_total != null ? b.booking_total : null, amountPaid: b.amount_agreed ? (b.amount_paid || 0) : null,
                         // An enquiry that was never quoted holds only the catalogue ESTIMATE in these columns (lib/booking-amounts.js):
                         // it is not an amount owed, so the event popover gets nothing to show until a quotation exists.
                         amountOutstanding: !b.amount_agreed ? null
@@ -165,7 +167,11 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                         id: 'h-' + h.id,
                         title: h.notes || 'Blocked',
                         color,
-                        extendedProps: { type: 'hold', dbId: h.id, blockType: h.block_type }
+                        extendedProps: {
+                            type: 'hold', dbId: h.id, blockType: h.block_type, description: h.notes || '', createdAt: h.created_at || null, createdBy: h.created_by_name || null,
+                            expiresAt: h.hold_expires_at && !String(h.hold_expires_at).startsWith('9999') ? h.hold_expires_at : null,
+                            source: h.block_type === 'calendar_sync' || h.google_event_id ? 'google' : 'manual', linkedEvent: h.linked_event_title || null, bookingId: h.converted_to_booking_id || null
+                        }
                     };
                     if (h.start_time) {
                         ev.start = h.hold_date + 'T' + h.start_time;
@@ -203,15 +209,15 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                         // adds the Microsoft 365 sync state of each booking / event and the Microsoft appointments (lib/calendar-m365.js); the calendar is served as it was if that fails
                         const respond = () => calendarM365.decorateCalendarEvents(events).then((all) => res.json(all)).catch(() => res.json(events));
                         if (req.query.include !== 'milestones') return respond();
-                        db.all(`SELECT b.id, COALESCE(c.full_name, b.name) AS name, b.quote_expiry_date
+                        db.all(`SELECT b.id, COALESCE(c.full_name, b.name) AS name, b.quote_expiry_date, b.event_name, b.date AS event_date
                                 FROM bookings b LEFT JOIN clients c ON b.client_id = c.id
                                 WHERE b.status = 'QUOTED' AND b.quote_expiry_date IS NOT NULL`, [], (e2, quoteds) => {
                             if (!e2 && quoteds) quoteds.forEach(q => events.push({
                                 id: 'qex-' + q.id, title: 'Quote expires: ' + (q.name || 'Booking #' + q.id),
                                 start: q.quote_expiry_date, allDay: true, color: '#fb923c',
-                                extendedProps: { type: 'milestone', milestoneType: 'quote_expiry', dbId: q.id }
+                                extendedProps: { type: 'milestone', milestoneType: 'quote_expiry', dbId: q.id, clientName: q.name || null, bookingName: q.event_name || null, eventDate: q.event_date || null }
                             }));
-                            db.all(`SELECT ps.id, ps.booking_id, ps.description, ps.due_date, ps.expected_amount,
+                            db.all(`SELECT ps.id, ps.booking_id, ps.description, ps.due_date, ps.expected_amount, ps.status AS schedule_status, b.event_name, b.date AS event_date,
                                            COALESCE(c.full_name, b.name) AS client_name
                                     FROM payment_schedules ps JOIN bookings b ON ps.booking_id = b.id
                                     LEFT JOIN clients c ON b.client_id = c.id
@@ -222,7 +228,7 @@ router.get('/api/admin/calendar/events', requireAdmin, (req, res) => {
                                         id: 'ps-' + s.id,
                                         title: s.description + ': ' + (s.client_name || 'Booking #' + s.booking_id),
                                         start: s.due_date, allDay: true, color: overdue ? '#f87171' : '#fb923c',
-                                        extendedProps: { type: 'milestone', milestoneType: 'payment_due', dbId: s.booking_id, isOverdue: overdue, amount: s.expected_amount }
+                                        extendedProps: { type: 'milestone', milestoneType: 'payment_due', dbId: s.booking_id, isOverdue: overdue, amount: s.expected_amount, description: s.description || null, paymentStatus: s.schedule_status || 'pending', clientName: s.client_name || null, bookingName: s.event_name || null, eventDate: s.event_date || null }
                                     });
                                 });
                                 respond();

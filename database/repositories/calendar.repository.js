@@ -117,7 +117,11 @@ function getActiveDateHoldsForToday(dateStr, callback) {
     );
 }
 function getActiveDateHoldsForCalendarGrid(callback) {
-    db.all(`SELECT id, hold_date, notes, start_time, end_time, block_type FROM date_holds WHERE status = 'active'`, [], callback);
+    // the extra columns feed the hold's detail view on the calendar (who made it, when, where it came from, what it is linked to)
+    db.all(`SELECT h.id, h.hold_date, h.notes, h.start_time, h.end_time, h.block_type, h.created_at, h.hold_expires_at, h.google_event_id,
+                   h.event_id, h.converted_to_booking_id, a.username AS created_by_name, ev.event_title AS linked_event_title
+            FROM date_holds h LEFT JOIN admins a ON a.id = h.created_by LEFT JOIN events ev ON ev.event_id = h.event_id
+            WHERE h.status = 'active'`, [], callback);
 }
 function getActiveDateHoldsForIcsFeed(callback) {
     db.all(`SELECT hold_date, notes, start_time, end_time FROM date_holds WHERE status = 'active' AND (block_type IS NULL OR block_type != 'm365_sync')`, [], callback);
