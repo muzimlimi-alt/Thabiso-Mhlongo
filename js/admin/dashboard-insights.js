@@ -246,11 +246,12 @@
                 card({ label: 'Said no to analytics', value: count(c.analyticsNo), tip: 'Answers that left analytics off. These visitors are not tracked at all.', small: c.yesShare == null ? '' : Math.round((100 - c.yesShare) * 10) / 10 + '% of answers' }) +
                 card({ label: 'Button pressed', value: count(c.answers), tip: 'All answers to the pop-up, by the button used.', small: 'Accept all ' + count(c.byChoice.accept_all) + ' · Reject ' + count(c.byChoice.reject_all) + ' · Own choice ' + count(c.byChoice.custom) }) +
                 card({ label: 'Changed their mind', value: count(c.changes), tip: 'Answers given later through "Cookie Settings" in the footer, after a first answer.', small: count(c.changedToNo) + ' switched analytics off' }));
-            mix.innerHTML = consent + group('Who visited', null,
-                card({ label: 'New visitors', value: count(d.new), tip: 'First visit from this browser in the period. A cleared cookie or another device counts as new.' }) +
-                card({ label: 'Returning visitors', value: count(d.returning), tip: 'Had visited before the period began (on this browser).' }) +
+            mix.innerHTML = consent + group('Who visited', 'The figures for this period. New and returning visitors add up to the unique visitors.',
+                card({ label: 'Unique visitors', value: count(d.visitors), tip: 'Different browsers that visited in the period (each counted once).', small: count(d.new) + ' new · ' + count(d.returning) + ' returning' }) +
+                card({ label: 'Visits', value: count(d.visits), tip: 'Separate visits. One visitor can visit several times.' }) +
+                card({ label: 'Page views', value: count(d.pageViews), tip: 'Times the page was loaded. The site is one page, so see "Sections people look at" below for what was looked at.' }) +
                 card({ label: 'Average visit', value: mins(d.avgVisitSeconds), tip: 'How long a visit lasted, on average (time with the page open and in view).' }) +
-                card({ label: 'Engaged visits', value: d.engagedShare == null ? '—' : d.engagedShare + '%', tip: 'Visits that lasted 30 seconds or more.', small: count(d.engagedVisits) + ' of ' + count(d.visits) + ' visits' }) +
+                card({ label: 'Engaged visits', value: d.engagedShare == null ? '—' : d.engagedShare + '%', tip: 'Visits that lasted 30 seconds or more. The rest left sooner.', small: count(d.engagedVisits) + ' of ' + count(d.visits) + ' visits' }) +
                 (d.browsers.length ? card({ label: 'Top browser', value: esc(d.browsers[0].name), tip: 'The browser used for most visits.', small: d.browsers.slice(1, 4).map(function (b) { return esc(b.name) + ' ' + count(b.visits); }).join(' · ') }) : ''));
         });
         if (extra) Promise.all([getJson('/api/admin/analytics/sections?' + qs), getJson('/api/admin/analytics/interactions?' + qs)]).then(function (res) {

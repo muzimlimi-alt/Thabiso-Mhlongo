@@ -346,6 +346,7 @@ router.get('/api/admin/analytics/visitor-mix', requireAdmin, async (req, res) =>
         const eng = await getQ(`SELECT COUNT(*) AS visits, AVG(total_dwell_seconds) AS avg_secs,
                                        COUNT(CASE WHEN total_dwell_seconds >= 30 THEN 1 END) AS engaged
                                 FROM analytics_sessions WHERE date(started_at) BETWEEN ? AND ?`, [start, end]);
+        const pv = await getQ(`SELECT COUNT(*) AS pageviews FROM analytics_pageviews WHERE date(viewed_at) BETWEEN ? AND ?`, [start, end]);
         const browsers = await allQ(`SELECT TRIM(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(browser,'0',''),'1',''),'2',''),'3',''),'4',''),'5',''),'6',''),'7',''),'8',''),'9','')) AS name,
                                             COUNT(*) AS visits
                                      FROM analytics_sessions WHERE date(started_at) BETWEEN ? AND ? GROUP BY 1 ORDER BY visits DESC LIMIT 6`, [start, end]);
@@ -353,6 +354,7 @@ router.get('/api/admin/analytics/visitor-mix', requireAdmin, async (req, res) =>
         res.json({
             success: true,
             visitors, returning, new: visitors - returning,
+            pageViews: Number(pv.pageviews) || 0,
             visits, avgVisitSeconds: visits ? Math.round(Number(eng.avg_secs) || 0) : null,
             engagedVisits: Number(eng.engaged) || 0, engagedShare: visits ? Math.round(((Number(eng.engaged) || 0) / visits) * 1000) / 10 : null,
             browsers: browsers.map(b => ({ name: b.name || 'Unknown', visits: Number(b.visits) || 0 }))
