@@ -287,7 +287,7 @@
     // a desktop and a mobile layout rather than squeezing one into the other. Every plain-text rule
     // and every safety check above (safeMedia/safeHref/hasDetails/catOf) is reused unchanged — this
     // section only adds a different arrangement of the same data.
-    var TL_CAT_TAG = { win: 'Win', nomination: 'Nom', accolade: 'Hon', lineup: 'Line' };
+    var TL_CAT_TAG = { win: 'Win', nomination: 'Nomination', accolade: 'Honour', lineup: 'Lineup' };
 
     // One accolade's caption block inside its year's column. A plain (non-interactive) block when
     // there is nothing more to show (hasDetails false) — same rule buildEntry() uses for the CTA.
@@ -333,7 +333,8 @@
         var $years = $('<div>').addClass('acc-tl__row acc-tl__row--years');
         var $rail = $('<div>').addClass('acc-tl__row acc-tl__row--rail');
         var $caps = $('<div>').addClass('acc-tl__row acc-tl__row--caps');
-        $rail.append($('<div>').addClass('acc-tl__rail-line').attr('aria-hidden', 'true'));
+        var $railLine = $('<div>').addClass('acc-tl__rail-line').attr('aria-hidden', 'true');
+        $rail.append($railLine);
 
         var i = 0;
         for (var y = minYear; y <= maxYear; y++) {
@@ -352,6 +353,7 @@
             $caps.append($cell);
             i++;
         }
+        $railLine.css('grid-column', '1 / ' + (i + 1));                   // every year column (see .acc-tl__rail-line, redesign.css)
         return { $years: $years, $rail: $rail, $caps: $caps, count: i };
     }
 
@@ -377,9 +379,27 @@
             var rows = buildTimelineRows(list);
             o.$track.empty().append(rows.$years, rows.$rail, rows.$caps);
             if (announce && o.$status) o.$status.text(statusText(list.length, current));
-            // Opens on the most recent end of the rail — the most relevant accolades need no scrolling.
-            vp.scrollLeft = vp.scrollWidth;
+            showLatest();
+        }
+
+        // Opens on the most recent year that HAS an accolade, centred - not on empty years up to today. The section can still be
+        // hidden (or the viewport unsized) when this first runs, so it is repeated once the timeline is actually on screen.
+        function showLatest() {
+            var ticks = o.$track.find('.acc-tl__tick.is-marked');
+            var last = ticks.length ? ticks[ticks.length - 1] : null;
+            if (last && vp.clientWidth) {
+                var vr = vp.getBoundingClientRect(), tr = last.getBoundingClientRect();
+                vp.scrollLeft += (tr.left + tr.width / 2) - (vr.left + vr.width / 2);
+            } else {
+                vp.scrollLeft = vp.scrollWidth;
+            }
             updateNav();
+        }
+        if ('IntersectionObserver' in global) {
+            var seen = new IntersectionObserver(function (entries) {
+                if (entries[0].isIntersecting) { seen.disconnect(); showLatest(); }
+            });
+            seen.observe(vp);
         }
 
         o.$filters.off('click.acctl');
@@ -395,10 +415,13 @@
                 draw(true);
             });
         }
-        o.$track.off('click.acctl').on('click.acctl', '.acc-tl__title', function () {
-            var id = String($(this).attr('data-acc-id'));
+        // The whole card opens the details (its title stays the keyboard button; a click on the title bubbles here too - once).
+        o.$track.off('click.acctl').on('click.acctl', '.acc-tl__cap', function () {
+            var btn = $(this).find('button.acc-tl__title')[0];
+            if (!btn) return;                                              // nothing more to show for this one
+            var id = String($(btn).attr('data-acc-id'));
             for (var i = 0; i < items.length; i++) {
-                if (String(items[i].id) === id) { if (o.onOpen) o.onOpen(items[i], this); return; }
+                if (String(items[i].id) === id) { if (o.onOpen) o.onOpen(items[i], btn); return; }   // focus comes back to the title
             }
         });
 

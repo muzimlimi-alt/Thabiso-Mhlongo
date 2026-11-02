@@ -165,7 +165,7 @@ function ticketPage({ title, heading, line, state, token }) {
 <meta name="robots" content="noindex, nofollow">
 <title>${h(title)}</title>
 <link rel="icon" href="/favicon.ico">
-<link href="/css/public/redesign.css?v=32" rel="stylesheet">
+<link href="/css/public/redesign.css?v=33" rel="stylesheet">
 <link href="/css/public/checkin.css?v=3" rel="stylesheet">
 </head>
 <body class="ck-body">
