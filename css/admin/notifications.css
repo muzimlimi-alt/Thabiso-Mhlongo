@@ -162,3 +162,11 @@ body.admin-body .ntf-prefs .ntf-pref, body.admin-body .ntf-form-grid .ntf-pref {
 .ntf-tile--clay, .ntf-dot--clay { --ntf-c: var(--atl-clay); }
 .ntf-tile--blue, .ntf-dot--blue { --ntf-c: var(--atl-blue); }
 .ntf-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ntf-c); margin-right: 4px; }
+
+/* In the collapsed rail the label is hidden, so the count used to sit beside the bell and push it off-centre from the other icons:
+   pin it to the bell's top-right corner instead, and keep the bell where every other icon is. */
+#tmAdminSidebar.collapsed .sh-nav-item { position: relative !important; }
+#tmAdminSidebar.collapsed .sh-nav-item > .ntf-navcount {
+    position: absolute !important; top: 4px; left: calc(50% + 2px); margin: 0 !important;
+    min-width: 16px; padding: 0 4px; font-size: 9px; line-height: 16px; box-shadow: 0 0 0 2px var(--atl-card, #111);
+}

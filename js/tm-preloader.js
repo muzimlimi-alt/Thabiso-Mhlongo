@@ -16,13 +16,19 @@
     var CSS =
         '.tm-preloader{position:fixed;inset:0;z-index:2147483000;pointer-events:none;transition:opacity .45s ease;animation:tmPreFailsafe .45s ease 4s forwards}' +
         '.tm-preloader.is-done{opacity:0}' +
-        '.tm-preloader__veil{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0a0a0a;opacity:0;animation:tmPreIn .3s ease .35s forwards}' +
+        '.tm-preloader__veil{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 30% 50%,rgba(212,175,55,.036),transparent 60%),radial-gradient(ellipse at 70% 50%,rgba(201,169,110,.018),transparent 50%),linear-gradient(135deg,#050505 0%,#111111 50%,#050505 100%);opacity:0;animation:tmPreIn .3s ease .35s forwards}' +
         '.tm-preloader--now .tm-preloader__veil{animation-duration:.2s;animation-delay:0s}' +
         ".tm-preloader__word{display:flex;align-items:center;font-family:'Cormorant Garamond',Georgia,'Times New Roman',serif;font-weight:500;font-size:clamp(40px,9vw,84px);line-height:1;letter-spacing:.06em;color:#fff;user-select:none}" +
         '.tm-preloader__o{position:relative;flex:none;width:1em;height:1em;margin-left:.04em;border-radius:50%;background:#D4AF37}' +
         '.tm-preloader__inner,.tm-preloader__core{position:absolute;inset:0;margin:auto;width:90%;height:90%;border-radius:50%}' +
         '.tm-preloader__inner{background:#0a0a0a;transform:scale(.5556);animation:tmPreBreathe .5s ease-in-out infinite alternate}' +
         '.tm-preloader__core{background:#D4AF37;transform:scale(.2778);animation:tmPreBreathe 1s ease-in-out infinite alternate}' +
+        // ADMIN ONLY: where the --atl-* tokens exist (css/core/tokens.css - the homepage does not load them) the loader wears the admin's set
+        // Appearance (Finish / Accent), which js/appearance.js and the pre-paint script in admin.html put on <html> before first paint.
+        '.tm-preloader--themed .tm-preloader__veil{background:radial-gradient(ellipse at 30% 50%,color-mix(in srgb,var(--atl-amber) 4%,transparent),transparent 60%),radial-gradient(ellipse at 70% 50%,color-mix(in srgb,var(--atl-amber) 2%,transparent),transparent 50%),linear-gradient(135deg,var(--atl-paper) 0%,color-mix(in srgb,var(--atl-paper) 93%,var(--atl-ink)) 50%,var(--atl-paper) 100%)}' +
+        '.tm-preloader--themed .tm-preloader__word{color:var(--atl-ink)}' +
+        '.tm-preloader--themed .tm-preloader__o,.tm-preloader--themed .tm-preloader__core{background:var(--atl-amber)}' +
+        '.tm-preloader--themed .tm-preloader__inner{background:var(--atl-paper)}' +
         '@keyframes tmPreIn{to{opacity:1}}' +
         '@keyframes tmPreBreathe{to{transform:scale(1)}}' +
         '@keyframes tmPreFailsafe{to{opacity:0;visibility:hidden}}' +
@@ -45,7 +51,9 @@
         if (el && el.parentNode) el.parentNode.removeChild(el);
         el = document.createElement('div');
         el.id = 'tmPreloader';
-        el.className = 'tm-preloader' + (now ? ' tm-preloader--now' : '');
+        var themed = false;
+        try { themed = !!getComputedStyle(document.documentElement).getPropertyValue('--atl-paper').trim(); } catch (e) {}
+        el.className = 'tm-preloader' + (now ? ' tm-preloader--now' : '') + (themed ? ' tm-preloader--themed' : '');
         el.setAttribute('aria-hidden', 'true');
         el.innerHTML = MARKUP;
         var host = document.body || document.documentElement;
