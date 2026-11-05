@@ -418,7 +418,7 @@ const confirms = (p) => p.evaluate(() => window.__confirms.slice());
         // ...and once quoted, the very same screens show the amounts
         const openFin2 = async (id) => { await p.evaluate((id) => { const b = document.createElement('button'); b.className = 'bk-action-financials'; b.setAttribute('data-id', id); document.body.appendChild(b); b.click(); b.remove(); }, id); await sleep(500); return p.evaluate(() => ({ total: $('#bf-total').text(), out: $('#bf-outstanding').text() })); };
         const fin2 = await openFin2(bF);
-        ok(fin2.total === 'R 5000.00' && fin2.out === 'R 5000.00', 'Financial Controls: once quoted, Total and Outstanding show R5,000.00', JSON.stringify(fin2));
+        ok(fin2.total === 'R 5,000.00' && fin2.out === 'R 5,000.00','Financial Controls: once quoted, Total and Outstanding show R5,000.00', JSON.stringify(fin2));
         const csv2 = await p.evaluate(async (id) => {
             let blob = null; const orig = URL.createObjectURL; URL.createObjectURL = (b) => { blob = b; return orig.call(URL, b); }; HTMLAnchorElement.prototype.click = function () { /* the export's download link: no file is written in a test */ };
             $('#bookingsListContainer .bk-select-cb').prop('checked', false);

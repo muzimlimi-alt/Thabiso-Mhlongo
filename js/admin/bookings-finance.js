@@ -151,6 +151,7 @@
 
     // Open expense modal pre-filled with a booking
     window.openExpenseModal = function(bookingId) {
+        resetExpenseDrawer();   // never inherit edit mode or values from an earlier Edit
         $('#expenseCategory').val('');
         $('#expenseAmount').val('');
         $('#expenseDescription').val('');
@@ -191,7 +192,7 @@
     $(document).on('change', '#expenseReceiptFile', async function() {
         const file = this.files[0];
         if (!file) return;
-        $('#expReceiptUploadStatus').css('color','var(--atl-muted)').text('Uploading…');
+        $('#expReceiptUploadStatus').attr('class','dk-hint').text('Uploading…');
         const fd = new FormData();
         fd.append('receipt', file);
         try {
@@ -199,12 +200,12 @@
             const d = await resp.json();
             if (d.success) {
                 $('#expenseReceiptUrl').val(d.url);
-                $('#expReceiptUploadStatus').css('color','var(--atl-sage)').html('<i class="fa-solid fa-circle-check" style="margin-right:4px;"></i>' + (d.filename || file.name) + ' uploaded');
+                $('#expReceiptUploadStatus').attr('class','dk-hint dk-hint--ok').text((d.filename || file.name) + ' uploaded');
             } else {
-                $('#expReceiptUploadStatus').css('color','var(--atl-clay)').text(d.message || 'Upload failed.');
+                $('#expReceiptUploadStatus').attr('class','dk-hint dk-hint--bad').text(d.message || 'Upload failed.');
             }
         } catch(e) {
-            $('#expReceiptUploadStatus').css('color','var(--atl-clay)').text('Network error.');
+            $('#expReceiptUploadStatus').attr('class','dk-hint dk-hint--bad').text('Network error.');
         }
         $(this).val('');
     });
@@ -245,10 +246,10 @@
         const booking_id = $('#expenseBookingSelect').val() || null;
         const receipt_url = $('#expenseReceiptUrl').val().trim();
 
-        if (!category) { $('#expenseModalMsg').css('color','var(--atl-clay)').text('Please select a category.'); return; }
-        if (!amount || parseFloat(amount) <= 0) { $('#expenseModalMsg').css('color','var(--atl-clay)').text('Enter a valid amount greater than zero.'); return; }
-        if (!description) { $('#expenseModalMsg').css('color','var(--atl-clay)').text('Description is required.'); return; }
-        if (!expense_date) { $('#expenseModalMsg').css('color','var(--atl-clay)').text('Date is required.'); return; }
+        if (!category) { dkMessage('#expenseModalMsg', 'bad', 'Please select a category.'); return; }
+        if (!amount || parseFloat(amount) <= 0) { dkMessage('#expenseModalMsg', 'bad', 'Enter a valid amount greater than zero.'); return; }
+        if (!description) { dkMessage('#expenseModalMsg', 'bad', 'Description is required.'); return; }
+        if (!expense_date) { dkMessage('#expenseModalMsg', 'bad', 'Date is required.'); return; }
 
         const payload = {
             booking_id, category, amount: parseFloat(amount), description, expense_date, receipt_url,
@@ -270,45 +271,49 @@
             const method = _expenseEditMode && editId ? 'PUT' : 'POST';
             const d = await apiCall(url, method, payload);
             if (d.success) {
-                $('#expenseModalMsg').css('color','var(--atl-sage)').html('<i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>' + (_expenseEditMode ? 'Expense updated!' : 'Expense saved!'));
+                dkMessage('#expenseModalMsg', 'ok', _expenseEditMode ? 'Expense updated!' : 'Expense saved!');
                 setTimeout(() => { closeAtlDrawer('expenseDrawer'); }, 800);
                 loadExpensesTab();
                 loadFinancialStats();
                 if (booking_id) loadBookingPL(booking_id);
             } else {
-                $('#expenseModalMsg').css('color','var(--atl-clay)').text(d.message || 'Save failed.');
+                dkMessage('#expenseModalMsg', 'bad', d.message || 'Save failed.');
             }
         } catch(e) {
-            $('#expenseModalMsg').css('color','var(--atl-clay)').text('Network error. Please try again.');
+            dkMessage('#expenseModalMsg', 'bad', (e && e.message && e.message !== 'Failed to fetch') ? e.message : 'Network error. Please try again.');
         } finally {
-            $btn.prop('disabled', false).html('<i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Expense');
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save expense');
         }
     });
 
-    // Reset expense drawer on close
-    (function() {
+    // Puts the expense drawer back to a clean "Log expense": no edit mode, no leftover values or messages.
+    function resetExpenseDrawer() {
+        _expenseEditMode = false;
+        $('#expenseEditId').val('');
+        $('#expenseDrawerLabel').text('Log expense');
+        $('#expenseCategory').val('').trigger('change.expcat');
+        $('#expenseAmount, #expenseDescription, #expenseVendor, #expenseReceiptUrl').val('');
+        $('#expStartOdo, #expEndOdo, #expTotalKm, #expRatePerKm').val('');
+        $('#expRatePerKm').val('4.84');
+        $('#expPerDiemDays, #expPerDiemRate').val('');
+        $('#expVatPaid').val('');
+        $('#expVatRate').val('15');
+        $('#expenseReceiptFile').val('');
+        $('#expReceiptUploadStatus').attr('class', 'dk-hint').text('');
+        $('#expenseModalMsg').text('');
+    }
+    // Reset the drawer whenever it closes. The drawer's markup sits further down admin.html than this script, so it has to be looked up once the page is
+    // parsed: looked up here at parse time it was null, this reset never ran, and "Edit expense" leaked into the next "Log expense" (a Save then
+    // overwrote the expense that had been edited instead of creating a new one).
+    $(function() {
         var _expDrawerEl = document.getElementById('expenseDrawer');
         if (!_expDrawerEl) return;
         new MutationObserver(function(mutations) {
             mutations.forEach(function(m) {
-                if (m.attributeName === 'class' && !_expDrawerEl.classList.contains('atl-drawer--open')) {
-                    _expenseEditMode = false;
-                    $('#expenseEditId').val('');
-                    $('#expenseDrawerLabel').html('Log Expense');
-                    $('#expenseCategory').val('').trigger('change.expcat');
-                    $('#expenseAmount, #expenseDescription, #expenseVendor, #expenseReceiptUrl').val('');
-                    $('#expStartOdo, #expEndOdo, #expTotalKm, #expRatePerKm').val('');
-                    $('#expRatePerKm').val('4.84');
-                    $('#expPerDiemDays, #expPerDiemRate').val('');
-                    $('#expVatPaid').val('');
-                    $('#expVatRate').val('15');
-                    $('#expenseReceiptFile').val('');
-                    $('#expReceiptUploadStatus').text('');
-                    $('#expenseModalMsg').text('');
-                }
+                if (m.attributeName === 'class' && !_expDrawerEl.classList.contains('atl-drawer--open')) resetExpenseDrawer();
             });
         }).observe(_expDrawerEl, { attributes: true });
-    })();
+    });
 
     // Edit expense — populate modal with existing data
     window.editExpense = async function(id) {
@@ -323,7 +328,7 @@
             if (!cached) { window.notificationService.showError('Could not load expense.'); return; }
             _expenseEditMode = true;
             $('#expenseEditId').val(id);
-            $('#expenseDrawerLabel').html('<i class="fa-solid fa-pen-to-square" style="margin-right:8px;color:var(--atl-blue);"></i>Edit Expense');
+            $('#expenseDrawerLabel').text('Edit expense');
             $('#expenseCategory').val(cached.category).trigger('change.expcat');
             $('#expenseAmount').val(cached.amount);
             $('#expenseDescription').val(cached.description);
@@ -378,7 +383,7 @@
         $('#manualTxDirection').val('credit');
         $('#manualTxMethod').val('');
         $('#manualTxMsg').text('');
-        var $sel = $('#manualTxBooking').empty().append('<option value="">No booking</option>');
+        var $sel = $('#manualTxBooking').empty().append('<option value="">Select a booking…</option>');
         try {
             var bd = await apiCall('/api/admin/bookings', 'GET');
             var list = Array.isArray(bd) ? bd : (bd.bookings || []);
@@ -401,8 +406,10 @@
         var type   = $('#manualTxType').val();
         var amount = $('#manualTxAmount').val();
         var date   = $('#manualTxDate').val();
-        if (!amount || parseFloat(amount) <= 0) { $('#manualTxMsg').css('color','var(--atl-clay)').text('Enter a valid amount greater than zero.'); return; }
-        if (!date) { $('#manualTxMsg').css('color','var(--atl-clay)').text('Date is required.'); return; }
+        if (!amount || parseFloat(amount) <= 0) { dkMessage('#manualTxMsg', 'bad', 'Enter a valid amount greater than zero.'); return; }
+        if (!date) { dkMessage('#manualTxMsg', 'bad', 'Date is required.'); return; }
+        // the server refuses a transaction with no booking (routes/admin/transactions.js), so ask for it here instead of failing after Save
+        if (!$('#manualTxBooking').val()) { dkMessage('#manualTxMsg', 'bad', 'Choose the booking this transaction belongs to.'); return; }
 
         var payload = {
             transaction_type:  type,
@@ -422,15 +429,16 @@
         try {
             var d = await apiCall('/api/admin/transactions/manual', 'POST', payload);
             if (d.success) {
-                $('#manualTxMsg').css('color','var(--atl-sage)').html('<i class="fa-solid fa-circle-check" style="margin-right:5px;"></i>Transaction logged!');
+                dkMessage('#manualTxMsg', 'ok', 'Transaction logged!');
                 setTimeout(function() { closeAtlDrawer('manualTxDrawer'); loadFinancialStats(); }, 900);
             } else {
-                $('#manualTxMsg').css('color','var(--atl-clay)').text(d.message || 'Save failed.');
+                dkMessage('#manualTxMsg', 'bad', d.message || 'Save failed.');
             }
         } catch(e) {
-            $('#manualTxMsg').css('color','var(--atl-clay)').text('Network error. Please try again.');
+            // apiCall throws the server's own message (e.g. a refusal); only a real connection failure falls back to the generic one
+            dkMessage('#manualTxMsg', 'bad', (e && e.message && e.message !== 'Failed to fetch') ? e.message : 'Network error. Please try again.');
         } finally {
-            $btn.prop('disabled', false).html('<i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Log Transaction');
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save transaction');
         }
     });
 

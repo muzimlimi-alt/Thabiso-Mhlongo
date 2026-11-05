@@ -74,8 +74,22 @@
 
     function revokeProof() { if (proofUrl) { try { URL.revokeObjectURL(proofUrl); } catch (e) {} proofUrl = null; } }
 
+    /* ── the review drawer, in the admin drawer kit's building blocks (css/admin/drawer-kit.css) ──
+       Every id the page and the tests use is unchanged (eftProofPreview, eftVerAmount, eftApproveBtn, eftReasonText ...). Colours come only from kit
+       classes, never inline. All text goes through esc(). */
+    var DK_BADGE = { pending: 'dk-badge--warn', approved: 'dk-badge--ok', rejected: 'dk-badge--bad', replacement_requested: 'dk-badge--info' };
+    function dkMoney(n) { return 'R ' + (parseFloat(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }   // "R 5,000.00", as in Financial Controls and the client's Track drawer
+    function dkRow(label, valueHtml, cls) { return '<div class="dk-row"><dt class="dk-k">' + esc(label) + '</dt><dd class="dk-v' + (cls ? ' ' + cls : '') + '">' + valueHtml + '</dd></div>'; }
+    function dkCard(icon, title, bodyHtml, o) {
+        o = o || {};
+        return '<details class="dk-card"' + (o.open === false ? '' : ' open') + (o.id ? ' id="' + o.id + '"' : '') + '><summary><i class="fa-solid fa-' + icon + ' dk-card__icon" aria-hidden="true"></i>' +
+            '<span class="dk-card__title">' + esc(title) + '</span>' + (o.note ? '<span class="dk-card__note">' + esc(o.note) + '</span>' : '') +
+            '<i class="fa-solid fa-chevron-up dk-card__chev" aria-hidden="true"></i></summary><div class="dk-card__body">' + bodyHtml + '</div></details>';
+    }
+    function dkNotice(kind, text) { return '<div class="dk-notice dk-notice--' + kind + '"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><div>' + text + '</div></div>'; }
+
     function historyHtml(events) {
-        return '<ul class="eft-history">' + (events || []).map(function (e) {
+        return '<ul class="dk-timeline">' + (events || []).map(function (e) {
             var who = e.actor_type === 'client' ? 'Client' : (e.actor_type === 'admin' ? (e.actor_name || 'Admin') : 'System');
             return '<li><strong>' + esc(e.action.replace(/_/g, ' ')) + '</strong> · ' + esc(who) + ' · ' + esc(String(e.created_at || '').slice(0, 16)) + (e.note ? '<br>' + esc(e.note) : '') + '</li>';
         }).join('') + '</ul>';
@@ -85,63 +99,83 @@
         var s = d.submission, b = d.booking || {}, inv = d.invoice;
         var pending = s.status === 'pending';
         var h = '';
-        h += '<div class="eft-card"><h6>Booking</h6><dl class="eft-kv">' +
-            '<dt>Client</dt><dd>' + esc(b.name) + ' <span class="eft-sub">' + esc(b.email) + '</span></dd>' +
-            '<dt>Event</dt><dd>' + esc(b.event_name || b.event_type) + ' · ' + esc(b.date) + '</dd>' +
-            '<dt>Booking</dt><dd>#' + b.id + ' · ' + esc(b.status) + ' · ' + esc(b.payment_status) + '</dd>' +
-            '<dt>Total / paid</dt><dd>' + money(b.total) + ' / ' + money(b.amount_paid) + '</dd>' +
-            '<dt>Still outstanding</dt><dd>' + money(b.outstanding) + '</dd>' +
-            (inv ? '<dt>Invoice</dt><dd>' + esc(inv.invoice_number) + ' · ' + esc(inv.status) + '</dd>' : '') +
-            (d.schedule ? '<dt>For instalment</dt><dd>' + esc(d.schedule.description) + ' (' + money(d.schedule.expected_amount) + ', due ' + esc(d.schedule.due_date) + ')</dd>' : '') +
-            '</dl></div>';
 
-        h += '<div class="eft-card"><h6>What the client says</h6><dl class="eft-kv">' +
-            '<dt>Amount paid</dt><dd>' + money(s.claimed_amount) + '</dd>' +
-            '<dt>Date paid</dt><dd>' + esc(s.claimed_date || 'not given') + '</dd>' +
-            '<dt>Their reference</dt><dd>' + esc(s.claimed_reference || 'not given') + '</dd>' +
-            (s.client_note ? '<dt>Note</dt><dd>' + esc(s.client_note) + '</dd>' : '') +
-            '<dt>Sent</dt><dd>' + esc(String(s.created_at || '').slice(0, 16)) + '</dd>' +
-            '<dt>File</dt><dd>' + esc(s.proof_original_name || '') + ' · ' + esc(s.proof_mime) + ' · ' + Math.round((s.proof_size || 0) / 1024) + ' KB</dd>' +
-            '</dl></div>';
+        // the three things to know first
+        h += '<div class="dk-facts dk-facts--3">' +
+            '<div class="dk-fact"><span class="dk-fact__k">Client says they paid</span><span class="dk-fact__v dk-fact__v--money">' + dkMoney(s.claimed_amount) + '</span></div>' +
+            '<div class="dk-fact"><span class="dk-fact__k">Booking still owes</span><span class="dk-fact__v dk-fact__v--warn dk-fact__v--money">' + dkMoney(b.outstanding) + '</span></div>' +
+            '<div class="dk-fact"><span class="dk-fact__k">Proof status</span><span class="dk-fact__v"><span class="dk-badge ' + (DK_BADGE[s.status] || '') + '">' + esc(STATUS_LABEL[s.status] || s.status) + '</span></span></div>' +
+            '</div>';
 
+        // anything to read before acting
         var warns = [];
         if (d.same_file_elsewhere && d.same_file_elsewhere.length) warns.push('The very same file was also sent for booking ' + d.same_file_elsewhere.map(function (x) { return '#' + x.booking_id; }).join(', ') + '. Check it is not being reused.');
         if (pending && parseFloat(s.claimed_amount) > (b.outstanding || 0) + 0.009) warns.push('The claimed amount is more than the booking still owes.');
         if (pending && ['CANCELLED', 'EXPIRED'].indexOf(String(b.status).toUpperCase()) >= 0) warns.push('This booking is ' + esc(b.status) + ' - a payment cannot be recorded against it. Reject the proof (and refund the client if they paid).');
-        if (warns.length) h += '<div class="eft-warn"><i class="fa-solid fa-triangle-exclamation" style="margin-right:6px;"></i>' + warns.join('<br>') + '</div>';
+        warns.forEach(function (w) { h += dkNotice('warn', w); });
 
-        h += '<div class="eft-card eft-proof"><h6>Proof of payment</h6><div id="eftProofPreview" class="eft-sub">Loading the file…</div><div class="eft-proof__actions" id="eftProofActions"></div></div>';
+        // 1. the proof itself
+        h += dkCard('file-invoice-dollar', 'Proof of payment',
+            '<div id="eftProofPreview" class="dk-media">Loading the file…</div><div class="dk-actions" id="eftProofActions"></div>');
 
+        // 2. what the client says
+        h += dkCard('user-pen', 'What the client says',
+            '<dl class="dk-rows">' +
+            dkRow('Amount paid', dkMoney(s.claimed_amount), 'dk-v--money') +
+            dkRow('Date paid', esc(s.claimed_date || 'not given'), 'dk-v--plain') +
+            dkRow('Their reference', esc(s.claimed_reference || 'not given'), 'dk-v--plain') +
+            (s.client_note ? dkRow('Note', esc(s.client_note), 'dk-v--plain') : '') +
+            dkRow('Sent', esc(String(s.created_at || '').slice(0, 16)), 'dk-v--plain') +
+            dkRow('File', esc(s.proof_original_name || '') + ' · ' + esc(s.proof_mime) + ' · ' + Math.round((s.proof_size || 0) / 1024) + ' KB', 'dk-v--plain') +
+            '</dl>');
+
+        // 3. the decision
         if (pending) {
             var today = new Date().toISOString().slice(0, 10);
-            h += '<div class="eft-card" id="eftDecision"><h6>Check it against the bank statement</h6>' +
-                '<div class="eft-verify">' +
-                '<div><label for="eftVerAmount">Amount received (R)</label><input type="text" id="eftVerAmount" class="atl-input" inputmode="decimal" value="' + esc(parseFloat(s.claimed_amount).toFixed(2)) + '" style="background:var(--atl-card);color:var(--atl-ink);"></div>' +
-                '<div><label for="eftVerDate">Date it reached the account</label><input type="date" id="eftVerDate" class="atl-input" max="' + today + '" value="' + esc(s.claimed_date || today) + '" style="background:var(--atl-card);color:var(--atl-ink);"></div>' +
-                '<div class="eft-wide"><label for="eftVerRef">Reference on the bank statement</label><input type="text" id="eftVerRef" class="atl-input" maxlength="100" value="' + esc(s.claimed_reference || '') + '" style="background:var(--atl-card);color:var(--atl-ink);"></div>' +
-                '<div class="eft-wide"><label for="eftVerNote">Internal note (optional)</label><input type="text" id="eftVerNote" class="atl-input" maxlength="500" style="background:var(--atl-card);color:var(--atl-ink);"></div>' +
-                '<div class="eft-wide" id="eftDupRow" style="display:none;"><label style="text-transform:none;letter-spacing:0;font-size:12px;color:var(--atl-ink);"><input type="checkbox" id="eftConfirmDup"> <span id="eftDupText"></span></label></div>' +
+            h += dkCard('scale-balanced', 'Check it against the bank statement',
+                '<p class="dk-hint" style="margin:0 0 var(--atl-sp-md);">Type what your <strong>bank</strong> shows, not what the client says. Approving records the payment on the booking.</p>' +
+                '<div class="dk-form">' +
+                '<div class="dk-field"><label class="dk-label" for="eftVerAmount">Amount received (R)</label><input type="text" id="eftVerAmount" class="atl-input" inputmode="decimal" value="' + esc(parseFloat(s.claimed_amount).toFixed(2)) + '"></div>' +
+                '<div class="dk-field"><label class="dk-label" for="eftVerDate">Date it reached the account</label><input type="date" id="eftVerDate" class="atl-input" max="' + today + '" value="' + esc(s.claimed_date || today) + '"></div>' +
+                '<div class="dk-field dk-field--wide"><label class="dk-label" for="eftVerRef">Reference on the bank statement</label><input type="text" id="eftVerRef" class="atl-input" maxlength="100" value="' + esc(s.claimed_reference || '') + '"></div>' +
+                '<div class="dk-field dk-field--wide"><label class="dk-label" for="eftVerNote">Internal note (optional)</label><input type="text" id="eftVerNote" class="atl-input" maxlength="500"></div>' +
+                '<div class="dk-field dk-field--wide" id="eftDupRow" style="display:none;"><label class="dk-check"><input type="checkbox" id="eftConfirmDup"> <span id="eftDupText"></span></label></div>' +
                 '</div>' +
-                '<div id="eftReviewMsg" class="eft-warn" style="display:none;margin-top:10px;" role="alert"></div>' +
-                '<div class="eft-actions">' +
-                '<button type="button" class="atl-btn atl-btn--primary" id="eftApproveBtn"><i class="fa-solid fa-check" style="margin-right:6px;"></i>Approve &amp; record payment</button>' +
-                '<span class="eft-spacer"></span>' +
+                '<div id="eftReviewMsg" class="dk-notice dk-notice--bad" style="display:none;margin-top:var(--atl-sp-md);" role="alert"></div>' +
+                '<div class="dk-actions" style="margin-top:var(--atl-sp-md);">' +
+                '<button type="button" class="atl-btn atl-btn--primary dk-actions__primary" id="eftApproveBtn"><i class="fa-solid fa-check" aria-hidden="true"></i> Approve &amp; record payment</button>' +
                 '<button type="button" class="atl-btn atl-btn--ghost" id="eftAskBtn">Ask for a new proof</button>' +
-                '<button type="button" class="atl-btn atl-btn--ghost eft-danger" id="eftRejectBtn">Reject</button>' +
+                '<button type="button" class="atl-btn atl-btn--danger" id="eftRejectBtn">Reject</button>' +
                 '</div>' +
-                '<div class="eft-reason" id="eftReasonBox" style="display:none;margin-top:12px;">' +
-                '<label for="eftReasonText" id="eftReasonLabel">Reason (the client will read this)</label>' +
-                '<textarea id="eftReasonText" class="atl-input" rows="3" maxlength="500" style="background:var(--atl-card);color:var(--atl-ink);width:100%;"></textarea>' +
-                '<div class="eft-actions"><button type="button" class="atl-btn atl-btn--primary" id="eftReasonSend">Send to client</button><button type="button" class="atl-btn atl-btn--ghost" id="eftReasonCancel">Cancel</button></div>' +
-                '</div></div>';
+                '<div id="eftReasonBox" style="display:none;margin-top:var(--atl-sp-md);">' +
+                '<div class="dk-field"><label class="dk-label" for="eftReasonText" id="eftReasonLabel">Reason (the client will read this)</label>' +
+                '<textarea id="eftReasonText" class="atl-input" rows="3" maxlength="500"></textarea></div>' +
+                '<div class="dk-actions" style="margin-top:var(--atl-sp-sm);"><button type="button" class="atl-btn atl-btn--primary" id="eftReasonSend">Send to client</button><button type="button" class="atl-btn atl-btn--ghost" id="eftReasonCancel">Cancel</button></div>' +
+                '</div>', { id: 'eftDecision' });
         } else {
-            h += '<div class="eft-card"><h6>Decision</h6><dl class="eft-kv">' +
-                '<dt>Status</dt><dd>' + esc(STATUS_LABEL[s.status] || s.status) + '</dd>' +
-                (s.status === 'approved' ? '<dt>Verified amount</dt><dd>' + money(s.verified_amount) + '</dd><dt>Bank reference</dt><dd>' + esc(s.verified_reference) + '</dd><dt>Received</dt><dd>' + esc(s.verified_date) + '</dd><dt>Ledger row</dt><dd>#' + s.transaction_id + '</dd>' : '') +
-                (s.review_note ? '<dt>Note</dt><dd>' + esc(s.review_note) + '</dd>' : '') +
-                '<dt>Reviewed</dt><dd>' + esc(String(s.reviewed_at || '').slice(0, 16)) + '</dd></dl></div>';
+            h += dkCard('scale-balanced', 'Decision',
+                '<dl class="dk-rows">' +
+                dkRow('Status', '<span class="dk-badge ' + (DK_BADGE[s.status] || '') + '">' + esc(STATUS_LABEL[s.status] || s.status) + '</span>') +
+                (s.status === 'approved' ? dkRow('Verified amount', dkMoney(s.verified_amount), 'dk-v--money') + dkRow('Bank reference', esc(s.verified_reference), 'dk-v--plain') + dkRow('Received', esc(s.verified_date), 'dk-v--plain') + dkRow('Ledger row', '#' + s.transaction_id, 'dk-v--plain') : '') +
+                (s.review_note ? dkRow('Note', esc(s.review_note), 'dk-v--plain') : '') +
+                dkRow('Reviewed', esc(String(s.reviewed_at || '').slice(0, 16)), 'dk-v--plain') +
+                '</dl>', { id: 'eftDecision' });
         }
-        h += '<div class="eft-card"><h6>History</h6>' + historyHtml(d.events) + '</div>';
+
+        // 4. the booking it belongs to
+        h += dkCard('calendar-check', 'Booking',
+            '<dl class="dk-rows">' +
+            dkRow('Client', esc(b.name) + ' <span class="dk-v--muted">' + esc(b.email) + '</span>') +
+            dkRow('Event', esc(b.event_name || b.event_type) + ' · ' + esc(b.date), 'dk-v--plain') +
+            dkRow('Booking', '#' + b.id + ' · ' + esc(b.status) + ' · ' + esc(b.payment_status), 'dk-v--plain') +
+            dkRow('Total / paid', dkMoney(b.total) + ' / ' + dkMoney(b.amount_paid), 'dk-v--money') +
+            dkRow('Still outstanding', dkMoney(b.outstanding), 'dk-v--money dk-v--warn') +
+            (inv ? dkRow('Invoice', esc(inv.invoice_number) + ' · ' + esc(inv.status), 'dk-v--plain') : '') +
+            (d.schedule ? dkRow('For instalment', esc(d.schedule.description) + ' (' + dkMoney(d.schedule.expected_amount) + ', due ' + esc(d.schedule.due_date) + ')', 'dk-v--plain') : '') +
+            '</dl>');
+
+        // 5. history (folded: it is long and rarely the point)
+        h += dkCard('clock-rotate-left', 'History', historyHtml(d.events), { open: false, note: (d.events || []).length + ' events' });
         return h;
     }
 
@@ -154,17 +188,17 @@
             proofUrl = URL.createObjectURL(blob);
             var isImage = /^image\//.test(mime);
             $('#eftProofPreview').html(isImage ? '<img alt="Proof of payment" src="' + proofUrl + '">' : '<i class="fa-solid fa-file-pdf" style="font-size:42px;color:var(--atl-clay);"></i>');
-            $('#eftProofActions').html('<a class="atl-btn atl-btn--ghost" href="' + proofUrl + '" target="_blank" rel="noopener" style="font-size:12px;">Open full size</a>' +
-                '<a class="atl-btn atl-btn--ghost" href="' + proofUrl + '" download="proof-of-payment-' + id + '" style="font-size:12px;">Download</a>');
+            $('#eftProofActions').html('<a class="atl-btn atl-btn--ghost" href="' + proofUrl + '" target="_blank" rel="noopener"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open full size</a>' +
+                '<a class="atl-btn atl-btn--ghost" href="' + proofUrl + '" download="proof-of-payment-' + id + '"><i class="fa-solid fa-download" aria-hidden="true"></i> Download</a>');
         }).catch(function () { $('#eftProofPreview').text('The file could not be loaded.'); });
     }
 
     function openReview(id) {
         currentReview = { id: id };
-        $('#eftReviewBody').html('<div class="eft-done">Loading…</div>');
+        $('#eftReviewBody').html('<div class="dk-empty"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading&hellip;</div>');
         if (window.openAtlDrawer) window.openAtlDrawer('eftReviewDrawer');
         return call('GET', '/api/admin/eft/submissions/' + id).then(function (r) {
-            if (!r.ok) { $('#eftReviewBody').html('<div class="eft-warn">' + esc(r.json.message || 'Could not load this proof of payment.') + '</div>'); return; }
+            if (!r.ok) { $('#eftReviewBody').html(dkNotice('bad', esc(r.json.message || 'Could not load this proof of payment.'))); return; }
             currentReview.detail = r.json;
             $('#eftReviewBody').html(renderReview(r.json));
             loadProof(id, r.json.submission.proof_mime);

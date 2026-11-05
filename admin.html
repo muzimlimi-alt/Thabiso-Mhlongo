@@ -106,7 +106,7 @@
     <link rel="stylesheet" href="css/admin/email-logs-2.css">
     <link rel="stylesheet" href="css/admin/15-services-catalogue.css?v=5">
     <!-- Admin Drawer Kit (.dk-*, opt in with .atl-drawer--dk): the shared inside of every converted drawer, built only from --atl-* tokens. -->
-    <link rel="stylesheet" href="css/admin/drawer-kit.css?v=1">
+    <link rel="stylesheet" href="css/admin/drawer-kit.css?v=3">
     <link rel="stylesheet" href="css/admin/legal-compliance.css">
     <link rel="stylesheet" href="css/admin/16-users-security-upload.css">
     <link rel="stylesheet" href="css/admin/about.css">
@@ -9430,6 +9430,7 @@
     </script>
     <script src="js/admin/bookings-pipeline.js?v=7"></script>
     <script src="js/admin/bookings-contracts.js"></script>
+    <script src="js/admin/drawer-kit.js?v=1"></script>
     <script src="js/admin/bookings-finance.js?v=4"></script>
     <script src="js/admin/bookings-quote.js?v=7"></script>
     <script src="js/admin/bookings-actions.js?v=2"></script>
@@ -11798,35 +11799,47 @@
     <!-- recordPaymentDrawer backdrop -->
     <div id="recordPaymentDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('recordPaymentDrawer')"></div>
     <!-- recordPaymentDrawer -->
-    <div id="recordPaymentDrawer" class="atl-drawer atl-drawer--480" role="dialog" aria-labelledby="recordPaymentDrawerLabel" aria-modal="true">
+    <div id="recordPaymentDrawer" class="atl-drawer atl-drawer--dk atl-drawer--480" role="dialog" aria-labelledby="recordPaymentDrawerLabel" aria-modal="true">
         <div class="atl-drawer__header">
-            <h5 id="recordPaymentDrawerLabel">Record Payment</h5>
+            <div class="dk-head">
+                <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-money-bill-wave"></i></span>
+                <div class="dk-head__text">
+                    <h5 id="recordPaymentDrawerLabel" class="dk-title">Record payment</h5>
+                    <p class="dk-sub">Add a payment the system did not capture</p>
+                </div>
+            </div>
             <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('recordPaymentDrawer')" aria-label="Close">×</button>
         </div>
         <div class="atl-drawer__body">
-                    <p style="color: var(--atl-muted);font-size:13px;margin-bottom:16px;">Manually record a payment for <strong id="rpBookingLabel" style="color: var(--atl-ink);"></strong>. Use this when PayFast's webhook did not update the booking automatically.</p>
-                    <input type="hidden" id="rpBookingId">
-                    <div class="form-group">
-                        <label class="mb-label" for="rpAmountPaid">Amount Paid (R) <span class="atl-req">*</span></label>
-                        <input type="number" id="rpAmountPaid" class="atl-input" min="0" step="0.01" placeholder="e.g. 17500.00" style="background: var(--atl-paper);color: var(--atl-ink);">
-                    </div>
-                    <div class="form-group">
-                        <label class="mb-label" for="rpPaymentStatus">Payment Status</label>
-                        <select id="rpPaymentStatus" class="atl-input" style="background: var(--atl-paper);color: var(--atl-ink);">
-                            <option value="PAID">✅ Fully Paid</option>
-                            <option value="DEPOSIT_PAID">💳 Deposit Paid (50%)</option>
-                            <option value="PARTIALLY_PAID">⏳ Partially Paid</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="mb-label" for="rpProofOfPayment">Proof of Payment <span class="atl-req">*</span></label>
-                        <input type="file" id="rpProofOfPayment" class="atl-input" accept=".pdf,.jpg,.jpeg,.png,.webp" style="background: var(--atl-paper);color: var(--atl-ink);padding:8px;">
-                        <small style="color: var(--atl-muted);font-size:11px;">PDF, JPEG, PNG, or WEBP. A bank app screenshot or EFT confirmation is fine. Required to save.</small>
-                    </div>
+            <input type="hidden" id="rpBookingId">
+            <div class="dk-notice dk-notice--info"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><div>Recording a payment for <strong id="rpBookingLabel"></strong>. Use this only when PayFast's webhook did not update the booking automatically.</div></div>
+
+            <section class="dk-panel" aria-labelledby="rpPanelPayment">
+                <div class="dk-panel__head"><i class="fa-solid fa-coins dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="rpPanelPayment">Payment</span></div>
+                <div class="dk-panel__body"><div class="dk-form">
+                    <div class="dk-field"><label class="dk-label" for="rpAmountPaid">Amount paid (R) <span class="atl-req">*</span></label>
+                        <input type="number" id="rpAmountPaid" class="atl-input" min="0" step="0.01" placeholder="e.g. 17500.00"></div>
+                    <div class="dk-field"><label class="dk-label" for="rpPaymentStatus">Payment status</label>
+                        <select id="rpPaymentStatus" class="atl-input">
+                            <option value="PAID">Fully paid</option>
+                            <option value="DEPOSIT_PAID">Deposit paid (50%)</option>
+                            <option value="PARTIALLY_PAID">Partially paid</option>
+                        </select></div>
+                </div></div>
+            </section>
+
+            <section class="dk-panel" aria-labelledby="rpPanelProof">
+                <div class="dk-panel__head"><i class="fa-solid fa-file-circle-check dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="rpPanelProof">Proof of payment</span></div>
+                <div class="dk-panel__body"><div class="dk-field">
+                    <label class="dk-label" for="rpProofOfPayment">Attach the proof <span class="atl-req">*</span></label>
+                    <input type="file" id="rpProofOfPayment" class="atl-input" accept=".pdf,.jpg,.jpeg,.png,.webp">
+                    <span class="dk-hint">PDF, JPEG, PNG or WEBP. A bank app screenshot or EFT confirmation is fine. Required to save.</span>
+                </div></div>
+            </section>
         </div>
         <div class="atl-drawer__footer">
-                    <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('recordPaymentDrawer')">Cancel</button>
-                    <button type="button" id="rpSaveBtn" class="atl-btn atl-btn--primary"><i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Payment</button>
+            <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('recordPaymentDrawer')">Cancel</button>
+            <button type="button" id="rpSaveBtn" class="atl-btn atl-btn--primary"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save payment</button>
         </div>
     </div>
 
@@ -11956,205 +11969,181 @@
     <!-- expenseDrawer backdrop -->
     <div id="expenseDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('expenseDrawer')"></div>
     <!-- expenseDrawer -->
-    <div id="expenseDrawer" class="atl-drawer atl-drawer--600" role="dialog" aria-labelledby="expenseDrawerLabel" aria-modal="true">
+    <div id="expenseDrawer" class="atl-drawer atl-drawer--dk atl-drawer--600" role="dialog" aria-labelledby="expenseDrawerLabel" aria-modal="true">
         <div class="atl-drawer__header">
-            <h5 id="expenseDrawerLabel">Log Expense</h5>
+            <div class="dk-head">
+                <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-receipt"></i></span>
+                <div class="dk-head__text">
+                    <h5 id="expenseDrawerLabel" class="dk-title">Log expense</h5>
+                    <p class="dk-sub">Record a business cost, optionally against a booking</p>
+                </div>
+            </div>
             <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('expenseDrawer')" aria-label="Close">×</button>
         </div>
         <div class="atl-drawer__body">
-                    <input type="hidden" id="expenseModalBookingId">
-                    <input type="hidden" id="expenseEditId" value="">
-                    <div class="row">
-                        <div class="col-md-6 form-group">
-                            <label class="mb-label" for="expenseCategory">Category <span class="atl-req">*</span></label>
-                            <select id="expenseCategory" class="atl-input" style="background: var(--atl-card);color: var(--atl-ink);border-radius:6px;">
-                                <option value="">Select Category…</option>
-                                <option value="mileage">Mileage</option>
-                                <option value="airfare">Airfare</option>
-                                <option value="accommodation">Accommodation</option>
-                                <option value="meals">Meals</option>
-                                <option value="per_diem">Per Diem</option>
-                                <option value="parking_tolls">Parking &amp; Tolls</option>
-                                <option value="marketing">Marketing</option>
-                                <option value="props">Props</option>
-                                <option value="misc">Miscellaneous</option>
-                            </select>
+            <input type="hidden" id="expenseModalBookingId">
+            <input type="hidden" id="expenseEditId" value="">
+
+            <section class="dk-panel" aria-labelledby="expPanelWhat">
+                <div class="dk-panel__head"><i class="fa-solid fa-tag dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="expPanelWhat">What was it?</span></div>
+                <div class="dk-panel__body"><div class="dk-form">
+                    <div class="dk-field"><label class="dk-label" for="expenseCategory">Category <span class="atl-req">*</span></label>
+                        <select id="expenseCategory" class="atl-input">
+                            <option value="">Select category…</option>
+                            <option value="mileage">Mileage</option>
+                            <option value="airfare">Airfare</option>
+                            <option value="accommodation">Accommodation</option>
+                            <option value="meals">Meals</option>
+                            <option value="per_diem">Per diem</option>
+                            <option value="parking_tolls">Parking &amp; tolls</option>
+                            <option value="marketing">Marketing</option>
+                            <option value="props">Props</option>
+                            <option value="misc">Miscellaneous</option>
+                        </select></div>
+                    <div class="dk-field"><label class="dk-label" for="expenseAmount">Amount (R) <span class="atl-req">*</span></label>
+                        <input type="number" id="expenseAmount" class="atl-input" placeholder="0.00" min="0" step="0.01"></div>
+                    <div class="dk-field dk-field--wide"><label class="dk-label" for="expenseDescription">Description <span class="atl-req">*</span></label>
+                        <input type="text" id="expenseDescription" class="atl-input" placeholder="e.g. Flight CPT-JNB for Cape Town show"></div>
+                    <div class="dk-field dk-field--wide"><label class="dk-label" for="expenseVendor">Vendor / supplier <span class="dk-hint">(optional)</span></label>
+                        <input type="text" id="expenseVendor" class="atl-input" placeholder="e.g. Computicket, Bidvest, Pep"></div>
+                </div></div>
+            </section>
+
+            <!-- Mileage calculator (shown when the category is Mileage) -->
+            <section id="expMileageBlock" class="dk-panel" style="display:none;" aria-labelledby="expPanelMileage">
+                <div class="dk-panel__head"><i class="fa-solid fa-gauge-high dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="expPanelMileage">Mileage calculator (SARS)</span></div>
+                <div class="dk-panel__body"><div class="dk-form">
+                    <div class="dk-field"><label class="dk-label" for="expStartOdo">Start odometer (km)</label><input type="number" id="expStartOdo" class="atl-input" placeholder="e.g. 45200" min="0"></div>
+                    <div class="dk-field"><label class="dk-label" for="expEndOdo">End odometer (km)</label><input type="number" id="expEndOdo" class="atl-input" placeholder="e.g. 45520" min="0"></div>
+                    <div class="dk-field"><label class="dk-label" for="expTotalKm">Total km <span class="dk-hint">(automatic)</span></label><input type="number" id="expTotalKm" class="atl-input" placeholder="Auto" readonly></div>
+                    <div class="dk-field"><label class="dk-label" for="expRatePerKm">Rate per km (R)</label><input type="number" id="expRatePerKm" class="atl-input" placeholder="4.84" min="0" step="0.01" value="4.84"></div>
+                </div></div>
+            </section>
+
+            <!-- Per diem calculator (shown when the category is Per diem) -->
+            <section id="expPerDiemBlock" class="dk-panel" style="display:none;" aria-labelledby="expPanelPerDiem">
+                <div class="dk-panel__head"><i class="fa-solid fa-calendar-days dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="expPanelPerDiem">Per diem calculator (SARS)</span></div>
+                <div class="dk-panel__body"><div class="dk-form">
+                    <div class="dk-field"><label class="dk-label" for="expPerDiemDays">Number of days</label><input type="number" id="expPerDiemDays" class="atl-input" placeholder="e.g. 3" min="0.5" step="0.5"></div>
+                    <div class="dk-field"><label class="dk-label" for="expPerDiemRate">Daily rate (R)</label><input type="number" id="expPerDiemRate" class="atl-input" placeholder="522.00" min="0" step="0.01"></div>
+                </div></div>
+            </section>
+
+            <section class="dk-panel" aria-labelledby="expPanelWhen">
+                <div class="dk-panel__head"><i class="fa-solid fa-calendar-check dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="expPanelWhen">When &amp; for which booking</span></div>
+                <div class="dk-panel__body"><div class="dk-form">
+                    <div class="dk-field"><label class="dk-label" for="expenseDate">Date <span class="atl-req">*</span></label>
+                        <input type="date" id="expenseDate" class="atl-input"></div>
+                    <div class="dk-field"><label class="dk-label" for="expenseBookingSelect">Link to booking <span class="dk-hint">(optional)</span></label>
+                        <select id="expenseBookingSelect" class="atl-input"><option value="">General overhead (no booking)</option></select></div>
+                </div></div>
+            </section>
+
+            <section class="dk-panel" aria-labelledby="expPanelReceipt">
+                <div class="dk-panel__head"><i class="fa-solid fa-paperclip dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="expPanelReceipt">Receipt &amp; VAT</span></div>
+                <div class="dk-panel__body"><div class="dk-form">
+                    <div class="dk-field dk-field--wide"><label class="dk-label" for="expenseReceiptUrl">Receipt <span class="dk-hint">(optional: paste a link or upload a file)</span></label>
+                        <div class="dk-field__row">
+                            <input type="text" id="expenseReceiptUrl" class="atl-input" placeholder="https://… or upload a file →">
+                            <label for="expenseReceiptFile" class="atl-btn atl-btn--ghost" title="Upload receipt image or PDF"><i class="fa-solid fa-paperclip" aria-hidden="true"></i> Upload
+                                <input type="file" id="expenseReceiptFile" accept="image/*,.pdf" style="display:none;"></label>
                         </div>
-                        <div class="col-md-6 form-group">
-                            <label class="mb-label" for="expenseAmount">Amount (R) <span class="atl-req">*</span></label>
-                            <input type="number" id="expenseAmount" class="atl-input" placeholder="0.00" min="0" step="0.01" style="background: var(--atl-card);color: var(--atl-ink);border-radius:6px;">
-                        </div>
-                    </div>
-                    <!-- Mileage Calculator (shown when category = mileage) -->
-                    <div id="expMileageBlock" style="display:none;background:var(--atl-surface2);border:1px solid var(--atl-line);border-radius:8px;padding:14px;margin-bottom:12px;">
-                        <div style="font-size:11px;font-weight:700;color:var(--atl-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;"><i class="fa-solid fa-gauge-high" style="margin-right:5px;"></i>Mileage Calculator (SARS)</div>
-                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                            <div style="flex:1;min-width:110px;">
-                                <label class="mb-label" style="font-size:11px;">Start Odometer (km)</label>
-                                <input type="number" id="expStartOdo" class="atl-input" placeholder="e.g. 45200" min="0" style="background:var(--atl-card);color:var(--atl-ink);">
-                            </div>
-                            <div style="flex:1;min-width:110px;">
-                                <label class="mb-label" style="font-size:11px;">End Odometer (km)</label>
-                                <input type="number" id="expEndOdo" class="atl-input" placeholder="e.g. 45520" min="0" style="background:var(--atl-card);color:var(--atl-ink);">
-                            </div>
-                            <div style="flex:1;min-width:90px;">
-                                <label class="mb-label" style="font-size:11px;">Total KM</label>
-                                <input type="number" id="expTotalKm" class="atl-input" placeholder="Auto" readonly style="background:var(--atl-surface2);color:var(--atl-muted);">
-                            </div>
-                            <div style="flex:1;min-width:100px;">
-                                <label class="mb-label" style="font-size:11px;">Rate/KM (R)</label>
-                                <input type="number" id="expRatePerKm" class="atl-input" placeholder="4.84" min="0" step="0.01" value="4.84" style="background:var(--atl-card);color:var(--atl-ink);">
-                            </div>
-                        </div>
-                    </div>
-                    <!-- Per Diem Calculator (shown when category = per_diem) -->
-                    <div id="expPerDiemBlock" style="display:none;background:var(--atl-surface2);border:1px solid var(--atl-line);border-radius:8px;padding:14px;margin-bottom:12px;">
-                        <div style="font-size:11px;font-weight:700;color:var(--atl-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;"><i class="fa-solid fa-calendar-days" style="margin-right:5px;"></i>Per Diem Calculator (SARS)</div>
-                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                            <div style="flex:1;min-width:110px;">
-                                <label class="mb-label" style="font-size:11px;">Number of Days</label>
-                                <input type="number" id="expPerDiemDays" class="atl-input" placeholder="e.g. 3" min="0.5" step="0.5" style="background:var(--atl-card);color:var(--atl-ink);">
-                            </div>
-                            <div style="flex:1;min-width:110px;">
-                                <label class="mb-label" style="font-size:11px;">Daily Rate (R)</label>
-                                <input type="number" id="expPerDiemRate" class="atl-input" placeholder="522.00" min="0" step="0.01" style="background:var(--atl-card);color:var(--atl-ink);">
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="mb-label" for="expenseDescription">Description <span class="atl-req">*</span></label>
-                        <input type="text" id="expenseDescription" class="atl-input" placeholder="e.g. Flight CPT-JNB for Cape Town show" style="background: var(--atl-card);color: var(--atl-ink);border-radius:6px;">
-                    </div>
-                    <div class="form-group">
-                        <label class="mb-label" for="expenseVendor">Vendor / Supplier <span style="font-weight:400;">(optional)</span></label>
-                        <input type="text" id="expenseVendor" class="atl-input" placeholder="e.g. Computicket, Bidvest, Pep" style="background: var(--atl-card);color: var(--atl-ink);border-radius:6px;">
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 form-group">
-                            <label class="mb-label" for="expenseDate">Date <span class="atl-req">*</span></label>
-                            <input type="date" id="expenseDate" class="atl-input" style="background: var(--atl-card);color: var(--atl-ink);border-radius:6px;">
-                        </div>
-                        <div class="col-md-6 form-group">
-                            <label class="mb-label" for="expenseBookingSelect">Link to Booking <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
-                            <select id="expenseBookingSelect" class="atl-input" style="background: var(--atl-card);color: var(--atl-ink);border-radius:6px;">
-                                <option value="">General Overhead (no booking)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="mb-label" for="expenseReceiptUrl">Receipt <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
-                        <div style="display:flex;gap:8px;align-items:center;">
-                            <input type="text" id="expenseReceiptUrl" class="atl-input" placeholder="https://… or upload a file →" style="flex:1;background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                            <label for="expenseReceiptFile" class="atl-btn atl-btn--ghost" style="cursor:pointer;white-space:nowrap;margin:0;padding:8px 12px;" title="Upload receipt image or PDF">
-                                <i class="fa-solid fa-paperclip" style="margin-right:5px;"></i>Upload
-                                <input type="file" id="expenseReceiptFile" accept="image/*,.pdf" style="display:none;">
-                            </label>
-                        </div>
-                        <div id="expReceiptUploadStatus" style="font-size:11px;color:var(--atl-muted);margin-top:4px;"></div>
-                    </div>
-                    <!-- VAT Fields -->
-                    <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                        <div style="flex:1;min-width:130px;" class="form-group">
-                            <label class="mb-label" for="expVatPaid">VAT Paid (R) <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
-                            <input type="number" id="expVatPaid" class="atl-input" placeholder="0.00" min="0" step="0.01" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                        </div>
-                        <div style="flex:1;min-width:100px;" class="form-group">
-                            <label class="mb-label" for="expVatRate">VAT Rate (%)</label>
-                            <input type="number" id="expVatRate" class="atl-input" placeholder="15" min="0" max="100" step="0.5" value="15" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                        </div>
-                    </div>
-                    <div id="expenseModalMsg" style="font-size:13px;margin-top:8px;"></div>
+                        <span id="expReceiptUploadStatus" class="dk-hint" role="status"></span></div>
+                    <div class="dk-field"><label class="dk-label" for="expVatPaid">VAT paid (R) <span class="dk-hint">(optional)</span></label>
+                        <input type="number" id="expVatPaid" class="atl-input" placeholder="0.00" min="0" step="0.01"></div>
+                    <div class="dk-field"><label class="dk-label" for="expVatRate">VAT rate (%)</label>
+                        <input type="number" id="expVatRate" class="atl-input" placeholder="15" min="0" max="100" step="0.5" value="15"></div>
+                </div></div>
+            </section>
+            <div id="expenseModalMsg" class="dk-msg" aria-live="polite"></div>
         </div>
         <div class="atl-drawer__footer">
-                    <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('expenseDrawer')">Cancel</button>
-                    <button type="button" id="expenseSaveBtn" class="atl-btn atl-btn--primary">
-                        <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Expense
-                    </button>
+            <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('expenseDrawer')">Cancel</button>
+            <button type="button" id="expenseSaveBtn" class="atl-btn atl-btn--primary"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save expense</button>
         </div>
     </div>
 
     <!-- manualTxDrawer backdrop -->
     <div id="manualTxDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('manualTxDrawer')"></div>
     <!-- manualTxDrawer -->
-    <div id="manualTxDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="manualTxDrawerLabel" aria-modal="true">
+    <div id="manualTxDrawer" class="atl-drawer atl-drawer--dk atl-drawer--520" role="dialog" aria-labelledby="manualTxDrawerLabel" aria-modal="true">
         <div class="atl-drawer__header">
-            <h5 id="manualTxDrawerLabel">Log Adjustment / Manual Transaction</h5>
+            <div class="dk-head">
+                <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-scale-balanced"></i></span>
+                <div class="dk-head__text">
+                    <h5 id="manualTxDrawerLabel" class="dk-title">Log adjustment / manual transaction</h5>
+                    <p class="dk-sub">A payment, refund or correction made outside the system</p>
+                </div>
+            </div>
             <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('manualTxDrawer')" aria-label="Close">×</button>
         </div>
         <div class="atl-drawer__body">
-                    <div class="row">
-                        <div class="col-md-6 form-group">
-                            <label class="mb-label" for="manualTxType">Transaction Type <span class="atl-req">*</span></label>
-                            <select id="manualTxType" class="atl-input" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                                <option value="payment">Payment Received</option>
-                                <option value="refund">Refund Issued</option>
-                                <option value="adjustment">Adjustment / Correction</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 form-group" id="manualTxDirBlock" style="display:none;">
-                            <label class="mb-label" for="manualTxDirection">Adjustment Direction <span class="atl-req">*</span></label>
-                            <select id="manualTxDirection" class="atl-input" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                                <option value="credit">Credit / Discount (Reduces Total)</option>
-                                <option value="debit">Debit / Surcharge (Increases Total)</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 form-group">
-                            <label class="mb-label" for="manualTxAmount">Amount (R) <span class="atl-req">*</span></label>
-                            <input type="number" id="manualTxAmount" class="atl-input" placeholder="0.00" min="0.01" step="0.01" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                        </div>
-                        <div class="col-md-6 form-group" id="manualTxMethodBlock">
-                            <label class="mb-label" for="manualTxMethod">Payment Method</label>
-                            <select id="manualTxMethod" class="atl-input" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                                <option value="">Select method…</option>
-                                <option value="bank_transfer">EFT / Bank Transfer</option>
-                                <option value="cash">Cash</option>
-                                <option value="credit_card">Card</option>
-                                <option value="check">Cheque</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 form-group">
-                            <label class="mb-label" for="manualTxDate">Date <span class="atl-req">*</span></label>
-                            <input type="date" id="manualTxDate" class="atl-input" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                        </div>
-                        <div class="col-md-6 form-group">
-                            <label class="mb-label" for="manualTxReference">Reference / Proof No.</label>
-                            <input type="text" id="manualTxReference" class="atl-input" placeholder="e.g. POP123" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label class="mb-label" for="manualTxBooking">Link to Booking <span style="font-weight:400;text-transform:none;">(optional)</span></label>
-                        <select id="manualTxBooking" class="atl-input" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;">
-                            <option value="">No booking</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label class="mb-label" for="manualTxNotes">Notes</label>
-                        <textarea id="manualTxNotes" class="atl-input" rows="3" placeholder="Optional notes about this transaction…" style="background:var(--atl-card);color:var(--atl-ink);border-radius:6px;resize:vertical;"></textarea>
-                    </div>
-                    <div id="manualTxMsg" style="font-size:13px;margin-top:8px;"></div>
+            <section class="dk-panel" aria-labelledby="mtPanelWhat">
+                <div class="dk-panel__head"><i class="fa-solid fa-right-left dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="mtPanelWhat">Transaction</span></div>
+                <div class="dk-panel__body"><div class="dk-form">
+                    <div class="dk-field"><label class="dk-label" for="manualTxType">Type <span class="atl-req">*</span></label>
+                        <select id="manualTxType" class="atl-input">
+                            <option value="payment">Payment received</option>
+                            <option value="refund">Refund issued</option>
+                            <option value="adjustment">Adjustment / correction</option>
+                        </select></div>
+                    <div class="dk-field" id="manualTxDirBlock" style="display:none;"><label class="dk-label" for="manualTxDirection">Adjustment direction <span class="atl-req">*</span></label>
+                        <select id="manualTxDirection" class="atl-input">
+                            <option value="credit">Credit / discount (reduces total)</option>
+                            <option value="debit">Debit / surcharge (increases total)</option>
+                        </select></div>
+                    <div class="dk-field"><label class="dk-label" for="manualTxAmount">Amount (R) <span class="atl-req">*</span></label>
+                        <input type="number" id="manualTxAmount" class="atl-input" placeholder="0.00" min="0.01" step="0.01"></div>
+                    <div class="dk-field" id="manualTxMethodBlock"><label class="dk-label" for="manualTxMethod">Payment method</label>
+                        <select id="manualTxMethod" class="atl-input">
+                            <option value="">Select method…</option>
+                            <option value="bank_transfer">EFT / bank transfer</option>
+                            <option value="cash">Cash</option>
+                            <option value="credit_card">Card</option>
+                            <option value="check">Cheque</option>
+                            <option value="other">Other</option>
+                        </select></div>
+                </div></div>
+            </section>
+
+            <section class="dk-panel" aria-labelledby="mtPanelDetails">
+                <div class="dk-panel__head"><i class="fa-solid fa-list-check dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="mtPanelDetails">Details</span></div>
+                <div class="dk-panel__body"><div class="dk-form">
+                    <div class="dk-field"><label class="dk-label" for="manualTxDate">Date <span class="atl-req">*</span></label>
+                        <input type="date" id="manualTxDate" class="atl-input"></div>
+                    <div class="dk-field"><label class="dk-label" for="manualTxReference">Reference / proof no.</label>
+                        <input type="text" id="manualTxReference" class="atl-input" placeholder="e.g. POP123"></div>
+                    <div class="dk-field dk-field--wide"><label class="dk-label" for="manualTxBooking">Booking <span class="atl-req">*</span></label>
+                        <select id="manualTxBooking" class="atl-input"><option value="">Select a booking…</option></select>
+                        <span class="dk-hint">Every transaction is recorded against a booking.</span></div>
+                    <div class="dk-field dk-field--wide"><label class="dk-label" for="manualTxNotes">Notes</label>
+                        <textarea id="manualTxNotes" class="atl-input" rows="3" placeholder="Optional notes about this transaction…"></textarea></div>
+                </div></div>
+            </section>
+            <div id="manualTxMsg" class="dk-msg" aria-live="polite"></div>
         </div>
         <div class="atl-drawer__footer">
-                    <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('manualTxDrawer')">Cancel</button>
-                    <button type="button" id="manualTxSaveBtn" class="atl-btn atl-btn--primary">
-                        <i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Transaction
-                    </button>
+            <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('manualTxDrawer')">Cancel</button>
+            <button type="button" id="manualTxSaveBtn" class="atl-btn atl-btn--primary"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save transaction</button>
         </div>
     </div>
 
     <!-- eftReviewDrawer: verify one client proof of payment (js/admin/eft.js) -->
     <div id="eftReviewDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('eftReviewDrawer')"></div>
-    <div id="eftReviewDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="eftReviewDrawerLabel" aria-modal="true">
+    <div id="eftReviewDrawer" class="atl-drawer atl-drawer--dk atl-drawer--600" role="dialog" aria-labelledby="eftReviewDrawerLabel" aria-modal="true">
         <div class="atl-drawer__header">
-            <h5 id="eftReviewDrawerLabel">Review proof of payment</h5>
+            <div class="dk-head">
+                <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-receipt"></i></span>
+                <div class="dk-head__text">
+                    <h5 id="eftReviewDrawerLabel" class="dk-title">Review proof of payment</h5>
+                    <p class="dk-sub">Check the client's proof against your bank statement</p>
+                </div>
+            </div>
             <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('eftReviewDrawer')" aria-label="Close">×</button>
         </div>
         <div class="atl-drawer__body">
-            <div id="eftReviewBody" class="eft-review"></div>
+            <!-- written by js/admin/eft.js (renderReview) in the drawer kit's building blocks -->
+            <div id="eftReviewBody" class="dk-stack"></div>
         </div>
     </div>
 
@@ -15281,55 +15270,57 @@
 <!-- bookingFinancialsDrawer backdrop -->
 <div id="bookingFinancialsDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('bookingFinancialsDrawer')"></div>
 <!-- bookingFinancialsDrawer -->
-<div id="bookingFinancialsDrawer" class="atl-drawer atl-drawer--640" role="dialog" aria-labelledby="bookingFinancialsDrawerLabel" aria-modal="true">
+<div id="bookingFinancialsDrawer" class="atl-drawer atl-drawer--dk atl-drawer--640" role="dialog" aria-labelledby="bookingFinancialsDrawerLabel" aria-modal="true">
     <div class="atl-drawer__header">
-        <h5 id="bookingFinancialsDrawerLabel">
-            <i class="fa-solid fa-chart-line" style="margin-right:8px;color:var(--atl-amber);"></i>
-            Financial Controls: <span id="bf-modal-title"></span>
-        </h5>
+        <div class="dk-head">
+            <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-chart-line"></i></span>
+            <div class="dk-head__text">
+                <h5 id="bookingFinancialsDrawerLabel" class="dk-title"><span id="bf-modal-title">Financial controls</span></h5>
+                <p class="dk-sub">Payments, profit and documents for this booking</p>
+            </div>
+        </div>
         <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('bookingFinancialsDrawer')" aria-label="Close">×</button>
     </div>
     <div class="atl-drawer__body">
-                            <!-- Payment Ledger -->
-                            <div style="background: var(--atl-card);border: 1px solid var(--atl-line);border-radius:10px;padding:16px;margin-bottom:20px;">
-                                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-                                    <span style="font-size:12px;color: var(--atl-muted);text-transform:uppercase;letter-spacing:1px;">Payment Status</span>
-                                    <span id="bf-pay-status" style="padding:3px 12px;border-radius:20px;font-size:11px;font-weight:700;"></span>
-                                </div>
-                                <div class="atl-col3-grid">
-                                    <div style="background:var(--atl-surface2);border-radius:8px;padding:12px;text-align:center;">
-                                        <div style="font-size:11px;color: var(--atl-muted);margin-bottom:4px;">Quoted Amount</div>
-                                        <div id="bf-total" style="font-size:16px;color: var(--atl-ink);font-weight:700;"></div>
-                                    </div>
-                                    <div style="background:var(--atl-surface2);border-radius:8px;padding:12px;text-align:center;">
-                                        <div style="font-size:11px;color: var(--atl-muted);margin-bottom:4px;">Paid to Date</div>
-                                        <div id="bf-paid" style="font-size:16px;color:var(--atl-sage);font-weight:700;"></div>
-                                    </div>
-                                    <div style="background:var(--atl-surface2);border-radius:8px;padding:12px;text-align:center;">
-                                        <div style="font-size:11px;color: var(--atl-amber);margin-bottom:4px;">Balance Due</div>
-                                        <div id="bf-outstanding" style="font-size:16px;color:var(--atl-orange);font-weight:700;"></div>
-                                    </div>
-                                </div>
-                                <div style="font-size:11px;color:var(--atl-muted-dim);" id="bf-last-payment"></div>
-                            </div>
-                            <!-- P&L Card -->
-                            <div id="bf-pl-card" style="background:var(--atl-amber-dim);border:1px solid var(--atl-amber-border);border-radius:10px;padding:16px;margin-bottom:20px;">
-                                <i class="fa-solid fa-spinner fa-spin" style="color: var(--atl-muted);"></i> Loading P&amp;L&hellip;
-                            </div>
-                            <!-- Documents & Actions -->
-                            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:10px;margin-bottom:16px;">
-                                <button type="button" id="bf-btn-quote" class="atl-btn atl-btn--ghost bk-action-quote" style="font-size:12px;">
-                                    <i class="fa-solid fa-file-invoice"></i> Generate Quote
-                                </button>
-                                <button type="button" id="bf-btn-invoice" class="atl-btn atl-btn--primary" style="font-size:12px;">
-                                    <i class="fa-solid fa-file-circle-check"></i> Generate Invoice
-                                </button>
-                                <button type="button" id="bf-btn-expense" class="atl-btn atl-btn--danger" style="font-size:12px;">
-                                    <i class="fa-solid fa-plus"></i> Log Expense
-                                </button>
-                            </div>
-                            <!-- Document links -->
-                            <div id="bf-doc-links" style="font-size:12px;color:var(--atl-muted-dim);"></div>
+        <!-- The three amounts you look for first -->
+        <div class="dk-facts dk-facts--3">
+            <div class="dk-fact"><span class="dk-fact__k">Quoted amount</span><span class="dk-fact__v dk-fact__v--money" id="bf-total"></span></div>
+            <div class="dk-fact"><span class="dk-fact__k">Paid to date</span><span class="dk-fact__v dk-fact__v--ok dk-fact__v--money" id="bf-paid"></span></div>
+            <div class="dk-fact"><span class="dk-fact__k">Balance due</span><span class="dk-fact__v dk-fact__v--warn dk-fact__v--money" id="bf-outstanding"></span></div>
+        </div>
+
+        <details class="dk-card" open>
+            <summary><i class="fa-solid fa-wallet dk-card__icon" aria-hidden="true"></i><span class="dk-card__title">Payment</span><i class="fa-solid fa-chevron-up dk-card__chev" aria-hidden="true"></i></summary>
+            <div class="dk-card__body">
+                <dl class="dk-rows">
+                    <div class="dk-row"><dt class="dk-k">Status</dt><dd class="dk-v"><span class="dk-badge" id="bf-pay-status"></span></dd></div>
+                    <div class="dk-row"><dt class="dk-k">Last payment</dt><dd class="dk-v dk-v--plain" id="bf-last-payment"></dd></div>
+                </dl>
+            </div>
+        </details>
+
+        <details class="dk-card" open>
+            <summary><i class="fa-solid fa-chart-pie dk-card__icon" aria-hidden="true"></i><span class="dk-card__title">Profit &amp; loss</span><i class="fa-solid fa-chevron-up dk-card__chev" aria-hidden="true"></i></summary>
+            <div class="dk-card__body">
+                <!-- rows written by js/admin/bookings-pipeline.js -->
+                <div id="bf-pl-card"><div class="dk-empty"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading profit &amp; loss&hellip;</div></div>
+                <div class="dk-actions">
+                    <button type="button" id="bf-btn-expense" class="atl-btn atl-btn--ghost"><i class="fa-solid fa-plus" aria-hidden="true"></i> Log expense</button>
+                </div>
+            </div>
+        </details>
+
+        <details class="dk-card" open>
+            <summary><i class="fa-solid fa-folder-open dk-card__icon" aria-hidden="true"></i><span class="dk-card__title">Documents</span><i class="fa-solid fa-chevron-up dk-card__chev" aria-hidden="true"></i></summary>
+            <div class="dk-card__body">
+                <!-- rows written by js/admin/bookings-pipeline.js -->
+                <div id="bf-doc-links"></div>
+                <div class="dk-actions">
+                    <button type="button" id="bf-btn-quote" class="atl-btn atl-btn--ghost bk-action-quote"><i class="fa-solid fa-file-invoice" aria-hidden="true"></i> Generate quote</button>
+                    <button type="button" id="bf-btn-invoice" class="atl-btn atl-btn--primary"><i class="fa-solid fa-file-circle-check" aria-hidden="true"></i> Generate invoice</button>
+                </div>
+            </div>
+        </details>
     </div>
     <div class="atl-drawer__footer">
         <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('bookingFinancialsDrawer')">Close</button>
@@ -15436,7 +15427,7 @@
 <!-- dealViewDrawer backdrop -->
 <div id="dealViewDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('dealViewDrawer')"></div>
 <!-- dealViewDrawer -->
-<aside id="dealViewDrawer" class="atl-drawer atl-drawer--760" role="dialog" aria-labelledby="dvTitle" aria-modal="true">
+<aside id="dealViewDrawer" class="atl-drawer atl-drawer--dk-lite atl-drawer--760" role="dialog" aria-labelledby="dvTitle" aria-modal="true">
     <div class="atl-drawer__header">
         <div class="dv-breadcrumb">Bookings <span aria-hidden="true">&rsaquo;</span> <span class="cur" id="dvBreadcrumbCur">#-</span></div>
         <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('dealViewDrawer')" aria-label="Close deal view">&times;</button>

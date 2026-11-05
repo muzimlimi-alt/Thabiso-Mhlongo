@@ -58,13 +58,13 @@ async function booking(tag, days, paid, refund) {
 
         const plCard = async (id) => {
             await p.evaluate((id) => { const b = document.createElement('button'); b.className = 'bk-action-financials'; b.setAttribute('data-id', id); document.body.appendChild(b); b.click(); b.remove(); }, id);
-            await p.waitForFunction(() => /Net Profit/.test((document.getElementById('bf-pl-card') || {}).textContent || ''), { timeout: 20000 });
+            await p.waitForFunction(() => /Net profit/i.test((document.getElementById('bf-pl-card') || {}).textContent || ''), { timeout: 20000 });   // sentence case since the admin drawer kit
             const text = await p.evaluate(() => document.getElementById('bf-pl-card').textContent.replace(/\s+/g, ' ').trim());
             await p.evaluate(() => window.closeAtlDrawer && window.closeAtlDrawer('bookingFinancialsDrawer'));
             await sleep(300);
             return text;
         };
-        const money = (text, label) => { const m = new RegExp(label + '\\s*(-\\s*)?R\\s*([\\d.,\\s]+)').exec(text); return m ? (m[1] ? '-' : '') + m[2].replace(/[\s,]/g, '') : null; };
+        const money = (text, label) => { const m = new RegExp(label + '\\s*(-\\s*)?R\\s*([\\d.,\\s]+)', 'i').exec(text); return m ? (m[1] ? '-' : '') + m[2].replace(/[\s,]/g, '') : null; };
 
         let t = await plCard(refunded);
         ok(money(t, 'Revenue') === '120000.00', 'a refunded booking: Revenue is the agreed R120,000.00', t);

@@ -204,7 +204,7 @@
 
         <div class="atl-det-card" id="ctb-preview-card-${bookingId}" style="display:none;">
           <h5 class="atl-det-title"><i class="fa-solid fa-eye"></i>Preview</h5>
-          <iframe class="ctb-preview-frame" style="width:100%;height:420px;border:1px solid var(--atl-border);border-radius:6px;background:#fff;"></iframe>
+          <iframe class="ctb-preview-frame" style="width:100%;height:420px;border:1px solid var(--atl-line-strong);border-radius:6px;background:#fff;"></iframe>
         </div>
 
         <div class="atl-det-card">
@@ -372,7 +372,7 @@
                         if ($advFiles.length) {
                             var packStatusLbl = { draft: 'Draft', sent: 'Sent', confirmed: 'Confirmed' }[d.pack && d.pack.status] || 'Draft';
                             $advFiles.html(d.pack && d.pack.pdf_url
-                                ? '<div class="dv-filegrid"><a class="dv-file" href="/api/admin/bookings/' + bookingId + '/advancing/download" target="_blank" rel="noopener"><span class="ico" style="background:rgba(212,175,55,0.14);color:var(--atl-amber);"><i class="fa-solid fa-clipboard-list"></i></span><span><span class="fn">Advancing Pack</span><span class="fm">' + packStatusLbl + '</span></span></a></div>'
+                                ? '<div class="dv-filegrid"><a class="dv-file" href="/api/admin/bookings/' + bookingId + '/advancing/download" target="_blank" rel="noopener"><span class="ico" style="background:rgba(var(--atl-amber-rgb), .14);color:var(--atl-amber);"><i class="fa-solid fa-clipboard-list"></i></span><span><span class="fn">Advancing Pack</span><span class="fm">' + packStatusLbl + '</span></span></a></div>'
                                 : '<p class="atl-det-empty">No advancing pack generated yet.</p>');
                         }
                     } else if (window.notificationService) window.notificationService.showError(d.message || 'Could not load the advancing pack.');
@@ -780,7 +780,7 @@
                                : 'var(--atl-orange)';
                         var amtStyle  = isRefund ? 'color:var(--atl-clay);font-weight:700;' : 'font-weight:700;';
                         var refundBadge = isRefund
-                            ? '<span style="font-size:9px;background:rgba(248,113,113,0.12);color:var(--atl-clay);'
+                            ? '<span style="font-size:9px;background:rgba(var(--atl-clay-rgb), .12);color:var(--atl-clay);'
                               + 'padding:1px 5px;border-radius:3px;margin-right:4px;font-weight:700;">REFUND</span>'
                             : '';
                         var dateStr = t.transaction_date
@@ -909,12 +909,12 @@
                     var cStatus = contract.contract.status === 'signed' ? 'Signed'
                                 : contract.contract.status === 'sent' ? 'Sent · awaiting signature'
                                 : 'Draft';
-                    qcChips.push('<a class="dv-file" href="/api/admin/bookings/' + bookingId + '/contract/download" target="_blank" rel="noopener"><span class="ico" style="background:rgba(149,117,205,0.14);color:#9575CD;"><i class="fa-solid fa-file-contract"></i></span><span><span class="fn">Contract</span><span class="fm">' + cStatus + '</span></span></a>');
+                    qcChips.push('<a class="dv-file" href="/api/admin/bookings/' + bookingId + '/contract/download" target="_blank" rel="noopener"><span class="ico" style="background:color-mix(in srgb, var(--atl-purple) 14%, transparent);color:var(--atl-purple);"><i class="fa-solid fa-file-contract"></i></span><span><span class="fn">Contract</span><span class="fm">' + cStatus + '</span></span></a>');
                 }
                 var activeQuote = history && history.length ? (history.find(function(q) { return !q.archived; }) || history[history.length - 1]) : null;
                 if (activeQuote && activeQuote.pdf_url) {
                     var qStatus = activeQuote.archived ? 'Superseded' : 'Active';
-                    qcChips.push('<a class="dv-file" href="' + activeQuote.pdf_url + '" target="_blank" rel="noopener"><span class="ico" style="background:rgba(212,175,55,0.14);color:var(--atl-amber-light);"><i class="fa-solid fa-file-invoice-dollar"></i></span><span><span class="fn">Quote v' + activeQuote.version + '</span><span class="fm">' + qStatus + '</span></span></a>');
+                    qcChips.push('<a class="dv-file" href="' + activeQuote.pdf_url + '" target="_blank" rel="noopener"><span class="ico" style="background:rgba(var(--atl-amber-rgb), .14);color:var(--atl-amber-light);"><i class="fa-solid fa-file-invoice-dollar"></i></span><span><span class="fn">Quote v' + activeQuote.version + '</span><span class="fm">' + qStatus + '</span></span></a>');
                 }
                 $('#atl-filedocs-qc-' + bookingId).html(qcChips.length ? '<div class="dv-filegrid">' + qcChips.join('') + '</div>' : '<p class="atl-det-empty">No quote or contract generated yet.</p>');
 
@@ -922,7 +922,7 @@
                 if (row.invoice_number) {
                     var invRaw = row.invoice_status || 'DRAFT';
                     var invStatusLbl = invRaw.charAt(0).toUpperCase() + invRaw.slice(1).toLowerCase();
-                    invChips.push('<a class="dv-file" href="/api/admin/bookings/' + bookingId + '/invoice/download" target="_blank" rel="noopener"><span class="ico" style="background:rgba(96,165,250,0.14);color:var(--atl-blue);"><i class="fa-solid fa-file-invoice"></i></span><span><span class="fn">Invoice ' + row.invoice_number + '</span><span class="fm">' + invStatusLbl + '</span></span></a>');
+                    invChips.push('<a class="dv-file" href="/api/admin/bookings/' + bookingId + '/invoice/download" target="_blank" rel="noopener"><span class="ico" style="background:rgba(var(--atl-blue-rgb), .14);color:var(--atl-blue);"><i class="fa-solid fa-file-invoice"></i></span><span><span class="fn">Invoice ' + row.invoice_number + '</span><span class="fm">' + invStatusLbl + '</span></span></a>');
                 }
                 $('#atl-filedocs-inv-' + bookingId).html(invChips.length ? '<div class="dv-filegrid">' + invChips.join('') + '</div>' : '<p class="atl-det-empty">No invoice generated yet.</p>');
             }).catch(function(err) {

@@ -861,5 +861,5 @@
             } catch(e) {
                 window.notificationService.showError('Network error. Please try again.');
             }
-            $btn.prop('disabled', false).html('<i class="fa-solid fa-floppy-disk" style="margin-right:6px;"></i>Save Payment');
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save payment');
         });

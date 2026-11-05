@@ -740,7 +740,7 @@
                 <span style="font-size:11px;color:var(--atl-muted);">min</span>
                 <button type="button" class="bk-save-buffer-btn atl-btn"
                         data-id="${row.id}"
-                        style="font-size:11px;padding:4px 10px;min-height:28px;background:rgba(212,175,55,0.10);border:1px solid rgba(212,175,55,0.35);color:var(--atl-amber);border-radius:6px;cursor:pointer;">
+                        style="font-size:11px;padding:4px 10px;min-height:28px;background:rgba(var(--atl-amber-rgb), .10);border:1px solid rgba(var(--atl-amber-rgb), .35);color:var(--atl-amber);border-radius:6px;cursor:pointer;">
                   Save
                 </button>
                 <span class="bk-buf-hint" id="bk-buf-hint-${row.id}"
@@ -1065,8 +1065,8 @@
                         placeholder="Add a private note…"></textarea>
               <button type="button" class="bk-add-note-btn atl-btn"
                       data-id="${row.id}"
-                      style="background:rgba(212,175,55,0.10);
-                             border:1px solid rgba(212,175,55,0.35);
+                      style="background:rgba(var(--atl-amber-rgb), .10);
+                             border:1px solid rgba(var(--atl-amber-rgb), .35);
                              color:var(--atl-amber);
                              border-radius:8px;
                              padding:10px 14px;
@@ -1142,7 +1142,7 @@
                         var icon = attachmentIcon(f.mime_type);
                         var size = formatFileSize(f.size);
                         return `<a class="dv-file" href="/api/admin/booking-attachments/${encodeURIComponent(f.filename)}" target="_blank" rel="noopener">`
-                             + `<span class="ico" style="background:rgba(74,222,128,0.12);color:var(--atl-sage);"><i class="fa-solid ${icon}"></i></span>`
+                             + `<span class="ico" style="background:rgba(var(--atl-sage-rgb), .12);color:var(--atl-sage);"><i class="fa-solid ${icon}"></i></span>`
                              + `<span><span class="fn">${f.original_name}</span><span class="fm">${size || 'Client upload'}</span></span>`
                              + `</a>`;
                     }).join('') + '</div>';
@@ -2065,65 +2065,63 @@
             // Title
             $('#bf-modal-title').text('Booking #' + booking.id + ': ' + (booking.name || ''));
 
-            // Payment ledger
+            // Payment ledger. Colours come from the drawer kit's badge variants (theme tokens), never from inline colour values.
             const ps = (booking.payment_status || 'UNPAID').toUpperCase();
-            const payColor = { PAID:'var(--atl-green)', PARTIALLY_PAID:'var(--atl-orange)', DEPOSIT_PAID:'var(--atl-blue)', UNPAID:'var(--atl-clay)', FAILED:'var(--atl-clay)' };
-            const c = payColor[ps] || '#aaa';
-            $('#bf-pay-status').text(ps).css({ color: c, background: 'rgba(255,255,255,.05)', border: '1px solid ' + c + '44' });
+            const payVariant = { PAID: 'ok', PARTIALLY_PAID: 'warn', DEPOSIT_PAID: 'info', UNPAID: 'bad', FAILED: 'bad' };
+            const payLabel = ps.charAt(0) + ps.slice(1).toLowerCase().replace(/_/g, ' ');
+            $('#bf-pay-status').text(payLabel).attr('class', 'dk-badge' + (payVariant[ps] ? ' dk-badge--' + payVariant[ps] : ''));
             // Before a quotation exists these columns hold only the catalogue estimate - not a total, not a balance owed.
             const agreed = bkAmountAgreed(booking);
-            $('#bf-total').text(agreed ? 'R ' + parseFloat(booking.total_amount || 0).toFixed(2) : 'Not yet quoted');
-            $('#bf-paid').text('R ' + parseFloat(booking.amount_paid || 0).toFixed(2));
-            $('#bf-outstanding').text(agreed ? 'R ' + parseFloat(booking.amount_outstanding || 0).toFixed(2) : '-');
+            // "R 11,500.00": thousands grouped so a long amount reads at a glance (same as the client's Track drawer)
+            const money = (n) => 'R ' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            $('#bf-total').text(agreed ? money(parseFloat(booking.total_amount || 0)) : 'Not yet quoted');
+            $('#bf-paid').text(money(parseFloat(booking.amount_paid || 0)));
+            $('#bf-outstanding').text(agreed ? money(parseFloat(booking.amount_outstanding || 0)) : '-');
 
-            // Last payment info
-            if (booking.last_payment_date) {
-                $('#bf-last-payment').html('<i class="fa-solid fa-clock" style="margin-right:4px;"></i>Last payment: ' + booking.last_payment_date + (booking.last_payment_ref ? ' (Ref: ' + booking.last_payment_ref + ')' : ''));
-            } else {
-                $('#bf-last-payment').text('');
-            }
+            // Last payment info (text, not HTML: the reference is typed by a person)
+            $('#bf-last-payment').text(booking.last_payment_date
+                ? booking.last_payment_date + (booking.last_payment_ref ? '  ·  Ref ' + dec(booking.last_payment_ref) : '')
+                : 'No payment recorded yet');
 
-            // P&L card — async load
-            $('#bf-pl-card').html('<i class="fa-solid fa-spinner fa-spin" style="color: var(--atl-muted);"></i> Loading P&L…');
+            // Stored text is entity-encoded once (js/shared/stored-text.js), so decode it before it goes in as text
+            const dec = (v) => (window.decodeStoredText ? window.decodeStoredText(v == null ? '' : String(v)) : String(v == null ? '' : v));
+            // Small builders for the drawer kit's label/value rows (text nodes only)
+            const dkRow = (label, value, valueClass, rowClass) => $('<div class="dk-row' + (rowClass ? ' ' + rowClass : '') + '"></div>')
+                .append($('<dt class="dk-k"></dt>').text(label))
+                .append($('<dd class="dk-v dk-v--money' + (valueClass ? ' ' + valueClass : '') + '"></dd>').text(value));
+            // Profit & loss: async
+            $('#bf-pl-card').html('<div class="dk-empty"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading profit &amp; loss&hellip;</div>');
             apiCall('/api/admin/bookings/' + bookingId + '/expenses', 'GET').then(d => {
                 const gross = parseFloat(d.gross_revenue || 0);
                 const refunded = parseFloat(d.refunded || 0);        // a refund leaves the account: it comes off the net (shown only when there is one)
                 const exp = parseFloat(d.total_expenses || 0);
                 const net = gross - refunded - exp;
-                const netClr = net >= 0 ? 'var(--atl-green)' : 'var(--atl-clay)';
-                let expRows = '';
-                if (d.expenses && d.expenses.length) {
-                    d.expenses.forEach(e => {
-                        expRows += '<div style="display:flex;justify-content:space-between;font-size:11px;color:#bbb;margin-top:4px;">'
-                            + '<span>' + (e.category || 'Misc') + ': ' + (e.description || '') + '</span>'
-                            + '<span style="color:var(--atl-clay);">- R ' + parseFloat(e.amount || 0).toFixed(2) + '</span></div>';
-                    });
-                }
-                $('#bf-pl-card').html(
-                    '<div style="font-size:11px;color: var(--atl-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;"><i class="fa-solid fa-chart-pie" style="margin-right:5px;color: var(--atl-amber);"></i>Profit & Loss</div>'
-                    + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span style="color: var(--atl-muted);">Revenue</span><span style="color:var(--atl-green);font-weight:700;">R ' + gross.toFixed(2) + '</span></div>'
-                    + (refunded > 0 ? '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span style="color: var(--atl-muted);">Refunded</span><span style="color:var(--atl-clay);font-weight:700;">- R ' + refunded.toFixed(2) + '</span></div>' : '')
-                    + '<div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px;"><span style="color: var(--atl-muted);">Expenses</span><span style="color:var(--atl-clay);font-weight:700;">R ' + exp.toFixed(2) + '</span></div>'
-                    + expRows
-                    + '<div style="display:flex;justify-content:space-between;font-size:14px;padding-top:8px;border-top:1px solid rgba(212,175,55,.2);margin-top:8px;"><span style="color: var(--atl-amber);font-weight:700;">Net Profit</span><span style="color:' + netClr + ';font-weight:700;">R ' + net.toFixed(2) + '</span></div>'
-                );
+                const $rows = $('<dl class="dk-rows"></dl>');
+                $rows.append(dkRow('Revenue', money(gross), 'dk-v--ok'));
+                if (refunded > 0) $rows.append(dkRow('Refunded', '- ' + money(refunded), 'dk-v--bad'));
+                $rows.append(dkRow('Expenses', money(exp), 'dk-v--bad'));
+                (d.expenses || []).forEach(e => {
+                    $rows.append(dkRow(dec(e.category || 'Misc') + (e.description ? ': ' + dec(e.description) : ''), '- ' + money(parseFloat(e.amount || 0)), 'dk-v--bad dk-v--plain', 'dk-row--sub'));
+                });
+                $rows.append(dkRow('Net profit', money(net), net >= 0 ? 'dk-v--ok' : 'dk-v--bad', 'dk-row--total'));
+                $('#bf-pl-card').empty().append($rows);
             }).catch(() => {
-                $('#bf-pl-card').html('<div style="color:var(--atl-clay);font-size:12px;">Failed to load P&L data.</div>');
+                $('#bf-pl-card').html('<div class="dk-empty dk-empty--bad">Failed to load profit &amp; loss data.</div>');
             });
 
-            // Document links
-            $('#bf-doc-links').html('<i class="fa-solid fa-spinner fa-spin" style="color:#555;"></i>');
+            // Documents
+            $('#bf-doc-links').html('<div class="dk-empty"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i></div>');
             fetch('/api/admin/bookings/' + bookingId + '/financials').then(r => r.json()).then(fin => {
-                let html = '';
-                if (fin && fin.quote) {
-                    html += '<div style="margin-bottom:5px;"><i class="fa-solid fa-paperclip" style="margin-right:5px;"></i>Quote: <a href="/api/admin/bookings/' + bookingId + '/quote/download" target="_blank" style="color: var(--atl-amber);">View Generated Quote</a></div>';
-                }
-                if (fin && fin.invoice) {
-                    html += '<div style="margin-bottom:5px;"><i class="fa-solid fa-paperclip" style="margin-right:5px;"></i>Invoice: <a href="/api/admin/bookings/' + bookingId + '/invoice/download" target="_blank" style="color: var(--atl-amber);">View Generated Invoice</a></div>';
-                }
-                $('#bf-doc-links').html(html || '<div style="font-style:italic;color:#555;">No documents generated yet.</div>');
+                const $rows = $('<dl class="dk-rows"></dl>');
+                const docRow = (label, href, text) => $('<div class="dk-row"></div>')
+                    .append($('<dt class="dk-k"></dt>').text(label))
+                    .append($('<dd class="dk-v"></dd>').append($('<a target="_blank" rel="noopener"></a>').attr('href', href).text(text)));
+                if (fin && fin.quote) $rows.append(docRow('Quote', '/api/admin/bookings/' + bookingId + '/quote/download', 'View generated quote'));
+                if (fin && fin.invoice) $rows.append(docRow('Invoice', '/api/admin/bookings/' + bookingId + '/invoice/download', 'View generated invoice'));
+                if ($rows.children().length) $('#bf-doc-links').empty().append($rows);
+                else $('#bf-doc-links').html('<div class="dk-empty">No documents generated yet.</div>');
             }).catch(() => {
-                $('#bf-doc-links').html('<div style="color:var(--atl-clay);">Failed to load documents.</div>');
+                $('#bf-doc-links').html('<div class="dk-empty dk-empty--bad">Failed to load documents.</div>');
             });
 
             // Wire up action buttons
