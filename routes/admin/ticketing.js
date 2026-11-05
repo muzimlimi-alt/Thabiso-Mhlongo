@@ -1,5 +1,5 @@
 // Event ticketing - admin API (docs-internal/ticketing.md). Part of the Events area of the portal.
-//   ticket types (tiers) + open/close sales : administrators and managers
+//   ticket types (tiers), capacity, order, sales pause/close/window, sold-out mark : administrators and managers
 //   orders, refunds, resend, attendee CSV     : administrators and managers
 //   door check-in + door counts               : every admin role (assistants work the door)
 // The server decides every permission; the page only hides what a role can't use.
@@ -8,6 +8,7 @@ const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { exportRateLimiter } = require('../../middleware/rate-limiters');
 const { logAudit } = require('../../lib/audit-log');
+const ntf = require('../../lib/notify');   // Notification Centre (docs-internal/notifications.md)
 const core = require('../../lib/ticketing-core');
 const ticketing = require('../../lib/ticketing');
 const delivery = require('../../lib/ticketing-delivery');
@@ -34,7 +35,20 @@ function adminTier(t, ev) {
     };
 }
 
-// ---------------------------------------------------------------- an event's tickets (the event drawer's Tickets tab)
+// What changed on a category, in words, for the audit log's reason column ("price R 150.00 -> R 175.00; places 100 -> 150").
+function describeTierChange(b, a) {
+    const out = [];
+    if (b.name !== a.name) out.push(`name "${b.name}" -> "${a.name}"`);
+    if (b.price_cents !== a.price_cents) out.push(`price ${core.formatZar(b.price_cents)} -> ${core.formatZar(a.price_cents)}`);
+    if (b.capacity !== a.capacity) out.push(`places ${b.capacity} -> ${a.capacity}`);
+    if (b.max_per_order !== a.max_per_order) out.push(`max per order ${b.max_per_order} -> ${a.max_per_order}`);
+    if (!!b.is_active !== !!a.is_active) out.push(a.is_active ? 'switched on' : 'switched off');
+    if ((b.sales_start || '') !== (a.sales_start || '') || (b.sales_end || '') !== (a.sales_end || '')) out.push('sale dates changed');
+    if ((b.description || '') !== (a.description || '')) out.push('description changed');
+    return out.length ? `${a.name}: ${out.join('; ')}` : null;
+}
+
+// ---------------------------------------------------------------- an event's tickets (the Manage Tickets screen and the event drawer's Tickets tab)
 
 router.get('/api/admin/events/:id/ticketing', requireAdmin, async (req, res) => {
     try {
@@ -43,14 +57,25 @@ router.get('/api/admin/events/:id/ticketing', requireAdmin, async (req, res) => 
         const tiers = await ticketing.listTiers(ev.event_id);
         const block = core.eventBlockReason(ev);
         const totals = tiers.reduce((a, t) => ({ capacity: a.capacity + t.capacity, sold: a.sold + t.sold, reserved: a.reserved + t.reserved }), { capacity: 0, sold: 0, reserved: 0 });
+        const overview = core.salesOverview(tiers, ev);
         res.json({
             success: true,
-            event: { event_id: ev.event_id, title: ev.event_title, event_status: ev.event_status, event_capacity: ev.event_capacity, standalone: !ev.booking_id },
+            event: {
+                event_id: ev.event_id, title: ev.event_title, event_status: ev.event_status, event_capacity: ev.event_capacity, standalone: !ev.booking_id,
+                starts_label: core.formatSast(core.eventStart(ev)), venue_name: ev.venue_name || ''
+            },
             can_sell: !block, block_reason: block,
-            sales_open: tiers.some(t => t.is_active),
+            // the switch-level view: nothing blocks the show, nobody paused/closed it, and at least one category is switched on
+            sales_open: !block && !ev.sales_control && tiers.some(t => t.is_active),
+            sales: {
+                ...overview, control: ev.sales_control || null, can_pause: !block && !ev.sales_control && tiers.length > 0, can_close: tiers.length > 0 && ev.sales_control !== 'closed',
+                opens_local: core.isoToLocalInput(ev.sales_opens_at), closes_local: core.isoToLocalInput(ev.sales_closes_at),
+                opens_at: ev.sales_opens_at || null, closes_at: ev.sales_closes_at || null
+            },
+            holds: await ticketing.liveHolds(ev.event_id),
             tiers: tiers.map(t => adminTier(t, ev)), totals,
             capacity_warning: await ticketing.capacityWarning(ev.event_id),
-            limits: { min_price_cents: core.MIN_PRICE_CENTS, max_per_order: core.MAX_PER_ORDER_LIMIT, hold_minutes: core.HOLD_MINUTES }
+            limits: { min_price_cents: core.MIN_PRICE_CENTS, max_per_order: core.MAX_PER_ORDER_LIMIT, hold_minutes: core.HOLD_MINUTES, max_capacity: core.MAX_CAPACITY }
         });
     } catch (e) { fail(res, e, 'event ticketing'); }
 });
@@ -70,8 +95,11 @@ router.put('/api/admin/ticket-types/:id', requireAdmin, MANAGE, async (req, res)
         const { clean, errors } = core.validateTier(req.body);
         if (Object.keys(errors).length) return res.status(400).json({ success: false, message: Object.values(errors)[0], errors });
         const { before, after } = await ticketing.updateTier(idParam(req.params.id), clean);
-        await logAudit({ tableName: 'ticket_types', recordId: after.id, action: 'TICKET_TYPE_UPDATED', req, oldValues: before, newValues: after });
-        res.json({ success: true, tier: after, capacity_warning: await ticketing.capacityWarning(after.event_id), message: `"${after.name}" saved.` });
+        await logAudit({ tableName: 'ticket_types', recordId: after.id, action: 'TICKET_TYPE_UPDATED', req, oldValues: before, newValues: after, reason: describeTierChange(before, after) });
+        // a price change only reaches NEW buyers: every order already made keeps the price on its own line
+        const kept = before.price_cents !== after.price_cents ? await ticketing.tierOrderCount(after.id) : 0;
+        const note = kept ? ` The ${kept} existing order${kept === 1 ? '' : 's'} keep${kept === 1 ? 's' : ''} the old price (${core.formatZar(before.price_cents)}).` : '';
+        res.json({ success: true, tier: after, capacity_warning: await ticketing.capacityWarning(after.event_id), existing_orders_keep_price: kept, message: `"${after.name}" saved.${note}` });
     } catch (e) { fail(res, e, 'update tier'); }
 });
 
@@ -83,15 +111,84 @@ router.delete('/api/admin/ticket-types/:id', requireAdmin, MANAGE, async (req, r
     } catch (e) { fail(res, e, 'delete tier'); }
 });
 
-// The event-wide switch: { open: true | false }.
+// A category's total places, on its own: { capacity: 150 } sets it, { add: 50 } / { add: -10 } adds or removes. Never below sold + held.
+router.post('/api/admin/ticket-types/:id/capacity', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const { before, after } = await ticketing.setTierCapacity(idParam(req.params.id), req.body);
+        await logAudit({ tableName: 'ticket_types', recordId: after.id, action: 'TICKET_CAPACITY_CHANGED', req, oldValues: before, newValues: after, reason: `${after.name}: places ${before.capacity} -> ${after.capacity}` });
+        res.json({ success: true, tier: after, capacity_warning: await ticketing.capacityWarning(after.event_id), message: `${after.name} now has ${after.capacity} places (${core.remainingOf(after)} available).` });
+    } catch (e) { fail(res, e, 'tier capacity'); }
+});
+
+// Switch one category on / off for new buyers: { enabled: true | false }.
+router.post('/api/admin/ticket-types/:id/enabled', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const enabled = !!req.body && (req.body.enabled === true || req.body.enabled === 'true');
+        const { before, after } = await ticketing.setTierEnabled(idParam(req.params.id), enabled);
+        await logAudit({ tableName: 'ticket_types', recordId: after.id, action: enabled ? 'TICKET_TYPE_ENABLED' : 'TICKET_TYPE_DISABLED', req, oldValues: before, newValues: after, reason: `${after.name}: ${enabled ? 'switched on' : 'switched off'}` });
+        res.json({ success: true, tier: after, message: enabled ? `"${after.name}" is on sale again.` : `"${after.name}" is switched off - new buyers can't see it. Orders already made are not affected.` });
+    } catch (e) { fail(res, e, 'tier enabled'); }
+});
+
+// The order the categories are listed in: { order: [tier ids, first to last] }.
+router.post('/api/admin/events/:id/ticket-types/reorder', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const eventId = idParam(req.params.id);
+        const { before, after } = await ticketing.reorderTiers(eventId, req.body && req.body.order);
+        await logAudit({ tableName: 'events', recordId: eventId, action: 'TICKET_TYPES_REORDERED', req, oldValues: { order: before }, newValues: { order: after }, reason: 'ticket types reordered' });
+        res.json({ success: true, message: 'Order saved.' });
+    } catch (e) { fail(res, e, 'reorder tiers'); }
+});
+
+// The event-level sales switch: { action: 'open' | 'pause' | 'resume' | 'close' | 'reopen' } (the older { open: true | false } still works).
+const SALES_WORDS = {
+    open: ['TICKET_SALES_OPENED', 'Ticket sales are open.'], resume: ['TICKET_SALES_RESUMED', 'Ticket sales have resumed.'], reopen: ['TICKET_SALES_REOPENED', 'Ticket sales are open again.'],
+    pause: ['TICKET_SALES_PAUSED', 'Ticket sales are paused. Buyers already paying can finish.'], close: ['TICKET_SALES_CLOSED', 'Ticket sales are closed. Buyers already paying can finish.']
+};
 router.post('/api/admin/events/:id/ticket-sales', requireAdmin, MANAGE, async (req, res) => {
     try {
-        const open = req.body && (req.body.open === true || req.body.open === 'true');
+        const body = req.body || {};
+        const action = typeof body.action === 'string' ? body.action : (body.open === true || body.open === 'true' ? 'open' : 'close');
         const eventId = idParam(req.params.id);
-        const r = await ticketing.setEventSales(eventId, open);
-        await logAudit({ tableName: 'events', recordId: eventId, action: open ? 'TICKET_SALES_OPENED' : 'TICKET_SALES_CLOSED', req, newValues: { tiers_changed: r.changed } });
-        res.json({ success: true, sales_open: open, message: open ? 'Ticket sales are open.' : 'Ticket sales are closed.' });
+        const r = await ticketing.setSalesState(eventId, action, req.session.adminId);
+        const [auditAction, text] = SALES_WORDS[action];
+        await logAudit({ tableName: 'events', recordId: eventId, action: auditAction, req, newValues: { state: r.overview.state, categories_switched_on: r.enabledAll, buyers_paying_now: r.holds.orders }, reason: text });
+        res.json({
+            success: true, sales_open: r.overview.state === 'open' || r.overview.state === 'sold_out', overview: r.overview, holds: r.holds,
+            message: text + (r.enabledAll ? ' Every ticket type was switched off, so they were all switched on.' : '') + (['ended', 'not_open'].includes(r.overview.state) ? ' The sales window you set still applies.' : '')
+        });
     } catch (e) { fail(res, e, 'sales switch'); }
+});
+
+// The event-wide sales window (both optional): { opens_at, closes_at } as datetime-local values, South African time.
+router.put('/api/admin/events/:id/ticket-sales-window', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const { clean, errors } = core.validateSalesWindow(req.body);
+        if (Object.keys(errors).length) return res.status(400).json({ success: false, message: Object.values(errors)[0], errors });
+        const eventId = idParam(req.params.id);
+        const { before, after } = await ticketing.setSalesWindow(eventId, clean, req.session.adminId);
+        await logAudit({ tableName: 'events', recordId: eventId, action: 'TICKET_SALES_WINDOW_CHANGED', req, oldValues: before, newValues: after, reason: 'sales window changed' });
+        res.json({ success: true, message: after.opens_at || after.closes_at ? 'Sales window saved.' : 'Sales window cleared - sales follow the switch only.' });
+    } catch (e) { fail(res, e, 'sales window'); }
+});
+
+// The organiser's own "Sold out" mark (the Events status) - distinct from closing sales and from the automatic sold-out: { mark: true | false }.
+router.post('/api/admin/events/:id/sold-out', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const mark = !!req.body && (req.body.mark === true || req.body.mark === 'true');
+        const eventId = idParam(req.params.id);
+        const r = await ticketing.setSoldOutMark(eventId, mark, req.session.adminId, req.session.role);
+        await logAudit({ tableName: 'events', recordId: eventId, action: mark ? 'TICKET_EVENT_MARKED_SOLD_OUT' : 'TICKET_EVENT_SOLD_OUT_CLEARED', req, oldValues: { event_status: r.from }, newValues: { event_status: r.to }, reason: mark ? 'marked as sold out' : 'sold-out mark removed' });
+        res.json({ success: true, message: mark ? 'The show is marked as sold out. Nobody can buy until you remove the mark.' : 'The sold-out mark is removed.' });
+    } catch (e) { fail(res, e, 'sold-out mark'); }
+});
+
+// Who changed what in this event's ticketing, newest first.
+router.get('/api/admin/events/:id/ticketing-history', requireAdmin, MANAGE, async (req, res) => {
+    try {
+        const rows = await ticketing.eventHistory(idParam(req.params.id));
+        res.json({ success: true, history: rows.map(r => ({ id: r.id, action: r.action, what: r.reason || r.action, who: r.actor || 'system', at: r.change_timestamp })) });
+    } catch (e) { fail(res, e, 'ticketing history'); }
 });
 
 // ---------------------------------------------------------------- Events -> Ticket Sales (orders, refunds, figures)
@@ -114,7 +211,7 @@ router.get('/api/admin/ticketing/events/:id/stats', requireAdmin, async (req, re
         const s = await ticketing.eventStats(id);
         s.event_status = String(ev.event_status || '').toLowerCase();
         s.notice = await ticketing.eventNoticeCounts(id);
-        if (isAssistant(req)) { delete s.revenue_cents; delete s.refunded_cents; delete s.refund_due_cents; s.tiers = s.tiers.map(({ price_cents, ...t }) => t); }
+        if (isAssistant(req)) { for (const k of ['revenue_cents', 'refunded_cents', 'refund_due_cents', 'gross_cents', 'net_cents', 'pending_cents', 'failed_cents']) delete s[k]; s.tiers = s.tiers.map(({ price_cents, ...t }) => t); }
         res.json({ success: true, stats: s });
     } catch (e) { fail(res, e, 'stats'); }
 });
@@ -179,6 +276,10 @@ router.post('/api/admin/ticketing/orders/:id/refund', requireAdmin, MANAGE, asyn
         }
         await logAudit({ tableName: 'ticket_orders', recordId: r.after.id, action: 'TICKET_ORDER_REFUNDED', req,
             oldValues: { status: r.before.status, refund_required: r.before.refund_required }, newValues: { status: r.after.status }, reason: note });
+        // Notification Centre: the refund is done, so the "ticket refund required" / "paid twice" alerts for this order close - resolved BY this admin.
+        ntf.resolve('events.ticket_refund_required', r.after.id, { req, note: note });
+        ntf.resolve('events.ticket_paid_twice', r.after.id, { req, note: note });
+        ntf.resolve('events.ticket_payment_mismatch', r.after.id, { req, note: note });
         // The buyer is told the refund has been MADE (only now - never before it happened). notify: false skips it (e.g. already told by phone).
         let mailed = false;
         if (!(req.body && req.body.notify === false)) {

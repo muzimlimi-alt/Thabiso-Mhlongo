@@ -451,6 +451,10 @@ app.use('/uploads', express.static(UPLOADS_PATH));
 // vendor CSS is never edited (css-audit.md §2.4), so the URL is aliased back to the real folder.
 app.use('/css/fonts', express.static(path.join(__dirname, 'fonts')));
 
+// The homepage (/ and /index.html) is sent with the admin's current content already in it (lib/homepage-render.js), so visitors never see
+// the file's built-in text or a hidden section first. Must stay BEFORE the static server below, which would otherwise serve the plain file.
+app.use(require('./routes/public/homepage'));
+
 // Enforce UTF-8 charset on all text-based static files + Cache Optimization
 app.use(express.static(path.join(__dirname, '/'), {
     setHeaders(res, filePath) {
@@ -525,6 +529,7 @@ app.use(require('./routes/admin/content'));
 app.use(require('./routes/admin/team'));
 app.use(require('./routes/admin/business-profile'));   // who issues our documents + SARS/VAT registration (lib/business-profile.js)
 app.use(require('./routes/admin/accolades'));
+app.use(require('./routes/admin/faq'));                // FAQ: questions & answers for the public FAQ section (lib/faq.js)
 app.use(require('./routes/admin/home-social'));
 app.use(require('./routes/admin/newsletter-subscribers'));
 app.use(require('./routes/admin/newsletter-campaigns'));
@@ -550,6 +555,7 @@ app.use(require('./routes/admin/finance'));
 app.use(require('./routes/admin/financials'));
 app.use(require('./routes/admin/eft'));              // Manual EFT: banking details, proof-of-payment review queue (lib/eft*.js)
 app.use(require('./routes/admin/payfast-reconcile')); // PayFast safety net: status, findings, "check PayFast now" (lib/payfast-reconcile.js)
+app.use(require('./routes/admin/notifications'));     // Notification Centre + Activity Log + system health (lib/notify*.js, docs-internal/notifications.md)
 app.use(require('./routes/admin/dashboard'));
 app.use(require('./routes/admin/bookings'));
 app.use(require('./routes/admin/events'));
@@ -1145,6 +1151,12 @@ registerPaymentReminderJob();
 // wiring, exporting a registerXJob() called once here at the same module-load-time position.
 const { registerQuoteFollowUpJob } = require('./lib/quote-follow-up-job');
 registerQuoteFollowUpJob();
+// Compliance expiry reminders (B-BBEE certificate first; docs-internal/notifications.md) - one Notification Centre incident per expiry date.
+const { registerComplianceMonitor } = require('./lib/compliance-monitor');
+registerComplianceMonitor();
+// Deadlines & overdue items (overdue invoices, milestones due, events coming up, ticket sales closing) - hourly, in-app only.
+const { registerOpsMonitor } = require('./lib/ops-monitor');
+registerOpsMonitor();
 const { registerStalledBookingAlertJob } = require('./lib/stalled-booking-alert-job');
 registerStalledBookingAlertJob();
 const { registerAbandonedBookingJobs } = require('./lib/abandoned-booking-jobs');

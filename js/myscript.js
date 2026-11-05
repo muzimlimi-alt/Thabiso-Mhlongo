@@ -296,7 +296,12 @@ $(function() {
     }
 
     // 5. Dynamic Gallery Rendering (Instagram Style)
+    // True when the server-filled homepage says this section is switched off (window.__tmSections, set by the head script
+    // #tmSectionsBoot from lib/homepage-render.js). Only the server's map counts, never the visitor's cached one, which can be stale.
+    function tmSectionOff(key) { return !!(window.__tmSections && window.__tmSections[key] === false); }
+
     async function renderGallery() {
+        if (tmSectionOff('gallery')) return; // switched off by the admin: the server already hid it, so its content is never fetched
         var $grid = $('#dynamicGalleryGrid');
         if ($grid.length === 0) return; // Only run on pages with the grid
 
@@ -391,6 +396,7 @@ $(function() {
         social:     { sel: '#social',      nav: ['#social'] },
         newsletter: { sel: '#newsletter',  nav: ['#newsletter'] },
         testimonials: { sel: '#testimonials', nav: ['#testimonials'] },
+        faq:        { sel: '#faq',         nav: ['#faq'] },
         contact:    { sel: '#contact',     nav: ['#contact'] },
         footer:     { sel: '.tm-footer',   nav: [] }
     };
@@ -475,6 +481,7 @@ $(function() {
 
     // 8. Dynamic Events Rendering (API Driven)
     async function renderEvents() {
+        if (tmSectionOff('events')) return; // switched off by the admin: the server already hid it, so its content is never fetched
         var $upcomingGrid = $('#upcomingEventsGrid');
         var $pastGrid = $('#pastEventsGrid');
         
@@ -862,6 +869,7 @@ $(function() {
     }
 
     async function renderCareer() {
+        if (tmSectionOff('career')) return; // switched off by the admin: the server already hid it, so its content is never fetched
         var parsed = [];
         try {
             const response = await fetch('/api/public/highlights');
@@ -969,6 +977,7 @@ $(function() {
     // js/accolades-view.js, the same renderer as the admin's live preview. With nothing published the
     // section and its nav links stay hidden — it never shows placeholder awards.
     async function renderAccolades() {
+        if (tmSectionOff('accolades')) return; // switched off by the admin: the server already hid it, so its content is never fetched
         var $section = $('#accolades');
         if (!$section.length || !window.AccoladesView) return;
         var items = [];
@@ -1072,8 +1081,36 @@ $(function() {
     }
     renderAccolades();
 
+    // 9a3. FAQ - questions and answers. WHAT is published and in WHICH order is decided by lib/faq.js (the admin uses the same module); HOW it
+    // looks is js/faq-view.js, the same renderer as the admin's live preview. With nothing published the section and its links stay hidden.
+    async function renderFaq() {
+        if (tmSectionOff('faq')) return; // switched off by the admin: the server already hid it, so its content is never fetched
+        var $section = $('#faq');
+        if (!$section.length || !window.FaqView) return;
+        var items = [];
+        try {
+            const response = await fetch('/api/public/faqs');
+            const data = await response.json();
+            if (Array.isArray(data)) items = data;
+        } catch (err) {
+            console.error('Failed to load the FAQ from server:', err);
+        }
+        var $nav = $('.tm-navlinks a[href="#faq"]').closest('li').add('.tm-mobile-menu a[href="#faq"]').add($('.tm-footer a[href="#faq"]').closest('li'));
+        if (!items.length) { $section.prop('hidden', true); $nav.addClass('tm-nav-empty'); return; }
+        $nav.removeClass('tm-nav-empty');
+        if (!$section.hasClass('tm-section-hidden')) $nav.css('display', '');   // see renderAccolades(): clear jQuery's leftover inline display
+        $section.prop('hidden', false);
+        FaqView.mount(items, {
+            list: document.getElementById('faqList'), filters: document.getElementById('faqFilters'),
+            search: document.getElementById('faqSearch'), searchWrap: document.getElementById('faqSearchWrap'),
+            empty: document.getElementById('faqEmpty'), status: document.getElementById('faqStatus')
+        });
+    }
+    renderFaq();
+
     // 9b. Dynamic Footprint Rendering (countries performed in — flag grid)
     async function renderFootprint() {
+        if (tmSectionOff('footprint')) return; // switched off by the admin: the server already hid it, so its content is never fetched
         var countries = [];
         try {
             const response = await fetch('/api/public/footprint');
@@ -1122,6 +1159,7 @@ $(function() {
     // truth (name + role always visible, social links revealed on active — reachable by mouse,
     // touch and keyboard alike, not hover-only).
     async function renderTeam() {
+        if (tmSectionOff('team')) return; // switched off by the admin: the server already hid it, so its content is never fetched
         var members = [];
         try {
             const response = await fetch('/api/public/team');
@@ -1216,6 +1254,7 @@ $(function() {
     function ctPrev() { ctGoTo(ctState.activeIndex - 1); ctResetAutoplay(); }
 
     async function renderTestimonials() {
+        if (tmSectionOff('testimonials')) return; // switched off by the admin: the server already hid it, so its content is never fetched
         var items = [];
         try {
             const response = await fetch('/api/public/testimonials');
@@ -1631,6 +1670,12 @@ $(function() {
                             mViews = vShort + (vc === 1 ? ' view' : ' views');
                             mViewsTitle = vc.toLocaleString('en-ZA') + ' views';
                         }
+                        // What to show is the admin's choice per embed (Media Embeds drawer > "Shown on the public card"); no choice = all shown.
+                        var mShow = meta.display || {};
+                        if (mShow.channel === false) mChannel = '';
+                        if (mShow.views === false) mViews = '';
+                        if (mShow.date === false) mDate = '';
+                        if (mShow.description === false) mDesc = '';
                         var mStats = [];
                         if (mViews) mStats.push('<span title="' + mViewsTitle + '">' + mViews + '</span>');
                         if (mDate) mStats.push('Uploaded ' + mDate);
@@ -1645,7 +1690,7 @@ $(function() {
                             <div class="sm-card__info">
                                 <span class="sm-card__badge"><i class="${pIcon}" aria-hidden="true"></i>${tmEscHtml(item.platform_name)}</span>
                                 <h4 class="sm-card__title" title="${mTitle}">${mTitle}</h4>
-                                <p class="sm-card__channel">${mChannel}</p>
+                                ${mChannel ? `<p class="sm-card__channel">${mChannel}</p>` : ''}
                                 ${mStats.length ? `<p class="sm-card__stats">${mStats.join(' &middot; ')}</p>` : ''}
                                 ${mDesc ? `<p class="sm-card__desc">${mDesc}</p>` : ''}
                             </div>

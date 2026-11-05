@@ -24,12 +24,13 @@ router.post('/api/admin/login', adminLoginRateLimiter, (req, res) => {
 
     getAdminByEmailFull(normalizedEmail, (err, row) => {
         if (err) return res.status(500).json({ success: false, message: 'Database error' });
-        if (!row) return res.status(401).json({ success: false, message: 'Invalid credentials' });
+        if (!row) { require('../../lib/security-alerts').recordFailedLogin(req, normalizedEmail, 'unknown account'); return res.status(401).json({ success: false, message: 'Invalid credentials' }); }
 
         bcrypt.compare(password, row.password_hash, (err, isMatch) => {
             if (err) return res.status(500).json({ success: false, message: 'Error checking password' });
             if (isMatch) {
                 if (row.is_active === 0) {
+                    require('../../lib/security-alerts').recordFailedLogin(req, normalizedEmail, 'suspended account');
                     return res.status(403).json({ success: false, message: 'This account has been suspended. Contact an administrator.' });
                 }
                 req.session.adminId = row.id;
@@ -57,6 +58,7 @@ router.post('/api/admin/login', adminLoginRateLimiter, (req, res) => {
                     }
                 );
             } else {
+                require('../../lib/security-alerts').recordFailedLogin(req, normalizedEmail, 'wrong password');   // Notification Centre
                 return res.status(401).json({ success: false, message: 'Invalid credentials' });
             }
         });

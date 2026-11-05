@@ -121,3 +121,50 @@ body.role-assistant .tkt-manage { display: none !important; }
 /* the Door links / Guest list headings are h3 (heading order) but look like the panel's other section labels */
 #evtPanelTickets .tkt-doorpasses h3.um-section-label { font-size: 16px !important; font-weight: 700 !important; line-height: 1.3 !important; letter-spacing: 0 !important; text-transform: none !important; margin: 0 !important; }   /* !important: the theme engine sizes every h3 */
 #evtPanelTickets .tkt-comps label.tkt-check-line { text-transform: none !important; letter-spacing: 0 !important; font-weight: 400 !important; font-size: 13px !important; margin: 0 !important; }
+
+/* ── Manage tickets drawer (#tktManageDrawer) and the event-card actions ── */
+#tktManageDrawerBody { display: flex; flex-direction: column; gap: 16px; }
+.tkt-evstrip { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: flex-start; justify-content: space-between; }
+.tkt-evstrip__title { margin: 0 0 2px; font-size: 18px; color: var(--atl-ink) !important; }
+.tkt-evstrip__links { display: flex; flex-wrap: wrap; gap: 8px; }
+.tkt-evstrip__links .atl-btn, .tkt-sales-btns .atl-btn { font-size: 12px; }
+.tkt-panel { border: 1px solid var(--atl-line); border-radius: 8px; padding: 14px; background: var(--atl-surface2); display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.tkt-panel__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.tkt-panel__head .tkt-h { margin: 0; }
+.tkt-sales-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+.tkt-holds i { color: var(--atl-orange); margin-right: 4px; }
+.tkt-window summary { cursor: pointer; font-size: 13px; color: var(--atl-ink); padding: 4px 0; }
+.tkt-window form { margin-top: 8px; }
+.tkt-stat-grid--sm { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.tkt-stat-grid--sm .db-stat-card { padding: 12px; }
+.tkt-stat-grid--sm .db-stat-value { font-size: 20px; }
+.tkt-tablewrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.tkt-table--cats { min-width: 440px; margin-bottom: 0; }
+.tkt-table--cats tfoot th, .tkt-table--cats tfoot td { border-top: 2px solid var(--atl-line); font-weight: 700; }
+.tkt-table--cats tbody th { font-weight: 600; color: var(--atl-ink); text-transform: none; letter-spacing: 0; font-size: 13px; }
+.tkt-cap { margin-top: 10px; }
+.tkt-cap__label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--atl-muted); margin: 0 0 6px; }
+.tkt-cap__ctl { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.tkt-cap__ctl .atl-btn { font-size: 12px; min-height: 40px; min-width: 44px; }
+.tkt-cap__input { width: 96px !important; text-align: center; min-height: 40px; font-variant-numeric: tabular-nums; }
+.tkt-tier__actions { flex-wrap: wrap; }
+.tkt-tier__actions .atl-btn { min-height: 40px; }
+.tkt-tab-manage { align-self: flex-start; }
+
+.evt-card-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 16px 14px; border-top: 1px solid var(--atl-line); margin-top: 4px; }
+.evt-card-actions .atl-btn { font-size: 12px; text-decoration: none; }
+.evt-card-actions .evt-tkt-line { flex: 1 0 100%; margin: 0 0 2px; font-size: 12px; color: var(--atl-muted); font-variant-numeric: tabular-nums; }
+.evt-card-actions .evt-tkt-line i { color: var(--atl-amber); margin-right: 4px; }
+.evt-card-actions .evt-tkt-line strong { color: var(--atl-ink); }
+.evt-tkt-flag { color: var(--atl-orange); font-weight: 600; }
+.evt-card-actions [hidden] { display: none !important; }
+@media (max-width: 640px) {
+    #tktManageDrawer .atl-drawer__body { padding: 16px 14px; }
+    .tkt-cap__ctl { gap: 6px; }
+    .tkt-cap__input { width: 84px !important; }
+    .tkt-cap-save { flex: 1 0 100%; }
+    .evt-card-actions .atl-btn { flex: 1 1 calc(50% - 8px); justify-content: center; }
+}
+
+/* section headings are <h6>: the global redesign.css h1-h6{color:var(--text-primary)!important} (white) hid them on the light panels */
+h6.tkt-h { color: var(--atl-muted) !important; }

@@ -6,9 +6,11 @@ const { ipRateLimiter } = require('../../middleware/rate-limiters');
 const { uploadsWriteDir } = require('../../lib/runtime-paths');
 const objectStorage = require('../../lib/object-storage');
 const { safeUploadFilename } = require('../../lib/uploads');
-const { unescapeHtml, SECTION_KEYS } = require('../../lib/html-sanitize');
+const { unescapeHtml } = require('../../lib/html-sanitize');
+const homepageContent = require('../../lib/homepage-content');
 const { listPublicMembers } = require('../../lib/team');
 const { listPublicAccolades } = require('../../lib/accolades');
+const { listPublicFaqs } = require('../../lib/faq');
 const { getSettingsByKeys } = require('../../database/repositories/settings.repository');
 const { PUBLIC_SERVICE_COLUMNS, publicServiceList } = require('../../lib/service-pricing');
 const ticketing = require('../../lib/ticketing');
@@ -41,10 +43,7 @@ const publicImageUpload = multer({
 });
 
 // ─── Editable homepage content: Hero paragraph + "What I Do" section ──────────
-// Stored as key-value rows in `settings`. hero_subtitle + services_heading may contain simple
-// admin-authored HTML (e.g. <em>) and are sanitised; eyebrow + card fields are plain text
-// (rendered client-side via .text()). Values fall back to the static index.html when unset.
-const SITE_CONTENT_KEYS = ['announcement_text', 'announcement_enabled', 'announcement_rotate', 'announcement_speed', 'hero_tagline', 'hero_subtitle', 'services_eyebrow', 'services_heading', 'services_items', 'features_items', 'section_visibility'];
+// Read through lib/homepage-content.js, which the server-side homepage fill (lib/homepage-render.js) uses too.
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): sendAdminPaymentNotification/sendAdminCompletionSummaryEmail
 // moved to lib/booking-notifications.js — see the require near the top of this file for the
@@ -297,6 +296,17 @@ router.get('/api/public/accolades', async (req, res) => { // Public route for in
     }
 });
 
+// --- FAQ (published only) --- lib/faq.js decides visibility, order and the published fields for this route AND GET /api/admin/faqs.
+router.get('/api/public/faqs', async (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-cache');
+        res.json(await listPublicFaqs());
+    } catch (err) {
+        console.error('[FAQ] public list failed:', err.message);
+        res.status(500).json({ success: false, message: 'Could not load the FAQ.' });
+    }
+});
+
 // Phase 5 (HOUSEKEEPING-NOTES.md): the email-templates admin routes (and SYSTEM_TRACK_TEMPLATE_KEYS)
 // moved to routes/admin/email-templates.js.
 
@@ -313,18 +323,12 @@ router.get('/api/public/accolades', async (req, res) => { // Public route for in
 
 // --- Manager Details ---
 router.get('/api/public/manager', (req, res) => {
-    db.get("SELECT * FROM manager_details ORDER BY manager_id ASC LIMIT 1", [], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(row || null);
-    });
+    homepageContent.getManager().then((row) => res.json(row), (err) => res.status(500).json({ error: err.message }));
 });
 
 // --- Contact Info ---
 router.get('/api/public/contact_info', (req, res) => {
-    db.get("SELECT * FROM contact_info ORDER BY quote_id ASC LIMIT 1", [], (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        res.json(row || { email: '', quote: '', signature: '' }); // Safety fallback obj 
-    });
+    homepageContent.getContactInfo().then((row) => res.json(row), (err) => res.status(500).json({ error: err.message }));
 });
 
 // --- Social Links ---
@@ -341,15 +345,7 @@ router.get('/api/public/social_links', (req, res) => {
 // =============================================
 
 router.get('/api/public/about-me', (req, res) => {
-    db.get("SELECT image_path, paragraph1, paragraph2, paragraph3 FROM about_me WHERE id = 1", (err, row) => {
-        if (err) return res.status(500).json({ error: err.message });
-        if (row) {
-            row.paragraph1 = unescapeHtml(row.paragraph1);
-            row.paragraph2 = unescapeHtml(row.paragraph2);
-            row.paragraph3 = unescapeHtml(row.paragraph3);
-        }
-        res.json(row || { image_path: 'images/image-slider-1.jpg', paragraph1: '', paragraph2: '', paragraph3: '' });
-    });
+    homepageContent.getAboutMe().then((row) => res.json(row), (err) => res.status(500).json({ error: err.message }));
 });
 
 router.get('/api/public/social_embeds', (req, res) => {
@@ -364,31 +360,7 @@ router.get('/api/public/social_embeds', (req, res) => {
 // SECTION_KEYS moved to lib/html-sanitize.js (imported near the top of this file already).
 
 router.get('/api/public/site-content', (req, res) => {
-    getSettingsByKeys(SITE_CONTENT_KEYS, (err, rows) => {
-        if (err) return res.status(500).json({ success: false, error: err.message });
-        const map = {};
-        (rows || []).forEach(r => { map[r.setting_key] = r.setting_value; });
-        let items = [], features = [], sectionVis = {};
-        try { items = map.services_items ? JSON.parse(map.services_items) : []; } catch (e) { items = []; }
-        try { features = map.features_items ? JSON.parse(map.features_items) : []; } catch (e) { features = []; }
-        try { sectionVis = map.section_visibility ? JSON.parse(map.section_visibility) : {}; } catch (e) { sectionVis = {}; }
-        // Resolve to an explicit map: every known section defaults to visible unless stored false.
-        const sections = {};
-        SECTION_KEYS.forEach(k => { sections[k] = sectionVis[k] !== false; });
-        res.json({
-            success: true,
-            announcement: { text: map.announcement_text || '', enabled: map.announcement_enabled !== '0', rotate: map.announcement_rotate !== '0', speed: Math.min(10, Math.max(1, parseInt(map.announcement_speed, 10) || 5)) },
-            hero_tagline: map.hero_tagline || '',
-            hero_subtitle: map.hero_subtitle || '',
-            services: {
-                eyebrow: map.services_eyebrow || '',
-                heading: map.services_heading || '',
-                items: Array.isArray(items) ? items : []
-            },
-            features: { items: Array.isArray(features) ? features : [] },
-            sections: sections
-        });
-    });
+    homepageContent.getSiteContent().then((data) => res.json(data), (err) => res.status(500).json({ success: false, error: err.message }));
 });
 
 // Standalone /privacy and /terms pages (text comes from the homepage pop-ups).

@@ -109,7 +109,7 @@
 
 /* ── ATL Generic Drawer System ─────────────────────────────────── */
 .atl-drawer-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    position: fixed; inset: 0; background: var(--atl-overlay);   /* was a hardcoded black .55: now follows the Finish (dark .72, ivory/ember warm) */
     z-index: 1040; display: none;
 }
 .atl-drawer {
@@ -128,7 +128,7 @@
 .atl-drawer--680 { width: 680px; }
 .atl-drawer--760 { width: 760px; }
 .atl-drawer--860 { width: 860px; }
-.atl-drawer--open { transform: translateX(0); box-shadow: -10px 0 48px rgba(0,0,0,.5); }
+.atl-drawer--open { transform: translateX(0); box-shadow: -10px 0 48px var(--atl-overlay); }
 .atl-drawer__header {
     display: flex; align-items: center; justify-content: space-between; gap: 12px;
     padding: 18px 24px; border-bottom: 1px solid var(--atl-line); flex-shrink: 0;
@@ -266,3 +266,7 @@ body.admin-body .dv-title { font-family: 'Cormorant Garamond', Georgia, serif !i
 /* Drawer: price-type hint + fields that do not apply to the chosen type */
 .svc-drawer__hint { font-size:11px; line-height:1.45; color:var(--atl-muted); margin:-2px 0 12px; }
 .svc-field--off { opacity:.5; }
+
+/* Confirm / prompt dialogs (js/notificationService.js): the title is an <h2>, so the global redesign.css h1-h6{color:var(--text-primary)!important}
+   (always white) made "Confirm Action" invisible on the ivory card - same root cause as .atl-drawer__header h5 above. */
+.tm-modal__title { color: var(--noti-text) !important; }

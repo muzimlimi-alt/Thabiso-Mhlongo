@@ -30,6 +30,7 @@ router.put('/api/admin/inbox-sync', ...adminOnly, async (req, res) => {
         const change = await inboxSync.setEnabled(enabled, req.session.adminId);
         logAudit({ tableName: 'inbox_sync_state', recordId: 1, action: 'update', req, oldValues: { enabled: change.before }, newValues: { enabled: change.after } })
             .catch((e) => console.error('logAudit failed:', e.message));
+        if (!!change.before !== !!change.after) require('../../lib/notify').emit('security.integration_changed', { integration: 'inbox-sync', label: 'Mailbox reply collection', change: change.after ? 'switched on' : 'switched off', actorLabel: req.session.username }, { req });   // Notification Centre
         res.json({ success: true, ...(await inboxSync.getStatus()) });
     } catch (e) {
         console.error('inbox-sync switch failed:', e.message);

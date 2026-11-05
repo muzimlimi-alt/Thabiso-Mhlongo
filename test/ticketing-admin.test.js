@@ -52,7 +52,7 @@ async function suite(check, made) {
     // capacity warning against the event's own capacity
     const capped = await makeEvent(made, 1901, 'Ticketing Capped Show', { event_capacity: 50 });
     const over = await api('POST', `/api/admin/events/${capped.id}/ticket-types`, { name: 'General', price: '100', capacity: 60 });
-    check('a tier bigger than the event\'s own capacity is allowed but warned about', over.status === 200 && /60 places/.test(over.body.capacity_warning || '') && /capacity is 50/.test(over.body.capacity_warning || ''), JSON.stringify(over.body));
+    check('a tier bigger than the event\'s own capacity is refused (409) and the message says why', over.status === 409 && /60 tickets/.test(over.body.message || '') && /capacity is 50/.test(over.body.message || ''), JSON.stringify(over.body));
 
     // roles
     const asst = await loginAs('assistant');

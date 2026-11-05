@@ -42,6 +42,7 @@ router.put('/api/admin/calendar-sync', ...adminOnly, async (req, res) => {
         const change = await sync.setEnabled(enabled, req.session.adminId);
         logAudit({ tableName: 'calendar_sync_state', recordId: 1, action: 'update', req, oldValues: { enabled: change.before }, newValues: { enabled: change.after } })
             .catch((e) => console.error('logAudit failed:', e.message));
+        if (!!change.before !== !!change.after) require('../../lib/notify').emit('security.integration_changed', { integration: 'm365-calendar', label: 'Microsoft 365 calendar sync', change: change.after ? 'switched on' : 'switched off', actorLabel: req.session.username }, { req });   // Notification Centre
         if (enabled) sync.requestSync('switched on');
         res.json({ success: true, ...(await sync.getStatus()) });
     } catch (e) { fail(res, e, 'switch'); }

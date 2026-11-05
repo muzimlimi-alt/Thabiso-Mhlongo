@@ -13,12 +13,24 @@ const db = require('./database');
 // silently lost; exit(1) only for uncaughtException, so whatever's hosting this (Render) restarts a
 // clean process rather than this one limping on half-broken. No deploy config in this repo sets up
 // a separate process manager, so "the platform restarts on exit" is the actual safety net here.
+//
+// Notification Centre (docs-internal/notifications.md): both are also announced. A rejection is a grouped, in-app + e-mail incident; a crash is
+// written (and its e-mail QUEUED in the outbox - the restarted process sends it) before the exit, with a hard 1.5 s cap so a stuck database
+// can never keep a broken process alive.
+const notify = require('./lib/notify');
 process.on('unhandledRejection', (reason) => {
     console.error('🚨 UNHANDLED REJECTION — this indicates a missing .catch() somewhere:', reason);
+    const message = (reason && reason.message) || String(reason);
+    notify.emit('system.server_error', { fingerprint: notify.fingerprint('rejection', String(message).slice(0, 100)), route: 'a background task', method: '', errorClass: 'UnhandledRejection', message });
 });
 process.on('uncaughtException', (err) => {
     console.error('🚨 UNCAUGHT EXCEPTION — process will exit for a clean restart:', err);
-    process.exit(1);
+    let exited = false;
+    const finish = () => { if (!exited) { exited = true; process.exit(1); } };
+    try {
+        notify.emit('system.crash', { fingerprint: notify.fingerprint('crash', err && err.name, String((err && err.message) || '').slice(0, 100)), errorClass: (err && err.name) || 'Error', message: err && err.message }).then(finish, finish);
+        setTimeout(finish, 1500);
+    } catch (e) { finish(); }
 });
 
 const PORT = process.env.PORT || 3000;

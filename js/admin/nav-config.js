@@ -26,6 +26,7 @@
     // `title` equals `label` for every page that has been reorganised; the rest keep the heading they always had (listed here so each difference is deliberate).
     var sections = {
         dashboardAdmin:    { label: 'Dashboard',        title: 'Command Center',            group: 'Insight',      access: ALL },
+        notificationsAdmin: { label: 'Notifications',   title: 'Notifications',             group: 'Insight',      access: ALL },   // every role; the server returns only that role's categories (docs-internal/notifications.md)
         bookingsAdmin:     { label: 'Pipeline',         title: 'Event Bookings',            group: 'Bookings',     access: ALL },
         calendarAdmin:     { label: 'Calendar',         title: 'Calendar',                  group: 'Bookings',     access: ALL },
         eventsAdmin:       { label: 'Events',           title: 'Events Management',         group: 'Bookings',     access: ALL },
@@ -43,6 +44,7 @@
         footprintAdmin:    { label: 'Footprint',        title: 'Footprint',                 group: 'Site Content', access: ALL },
         teamAdmin:         { label: 'Management Team',  title: 'Management Team',           group: 'Site Content', access: ALL },
         testimonialsAdmin: { label: 'Testimonials',     title: 'Testimonials',              group: 'Site Content', access: ALL },
+        faqAdmin:          { label: 'FAQ',              title: 'FAQ',                       group: 'Site Content', access: ALL },
         galleryAdmin:      { label: 'Gallery',          title: 'Gallery',                   group: 'Site Content', access: ALL },
         businessAdmin:     { label: 'Business Profile', title: 'Business Profile',          group: 'Business',     access: OPS },   // managers read it (the API gives them a view-only profile)
         policiesAdmin:     { label: 'Legal & Compliance', title: 'Legal & Compliance',      group: 'Business',     access: ALL },

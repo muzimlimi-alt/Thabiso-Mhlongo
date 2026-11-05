@@ -7,6 +7,7 @@ const smtpConfig = require('../../lib/smtp-config');
 const emailService = require('../../js/emailService');
 const m365Graph = require('../../lib/m365-graph');
 const { logAudit } = require('../../lib/audit-log');
+const notify = require('../../lib/notify');   // Notification Centre (docs-internal/notifications.md)
 const {
     getMinBookingGapSetting, getTypeBuffersSetting, saveMinBookingGapMinutes, saveTypeBuffers,
     getAllSettings, upsertSetting,
@@ -216,7 +217,12 @@ router.put('/api/admin/policies', requireAdmin, (req, res) => {
         db.run("INSERT OR REPLACE INTO policies (policy_key, policy_value, updated_at) VALUES (?,?,CURRENT_TIMESTAMP)",
             [key, String(values[key])], (err) => {
                 if (err && !failed) { failed = true; return res.status(500).json({ error: err.message }); }
-                if (--pending === 0 && !failed) res.json({ success: true });
+                if (--pending === 0 && !failed) {
+                    // Payment / cancellation policy keys (deposit %, reminder days, minimum instalment...): audited + announced (names only) - this had neither.
+                    logAudit({ tableName: 'policies', recordId: 0, action: 'update', req, newValues: { keys } }).catch(e => console.error('logAudit failed:', e.message));
+                    notify.emit('finance.settings_changed', { area: 'payment & cancellation policies', ref: keys.slice().sort().join(','), fields: keys.join(', ') }, { req });
+                    res.json({ success: true });
+                }
             });
     });
 });
@@ -349,6 +355,12 @@ router.put('/api/admin/settings', requireAdmin, async (req, res) => {
             await saveSetting(key, val);
         }
         for (const [key, val] of Object.entries(toStore)) await saveSetting(key, val);
+        // PayFast merchant credentials / URL changed: audited + announced by key NAME only (never the values). Previously unaudited.
+        const pfKeys = otherKeys.filter(k => k in envMap && k.startsWith('payfast_'));
+        if (pfKeys.length) {
+            logAudit({ tableName: 'settings', recordId: 0, action: 'update', req, newValues: { payfast_fields_changed: pfKeys } }).catch(e => console.error('logAudit failed:', e.message));
+            notify.emit('finance.settings_changed', { area: 'PayFast credentials', ref: pfKeys.slice().sort().join(','), fields: pfKeys.map(k => k.replace(/^payfast_/, '').replace(/_/g, ' ')).join(', ') }, { req });
+        }
     } catch (err) {
         console.error('save settings failed:', err);
         return res.status(500).json({ success: false, message: 'Could not save settings. Please try again.' });
@@ -358,6 +370,7 @@ router.put('/api/admin/settings', requireAdmin, async (req, res) => {
         emailService.resetTransport();   // next email uses the new settings, and a paused queue resumes
         logAudit({ tableName: 'settings', recordId: 0, action: 'update', req, oldValues: { smtp: smtpAudit.old }, newValues: { smtp: smtpAudit.new } })
             .catch(e => console.error('logAudit failed:', e.message));
+        notify.emit('security.integration_changed', { integration: 'smtp', label: 'Outgoing e-mail (SMTP)', change: 'changed', detail: smtpAudit.new.passwordChanged || smtpAudit.new.clientSecretChanged ? 'the password / secret was replaced' : null, actorLabel: req.session.username }, { req });
         out.smtp = await smtpStatus();
         out.warnings = warnings;
     }

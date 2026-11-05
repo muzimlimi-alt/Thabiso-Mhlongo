@@ -38,6 +38,7 @@ var SECTION_REGISTRY = [
     { key: 'social',     label: 'Social Media',      cat: 'Marketing',  desc: 'Social profile links and embedded posts.' },
     { key: 'newsletter', label: 'Newsletter',        cat: 'Marketing',  desc: 'The email newsletter sign-up form.' },
     { key: 'testimonials', label: 'Testimonials',    cat: 'Engagement', desc: 'The rotating quote carousel of approved visitor testimonials.' },
+    { key: 'faq',        label: 'FAQ',               cat: 'Engagement', desc: 'Frequently asked questions, grouped by topic (data managed in the FAQ admin section). Stays hidden until at least one question is Published.' },
     { key: 'contact',    label: 'Contact',           cat: 'Contact',    desc: 'The contact form and manager details.' },
     { key: 'footer',     label: 'Footer',            cat: 'Footer',     desc: 'The site footer with brand, links and legal bar.' }
 ];

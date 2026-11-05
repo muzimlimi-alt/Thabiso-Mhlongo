@@ -64,6 +64,7 @@
 	<!-- Custom Redesign Styles -->
 	<link rel="stylesheet" href="css/style.css">
 	<link rel="stylesheet" href="css/public/redesign.css?v=38">
+	<link rel="stylesheet" href="css/public/faq.css?v=4">
 	<link rel="stylesheet" href="css/public/tracking-modal.css?v=9">
 	<link rel="stylesheet" href="css/components/notifications.css">
 	<!-- Booking & Track Booking drawers — see the file header for the drawer system this
@@ -78,15 +79,24 @@
 	     LAST of the project stylesheets: it relied on being after every <link>. -->
 	<link rel="stylesheet" href="css/public/booking-form.css?v=8">
 
-	<!-- No-FOUC section visibility: hide sections the admin turned off, from cache, before first paint.
-	     renderSiteContent() in myscript.js reconciles with the server and removes this style. -->
-	<script>
+	<!-- No-FOUC section visibility: hide sections the admin turned off (and their nav links) before first paint.
+	     The server writes the current map in place of the token below (lib/homepage-render.js); then it is authoritative and
+	     window.__tmSections tells myscript.js not to fetch a hidden section's content. Without it (the plain file) the visitor's cached
+	     map is used, as before. renderSiteContent() in myscript.js reconciles with the server and removes this style. -->
+	<script id="tmSectionsBoot">
 	(function () {
 		try {
-			var v = JSON.parse(localStorage.getItem('tm_sections') || '{}');
-			var MAP = { hero:'#hero', features:'.tm-features', services:'.tm-services', about:'#about', career:'#career', accolades:'#accolades', footprint:'#footprint', team:'#team', gallery:'#gallery', events:'#events', social:'#social', newsletter:'#newsletter', testimonials:'#testimonials', contact:'#contact', footer:'.tm-footer' };
+			var v = /*TM_SECTIONS*/null;
+			if (v && typeof v === 'object') window.__tmSections = v;
+			else v = JSON.parse(localStorage.getItem('tm_sections') || '{}');
+			var MAP = { hero:'#hero', features:'.tm-features', services:'.tm-services', about:'#about', career:'#career', accolades:'#accolades', footprint:'#footprint', team:'#team', gallery:'#gallery', events:'#events', social:'#social', newsletter:'#newsletter', testimonials:'#testimonials', faq:'#faq', contact:'#contact', footer:'.tm-footer' };
 			var sel = [];
-			Object.keys(MAP).forEach(function (k) { if (v[k] === false) sel.push(MAP[k]); });
+			Object.keys(MAP).forEach(function (k) {
+				if (v[k] !== false) return;
+				sel.push(MAP[k]);
+				// its nav links (desktop, mobile, footer) - the same ones applySectionVisibility() in myscript.js hides
+				if (MAP[k].charAt(0) === '#') sel.push('.tm-navlinks li:has(a[href="' + MAP[k] + '"])', '.tm-mobile-menu a[href="' + MAP[k] + '"]', '.tm-footer__col li:has(a[href="' + MAP[k] + '"])');
+			});
 			if (sel.length) {
 				var s = document.createElement('style');
 				s.setAttribute('data-tm-sections', '');
@@ -102,6 +112,8 @@
 
 
 <body>
+<!-- Page preloader: one shared copy for the homepage and the admin (js/tm-preloader.js). Must stay the FIRST thing in <body>. -->
+<script src="js/tm-preloader.js?v=3"></script>
 
 <a href="#main" class="skip-link">Skip to main content</a>
 
@@ -129,6 +141,7 @@
 				<li><a href="#events">Events</a></li>
 				<li class="tm-nav-low"><a href="#newsletter">Newsletter</a></li>
 				<li><a href="#testimonials">Testimonials</a></li>
+				<li class="tm-nav-low tm-nav-empty"><a href="#faq">FAQ</a></li>
 				<li><a href="#contact">Contact</a></li>
 			</ul>
 		</div>
@@ -160,6 +173,7 @@
 	<a href="#events">Events</a>
 	<a href="#newsletter">Newsletter</a>
 	<a href="#testimonials">Testimonials</a>
+	<a href="#faq" class="tm-nav-empty">FAQ</a>
 	<a href="#contact">Contact</a>
 	<a href="#" data-open-drawer="trackingDrawer">Track Booking</a>
 	<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" data-bk-source="mobile-nav">Book Me</a>
@@ -175,8 +189,8 @@
 	<div class="carousel fade" id="featured" data-interval="6000" aria-hidden="true">
 		<ol class="carousel-indicators" id="featuredIndicators"></ol>
 		<div class="carousel-inner fullheight" id="featuredInner">
-			<!-- Populated dynamically from /api/public/home-slider -->
-			<div class="item active"><img src="images/image-slider-1.jpg" alt="Thabiso Mhlongo"></div>
+			<!-- Populated dynamically from /api/public/home-slider (Site Content -> Home Slider). No hard-coded slide: with none published the
+			     hero shows its own background (.tm-hero__bg). -->
 		</div>
 	</div>
 
@@ -594,6 +608,34 @@
 	</div>
 </section>
 
+<!-- ============== FAQ ==============
+     Questions & answers managed in the admin (FAQ). Filled from /api/public/faqs by renderFaq() in js/myscript.js via js/faq-view.js (the renderer
+     the admin preview uses too). Starts [hidden]: it only appears once at least one question is published. css/public/faq.css. -->
+<section class="tm-section tm-faq" id="faq" aria-labelledby="faqTitle" hidden>
+	<div class="tm-container">
+		<div class="tm-section__head text-center tm-reveal">
+			<p class="tm-eyebrow">Questions</p>
+			<h2 id="faqTitle">Frequently Asked <em>Questions</em></h2>
+			<p class="tm-section__desc">Quick answers about bookings, payments and shows.</p>
+		</div>
+		<div class="faq-tools">
+			<div class="faq-filters" id="faqFilters" role="group" aria-label="Filter questions by topic" hidden></div>
+			<label class="faq-search" id="faqSearchWrap" hidden>
+				<span class="sr-only">Search the questions</span>
+				<i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+				<input type="search" id="faqSearch" placeholder="Search the questions" autocomplete="off">
+			</label>
+		</div>
+		<p class="sr-only" id="faqStatus" role="status" aria-live="polite"></p>
+		<div class="faq-list" id="faqList"></div>
+		<p class="faq-empty" id="faqEmpty" hidden>No questions match your search. Try another word, or ask us below.</p>
+		<div class="faq-more">
+			<p>Still have a question?</p>
+			<a href="#contact" class="btn btn-outline">Ask us</a>
+		</div>
+	</div>
+</section>
+
 <!-- ============== CONTACT ============== -->
 <section class="tm-section tm-contact" id="contact" aria-labelledby="contactTitle">
 	<div class="tm-container">
@@ -737,6 +779,7 @@
 				<h4>Connect</h4>
 				<ul>
 					<li><a href="#contact">Contact</a></li>
+					<li class="tm-nav-empty"><a href="#faq">FAQ</a></li>
 					<li><a href="#newsletter">Newsletter</a></li>
 					<li><a href="#" data-open-drawer="bookingDrawer" data-track="book_now" data-bk-source="footer">Book Me</a></li>
 					<li><a href="#" data-open-drawer="trackingDrawer">Track Booking</a></li>
@@ -2351,19 +2394,21 @@
 	<script src="js/team-view.js?v=5"></script>
 	<!-- Same renderer the admin preview uses for accolades (js/accolades-view.js). -->
 	<script src="js/accolades-view.js?v=4"></script>
+	<!-- FAQ renderer, shared with the admin preview (js/faq-view.js). -->
+	<script src="js/faq-view.js?v=2"></script>
 	<!-- Shared location-search utilities (2026-09-29 consolidation audit) — used by the booking
 	     wizard's venue combobox below (parseAddressComponents / cityOrState). -->
 	<script src="js/shared/location-utils.js?v=1"></script>
 	<!-- Shared location-search client (2026-10 Places audit) - the booking wizard uses its session tokens. -->
 	<script src="js/shared/places-client.js?v=1"></script>
-	<script src="js/myscript.js?v=1.9.24"></script>
+	<script src="js/myscript.js?v=1.9.27"></script>
 	<script src="js/overlay-stack.js?v=2"></script>
 	<!-- Booking & Track-Booking drawers reuse the admin's drawer system verbatim
 	     (openAtlDrawer/closeAtlDrawer + z-index stacking via js/overlay-stack.js above) rather
 	     than a second, public-only implementation. See css/public/drawer.css for the public
 	     skin (same BEM classes, public design tokens instead of admin's --atl-* ones). -->
 	<script src="js/admin/components/drawer.js?v=3"></script>
-	<script src="js/notificationService.js?v=2.0.2"></script>
+	<script src="js/notificationService.js?v=2.0.3"></script>
 	<!-- Event ticketing: the Get Tickets drawer + the event cards' ticket buttons (called by js/myscript.js). -->
 	<script src="js/tickets-drawer.js?v=10"></script>
 	<!-- Share a show with friends: Share buttons on cards / pop-up / drawer, and opening /?event=<id> from a shared link. -->
@@ -4815,7 +4860,7 @@ $(document).on('click', '.trk-lookup-row', function() {
                 if (document.readyState === 'complete') warmNextSlide();
                 else window.addEventListener('load', warmNextSlide);
             })
-            .catch(function() { /* keep the fallback slide that's already in the DOM */ });
+            .catch(function() { /* no slides: the hero keeps its own background (.tm-hero__bg) */ });
     })();
 </script>
 

@@ -99,7 +99,7 @@ window.openSocialLinkDrawer = function() {
     $('#iconPreviewDisplay').empty();
     $('#socActive').prop('checked', true);
     $('#socActiveLabel').text('Active (visible on site)');
-    $('#socialIconSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Social Link').removeClass('btn-admin-warning btn-admin-success').addClass('btn-admin-primary');
+    $('#socialIconSubmitBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Social Link');
     $('#socialLinkDrawerTitle').html('<i class="fa-solid fa-at"></i> Add Social Link');
     openAtlDrawer('socialLinkDrawer');
 };
@@ -134,7 +134,7 @@ $(document).on('submit', '#socialIconForm', async function(e) {
         renderSocialList();
         closeAtlDrawer('socialLinkDrawer');
         window.notificationService.showSuccess(editingId ? 'Social link updated.' : 'Social link added.');
-        $btn.html('<i class="fa-solid fa-plus-circle"></i> Add Social Link').removeClass('btn-admin-success btn-admin-warning').addClass('btn-admin-primary');
+        $btn.html('<i class="fa-solid fa-plus-circle"></i> Add Social Link');
     } catch (err) {
         window.notificationService.showError("Failed to save social link.");
     }
@@ -169,7 +169,7 @@ $(document).on('click', '.edit-social-action', function(e) {
     $('#socActive').prop('checked', item.is_active != 0);
     $('#socActiveLabel').text(item.is_active != 0 ? 'Active (visible on site)' : 'Inactive (hidden)');
 
-    $('#socialIconSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Social Link').removeClass('btn-admin-primary btn-admin-success').addClass('btn-admin-warning');
+    $('#socialIconSubmitBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Social Link');
     $('#socialLinkDrawerTitle').html('<i class="fa-solid fa-at"></i> Edit Social Link');
     openAtlDrawer('socialLinkDrawer');
     $('#socUrl').focus();
@@ -232,7 +232,7 @@ async function renderEmbedList() {
                 else if (diffDays === 1) dateStr = '1 day ago';
                 else if (diffDays < 30) dateStr = diffDays + ' days ago';
                 else if (diffDays < 365) dateStr = Math.floor(diffDays/30) + ' months ago';
-                else dateStr = Math.floor(diffDays/365) + ' years ago';
+                else dateStr = Math.floor(diffDays/365) === 1 ? '1 year ago' : Math.floor(diffDays/365) + ' years ago';
             }
             
             var subtitleParts = [];
@@ -309,14 +309,28 @@ $(document).on('click', '#generateFbTokenBtn', function() {
     }
 });
 
+// What the public card shows for an embed (channel / views / upload date / description): saved inside the embed's metadata as `display`.
+// Everything defaults to shown, so an embed saved before these options existed looks exactly as it did.
+function readEmbedShowOptions() {
+    var d = {};
+    $('#embedShowOptions input[data-show]').each(function() { d[$(this).data('show')] = $(this).is(':checked'); });
+    return d;
+}
+function setEmbedShowOptions(display) {
+    $('#embedShowOptions input[data-show]').each(function() {
+        $(this).prop('checked', !(display && display[$(this).data('show')] === false));
+    });
+}
+
 // Open the Media Embed drawer in create ("Add") mode.
 window.openSocialEmbedDrawer = function() {
     $('#socialEmbedForm')[0].reset();
+    setEmbedShowOptions(null);
     $('#socialEmbedForm').removeData('editing-id');
     $('#embedPlatform').trigger('change');
     $('#embedActive').prop('checked', true);
     $('#embedActiveLabel').text('Active (visible on site)');
-    $('#socialEmbedSaveBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Media Embed').removeClass('btn-admin-success').addClass('btn-admin-primary');
+    $('#socialEmbedSaveBtn').html('<i class="fa-solid fa-plus-circle"></i> Add Media Embed');
     $('#socialEmbedDrawerTitle').html('<i class="fa-solid fa-code"></i> Add Media Embed');
     openAtlDrawer('socialEmbedDrawer');
 };
@@ -359,6 +373,7 @@ $(document).on('submit', '#socialEmbedForm', function(e) {
     var editingId = $('#socialEmbedForm').data('editing-id');
 
     async function finishSave(itemObj) {
+        if (itemObj.metadata && typeof itemObj.metadata === 'object') itemObj.metadata.display = readEmbedShowOptions();
         try {
             await apiCall('/api/admin/social_embeds', 'POST', {
                 id: editingId || null,
@@ -376,7 +391,7 @@ $(document).on('submit', '#socialEmbedForm', function(e) {
             renderEmbedList();
             closeAtlDrawer('socialEmbedDrawer');
             window.notificationService.showSuccess(editingId ? 'Media embed updated.' : 'Media embed added.');
-            $btn.html('<i class="fa-solid fa-plus-circle"></i> Add Media Embed').removeClass('btn-admin-success').addClass('btn-admin-primary').prop('disabled', false);
+            $btn.html('<i class="fa-solid fa-plus-circle"></i> Add Media Embed').prop('disabled', false);
         } catch(err) {
             window.notificationService.showError('Error saving embed');
             $btn.text('Add Media Embed').prop('disabled', false);
@@ -603,7 +618,7 @@ $(document).on('click', '.remove-embed-action', async function(e) {
             const result = await apiCall('/api/admin/social_embeds/' + id, 'DELETE');
             if (result && !result.error) {
                 $('#socialEmbedForm').removeData('editing-id');
-                $('#socialEmbedSaveBtn').text('Add Media Embed').removeClass('btn-admin-success').addClass('btn-admin-primary');
+                $('#socialEmbedSaveBtn').text('Add Media Embed');
                 renderEmbedList();
             }
         } catch(err) {
@@ -626,8 +641,11 @@ $(document).on('click', '.edit-embed-action', function(e) {
     $('#socialEmbedForm').data('editing-id', item.id);
     $('#embedActive').prop('checked', item.is_active != 0);
     $('#embedActiveLabel').text(item.is_active != 0 ? 'Active (visible on site)' : 'Inactive (hidden)');
+    var editMeta = null;
+    try { editMeta = item.metadata ? JSON.parse(item.metadata) : null; } catch (err) {}
+    setEmbedShowOptions(editMeta && editMeta.display);
 
-    $('#socialEmbedSaveBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Media Embed').removeClass('btn-admin-primary').addClass('btn-admin-success');
+    $('#socialEmbedSaveBtn').html('<i class="fa-solid fa-floppy-disk"></i> Update Media Embed');
     $('#socialEmbedDrawerTitle').html('<i class="fa-solid fa-code"></i> Edit Media Embed');
     openAtlDrawer('socialEmbedDrawer');
     $('#embedUrlCode').focus();

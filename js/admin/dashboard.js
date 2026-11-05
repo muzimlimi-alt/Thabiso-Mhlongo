@@ -619,7 +619,8 @@
 
         // The week ahead (today + 6 days), grouped by day: Today / Tomorrow / Thu 5 Nov ...
         list.querySelectorAll('.db-schedule-day').forEach(function (el) { el.remove(); });
-        fetch('/api/admin/analytics/todays-schedule?days=7', { credentials: 'same-origin' })
+        // returned so a caller can wait for it (the post-login preloader, admin.html startDashboardLoads)
+        return fetch('/api/admin/analytics/todays-schedule?days=7', { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (d) {
                 if (spinner) spinner.style.display = 'none';
@@ -668,17 +669,20 @@
     }
 
     // ── 10. Master loader ─────────────────────────────────────────────────────
+    // Returns a promise that settles once the Overview cards are in (the charts below keep filling on their own), so the post-login
+    // preloader can wait for it (admin.html startDashboardLoads). window.__dbAnalyticsStarted stops the start-up block below loading it twice.
     function loadAnalyticsDashboard() {
         // Only run if the dashboard section is visible
         var dash = document.getElementById('dashboardAdmin');
-        if (!dash || dash.style.display === 'none') return;
+        if (!dash || dash.style.display === 'none') return Promise.resolve();
+        window.__dbAnalyticsStarted = true;
 
         // The tabs work the date range out first (and fill Overview / Finance); then every card below loads for that same range.
         if (window.dbInsights) {
-            window.dbInsights.load().then(dbLoadCards, dbLoadCards);
-            return;
+            return window.dbInsights.load().then(dbLoadCards, dbLoadCards);
         }
         dbLoadCards();
+        return Promise.resolve();
     }
     function dbLoadCards() {
         dbLoadKpiSummary();
@@ -736,7 +740,7 @@
         // which starts display:none and is set to flex only after successful login.
         setTimeout(function () {
             var sect = document.getElementById('dashboardSection');
-            if (sect && sect.style.display !== 'none') {
+            if (sect && sect.style.display !== 'none' && !window.__dbAnalyticsStarted) {   // not already started by the sign-in code
                 loadAnalyticsDashboard();
                 loadTodaysSchedule();
             }

@@ -1,0 +1,100 @@
+/* PUBLIC - FAQ section (#faq on index.html; rendered by js/faq-view.js; content from lib/faq.js). Prefix .faq-*; tokens from css/public/redesign.css.
+   The same classes style the admin's live preview (css/admin/faq.css scopes them under #faqPreview). */
+
+.tm-footer li.tm-nav-empty { display: none !important; }   /* the footer FAQ link waits for the first published question, like the menu links */
+
+.tm-faq .faq-tools {
+  display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; justify-content: center;
+  max-width: 860px; margin: 0 auto 28px;
+}
+.faq-filters { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.faq-filters[hidden], .faq-search[hidden] { display: none !important; }
+.faq-chip {
+  font-family: var(--f-body); font-size: .9rem; line-height: 1; letter-spacing: .02em;
+  padding: 10px 16px; min-height: 40px; border-radius: 999px; cursor: pointer;
+  color: var(--text-secondary); background: transparent; border: 1px solid var(--border-default);
+  transition: color .2s, border-color .2s, background .2s;
+}
+.faq-chip:hover, .faq-chip:focus-visible { color: var(--text-primary); border-color: var(--y-dark); outline: none; }
+.faq-chip.is-active { color: var(--text-inverse); background: var(--y-base); border-color: var(--y-base); font-weight: 600; }
+
+.faq-search {
+  position: relative; display: flex; align-items: center; flex: 0 1 300px; min-width: 0; margin: 0;
+}
+.faq-search i { position: absolute; left: 14px; color: var(--text-muted); font-size: .9rem; pointer-events: none; }
+.faq-search input {
+  width: 100%; min-height: 42px; padding: 10px 14px 10px 38px; border-radius: 999px;
+  font-family: var(--f-body); font-size: .95rem; color: var(--text-primary);
+  background: var(--bg-surface); border: 1px solid var(--border-default);
+}
+.faq-search input:focus { outline: none; border-color: var(--y-base); box-shadow: 0 0 0 3px var(--y-muted); }
+
+.faq-list { max-width: 860px; margin: 0 auto; }
+.faq-group + .faq-group { margin-top: 36px; }
+/* !important: css/public/redesign.css sets every h1-h6 to the display serif with !important */
+.faq-group .faq-group__title {
+  font-family: var(--f-body) !important; font-size: .78rem !important; font-weight: 600 !important; letter-spacing: .16em !important; line-height: 1.4 !important;
+  text-transform: uppercase; color: var(--y-base) !important; margin: 0 0 6px; padding-bottom: 10px; border-bottom: 1px solid var(--border-low);
+}
+
+.faq-item { border-bottom: 1px solid var(--border-low); }
+.faq-item__q {
+  display: flex; align-items: center; justify-content: space-between; gap: 18px;
+  padding: 20px 4px; cursor: pointer; list-style: none;
+  font-family: var(--f-display); font-size: clamp(1.15rem, 1.05rem + .35vw, 1.4rem); line-height: 1.35;
+  color: var(--text-primary); transition: color .2s;
+}
+.faq-item__q::-webkit-details-marker { display: none; }
+.faq-item__q:hover, .faq-item__q:focus-visible { color: var(--y-hover); outline: none; }
+.faq-item__q:focus-visible { box-shadow: inset 0 -2px 0 var(--y-base); }
+.faq-item__qtext { min-width: 0; overflow-wrap: anywhere; }
+/* a plus that turns into a minus */
+.faq-item__icon { position: relative; flex: 0 0 18px; width: 18px; height: 18px; }
+.faq-item__icon::before, .faq-item__icon::after {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1.5px; margin-top: -.75px; background: var(--y-base);
+  transition: transform .3s var(--ease-out), opacity .3s;
+}
+.faq-item__icon::after { transform: rotate(90deg); }
+.faq-item[open] .faq-item__icon::after { transform: rotate(0deg); opacity: 0; }
+.faq-item__a { padding: 0 4px 22px; max-width: 72ch; }
+.faq-item__p {
+  margin: 0 0 .85em; font-family: var(--f-body); font-size: 1rem; line-height: 1.7; color: var(--text-secondary); overflow-wrap: anywhere;
+}
+.faq-item__p:last-child { margin-bottom: 0; }
+
+.faq-empty { text-align: center; color: var(--text-muted); margin: 24px auto 0; max-width: 860px; }
+.faq-empty[hidden] { display: none; }
+.faq-more { text-align: center; margin-top: 40px; }
+.faq-more p { color: var(--text-secondary); margin: 0 0 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .faq-item__icon::before, .faq-item__icon::after, .faq-chip, .faq-item__q { transition: none; }
+}
+@media (max-width: 600px) {
+  .faq-search { flex-basis: 100%; }
+  .faq-item__q { padding: 18px 2px; }
+}
+
+/* ── collapsible topics: only the topic rows show until one is opened ───────────────────────────────────────────────────────────── */
+.faq-group--collapsible + .faq-group--collapsible { margin-top: 10px; }
+.faq-group__summary {
+  display: flex; align-items: center; gap: 14px; list-style: none; cursor: pointer;
+  padding: 16px 18px; min-height: 56px; border: 1px solid var(--border-low); border-radius: 12px; background: var(--bg-surface);
+  transition: border-color .2s, background .2s;
+}
+.faq-group__summary::-webkit-details-marker { display: none; }
+.faq-group__summary:hover, .faq-group__summary:focus-visible { border-color: var(--y-dark); outline: none; }
+.faq-group__summary:focus-visible { box-shadow: 0 0 0 3px var(--y-muted); }
+.faq-group--collapsible .faq-group__summary .faq-group__title { margin: 0 !important; padding: 0; border: 0; flex: 1; min-width: 0; }
+.faq-group__count { font-family: var(--f-body); font-size: .85rem; color: var(--text-muted); white-space: nowrap; }
+.faq-group__chev {
+  flex: 0 0 10px; width: 10px; height: 10px; margin-left: 4px;
+  border-right: 1.5px solid var(--y-base); border-bottom: 1.5px solid var(--y-base);
+  transform: rotate(45deg) translate(-2px, -2px); transition: transform .3s var(--ease-out);
+}
+.faq-group--collapsible[open] > .faq-group__summary { border-color: var(--y-dark); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.faq-group--collapsible[open] > .faq-group__summary .faq-group__chev { transform: rotate(-135deg) translate(-2px, -2px); }
+.faq-group--collapsible > .faq-item { padding: 0 14px; border-left: 1px solid var(--border-low); border-right: 1px solid var(--border-low); }
+.faq-group--collapsible > .faq-item:last-child { border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; }
+@media (prefers-reduced-motion: reduce) { .faq-group__chev, .faq-group__summary { transition: none; } }
+@media (max-width: 600px) { .faq-group__summary { padding: 14px; } .faq-group--collapsible > .faq-item { padding: 0 8px; } }

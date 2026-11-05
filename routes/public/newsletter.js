@@ -46,6 +46,12 @@ async function sendNewsletterConfirmationEmail(email, first_name, unsubscribe_to
     });
 }
 
+// Notification Centre: subscriber activity, with the address masked (f***@example.com) - the full address stays in the subscriber list.
+const notify = require('../../lib/notify');
+const maskEmail = (e) => { const [u, d] = String(e || '').split('@'); return (u || '').slice(0, 1) + '***@' + (d || ''); };
+const sastDay = () => new Date(Date.now() + 2 * 3600000).toISOString().slice(0, 10);
+const confirmationFailed = (email, e) => notify.emit('subscribers.confirmation_failed', { maskedEmail: maskEmail(email), error: e && e.message }, { actorType: 'system' });
+
 router.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
     let { email, popia_consent, first_name, birthday_day, birthday_month } = req.body;
     if (!email) {
@@ -108,7 +114,7 @@ router.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
                     // repeatedly resubmitting the same email can't be used to bomb an inbox.
                     touchSubscriberCooldown(row.subscriber_id, function(cooldownErr) {
                         if (!cooldownErr && this.changes > 0) {
-                            sendNewsletterConfirmationEmail(email, first_name, row.unsubscribe_token).catch(e => console.error('Error resending confirmation email to ' + email + ':', e));
+                            sendNewsletterConfirmationEmail(email, first_name, row.unsubscribe_token).catch(e => { console.error('Error resending confirmation email to ' + email + ':', e); confirmationFailed(email, e); });
                         }
                         res.json({ success: true, message: NEWSLETTER_PENDING_MESSAGE });
                     });
@@ -120,7 +126,7 @@ router.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
                 // and re-capture consent/profile fields fresh from this submission.
                 reactivateSubscriber(CURRENT_POLICY_VERSION, first_name, birthdayDayVal, birthdayMonthVal, ip_address, user_agent, source, row.subscriber_id, (reErr) => {
                     if (reErr) return res.status(500).json({ success: false, message: 'Server error.' });
-                    sendNewsletterConfirmationEmail(email, first_name, row.unsubscribe_token).catch(e => console.error('Error sending confirmation email to ' + email + ':', e));
+                    sendNewsletterConfirmationEmail(email, first_name, row.unsubscribe_token).catch(e => { console.error('Error sending confirmation email to ' + email + ':', e); confirmationFailed(email, e); });
                     res.json({ success: true, message: NEWSLETTER_PENDING_MESSAGE });
                 });
             });
@@ -128,8 +134,10 @@ router.post('/api/public/subscribe', ipRateLimiter, (req, res) => {
         }
         console.log(`[Newsletter] DB Insert SUCCESS (pending confirmation) for: ${email}`);
 
+        const newId = this && this.lastID ? this.lastID : null;
+        notify.emit('subscribers.signed_up', { subscriberId: newId, firstName: first_name, maskedEmail: maskEmail(email) }, { actorType: 'client', actorLabel: first_name });
         sendNewsletterConfirmationEmail(email, first_name, unsubscribe_token)
-            .catch(e => console.error("Error sending confirmation email to " + email + ":", e));
+            .catch(e => { console.error("Error sending confirmation email to " + email + ":", e); confirmationFailed(email, e); });
 
         res.json({ success: true, message: NEWSLETTER_PENDING_MESSAGE });
     });
@@ -159,6 +167,7 @@ router.post('/api/public/newsletter/confirm', ipRateLimiter, (req, res) => {
         confirmSubscriber(row.subscriber_id, (uErr) => {
             if (uErr) return res.status(500).json({ success: false, error: uErr.message });
             sendNewsletterWelcomeEmail(email, row.first_name, row.unsubscribe_token).catch(e => console.error('Error sending welcome email to ' + email + ':', e));
+            notify.emit('subscribers.confirmed', { day: sastDay(), firstName: row.first_name, maskedEmail: maskEmail(email), subscriberId: row.subscriber_id }, { actorType: 'client', actorLabel: row.first_name || null });
             res.json({ success: true, message: 'Subscription confirmed! Welcome aboard.' });
         });
     });
@@ -177,6 +186,7 @@ router.post('/api/public/newsletter/unsubscribe', ipRateLimiter, (req, res) => {
 
         unsubscribeSubscriber(row.subscriber_id, (uErr) => {
             if (uErr) return res.status(500).json({ success: false, error: uErr.message });
+            notify.emit('subscribers.unsubscribed', { day: sastDay(), maskedEmail: maskEmail(email), subscriberId: row.subscriber_id }, { actorType: 'client' });
             res.json({ success: true, message: 'Successfully unsubscribed.' });
         });
     });

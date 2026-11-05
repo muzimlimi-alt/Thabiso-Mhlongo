@@ -78,7 +78,7 @@ const tier = (id) => dbGet('SELECT * FROM ticket_types WHERE id = ?', [id]);
     out.deleteUsedTier = await refusal(t.deleteTier(g.id));
     const unused = await t.createTier(ev.lastID, tierIn({ name: 'Unused' }), null);
     out.deleteUnused = !!(await t.deleteTier(unused.id));
-    out.closeSales = await t.setEventSales(ev.lastID, false);
+    out.closeSales = await t.setSalesState(ev.lastID, 'close', null);
     out.closedReserve = await refusal(t.reserve(ev.lastID, [{ ticket_type_id: g.id, quantity: 1 }]));
     out.deletionCheck = await t.eventDeletionCheck(ev.lastID);
     out.eventDeleteBlockedByDb = await dbRun('DELETE FROM events WHERE event_id = ?', [ev.lastID]).then(() => 'deleted', e => e.message);

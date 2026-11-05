@@ -385,7 +385,7 @@ function linkEventToPlaceholderBooking(bookingId, eventId, callback) {
     db.run("UPDATE events SET booking_id = ? WHERE event_id = ?", [bookingId, eventId], callback);
 }
 function getEventForConflictEdit(eventId, callback) {
-    db.get("SELECT event_datetime, booking_id AS old_booking_id, google_calendar_event_id FROM events WHERE event_id = ?", [eventId], callback);
+    db.get("SELECT event_datetime, event_capacity, booking_id AS old_booking_id, google_calendar_event_id FROM events WHERE event_id = ?", [eventId], callback);
 }
 function updateEventFull(eventTitle, eventDescription, eventDatetime, eventEndTime, eventType, venueName, venueId, venueMapLink, ticketSalesLink, posterImagePath, eventStatus, eventCapacity, cancellationReason, bookingId, modifiedBy, modifiedByRole, ipAddress, userAgent, eventId, callback) {
     db.run(

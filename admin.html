@@ -44,10 +44,13 @@
     <link href="css/public/redesign.css?v=33" rel="stylesheet">
     <link href="css/admin/team.css?v=4" rel="stylesheet">
     <link href="css/admin/accolades.css?v=1" rel="stylesheet">
+    <link href="css/public/faq.css?v=4" rel="stylesheet">
+    <link href="css/admin/faq.css?v=2" rel="stylesheet">
     <link href="css/admin/eft.css?v=2" rel="stylesheet">
+    <link href="css/admin/notifications.css?v=3" rel="stylesheet">
     <link href="css/admin/business-profile.css?v=8" rel="stylesheet">
     <link href="css/admin/payfast-reconcile.css?v=1" rel="stylesheet">
-    <link href="css/admin/ticketing.css?v=11" rel="stylesheet">
+    <link href="css/admin/ticketing.css?v=13" rel="stylesheet">
     <link href="css/admin/redesign-admin.css?v=1" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/intl-tel-input/17.0.19/css/intlTelInput.css">
     <link rel="stylesheet" href="css/components/notifications.css">
@@ -101,7 +104,9 @@
 
     <link rel="stylesheet" href="css/admin/14-finance.css?v=3">
     <link rel="stylesheet" href="css/admin/email-logs-2.css">
-    <link rel="stylesheet" href="css/admin/15-services-catalogue.css?v=3">
+    <link rel="stylesheet" href="css/admin/15-services-catalogue.css?v=5">
+    <!-- Admin Drawer Kit (.dk-*, opt in with .atl-drawer--dk): the shared inside of every converted drawer, built only from --atl-* tokens. -->
+    <link rel="stylesheet" href="css/admin/drawer-kit.css?v=1">
     <link rel="stylesheet" href="css/admin/legal-compliance.css">
     <link rel="stylesheet" href="css/admin/16-users-security-upload.css">
     <link rel="stylesheet" href="css/admin/about.css">
@@ -109,6 +114,8 @@
 </head>
 
 <body class="admin-body">
+    <!-- Page preloader: the same shared copy as the homepage (js/tm-preloader.js). Must stay the FIRST thing in <body>. -->
+    <script src="js/tm-preloader.js?v=3"></script>
     <!--<h1 class="sr-only">Administration Dashboard</h1>-->
     <!-- Mobile Header/Trigger Area (Subtle replacement for main header on mobile) -->
     <div class="tm-mobile-top-bar" style="display: none;">
@@ -284,6 +291,9 @@
                     <li class="sh-nav-group active">
                         <a href="#dashboardAdmin" class="tm-nav-link sh-nav-item" title="Dashboard"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span><span class="tm-nav-text sh-lbl">Dashboard</span></a>
                     </li>
+                    <li class="sh-nav-group">
+                        <a href="#notificationsAdmin" class="tm-nav-link sh-nav-item" title="Notification Centre"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></span><span class="tm-nav-text sh-lbl">Notifications</span><span class="ntf-navcount" id="ntfNavCount" hidden title="Action required">0</span></a>
+                    </li>
                     <li class="tm-sidebar-group-title sh-nav-label" role="presentation"><span>Operations</span></li>
                     <li class="sh-nav-group atl-nav-group">
                         <button type="button" class="atl-nav-parent sh-nav-item" aria-expanded="false" aria-controls="navBookings"><span class="sh-ic"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></span><span class="tm-nav-text sh-lbl">Bookings</span><span class="atl-nav-chev sh-chev"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="m9 18 6-6-6-6"/></svg></span></button>
@@ -328,6 +338,7 @@
                             <li><a href="#footprintAdmin" class="tm-nav-link" title="Footprint"><span class="tm-nav-text">Footprint</span></a></li>
                             <li><a href="#teamAdmin" class="tm-nav-link" title="Management Team"><span class="tm-nav-text">Management Team</span></a></li>
                             <li><a href="#testimonialsAdmin" class="tm-nav-link" title="Testimonials"><span class="tm-nav-text">Testimonials</span></a></li>
+                            <li><a href="#faqAdmin" class="tm-nav-link" title="Frequently asked questions"><span class="tm-nav-text">FAQ</span></a></li>
                             <li><a href="#galleryAdmin" class="tm-nav-link" title="Gallery"><span class="tm-nav-text">Gallery</span></a></li>
                         </ul>
                     </li>
@@ -412,6 +423,19 @@
                     <a class="sh-icon-btn" href="index.html" target="_blank" rel="noopener" aria-label="View live site" title="View live site">
                         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
                     </a>
+
+                    <!-- Notification Centre bell (js/admin/notifications.js, docs-internal/notifications.md). The menu is moved to <body> on load. -->
+                    <button type="button" class="sh-icon-btn ntf-bell" id="ntfBellBtn" aria-label="Notifications" title="Notifications"
+                            aria-haspopup="true" aria-expanded="false" aria-controls="ntfBellMenu">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide" aria-hidden="true" focusable="false"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg>
+                        <span class="ntf-bell__badge" id="ntfBellBadge" hidden>0</span>
+                    </button>
+                    <div class="ntf-bell-menu" id="ntfBellMenu" role="dialog" aria-label="Notifications">
+                        <div class="ntf-bell-menu__hd"><h2>Notifications</h2><button type="button" class="ntf-linkbtn" id="ntfBellReadAll">Mark all read</button></div>
+                        <div class="ntf-bell-menu__counts" id="ntfBellCounts"></div>
+                        <div class="ntf-bell-menu__list" id="ntfBellList"><div class="ntf-empty">Loading…</div></div>
+                        <div class="ntf-bell-menu__ft"><button type="button" class="ntf-linkbtn" data-ntf-go="ntfPanelAction">Open Notification Centre</button></div>
+                    </div>
 
                     <div class="adm-dropdown sh-acct-wrap" id="admProfileDropdown">
                         <button type="button" class="adm-profile-btn sh-acct" id="admProfileTrigger"
@@ -5326,6 +5350,57 @@
             </div>
 
             <!-- Testimonials (visitor-submitted, admin-moderated) -->
+            <!-- ============================================================
+                 FAQ - questions & answers for the public FAQ section. js/admin/faq.js; rules and order: lib/faq.js; renderer shared with the
+                 website: js/faq-view.js; editor: #faqDrawer below.
+            ============================================================ -->
+            <div class="admin-section" id="faqAdmin">
+                <div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">Site Content</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-circle-question"></i> FAQ</h2>
+                            <p class="atl-section-sub">Questions and answers shown in the FAQ section of the public site, grouped by topic.</p>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
+                            <button type="button" id="faqAddBtn" class="atl-btn atl-btn--primary"><i class="fa-solid fa-plus"></i> Add Question</button>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
+
+                    <div class="atl-tab-bar" role="tablist">
+                        <button class="atl-tab-btn active" data-um-tab="faqManagePanel" role="tab" aria-selected="true"><i class="fa-solid fa-list-ul"></i> Manage questions</button>
+                        <button class="atl-tab-btn" data-um-tab="faqPreviewPanel" role="tab" aria-selected="false"><i class="fa-solid fa-eye"></i> Preview</button>
+                    </div>
+
+                    <div id="faqManagePanel" class="um-panel active">
+                        <div id="faqNotice" class="faqa-notice" role="status" hidden></div>
+                        <div class="faqa-toolbar" role="search" aria-label="Find questions">
+                            <div class="um-input-wrap faqa-toolbar__search">
+                                <i class="fa-solid fa-magnifying-glass um-input-icon" aria-hidden="true"></i>
+                                <input type="search" id="faqAdminSearch" class="um-input" placeholder="Search questions and answers" aria-label="Search questions">
+                            </div>
+                            <select id="faqFilterCategory" class="um-input atl-filter-select" aria-label="Filter by topic"><option value="">All topics</option></select>
+                            <select id="faqFilterStatus" class="um-input atl-filter-select" aria-label="Filter by status">
+                                <option value="">Published and hidden</option><option value="active">Published</option><option value="inactive">Hidden</option>
+                            </select>
+                            <span class="faqa-count" id="faqCount" aria-live="polite"></span>
+                        </div>
+                        <div id="faqAdminList" class="faqa-list"><p class="faqa-empty">Loading…</p></div>
+                    </div>
+
+                    <div id="faqPreviewPanel" class="um-panel">
+                        <div class="atl-card">
+                            <div class="um-panel-toprow"><div>
+                                <h4 class="um-section-label">How the website shows it</h4>
+                                <p class="um-section-desc">Published questions only, in website order, drawn by the same code as the public page.</p>
+                            </div></div>
+                            <div id="faqPreview" class="faqa-preview"><div class="faq-list" id="faqPreviewList"></div><p class="faqa-empty" id="faqPreviewEmpty" hidden>Nothing is published yet, so the FAQ section is hidden on the website.</p></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="admin-section" id="testimonialsAdmin">
                 <div>
                     <div class="atl-section-hd">
@@ -7373,6 +7448,169 @@
             </div>
 
             <!-- 9. Email Logs -->
+            <!-- ============================================================
+                 NOTIFICATION CENTRE (js/admin/notifications.js, css/admin/notifications.css, docs-internal/notifications.md)
+                 Action required / Attention / Activity feed / Preferences. The server filters everything by role.
+            ============================================================ -->
+            <div class="admin-section" id="notificationsAdmin">
+                <div>
+                    <div class="atl-section-hd">
+                        <div>
+                            <p class="atl-section-eyebrow">Insight</p>
+                            <h2 class="atl-section-heading"><i class="fa-solid fa-bell"></i> Notifications</h2>
+                            <p class="atl-section-sub">What needs your decision, what is coming up, and everything that has happened across the business.</p>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-left:auto;">
+                            <button type="button" class="atl-btn atl-btn--ghost" id="ntfRefreshBtn"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                        </div>
+                    </div>
+                    <div class="atl-section-rule"></div>
+
+                    <div class="atl-tab-bar" role="tablist">
+                        <button class="atl-tab-btn active" data-um-tab="ntfPanelAction" role="tab" aria-selected="true"><i class="fa-solid fa-hand"></i> Action required</button>
+                        <button class="atl-tab-btn" data-um-tab="ntfPanelAttention" role="tab" aria-selected="false"><i class="fa-solid fa-triangle-exclamation"></i> Attention</button>
+                        <button class="atl-tab-btn" data-um-tab="ntfPanelActivity" role="tab" aria-selected="false"><i class="fa-solid fa-clock-rotate-left"></i> Activity feed</button>
+                        <button class="atl-tab-btn" data-um-tab="ntfPanelExpiry" id="ntfExpiryTabBtn" role="tab" aria-selected="false"><i class="fa-solid fa-hourglass-half"></i> Expiry dates</button>
+                        <button class="atl-tab-btn" data-um-tab="ntfPanelPrefs" role="tab" aria-selected="false"><i class="fa-solid fa-sliders"></i> Preferences</button>
+                    </div>
+
+                    <div class="um-panel active" id="ntfPanelAction">
+                        <div class="atl-card">
+                            <div class="um-panel-toprow"><div>
+                                <h4 class="um-section-label">Action required</h4>
+                                <p class="um-section-desc">Items waiting for your intervention, approval or decision. They stay here until someone resolves them - reading one does not.</p>
+                            </div></div>
+                            <div class="ntf-toolbar">
+                                <div class="ntf-chips" role="group" aria-label="Show">
+                                    <button type="button" class="ntf-chip active" data-ntf-filter="open" aria-pressed="true">Open</button>
+                                    <button type="button" class="ntf-chip" data-ntf-filter="unread" aria-pressed="false">Unread</button>
+                                    <button type="button" class="ntf-chip" data-ntf-filter="urgent" aria-pressed="false">Urgent</button>
+                                    <button type="button" class="ntf-chip" data-ntf-filter="resolved" aria-pressed="false">Resolved</button>
+                                    <button type="button" class="ntf-chip" data-ntf-filter="all" aria-pressed="false">All</button>
+                                </div>
+                                <select class="um-input ntf-cat-select" data-ntf-field="category" aria-label="Category"><option value="">All categories</option></select>
+                                <input type="search" class="um-input ntf-toolbar__search" data-ntf-field="q" placeholder="Search title, details or reference" aria-label="Search">
+                                <input type="date" class="um-input" data-ntf-field="from" aria-label="From date">
+                                <input type="date" class="um-input" data-ntf-field="to" aria-label="To date">
+                            </div>
+                            <div class="ntf-list" id="ntfList-action" aria-live="polite"><div class="ntf-empty">Loading…</div></div>
+                        </div>
+                    </div>
+
+                    <div class="um-panel" id="ntfPanelAttention">
+                        <div class="atl-card">
+                            <div class="um-panel-toprow"><div>
+                                <h4 class="um-section-label">Attention</h4>
+                                <p class="um-section-desc">Upcoming expiries, approaching deadlines and potential problems worth knowing about.</p>
+                            </div></div>
+                            <div class="ntf-toolbar">
+                                <div class="ntf-chips" role="group" aria-label="Show">
+                                    <button type="button" class="ntf-chip active" data-ntf-filter="open" aria-pressed="true">Open</button>
+                                    <button type="button" class="ntf-chip" data-ntf-filter="unread" aria-pressed="false">Unread</button>
+                                    <button type="button" class="ntf-chip" data-ntf-filter="urgent" aria-pressed="false">Urgent</button>
+                                    <button type="button" class="ntf-chip" data-ntf-filter="resolved" aria-pressed="false">Resolved</button>
+                                    <button type="button" class="ntf-chip" data-ntf-filter="all" aria-pressed="false">All</button>
+                                </div>
+                                <select class="um-input ntf-cat-select" data-ntf-field="category" aria-label="Category"><option value="">All categories</option></select>
+                                <input type="search" class="um-input ntf-toolbar__search" data-ntf-field="q" placeholder="Search title, details or reference" aria-label="Search">
+                                <input type="date" class="um-input" data-ntf-field="from" aria-label="From date">
+                                <input type="date" class="um-input" data-ntf-field="to" aria-label="To date">
+                            </div>
+                            <div class="ntf-list" id="ntfList-attention" aria-live="polite"><div class="ntf-empty">Loading…</div></div>
+                        </div>
+                    </div>
+
+                    <div class="um-panel" id="ntfPanelActivity">
+                        <div class="atl-card">
+                            <div class="um-panel-toprow"><div>
+                                <h4 class="um-section-label">Activity feed</h4>
+                                <p class="um-section-desc">A chronological record of what happened, when, and who or what started it. Nothing here needs action.</p>
+                            </div></div>
+                            <div class="ntf-toolbar">
+                                <select class="um-input ntf-cat-select" data-ntf-afield="category" aria-label="Category"><option value="">All categories</option></select>
+                                <select class="um-input" data-ntf-afield="severity" aria-label="Priority">
+                                    <option value="">Any priority</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="info">Info</option>
+                                </select>
+                                <select class="um-input" data-ntf-afield="actor_type" aria-label="Started by">
+                                    <option value="">Anyone</option><option value="admin">An admin</option><option value="client">A client</option><option value="gateway">Payment gateway</option><option value="system">System</option>
+                                </select>
+                                <input type="search" class="um-input ntf-toolbar__search" data-ntf-afield="q" placeholder="Search activity, record number or reference" aria-label="Search activity">
+                                <input type="date" class="um-input" data-ntf-afield="from" aria-label="From date">
+                                <input type="date" class="um-input" data-ntf-afield="to" aria-label="To date">
+                            </div>
+                            <div class="ntf-table-wrap">
+                                <table class="ntf-table">
+                                    <thead><tr><th>When</th><th>Category</th><th>What happened</th><th>Who</th><th>Record</th></tr></thead>
+                                    <tbody id="ntfActivityBody"><tr><td colspan="5" class="ntf-empty">Loading…</td></tr></tbody>
+                                </table>
+                            </div>
+                            <div id="ntfActivityPager"></div>
+                        </div>
+                    </div>
+
+                    <div class="um-panel" id="ntfPanelExpiry">
+                        <div class="atl-card">
+                            <div class="um-panel-toprow"><div>
+                                <h4 class="um-section-label">Expiry dates</h4>
+                                <p class="um-section-desc">Certificates, registrations, subscriptions and credentials that expire. You get a reminder 90, 60, 30, 14 and 7 days before, on the day, and weekly after expiry until a new date is recorded.</p>
+                            </div></div>
+                            <div class="ntf-table-wrap">
+                                <table class="ntf-table">
+                                    <thead><tr><th>Item</th><th>Type</th><th>Reference</th><th>Expires</th><th>Status</th><th></th></tr></thead>
+                                    <tbody id="ntfExpiryBody"><tr><td colspan="6" class="ntf-empty">Loading…</td></tr></tbody>
+                                </table>
+                            </div>
+                            <h4 class="um-section-label" id="ntfExpiryFormTitle" style="margin-top:20px;">Add an item</h4>
+                            <div class="ntf-form-grid">
+                                <label><span class="um-label">Name</span><input type="text" class="um-input" id="ntfExpName" maxlength="120" placeholder="e.g. thabisomhlongo.com domain"></label>
+                                <label><span class="um-label">Type</span><select class="um-input" id="ntfExpKind"></select></label>
+                                <label><span class="um-label">Reference (optional)</span><input type="text" class="um-input" id="ntfExpRef" maxlength="120" placeholder="certificate / account number"></label>
+                                <label><span class="um-label">Expiry date</span><input type="date" class="um-input" id="ntfExpDate"></label>
+                                <label><span class="um-label">Notes (optional)</span><input type="text" class="um-input" id="ntfExpNotes" maxlength="500" placeholder="who renews it, where"></label>
+                            </div>
+                            <p class="ntf-errline" id="ntfExpErrors" role="alert"></p>
+                            <button type="button" class="atl-btn atl-btn--primary" id="ntfExpSave">Add item</button>
+                            <button type="button" class="atl-btn atl-btn--ghost" id="ntfExpCancel" hidden>Cancel editing</button>
+                        </div>
+                    </div>
+
+                    <div class="um-panel" id="ntfPanelPrefs">
+                        <div class="atl-card">
+                            <h4 class="um-section-label">What appears in my Notification Centre</h4>
+                            <p class="um-section-desc">Switch off categories you do not need to see. This only affects you.</p>
+                            <div class="ntf-prefs" id="ntfPrefsList"></div>
+                            <button type="button" class="atl-btn atl-btn--primary" id="ntfPrefsSave">Save my preferences</button>
+                        </div>
+                        <div id="ntfAdminSettings" hidden>
+                            <div class="atl-card" style="margin-top:16px;">
+                                <h4 class="um-section-label">Recipients &amp; e-mail (administrators)</h4>
+                                <p class="um-section-desc">Important alerts are e-mailed to the notification address. Critical ones also go to the backup addresses.</p>
+                                <div class="ntf-form-grid">
+                                    <label><span class="um-label">Notification address</span><input type="email" class="um-input" id="ntfSetPrimary" maxlength="254" autocomplete="off"></label>
+                                    <label><span class="um-label">Backup addresses for critical alerts (comma-separated, up to 5)</span><input type="text" class="um-input" id="ntfSetBackup" maxlength="1300" autocomplete="off"></label>
+                                    <label><span class="um-label">E-mail alerts of this priority and above</span>
+                                        <select class="um-input" id="ntfSetMinPriority"><option value="critical">Critical only</option><option value="high">High and critical</option><option value="medium">Medium and above</option><option value="info">Everything</option><option value="never">Never (in-app only)</option></select></label>
+                                    <label><span class="um-label">Low-stock ticket alert when this many (or fewer) are left in a tier (0 = off)</span><input type="number" class="um-input" id="ntfSetLowStock" min="0" max="10000" step="1"></label>
+                                    <label class="ntf-pref"><input type="checkbox" id="ntfSetEnabled"> Notifications switched on (the Activity Log always records)</label>
+                                </div>
+                                <p class="ntf-errline" id="ntfSetErrors" role="alert"></p>
+                                <button type="button" class="atl-btn atl-btn--primary" id="ntfSetSave">Save notification settings</button>
+                            </div>
+                            <div class="atl-card" style="margin-top:16px;">
+                                <h4 class="um-section-label">Notification rules (administrators)</h4>
+                                <p class="um-section-desc">Per event: on/off, priority and e-mail. Events marked <i class="fa-solid fa-lock"></i> protect money, security or the site itself and cannot be switched off or lowered below High. Changes save immediately.</p>
+                                <div class="ntf-table-wrap">
+                                    <table class="ntf-table">
+                                        <thead><tr><th>Event</th><th>Category</th><th>On</th><th>Priority</th><th>E-mail</th></tr></thead>
+                                        <tbody id="ntfRulesBody"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="admin-section" id="emailLogsAdmin">
                 <div>
                     <div class="atl-section-hd">
@@ -7584,16 +7822,15 @@
                             <!-- Security Status Card -->
                             <div class="col-md-12">
                                 <div class="atl-card">
-                                    <h4 class="um-section-label">System Integrity</h4>
+                                    <div class="um-panel-toprow">
+                                        <div>
+                                            <h4 class="um-section-label">System Integrity</h4>
+                                            <p class="um-section-desc">Live: every scheduled task's last run and errors, the e-mail queue and open alerts (js/admin/notifications.js).</p>
+                                        </div>
+                                        <button type="button" class="atl-btn atl-btn--ghost atl-btn--sm" id="ntfHealthRefresh"><i class="fa-solid fa-rotate"></i> Refresh</button>
+                                    </div>
+                                    <div id="ntfHealthPanel"><p class="ntf-empty">Loading system health…</p></div>
                                     <div id="securityHealthStatus" style="margin-top: 15px;">
-                                        <div style="display:flex; justify-content:space-between; align-items:center; background: color-mix(in srgb, var(--atl-green) 10%, transparent); border: 1px solid color-mix(in srgb, var(--atl-green) 20%, transparent); padding: 12px; border-radius: 8px; margin-bottom: 10px;">
-                                            <span style="font-size: 13px; color: var(--atl-ink-dim);">Database Sync</span>
-                                            <span style="color: var(--atl-green); font-size: 11px; font-weight: bold; background: color-mix(in srgb, var(--atl-green) 15%, transparent); padding: 2px 8px; border-radius: 10px;">OPERATIONAL</span>
-                                        </div>
-                                        <div style="display:flex; justify-content:space-between; align-items:center; background: color-mix(in srgb, var(--atl-green) 10%, transparent); border: 1px solid color-mix(in srgb, var(--atl-green) 20%, transparent); padding: 12px; border-radius: 8px; margin-bottom: 10px;">
-                                            <span style="font-size: 13px; color: var(--atl-ink-dim);">SSL/TLS Encryption</span>
-                                            <span style="color: var(--atl-green); font-size: 11px; font-weight: bold; background: color-mix(in srgb, var(--atl-green) 15%, transparent); padding: 2px 8px; border-radius: 10px;">ENFORCED</span>
-                                        </div>
                                         <div style="display:flex; justify-content:space-between; align-items:center; background: color-mix(in srgb, var(--atl-orange) 10%, transparent); border: 1px solid color-mix(in srgb, var(--atl-orange) 20%, transparent); padding: 12px; border-radius: 8px;">
                                             <span style="font-size: 13px; color: var(--atl-ink-dim);">Session Expiry</span>
                                             <span id="sessionTimerBadge" style="color: var(--atl-orange); font-size: 11px; font-weight: bold; background: color-mix(in srgb, var(--atl-orange) 15%, transparent); padding: 2px 8px; border-radius: 10px;">MONITORING</span>
@@ -8306,7 +8543,7 @@
         // block below (_fpDate/_fpTime/_fpDateTime/window.initAdminDateTimePickers, used by many
         // other sections) was NOT moved — it stays exactly here.
     </script>
-    <script src="js/admin/events.js?v=4"></script>
+    <script src="js/admin/events.js?v=5"></script>
     <script>
 
         // Every other native <input type="date/time/datetime-local"> across the admin panel — same
@@ -8397,6 +8634,8 @@
     <!-- Accolades & Recognition: the public renderer (drives the live preview) + the admin controller. -->
     <script src="js/accolades-view.js?v=4"></script>
     <script src="js/admin/accolades.js?v=2"></script>
+    <script src="js/faq-view.js?v=2"></script>
+    <script src="js/admin/faq.js?v=2"></script>
     <script>
 
         // ============================================================
@@ -8877,7 +9116,7 @@
         // prevention + several commented-out legacy init calls spanning many other sections)
         // was NOT moved — it belongs to no single section.
     </script>
-    <script src="js/admin/social.js?v=2"></script>
+    <script src="js/admin/social.js?v=4"></script>
     <script>
 
         // Initial render
@@ -9221,7 +9460,7 @@
             .catch(function() {});
     })();
     </script>
-    <script src="js/admin/nav-config.js?v=4"></script>
+    <script src="js/admin/nav-config.js?v=6"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function(event) {
             // Restore last active section (scroll position is always top; no restore needed)
@@ -9243,7 +9482,7 @@
         // (bundled together with the Dashboard Analytics module below it in the document —
         // see that file's header comment for full detail). Loaded once, here.
     </script>
-    <script src="js/admin/dashboard.js?v=7"></script>
+    <script src="js/admin/dashboard.js?v=8"></script>
     <script src="js/admin/dashboard-insights.js?v=9"></script>
     <script>
 
@@ -9251,6 +9490,19 @@
         // Role-based UI gating — shared by the session check (on load)
         // and the login-success handler (in-place, no reload).
         // ==========================================
+        // Starts the dashboard's cards (the tiles, the Overview, the week's schedule) and keeps the page preloader (js/tm-preloader.js) up
+        // until they are in, at most 8 s. Used by BOTH ways in: the page-load session check and the sign-in form, which swaps the dashboard
+        // in place with no reload (before this, sign-in never started these loaders: the cards sat on "Loading..." until you left and came back).
+        function startDashboardLoads() {
+            var jobs = [];
+            try { if (typeof loadDashboardKPIs === 'function') jobs.push(loadDashboardKPIs()); } catch (e) { console.error(e); }
+            try { if (typeof loadAnalyticsDashboard === 'function') jobs.push(loadAnalyticsDashboard()); } catch (e) { console.error(e); }
+            try { if (typeof loadTodaysSchedule === 'function') jobs.push(loadTodaysSchedule()); } catch (e) { console.error(e); }
+            var all = Promise.allSettled(jobs);
+            if (window.tmPreloader) window.tmPreloader.until(all, 8000);
+            return all;
+        }
+
         function applyRoleGating(role) {
             const effectiveRole = role || 'manager';
             window.currentUserRole = effectiveRole;
@@ -9300,7 +9552,7 @@
                     if(adminFooter) adminFooter.style.display = 'block';
                     
                     // Trigger data loads here
-                    loadDashboardKPIs();
+                    startDashboardLoads();
                     if (typeof fetchHomeSlider === 'function') fetchHomeSlider();
                     loadAboutData();
                     loadSocialData();
@@ -9434,6 +9686,7 @@
                     const _adminFooter = document.getElementById('adminFooter');
                     if (_adminFooter) _adminFooter.style.display = 'block';
 
+                    startDashboardLoads();   // the cards + the preloader while they fill
                     if (typeof fetchHomeSlider === 'function') fetchHomeSlider();
                     loadAboutData();
                     loadSocialData();
@@ -9848,6 +10101,18 @@
             <button type="button" class="atl-drawer__close" id="tktOrderDrawerClose" aria-label="Close">&times;</button>
         </div>
         <div class="atl-drawer__body" id="tktOrderDrawerBody"></div>
+    </div>
+
+    <!-- Manage Tickets drawer (Events -> an event card -> Manage tickets; js/admin/ticketing.js): sales status and controls, inventory,
+         revenue, ticket categories (price, places, on/off, order) and the ticketing change history for ONE event. Kept apart from the
+         Edit Event drawer so places and prices can be changed without touching the date, venue or description. A full-width sheet on phones. -->
+    <div id="tktManageDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="tktManageDrawer" class="atl-drawer atl-drawer--760" role="dialog" aria-labelledby="tktManageDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="tktManageDrawerTitle"><i class="fa-solid fa-ticket"></i> Manage tickets</h5>
+            <button type="button" class="atl-drawer__close" id="tktManageDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body" id="tktManageDrawerBody"></div>
     </div>
 
     <!-- Hero paragraph editor drawer -->
@@ -10526,6 +10791,51 @@
                 <div id="teamChangeHistoryList"></div>
             </div>
           </section>
+        </div>
+    </div>
+
+    <!-- FAQ editor drawer (Add / Edit) - js/admin/faq.js. The preview uses the website's renderer (js/faq-view.js). -->
+    <div id="faqDrawerBackdrop" class="atl-drawer-backdrop"></div>
+    <div id="faqDrawer" class="atl-drawer atl-drawer--600" role="dialog" aria-labelledby="faqDrawerTitle" aria-modal="true" aria-hidden="true">
+        <div class="atl-drawer__header">
+            <h5 id="faqDrawerTitle"><i class="fa-solid fa-circle-question"></i> Add Question</h5>
+            <button type="button" class="atl-drawer__close" id="faqDrawerClose" aria-label="Close">&times;</button>
+        </div>
+        <div class="atl-drawer__body">
+            <form id="faqForm" class="um-form" autocomplete="off" novalidate>
+                <div class="um-field-group">
+                    <label class="um-label" for="faqQuestion">Question <span class="atl-req" aria-hidden="true">*</span></label>
+                    <input type="text" id="faqQuestion" class="um-input" maxlength="200" aria-describedby="faqQuestionHelp faqQuestionErr" required>
+                    <p class="faqa-help" id="faqQuestionHelp"><span id="faqQuestionCount">0</span> / 200 - write it the way a client would ask it.</p>
+                    <p class="faqa-err" id="faqQuestionErr" role="alert"></p>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label" for="faqAnswer">Answer <span class="atl-req" aria-hidden="true">*</span></label>
+                    <textarea id="faqAnswer" class="um-input faqa-answer" rows="8" maxlength="3000" aria-describedby="faqAnswerHelp faqAnswerErr" required></textarea>
+                    <p class="faqa-help" id="faqAnswerHelp"><span id="faqAnswerCount">0</span> / 3,000. Leave a blank line to start a new paragraph. Plain text only - never include prices.</p>
+                    <p class="faqa-err" id="faqAnswerErr" role="alert"></p>
+                </div>
+                <div class="faqa-row">
+                    <div class="um-field-group">
+                        <label class="um-label" for="faqCategory">Topic</label>
+                        <select id="faqCategory" class="um-input"></select>
+                    </div>
+                    <fieldset class="faqa-status">
+                        <legend class="um-label">On the website</legend>
+                        <label><input type="radio" name="faqStatus" value="active"> Published</label>
+                        <label><input type="radio" name="faqStatus" value="inactive" checked> Hidden</label>
+                    </fieldset>
+                </div>
+                <div class="faqa-livewrap">
+                    <p class="um-label">Preview</p>
+                    <div id="faqLivePreview" class="faqa-preview"><div class="faq-list" id="faqLiveList"></div></div>
+                </div>
+                <p class="faqa-meta" id="faqMeta"></p>
+            </form>
+        </div>
+        <div class="atl-drawer__footer">
+            <button type="button" class="atl-btn atl-btn--ghost" id="faqCancelBtn">Cancel</button>
+            <button type="button" class="atl-btn atl-btn--primary" id="faqSaveBtn"><i class="fa-solid fa-check"></i> Save</button>
         </div>
     </div>
 
@@ -11291,6 +11601,16 @@
                         <label class="um-toggle"><input type="checkbox" id="embedActive" checked onchange="document.getElementById('embedActiveLabel').textContent = this.checked ? 'Active (visible on site)' : 'Inactive (hidden)';"><span class="um-toggle__track"><span class="um-toggle__thumb"></span></span></label>
                         <span id="embedActiveLabel" style="font-size:13px; color:var(--atl-muted);">Active (visible on site)</span>
                     </div>
+                </div>
+                <div class="um-field-group">
+                    <label class="um-label">Shown on the public card</label>
+                    <div id="embedShowOptions" style="display:flex; flex-direction:column; gap:10px;">
+                        <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--atl-ink); cursor:pointer;"><input type="checkbox" class="um-check" data-show="channel" checked> Channel name</label>
+                        <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--atl-ink); cursor:pointer;"><input type="checkbox" class="um-check" data-show="views" checked> View count</label>
+                        <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--atl-ink); cursor:pointer;"><input type="checkbox" class="um-check" data-show="date" checked> Upload date</label>
+                        <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--atl-ink); cursor:pointer;"><input type="checkbox" class="um-check" data-show="description" checked> Description</label>
+                    </div>
+                    <small style="display:block; margin-top:8px; font-size:12px; color:var(--atl-muted);">Views and the upload date are read from the platform where it shares them (YouTube: both; Vimeo: date only). Untick anything you would rather not show.</small>
                 </div>
                 <button type="submit" class="atl-btn atl-btn--primary" id="socialEmbedSaveBtn" style="width:100%; justify-content:center;">
                     <i class="fa-solid fa-plus-circle"></i> Add Media Embed
@@ -13321,131 +13641,7 @@
             }
     });
 
-    /* ---- Notifications ---- */
-    function buildNotifications() {
-        var items = [];
-
-        // Pull from inquiry cache (unread inquiries)
-        if (typeof allInquiriesCache !== 'undefined' && Array.isArray(allInquiriesCache)) {
-            allInquiriesCache
-                .filter(function(q) { return q.status === 'unread'; })
-                .slice(0, 5)
-                .forEach(function(q) {
-                    items.push({
-                        type: 'inquiry',
-                        icon: 'fa-solid fa-envelope',
-                        title: (q.sender_name || 'Unknown') + ': ' + (q.subject || 'Inquiry'),
-                        meta: timeAgo(q.submitted_at),
-                        action: function() { switchTab('inquiriesAdmin'); openInquiry(q.inquiry_id); },
-                        unread: true
-                    });
-                });
-        }
-
-        // Pull from bookings cache (pending)
-        if (typeof allBookingsCache !== 'undefined' && Array.isArray(allBookingsCache)) {
-            allBookingsCache
-                .filter(function(b) { return (b.status || '').toLowerCase() === 'pending'; })
-                .slice(0, 5)
-                .forEach(function(b) {
-                    items.push({
-                        type: 'booking',
-                        icon: 'fa-solid fa-calendar-check',
-                        title: (b.event_name || b.company_name || 'Booking') + ' (Pending)',
-                        meta: timeAgo(b.created_at || b.date),
-                        action: function() { switchTab('bookingsAdmin'); },
-                        unread: true
-                    });
-                });
-        }
-
-        // Pull from events cache (upcoming)
-        if (typeof allEventsCache !== 'undefined' && Array.isArray(allEventsCache)) {
-            allEventsCache.slice(0, 3).forEach(function(ev) {
-                items.push({
-                    type: 'event',
-                    icon: 'fa-regular fa-calendar-days',
-                    title: ev.event_name || ev.title || 'Event',
-                    meta: ev.date || '',
-                    action: function() { switchTab('eventsAdmin'); },
-                    unread: false
-                });
-            });
-        }
-
-        var list = qs('#admNotiList');
-        var badge = qs('#admNotiBadge');
-        if (!list) return;
-
-        var unreadCount = items.filter(function(i) { return i.unread; }).length;
-
-        if (badge) {
-            if (unreadCount > 0) {
-                badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
-                badge.style.display = 'flex';
-                badge.setAttribute('aria-label', unreadCount + ' unread notifications');
-            } else {
-                badge.style.display = 'none';
-            }
-        }
-
-        if (items.length === 0) {
-            list.innerHTML = '<div class="adm-noti-empty"><i class="fa-regular fa-bell-slash"></i><p>No recent activity</p></div>';
-            return;
-        }
-
-        list.innerHTML = items.slice(0, 8).map(function(item) {
-            return '<button class="adm-noti-item" style="border:none;width:100%;">' +
-                '<span class="adm-noti-item__icon adm-noti-item__icon--' + item.type + '">' +
-                    '<i class="' + item.icon + '"></i>' +
-                '</span>' +
-                '<span class="adm-noti-item__body">' +
-                    '<span class="adm-noti-item__title">' + (item.title || '') + '</span>' +
-                    '<span class="adm-noti-item__meta">' + (item.meta || '') + '</span>' +
-                '</span>' +
-                (item.unread ? '<span class="adm-noti-item__dot"></span>' : '') +
-            '</button>';
-        }).join('');
-
-        // Attach click handlers
-        var btns = list.querySelectorAll('.adm-noti-item');
-        btns.forEach(function(btn, idx) {
-            if (items[idx] && items[idx].action) {
-                btn.addEventListener('click', items[idx].action);
-            }
-        });
-    }
-
-    // Notification refresh button
-    var admNotiRefresh = qs('#admNotiRefresh');
-    if (admNotiRefresh) {
-        admNotiRefresh.addEventListener('click', function(e) {
-            e.stopPropagation();
-            buildNotifications();
-            this.querySelector('i').style.transform = 'rotate(360deg)';
-            this.querySelector('i').style.transition = 'transform 0.5s ease';
-            var self = this;
-            setTimeout(function() {
-                self.querySelector('i').style.transform = '';
-                self.querySelector('i').style.transition = '';
-            }, 600);
-        });
-    }
-
-    // "View all" in notifications -> go to inquiries
-    var admNotiViewAll = qs('#admNotiViewAll');
-    if (admNotiViewAll) {
-        admNotiViewAll.addEventListener('click', function(e) {
-            e.preventDefault();
-            switchTab('inquiriesAdmin');
-            closeAllDropdowns(null);
-        });
-    }
-
-    // Auto-refresh notifications once caches load
-    setTimeout(buildNotifications, 2000);
-    // Re-check every 60 seconds
-    setInterval(buildNotifications, 60000);
+    /* ---- Notifications: the bell and the Notification Centre live in js/admin/notifications.js (docs-internal/notifications.md). ---- */
 
     /* ---- Global Search ---- */
     var searchInput  = qs('#admGlobalSearch');
@@ -13738,14 +13934,15 @@
     <script src="js/admin/policies.js?v=2"></script>
     <script src="js/admin/branding.js?v=4"></script>
     <script src="js/admin/security-audit.js"></script>
-    <script src="js/admin/system-settings.js?v=nav6"></script>
+    <script src="js/admin/system-settings.js?v=nav7"></script>
     <script src="js/admin/business-profile.js?v=8"></script>
     <script src="js/admin/google-calendar.js?v=4"></script>
     <script src="js/admin/financials.js?v=3"></script>
     <script src="js/admin/finance-tickets.js?v=1"></script>
     <script src="js/admin/eft.js?v=3"></script>
+    <script src="js/admin/notifications.js?v=4"></script>
     <script src="js/admin/payfast-reconcile.js?v=2"></script>
-    <script src="js/admin/ticketing.js?v=9"></script>
+    <script src="js/admin/ticketing.js?v=10"></script>
     <script src="js/admin/legal-compliance.js"></script>
 <!-- ============================================================
      FINANCE MODULE — JavaScript Engine
@@ -14442,7 +14639,7 @@
 })();
 </script>
 
-    <script src="js/notificationService.js?v=2.0.2"></script>
+    <script src="js/notificationService.js?v=2.0.3"></script>
 
     <!-- Locked Password Change Overlay -->
     <div id="forcePasswordChangeOverlay" style="display: none; position: fixed; inset: 0; background: var(--tm-black); z-index: 10000; flex-direction: column; justify-content: center; align-items: center; padding: 20px;">
@@ -15006,51 +15203,72 @@
 <!-- bookingInfoDrawer backdrop -->
 <div id="bookingInfoDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('bookingInfoDrawer')"></div>
 <!-- bookingInfoDrawer -->
-<div id="bookingInfoDrawer" class="atl-drawer atl-drawer--640" role="dialog" aria-labelledby="bookingInfoDrawerLabel" aria-modal="true">
+<div id="bookingInfoDrawer" class="atl-drawer atl-drawer--dk atl-drawer--640" role="dialog" aria-labelledby="bookingInfoDrawerLabel" aria-modal="true">
     <div class="atl-drawer__header">
-        <h5 id="bookingInfoDrawerLabel">
-            <i class="fa-solid fa-id-card" style="margin-right:8px;color:var(--atl-blue);"></i>
-            <span id="bi-modal-title">Booking Info</span>
-        </h5>
+        <div class="dk-head">
+            <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-id-card"></i></span>
+            <div class="dk-head__text">
+                <h5 id="bookingInfoDrawerLabel" class="dk-title"><span id="bi-modal-title">Booking Info</span></h5>
+                <p class="dk-sub">Everything the client told us about this booking</p>
+            </div>
+        </div>
         <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('bookingInfoDrawer')" aria-label="Close">×</button>
     </div>
     <div class="atl-drawer__body">
-                            <div class="row">
-                                <!-- Left: Client + Event -->
-                                <div class="col-md-6" style="border-right:1px solid var(--atl-line);padding-right:24px;">
-                                    <h6 style="color:var(--atl-blue);text-transform:uppercase;font-size:11px;letter-spacing:1.5px;margin-bottom:12px;">Client Info</h6>
-                                    <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:20px;">
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);width:130px;">Name</td><td style="padding:5px 0;color: var(--atl-ink);font-weight:600;" id="bi-name"></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Company</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-company"></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Email</td><td style="padding:5px 0;"><a id="bi-email" href="#" style="color: var(--atl-amber);"></a></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Phone</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-cell"></td></tr>
-                                    </table>
-                                    <h6 style="color:var(--atl-blue);text-transform:uppercase;font-size:11px;letter-spacing:1.5px;margin-bottom:12px;">Event Details</h6>
-                                    <table style="width:100%;font-size:13px;border-collapse:collapse;">
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);width:130px;">Event Name</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-event-name"></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Date &amp; Time</td><td style="padding:5px 0;"><span id="bi-date" style="color:var(--atl-orange);font-weight:bold;"></span> <span id="bi-start-time" style="color: var(--atl-ink);"></span></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Perf. Slot</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-slot"></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Duration</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-duration"></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Location</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-location"></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Address</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-address"></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Event Type</td><td style="padding:5px 0;"><span id="bi-type" style="background:var(--atl-amber);color:var(--atl-on-amber);font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px;"></span></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Venue Type</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-venue-type"></td></tr>
-                                    </table>
-                                </div>
-                                <!-- Right: Audience + Notes -->
-                                <div class="col-md-6" style="padding-left:24px;">
-                                    <h6 style="color:var(--atl-blue);text-transform:uppercase;font-size:11px;letter-spacing:1.5px;margin-bottom:12px;">Audience &amp; Logistics</h6>
-                                    <table style="width:100%;font-size:13px;border-collapse:collapse;margin-bottom:20px;">
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);width:130px;">Audience Size</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-audience"></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Demographic</td><td style="padding:5px 0;color: var(--atl-ink);" id="bi-demographic"></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Budget Range</td><td style="padding:5px 0;color:var(--atl-sage);font-weight:bold;" id="bi-budget"></td></tr>
-                                        <tr><td style="padding:5px 0;color: var(--atl-muted);">Travel Provided</td><td style="padding:5px 0;" id="bi-travel"></td></tr>
-                                    </table>
-                                    <div id="bi-venue-notes" style="display:none;background:var(--atl-amber-dim);border:1px solid var(--atl-amber-border);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;"></div>
-                                    <h6 style="color:var(--atl-blue);text-transform:uppercase;font-size:11px;letter-spacing:1.5px;margin-bottom:8px;">Client Notes</h6>
-                                    <div id="bi-message" style="background: var(--atl-card);border:1px solid var(--atl-line);border-radius:6px;padding:12px;font-size:13px;color: var(--atl-ink-dim);white-space:pre-wrap;max-height:200px;overflow-y:auto;"></div>
-                                </div>
-                            </div>
+        <!-- The facts you look for first -->
+        <div class="dk-facts">
+            <div class="dk-fact"><span class="dk-fact__k">Date &amp; time</span><span class="dk-fact__v dk-fact__v--accent"><span id="bi-date"></span> <span id="bi-start-time" class="dk-v--muted"></span></span></div>
+            <div class="dk-fact"><span class="dk-fact__k">Location</span><span class="dk-fact__v" id="bi-location"></span></div>
+            <div class="dk-fact"><span class="dk-fact__k">Audience</span><span class="dk-fact__v" id="bi-audience"></span></div>
+            <div class="dk-fact"><span class="dk-fact__k">Budget range</span><span class="dk-fact__v dk-fact__v--ok" id="bi-budget"></span></div>
+        </div>
+
+        <details class="dk-card" open>
+            <summary><i class="fa-solid fa-user dk-card__icon" aria-hidden="true"></i><span class="dk-card__title">Client</span><i class="fa-solid fa-chevron-up dk-card__chev" aria-hidden="true"></i></summary>
+            <div class="dk-card__body">
+                <dl class="dk-rows">
+                    <div class="dk-row"><dt class="dk-k">Name</dt><dd class="dk-v" id="bi-name"></dd></div>
+                    <div class="dk-row"><dt class="dk-k">Company</dt><dd class="dk-v dk-v--plain" id="bi-company"></dd></div>
+                    <div class="dk-row"><dt class="dk-k">Email</dt><dd class="dk-v"><a id="bi-email" href="#"></a></dd></div>
+                    <div class="dk-row"><dt class="dk-k">Phone</dt><dd class="dk-v dk-v--plain" id="bi-cell"></dd></div>
+                </dl>
+            </div>
+        </details>
+
+        <details class="dk-card" open>
+            <summary><i class="fa-solid fa-calendar-days dk-card__icon" aria-hidden="true"></i><span class="dk-card__title">Event</span><i class="fa-solid fa-chevron-up dk-card__chev" aria-hidden="true"></i></summary>
+            <div class="dk-card__body">
+                <dl class="dk-rows">
+                    <div class="dk-row"><dt class="dk-k">Event name</dt><dd class="dk-v" id="bi-event-name"></dd></div>
+                    <div class="dk-row"><dt class="dk-k">Event type</dt><dd class="dk-v"><span class="dk-badge" id="bi-type"></span></dd></div>
+                    <div class="dk-row"><dt class="dk-k">Performance slot</dt><dd class="dk-v dk-v--plain" id="bi-slot"></dd></div>
+                    <div class="dk-row"><dt class="dk-k">Duration</dt><dd class="dk-v dk-v--plain" id="bi-duration"></dd></div>
+                    <div class="dk-row"><dt class="dk-k">Address</dt><dd class="dk-v dk-v--plain" id="bi-address"></dd></div>
+                    <div class="dk-row"><dt class="dk-k">Venue type</dt><dd class="dk-v dk-v--plain" id="bi-venue-type"></dd></div>
+                </dl>
+            </div>
+        </details>
+
+        <details class="dk-card" open>
+            <summary><i class="fa-solid fa-people-group dk-card__icon" aria-hidden="true"></i><span class="dk-card__title">Audience &amp; logistics</span><i class="fa-solid fa-chevron-up dk-card__chev" aria-hidden="true"></i></summary>
+            <div class="dk-card__body">
+                <dl class="dk-rows">
+                    <div class="dk-row"><dt class="dk-k">Demographic</dt><dd class="dk-v dk-v--plain" id="bi-demographic"></dd></div>
+                    <div class="dk-row"><dt class="dk-k">Travel provided</dt><dd class="dk-v" id="bi-travel"></dd></div>
+                </dl>
+            </div>
+        </details>
+
+        <!-- shown by js/admin/bookings-pipeline.js only when the booking has venue notes -->
+        <details class="dk-card" id="bi-venue-card" open hidden>
+            <summary><i class="fa-solid fa-location-dot dk-card__icon" aria-hidden="true"></i><span class="dk-card__title">Venue notes</span><i class="fa-solid fa-chevron-up dk-card__chev" aria-hidden="true"></i></summary>
+            <div class="dk-card__body"><div class="dk-inset dk-inset--flag" id="bi-venue-notes"></div></div>
+        </details>
+
+        <details class="dk-card" open>
+            <summary><i class="fa-solid fa-comment-dots dk-card__icon" aria-hidden="true"></i><span class="dk-card__title">Client notes</span><i class="fa-solid fa-chevron-up dk-card__chev" aria-hidden="true"></i></summary>
+            <div class="dk-card__body"><div class="dk-inset" id="bi-message"></div></div>
+        </details>
     </div>
     <div class="atl-drawer__footer">
         <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('bookingInfoDrawer')">Close</button>

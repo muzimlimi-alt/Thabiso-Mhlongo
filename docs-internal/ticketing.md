@@ -223,3 +223,32 @@ oversold; 10 simultaneous payments each notified twice -> exactly 10 tickets.
   (bookings too) - found by the real-sandbox run, left unchanged because it is shared mail code.
 * **Go-live**: say "push"; check the Privacy Policy text; open sales on one show; buy one ticket for yourself on the live site and
   watch: order paid, e-mail with QR + PDF, `/t/` link, check-in on a phone.
+
+## Manage Tickets (2026-11-05, migration 117)
+
+Ticket inventory, prices, categories and the sales state of an existing show are changed in their own drawer, **Manage tickets**
+(`#tktManageDrawer`, js/admin/ticketing.js section A), opened from the event card or the Edit Event drawer's Tickets tab (now only a
+summary). Nothing here creates, edits or deletes an order, ticket, QR code or payment; it only changes what NEW buyers can do.
+
+* **Event card** (js/admin/events.js): View / Manage tickets, plus Sales and Attendees (both open Events -> Ticket Sales on that show) once
+  the show has categories, and an "x of y sold" line. Edit Event stays the pencil.
+* **Sales state** = event-level switch kept apart from each category's own on/off (`ticket_types.is_active`):
+  table `ticket_event_sales` (event_id PK, `sales_control` NULL|paused|closed, optional `opens_at`/`closes_at` window). No row = follows the
+  categories (the old behaviour). `POST /api/admin/events/:id/ticket-sales {action: open|pause|resume|close|reopen}` (old `{open}` still
+  works). Pause/Close never touch category flags, so a category switched off stays off. Open on a show whose categories are ALL off switches
+  them all on (as before). Buyers already holding/paying can finish. `lib/ticketing-core.js salesGate / salesOverview` is the one rule.
+* **"Mark as sold out"** = the Events status `sold_out` (organiser's call, recorded in Change History); distinct from Close and from the
+  automatic sold-out (`overview.state === 'sold_out'`, every enabled category full).
+* **Places**: `POST /api/admin/ticket-types/:id/capacity {capacity}|{add}`. Never below sold + held (conditional UPDATE re-checks), never
+  past the event's capacity (only increases are checked, so legacy over-allocation can be reduced). Lowering the event capacity below the
+  places given out is refused in `PUT /api/admin/events/:id`.
+* **Other**: `/enabled`, `/ticket-types/reorder` (sort_order; an edit keeps its position), `/ticket-sales-window`, `/sold-out`,
+  `/ticketing-history`. A price change reports how many orders keep the old price (each order line stores its own unit price).
+* **Figures** (`eventStats`): gross, pending (at PayFast, hold alive), failed, refunded, net = revenue_cents, totals (allocated / sold /
+  held / available / committed %). Money keys are hidden from assistants. Only verified payments move `sold`.
+* **Audit**: every action above writes `audit_log` (ticket_types or events, with who and a readable reason); event edits keep the existing
+  trigger. The drawer lists them.
+* **Edit Event** asks first (`window.tktConfirmEventChange`) when a show with sold/held tickets has its title, date, venue, status or
+  capacity changed. Ticket holders are NOT e-mailed automatically (cancel/postpone still use Ticket Sales -> notify holders).
+* Tests: test/ticketing-manage.test.js (all 14 scenarios of the brief), test/browser/ticketing-manage.js (desktop + 390 px phone),
+  ticketing-a11y.js scans the drawer. Public drawer: new state `paused` ("Sales paused - back soon").

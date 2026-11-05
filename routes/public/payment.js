@@ -22,6 +22,7 @@ const bannerRegistry = require('../../js/bannerRegistry');
 const emailComponents = require('../../js/emailComponents');
 const { sendEmail } = require('../../js/emailService');
 const { getNotificationEmail } = require('../../database/repositories/settings.repository');
+const notify = require('../../lib/notify');   // Notification Centre (docs-internal/notifications.md)
 const {
     getBookingByIdAsync, markBookingPaymentFailedIfUnpaid, getBookingById, setBookingEventId,
     applyPayfastPaymentToBooking
@@ -189,6 +190,8 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
 
         if (!booking) {
             console.error(`[PayFast ITN] Booking #${bookingId} NOT FOUND.`);
+            // A payment PayFast says was made (signature, source and merchant already checked above) that matches no booking: needs the owner.
+            notify.emit('finance.payment_unmatched', { bookingId, amount: parseFloat(pfData.amount_gross) || null, gatewayPaymentId: pfData.pf_payment_id || null }, { actorType: 'gateway', actorLabel: 'PayFast' });
             return;
         }
 
@@ -239,6 +242,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
             if (intent && Math.abs(itnAmount - parseFloat(intent.expected_amount)) > 0.01) {
                 console.error(`[PayFast ITN] AMOUNT MISMATCH booking #${bookingId}: ITN=R${itnAmount.toFixed(2)}, expected R${parseFloat(intent.expected_amount).toFixed(2)} for m_payment_id=${pfData.m_payment_id}`);
                 logPaymentEvent(bookingId, 'FAILED_AMOUNT_MISMATCH', pfData, true);
+                if (!isSandbox) notify.emit('finance.payment_amount_mismatch', { bookingId, received: itnAmount, expected: parseFloat(intent.expected_amount), gatewayPaymentId: pfData.pf_payment_id || null }, { actorType: 'gateway', actorLabel: 'PayFast' });
                 if (!isSandbox) return; // Hard-fail in production only
                 console.warn(`[PayFast ITN] Sandbox: proceeding despite amount mismatch against recorded intent.`);
             } else if (intent) {
@@ -250,6 +254,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
             if (currentTotal === 0) {
                 console.error(`[PayFast ITN] REJECTED: booking #${bookingId} has no resolvable total_amount. Cannot apply payment safely.`);
                 logPaymentEvent(bookingId, 'FAILED_NO_TOTAL', pfData, true);
+                notify.emit('finance.payment_credit_failed', { bookingId, gatewayPaymentId: pfData.pf_payment_id || null, detail: `The booking has no total amount set, so the PayFast payment of R${itnAmount.toFixed(2)} could not be applied safely. Set the total and record the payment.` }, { actorType: 'gateway', actorLabel: 'PayFast' });
                 getNotificationEmail().then(notifEmail => {
                     if (!notifEmail) return;
                     // PAYMENT-GATEWAY (HIGH): `R${itnAmount.toFixed(2)}` and the booking ID kept verbatim.
@@ -334,6 +339,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
             if (outcome.error) {
                 console.error(`[PayFast ITN] Credit transaction failed for booking #${bookingId}:`, outcome.error.message);
                 logPaymentEvent(bookingId, 'CRITICAL_ERROR', pfData, false);
+                notify.emit('finance.payment_credit_failed', { bookingId, gatewayPaymentId: pfData.pf_payment_id || null, detail: `PayFast confirmed a payment of R${itnAmount.toFixed(2)} but it could not be recorded: ${outcome.error.message}.` }, { actorType: 'gateway', actorLabel: 'PayFast' });
                 // PAYMENT-GATEWAY (HIGH): `R${itnAmount.toFixed(2)}`, booking ID and the error message
                 // (outcome.error.message) are kept verbatim.
                 getNotificationEmail().then(notifEmail => notifEmail && sendEmail({ to: notifEmail,
@@ -352,6 +358,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
             if (outcome.overpayment) {
                 console.warn(`[PayFast ITN] OVERPAYMENT REJECTED for booking #${bookingId} (atomic guard). Total: ${currentTotal}, ITN amount: ${itnAmount}`);
                 logPaymentEvent(bookingId, 'OVERPAYMENT_REJECTED', pfData, true);
+                notify.emit('finance.payment_credit_failed', { bookingId, gatewayPaymentId: pfData.pf_payment_id || null, detail: `PayFast sent R${itnAmount.toFixed(2)} but crediting it would exceed the R${currentTotal.toFixed(2)} booking total. The credit was NOT applied - review and refund or reallocate.` }, { actorType: 'gateway', actorLabel: 'PayFast' });
                 // PAYMENT-GATEWAY (HIGH): both `R${amount}` figures and the booking ID kept verbatim.
                 getNotificationEmail().then(notifEmail => {
                     sendEmail({ to: notifEmail,
@@ -381,6 +388,10 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
 
             console.log(`[PayFast ITN] ✅ Booking #${bookingId} Ledger Updated: Paid=R${newAmountPaid.toFixed(2)}, Remaining=R${newOutstanding.toFixed(2)}, Status=${newPaymentStatus}`);
             logPaymentEvent(bookingId, 'LEDGER_UPDATED_COMPLETE', pfData, true, itnRef, { auditOnly: true });
+            // Notification Centre: the success goes in the Activity Log; a payment now recorded closes any earlier "payment failed" alert for this booking.
+            notify.emit('finance.payment_received', { bookingId, amount: itnAmount, method: mappedMethod, paymentStatus: newPaymentStatus }, { actorType: 'gateway', actorLabel: 'PayFast' });
+            notify.resolve('finance.payment_failed', bookingId, { note: 'A payment was received.' });
+            notify.resolve('finance.payment_pending_timeout', bookingId, { note: 'The payment notification arrived.' });
 
             // ── Side effects, all after the commit. None may re-enter the transaction queue. ──
             await syncBookingToCalendar(updatedRow).catch(e => console.error('[PayFast ITN] Calendar sync failed:', e.message));
@@ -427,6 +438,7 @@ router.post('/api/payment/webhook/payfast', payfastItnRateLimiter, async (req, r
             if (pfData.payment_status === 'CANCELLED') {
                 console.log(`[PayFast ITN] Booking #${bookingId} payment cancelled by customer. Status unchanged (retryable).`);
             } else {
+                notify.emit('finance.payment_failed', { bookingId, status: pfData.payment_status, amount: parseFloat(pfData.amount_gross) || null }, { actorType: 'gateway', actorLabel: 'PayFast' });
                 markBookingPaymentFailedIfUnpaid(bookingId);
             }
             getBookingById(bookingId, (e, failedRow) => {

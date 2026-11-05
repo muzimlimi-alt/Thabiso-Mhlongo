@@ -105,6 +105,7 @@ router.put('/api/admin/inquiries/:id/status', requireAdmin, requireRole(['admini
     }
     updateInquiryStatus(status, req.params.id, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
+        if (status === 'replied' || status === 'archived') require('../../lib/notify').resolve('bookings.enquiry_received', req.params.id, { req, note: `Marked ${status}.` });
         res.json({ success: true });
     });
 });
@@ -281,6 +282,7 @@ router.put('/api/admin/inquiries/bulk-status', requireAdmin, requireRole(['admin
     bulkUpdateInquiryStatus(ph, status, cleanIds, function(err) {
         if (err) return res.status(500).json({ success: false, message: err.message });
         const label = status.charAt(0).toUpperCase() + status.slice(1);
+        if (status === 'replied' || status === 'archived') cleanIds.forEach((id) => require('../../lib/notify').resolve('bookings.enquiry_received', id, { req, note: `Marked ${status}.` }));
         res.json({ success: true, message: `${this.changes} message(s) marked as ${label}` });
     });
 });

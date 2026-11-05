@@ -69,6 +69,7 @@ router.post('/api/admin/users', requireAdmin, requireRole(['administrator']), (r
                 }
                 const newId = this.lastID;
                 logAudit({ tableName: 'admins', recordId: newId, action: 'create', req, oldValues: null, newValues: { email: normalizedEmail, full_name: cleanName, phone: cleanPhone, role: targetRole } }).catch(e => console.error('logAudit failed:', e));
+                require('../../lib/notify').emit('security.user_created', { userId: newId, name: cleanName || normalizedEmail, role: targetRole, actorLabel: req.session.username }, { req });   // Notification Centre
                 // Queue the invitation email so the user can set their password.
                 createAndSendInvite({ id: newId, email: normalizedEmail, full_name: cleanName, role: targetRole }, 72, async function (mail) {
                     const emailSent = !!(mail && mail.success);
@@ -219,6 +220,12 @@ router.put('/api/admin/users/:id', requireAdmin, requireRole(['administrator']),
                         return res.status(500).json({ success: false, message: 'Could not update the user. Please try again.' });
                     }
                     logAudit({ tableName: 'admins', recordId: userId, action: 'update', req, oldValues: existing, newValues: fields }).catch(e => console.error('logAudit failed:', e));
+                    {   // Notification Centre: role changes and suspensions are security events
+                        const ntf = require('../../lib/notify');
+                        const nm = fields.full_name || existing.full_name || normalizedEmail;
+                        if (existing.role !== fields.role) ntf.emit('security.user_changed', { userId, name: nm, change: 'role', oldRole: existing.role, newRole: fields.role, actorLabel: req.session.username }, { req });
+                        if (Number(existing.is_active) !== Number(fields.is_active)) ntf.emit('security.user_changed', { userId, name: nm, change: Number(fields.is_active) ? 'enabled' : 'disabled', actorLabel: req.session.username }, { req });
+                    }
                     const actor = await resolveActor(req.session.adminId);
                     res.json({ success: true, message: 'User updated successfully.', last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
                 }
@@ -243,6 +250,7 @@ router.delete('/api/admin/users/:id', requireAdmin, requireRole(['administrator'
             deleteAdminUser(targetUserId, function (err) {
                 if (err) { console.error('delete user failed:', err); return res.status(500).json({ success: false, message: 'Could not delete the user. Please try again.' }); }
                 logAudit({ tableName: 'admins', recordId: targetUserId, action: 'delete', req, oldValues: existing, newValues: null }).catch(e => console.error('logAudit failed:', e));
+                require('../../lib/notify').emit('security.user_changed', { userId: targetUserId, name: `user #${targetUserId} (${existing.role})`, change: 'deleted', actorLabel: req.session.username }, { req });   // Notification Centre
                 res.json({ success: true, message: 'User deleted.' });
             });
         };

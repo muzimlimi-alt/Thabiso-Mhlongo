@@ -28,6 +28,7 @@ const { sendCancellationEmail } = require('../../lib/booking-cancellation-email'
 // The module object is kept as well as the destructured names: the payment-plan notifications are
 // looked up on it at call time, so a missing export degrades to a logged warning, not a crash.
 const bookingNotifications = require('../../lib/booking-notifications');
+const notify = require('../../lib/notify');   // Notification Centre (docs-internal/notifications.md)
 const { sendQuoteAcceptedEmail, sendBookingReceivedEmail } = bookingNotifications;
 const { buildPayfastCheckout, payfastBaseUrl, payfastNotifyBaseUrl } = require('../../lib/payfast-signature');
 const {
@@ -592,6 +593,8 @@ router.post('/api/public/bookings/:id/cancel', mutateRateLimiter, ipRateLimiter,
 
             booking.name = booking.client_name || booking.name;
             try { await sendCancellationEmail(booking, { reason: reason || 'Client request', refund_due: calc.refund, rule: calc.rule, days_until_event: calc.daysUntilEvent }); } catch(ce) {}
+            notify.emit('bookings.cancelled', { bookingId: Number(req.params.id), by: 'client', clientName: booking.name, eventDate: booking.date, reason: reason || 'Client request', refundDue: calc.refund }, { actorType: 'client', actorLabel: booking.name });
+            notify.resolve('bookings.request_received', req.params.id, { note: 'The client cancelled.' });
             getNotificationEmail().then(notifEmail => {
                 sendEmail({ to: notifEmail, subject: `Client Cancelled – Booking #${req.params.id}`,
                     htmlContent: emailComponents.renderSystemEmail({
@@ -941,6 +944,7 @@ router.post('/api/public/bookings/:id/contract/sign', mutateRateLimiter, ipRateL
                     db.run(`INSERT INTO audit_log (table_name, record_id, action, new_values, changed_by, ip_address)
                             VALUES ('contracts', ?, 'CLIENT_SIGNED', ?, ?, ?)`,
                         [bookingId, JSON.stringify({ signatory_name: signatoryName }), email, clientIp], () => {});
+                    notify.emit('bookings.contract_signed', { bookingId: Number(bookingId), signatory: signatoryName }, { actorType: 'client', actorLabel: signatoryName });
                     // Notify the admin that the client signed and a countersignature is due.
                     getNotificationEmail().then(notifEmail => notifEmail && sendEmail({
                         to: notifEmail,
@@ -1021,6 +1025,7 @@ router.post('/api/public/bookings/:id/quote-revision-request', mutateRateLimiter
             await dbRun(
                 "UPDATE bookings SET quote_expiry_date = ?, revision_requested_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'QUOTED'",
                 [newExpiry, row.id]);
+            notify.emit('bookings.revision_requested', { bookingId: row.id, requestType: request_type, clientName: row.name, message: String(message).trim().slice(0, 300) }, { actorType: 'client', actorLabel: row.name });
 
             // Send email notifications asynchronously in the background (no await)
             sendEmail({
@@ -1123,6 +1128,7 @@ router.post('/api/public/bookings/:id/contact', mutateRateLimiter, ipRateLimiter
         await dbRun(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
                      VALUES ('bookings', ?, 'CONTACT_UPDATED', ?, ?, 'client', CURRENT_TIMESTAMP)`,
             [row.id, JSON.stringify(oldValues), JSON.stringify(newValues)]);
+        notify.emit('customer.contact_changed', { bookingId: row.id, by: 'client', fields: changed.map((f) => LABELS[f]).join(', '), before: oldValues, after: newValues }, { actorType: 'client', actorLabel: row.name });
         // A note too, so the team sees on the booking itself that the client changed these.
         const noteText = '[Client updated their details]\n' +
             changed.map((f) => `${LABELS[f]}: ${oldValues[f] || '(blank)'} → ${newValues[f] || '(blank)'}`).join('\n');
@@ -1166,6 +1172,7 @@ router.post('/api/public/bookings/:id/correction-request', mutateRateLimiter, ip
             (currently !== null ? `Currently: ${currently}\n` : '') +
             `Should be: "${details}"\nApply it in admin: ${spec.where}.`;
         await insertBookingNoteFromTracker(row.id, encodeUserHtml(noteText));
+        notify.emit('bookings.change_requested', { bookingId: row.id, field: asBookingText(req.body.field), fieldLabel: spec.label, details: details.slice(0, 300), currently, clientName: row.name }, { actorType: 'client', actorLabel: row.name });
 
         const rows = [
             { label: 'Client', value: row.name, mono: false },
@@ -1446,6 +1453,7 @@ router.post('/api/public/bookings/:id/accept-quote', mutateRateLimiter, ipRateLi
             .catch(e => console.error('[Accept-Quote] Client confirmation email failed:', e.message));
         sendAdminQuoteAcceptedNotification({ ...row, status: newStatus }, { clientDesigned: !!milestones })
             .catch(e => console.error('Admin quote-accepted notification failed:', e.message));
+        notify.emit('bookings.quote_accepted', { bookingId: Number(bookingId), clientName: row.name, invoiceGenerated }, { actorType: 'client', actorLabel: row.name });
 
         // Gap 2: Conditionally tell the client about the invoice based on whether it was generated.
         const acceptMsg = invoiceGenerated
@@ -1614,6 +1622,7 @@ router.post('/api/public/bookings/:id/payment-plan', mutateRateLimiter, ipRateLi
         }
 
         const notifyBooking = freshBooking || { id: bookingId, email };
+        notify.emit('bookings.payment_plan_changed', { bookingId: Number(bookingId) }, { actorType: 'client' });
         notifyPlanChange('sendAdminPaymentPlanChangedNotification', [notifyBooking, outcome.written.before, outcome.written.after, {
             invoiceRefreshed: invoice.refreshed,
             invoiceReason: invoice.reason,
@@ -2156,25 +2165,14 @@ router.post('/api/public/bookings', ipRateLimiter, bookingRateLimiter, async (re
         // ---- Side effects run AFTER commit (non-blocking; must never roll back the booking) ----
 
         // 11. SYNC TO GOOGLE CALENDAR (Asynchronously/Non-blocking)
-        syncBookingToCalendar(bookingId).catch(calErr => {
-            console.error('[Booking] Google Calendar sync failed (booking still saved):', calErr.message);
-            // Alert admin so the orphaned calendar slot can be fixed manually
-            getNotificationEmail().then(notifEmail => sendEmail({
-                to: notifEmail,
-                subject: `⚠️ Google Calendar Sync Failed – New Booking #${bookingId}`,
-                htmlContent: emailComponents.renderSystemEmail({
-                    preheaderText: `Booking #${bookingId} saved but its Google Calendar event failed.`,
-                    category: 'System',
-                    severity: 'alert',
-                    leadFact: `Booking <strong style="color:#FAFAFA;">#${bookingId}</strong> was saved successfully but the Google Calendar event could not be created.`,
-                    bodyHtml: `<p style="margin:0 0 10px; color:#B0B0B0; font-size:12px;">Error: ${calErr.message}</p><p style="margin:0; color:#E6E6E6;">Please create the calendar entry manually to avoid a scheduling conflict.</p>`
-                }),
-                preWrapped: true,
-                titleOverride: 'Calendar Sync Failed',
-                trigger_event: 'System: Calendar Sync Failure',
-                skipBrandAttachments: true
-            })).catch(() => {});
-        });
+        // (syncBookingToCalendar never rejects - it records a failure itself. The admin e-mail that used to hang off this .catch() could
+        // therefore never fire; Google failures now raise calendar.sync_failed in the Notification Centre via lib/google-config.js recordSync.)
+        syncBookingToCalendar(bookingId).catch(calErr => console.error('[Booking] Google Calendar sync failed (booking still saved):', calErr.message));
+
+        // Notification Centre: a new request waiting for a quote (Action required; closes itself when the booking moves on).
+        notify.emit('bookings.request_received', {
+            bookingId, clientName: req.body.name, eventName: req.body.event_name || req.body.event_type, eventDate: req.body.date, location: req.body.event_location
+        }, { actorType: 'client', actorLabel: req.body.name });
 
         // 12. DISPATCH EMAILS CONCURRENTLY (Asynchronously/Non-blocking)
         sendBookingReceivedEmail(bookingId, req.body).catch(e => console.error("Async email dispatch failed:", e));

@@ -804,6 +804,7 @@ router.put('/api/admin/bookings/:id/contract/sign', requireAdmin, (req, res) => 
                     () => {}
                 );
 
+                require('../../lib/notify').resolve('bookings.contract_signed', bookingId, { req, note: `Countersigned by ${signatoryName}.` });
                 res.json({ success: true, message: 'Contract marked as signed.', signed_by: signatoryName, signed_date: signedDate, integrity_verified: integrityVerified });
             }
         );
@@ -1611,6 +1612,9 @@ router.post('/api/admin/bookings/:id/quote', requireAdmin, requireRole(['adminis
                 syncBookingToCalendar(booking).catch(e => console.error('[Quote] Calendar sync failed:', e.message));
                 sendQuoteEmail(booking, quote_amount, pdfPath, pdfFileName, items, { pricingConditions }).catch(e => console.error("Quote email error:", e));
                 sendAdminQuoteSentNotification(booking, quote_amount).catch(e => console.error('[Quote] Admin notif failed:', e.message));
+                // A quote answers a waiting request and any revision request (Notification Centre)
+                require('../../lib/notify').resolve('bookings.request_received', booking.id, { req, note: 'A quote was sent.' });
+                require('../../lib/notify').resolve('bookings.revision_requested', booking.id, { req, note: 'A revised quote was sent.' });
 
                 // Per-day availability warning (non-blocking for admins)
                 const perDaySvcIds = items.filter(i => i.service_id).map(i => i.service_id);
@@ -2229,6 +2233,7 @@ router.put('/api/admin/bookings/:id/contact', requireAdmin, requireRole(['admini
             await dbRun(`INSERT INTO audit_log (table_name, record_id, action, old_values, new_values, changed_by, change_timestamp)
                          VALUES ('bookings', ?, 'CONTACT_UPDATED', ?, ?, ?, CURRENT_TIMESTAMP)`,
                 [bookingId, JSON.stringify(diffOld), JSON.stringify(diffNew), req.session.adminId || 'admin']);
+            require('../../lib/notify').emit('customer.contact_changed', { bookingId: Number(bookingId), by: 'admin', actorLabel: req.session.username, fields: Object.keys(diffNew).join(', '), before: diffOld, after: diffNew }, { req });
         }
 
         res.json({ success: true, message: 'Contact details updated.', updated: Object.keys(next) });
@@ -3089,6 +3094,8 @@ router.post('/api/admin/bookings/:id/cancel', requireAdmin, async (req, res) => 
             booking.name = booking.client_name || booking.name;
             booking.email = booking.client_email || booking.email;
             // SC-3: Pass policy rule + timing so client knows what was applied
+            require('../../lib/notify').emit('bookings.cancelled', { bookingId: Number(bookingId), by: 'admin', actorLabel: req.session.username, clientName: booking.name, eventDate: booking.date, reason, refundDue }, { req });
+            require('../../lib/notify').resolve('bookings.request_received', bookingId, { req, note: 'The booking was cancelled.' });
             try { await sendCancellationEmail(booking, { reason, refund_due: refundDue, rule: policyRule, days_until_event: calc.daysUntilEvent, is_force_majeure: isForceMajeure }); }
             catch (e) { console.error('Cancellation email failed:', e.message); }
             res.json({ success: true, message: 'Booking cancelled and client notified.', refund_due: refundDue, rule: policyRule });
@@ -3220,6 +3227,7 @@ router.put('/api/admin/bookings/:id/refund', requireAdmin, requireRole(['adminis
 
         db.run(`INSERT OR IGNORE INTO audit_log (table_name, record_id, action, new_values) VALUES ('cancellations', ?, 'REFUND_ISSUED', ?)`,
             [bookingId, JSON.stringify({ refund_amount: amt, refund_reference, cumulative_refund: cumulativeRefund })]);
+        require('../../lib/notify').emit('finance.refund_recorded', { bookingId, amount: amt, reference: refund_reference || null }, { req });   // Activity Log (docs-internal/notifications.md)
 
         // Re-derive payment_status from the recomputed ledger. This route recomputed
         // amount_paid/amount_outstanding but left payment_status stale, so a fully

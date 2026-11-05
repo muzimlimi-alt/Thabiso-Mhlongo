@@ -143,6 +143,13 @@ async function renderEventsList(highlightId) {
               </div>
             </div>
           </div>
+          <div class="evt-card-actions">
+            ${item.booking_id ? '' : '<p class="evt-tkt-line" hidden></p>'}
+            ${item.event_status !== 'draft' ? `<a class="atl-btn atl-btn--ghost um-btn--sm" href="/e/${item.event_id}" target="_blank" rel="noopener" aria-label="View event on the website: ${displayTitle}"><i class="fa-solid fa-arrow-up-right-from-square"></i> View</a>` : ''}
+            ${item.booking_id ? '' : `<button type="button" class="atl-btn atl-btn--ghost um-btn--sm evt-tkt-manage" data-id="${item.event_id}" aria-label="Manage tickets: ${displayTitle}"><i class="fa-solid fa-ticket"></i> Manage tickets</button>
+            <button type="button" class="atl-btn atl-btn--ghost um-btn--sm evt-tkt-sales evt-tkt-needs" data-id="${item.event_id}" aria-label="View ticket sales: ${displayTitle}" hidden><i class="fa-solid fa-chart-line"></i> Sales</button>
+            <button type="button" class="atl-btn atl-btn--ghost um-btn--sm evt-tkt-attendees evt-tkt-needs" data-id="${item.event_id}" aria-label="Manage attendees: ${displayTitle}" hidden><i class="fa-solid fa-users"></i> Attendees</button>`}
+          </div>
         </article>`;
 
         if (isUpcoming) {
@@ -156,6 +163,9 @@ async function renderEventsList(highlightId) {
 
     if (upcomingCount === 0) $upcomingList.append('<div class="um-empty-state" style="padding:30px;border:1px dashed var(--atl-line);border-radius:12px;text-align:center;"><p style="color:var(--atl-muted);margin:0;">No upcoming events.</p></div>');
     if (pastCount === 0) $pastList.append('<div class="um-empty-state" style="padding:30px;border:1px dashed var(--atl-line);border-radius:12px;text-align:center;"><p style="color:var(--atl-muted);margin:0;">No past events recorded.</p></div>');
+
+    // Ticketing (js/admin/ticketing.js): the "x of y sold" line and the Sales / Attendees buttons on cards that sell tickets
+    if (window.tktDecorateEventCards) window.tktDecorateEventCards();
 
     // Update count badges
     $('#evtCountUpcoming').text(upcomingCount || '');
@@ -748,6 +758,15 @@ $(document).on('submit', '#eventsForm', async function (e) {
             $btn.prop('disabled', false).html(origBtnHtml);
         }
     };
+
+    // An event that already has tickets sold: changing its title, date, venue, status or capacity asks first (js/admin/ticketing.js).
+    if (isEdit && window.tktConfirmEventChange) {
+        var proceed = await window.tktConfirmEventChange({
+            event_title: titleInput, event_datetime: dateInput, venue_name: venueInput,
+            event_status: $('#eventsStatus').val() || 'upcoming', event_capacity: parseInt($('#eventsCapacity').val()) || null
+        });
+        if (!proceed) { $btn.prop('disabled', false); return; }
+    }
 
     $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Saving...');
 

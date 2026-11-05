@@ -226,9 +226,9 @@ async function paidOrder(eventId, tierId, n, buyerName) {
         await adm.waitForFunction(() => document.getElementById('evtDrawer').classList.contains('atl-drawer--open'), { timeout: 10000 });
         await sleep(600);                                                     // the slide-in (as test/browser/events-google.js waits)
         await adm.click('#evt-tab-tickets');
-        await adm.waitForSelector('#tktEventMount .tkt-tier', { timeout: 10000 });
+        await adm.waitForSelector('#tktEventMount #tktTabManage', { timeout: 10000 });
         const tab = await text(adm, '#tktEventMount');
-        ok(/Sales open/.test(tab) && /General/.test(tab) && /3 sold/.test(tab) && /Close sales/i.test(tab) && /View orders/i.test(tab), 'the event drawer\'s Tickets tab: sales open, the tier with 3 sold, Close sales, View orders', tab);
+        ok(/Selling/.test(tab) && /3 sold/.test(tab) && /Manage tickets/i.test(tab), 'the event drawer\'s Tickets tab: selling, 3 sold, and the way to Manage tickets', tab);
         await shot(adm, 'admin-3-event-tab');
         ok(adm.errs.length === 0, 'no script errors in the admin portal', adm.errs.join(' | '));
         await adm.close();

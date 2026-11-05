@@ -11,6 +11,7 @@ const { getBookingByIdAsync } = require('../../database/repositories/bookings.re
 const eft = require('../../lib/eft');
 const core = require('../../lib/eft-core');
 const notify = require('../../lib/eft-notifications');
+const ntf = require('../../lib/notify');   // Notification Centre (docs-internal/notifications.md)
 const router = express.Router();
 
 // Authenticated BEFORE multer reads the file (the token travels in the x-booking-access-token header), size-capped by the administrator's limit.
@@ -45,7 +46,11 @@ router.post('/api/public/bookings/:id/eft/proof', popUploadRateLimiter, ipRateLi
 
         const reference = core.paymentReference(booking.id, result.invoice && result.invoice.invoice_number);
         notify.sendProofReceivedEmail(booking, result.submission, reference).catch(e => console.error('[EFT] Received email failed:', e.message));
-        notify.sendAdminProofNotification(booking, result.submission).catch(e => console.error('[EFT] Admin alert failed:', e.message));
+        // The owner's alert: an ACTION-REQUIRED incident (EFT awaiting verification) + the same e-mail as before. Nothing has been credited.
+        ntf.emit('finance.eft_proof_submitted', {
+            submissionId: result.submission.id, bookingId: booking.id, amount: result.submission.claimed_amount, reference: result.submission.claimed_reference,
+            clientName: booking.name, clientEmail: booking.email, eventName: booking.event_name || booking.event_type, eventDate: booking.date
+        }, { actorType: 'client', actorLabel: booking.name });
         res.json({
             success: true,
             message: 'Thank you - we have received your proof of payment. Your booking will be updated once we have verified it. This is not yet a confirmation of payment.',

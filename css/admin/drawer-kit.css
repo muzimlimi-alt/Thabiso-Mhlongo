@@ -1,0 +1,144 @@
+/* =====================================================================
+   ADMIN DRAWER KIT  (.dk-*)  — the shared inside of every admin drawer.
+
+   WHAT IT IS
+   The Track Your Booking drawer's layout (cards with an icon + summary + chevron, label/value rows, status badges, an even button row,
+   a round close button) as a reusable kit on top of the existing drawer shell (.atl-drawer in 15-services-catalogue.css). A drawer opts in
+   with ONE class on its root: .atl-drawer--dk. Drawers that have not been converted are untouched.
+
+   COLOURS: NONE OF ITS OWN
+   Every colour, border, shadow, radius, spacing and focus value below is an existing --atl-* token (css/core/tokens.css + themes.css), so
+   the kit follows the Appearance system (js/appearance.js: Finish x Accent x Presence) with no extra code:
+     - Finish  (dark / light / ember) re-point --atl-paper/card/surface2/ink/muted/line*, so surfaces and text follow;
+     - Accent  (gold / vetiver / cassis / cuivre) re-points --atl-amber*, which is the accent everywhere;
+     - Presence (editorial / boutique / operations) changes --atl-sp-*, which every gap and padding here uses.
+   An open drawer re-resolves the moment <html data-theme|accent|presence> changes (CSS variables cascade), so nothing needs a refresh, and
+   the pre-paint script in admin.html means no flash. test/browser/drawer-kit.js proves this for every combination and fails the build if
+   a colour literal (#hex, rgb(), hsl()) ever appears in this file.
+
+   RULES FOR THIS FILE
+   - No hex / rgb() / hsl() literals. Tinted fills use rgba(var(--atl-*-rgb), a) or color-mix() on a token.
+   - No new tokens (css/core/tokens.css asks for proof + a log entry first). Spacing = --atl-sp-*, radius = --atl-r-*.
+   - Never a heading element (h1-h6) for card titles: redesign.css forces h1-h6 colour/font with !important (the "heading bleed" seen in
+     .atl-edit-card__title) - the kit uses spans/divs so nothing has to fight it.
+   ===================================================================== */
+
+/* ── Shell: what the converted drawer adds to .atl-drawer ───────────────────────────────────────────────────────────────────────── */
+/* The body sits on the page surface and the cards sit on the card surface, so every card is distinguishable from its background in every Finish
+   (dark: #0a0a0a / #1a1a1a, light: #f2eee6 / #fffdf8, ember: #110c08 / #221a11) - the same relationship the Track drawer uses. */
+.atl-drawer--dk .atl-drawer__body {
+    background: var(--atl-paper);
+    padding: var(--atl-sp-lg);
+    display: flex; flex-direction: column; gap: var(--atl-sp-md);
+}
+/* The body is a scrolling flex column: without this its children SHRINK to fit instead of scrolling (the facts band collapsed to a line, cards crushed their own rows). */
+.atl-drawer--dk .atl-drawer__body > * { flex: none; }
+.atl-drawer--dk .atl-drawer__header { padding: var(--atl-sp-md) var(--atl-sp-lg); min-height: 72px; }
+.atl-drawer--dk .atl-drawer__footer { padding-left: var(--atl-sp-lg); padding-right: var(--atl-sp-lg); }
+
+/* Header: icon tile + serif title (+ optional subtitle) on the left, round close button on the right. */
+.dk-head { display: flex; align-items: center; gap: var(--atl-sp-md); min-width: 0; }
+.dk-icon {
+    flex: none; width: 40px; height: 40px; border-radius: var(--atl-r-lg);
+    display: grid; place-items: center; font-size: 16px;
+    background: var(--atl-amber-dim); color: var(--atl-amber); border: 1px solid var(--atl-amber-border);
+}
+.dk-head__text { min-width: 0; }
+.atl-drawer--dk .atl-drawer__header .dk-title {      /* (0,3,0): the shell's  .atl-drawer__header h5  (0,1,1) would otherwise set it to 15px sans */
+    margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; font-weight: 500; line-height: 1.15;
+    color: var(--atl-ink) !important;          /* beats redesign.css's h1-h6 colour (see the rules above) */
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dk-sub { margin: 2px 0 0; font-size: 12px; color: var(--atl-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atl-drawer--dk .atl-drawer__header h5 { display: block; margin: 0; }     /* the shell makes it a flex row; the kit lays the header out itself */
+.atl-drawer--dk .atl-drawer__close {
+    flex: none; width: 40px; height: 40px; padding: 0; border-radius: 50%;
+    display: grid; place-items: center; font-size: 20px;
+    border: 1px solid var(--atl-line-strong); color: var(--atl-ink);
+    background: color-mix(in srgb, var(--atl-ink) 5%, transparent);
+}
+.atl-drawer--dk .atl-drawer__close:hover { border-color: var(--atl-amber); color: var(--atl-amber); background: var(--atl-amber-dim); }
+
+/* ── Summary band: the 3-4 facts you look for first ─────────────────────────────────────────────────────────────────────────── */
+.dk-facts {
+    display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px;
+    background: var(--atl-line); border: 1px solid var(--atl-line-strong); border-radius: var(--atl-r-lg); overflow: hidden;
+}
+.dk-fact { background: var(--atl-card); padding: var(--atl-sp-md); min-width: 0; }
+.dk-fact__k { display: block; font-size: var(--atl-eyebrow-size); letter-spacing: .14em; text-transform: uppercase; color: var(--atl-muted); margin-bottom: 6px; }
+.dk-fact__v { display: block; font-size: 15px; font-weight: 600; line-height: 1.3; color: var(--atl-ink); overflow-wrap: anywhere; }
+.dk-fact__v--accent { color: var(--atl-amber); }
+.dk-fact__v--ok { color: var(--atl-green); }   /* --atl-green, not --atl-sage: sage is 3.9:1 on the Ivory card (fails AA for text), green is retuned darker there */
+
+/* ── Card: a collapsible <details> (works without JavaScript, keyboard and screen-reader friendly) ──────────────────────────────── */
+.dk-card { background: var(--atl-card); border: 1px solid var(--atl-amber-border); border-radius: var(--atl-r-lg); }
+.dk-card > summary {
+    list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
+    padding: 14px var(--atl-sp-md); min-height: var(--atl-tap); border-radius: var(--atl-r-lg);
+}
+.dk-card > summary::-webkit-details-marker { display: none; }
+.dk-card > summary:hover { background: color-mix(in srgb, var(--atl-ink) 3%, transparent); }
+.dk-card > summary:focus-visible { outline: 2px solid var(--atl-focus); outline-offset: -2px; }
+.dk-card__icon { flex: none; width: 18px; text-align: center; color: var(--atl-amber); font-size: 14px; }
+.dk-card__title { font-size: 14px; font-weight: 700; color: var(--atl-ink); }
+.dk-card__note { margin-left: auto; min-width: 0; font-size: 12px; color: var(--atl-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
+.dk-card__chev { flex: none; margin-left: auto; color: var(--atl-amber); font-size: 12px; transition: transform var(--atl-t-fast); }
+.dk-card__note + .dk-card__chev { margin-left: 4px; }                       /* with a note, the note takes the free space and the chevron follows it */
+.dk-card:not([open]) > summary .dk-card__chev { transform: rotate(180deg); }  /* the arrow points up when open, down when closed */
+.dk-card__body { padding: 0 var(--atl-sp-md) var(--atl-sp-md); }
+
+/* Inset panel inside a card (the Track drawer's darker inner block): quotes, notes, tables. */
+.dk-inset {
+    background: var(--atl-paper); border: 1px solid var(--atl-line); border-radius: var(--atl-r-lg);
+    padding: var(--atl-sp-md); font-size: 13px; line-height: 1.55; color: var(--atl-ink-dim);
+    white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow-y: auto;
+}
+.dk-inset--flag { background: var(--atl-amber-dim); border-color: var(--atl-amber-border); white-space: normal; }
+.dk-inset strong { color: var(--atl-ink); }
+.dk-inset__line + .dk-inset__line { margin-top: var(--atl-sp-sm); }
+
+/* ── Label / value rows ─────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+.dk-rows { margin: 0; padding: 0; }
+.dk-row {
+    display: grid; grid-template-columns: minmax(96px, 34%) minmax(0, 1fr); column-gap: var(--atl-sp-md);
+    align-items: baseline; padding: 11px 0; border-top: 1px solid var(--atl-line);
+}
+.dk-row:first-child { border-top: 0; padding-top: 6px; }
+.dk-row:last-child { padding-bottom: 2px; }
+.dk-k { margin: 0; font-size: 12px; color: var(--atl-muted); }
+.dk-v { margin: 0; font-size: 13px; font-weight: 600; color: var(--atl-ink); overflow-wrap: anywhere; }
+.dk-v a { color: var(--atl-amber); text-decoration: none; }
+.dk-v a:hover { color: var(--atl-amber-hover); text-decoration: underline; }
+.dk-v--plain { font-weight: 400; }
+.dk-v--muted { color: var(--atl-muted); font-weight: 400; }
+.dk-v--ok { color: var(--atl-green); }
+.dk-v--money { font-variant-numeric: tabular-nums; }
+
+/* ── Status badges: always text + colour (never colour alone), tuned per Finish by the semantic tokens ───────────────────────── */
+.dk-badge {
+    display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: var(--atl-r-pill);
+    font-size: 11px; font-weight: 700; letter-spacing: .02em; line-height: 1.4; white-space: nowrap;
+    background: var(--atl-amber-dim); border: 1px solid var(--atl-amber-border);
+    /* the accent pulled toward this Finish's ink: always AA on its own tint (plain --atl-amber is 4.2:1 on Ivory at this size) */
+    color: color-mix(in srgb, var(--atl-amber) 78%, var(--atl-ink));
+}
+.dk-badge--ok   { background: rgba(var(--atl-sage-rgb), .14);   color: var(--atl-green);  border-color: rgba(var(--atl-sage-rgb), .35); }
+.dk-badge--warn { background: rgba(var(--atl-orange-rgb), .14); color: var(--atl-orange); border-color: rgba(var(--atl-orange-rgb), .35); }
+.dk-badge--bad  { background: rgba(var(--atl-clay-rgb), .14);   color: var(--atl-clay);   border-color: rgba(var(--atl-clay-rgb), .35); }
+.dk-badge--info { background: rgba(var(--atl-blue-rgb), .14);   color: var(--atl-blue);   border-color: rgba(var(--atl-blue-rgb), .35); }
+
+/* ── Buttons row: equal widths, comfortable height, wraps on a narrow screen ─────────────────────────────────────────────────── */
+.dk-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--atl-sp-sm); }
+.dk-actions .atl-btn, .atl-drawer--dk .atl-drawer__footer .atl-btn {
+    min-height: var(--atl-tap); display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 8px 16px; font-size: 13px; border-radius: var(--atl-r-lg);
+}
+.dk-actions .atl-btn:focus-visible, .atl-drawer--dk .atl-drawer__footer .atl-btn:focus-visible { outline: 2px solid var(--atl-focus); outline-offset: 2px; }
+
+/* ── Phone: single column facts, label above value ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+    .dk-facts { grid-template-columns: minmax(0, 1fr); }
+    .dk-row { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+    .dk-card__note { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { .dk-card__chev { transition: none; } }

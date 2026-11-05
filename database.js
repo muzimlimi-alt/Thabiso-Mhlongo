@@ -3162,6 +3162,13 @@ function initializeDatabase() {
         // Additive only - see lib/ticketing-schema.js for the relationship rules and docs-internal/ticketing.md for the design.
         require('./lib/ticketing-schema').apply(db);
 
+        // Notification centre + business activity log (version 119): admin_notifications, activity_log, per-admin reads/prefs, job heartbeats.
+        // Additive only - see lib/notifications-schema.js and docs-internal/notifications.md.
+        require('./lib/notifications-schema').apply(db);
+
+        // FAQ (version 121): questions and answers for the public FAQ section, managed in the admin. Starter drafts are seeded hidden, once.
+        require('./lib/faq-schema').apply(db);
+
         // Homepage "What I do" cards follow the five rate-card categories (version 107): replaced only while still the shipped
         // defaults, once. See lib/homepage-service-cards.js for the rules.
         {

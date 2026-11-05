@@ -221,8 +221,8 @@ router.post('/api/admin/compose', requireAdmin, async (req, res) => {
     }
 });
 
-// Phase 5 (HOUSEKEEPING-NOTES.md): SITE_CONTENT_KEYS moved into routes/public/site-content.js as a
-// single-consumer local alongside GET /api/public/site-content.
+// SITE_CONTENT_KEYS now lives in lib/homepage-content.js, shared by GET /api/public/site-content and the server-filled homepage
+// (lib/homepage-render.js).
 
 
 

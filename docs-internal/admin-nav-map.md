@@ -8,6 +8,9 @@ Reading the tree: **group** (sidebar heading) > page (sidebar link; a flyout par
 ## Insight
 
 - **Dashboard** — `#dashboardAdmin`, everyone; page heading "Command Center"
+  - tabs: Overview (`dbPanelOverview`) · Traffic & Visitors (`dbPanelTraffic`) · Geography (`dbPanelGeo`) · Performance & Security (`dbPanelPerf`) · Finance (`dbPanelFinance`) · Social KPIs (`dbPanelSocial`)
+- **Notifications** — `#notificationsAdmin`, everyone
+  - tabs: Action required (`ntfPanelAction`) · Attention (`ntfPanelAttention`) · Activity feed (`ntfPanelActivity`) · Expiry dates (`ntfPanelExpiry`) · Preferences (`ntfPanelPrefs`)
 
 ## Operations
 
@@ -15,32 +18,27 @@ Reading the tree: **group** (sidebar heading) > page (sidebar link; a flyout par
   - **Pipeline** — `#bookingsAdmin`, everyone; page heading "Event Bookings"
     - tabs: Pipeline (`bkPanelPipeline`) · Archive (`bkPanelArchive`) · Booking Recovery 0 (`bkPanelRecovery`) · About (`bkPanelAbout`)
   - **Calendar** — `#calendarAdmin`, everyone
-    - tabs: Calendar (`calPanelCalendar`) · Settings (`calPanelSettings`, administrators only: Google + Microsoft 365 connections) · About (`calPanelAbout`)
+    - tabs: Calendar (`calPanelCalendar`) · Settings (`calPanelSettings`) · About (`calPanelAbout`)
   - **Events** — `#eventsAdmin`, everyone; page heading "Events Management"
-    - tabs: Upcoming Events (`evtPanelUpcoming`) · Past Events (`evtPanelPast`) · About (`evtPanelAbout`)
+    - tabs: Upcoming Events (`evtPanelUpcoming`) · Past Events (`evtPanelPast`) · Ticket Sales (`evtPanelTickets`) · About (`evtPanelAbout`)
 - **Revenue** (flyout)
   - **Finance** — `#financeAdmin`, administrator, manager; page heading "Financial Ledger"
-    - tabs: Recent Transactions (`finTransactions`) · All Invoices (`finInvoices`) · Expenses (`finExpenses`) · Reconciliation (`finReconciliation`) · EFT Payments 0 (`finEft`) · Reminders (`finReminders`) · Analytics & Reports (`finAnalytics`) · About (`finAbout`)
+    - tabs: Recent Transactions (`finTransactions`) · All Invoices (`finInvoices`) · Expenses (`finExpenses`) · Reconciliation (`finReconciliation`) · EFT Payments 0 (`finEft`) · Ticket Sales (`finTickets`) · Reminders (`finReminders`) · Analytics & Reports (`finAnalytics`) · About (`finAbout`)
   - **Services** — `#servicesAdmin`, everyone; page heading "Services Catalogue"
     - tabs: Manage Services (`servicesConfigPanel`) · About (`servicesAboutPanel`)
   - **Payment Setup** — `#paymentSetupAdmin`, administrator only
-    - tabs: PayFast (`payPanelPayfast`) · Bank Transfer & Banking Details (`payPanelBank`) · About (`payPanelAbout`)
-
+    - tabs: PayFast (`payPanelPayfast`) · EFT Payments (`payPanelBank`) · About (`payPanelAbout`)
 - **Email** (flyout)
-  - **Inquiries** — `#inquiriesAdmin`, everyone
-    - tabs: Inbox (`inqInboxPanel`) · Setup (`inqSetupPanel`, administrators only: outgoing mail, customer replies, alert address) · About (`inqAboutPanel`, also carries the Email Setup documentation)
+  - **Mailbox** — `#inquiriesAdmin`, everyone; page heading "Inquiries"
+    - tabs: Inbox (`inqInboxPanel`) · Setup (`inqSetupPanel`) · About (`inqAboutPanel`)
+  - **Banners** — `#emailBannersAdmin`, administrator only; page heading "Email Banners"
   - **Delivery Log** — `#emailLogsAdmin`, administrator only
     - tabs: Communication History (`logPanelHistory`) · About (`logPanelAbout`)
-  - **Email Banners** — `#emailBannersAdmin`, administrator only
-    - the banner library, with its own Library / Preview / About views (no tabs)
-
-## Audience
-
 - **Outreach** (flyout)
   - **Newsletter** — `#newsletterAdmin`, administrator, manager
     - tabs: Compose (`newsletterComposePanel`) · Campaigns (`newsletterCampaignsPanel`) · Subscribers (`newsletterSubscribersPanel`) · Birthday (`newsletterBirthdayPanel`) · About (`newsletterAboutPanel`)
   - **Social Media** — `#socialAdmin`, everyone
-    - tabs: Social Links (`socialLinksPanel`) · Media Embeds (`socialEmbedsPanel`) · Dashboard KPIs (`socialKpiPanel`) · About (`socialAboutPanel`)
+    - tabs: Social Links (`socialLinksPanel`) · Media Embeds (`socialEmbedsPanel`) · About (`socialAboutPanel`)
   - **Contact Details** — `#contactAdmin`, everyone; page heading "Contact"
     - tabs: Settings (`contactConfigPanel`) · About (`contactAboutPanel`)
 
@@ -61,6 +59,8 @@ Reading the tree: **group** (sidebar heading) > page (sidebar link; a flyout par
     - tabs: Manage Team (`teamConfigPanel`) · About (`teamAboutPanel`)
   - **Testimonials** — `#testimonialsAdmin`, everyone
     - tabs: Manage Testimonials (`testimonialsConfigPanel`) · About (`testimonialsAboutPanel`)
+  - **FAQ** — `#faqAdmin`, everyone
+    - tabs: Manage questions (`faqManagePanel`) · Preview (`faqPreviewPanel`)
   - **Gallery** — `#galleryAdmin`, everyone
     - tabs: Manage Media (`galleryConfigPanel`) · About (`galleryAboutPanel`)
 - **Site Appearance** — `#brandingAdmin`, administrator only
@@ -85,9 +85,9 @@ Reading the tree: **group** (sidebar heading) > page (sidebar link; a flyout par
 
 ## Retired ids (still work through the alias map)
 
-- `emailSetupAdmin` → `inquiriesAdmin` (now its Setup tab)
 - `preferencesAdmin` -> `brandingAdmin`
-- `adminPortalAdmin` -> `brandingAdmin` (its Appearance and Sign-in Page became the Admin Appearance and Sign-in Page tabs)
+- `adminPortalAdmin` -> `brandingAdmin`
+- `emailSetupAdmin` -> `inquiriesAdmin`
 
 ## Not in the sidebar
 

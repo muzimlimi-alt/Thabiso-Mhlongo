@@ -551,7 +551,10 @@ class NotificationService {
             // Ignore cross-origin script errors or harmless things
             if (e.message && e.message.toLowerCase().includes('script error')) return;
             console.error('[Global Error]', e.error || e.message);
-            self.showError('An unexpected client error occurred. Our team has been notified.');
+            // The admin portal has its own (throttled) error toast and reports the error to the Notification Centre (js/admin/notifications.js),
+            // so it is not toasted twice there. The public site does not report errors anywhere, so it must not claim that anyone was told.
+            if (window.ADMIN_NAV) return;
+            self.showError('Something went wrong on this page. Please try again, or reload the page if it keeps happening.');
         });
 
         window.addEventListener('unhandledrejection', function(e) {

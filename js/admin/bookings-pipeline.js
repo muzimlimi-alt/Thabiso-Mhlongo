@@ -2026,10 +2026,12 @@
 
             // Venue notes
             let vnHtml = '';
-            if (booking.venue_notes) vnHtml += '<div style="color:#aaa;margin-bottom:6px;"><strong style="color: var(--atl-ink-dim);">Venue Notes:</strong><br>' + booking.venue_notes + '</div>';
-            if (booking.green_room_notes) vnHtml += '<div style="color:#aaa;margin-bottom:6px;"><strong style="color: var(--atl-ink-dim);">Green Room:</strong><br>' + booking.green_room_notes + '</div>';
-            if (booking.venue_negotiated_rates) vnHtml += '<div style="color: var(--atl-amber);"><strong>Negotiated Rates:</strong><br>' + booking.venue_negotiated_rates + '</div>';
-            if (vnHtml) { $('#bi-venue-notes').html(vnHtml).show(); } else { $('#bi-venue-notes').hide(); }
+            // theme tokens only (the drawer kit, css/admin/drawer-kit.css): the old inline #aaa did not follow the Appearance Finish
+            if (booking.venue_notes) vnHtml += '<div class="dk-inset__line"><strong>Venue notes</strong><br>' + booking.venue_notes + '</div>';
+            if (booking.green_room_notes) vnHtml += '<div class="dk-inset__line"><strong>Green room</strong><br>' + booking.green_room_notes + '</div>';
+            if (booking.venue_negotiated_rates) vnHtml += '<div class="dk-inset__line"><strong>Negotiated rates</strong><br>' + booking.venue_negotiated_rates + '</div>';
+            $('#bi-venue-notes').html(vnHtml);
+            $('#bi-venue-card').prop('hidden', !vnHtml);
 
             // Notes
             $('#bi-message').text(booking.message || 'No notes provided.');

@@ -22,6 +22,8 @@ const fail = (res, e, what) => {
 const audit = (req, action, oldValues, newValues, reason) =>
     logAudit({ tableName: 'settings', recordId: 0, action, req, oldValues: { google_calendar: oldValues }, newValues: { google_calendar: newValues }, reason })
         .catch((e) => console.error('logAudit failed:', e.message));
+// Notification Centre: connecting / disconnecting / re-pointing an integration is a security event (no credentials in it)
+const announce = (req, change, detail) => require('../../lib/notify').emit('security.integration_changed', { integration: 'google-calendar', label: 'Google Calendar', change, detail, actorLabel: req.session && req.session.username }, { req });
 
 // The address Google must be told it may send the browser back to (Google Cloud > the OAuth client > Authorized redirect URIs). On a local machine that is
 // the address in the browser's bar; on the live site it is BASE_URL when set (the public address), otherwise the address the request came in on.
@@ -84,6 +86,7 @@ router.put('/api/admin/google-calendar/credentials', ...adminOnly, async (req, r
         }
         const after = await google.getStatus();
         audit(req, 'update', before, Object.assign({}, after, { clientSecretChanged: result.secretChanged, signInCleared: result.idChanged }));
+        announce(req, 'settings changed', result.idChanged ? 'new client - the Google sign-in was cleared' : result.secretChanged ? 'client secret replaced' : null);
         res.json({ success: true, ...after, canManage: true, redirectUri: redirectUriFor(req), signInCleared: result.idChanged });
     } catch (e) { fail(res, e, 'save'); }
 });
@@ -124,6 +127,7 @@ router.get(CALLBACK_PATH, adminRateLimiter, async (req, res) => {
     catch (e) { console.error('google-calendar callback failed:', e && e.message); result = { ok: false, code: 'internal', by: null }; }
     const outcome = OUTCOMES.has(result.code) ? result.code : 'google';
     if (result.ok) audit(req, 'update', { connected: false }, { connected: true, account: result.account }, 'Google Calendar connected' + (result.by ? ' by administrator #' + result.by : ''));
+    if (result.ok) announce(req, 'connected', result.account ? `account ${result.account}` : null);
     res.status(result.ok ? 200 : 400).type('html').send(landingPage(outcome));
 });
 
@@ -139,6 +143,7 @@ router.delete('/api/admin/google-calendar', ...adminOnly, async (req, res) => {
         const result = await google.disconnect();
         const after = await google.getStatus();
         audit(req, 'update', before, Object.assign({}, after, { revoked: result.revoked }), 'Google Calendar disconnected');
+        announce(req, 'disconnected', null);
         res.json({ success: true, ...result, ...after, canManage: true, redirectUri: redirectUriFor(req) });
     } catch (e) { fail(res, e, 'disconnect'); }
 });

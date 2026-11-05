@@ -122,7 +122,12 @@ const adminLoginRateLimiter = rateLimit ? rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     skipSuccessfulRequests: true,
-    message: { success: false, message: 'Too many login attempts. Please wait 10 minutes before trying again.' }
+    message: { success: false, message: 'Too many login attempts. Please wait 10 minutes before trying again.' },
+    // Notification Centre: a blocked address is one grouped alert per IP (lazy require: this file loads before most of the app)
+    handler: (req, res, next, options) => {
+        try { require('../lib/notify').emit('security.login_locked', { ip: req.ip || '', account: req.body && req.body.email ? String(req.body.email).slice(0, 120) : null }, { actorType: 'system', actorLabel: req.ip || null }); } catch (e) { /* never block the 429 */ }
+        res.status(options.statusCode).json(options.message);
+    }
 }) : (req, res, next) => next();
 
 // Tight limiter for the email-lookup endpoint — reduces enumeration risk

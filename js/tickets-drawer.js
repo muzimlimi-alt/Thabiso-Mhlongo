@@ -101,6 +101,7 @@
         if (t.state === 'on_sale') return t.from_cents ? { state: t.state, text: (inModal ? 'Tickets start at ' : 'From ') + zar(t.from_cents) } : null;
         if (t.state === 'sold_out') return { state: t.state, text: 'Sold out' };
         if (t.state === 'not_started' && t.opens_at) return { state: t.state, text: 'Tickets on sale ' + sast(t.opens_at) };
+        if (t.state === 'paused') return { state: 'closed', text: 'Ticket sales paused - back soon' };
         return { state: 'closed', text: 'Ticket sales closed' };
     };
 
@@ -172,7 +173,8 @@
             var q = state.qty[t.id] || 0;
             var max = Math.min(t.max_per_order, t.remaining);
             var left = t.state === 'on_sale' ? (t.remaining <= 10 ? 'Only ' + t.remaining + ' left' : t.remaining + ' left') :
-                t.state === 'sold_out' ? 'Sold out' : t.state === 'not_started' ? 'On sale ' + sast(t.sales_start) : 'Not on sale';
+                t.state === 'sold_out' ? 'Sold out' : t.state === 'paused' ? 'Sales paused - back soon' :
+                t.state === 'not_started' ? 'On sale ' + sast(t.sales_start || (d.summary && d.summary.opens_at)) : 'Not on sale';
             var gone = (highlight || []).indexOf(t.id) !== -1;
             html += '<li class="tk-tier' + (t.state !== 'on_sale' ? ' tk-tier--off' : '') + (gone ? ' tk-tier--gone' : '') + '">' +
                 '<div class="tk-tier__info"><p class="tk-tier__name">' + esc(t.name) + '</p>' +

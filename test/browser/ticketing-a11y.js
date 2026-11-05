@@ -3,7 +3,7 @@
 // from cdnjs and injected. Scanned (each scoped to the ticketing part of the page, so older parts of the site don't drown the result):
 //   public - the Get Tickets drawer (choose tickets, your details, paid tickets), the event card + its Share menu, /t/<token>;
 //   door   - the /checkin scanner opened from a door link;
-//   admin  - Events -> Ticket Sales, the order drawer, the event drawer's Tickets tab.
+//   admin  - Events -> Ticket Sales, the order drawer, the event drawer's Tickets tab, the Manage Tickets drawer.
 // Fails on "critical" or "serious" findings (WCAG 2.1 A/AA rules); "moderate"/"minor" ones are listed for information.
 // Not part of `npm test`: run with `npm run test:browser` (needs PUPPETEER_EXECUTABLE_PATH and internet for cdnjs). Date offset 1995.
 const support = require('../support');
@@ -166,9 +166,14 @@ async function paidOrder(eventId, tierId, n, buyerName) {
         await adm.waitForSelector('#evt-tab-tickets', { visible: true, timeout: 10000 });
         await sleep(800);
         await adm.click('#evt-tab-tickets');
-        await adm.waitForSelector('#tktEventMount .tkt-tier', { timeout: 10000 });
+        await adm.waitForSelector('#tktEventMount #tktTabManage', { timeout: 10000 });
         await sleep(400);
         await scan(adm, 'admin event drawer - Tickets tab', '#tktEventMount');
+        // the Manage Tickets drawer (opened from that tab)
+        await adm.click('#tktTabManage');
+        await adm.waitForSelector('#tktManageDrawerBody .tkt-cap', { timeout: 10000 });
+        await sleep(700);
+        await scan(adm, 'admin Manage Tickets drawer', '#tktManageDrawer');
         await adm.close();
     } catch (e) {
         fails++;

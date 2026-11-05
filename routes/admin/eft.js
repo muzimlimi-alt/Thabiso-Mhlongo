@@ -6,6 +6,7 @@ const express = require('express');
 const { requireAdmin } = require('../../middleware/auth');
 const { requireRole } = require('../../middleware/rbac');
 const { logAudit } = require('../../lib/audit-log');
+const ntf = require('../../lib/notify');   // Notification Centre (docs-internal/notifications.md)
 const core = require('../../lib/eft-core');
 const eft = require('../../lib/eft');
 const approval = require('../../lib/eft-approval');
@@ -31,6 +32,7 @@ router.put('/api/admin/eft/settings', requireAdmin, ADMIN_ONLY, async (req, res)
         const result = await eft.saveEftSettings({ enabled: body.enabled, maxUploadMb: body.max_upload_mb }, req.session.adminId);
         if (result.error) return res.status(400).json({ success: false, message: result.error });
         await logAudit({ tableName: 'eft_settings', recordId: 1, action: 'EFT_SETTINGS_CHANGED', req, oldValues: result.before, newValues: result.after });
+        ntf.emit('finance.settings_changed', { area: 'EFT payment settings', ref: String(Date.now()), fields: `Manual EFT ${result.after.enabled ? 'on' : 'off'}, upload limit ${result.after.max_upload_mb} MB` }, { req });
         res.json({ success: true, settings: result.after, message: result.after.enabled ? 'Manual EFT is on.' : 'Manual EFT is off.' });
     } catch (e) { err500(res, e); }
 });
@@ -59,6 +61,8 @@ router.put('/api/admin/eft/bank-details', requireAdmin, ADMIN_ONLY, async (req, 
             oldValues: core.auditViewOfBankDetails(result.previous), newValues: core.auditViewOfBankDetails(result.created),
             reason: result.previous ? `Changed: ${core.changedBankFields(result.previous, result.created).join(', ')}` : 'Banking details added'
         });
+        // Notification Centre: banking details are what clients pay money into - always tell the owner (field NAMES only, never the numbers).
+        ntf.emit('finance.bank_details_changed', { version: result.created.version, fields: result.previous ? core.changedBankFields(result.previous, result.created).join(', ') : 'added for the first time' }, { req });
         const openOnOld = result.previous ? await eft.openInvoicesOnVersion(result.previous.id) : 0;
         res.json({
             success: true, version: result.created.version, open_invoices_on_previous_version: openOnOld,

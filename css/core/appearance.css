@@ -175,7 +175,7 @@
    reading surfaces and re-padding them breaks their alignment. */
 
 /* ── Boutique — gallery air ── */
-:root[data-presence="boutique"] {
+:root:root[data-presence="boutique"] {   /* :root:root = (0,3,0): Obsidian's token block in tokens.css is (0,3,0) too, and this file loads last, so Presence now wins in the default Finish as well (at (0,2,0) it only ever worked under Ivory/Ember) */
     --atl-sp-lg:  28px;
     --atl-sp-xl:  40px;
     --atl-sp-2xl: 64px;
@@ -204,7 +204,7 @@
 /* ── Operations — dense working tool ──
    Headings drop to the body sans and KPI figures switch to the mono family,
    both via the existing font tokens rather than new literals. */
-:root[data-presence="operations"] {
+:root:root[data-presence="operations"] {   /* see the note on boutique above */
     --atl-sp-lg:  16px;
     --atl-sp-xl:  20px;
     --atl-sp-2xl: 28px;
@@ -213,6 +213,11 @@
     font-family: 'Outfit', sans-serif !important;
     font-size: 1.6rem !important;
     font-weight: 400 !important;
+}
+:root[data-presence="operations"] body.admin-body .dk-title {   /* Admin Drawer Kit (css/admin/drawer-kit.css): titles follow the heading rule above */
+    font-family: 'Outfit', sans-serif !important;
+    font-size: 19px !important;
+    font-weight: 500 !important;
 }
 :root[data-presence="operations"] body.admin-body .db-stat-value,
 :root[data-presence="operations"] body.admin-body .fin-tile-value {

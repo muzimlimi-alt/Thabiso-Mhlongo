@@ -42,7 +42,7 @@ module.exports = async function ({ check }) {
     check('admin: capacity can\'t drop below what is sold or held (409); a price change leaves existing orders at the price they were sold at',
         o.capacityBelowHeld && o.capacityBelowHeld.status === 409 && o.updated.cap === 6 && o.updated.price === 17500 && o.updated.oldLinePrice === 15000, j({ below: o.capacityBelowHeld, upd: o.updated }));
     check('admin: a tier with orders can\'t be deleted (409); a never-used one can', o.deleteUsedTier && o.deleteUsedTier.status === 409 && o.deleteUnused === true, j({ used: o.deleteUsedTier, unused: o.deleteUnused }));
-    check('admin: Close sales stops new reservations', o.closeSales.changed >= 2 && o.closedReserve && o.closedReserve.status === 400, j({ close: o.closeSales, reserve: o.closedReserve }));
+    check('admin: Close sales stops new reservations', o.closeSales.overview && o.closeSales.overview.state === 'closed' && o.closedReserve && o.closedReserve.status === 400, j({ close: o.closeSales, reserve: o.closedReserve }));
     check('relationships: the event now has orders, and the database itself refuses to delete it (RESTRICT)',
         o.deletionCheck.orders >= 1 && /FOREIGN KEY/.test(o.eventDeleteBlockedByDb), j({ check: o.deletionCheck, del: o.eventDeleteBlockedByDb }));
     check('invariant after everything: no tier over capacity or negative, and held stock equals exactly what pending orders hold',

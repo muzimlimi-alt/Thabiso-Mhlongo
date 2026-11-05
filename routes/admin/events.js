@@ -23,6 +23,7 @@ const {
     deleteEventById, getEventForDragReschedule, updateEventDatetime, getEventById, insertEventForDuplicate
 } = require('../../database/repositories/calendar.repository');
 const ticketing = require('../../lib/ticketing');
+const notify = require('../../lib/notify');   // Notification Centre (docs-internal/notifications.md)
 const router = express.Router();
 
 // Phase 5 (HOUSEKEEPING-NOTES.md): moved from app.js verbatim, byte-identical — single-consumer
@@ -222,6 +223,7 @@ router.post('/api/admin/events', requireAdmin, async (req, res) => {
                     catch(e) { console.error('GCal sync error:', e); }
                 }
                 const actor = await resolveActor(req.session.adminId);
+                notify.emit('events.created', { eventId: newEventId, title: event_title, status: req.body.event_status || 'draft' }, { req });
                 res.json({ success: true, id: newEventId, message: 'Event added successfully', gcal_synced: gcalSynced, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
             });
     });
@@ -262,6 +264,16 @@ router.put('/api/admin/events/:id', requireAdmin, async (req, res) => {
         if (selErr || !oldRow) return res.status(404).json({ success: false, error: 'Event not found' });
         const resolvedBookingIdForCheck = booking_id || oldRow.old_booking_id;
         const dateChanged = event_datetime && event_datetime !== oldRow.event_datetime;
+
+        // Ticketing: the event's capacity may not be set below the places already given out to its ticket types (changing it to a figure that
+        // still fits, or leaving it alone on an event that was over-allocated before this rule existed, is fine).
+        const newCapacity = event_capacity ? Number(event_capacity) : null;
+        if (newCapacity && newCapacity !== Number(oldRow.event_capacity || 0)) {
+            try {
+                const allocated = await ticketing.allocatedPlaces(eventId);
+                if (allocated > newCapacity) return res.status(409).json({ success: false, error: 'capacity', message: `This event's ticket types already give out ${allocated} places, so its capacity can't be ${newCapacity}. Reduce the ticket types first (Manage Tickets), or choose ${allocated} or more.` });
+            } catch (e) { return res.status(500).json({ success: false, error: 'Capacity check failed: ' + e.message }); }
+        }
 
         if (resolvedBookingIdForCheck && dateChanged) {
             const booking = await getBookingByIdSafeAsync(resolvedBookingIdForCheck);
@@ -322,6 +334,11 @@ router.put('/api/admin/events/:id', requireAdmin, async (req, res) => {
                 if (event_status === 'cancelled' || event_status === 'postponed') {
                     try { ticketPaidOrders = (await ticketing.closeSalesForEvent(eventId)).paidOrders; }
                     catch(e) { console.error('[Events] closing ticket sales failed:', e.message); }
+                }
+                if ((event_status === 'cancelled' || event_status === 'postponed') && oldRow.event_status !== event_status) {
+                    notify.emit('events.cancelled', { eventId: Number(eventId), title: event_title || oldRow.event_title, status: event_status, reason: cancellation_reason || null, paidOrders: ticketPaidOrders }, { req });
+                } else {
+                    notify.emit('events.updated', { eventId: Number(eventId), title: event_title || oldRow.event_title, published: oldRow.event_status === 'draft' && event_status === 'upcoming' }, { req });
                 }
                 res.json({ success: true, message: 'Event updated', gcal_synced: gcalSynced, ticket_paid_orders: ticketPaidOrders, last_updated: { name: actor.name, role: actor.role, at: new Date().toISOString() } });
             });
