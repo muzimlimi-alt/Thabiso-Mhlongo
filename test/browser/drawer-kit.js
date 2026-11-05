@@ -6,6 +6,7 @@
 // Drawers covered: every id listed in CONVERTED below (add each drawer here as it is converted).
 // Not part of `npm test`: `npm run test:browser` (needs PUPPETEER_EXECUTABLE_PATH). DRAWER_SHOTS=<dir> saves a screenshot per Finish/Accent.
 const fs = require('fs');
+const os = require('os');
 const sqlite3 = require('sqlite3');
 const path = require('path');
 const support = require('../support');
@@ -15,7 +16,8 @@ let fails = 0;
 const ok = (c, n, detail) => { if (!c) fails++; console.log((c ? 'PASS ' : 'FAIL ') + n + (c ? '' : '\n        -> ' + String(detail).slice(0, 600))); };
 const SHOTS = process.env.DRAWER_SHOTS || null;
 const ROOT = path.join(__dirname, '..', '..');
-const CONVERTED = ['bookingInfoDrawer', 'bookingFinancialsDrawer', 'eftReviewDrawer', 'recordPaymentDrawer', 'expenseDrawer', 'manualTxDrawer'];
+const CONVERTED = ['bookingInfoDrawer', 'bookingFinancialsDrawer', 'eftReviewDrawer', 'recordPaymentDrawer', 'expenseDrawer', 'manualTxDrawer', 'bookingEmailDrawer', 'contractDrawer', 'manualBookingDrawer'];
+const LITE = ['dealViewDrawer', 'tktOrderDrawer', 'tktManageDrawer'];   // keep their own structure, get the kit finish (.atl-drawer--dk-lite)
 
 const FINISH = ['dark', 'light', 'ember'];
 const ACCENT = ['gold', 'vetiver', 'cassis', 'cuivre'];
@@ -39,6 +41,22 @@ function staticChecks() {
         const seg = (a > 0 && b > a ? js.slice(a, b) : '').replace(/\/\/[^\n]*/g, '');
         const lit = seg.match(/#[0-9a-fA-F]{3,6}\b(?![\w-])|rgba?\(\s*\d|hsla?\(/g) || [];
         ok(seg.length > 2000 && lit.length === 0, 'bookings-pipeline.js: the Booking Info + Financial Controls handlers write no colour literal', JSON.stringify({ len: seg.length, lit }));
+    }
+    {   // Contract: the whole handler file; Email: its dispatcher in bookings-pipeline.js; Manual Booking: its handler in admin.html
+        const lit = (txt) => (txt.replace(/\/\/[^\n]*/g, '').match(/#[0-9a-fA-F]{3,6}\b(?![\w-])|rgba?\(\s*\d|hsla?\(|\.css\('color'|\.style\.(color|background)\b/g) || []);
+        const ct = fs.readFileSync(path.join(ROOT, 'js/admin/bookings-contracts.js'), 'utf8');
+        const l1 = lit(ct), ctCode = ct.replace(/\/\*[\s\S]*?\*\//g, '');
+        ok(ct.length > 6000 && l1.length === 0 && /dkMessage\('#contractModalMsg'/.test(ct) && !/\$\('#contract(UploadBtn|ConfirmSignBtn|DownloadBtn|FileInput)'\)\.(off|on)\(/.test(ctCode), 'bookings-contracts.js: no colour literal; messages via dkMessage; no handler bound directly to an element that is not on the page yet', JSON.stringify(l1));
+        const pl = fs.readFileSync(path.join(ROOT, 'js/admin/bookings-pipeline.js'), 'utf8');
+        const ea = pl.indexOf('EMAIL DISPATCHER'), eb = pl.indexOf('Generic Event Handlers for Table actions');
+        const l2 = lit(ea > 0 && eb > ea ? pl.slice(ea, eb) : '');
+        ok(eb > ea && ea > 0 && l2.length === 0 && !/qlEditor\.style\.color/.test(pl), 'bookings-pipeline.js: the Email dispatcher sets no colour (the forced #ddd editor colour is gone)', JSON.stringify(l2));
+        const ah = fs.readFileSync(path.join(ROOT, 'admin.html'), 'utf8');
+        const ma = ah.indexOf('Manual Booking Handler'), mb2 = ah.indexOf('Manual Booking Drawer: init pickers when drawer opens');
+        const l3 = lit(ma > 0 && mb2 > ma ? ah.slice(ma, mb2) : '');
+        ok(mb2 > ma && ma > 0 && l3.length === 0 && /dkMessage\('#manualBookingAlert'/.test(ah), 'admin.html: the Manual Booking handler sets no colour; its alerts go through dkMessage()', JSON.stringify(l3));
+        const tk = fs.readFileSync(path.join(ROOT, 'js/admin/ticketing.js'), 'utf8').replace(/\/\/[^\n]*/g, '');
+        ok((tk.match(/#[0-9a-fA-F]{3,6}\b(?![\w-])|rgba?\(\s*\d|hsla?\(/g) || []).length === 0, 'ticketing.js: no colour literal', '');
     }
     {   // the money-form handlers (Expense, Manual Transaction) in bookings-finance.js
         const js = fs.readFileSync(path.join(ROOT, 'js/admin/bookings-finance.js'), 'utf8');
@@ -108,7 +126,7 @@ function readDrawer(id, sel) {
         body: { bg: cs(body, 'backgroundColor') },
         card: pick('.dk-card, .dk-panel'), cardTitle: pick('.dk-card__title'), cardIcon: pick('.dk-card__icon'), label: pick('.dk-k'), value: pick('.dk-v'),
         link: pick(S.link), fact: pick('.dk-fact'), factK: pick('.dk-fact__k'), factV: pick(S.factV), factAccent: pick(S.factAccent), factOk: pick(S.factOk), factWarn: pick(S.factWarn),
-        valOk: pick(S.valOk), valBad: pick(S.valBad), notice: pick(S.notice), input: pick(S.input), fieldLabel: pick('.dk-label'), hint: pick('.dk-hint'), req: pick('.atl-req'), btnPrimary: pick(S.btnPrimary), btnDanger: pick(S.btnDanger),
+        valOk: pick(S.valOk), valBad: pick(S.valBad), notice: pick(S.notice), input: pick(S.input), editor: pick('.ql-editor'), fieldLabel: pick('.dk-label'), hint: pick('.dk-hint'), req: pick('.atl-req'), btnPrimary: pick(S.btnPrimary), btnDanger: pick(S.btnDanger),
         badge: pick(S.badge), title: pick('.dk-title'), sub: pick('.dk-sub'), icon: pick('.dk-icon'), close: pick('.atl-drawer__close'),
         inset: pick(S.inset), footerBtn: pick('.atl-drawer__footer .atl-btn'), header: pick('.atl-drawer__header'), footer: pick('.atl-drawer__footer'),
         backdrop: (() => { const b = document.getElementById(id + 'Backdrop'); return b ? cs(b, 'backgroundColor') : null; })(),
@@ -125,6 +143,7 @@ function judge(label, r) {
     on('card title on card', r.cardTitle, card, 7);
     on('row value on card', r.value, card, 7);
     on('row label (muted) on card', r.label, card, 4.5);
+    on('rich-text editor text on its field (a forced #ddd made this near-invisible in Ivory)', r.editor, r.editor && r.editor.bg, 7);
     on('field label on card', r.fieldLabel, card, 4.5);
     if (r.fieldLabel && (r.fieldLabel.transform !== 'none' || parseFloat(r.fieldLabel.size) < 13)) bad.push('field label is ' + r.fieldLabel.size + ' ' + r.fieldLabel.transform + ' (needs sentence case, 13px+)');
     if (r.input && parseFloat(r.input.opacity) < 1) bad.push('input is dimmed to ' + r.input.opacity);
@@ -169,6 +188,25 @@ function judge(label, r) {
     staticChecks();
     await support.start();
     await support.loginAs('administrator');
+    // an event with two ticket types and one paid order, for the two ticket drawers
+    const tk = {};
+    {
+        const { generatePayFastItnSignature } = require('../../lib/payfast-signature');
+        const waitFor = async (fn, ms = 15000) => { const end = Date.now() + ms; let v; while (Date.now() < end) { v = await fn(); if (v) return v; await sleep(150); } return v; };
+        const ev = (await support.api('POST', '/api/admin/events', { event_title: 'ZZ DrawerKit Show', event_datetime: `${support.future(2066)}T20:00`, venue_name: 'Kit Hall', event_status: 'upcoming', sync_to_gcal: false })).body;
+        const ga = (await support.api('POST', `/api/admin/events/${ev.id}/ticket-types`, { name: 'General', price: '150', capacity: 100, is_active: true })).body.tier;
+        await support.api('POST', `/api/admin/events/${ev.id}/ticket-types`, { name: 'VIP', price: '500', capacity: 20, is_active: true });
+        const o = (await support.pub('POST', '/api/public/ticket-orders', { event_id: ev.id, items: [{ ticket_type_id: ga.id, quantity: 3 }] })).body.order;
+        await support.pub('POST', `/api/public/ticket-orders/${o.reference}/checkout`, { buyer_name: 'Kit Buyer', buyer_email: `kit.${Date.now()}@example.invalid`, buyer_phone: '0821234567', popia_consent: true, terms_accepted: true });
+        const row = await support.one('SELECT * FROM ticket_orders WHERE public_reference = ?', [o.reference]);
+        const m = { m_payment_id: row.m_payment_id, pf_payment_id: `DKIT-${Date.now()}`, payment_status: 'COMPLETE', item_name: 'x', item_description: '', amount_gross: (row.total_cents / 100).toFixed(2), amount_fee: '-1.00', amount_net: '1.00',
+            custom_str1: '', custom_str2: '', custom_str3: '', custom_str4: '', custom_str5: '', custom_int1: '', custom_int2: '', custom_int3: '', custom_int4: '', custom_int5: '', name_first: 'B', name_last: 'B', email_address: 'b@example.invalid', merchant_id: '10000100' };
+        m.signature = generatePayFastItnSignature(m, null);
+        await support.pub('POST', '/api/payment/webhook/payfast', m);
+        await waitFor(async () => (await support.one('SELECT status FROM ticket_orders WHERE id = ?', [row.id])).status === 'paid');
+        tk.eventId = ev.id; tk.orderId = row.id;
+        ok(!!tk.eventId && !!tk.orderId, 'setup: an event with ticket types and a paid order exist for the ticket drawers', JSON.stringify(tk));
+    }
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'], executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined });
     try {
         const p = await browser.newPage();
@@ -197,14 +235,18 @@ function judge(label, r) {
             { id: 'bookingFinancialsDrawer', btn: 'bk-action-financials', ready: '#bf-pl-card .dk-rows, #bf-pl-card .dk-empty--bad', sel: { inset: null, factV: '#bf-total', badge: '#bf-pay-status' } },
             { id: 'eftReviewDrawer', call: 'openEftReview', arg: null, ready: '#eftDecision, #eftReviewBody .dk-notice--bad', sel: { inset: null, badge: '.dk-fact .dk-badge' } },
             { id: 'recordPaymentDrawer', btn: 'bk-action-record-payment', ready: '#rpAmountPaid', sel: {} },
-            { id: 'expenseDrawer', call: 'openExpenseModal', arg: bid, ready: '#expenseCategory', sel: {} },
-            { id: 'manualTxDrawer', btnId: 'logAdjustmentBtn', ready: '#manualTxAmount', sel: {} }
+            { id: 'expenseDrawer', call: 'openExpenseModal', arg: bid, ready: '#expenseCategory', sel: {}, msg: '#expenseModalMsg' },
+            { id: 'manualTxDrawer', btnId: 'logAdjustmentBtn', ready: '#manualTxAmount', sel: {}, msg: '#manualTxMsg' },
+            { id: 'bookingEmailDrawer', btn: 'bk-action-email', ready: '#be-quill-container .ql-editor', sel: {}, msg: '#be-alert' },
+            { id: 'contractDrawer', btn: 'bk-action-contract', ready: '#contractCurrentStatus .dk-rows, #contractCurrentStatus .dk-empty:not(:has(.fa-spinner))', sel: {}, msg: '#contractModalMsg' },
+            { id: 'manualBookingDrawer', clickId: 'btnNewManualBooking', ready: '#mbDate.flatpickr-input', sel: {}, msg: '#manualBookingAlert' }
         ];
         let D = DRAWERS[0];
         const tag = () => '[' + D.id.replace('Drawer', '') + '] ';
         const open = async (setting) => {
             await p.evaluate((s) => { if (s) ['theme', 'accent', 'presence'].forEach((a) => { if (s[a]) window.atlAppearance.set(a, s[a]); }); }, setting || null);
             if (D.call) await p.evaluate((fn, arg) => window[fn](arg), D.call, D.arg);
+            else if (D.clickId) await p.evaluate((i) => document.getElementById(i).click(), D.clickId);
             else if (D.btnId) await p.evaluate((bid2) => { const b = document.createElement('button'); b.id = bid2; b.style.display = 'none'; document.body.appendChild(b); b.click(); b.remove(); }, D.btnId);
             else await p.evaluate((id, cls) => { const b = document.createElement('button'); b.className = cls; b.setAttribute('data-id', id); b.style.display = 'none'; document.body.appendChild(b); b.click(); b.remove(); }, bid, D.btn);
             await p.waitForFunction((id) => document.getElementById(id).classList.contains('atl-drawer--open'), { timeout: 10000 }, D.id);
@@ -250,6 +292,7 @@ function judge(label, r) {
             for (const f of FINISH) for (const a of ACCENT) {
                 const label = `${f}/${a}`;
                 await open({ theme: f, accent: a, presence: 'editorial' });
+                if (D.msg) await p.evaluate((sel) => window.dkMessage(sel, 'bad', 'Something went wrong. This is a sample error for the contrast check.'), D.msg);   // measure the notice too
                 const r = await read();
                 const bad = judge(label, r);
                 ok(bad.length === 0, tag() + `${label}: readable text, visible cards/borders, button + badge contrast`, bad.join(' | '));
@@ -427,7 +470,7 @@ function judge(label, r) {
         const stampF = Date.now().toString(36);
         const toastText = () => p.evaluate(() => [...document.querySelectorAll('.tm-toast')].map((t) => t.textContent.replace(/\s+/g, ' ')).join(' | '));
         const msgOf = (id) => p.evaluate((i) => { const e = document.getElementById(i); return { cls: e.className, role: e.getAttribute('role'), text: e.textContent.trim(), shown: e.offsetParent !== null }; }, id);
-        const labelled = (id) => p.evaluate((i) => [...document.querySelectorAll('#' + i + ' .dk-field input:not([type=checkbox]):not([type=hidden]), #' + i + ' .dk-field select, #' + i + ' .dk-field textarea')].map((e) => !!document.querySelector('label[for="' + e.id + '"]')), id);
+        const labelled = (id) => p.evaluate((i) => [...document.querySelectorAll('#' + i + ' .dk-field input:not([type=checkbox]):not([type=hidden]), #' + i + ' .dk-field select, #' + i + ' .dk-field textarea')].map((e) => !!(e.id && document.querySelector('label[for="' + e.id + '"]')) || !!e.getAttribute('aria-label')), id);
 
         // Record Payment
         D = DRAWERS[3];
@@ -534,7 +577,150 @@ function judge(label, r) {
             ok(x >= 7, tag() + `${f}: a success notice is ink on its tint (${x.toFixed(1)}:1) - the old coloured line was 3.9:1 in Ivory`, JSON.stringify(okc));
         }
         await p.evaluate(() => { ['theme', 'accent', 'presence'].forEach((a) => window.atlAppearance.set(a, { theme: 'dark', accent: 'gold', presence: 'editorial' }[a])); window.dkMessage('#manualTxMsg', '', ''); });
-        for (const di of [3, 4, 5]) { D = DRAWERS[di]; await suite(); }
+        for (const di of [3, 4, 5, 6, 7, 8]) { D = DRAWERS[di]; await suite(); }
+
+        // ══ Email: specifics ══════════════════════════════════════════════════════════════════════════════════════════════════
+        D = DRAWERS[6];
+        await open({ theme: 'light', accent: 'gold', presence: 'editorial' });
+        const emailCk = await p.evaluate(() => { const ed = document.querySelector('#be-quill-container .ql-editor'); return { to: document.getElementById('be-to').textContent, subj: document.getElementById('be-subject').value, name: document.getElementById('bookingEmailClientName').textContent.trim(),
+            editorInlineColor: ed.style.color, labelledby: ed.getAttribute('aria-labelledby'), role: ed.getAttribute('role'), templates: document.getElementById('be-template').options.length, labelled: !!document.querySelector('label[for="be-subject"]') && !!document.querySelector('label[for="be-template"]') }; });
+        ok(/@/.test(emailCk.to) && /^Re: /.test(emailCk.subj) && emailCk.name.length > 0 && emailCk.templates === 5 && emailCk.labelled, tag() + 'recipient, subject and the four templates are in place; fields are labelled', JSON.stringify(emailCk));
+        ok(emailCk.editorInlineColor === '' && emailCk.labelledby === 'beMessageLabel' && emailCk.role === 'textbox', tag() + 'the message editor has no forced colour (it was #ddd, near-invisible in Ivory) and is labelled for screen readers', JSON.stringify(emailCk));
+        await p.select('#be-template', 'available');
+        await p.waitForFunction(() => (document.querySelector('#be-quill-container .ql-editor') || {}).innerText.length > 20, { timeout: 10000 }).catch(() => {});
+        const filled = await p.evaluate(() => { const ed = document.querySelector('#be-quill-container .ql-editor'); const cs = getComputedStyle(ed); return { len: ed.innerText.length, color: cs.color }; });
+        ok(filled.len > 20, tag() + 'choosing a template writes it into the editor', JSON.stringify(filled));
+        if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'bookingEmailDrawer-light-gold-template.png') });
+        await p.evaluate(() => { document.getElementById('be-subject').value = ''; document.getElementById('be-send-btn').click(); });
+        const emMsg = await msgOf('be-alert');
+        ok(/dk-notice--bad/.test(emMsg.cls) && emMsg.role === 'alert' && /required/i.test(emMsg.text) && emMsg.shown, tag() + 'sending without a subject shows an error notice (role=alert) and sends nothing', JSON.stringify(emMsg));
+        await close();
+
+        // ══ Contract: specifics (its Upload / Sign / Download / file-picker buttons had NO handlers before: they were bound before the drawer existed) ══
+        D = DRAWERS[7];
+        const stampC = Date.now().toString(36);
+        const pdfPath = path.join(os.tmpdir(), `dk-contract-${stampC}.pdf`), txtPath = path.join(os.tmpdir(), `dk-contract-${stampC}.txt`);
+        fs.writeFileSync(pdfPath, '%PDF-1.4\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n2 0 obj\n<< /Type /Pages /Count 0 /Kids [] >>\nendobj\ntrailer\n<< /Root 1 0 R >>\n%%EOF\n');
+        fs.writeFileSync(txtPath, 'not a pdf');
+        await open({ theme: 'dark', accent: 'gold', presence: 'editorial' });
+        const vis2 = (ids) => p.evaluate((l) => l.map((i) => getComputedStyle(document.getElementById(i)).display !== 'none'), ids);
+        const ACT = ['contractSignForm', 'contractDownloadBtn', 'contractSendBtn', 'contractRemindBtn'];
+        const c0 = await p.evaluate(() => { const rows = [...document.querySelectorAll('#contractCurrentStatus .dk-k')].map((e) => e.textContent); window.renderContractStatus(null); return { rows, text: document.getElementById('contractCurrentStatus').textContent.trim() }; });
+        ok(c0.rows.includes('File') && c0.rows.includes('Status') && /No contract on file/.test(c0.text) && (await vis2(ACT)).every((v) => !v), tag() + 'an existing contract shows File / Status rows; with none it says so and the sign form, download, send and remind controls are hidden', JSON.stringify({ c0, v: await vis2(ACT) }));
+        const dz = await p.evaluate(() => { const z = document.getElementById('contractDropZone'); const fire = (t) => z.dispatchEvent(new Event(t, { bubbles: true, cancelable: true })); fire('dragover'); const over = z.classList.contains('is-over'); fire('dragleave'); return { over, after: z.classList.contains('is-over'), role: z.getAttribute('role'), tab: z.tabIndex }; });
+        ok(dz.over === true && dz.after === false && dz.role === 'button' && dz.tab === 0, tag() + 'the drop zone reacts to a dragged file (it never did) and is keyboard-focusable', JSON.stringify(dz));
+        const picked = await p.evaluate(() => { const i = document.getElementById('contractFileInput'); let n = 0; const orig = i.click; i.click = () => { n++; }; const z = document.getElementById('contractDropZone'); z.click(); z.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); i.click = orig; return n; });
+        ok(picked === 2, tag() + 'clicking the zone, or pressing Enter on it, opens the file picker', String(picked));
+        await p.evaluate(() => document.getElementById('contractUploadBtn').click());
+        let cm = await msgOf('contractModalMsg');
+        ok(/dk-notice--bad/.test(cm.cls) && /select a PDF/i.test(cm.text), tag() + 'Upload with nothing chosen is refused in the drawer', JSON.stringify(cm));
+        await (await p.$('#contractFileInput')).uploadFile(txtPath);
+        await p.waitForFunction(() => getComputedStyle(document.getElementById('contractFilePreview')).display !== 'none', { timeout: 5000 }).catch(() => {});
+        const chip = await p.evaluate(() => ({ shown: getComputedStyle(document.getElementById('contractFilePreview')).display !== 'none', name: document.getElementById('contractFileName').textContent }));
+        ok(chip.shown && /dk-contract-.*\.txt/.test(chip.name), tag() + 'a chosen file appears as a chip with its name', JSON.stringify(chip));
+        await p.evaluate(() => document.getElementById('contractUploadBtn').click());
+        cm = await msgOf('contractModalMsg');
+        ok(/dk-notice--bad/.test(cm.cls) && /Only PDF/i.test(cm.text), tag() + 'a non-PDF is refused', JSON.stringify(cm));
+        await p.evaluate(() => document.getElementById('contractFileClear').click());
+        ok(await p.evaluate(() => getComputedStyle(document.getElementById('contractFilePreview')).display === 'none' && document.getElementById('contractFileInput').files.length === 0), tag() + 'Remove clears the chosen file', '');
+        await (await p.$('#contractFileInput')).uploadFile(pdfPath);
+        await p.evaluate(() => window.dkMessage('#contractModalMsg', '', ''));
+        await p.evaluate(() => document.getElementById('contractUploadBtn').click());
+        await p.waitForFunction(() => /dk-notice--(ok|bad)/.test(document.getElementById('contractModalMsg').className), { timeout: 15000 }).catch(() => {});
+        cm = await msgOf('contractModalMsg');
+        ok(/dk-notice--ok/.test(cm.cls) && /uploaded successfully/i.test(cm.text), tag() + 'a PDF uploads and says so (this button used to do nothing)', JSON.stringify(cm));
+        const afterUp = await p.evaluate(() => ({ labels: [...document.querySelectorAll('#contractCurrentStatus .dk-k')].map((e) => e.textContent), badge: (document.querySelector('#contractCurrentStatus .dk-badge') || {}).className, badgeText: (document.querySelector('#contractCurrentStatus .dk-badge') || {}).textContent.trim() }));
+        ok(afterUp.labels.includes('File') && afterUp.labels.includes('Status') && /dk-badge--neutral/.test(afterUp.badge) && /Draft/.test(afterUp.badgeText), tag() + 'the status panel then shows File / Status (a neutral "Draft" badge) / Uploaded', JSON.stringify(afterUp));
+        ok((await vis2(ACT)).every(Boolean), tag() + 'a draft contract offers the sign form, download, send and remind', JSON.stringify(await vis2(ACT)));
+        await p.evaluate(() => { window.dkMessage('#contractSignMsg', '', ''); document.getElementById('contractSignatoryName').value = ''; document.getElementById('contractConfirmSignBtn').click(); });
+        const sm = await msgOf('contractSignMsg');
+        ok(/dk-notice--bad/.test(sm.cls) && /signatory/i.test(sm.text), tag() + 'Confirm without a signatory name is refused beside the field', JSON.stringify(sm));
+        // two-party signing: until the client has signed online the server refuses a countersign, and the drawer says what to do in plain words
+        await p.evaluate(() => { window.dkMessage('#contractSignMsg', '', ''); document.getElementById('contractSignatoryName').value = 'Test Signer'; document.getElementById('contractConfirmSignBtn').click(); });
+        await p.waitForFunction(() => /dk-notice--bad/.test(document.getElementById('contractSignMsg').className) && document.getElementById('contractSignMsg').textContent.length > 20, { timeout: 15000 }).catch(() => {});
+        const nsm = await msgOf('contractSignMsg');
+        ok(/dk-notice--bad/.test(nsm.cls) && /not signed/i.test(nsm.text) && /Send to client/.test(nsm.text) && !/force|\{/.test(nsm.text), tag() + 'countersigning before the client has signed explains why and what to do, with no API jargon', JSON.stringify(nsm));
+        // the client signs online (simulated in the test database), then the countersign goes through
+        {
+            const rw2 = new sqlite3.Database(support.TEST_DB);
+            await new Promise((resolve, reject) => rw2.run("UPDATE contracts SET signed_by_client_at = datetime('now') WHERE booking_id = ?", [bid], (e) => (e ? reject(e) : resolve())));
+            await new Promise((resolve) => rw2.close(() => resolve()));
+        }
+        await close();
+        await open({ theme: 'dark', accent: 'gold', presence: 'editorial' });
+        await p.evaluate(() => window.dkMessage('#contractModalMsg', '', ''));
+        await p.evaluate(() => { document.getElementById('contractSignatoryName').value = 'Test Signer'; document.getElementById('contractConfirmSignBtn').click(); });
+        await p.waitForFunction(() => /dk-notice--(ok|bad)/.test(document.getElementById('contractModalMsg').className), { timeout: 15000 }).catch(() => {});
+        await p.waitForFunction(() => !!document.querySelector('#contractCurrentStatus .dk-badge--ok'), { timeout: 15000 }).catch(() => {});   // the notice shows first; the panel refreshes after
+        cm = await msgOf('contractModalMsg');
+        const signed = await p.evaluate(() => ({ badge: (document.querySelector('#contractCurrentStatus .dk-badge') || {}).className, who: document.getElementById('contractCurrentStatus').textContent }));
+        ok(/dk-notice--ok/.test(cm.cls) && /marked as signed/i.test(cm.text) && /dk-badge--ok/.test(signed.badge) && /Test Signer/.test(signed.who), tag() + 'after the client has signed, marking it signed works: green "Signed" badge and the signatory shown', JSON.stringify({ cm, signed }));
+        ok(JSON.stringify(await vis2(ACT)) === JSON.stringify([false, true, false, false]), tag() + 'once signed: only Download remains (no sign form, send or remind)', JSON.stringify(await vis2(ACT)));
+        // a hostile file or person name is shown as text; Sent state reads right
+        const ctXss = await p.evaluate(() => { window.renderContractStatus({ status: 'sent', pdf_url: '<img src=x onerror="window.__ctXss=1">.pdf', uploaded_by: "O'Neil <b>x</b>", created_at: '2026-11-01 10:00:00', signed_by_client_at: '2026-11-02' }); const box = document.getElementById('contractCurrentStatus');
+            return { fired: window.__ctXss === 1, imgs: box.querySelectorAll('img, b').length, text: box.textContent, badge: box.querySelector('.dk-badge').className, send: document.getElementById('contractSendBtn').textContent.trim() }; });
+        ok(!ctXss.fired && ctXss.imgs === 0 && /<img src=x/.test(ctXss.text) && /O'Neil <b>x<\/b>/.test(ctXss.text) && /dk-badge--info/.test(ctXss.badge) && /Re-send to client/.test(ctXss.send) && /awaiting your countersignature/.test(ctXss.text), tag() + 'a hostile file/person name is shown as plain text; "sent" reads info-blue with Re-send', JSON.stringify(ctXss));
+        if (SHOTS) await p.screenshot({ path: path.join(SHOTS, 'contractDrawer-dark-gold-sent.png') });
+        await close();
+        await sleep(300);
+        const reset = await p.evaluate(() => ({ sign: getComputedStyle(document.getElementById('contractSignForm')).display, msg: document.getElementById('contractModalMsg').textContent, preview: getComputedStyle(document.getElementById('contractFilePreview')).display, name: document.getElementById('contractSignatoryName').value }));
+        ok(reset.sign === 'none' && reset.msg === '' && reset.preview === 'none' && reset.name === '' && (await vis2(ACT)).every((v) => !v), tag() + 'closing the drawer resets it (the reset-on-close never ran before)', JSON.stringify(reset));
+        try { fs.unlinkSync(pdfPath); fs.unlinkSync(txtPath); } catch (e) {}
+
+        // ══ Manual Booking: specifics ═════════════════════════════════════════════════════════════════════════════════════════
+        D = DRAWERS[8];
+        await open({ theme: 'dark', accent: 'gold', presence: 'editorial' });
+        const mb0 = await p.evaluate(() => ({ stars: document.querySelectorAll('#manualBookingDrawer .atl-req').length, notesStar: !!document.querySelector('label[for="mbMessage"] .atl-req'), panels: [...document.querySelectorAll('#manualBookingDrawer .dk-panel .dk-card__title')].map((e) => e.textContent).join('|'),
+            rows: document.querySelectorAll('#mbServicesContainer .mb-service-row').length, iconPad: getComputedStyle(document.getElementById('mbLocation')).paddingLeft, dateOpacity: getComputedStyle(document.getElementById('mbDate')).opacity }));
+        ok(mb0.stars === 9 && mb0.notesStar && mb0.panels === 'Client|Event|Services & budget|Notes' && mb0.rows === 1, tag() + 'four panels; nine required stars, Notes included (the code always demanded it, the label did not say so)', JSON.stringify(mb0));
+        ok(mb0.iconPad === '34px' && mb0.dateOpacity === '1', tag() + 'the venue/date fields keep their leading icon gutter, and the date picker is not dimmed like a disabled field', JSON.stringify(mb0));
+        ok((await labelled('manualBookingDrawer')).every(Boolean), tag() + 'every field has a label', JSON.stringify(await labelled('manualBookingDrawer')));
+        // REGRESSION: closing destroyed the date/time pickers but left the dead instance on the field, so the open handler did not rebuild them: from the second time
+        // the drawer was opened in a session the date and time fields had no picker (only a page reload fixed it)
+        await close();
+        await p.evaluate(() => document.getElementById('btnNewManualBooking').click());
+        await p.waitForFunction(() => document.getElementById('mbDate').classList.contains('flatpickr-input') && document.getElementById('mbTime').classList.contains('flatpickr-input'), { timeout: 10000 }).catch(() => {});
+        const again = await p.evaluate(() => { const d = document.getElementById('mbDate'); let works = false; try { d._flatpickr.setDate('2066-04-04', true); works = d.value === '2066-04-04'; d._flatpickr.clear(); } catch (e) {} return { date: d.classList.contains('flatpickr-input'), time: document.getElementById('mbTime').classList.contains('flatpickr-input'), works }; });
+        ok(again.date && again.time && again.works, tag() + 'reopening the drawer gives the date and time fields their pickers again (they stayed dead until a page reload)', JSON.stringify(again));
+        await p.evaluate(() => document.getElementById('btnSaveManualBooking').click());
+        let mm2 = await msgOf('manualBookingAlert');
+        ok(/dk-notice--bad/.test(mm2.cls) && mm2.role === 'alert' && /required fields/i.test(mm2.text) && mm2.shown, tag() + 'saving an empty form shows an error notice (role=alert)', JSON.stringify(mm2));
+        // a Tuesday far enough ahead, so no working-hours or conflict rule gets in the way
+        const tue = (() => { const d = new Date(Date.now() + 1500 * 86400000); while (d.getUTCDay() !== 2) d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();
+        const evName = `ZZ DK Booking ${stampF}`;
+        const fill = (name, email, phone) => p.evaluate((a) => { const set = (id, v) => { document.getElementById(id).value = v; }; set('mbName', a.name); set('mbEmail', a.email); set('mbPhone', a.phone); set('mbEventName', a.ev); set('mbEventType', 'Corporate Event'); set('mbLocation', 'Test Hall');
+            set('mbMessage', 'Created by the drawer test, over ten characters.'); document.getElementById('mbDate')._flatpickr.setDate(a.date, true); }, { name, email, phone, ev: evName, date: tue });
+        await fill('Kit Client', `dk.${stampF}@example.invalid`, '0821234567');
+        await p.evaluate(() => document.getElementById('btnSaveManualBooking').click());
+        mm2 = await msgOf('manualBookingAlert');
+        ok(/dk-notice--bad/.test(mm2.cls) && /service/i.test(mm2.text), tag() + 'everything filled but no service: asked for a service', JSON.stringify(mm2));
+        const svcVal = await p.evaluate(() => { const o = [...document.querySelectorAll('.mb-service-select option')].find((x) => x.value); return o ? o.value : null; });
+        await p.select('.mb-service-select', String(svcVal));
+        await sleep(200);
+        const tot = await p.evaluate(() => ({ shown: getComputedStyle(document.getElementById('mbTotalsDisplay')).display !== 'none', text: document.getElementById('mbTotalsDisplay').textContent.replace(/\s+/g, ' ').trim() }));
+        ok(tot.shown && /Estimated duration/.test(tot.text) && /Estimated price/.test(tot.text), tag() + 'choosing a service shows the estimated duration and price', JSON.stringify(tot));
+        await p.evaluate(() => document.getElementById('btnAddMbService').click());
+        const two = await p.evaluate(() => ({ rows: document.querySelectorAll('.mb-service-row').length, rm: [...document.querySelectorAll('.mb-remove-service')].map((b) => ({ w: Math.round(b.getBoundingClientRect().width), label: b.getAttribute('aria-label') })), sel: document.querySelector('.mb-service-select').getAttribute('aria-label') }));
+        ok(two.rows === 2 && two.rm.every((b) => b.w >= 44 && /Remove/.test(b.label)) && two.sel === 'Service', tag() + 'Add service adds a row; remove buttons are 44px and labelled', JSON.stringify(two));
+        await p.evaluate(() => document.querySelectorAll('.mb-remove-service')[1].click());
+        ok(await p.evaluate(() => document.querySelectorAll('.mb-service-row').length === 1), tag() + 'a row can be removed', '');
+        await fill('Kit Client', 'not-an-email', '0821234567');
+        await p.evaluate(() => document.getElementById('btnSaveManualBooking').click());
+        mm2 = await msgOf('manualBookingAlert');
+        ok(/dk-notice--bad/.test(mm2.cls) && /valid email/i.test(mm2.text), tag() + 'a bad email is refused with a clear message', JSON.stringify(mm2));
+        await fill('Kit Client', `dk.${stampF}@example.invalid`, '123');
+        await p.evaluate(() => document.getElementById('btnSaveManualBooking').click());
+        mm2 = await msgOf('manualBookingAlert');
+        ok(/dk-notice--bad/.test(mm2.cls) && /South African phone/i.test(mm2.text), tag() + 'a bad phone number is refused with a clear message', JSON.stringify(mm2));
+        await fill('Kit Client', `dk.${stampF}@example.invalid`, '0821234567');
+        await p.evaluate(() => window.dkMessage('#manualBookingAlert', '', ''));
+        await p.evaluate(() => document.getElementById('btnSaveManualBooking').click());
+        await p.waitForFunction(() => /dk-notice--(ok|bad)/.test(document.getElementById('manualBookingAlert').className), { timeout: 20000 }).catch(() => {});
+        mm2 = await msgOf('manualBookingAlert');
+        ok(/dk-notice--ok/.test(mm2.cls) && /created successfully/i.test(mm2.text), tag() + 'a valid booking is created and the notice says so (in the theme success colour, not a fixed green)', JSON.stringify(mm2));
+        await p.waitForFunction(() => !document.getElementById('manualBookingDrawer').classList.contains('atl-drawer--open'), { timeout: 10000 }).catch(() => {});
+        const mbRow = await support.q('SELECT id, name, status FROM bookings WHERE event_name = ?', [evName]);
+        ok(mbRow.length === 1 && mbRow[0].name === 'Kit Client', tag() + 'the drawer closed itself and the booking is in the database', JSON.stringify(mbRow));
 
         // ══ Deal View (light kit): structure untouched, finish matches the kit ════════════════════════════════════════════════
         const dvSet = (s) => p.evaluate((x) => { ['theme', 'accent', 'presence'].forEach((a) => { if (x && x[a]) window.atlAppearance.set(a, x[a]); }); }, s || null);
@@ -610,6 +796,99 @@ function judge(label, r) {
         await dvClose();
         await p.setViewport({ width: 1440, height: 900 });
         if (dvBad.length) console.log('\nDeal View contrast detail:\n  ' + dvBad.join('\n  '));
+        // ══ Ticket drawers (Manage tickets, Ticket order): the light kit ══════════════════════════════════════════════════════
+        const TK = [
+            { id: 'tktManageDrawer', ready: '#tktManageDrawerBody .tkt-cap', open: () => p.evaluate((e) => window.tktOpenManage(e), tk.eventId) },
+            { id: 'tktOrderDrawer', ready: '#tktOrderDrawerBody .tkt-order', open: async () => { await p.evaluate((e) => window.tktOpenSales(e), tk.eventId); await p.waitForFunction(() => { const b = document.querySelector('.tkt-order-open') || document.querySelector('.tkt-order-row'); if (!b) return false; b.click(); return true; }, { timeout: 20000 }); } }
+        ];
+        let T = TK[0];
+        const tkTag = () => '[' + T.id.replace('Drawer', '') + '] ';
+        const tkOpen = async (setting) => {
+            await dvSet(setting);
+            await T.open();
+            await p.waitForFunction((id) => document.getElementById(id).classList.contains('atl-drawer--open'), { timeout: 20000 }, T.id);
+            await p.waitForFunction((sel) => !!document.querySelector(sel), { timeout: 20000 }, T.ready);
+            await sleep(600);
+        };
+        const tkClose = async () => { await p.evaluate((id) => window.closeAtlDrawer(id), T.id); await sleep(350); };
+        const tkRead = () => p.evaluate((id) => {
+            const d = document.getElementById(id), cs = (e, k) => getComputedStyle(e)[k];
+            const bgOf = (el) => { for (let e = el; e; e = e.parentElement) { const c = cs(e, 'backgroundColor'); if (c && !/rgba\(\s*0,\s*0,\s*0,\s*0\)|transparent/.test(c)) return c; } return cs(document.body, 'backgroundColor'); };
+            const stack = (el) => { const out = []; for (let e = el; e; e = e.parentElement) { const c = cs(e, 'backgroundColor'); if (c && !/rgba\(\s*0,\s*0,\s*0,\s*0\)|transparent/.test(c)) { out.push(c); }   /* every layer up the tree; the judge composites them (color-mix() fills come back as color(srgb … / a), so alpha cannot be sniffed here) */ } return out; };
+            const pick = (sel) => { const e = d.querySelector(sel); if (!e) return null; const r = e.getBoundingClientRect(); return { color: cs(e, 'color'), bg: bgOf(e), bgs: stack(e), size: cs(e, 'fontSize'), weight: cs(e, 'fontWeight'), family: cs(e, 'fontFamily').split(',')[0], radius: cs(e, 'borderRadius'), w: Math.round(r.width), h: Math.round(r.height) }; };
+            const values = [...d.querySelectorAll('.db-stat-value')], labels = [...d.querySelectorAll('.db-stat-label')];
+            return {
+                title: pick('.dk-title'), icon: pick('.dk-icon'), sub: pick('.dk-sub'), section: pick('.tkt-h'), close: pick('.atl-drawer__close'), header: pick('.atl-drawer__header'), label: pick('.db-stat-label'), value: pick('.db-stat-value'), muted: pick('.tkt-muted'), badge: pick('.atl-badge'),
+                tiles: values.length, wrapped: values.filter((e) => e.getBoundingClientRect().height > parseFloat(cs(e, 'fontSize')) * 1.7).length, valueClipped: values.filter((e) => e.scrollWidth > e.clientWidth + 1).length,
+                labelClipped: labels.filter((e) => e.scrollWidth > e.clientWidth + 1).length, backdrop: cs(document.getElementById(id + 'Backdrop'), 'backgroundColor'),
+                sideways: (() => { const b = d.querySelector('.atl-drawer__body'); return b.scrollWidth > b.clientWidth + 1; })()
+            };
+        }, T.id);
+        const tkJudge = (r) => {
+            const bad = [];
+            const need = (name, fg, bgc, min, bgs) => { const f = parse(fg), b = parse(bgc); if (!f || !b) { bad.push(name + ': unreadable ' + fg + ' / ' + bgc); return; } let bb = b.a < 1 ? over(b, { r: 128, g: 128, b: 128, a: 1 }) : b; if (bgs && bgs.length) { bb = { r: 128, g: 128, b: 128, a: 1 }; for (let i = bgs.length - 1; i >= 0; i--) { const L = parse(bgs[i]); if (L) bb = L.a < 1 ? over(L, bb) : L; } } const ff = f.a < 1 ? over(f, bb) : f; const x = ratio(ff, bb); if (x < min) bad.push(`${name} ${x.toFixed(2)} < ${min}`); };
+            need('title on header', r.title.color, r.header.bg, 7);
+            need('header subtitle', r.sub.color, r.header.bg, 4.5);
+            need('close button', r.close.color, r.header.bg, 4.5);
+            if (r.section) { need('section title on its panel', r.section.color, r.section.bg, 7); if (parseFloat(r.section.size) < 14 || parseFloat(r.section.weight) < 600) bad.push('section title is ' + r.section.size + '/' + r.section.weight + ', not 14px bold'); }
+            if (r.label) need('stat label on its tile', r.label.color, r.label.bg, 4.5);
+            if (r.value) need('stat value on its tile', r.value.color, r.value.bg, 4.5);
+            if (r.muted) need('muted text', r.muted.color, r.muted.bg, 4.5);
+            if (r.badge) need('badge text on its fill', r.badge.color, r.badge.bg, 3, r.badge.bgs);
+            need('header icon', r.icon.color, r.icon.bg, 3, r.icon.bgs);
+            if (parseFloat(r.title.size) < 20 || !/Cormorant/.test(r.title.family)) bad.push('title is ' + r.title.size + ' ' + r.title.family + ', not the 22px serif');
+            if (!/50%|^2[0-9]px/.test(r.close.radius) || r.close.w < 40) bad.push('close button not round 40px: ' + r.close.radius + ' ' + r.close.w);
+            if (r.wrapped) bad.push(r.wrapped + ' stat value(s) wrap onto two lines');
+            if (r.valueClipped) bad.push(r.valueClipped + ' stat value(s) are cut off');
+            if (r.labelClipped) bad.push(r.labelClipped + ' stat label(s) are cut off');
+            if (r.sideways) bad.push('the body scrolls sideways');
+            return bad;
+        };
+        let tkBad = [];
+        for (const t of TK) {
+            T = t;
+            await tkOpen({ theme: 'dark', accent: 'gold', presence: 'editorial' });
+            const shape = await p.evaluate((id) => { const d = document.getElementById(id); return { cls: d.className, titleTag: d.querySelector('.dk-title').tagName, header: !!d.querySelector('.dk-head .dk-icon'), toast: [...document.querySelectorAll('.tm-toast')].map((x) => x.textContent.replace(/\s+/g, ' ').trim()).filter((x) => /Unauthori[sz]ed|Failed/i.test(x)) }; }, T.id);
+            ok(/atl-drawer--dk-lite/.test(shape.cls) && shape.titleTag === 'H5' && shape.header, tkTag() + 'uses the kit header (icon tile + serif title) and the light kit', JSON.stringify(shape));
+            ok(shape.toast.length === 0, tkTag() + 'opens without an error toast', JSON.stringify(shape.toast));
+            if (T.id === 'tktManageDrawer') {
+                const mg = await p.evaluate(() => ({ title: document.getElementById('tktManageDrawerTitle').textContent, sections: [...document.querySelectorAll('#tktManageDrawerBody .tkt-h')].map((e) => e.textContent), tiles: document.querySelectorAll('#tktManageDrawerBody .db-stat-card').length }));
+                ok(mg.title === 'Manage tickets' && mg.tiles >= 8 && mg.sections.includes('Ticket categories'), tkTag() + 'title is plain text "Manage tickets", the inventory + revenue tiles and the category section are present', JSON.stringify(mg));
+            } else {
+                const od = await p.evaluate(() => ({ title: document.getElementById('tktOrderDrawerTitle').textContent, sections: [...document.querySelectorAll('#tktOrderDrawerBody .tkt-h')].map((e) => e.textContent) }));
+                ok(/^Order #\d+$/.test(od.title) && ['Tickets', 'Lines'].every((x) => od.sections.includes(x)), tkTag() + 'title reads "Order #id" and the Tickets / Lines sections are present', JSON.stringify(od));
+            }
+            await tkClose();
+            for (const f of FINISH) for (const a of ACCENT) {
+                const label = `${f}/${a}`;
+                await tkOpen({ theme: f, accent: a, presence: 'editorial' });
+                const r = await tkRead();
+                const bad = tkJudge(r);
+                ok(bad.length === 0, tkTag() + `${label}: readable titles, tiles and badges; nothing wraps, clips or scrolls sideways; round close button`, bad.join(' | '));
+                if (bad.length) tkBad = tkBad.concat(bad.map((x) => tkTag() + label + ' ' + x));
+                if (SHOTS && (a === 'gold' || a === 'cuivre') && f !== 'ember') await p.screenshot({ path: path.join(SHOTS, `${T.id}-${f}-${a}.png`) });
+                await tkClose();
+            }
+            // an OPEN drawer re-themes live
+            await tkOpen({ theme: 'dark', accent: 'gold', presence: 'editorial' });
+            const l1 = await tkRead();
+            await p.evaluate(() => window.atlAppearance.set('theme', 'light')); await sleep(450);
+            const l2 = await tkRead();
+            await p.evaluate(() => window.atlAppearance.set('accent', 'cassis')); await sleep(450);
+            const l3 = await tkRead();
+            ok(l1.title.color !== l2.title.color && l1.header.bg !== l2.header.bg && l1.backdrop !== l2.backdrop && l2.icon.color !== l3.icon.color, tkTag() + 'Finish and Accent changes re-theme the OPEN drawer (title, header, backdrop, icon), no reload', JSON.stringify([l1.header.bg, l2.header.bg, l2.icon.color, l3.icon.color]));
+            await tkClose();
+            await dvSet({ theme: 'dark', accent: 'gold', presence: 'editorial' });
+            // phone
+            await p.setViewport({ width: 390, height: 844 });
+            await tkOpen();
+            const ph = await p.evaluate((id) => { const d = document.getElementById(id); const b = d.querySelector('.atl-drawer__body'); const vals = [...d.querySelectorAll('.db-stat-value')]; return { w: Math.round(d.getBoundingClientRect().width), vw: innerWidth, over: b.scrollWidth > b.clientWidth + 1, close: Math.round(d.querySelector('.atl-drawer__close').getBoundingClientRect().width), wrapped: vals.filter((e) => e.getBoundingClientRect().height > parseFloat(getComputedStyle(e).fontSize) * 1.7).length }; }, T.id);
+            ok(ph.w === ph.vw && !ph.over && ph.close >= 40 && ph.wrapped === 0, tkTag() + 'phone (390px): full width, no sideways scroll, 40px+ close button, stat values on one line', JSON.stringify(ph));
+            if (SHOTS) await p.screenshot({ path: path.join(SHOTS, `${T.id}-phone.png`) });
+            await tkClose();
+            await p.setViewport({ width: 1440, height: 900 });
+        }
+        if (tkBad.length) console.log('\nTicket drawers contrast detail:\n  ' + tkBad.join('\n  '));
         ok(errs.length === 0, 'no script errors', errs.join(' | '));
         if (allBad.length) console.log('\nContrast detail:\n  ' + allBad.join('\n  '));
     } catch (e) {

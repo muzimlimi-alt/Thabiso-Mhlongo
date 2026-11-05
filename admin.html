@@ -106,7 +106,7 @@
     <link rel="stylesheet" href="css/admin/email-logs-2.css">
     <link rel="stylesheet" href="css/admin/15-services-catalogue.css?v=5">
     <!-- Admin Drawer Kit (.dk-*, opt in with .atl-drawer--dk): the shared inside of every converted drawer, built only from --atl-* tokens. -->
-    <link rel="stylesheet" href="css/admin/drawer-kit.css?v=3">
+    <link rel="stylesheet" href="css/admin/drawer-kit.css?v=7">
     <link rel="stylesheet" href="css/admin/legal-compliance.css">
     <link rel="stylesheet" href="css/admin/16-users-security-upload.css">
     <link rel="stylesheet" href="css/admin/about.css">
@@ -10096,9 +10096,15 @@
     <!-- Ticket order drawer (Events -> Ticket Sales; js/admin/ticketing.js): one order's tickets, check-ins, PayFast notifications,
          Resend tickets and Mark as refunded (the refund itself is done in the PayFast dashboard). -->
     <div id="tktOrderDrawerBackdrop" class="atl-drawer-backdrop"></div>
-    <div id="tktOrderDrawer" class="atl-drawer atl-drawer--520" role="dialog" aria-labelledby="tktOrderDrawerTitle" aria-modal="true" aria-hidden="true">
+    <div id="tktOrderDrawer" class="atl-drawer atl-drawer--dk-lite atl-drawer--520" role="dialog" aria-labelledby="tktOrderDrawerTitle" aria-modal="true" aria-hidden="true">
         <div class="atl-drawer__header">
-            <h5 id="tktOrderDrawerTitle"><i class="fa-solid fa-ticket"></i> Ticket order</h5>
+            <div class="dk-head">
+                <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-ticket"></i></span>
+                <div class="dk-head__text">
+                    <h5 id="tktOrderDrawerTitle" class="dk-title">Ticket order</h5>
+                    <p class="dk-sub">Tickets, check-ins and payment for this order</p>
+                </div>
+            </div>
             <button type="button" class="atl-drawer__close" id="tktOrderDrawerClose" aria-label="Close">&times;</button>
         </div>
         <div class="atl-drawer__body" id="tktOrderDrawerBody"></div>
@@ -10108,9 +10114,15 @@
          revenue, ticket categories (price, places, on/off, order) and the ticketing change history for ONE event. Kept apart from the
          Edit Event drawer so places and prices can be changed without touching the date, venue or description. A full-width sheet on phones. -->
     <div id="tktManageDrawerBackdrop" class="atl-drawer-backdrop"></div>
-    <div id="tktManageDrawer" class="atl-drawer atl-drawer--760" role="dialog" aria-labelledby="tktManageDrawerTitle" aria-modal="true" aria-hidden="true">
+    <div id="tktManageDrawer" class="atl-drawer atl-drawer--dk-lite atl-drawer--760" role="dialog" aria-labelledby="tktManageDrawerTitle" aria-modal="true" aria-hidden="true">
         <div class="atl-drawer__header">
-            <h5 id="tktManageDrawerTitle"><i class="fa-solid fa-ticket"></i> Manage tickets</h5>
+            <div class="dk-head">
+                <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-ticket"></i></span>
+                <div class="dk-head__text">
+                    <h5 id="tktManageDrawerTitle" class="dk-title">Manage tickets</h5>
+                    <p class="dk-sub">Sales, places, prices and history for one event</p>
+                </div>
+            </div>
             <button type="button" class="atl-drawer__close" id="tktManageDrawerClose" aria-label="Close">&times;</button>
         </div>
         <div class="atl-drawer__body" id="tktManageDrawerBody"></div>
@@ -11891,79 +11903,68 @@
     <!-- contractDrawer backdrop -->
     <div id="contractDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('contractDrawer')"></div>
     <!-- contractDrawer -->
-    <div id="contractDrawer" class="atl-drawer atl-drawer--600" role="dialog" aria-labelledby="contractDrawerLabel" aria-modal="true">
+    <div id="contractDrawer" class="atl-drawer atl-drawer--dk atl-drawer--600" role="dialog" aria-labelledby="contractDrawerLabel" aria-modal="true">
         <div class="atl-drawer__header">
-            <h5 id="contractDrawerLabel">Contract Management</h5>
+            <div class="dk-head">
+                <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-file-signature"></i></span>
+                <div class="dk-head__text">
+                    <h5 id="contractDrawerLabel" class="dk-title">Contract</h5>
+                    <p class="dk-sub">Upload it, send it to the client and record the signature</p>
+                </div>
+            </div>
             <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('contractDrawer')" aria-label="Close">×</button>
         </div>
         <div class="atl-drawer__body">
-                    <input type="hidden" id="contractBookingId">
+            <input type="hidden" id="contractBookingId">
 
-                    <!-- Current Contract Status Card -->
-                    <div id="contractCurrentStatus" style="margin-bottom:20px; padding:14px 16px; background: var(--atl-card); border: 1px solid var(--atl-line); border-radius:8px; font-size:13px; color: var(--atl-ink-dim);">
-                        <i class="fa-solid fa-spinner fa-spin"></i> Loading…
+            <section class="dk-panel" aria-labelledby="ctPanelCurrent">
+                <div class="dk-panel__head"><i class="fa-solid fa-file-contract dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="ctPanelCurrent">Current contract</span></div>
+                <!-- written by js/admin/bookings-contracts.js (renderContractStatus) -->
+                <div class="dk-panel__body" id="contractCurrentStatus"><div class="dk-empty"><i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i> Loading&hellip;</div></div>
+            </section>
+
+            <section class="dk-panel" id="contractUploadSection" aria-labelledby="ctPanelUpload">
+                <div class="dk-panel__head"><i class="fa-solid fa-upload dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="ctPanelUpload">Upload contract PDF</span></div>
+                <div class="dk-panel__body">
+                    <div id="contractDropZone" class="dk-drop" role="button" tabindex="0" aria-label="Choose a PDF contract, or drop one here">
+                        <i class="fa-solid fa-file-pdf dk-drop__icon" aria-hidden="true"></i>
+                        <p class="dk-drop__text">Drag and drop your PDF here, or <strong>choose a file</strong></p>
+                        <p class="dk-drop__hint">PDF only &middot; up to 10 MB</p>
+                        <input type="file" id="contractFileInput" accept="application/pdf" style="display:none;">
                     </div>
-
-                    <!-- Upload Section -->
-                    <div id="contractUploadSection">
-                        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color: var(--atl-muted);margin-bottom:10px;">
-                            <i class="fa-solid fa-upload" style="margin-right:6px;color: var(--atl-amber);"></i>Upload Contract PDF
-                        </div>
-                        <!-- Drag & Drop Zone -->
-                        <div id="contractDropZone" style="border:2px dashed var(--atl-line-strong); border-radius:8px; padding:30px 20px; text-align:center; cursor:pointer; transition:all 0.2s ease; background:var(--atl-paper); position:relative;">
-                            <i class="fa-solid fa-file-pdf" style="font-size:32px;color:var(--atl-line-strong);margin-bottom:10px;display:block;"></i>
-                            <p style="margin:0 0 6px;color: var(--atl-muted);font-size:13px;">Drag & drop your PDF here, or <span style="color: var(--atl-amber);text-decoration:underline;cursor:pointer;" onclick="document.getElementById('contractFileInput').click()">browse</span></p>
-                            <p style="margin:0;font-size:11px;color:var(--atl-placeholder);">PDF only · Max 10 MB</p>
-                            <input type="file" id="contractFileInput" accept="application/pdf" style="display:none;">
-                            <div id="contractFilePreview" style="display:none;margin-top:12px;padding:10px 14px;background: var(--atl-card);border-radius:6px;border:1px solid var(--atl-line);text-align:left;">
-                                <i class="fa-solid fa-file-pdf" style="color:var(--atl-clay);margin-right:8px;"></i>
-                                <span id="contractFileName" style="color: var(--atl-ink);font-size:13px;"></span>
-                                <span id="contractFileSize" style="color: var(--atl-muted);font-size:11px;margin-left:8px;"></span>
-                                <a href="#" id="contractFileClear" style="float:right;color: var(--atl-muted);font-size:12px;text-decoration:none;" onclick="event.preventDefault();document.getElementById('contractFileInput').value='';document.getElementById('contractFilePreview').style.display='none';">✕ Clear</a>
-                            </div>
-                        </div>
+                    <div id="contractFilePreview" class="dk-filechip" style="display:none;margin-top:var(--atl-sp-md);">
+                        <i class="fa-solid fa-file-pdf" aria-hidden="true"></i>
+                        <span id="contractFileName"></span><span id="contractFileSize" class="dk-filechip__size"></span>
+                        <button type="button" id="contractFileClear" class="dk-filechip__clear" aria-label="Remove the chosen file"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Remove</button>
                     </div>
+                </div>
+            </section>
 
-                    <!-- Mark as Signed Sub-Form (hidden until contract exists) -->
-                    <div id="contractSignForm" style="display:none;margin-top:20px;padding:16px;background: var(--atl-card);border: 1px solid var(--atl-line);border-radius:8px;">
-                        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color: var(--atl-muted);margin-bottom:14px;">
-                            <i class="fa-solid fa-signature" style="margin-right:6px;color:var(--atl-sage);"></i>Record Signature
-                        </div>
-                        <div class="row">
-                            <div class="col-md-7 form-group" style="margin-bottom:12px;">
-                                <label class="mb-label" for="contractSignatoryName">Signatory Full Name <span class="atl-req">*</span></label>
-                                <input type="text" id="contractSignatoryName" class="atl-input" placeholder="e.g. Thabiso Victor Mhlongo" style="background: var(--atl-paper);color: var(--atl-ink);border-radius:6px;">
-                            </div>
-                            <div class="col-md-5 form-group" style="margin-bottom:12px;">
-                                <label class="mb-label" for="contractSignedDate">Date Signed <span class="atl-req">*</span></label>
-                                <input type="date" id="contractSignedDate" class="atl-input" style="background: var(--atl-paper);color: var(--atl-ink);border-radius:6px;">
-                            </div>
-                        </div>
-                        <div id="contractSignMsg" style="font-size:12px;margin-top:4px;"></div>
-                        <button type="button" id="contractConfirmSignBtn" class="atl-btn atl-btn--ghost" style="font-size:13px;font-weight:600;margin-top:8px;color:var(--atl-green);border-color:color-mix(in srgb, var(--atl-green) 30%, transparent);">
-                            <i class="fa-solid fa-circle-check" style="margin-right:6px;"></i>Confirm & Mark as Signed
-                        </button>
+            <!-- shown by renderContractStatus once a contract exists and is not yet signed -->
+            <section class="dk-panel" id="contractSignForm" style="display:none;" aria-labelledby="ctPanelSign">
+                <div class="dk-panel__head"><i class="fa-solid fa-signature dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="ctPanelSign">Record signature</span></div>
+                <div class="dk-panel__body">
+                    <div class="dk-form">
+                        <div class="dk-field"><label class="dk-label" for="contractSignatoryName">Signatory full name <span class="atl-req">*</span></label>
+                            <input type="text" id="contractSignatoryName" class="atl-input" placeholder="e.g. Thabiso Victor Mhlongo"></div>
+                        <div class="dk-field"><label class="dk-label" for="contractSignedDate">Date signed <span class="atl-req">*</span></label>
+                            <input type="date" id="contractSignedDate" class="atl-input"></div>
                     </div>
+                    <div id="contractSignMsg" class="dk-msg" aria-live="polite"></div>
+                    <div class="dk-actions" style="margin-top:var(--atl-sp-md);">
+                        <button type="button" id="contractConfirmSignBtn" class="atl-btn atl-btn--ghost dk-actions__primary"><i class="fa-solid fa-circle-check" aria-hidden="true"></i> Confirm &amp; mark as signed</button>
+                    </div>
+                </div>
+            </section>
 
-                    <!-- Global status/error message -->
-                    <div id="contractModalMsg" style="font-size:13px;margin-top:12px;"></div>
+            <div id="contractModalMsg" class="dk-msg" aria-live="polite"></div>
         </div>
         <div class="atl-drawer__footer">
-                    <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('contractDrawer')">Close</button>
-                    <!-- Send the contract to the client for online signing -->
-                    <button type="button" id="contractSendBtn" class="atl-btn atl-btn--ghost" style="display:none;font-size:12px;color:var(--atl-amber);border-color:var(--atl-amber-border);">
-                        <i class="fa-solid fa-paper-plane" style="margin-right:5px;"></i>Send to client
-                    </button>
-                    <!-- Gap 8: Contract reminder email -->
-                    <button type="button" id="contractRemindBtn" class="atl-btn atl-btn--ghost" style="display:none;font-size:12px;color:var(--atl-amber);border-color:var(--atl-amber-border);">
-                        <i class="fa-solid fa-bell" style="margin-right:5px;"></i>Send Reminder
-                    </button>
-                    <button type="button" id="contractDownloadBtn" class="atl-btn atl-btn--ghost" style="display:none;color:var(--atl-amber);border-color:var(--atl-amber-border);">
-                        <i class="fa-solid fa-download" style="margin-right:6px;"></i>Download PDF
-                    </button>
-                    <button type="button" id="contractUploadBtn" class="atl-btn atl-btn--primary">
-                        <i class="fa-solid fa-cloud-upload-alt" style="margin-right:6px;"></i>Upload Contract
-                    </button>
+            <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('contractDrawer')">Close</button>
+            <button type="button" id="contractSendBtn" class="atl-btn atl-btn--ghost" style="display:none;"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Send to client</button>
+            <button type="button" id="contractRemindBtn" class="atl-btn atl-btn--ghost" style="display:none;"><i class="fa-solid fa-bell" aria-hidden="true"></i> Send reminder</button>
+            <button type="button" id="contractDownloadBtn" class="atl-btn atl-btn--ghost" style="display:none;"><i class="fa-solid fa-download" aria-hidden="true"></i> Download PDF</button>
+            <button type="button" id="contractUploadBtn" class="atl-btn atl-btn--primary"><i class="fa-solid fa-cloud-arrow-up" aria-hidden="true"></i> Upload contract</button>
         </div>
     </div>
     <!-- expenseDrawer backdrop -->
@@ -13026,14 +13027,15 @@
             optionsHtml += '</optgroup>';
         });
 
+        // layout + colours come from the drawer kit (.dk-svc-row, css/admin/drawer-kit.css); no inline styles
         const rowHtml = `
-            <div class="mb-service-row" id="${rowId}" style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                <select class="atl-input mb-service-select" style="flex: 2;">
+            <div class="dk-svc-row mb-service-row" id="${rowId}">
+                <select class="atl-input mb-service-select" aria-label="Service">
                     ${optionsHtml}
                 </select>
-                <input type="number" class="atl-input mb-service-qty" placeholder="Mins/Qty" value="${quantity}" min="1" style="flex: 1; display: none;">
-                <button type="button" class="atl-btn atl-btn--ghost mb-remove-service" style="padding:0;width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-color:var(--atl-line);color:var(--atl-clay);">
-                    <i class="fa-solid fa-trash-can"></i>
+                <input type="number" class="atl-input mb-service-qty" placeholder="Minutes" aria-label="Minutes" value="${quantity}" min="1" style="display: none;">
+                <button type="button" class="atl-btn atl-btn--danger mb-remove-service" aria-label="Remove this service">
+                    <i class="fa-solid fa-trash-can" aria-hidden="true"></i>
                 </button>
             </div>
         `;
@@ -13147,7 +13149,7 @@
     const btnNewManualBooking = document.getElementById('btnNewManualBooking');
     if (btnNewManualBooking) {
         btnNewManualBooking.addEventListener('click', function() {
-            document.getElementById('manualBookingAlert').style.display = 'none';
+            dkMessage('#manualBookingAlert', '', '');
             ['mbName','mbEmail','mbPhone','mbCompany','mbEventName','mbLocation','mbMessage'].forEach(function(id) {
                 var el = document.getElementById(id);
                 if (el) el.value = '';
@@ -13176,7 +13178,7 @@
 
     // Pre-fills the manual booking form from an inquiry and hands off to it.
     window.inqConvertToBooking = function(inquiry) {
-        document.getElementById('manualBookingAlert').style.display = 'none';
+        dkMessage('#manualBookingAlert', '', '');
         document.getElementById('mbName').value = window.decodeStoredText(inquiry.sender_name || '');
         document.getElementById('mbEmail').value = inquiry.sender_email || '';
         document.getElementById('mbPhone').value = inquiry.sender_phone || '';
@@ -13230,17 +13232,16 @@
         });
     }
 
+    // Add another service row. This button had NO handler anywhere (not in the committed version either), so a manual booking could only ever carry the one
+    // service its first row offered, although the save below is written to send every row.
+    $(document).on('click', '#btnAddMbService', function() { addMbServiceRow(); });
+
     // Delegated — btnSaveManualBooking is inside the modal added after this script block
     $(document).on('click', '#btnSaveManualBooking', async function() {
             const btn = this;
+            // A kit notice (text, never HTML; theme colours; an error scrolls into view). 'warning' used to be drawn in the success green.
             const showMbAlert = function(msg, type) {
-                var el = document.getElementById('manualBookingAlert');
-                var isErr = type === 'error';
-                el.innerHTML = '<div style="padding:10px 14px;border-radius:6px;font-size:13px;background:' +
-                    (isErr ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)') +
-                    ';border:1px solid ' + (isErr ? 'rgba(248,113,113,0.3)' : 'rgba(74,222,128,0.3)') +
-                    ';color:' + (isErr ? '#f87171' : '#4ade80') + ';">' + msg + '</div>';
-                el.style.display = 'block';
+                dkMessage('#manualBookingAlert', type === 'error' ? 'bad' : type === 'warning' ? 'warn' : 'ok', msg);
             };
 
             var name      = document.getElementById('mbName').value.trim();
@@ -13457,7 +13458,9 @@
         if (e.detail && e.detail.id !== 'manualBookingDrawer') return;
         ['mbDate', 'mbTime'].forEach(function(id) {
             var el = document.getElementById(id);
-            if (el && el._flatpickr) { el._flatpickr.destroy(); }
+            // destroy() leaves the dead instance on the element. The open handler only builds a picker when `!el._flatpickr`, so it skipped the rebuild and,
+            // from the second time the drawer was opened in a session, the date and time fields had no picker at all (a page reload was the only cure).
+            if (el && el._flatpickr) { el._flatpickr.destroy(); delete el._flatpickr; }   // delete, not = null: flatpickr itself tests `!== undefined` and would call destroy() on null
         });
         var loc = document.getElementById('mbLocation');
         if (window.AdminPlacesAutocomplete) window.AdminPlacesAutocomplete.reset(loc);
@@ -15377,46 +15380,49 @@
 <!-- bookingEmailDrawer backdrop -->
 <div id="bookingEmailDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('bookingEmailDrawer')"></div>
 <!-- bookingEmailDrawer -->
-<div id="bookingEmailDrawer" class="atl-drawer atl-drawer--680" role="dialog" aria-labelledby="bookingEmailDrawerLabel" aria-modal="true">
+<div id="bookingEmailDrawer" class="atl-drawer atl-drawer--dk atl-drawer--680" role="dialog" aria-labelledby="bookingEmailDrawerLabel" aria-modal="true">
     <div class="atl-drawer__header">
-        <h5 id="bookingEmailDrawerLabel">
-            <i class="fa-solid fa-envelope" style="margin-right:8px;color:var(--atl-sage);"></i>
-            Email Client: <span id="bookingEmailClientName"></span>
-        </h5>
+        <div class="dk-head">
+            <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-envelope"></i></span>
+            <div class="dk-head__text">
+                <h5 id="bookingEmailDrawerLabel" class="dk-title">Email <span id="bookingEmailClientName"></span></h5>
+                <p class="dk-sub">Sends the email, then marks the booking as Responded</p>
+            </div>
+        </div>
         <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('bookingEmailDrawer')" aria-label="Close">×</button>
     </div>
     <div class="atl-drawer__body">
         <input type="hidden" id="be-booking-id">
-        <div style="background: var(--atl-card);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;color: var(--atl-muted);">
-            <i class="fa-solid fa-paper-plane" style="margin-right:6px;color:var(--atl-sage);"></i>
-            To: <span id="be-to" style="color: var(--atl-amber);"></span>
-        </div>
-        <div style="display:flex;gap:10px;margin-bottom:16px;">
-            <select id="be-template" class="atl-input" style="background: var(--atl-card);color: var(--atl-ink);border-radius:6px;flex:1;">
-                <option value="" disabled selected>Load Template&hellip;</option>
-                <option value="pricing">Send Pricing List</option>
-                <option value="available">Confirm Availability</option>
-                <option value="decline">Unavailable / Decline</option>
-                <option value="call">Request Phone Call</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label class="mb-label" for="be-subject">Subject</label>
-            <input type="text" id="be-subject" class="atl-input" style="background: var(--atl-card);color: var(--atl-ink);border-radius:6px;">
-        </div>
-        <div class="form-group">
-            <label class="mb-label">Message</label>
-            <div class="atl-quill-wrap">
-                <div id="be-quill-container" style="background: var(--atl-card);min-height:200px;"></div>
+        <section class="dk-panel" aria-labelledby="bePanelTo">
+            <div class="dk-panel__head"><i class="fa-solid fa-paper-plane dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="bePanelTo">Recipient</span></div>
+            <div class="dk-panel__body">
+                <dl class="dk-rows"><div class="dk-row"><dt class="dk-k">To</dt><dd class="dk-v" id="be-to"></dd></div></dl>
+                <div class="dk-form" style="margin-top:var(--atl-sp-md);"><div class="dk-field dk-field--wide">
+                    <label class="dk-label" for="be-template">Start from a template <span class="dk-hint">(optional)</span></label>
+                    <select id="be-template" class="atl-input">
+                        <option value="" disabled selected>Choose a template&hellip;</option>
+                        <option value="pricing">Send pricing list</option>
+                        <option value="available">Confirm availability</option>
+                        <option value="decline">Unavailable / decline</option>
+                        <option value="call">Request phone call</option>
+                    </select>
+                </div></div>
             </div>
-        </div>
-        <div id="be-alert" style="display:none;margin-top:10px;font-size:13px;"></div>
+        </section>
+        <section class="dk-panel" aria-labelledby="bePanelMsg">
+            <div class="dk-panel__head"><i class="fa-solid fa-pen-to-square dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="bePanelMsg">Message</span></div>
+            <div class="dk-panel__body"><div class="dk-form">
+                <div class="dk-field dk-field--wide"><label class="dk-label" for="be-subject">Subject <span class="atl-req">*</span></label>
+                    <input type="text" id="be-subject" class="atl-input"></div>
+                <div class="dk-field dk-field--wide"><label class="dk-label" id="beMessageLabel">Message <span class="atl-req">*</span></label>
+                    <div class="atl-quill-wrap"><div id="be-quill-container"></div></div></div>
+            </div></div>
+        </section>
+        <div id="be-alert" class="dk-msg" aria-live="polite"></div>
     </div>
     <div class="atl-drawer__footer">
         <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('bookingEmailDrawer')">Cancel</button>
-        <button type="button" id="be-send-btn" class="atl-btn atl-btn--primary">
-            <i class="fa-solid fa-paper-plane" style="margin-right:6px;"></i>Send &amp; Mark Responded
-        </button>
+        <button type="button" id="be-send-btn" class="atl-btn atl-btn--primary"><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> Send &amp; mark responded</button>
     </div>
 </div>
 
@@ -15463,132 +15469,121 @@
 <!-- manualBookingDrawer backdrop -->
 <div id="manualBookingDrawerBackdrop" class="atl-drawer-backdrop" onclick="closeAtlDrawer('manualBookingDrawer')"></div>
 <!-- manualBookingDrawer -->
-<div id="manualBookingDrawer" class="atl-drawer atl-drawer--860" role="dialog" aria-labelledby="manualBookingDrawerLabel" aria-modal="true">
+<div id="manualBookingDrawer" class="atl-drawer atl-drawer--dk atl-drawer--860" role="dialog" aria-labelledby="manualBookingDrawerLabel" aria-modal="true">
     <div class="atl-drawer__header">
-        <h5 id="manualBookingDrawerLabel">New Manual Booking</h5>
+        <div class="dk-head">
+            <span class="dk-icon" aria-hidden="true"><i class="fa-solid fa-calendar-plus"></i></span>
+            <div class="dk-head__text">
+                <h5 id="manualBookingDrawerLabel" class="dk-title">New manual booking</h5>
+                <p class="dk-sub">Add a booking taken by phone, in person or from an inquiry</p>
+            </div>
+        </div>
         <button type="button" class="atl-drawer__close" onclick="closeAtlDrawer('manualBookingDrawer')" aria-label="Close">×</button>
     </div>
     <div class="atl-drawer__body">
-        <div id="manualBookingAlert" style="display:none;margin-bottom:14px;"></div>
+        <div id="manualBookingAlert" class="dk-msg" aria-live="polite"></div>
         <input type="hidden" id="mbSourceInquiryId" value="">
-        <div class="mb-form-grid">
 
-          <div>
-            <label class="mb-label" for="mbName">Client Name <span class="atl-req">*</span></label>
-            <input type="text" class="atl-input" id="mbName" placeholder="Full name" autocomplete="name">
-          </div>
-          <div>
-            <label class="mb-label" for="mbEmail">Email <span class="atl-req">*</span></label>
-            <input type="email" class="atl-input" id="mbEmail" placeholder="client@email.com" autocomplete="email">
-          </div>
+        <section class="dk-panel" aria-labelledby="mbPanelClient">
+            <div class="dk-panel__head"><i class="fa-solid fa-user dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="mbPanelClient">Client</span></div>
+            <div class="dk-panel__body"><div class="dk-form">
+                <div class="dk-field"><label class="dk-label" for="mbName">Client name <span class="atl-req">*</span></label>
+                    <input type="text" class="atl-input" id="mbName" placeholder="Full name" autocomplete="name"></div>
+                <div class="dk-field"><label class="dk-label" for="mbEmail">Email <span class="atl-req">*</span></label>
+                    <input type="email" class="atl-input" id="mbEmail" placeholder="client@email.com" autocomplete="email"></div>
+                <div class="dk-field"><label class="dk-label" for="mbPhone">Phone <span class="atl-req">*</span></label>
+                    <input type="tel" class="atl-input" id="mbPhone" placeholder="+27 82 123 4567" autocomplete="tel"></div>
+                <div class="dk-field"><label class="dk-label" for="mbCompany">Company <span class="dk-hint">(optional)</span></label>
+                    <input type="text" class="atl-input" id="mbCompany" placeholder="Organisation" autocomplete="organization"></div>
+            </div></div>
+        </section>
 
-          <div>
-            <label class="mb-label" for="mbPhone">Phone <span class="atl-req">*</span></label>
-            <input type="tel" class="atl-input" id="mbPhone" placeholder="+27 82 123 4567" autocomplete="tel">
-          </div>
-          <div>
-            <label class="mb-label" for="mbCompany">Company</label>
-            <input type="text" class="atl-input" id="mbCompany" placeholder="Organisation (optional)" autocomplete="organization">
-          </div>
+        <section class="dk-panel" aria-labelledby="mbPanelEvent">
+            <div class="dk-panel__head"><i class="fa-solid fa-calendar-days dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="mbPanelEvent">Event</span></div>
+            <div class="dk-panel__body"><div class="dk-form">
+                <div class="dk-field"><label class="dk-label" for="mbEventName">Event name <span class="atl-req">*</span></label>
+                    <input type="text" class="atl-input" id="mbEventName" placeholder="e.g. Annual Gala 2026"></div>
+                <div class="dk-field"><label class="dk-label" for="mbEventType">Event type <span class="atl-req">*</span></label>
+                    <select class="atl-input" id="mbEventType">
+                        <option value="">Select type</option>
+                        <option>Corporate Event</option>
+                        <option>Festival / Concert</option>
+                        <option>Private Function</option>
+                        <option>Comedy Club</option>
+                        <option>University / College</option>
+                        <option>Charity / Fundraiser</option>
+                        <option>Virtual Event</option>
+                        <option>Other</option>
+                    </select></div>
+                <div class="dk-field"><label class="dk-label" for="mbDate">Event date <span class="atl-req">*</span></label>
+                    <div class="mb-icon-wrap">
+                        <input type="text" class="atl-input mb-has-icon" id="mbDate" placeholder="Select date…" autocomplete="off" readonly>
+                        <i class="fa-regular fa-calendar mb-lead-icon" aria-hidden="true"></i>
+                    </div></div>
+                <div class="dk-field"><label class="dk-label" for="mbTime">Start time <span class="dk-hint">(optional)</span></label>
+                    <div class="mb-icon-wrap">
+                        <input type="text" class="atl-input mb-has-icon" id="mbTime" placeholder="Select time…" autocomplete="off" readonly>
+                        <i class="fa-regular fa-clock mb-lead-icon" aria-hidden="true"></i>
+                    </div></div>
+                <div class="dk-field dk-field--wide"><label class="dk-label" for="mbLocation">Venue / location <span class="atl-req">*</span></label>
+                    <div class="mb-icon-wrap">
+                        <input type="text" class="atl-input mb-has-icon" id="mbLocation" placeholder="Search venue or city…" autocomplete="off">
+                        <i class="fa-solid fa-location-dot mb-lead-icon" aria-hidden="true"></i>
+                        <input type="hidden" id="mbPlaceId">
+                        <input type="hidden" id="mbCity">
+                        <input type="hidden" id="mbAddress">
+                        <input type="hidden" id="mbCountry">
+                        <!-- Additive richer venue fields (2026-09-29 location-search consolidation): same role as their #venueState/etc counterparts on the public form. -->
+                        <input type="hidden" id="mbState">
+                        <input type="hidden" id="mbPostalCode">
+                        <input type="hidden" id="mbLatitude">
+                        <input type="hidden" id="mbLongitude">
+                    </div></div>
+            </div></div>
+        </section>
 
-          <div>
-            <label class="mb-label" for="mbDate">Event Date <span class="atl-req">*</span></label>
-            <div class="mb-icon-wrap">
-              <input type="text" class="atl-input mb-has-icon" id="mbDate" placeholder="Select date…" autocomplete="off" readonly>
-              <i class="fa-regular fa-calendar mb-lead-icon" aria-hidden="true"></i>
-            </div>
-          </div>
-          <div>
-            <label class="mb-label" for="mbTime">Start Time</label>
-            <div class="mb-icon-wrap">
-              <input type="text" class="atl-input mb-has-icon" id="mbTime" placeholder="Select time…" autocomplete="off" readonly>
-              <i class="fa-regular fa-clock mb-lead-icon" aria-hidden="true"></i>
-            </div>
-          </div>
+        <section class="dk-panel" aria-labelledby="mbPanelServices">
+            <div class="dk-panel__head"><i class="fa-solid fa-list-check dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="mbPanelServices">Services &amp; budget</span></div>
+            <div class="dk-panel__body"><div class="dk-form">
+                <div class="dk-field dk-field--wide">
+                    <label class="dk-label" id="mbServicesLabel">Services <span class="atl-req">*</span></label>
+                    <!-- one row per service, added by js (addMbServiceRow in this file's inline script) -->
+                    <div id="mbServicesContainer" role="group" aria-labelledby="mbServicesLabel"></div>
+                    <div><button type="button" class="atl-btn atl-btn--ghost" id="btnAddMbService"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add service</button></div>
+                    <div id="mbTotalsDisplay" class="dk-inset dk-inset--flag" style="display:none;" aria-live="polite">
+                        <div class="dk-inset__line"><strong>Estimated duration:</strong> <span id="mbEstDuration">0 mins</span></div>
+                        <div class="dk-inset__line"><strong>Estimated price:</strong> <span id="mbEstPrice">R 0.00</span></div>
+                    </div>
+                </div>
+                <div class="dk-field"><label class="dk-label" for="mbBudget">Budget range <span class="dk-hint">(optional)</span></label>
+                    <select class="atl-input" id="mbBudget">
+                        <option value="">Not specified</option>
+                        <option>Below R10,000</option>
+                        <option>R10,000 – R25,000</option>
+                        <option>R25,000 – R50,000</option>
+                        <option>Above R50,000</option>
+                    </select></div>
+                <div class="dk-field"><label class="dk-label" for="mbStatus">Initial status</label>
+                    <select class="atl-input" id="mbStatus">
+                        <option value="NEW">New</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="CONFIRMED">Confirmed</option>
+                    </select></div>
+            </div></div>
+        </section>
 
-          <div>
-            <label class="mb-label" for="mbEventName">Event Name <span class="atl-req">*</span></label>
-            <input type="text" class="atl-input" id="mbEventName" placeholder="e.g. Annual Gala 2026">
-          </div>
-          <div>
-            <label class="mb-label" for="mbEventType">Event Type <span class="atl-req">*</span></label>
-            <select class="atl-input" id="mbEventType">
-              <option value="">Select type</option>
-              <option>Corporate Event</option>
-              <option>Festival / Concert</option>
-              <option>Private Function</option>
-              <option>Comedy Club</option>
-              <option>University / College</option>
-              <option>Charity / Fundraiser</option>
-              <option>Virtual Event</option>
-              <option>Other</option>
-            </select>
-          </div>
-
-          <div style="grid-column:1/-1;">
-            <label class="mb-label" for="mbLocation">Venue / Location <span class="atl-req">*</span></label>
-            <div class="mb-icon-wrap">
-              <input type="text" class="atl-input mb-has-icon" id="mbLocation" placeholder="Search venue or city…" autocomplete="off">
-              <i class="fa-solid fa-location-dot mb-lead-icon" aria-hidden="true"></i>
-              <input type="hidden" id="mbPlaceId">
-              <input type="hidden" id="mbCity">
-              <input type="hidden" id="mbAddress">
-              <input type="hidden" id="mbCountry">
-              <!-- Additive richer venue fields (2026-09-29 location-search consolidation) — same
-                   role as their #venueState/etc counterparts on the public form. -->
-              <input type="hidden" id="mbState">
-              <input type="hidden" id="mbPostalCode">
-              <input type="hidden" id="mbLatitude">
-              <input type="hidden" id="mbLongitude">
-            </div>
-          </div>
-
-          <div>
-            <label class="mb-label" for="mbStatus">Initial Status</label>
-            <select class="atl-input" id="mbStatus">
-              <option value="NEW">New</option>
-              <option value="PENDING">Pending</option>
-              <option value="CONFIRMED">Confirmed</option>
-            </select>
-          </div>
-          <div>
-            <label class="mb-label" for="mbBudget">Budget Range</label>
-            <select class="atl-input" id="mbBudget">
-              <option value="">Not specified</option>
-              <option>Below R10,000</option>
-              <option>R10,000 – R25,000</option>
-              <option>R25,000 – R50,000</option>
-              <option>Above R50,000</option>
-            </select>
-          </div>
-
-          <div style="grid-column: 1 / -1; margin-top: 10px;">
-            <label class="mb-label">Select Services <span class="atl-req">*</span></label>
-            <div id="mbServicesContainer" style="display: flex; flex-direction: column; gap: 8px;">
-                <!-- dynamic rows of service selection -->
-            </div>
-            <button type="button" class="atl-btn atl-btn--ghost" id="btnAddMbService" style="margin-top: 8px; width: fit-content; padding: 6px 12px; font-size: 13px;">
-                <i class="fa-solid fa-plus"></i> Add Service
-            </button>
-            <div id="mbTotalsDisplay" style="margin-top: 12px; padding: 10px; border-radius: 6px; background: color-mix(in srgb, var(--atl-ink) 5%, transparent); font-size: 13px; display: none;">
-                <div><strong>Estimated Duration:</strong> <span id="mbEstDuration">0 mins</span></div>
-                <div style="margin-top: 4px;"><strong>Estimated Price:</strong> <span id="mbEstPrice">R 0.00</span></div>
-            </div>
-          </div>
-
-          <div style="grid-column:1/-1;">
-            <label class="mb-label" for="mbMessage">Notes / Details</label>
-            <textarea class="atl-input" id="mbMessage" rows="5" placeholder="Event details, special requirements, audience size…" style="resize:vertical;"></textarea>
-          </div>
-
-        </div>
-        <p class="mb-required-note"><span class="atl-req">*</span> Required field</p>
+        <section class="dk-panel" aria-labelledby="mbPanelNotes">
+            <div class="dk-panel__head"><i class="fa-solid fa-comment-dots dk-card__icon" aria-hidden="true"></i><span class="dk-card__title" id="mbPanelNotes">Notes</span></div>
+            <div class="dk-panel__body"><div class="dk-field">
+                <label class="dk-label" for="mbMessage">Notes / details <span class="atl-req">*</span></label>
+                <textarea class="atl-input" id="mbMessage" rows="5" placeholder="Event details, special requirements, audience size…"></textarea>
+                <span class="dk-hint">Required: it is what the quote and the team work from.</span>
+            </div></div>
+        </section>
     </div>
     <div class="atl-drawer__footer">
         <button type="button" class="atl-btn atl-btn--ghost" onclick="closeAtlDrawer('manualBookingDrawer')">Cancel</button>
-        <button type="button" class="atl-btn atl-btn--primary" id="btnSaveManualBooking">
-          <i class="fa-solid fa-floppy-disk"></i> Create Booking
-        </button>
+        <button type="button" class="atl-btn atl-btn--primary" id="btnSaveManualBooking"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Create booking</button>
     </div>
 </div>
 

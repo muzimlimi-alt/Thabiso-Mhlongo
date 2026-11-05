@@ -303,7 +303,7 @@
             (manage ? '<a class="atl-btn atl-btn--ghost" href="/api/admin/ticketing/events/' + ev.event_id + '/attendees.csv"><i class="fa-solid fa-file-csv"></i> Attendee list (CSV)</a>' : '') +
             '<a class="atl-btn atl-btn--ghost" href="/checkin?event=' + ev.event_id + '" target="_blank" rel="noopener"><i class="fa-solid fa-qrcode"></i> Door check-in</a></div></section>';
         if (manage) h += '<section class="tkt-panel" aria-labelledby="tktHistHd"><div class="tkt-panel__head"><h6 class="tkt-h" id="tktHistHd">Ticketing change history</h6></div><ul class="tkt-list tkt-list--small" id="tktHistoryList"><li class="tkt-muted">Loading…</li></ul></section>';
-        $('#tktManageDrawerTitle').html('<i class="fa-solid fa-ticket"></i> Manage tickets');
+        $('#tktManageDrawerTitle').text('Manage tickets');
         $('#tktManageDrawerBody').html(h);
     }
 
@@ -685,7 +685,7 @@
     $(document).on('click', '#tktOrderDrawerClose, #tktOrderDrawerBackdrop', function () { if (window.closeAtlDrawer) window.closeAtlDrawer('tktOrderDrawer'); });
 
     function openOrder(id) {
-        $('#tktOrderDrawerTitle').html('<i class="fa-solid fa-ticket"></i> Order #' + id);
+        $('#tktOrderDrawerTitle').text('Order #' + id);
         $('#tktOrderDrawerBody').html('<p class="tkt-muted">Loading…</p>');
         if (window.openAtlDrawer) window.openAtlDrawer('tktOrderDrawer');
         return call('GET', '/api/admin/ticketing/orders/' + id).then(function (r) {

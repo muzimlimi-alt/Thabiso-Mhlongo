@@ -2174,7 +2174,7 @@
             $('#be-to').text(booking.email || '');
             $('#be-subject').val('Re: Thabiso Mhlongo Booking - ' + (booking.event_type || ''));
             $('#be-template').val('');
-            $('#be-alert').hide().text('');
+            dkMessage('#be-alert', '', '');
 
             // Show drawer BEFORE initialising Quill — Quill must mount into a visible container
             // or the toolbar will be invisible and the editor will not render correctly.
@@ -2183,7 +2183,7 @@
             // Init Quill (only once) — container is now visible
             if (!beQuillInstance) {
                 if (typeof Quill === 'undefined') {
-                    $('#be-alert').css('color', 'var(--atl-clay)').text('Rich text editor failed to load. Please refresh the page and try again.').show();
+                    dkMessage('#be-alert', 'bad', 'Rich text editor failed to load. Please refresh the page and try again.');
                     return;
                 }
                 beQuillInstance = new Quill('#be-quill-container', {
@@ -2193,8 +2193,9 @@
                         toolbar: [['bold', 'italic', 'underline'], ['link'], [{ list: 'ordered' }, { list: 'bullet' }], ['clean']]
                     }
                 });
+                // The editor's colours come from css/overrides/quill.css (theme tokens). A fixed #ddd set here made the message almost invisible in the Ivory Finish.
                 var qlEditor = document.querySelector('#be-quill-container .ql-editor');
-                if (qlEditor) { qlEditor.style.color = '#ddd'; }
+                if (qlEditor) { qlEditor.setAttribute('role', 'textbox'); qlEditor.setAttribute('aria-multiline', 'true'); qlEditor.setAttribute('aria-labelledby', 'beMessageLabel'); }
             }
             if (beQuillInstance) beQuillInstance.setText('');
         });
@@ -2277,7 +2278,7 @@
             if (!booking) return;
 
             if (!subject || !messageText) {
-                $('#be-alert').css('color', 'var(--atl-clay)').text('Subject and message are required.').show();
+                dkMessage('#be-alert', 'bad', 'Subject and message are required.');
                 return;
             }
 

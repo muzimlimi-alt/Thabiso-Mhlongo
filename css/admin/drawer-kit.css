@@ -48,13 +48,14 @@
     background: var(--atl-amber-dim); color: var(--atl-amber); border: 1px solid var(--atl-amber-border);
 }
 .dk-head__text { min-width: 0; }
-.atl-drawer--dk .atl-drawer__header .dk-title {      /* (0,3,0): the shell's  .atl-drawer__header h5  (0,1,1) would otherwise set it to 15px sans */
+.atl-drawer--dk .atl-drawer__header .dk-title,
+.atl-drawer--dk-lite .atl-drawer__header .dk-title {      /* (0,3,0): the shell's  .atl-drawer__header h5  (0,1,1) would otherwise set it to 15px sans */
     margin: 0; font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22px; font-weight: 500; line-height: 1.15;
     color: var(--atl-ink) !important;          /* beats redesign.css's h1-h6 colour (see the rules above) */
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .dk-sub { margin: 2px 0 0; font-size: 12px; color: var(--atl-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.atl-drawer--dk .atl-drawer__header h5 { display: block; margin: 0; }     /* the shell makes it a flex row; the kit lays the header out itself */
+.atl-drawer--dk .atl-drawer__header h5, .atl-drawer--dk-lite .atl-drawer__header h5.dk-title { display: block; margin: 0; }     /* the shell makes it a flex row; the kit lays the header out itself */
 .atl-drawer--dk .atl-drawer__close,
 .atl-drawer--dk-lite .atl-drawer__close {
     flex: none; width: 40px; height: 40px; padding: 0; border-radius: 50%;
@@ -234,6 +235,40 @@ body.admin-body .atl-drawer--dk .dk-field input[type="file"] {
     color: var(--atl-ink) !important; background: var(--atl-input-bg) !important; border: 1px dashed var(--atl-line-bold); border-radius: var(--atl-r-lg);
 }
 
+/* ── Neutral badge (a draft, an inactive thing): muted, never colour alone ────────────────────────────────────────────────────── */
+.dk-badge--neutral { background: color-mix(in srgb, var(--atl-ink) 7%, transparent); color: var(--atl-ink-dim); border-color: var(--atl-line-strong); }
+
+/* ── A rich-text editor (Quill, themed by css/overrides/quill.css) inside a field: the same edge and focus ring as an input ────── */
+.atl-drawer--dk .dk-field .atl-quill-wrap { border: 1px solid var(--atl-line-bold); border-radius: var(--atl-r-lg); }
+.atl-drawer--dk .dk-field .atl-quill-wrap:focus-within { border-color: var(--atl-focus); box-shadow: 0 0 0 3px var(--atl-focus-ring); }
+.atl-drawer--dk .dk-field .atl-quill-wrap .ql-editor { min-height: 220px; font-size: 14px; line-height: 1.55; }
+
+/* ── A drop zone: a real, keyboard-usable target for a file ───────────────────────────────────────────────────────────────────── */
+.dk-drop {
+    display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; cursor: pointer;
+    padding: var(--atl-sp-lg) var(--atl-sp-md); background: var(--atl-paper); border: 2px dashed var(--atl-line-bold); border-radius: var(--atl-r-lg);
+    transition: border-color var(--atl-t-fast), background var(--atl-t-fast);
+}
+.dk-drop:hover, .dk-drop.is-over { border-color: var(--atl-amber); background: var(--atl-amber-dim); }
+.dk-drop:focus-visible { outline: 2px solid var(--atl-focus); outline-offset: 2px; }
+.dk-drop__icon { font-size: 30px; color: var(--atl-muted); }
+.dk-drop__text { margin: 0; font-size: 13px; color: var(--atl-ink-dim); }
+.dk-drop__hint { margin: 0; font-size: 12px; color: var(--atl-muted); }
+.dk-filechip {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px var(--atl-sp-md); text-align: left;
+    background: var(--atl-card); border: 1px solid var(--atl-line-strong); border-radius: var(--atl-r-lg); font-size: 13px; color: var(--atl-ink);
+}
+.dk-filechip > i { color: var(--atl-clay); }
+.dk-filechip__size { color: var(--atl-muted); font-size: 12px; }
+.dk-filechip__clear { margin-left: auto; background: none; border: 0; padding: 6px 8px; color: var(--atl-muted); cursor: pointer; border-radius: var(--atl-r-md); font-size: 13px; }
+.dk-filechip__clear:hover { color: var(--atl-ink); background: color-mix(in srgb, var(--atl-ink) 6%, transparent); }
+
+/* ── A repeatable row: a select (+ an optional number) + a remove button (Manual Booking's services) ─────────────────────────────── */
+.dk-svc-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.dk-svc-row > select.atl-input { flex: 1 1 0; min-width: 0; width: auto !important; }
+.dk-svc-row > input.atl-input { flex: 0 0 120px; width: 120px !important; }
+.dk-svc-row > .atl-btn { flex: none; width: var(--atl-tap); height: var(--atl-tap) !important; min-height: var(--atl-tap) !important; padding: 0; display: inline-flex; align-items: center; justify-content: center; }   /* !important: the admin sets every button to 40px */
+
 /* ── Buttons row: equal widths, comfortable height, wraps on a narrow screen ─────────────────────────────────────────────────── */
 .dk-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--atl-sp-sm); }
 .dk-actions .atl-btn, .atl-drawer--dk .atl-drawer__footer .atl-btn {
@@ -265,3 +300,14 @@ body.admin-body .atl-drawer--dk-lite .atl-det-title > span > i { margin-right: 1
 body.admin-body .atl-drawer--dk-lite .atl-det-card--cancel .atl-det-title { color: var(--atl-clay) !important; }
 .atl-drawer--dk-lite .atl-det-card { border: 1px solid var(--atl-line-strong); border-radius: var(--atl-r-lg); }
 .atl-drawer--dk-lite .dv-breadcrumb, .atl-drawer--dk-lite .dv-breadcrumb .cur { font-size: 12px; }
+
+/* Ticket drawers (Manage tickets, Ticket order) on the light kit: their section titles are .tkt-h, their stat tiles are the dashboard's .db-stat-card. */
+body.admin-body .atl-drawer--dk-lite .tkt-h {
+    font-family: 'Outfit', sans-serif !important; font-size: 14px !important; font-weight: 700 !important; letter-spacing: 0 !important;
+    text-transform: none !important; color: var(--atl-ink) !important;
+}
+.atl-drawer--dk-lite .tkt-panel { border-color: var(--atl-line-strong); border-radius: var(--atl-r-lg); }
+/* A stat tile inside a drawer is narrow: the icon goes above the text, the value stays on one line and the label wraps instead of being cut off ("GROSS TICKE...", "R" / "450,00") */
+.atl-drawer--dk-lite .db-stat-card { flex-direction: column !important; align-items: flex-start !important; gap: 10px; }
+.atl-drawer--dk-lite .db-stat-value { white-space: nowrap; font-size: 24px !important; }
+.atl-drawer--dk-lite .db-stat-label { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; line-height: 1.35; }
