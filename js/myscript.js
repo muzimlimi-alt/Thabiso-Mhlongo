@@ -442,7 +442,27 @@ $(function() {
             var s = data.services || {};
             if (s.eyebrow && s.eyebrow.trim()) $('.tm-services .tm-eyebrow').text(s.eyebrow);
             if (s.heading && s.heading.trim()) $('#servicesTitle').html(s.heading);
-            if (Array.isArray(s.items) && s.items.length) {
+            var svcItems = Array.isArray(s.items) ? s.items.filter(Boolean) : [];
+            if (svcItems.length) s.items = svcItems;
+            if (svcItems.length && $('.tm-services__grid .tm-service').length) {
+                // The admin decides how many cards there are (1-12). The server has normally done this already (lib/homepage-render.js,
+                // same markup); this covers a page it served unfilled. Drop the cards past the stored count, build the extra ones.
+                var $grid = $('.tm-services__grid');
+                $grid.children('.tm-service').slice(svcItems.length).remove();
+                for (var ci = $grid.children('.tm-service').length; ci < svcItems.length; ci++) {
+                    var num = (ci + 1 < 10 ? '0' : '') + (ci + 1);
+                    var $new = $('<a href="#" data-open-drawer="bookingDrawer" data-track="book_now" class="tm-service tm-reveal reveal active" data-bk-source="service-custom">'
+                        + '<div class="tm-service__bg tm-service__bg--custom"></div><div class="tm-service__overlay"></div>'
+                        + '<div class="tm-service__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></div>'
+                        + '<div class="tm-service__content"><span class="tm-service__label"></span><h3 class="tm-service__title"></h3><p class="tm-service__desc"></p></div></a>');
+                    $new.find('.tm-service__label').text(num);
+                    $new.addClass('is-visible').on('click', function () { window._bkSource = 'service-custom'; });
+                    $grid.append($new);
+                }
+                // cards per row on desktops, as even as possible (css/public/redesign.css)
+                var cols = function (n, max) { return Math.ceil(n / Math.ceil(n / max)); };
+                $grid[0].style.setProperty('--svc-cols-lg', cols(svcItems.length, 3));
+                $grid[0].style.setProperty('--svc-cols-xl', cols(svcItems.length, 5));
                 var $cards = $('.tm-services__grid .tm-service');
                 // "Most Booked": once the admin has chosen (a card, or none), the badge follows the choice; before that the page keeps its built-in one
                 if (s.items.some(function (it) { return it && typeof it.featured === 'boolean'; })) {

@@ -921,21 +921,20 @@ header .navbar {
   grid-template-columns:1fr;
   gap:18px;
 }
-/* Five cards, one per rate-card category. Two across on tablets with the odd fifth card full width; a centred 3 + 2 on small
-   desktops (a six-column grid, each card two wide); all five in one row once the container is wide enough for them. */
+/* The admin chooses how many cards there are (1-12; five by default, one per rate-card category). Two across on tablets with an odd
+   last card full width. On desktops the cards wrap in centred rows: --svc-cols-lg per row from 1024 px (at most 3) and --svc-cols-xl
+   from 1280 px (at most 5), written onto the grid by the server (lib/homepage-render.js) and the browser script for the current count.
+   Without them (the plain template, five cards) a centred 3 + 2, then all five in one row. */
 @media (min-width:640px){ .tm-services__grid{ grid-template-columns:repeat(2,1fr); } }
 @media (min-width:640px) and (max-width:1023px){
   .tm-service:last-child:nth-child(odd){ grid-column:1 / -1; aspect-ratio:16/9; }
 }
 @media (min-width:1024px){
-  .tm-services__grid{ grid-template-columns:repeat(6,1fr); }
-  .tm-service{ grid-column:span 2; }
-  .tm-service:nth-child(4){ grid-column:2 / span 2; }
-  .tm-service:nth-child(5){ grid-column:4 / span 2; }
+  .tm-services__grid{ display:flex; flex-wrap:wrap; justify-content:center; }
+  .tm-service{ flex:0 0 calc((100% - (var(--svc-cols-lg, 3) - 1) * 18px) / var(--svc-cols-lg, 3)); max-width:420px; } /* one or two cards stay card-sized */
 }
 @media (min-width:1280px){
-  .tm-services__grid{ grid-template-columns:repeat(5,1fr); }
-  .tm-service, .tm-service:nth-child(4), .tm-service:nth-child(5){ grid-column:auto; }
+  .tm-service{ flex-basis:calc((100% - (var(--svc-cols-xl, 5) - 1) * 18px) / var(--svc-cols-xl, 5)); }
 }
 /* The same card finish as the Gallery tiles, Event cards, Social cards and the Footprint flags: the large corner radius, a hairline border,
    the resting shadow, and on hover the 4px lift + gold-dark border + deep shadow (keyboard focus gets the global gold ring, :focus-visible). */
@@ -972,6 +971,8 @@ header .navbar {
 .tm-service__bg--5{ background-image: url('../../images/services/services-04.jpg'); transform:scaleX(-1); }   /* Acting, Voice-Over & Brand Campaigns */
 .tm-service:hover .tm-service__bg{ transform:scale(1.03); }
 .tm-service:hover .tm-service__bg--5{ transform:scaleX(-1) scale(1.03); }
+/* A card the admin added has no default photo: a plain dark finish until they give it an image. */
+.tm-service__bg--custom{ background-color:var(--bg-section, #141414); background-image:linear-gradient(135deg, rgba(212,175,55,.14), rgba(0,0,0,0) 60%); }
 /* "Most Booked": the rate card's designation of its Corporate & Events group. */
 .tm-service__tag{
   position:absolute; top:22px; left:18px; z-index:2;

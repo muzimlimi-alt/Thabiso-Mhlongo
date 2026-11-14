@@ -10253,8 +10253,15 @@
                     <div class="um-input-wrap"><select id="homeFeaturedCard" class="um-input"></select></div>
                     <small class="help-block">The gold badge on one service card. Pick the card, or &ldquo;No card&rdquo; to show none.</small>
                 </div>
-                <p class="um-section-desc" style="margin:0 0 12px;">Service cards</p>
+                <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:0 0 12px;">
+                    <p class="um-section-desc" style="margin:0;">Service cards</p>
+                    <small class="help-block" id="svcCardCount" style="margin:0;" aria-live="polite"></small>
+                </div>
                 <div id="svcCardsEditor"><!-- card editors injected by JS --></div>
+                <button type="button" class="atl-btn atl-btn--ghost" id="svcAddCard" style="width:100%; justify-content:center; margin-bottom:14px;">
+                    <i class="fa-solid fa-plus"></i> Add card
+                </button>
+                <small class="help-block" style="display:block; margin:-6px 0 14px;">Add up to 12 cards; at least one must stay. New and deleted cards go live on the homepage when you Save &amp; Publish.</small>
                 <button type="submit" class="atl-btn atl-btn--primary" id="servicesSubmitBtn" style="width:100%; justify-content:center;">
                     <i class="fa-solid fa-floppy-disk"></i> Save &amp; Publish
                 </button>

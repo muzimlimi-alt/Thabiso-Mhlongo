@@ -80,8 +80,19 @@ module.exports = async function ({ check, api, pub, q }) {
 
     const none = render.fill(tpl, { site: site({ services: { eyebrow: '', heading: '', items: [{ title: 'A', description: 'a', image: '', featured: false }] } }) }).html;
     check('B "Most Booked" chosen as none: no badge at all', !none.includes('tm-service__tag'), '');
-    const never = render.fill(tpl, { site: site({ services: { eyebrow: '', heading: '', items: [{ title: 'A', description: 'a', image: '' }] } }) }).html;
+    const never = render.fill(tpl, { site: site({ services: { eyebrow: '', heading: '', items: ['A', 'B', 'C', 'D', 'E'].map((t) => ({ title: t, description: t, image: '' })) } }) }).html;
     check('B "Most Booked" never chosen: the page keeps its built-in badge', (never.match(/tm-service__tag/g) || []).length === (tpl.match(/tm-service__tag/g) || []).length, '');
+    // the admin adds and deletes cards: the page shows exactly the stored count
+    const cardsOf = (html) => { const g = html.slice(html.indexOf('class="tm-services__grid"'), html.indexOf('<!-- ============== ABOUT')); return { g, n: (g.match(/<a href="#"[^>]*class="tm-service tm-reveal/g) || []).length }; };
+    const one1 = cardsOf(render.fill(tpl, { site: site({ services: { eyebrow: '', heading: '', items: [{ title: 'Only', description: 'one', image: '', featured: true }] } }) }).html);
+    check('B one stored card: the page shows one card (with its badge), and lays out one per row', one1.n === 1 && one1.g.includes('>Only</h3>') && (one1.g.match(/tm-service__tag/g) || []).length === 1 && one1.g.includes('--svc-cols-lg: 1; --svc-cols-xl: 1;'), one1.g.slice(0, 300));
+    const seven = Array.from({ length: 7 }, (_, i) => ({ title: 'Card ' + (i + 1) + (i === 6 ? ' <b>x</b>' : ''), description: 'd' + i, image: i === 6 ? 'images/n "q".jpg' : '', featured: i === 6 }));
+    const s7 = cardsOf(render.fill(tpl, { site: site({ services: { eyebrow: '', heading: '', items: seven } }) }).html);
+    check('B seven stored cards: five filled + two built, numbered 06 and 07, rows of 3 / 4', s7.n === 7 && s7.g.includes('<span class="tm-service__label">06</span><h3 class="tm-service__title">Card 6</h3>') && s7.g.includes('--svc-cols-lg: 3; --svc-cols-xl: 4;'), s7.g.slice(-900));
+    check('B a built card is escaped like the others and carries its image and badge', s7.g.includes('<h3 class="tm-service__title">Card 7 &lt;b&gt;x&lt;/b&gt;</h3>') && s7.g.includes('class="tm-service__bg tm-service__bg--custom" style="background-image: url(&quot;images/n q.jpg&quot;);"') && (s7.g.match(/tm-service__tag/g) || []).length === 1 && /data-bk-source="service-custom"><div class="tm-service__bg tm-service__bg--custom" style="[^"]*"><\/div><div class="tm-service__overlay"><\/div><span class="tm-service__tag">/.test(s7.g.slice(s7.g.lastIndexOf('<a href'))), s7.g.slice(-700));
+    const del = render.fill(tpl, { site: site({ services: { eyebrow: '', heading: '', items: [{ title: 'A', description: 'a', image: '', featured: false }] } }) }).html;
+    const delSec = del.slice(del.indexOf('<section class="tm-section tm-services"'), del.indexOf('<!-- ============== ABOUT'));
+    check('B deleting cards leaves well-formed markup (every <a> and <div> in the section still closes)', (delSec.match(/<a\b/g) || []).length === (delSec.match(/<\/a>/g) || []).length && (delSec.match(/<div\b/g) || []).length === (delSec.match(/<\/div>/g) || []).length && /<\/section>\s*$/.test(delSec), '');
     const off = render.fill(tpl, { site: site({ announcement: { text: '', enabled: false, rotate: false, speed: 5 } }) }).html;
     check('B announcement switched off / not rotating', /<div class="tm-announcement no-rotate" role="status" style="display: none;">|<div class="tm-announcement no-rotate"[^>]*style="display: none;"/.test(off), (off.match(/<div class="tm-announcement[^>]*>/) || [])[0]);
     const link = render.fill(tpl, { manager: { name: 'M', whatsapp_link: 'https://wa.me/qr/ABC"x', whatsapp_number: '1' } }).html;

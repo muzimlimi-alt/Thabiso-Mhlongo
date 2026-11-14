@@ -180,9 +180,9 @@ async function loadSiteContent(force) {
         if (!data || !data.success) throw new Error('bad response');
         if (!data.services) data.services = {};
         if (!Array.isArray(data.services.items) || !data.services.items.length) data.services.items = DEFAULT_SVC_ITEMS.slice();
-        // The homepage has one card per rate-card category. A set saved when there were only four cards still works (its cards keep
-        // the owner's text), but the cards it lacks must be editable too, so the editor offers the defaults for them.
-        for (var di = data.services.items.length; di < DEFAULT_SVC_ITEMS.length; di++) data.services.items.push(Object.assign({}, DEFAULT_SVC_ITEMS[di]));
+        // The stored cards are shown exactly as saved: the owner adds and deletes cards in the editor (1-12), so a set with fewer than
+        // the five defaults is deliberate and is not padded back up.
+        data.services.items = data.services.items.filter(Boolean);
         if (!data.features) data.features = {};
         if (!Array.isArray(data.features.items) || !data.features.items.length) data.features.items = DEFAULT_FEAT_ITEMS.slice();
         if (!data.announcement) data.announcement = {};
@@ -207,10 +207,15 @@ async function loadSiteContent(force) {
     }
 }
 
-function buildSvcCardEditors(items) {
-    var html = (items || []).map(function (it, i) {
-        return '<div style="border:1px solid var(--atl-line); border-radius:8px; padding:14px; margin-bottom:14px;">'
-            + '<div style="font-weight:700; color:var(--atl-amber); font-size:11px; text-transform:uppercase; letter-spacing:1px; margin-bottom:10px;">Card ' + (i + 1) + '</div>'
+// Cards: at least one, at most SVC_MAX_CARDS (the server keeps the first 12 - routes/admin/site-content.js).
+var SVC_MAX_CARDS = 12;
+
+function svcCardEditorHtml(it, i) {
+    return '<div class="svc-card-editor" data-idx="' + i + '" style="border:1px solid var(--atl-line); border-radius:8px; padding:14px; margin-bottom:14px;">'
+            + '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px;">'
+            + '<div class="svc-card-num" style="font-weight:700; color:var(--atl-amber); font-size:11px; text-transform:uppercase; letter-spacing:1px;">Card ' + (i + 1) + '</div>'
+            + '<button type="button" class="atl-btn atl-btn--ghost um-btn--sm svc-card-delete" data-idx="' + i + '" aria-label="Delete card ' + (i + 1) + '"><i class="fa-solid fa-trash"></i> Delete</button>'
+            + '</div>'
             + '<label class="um-label">Title</label>'
             + '<div class="um-input-wrap"><input type="text" class="um-input svc-card-title" data-idx="' + i + '" value="' + siteEsc(it.title) + '"></div>'
             + '<label class="um-label" style="margin-top:10px;">Description</label>'
@@ -221,8 +226,31 @@ function buildSvcCardEditors(items) {
             + '<i class="fa-solid fa-image um-upload-icon"></i><p class="um-upload-text" id="svcCardFileText' + i + '">Upload an image</p>'
             + '<input type="file" id="svcCardFile' + i + '" class="um-file-input svc-card-file" data-idx="' + i + '" accept="image/*"></label>'
             + '</div>';
-    }).join('');
-    $('#svcCardsEditor').html(html);
+}
+
+function buildSvcCardEditors(items) {
+    $('#svcCardsEditor').html((items || []).map(svcCardEditorHtml).join(''));
+    refreshSvcCardControls();
+}
+
+// After an add or delete: number the cards by position, keep at least one and at most SVC_MAX_CARDS, and re-list them in the badge chooser.
+function refreshSvcCardControls() {
+    var $eds = $('#svcCardsEditor .svc-card-editor');
+    $eds.each(function (pos) {
+        $(this).find('.svc-card-num').text('Card ' + (pos + 1));
+        $(this).find('.svc-card-delete').attr('aria-label', 'Delete card ' + (pos + 1)).prop('disabled', $eds.length <= 1);
+    });
+    $('#svcAddCard').prop('disabled', $eds.length >= SVC_MAX_CARDS);
+    $('#svcCardCount').text($eds.length + ' of ' + SVC_MAX_CARDS + ' cards');
+    var $sel = $('#homeFeaturedCard'), keep = String($sel.val());
+    if ($sel.children().length) { // the chooser was built from the loaded cards: re-list them, keeping the choice if that card is still there
+        var opts = '<option value="-1">No card</option>';
+        $eds.each(function (pos) {
+            var idx = $(this).data('idx');
+            opts += '<option value="' + idx + '">Card ' + (pos + 1) + ' \u2014 ' + siteEsc($(this).find('.svc-card-title').val()) + '</option>';
+        });
+        $sel.html(opts).val($sel.find('option[value="' + keep + '"]').length ? keep : '-1');
+    }
 }
 
 // "Most Booked" badge: one card, or none. Before the owner has ever chosen, the page shows it on Corporate & Events (card 2), so that is
@@ -335,7 +363,27 @@ $(document).on('input change', '#announceSpeed', renderAnnouncePreview);
 $(document).on('input', '#svcCardsEditor input', renderSvcPreview);
 $(document).on('change', '#homeFeaturedCard', renderSvcPreview);
 // the chooser lists the cards by their current titles
-$(document).on('input', '#svcCardsEditor .svc-card-title', function () { var i = $(this).data('idx'); $('#homeFeaturedCard option[value="' + i + '"]').text('Card ' + (i + 1) + ' \u2014 ' + ($(this).val() || '')); });
+$(document).on('input', '#svcCardsEditor .svc-card-title', refreshSvcCardControls);
+// Add / delete cards. Nothing is published until "Save & Publish"; closing the drawer without saving and reopening the tab reloads the saved set.
+$(document).on('click', '#svcAddCard', function () {
+    var $eds = $('#svcCardsEditor .svc-card-editor');
+    if ($eds.length >= SVC_MAX_CARDS) return;
+    var next = 0;
+    $eds.each(function () { next = Math.max(next, (parseInt($(this).data('idx'), 10) || 0) + 1); });
+    var $ed = $(svcCardEditorHtml({ title: '', description: '', image: '' }, next));
+    $('#svcCardsEditor').append($ed);
+    refreshSvcCardControls();
+    renderSvcPreview();
+    $ed.find('.svc-card-title').trigger('focus');
+});
+$(document).on('click', '#svcCardsEditor .svc-card-delete', function () {
+    if ($('#svcCardsEditor .svc-card-editor').length <= 1) return;
+    var $ed = $(this).closest('.svc-card-editor'), $next = $ed.next('.svc-card-editor').length ? $ed.next('.svc-card-editor') : $ed.prev('.svc-card-editor');
+    $ed.remove();
+    refreshSvcCardControls();
+    renderSvcPreview();
+    $next.find('.svc-card-delete').trigger('focus'); // keyboard users keep their place
+});
 $(document).on('input', '#featCardsEditor input', renderFeatPreview);
 $(document).on('input', '#announceInput', renderAnnouncePreview);
 $(document).on('change', '#announceEnabled', renderAnnouncePreview);
@@ -411,6 +459,9 @@ $(document).on('submit', '#servicesForm', async function (e) {
     try {
         var items = [];
         var idxs = $('#svcCardsEditor .svc-card-title').map(function () { return $(this).data('idx'); }).get();
+        if (!idxs.length) throw new Error('Keep at least one card.');
+        var $untitled = $('#svcCardsEditor .svc-card-title').filter(function () { return !String($(this).val() || '').trim(); });
+        if ($untitled.length) { $untitled.first().trigger('focus'); throw new Error('Every card needs a title.'); }
         for (var k = 0; k < idxs.length; k++) {
             var i = idxs[k];
             var image = $('#svcCardsEditor .svc-card-image[data-idx="' + i + '"]').val();

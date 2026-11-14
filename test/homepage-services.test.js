@@ -50,8 +50,12 @@ module.exports = async function ({ check, pub }) {
     let adminDefaults = null;
     try { adminDefaults = m1 ? new Function('return ' + m1[1])() : null; } catch (e) { adminDefaults = null; }
     check('admin editor defaults (js/admin/about.js) equal the shipped defaults', same(adminDefaults, cards.NEW_DEFAULT_CARDS), JSON.stringify(adminDefaults));
-    check('the admin editor pads a stored four-card set with the defaults so the fifth card is editable too',
-        /for \(var di = data\.services\.items\.length; di < DEFAULT_SVC_ITEMS\.length; di\+\+\)/.test(aboutSrc));
+    check('the admin editor shows the stored cards as saved (no padding back to five: fewer cards is the owner\'s choice)',
+        !/for \(var di = data\.services\.items\.length; di < DEFAULT_SVC_ITEMS\.length/.test(aboutSrc));
+    const adminHtml = read('admin.html');
+    check('the admin editor can add cards (up to the server\'s 12) and delete them (down to one)',
+        adminHtml.includes('id="svcAddCard"') && /var SVC_MAX_CARDS = 12;/.test(aboutSrc) && /\.svc-card-delete/.test(aboutSrc)
+        && /\$eds\.length <= 1/.test(aboutSrc) && /slice\(0, 12\)/.test(read('routes/admin/site-content.js')));
     check('the database seed uses the shared defaults (a fresh database gets five cards)', /services_items[\s\S]{0,120}NEW_DEFAULT_CARDS/.test(read('database.js')));
     check('the shared defaults are five cards named like the rate card, with no prices in them',
         same(cards.NEW_DEFAULT_CARDS.map(c => c.title), GROUP_LABELS) && cards.NEW_DEFAULT_CARDS.every(c => c.image === '' && !/R\s?\d|\bZAR\b/i.test(c.title + c.description)));
