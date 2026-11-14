@@ -4050,6 +4050,18 @@
                                             <div class="um-field-group"><label class="um-label" for="stPayfastUrl">Gateway URL</label><div class="um-input-wrap"><i class="fa-solid fa-link um-input-icon"></i><input type="text" class="um-input" id="stPayfastUrl" placeholder="https://sandbox.payfast.co.za/eng/process"></div></div>
                                         </div>
                                     </div>
+                                    <!-- Hide-online-pay toggle: while on, the public Track drawer hides the "Pay online" card
+                                         entirely (clients see only Bank Transfer/EFT) and the /pay endpoint refuses PayFast
+                                         redirects. Use this while your PayFast account is pending verification - a client who
+                                         tries to pay card right now just gets a PayFast 500. -->
+                                    <div class="um-divider" style="margin-top:14px;"></div>
+                                    <label class="eft-check" for="stPayfastDisabled" style="display:flex; align-items:center; gap:10px; cursor:pointer;">
+                                        <input type="checkbox" id="stPayfastDisabled">
+                                        <span>
+                                            <strong>Hide &ldquo;Pay online&rdquo; on the public site</strong>
+                                            <small style="display:block; color:var(--atl-muted); font-weight:400; margin-top:2px;">Turn on while your PayFast account is <em>pending verification</em>. Clients will see only Bank Transfer (EFT) on the Track drawer. Turn off once PayFast has verified your account so card payments work again.</small>
+                                        </span>
+                                    </label>
                                     <div class="um-settings-save" style="margin-top:18px;">
                                         <span class="um-section-desc" style="margin:0; display:flex; align-items:center; gap:6px;"><i class="fa-solid fa-bolt" style="color:var(--atl-amber);"></i> Saved values take effect immediately &mdash; no restart needed. A blank Passphrase keeps the saved one.</span>
                                         <button id="btnSavePayfast" class="atl-btn atl-btn--primary" onclick="savePayfastSettings(this)">

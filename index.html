@@ -3543,6 +3543,10 @@ $(document).ready(function() {
 
                 // Pay by EFT: banking details + proof-of-payment upload (hidden unless an administrator switched Manual EFT on)
                 planState.eft = data.eft || null;
+                // Hide-online-pay toggle: when the owner has turned "Hide Pay online" on in admin
+                // (e.g. while PayFast verification is pending), the "Pay online" option is hidden
+                // entirely so clients see only Bank Transfer. trkLayout() reads this below.
+                planState.payfastDisabled = !!data.payfast_disabled;
                 renderEftPanel(data.eft, data.payment_schedule);
 
                 trkRenderMyDetails();
@@ -3723,6 +3727,16 @@ $(document).ready(function() {
         // Undo the last payment choice before anything is measured: a method the client didn't pick is
         // hidden by that class, and must still count as a method that applies.
         $('#paymentSection, #eftSection').removeClass('trk-tab-off');
+        // Hide-online-pay toggle: when admin has turned it on, the "Pay online" option disappears
+        // from the drawer entirely and its #paymentSection is hidden, so trkUpdatePaymentTabs() below
+        // sees only #eftSection and shows it alone with no chooser.
+        if (planState.payfastDisabled) {
+            $('#trkPayOptPayfast').hide();
+            $('#paymentSection').hide();
+        } else {
+            $('#trkPayOptPayfast').show();
+            $('#paymentSection').show();
+        }
         var view = planState.view || {};
         var payDue = (view.status === 'ACCEPTED' || view.status === 'CONFIRMED') && view.totalScope > 0 && view.amountPaid < view.totalScope;
         var step = null;

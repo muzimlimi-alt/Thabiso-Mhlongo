@@ -284,7 +284,9 @@ router.put('/api/admin/settings', requireAdmin, async (req, res) => {
 
     // Live payment credentials — same administrator-only bar as SMTP below. Any admin role could
     // otherwise repoint the merchant id/key/passphrase/URL that every customer payment signs against.
-    if (keys.some(k => k in envMap && k.startsWith('payfast_')) && (req.session.role || 'assistant') !== 'administrator') {
+    // Guards EVERY payfast_* key (not just the four in envMap), so the hide-online-pay toggle and
+    // any future payfast_* setting are administrator-only too.
+    if (keys.some(k => k.startsWith('payfast_')) && (req.session.role || 'assistant') !== 'administrator') {
         return res.status(403).json({ success: false, message: 'Forbidden: only administrators can change the PayFast payment settings.' });
     }
 

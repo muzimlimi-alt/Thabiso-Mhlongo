@@ -301,6 +301,9 @@ function fillPayfast(s) {
         $('#stPayfastPass').data('has-existing', false);
     }
     if (s.payfast_url) $('#stPayfastUrl').val(s.payfast_url);
+    // Hide-online-pay toggle — stored as '1' or '0' (treated as false by default so a fresh install
+    // shows "Pay online" on the public site, matching behaviour before this toggle existed).
+    $('#stPayfastDisabled').prop('checked', s.payfast_online_disabled === '1' || s.payfast_online_disabled === 'true');
 }
 
 // Email Setup page: Outgoing Mail (SMTP / Microsoft 365), Customer Replies (inbox) and the alert address.
@@ -415,6 +418,9 @@ window.savePayfastSettings = async function(btn) {
     };
     // Remove blank keys to avoid overwriting with empty strings (a blank passphrase therefore means "keep the saved one")
     Object.keys(settings).forEach(k => { if (!settings[k]) delete settings[k]; });
+    // Hide-online-pay toggle — sent explicitly as '1' or '0' every save (never blank, so the "remove
+    // blanks" sweep above can never drop it); the server stores whichever value arrived.
+    settings.payfast_online_disabled = $('#stPayfastDisabled').is(':checked') ? '1' : '0';
     try {
         await apiCall('/api/admin/settings', 'PUT', { settings });
         window.notificationService.showSuccess('PayFast settings saved.');

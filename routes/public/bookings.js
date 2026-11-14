@@ -394,6 +394,15 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                         // have sent none. A failure here must never stop the booking from loading.
                                         let eftPanel = null;
                                         try { eftPanel = await eftData.panelForBooking(row); } catch (eftErr) { console.error('[EFT] Tracking panel failed for booking #' + row.id + ':', eftErr.message); }
+                                        // Hide-online-pay toggle (admin System Settings > PayFast > "Hide online payment on the public
+                                        // site"). Set by the owner while the PayFast account is pending verification so clients see
+                                        // only Bank Transfer (EFT) in the Track drawer. Server-side truth: /api/public/bookings/:id/pay
+                                        // also rejects with 503 while this is on, so hiding the UI is defence-in-depth, not the only gate.
+                                        let payfastDisabled = false;
+                                        try {
+                                            const pfd = await dbGet("SELECT setting_value FROM settings WHERE setting_key = 'payfast_online_disabled'");
+                                            payfastDisabled = !!(pfd && (pfd.setting_value === '1' || pfd.setting_value === 'true'));
+                                        } catch (pfErr) { /* a failure here must never stop tracking */ }
                                         // SEC: build the public payload from an explicit allowlist rather than
                                         // spreading the full `bookings` row and denylisting a few gateway fields.
                                         // The denylist previously missed `admin_notes` — a free-text field admins
@@ -441,7 +450,8 @@ router.post('/api/public/bookings/:id/track', ipRateLimiter, trackRateLimiter, r
                                             quote_version_count: qv ? qv.total_versions : 0,
                                             cancellation: cancRow || null,
                                             contract: contractRow || null,
-                                            eft: eftPanel
+                                            eft: eftPanel,
+                                            payfast_disabled: payfastDisabled
                                         });
                                     });
                                 });
@@ -777,13 +787,23 @@ function buildAndSendPfData(row, amt, milestoneDesc, mPaymentId, req, res) {
     }
 }
 
-router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, requireBookingAccessToken, (req, res) => {
+router.post('/api/public/bookings/:id/pay', ipRateLimiter, mutateRateLimiter, requireBookingAccessToken, async (req, res) => {
     const { payment_type, schedule_id } = req.body; // legacy: 'DEPOSIT'/'FULL'. New: schedule_id.
     console.log(`[DEBUG] POST /api/public/bookings/${req.params.id}/pay - Type: ${payment_type}, schedule_id: ${schedule_id}`);
 
     if (!schedule_id && (!payment_type || !['DEPOSIT', 'FULL'].includes(payment_type))) {
         return res.status(400).json({ success: false, message: 'Invalid payment type. Must be DEPOSIT or FULL.' });
     }
+
+    // Hide-online-pay toggle (admin System Settings > PayFast). While on, the Track drawer hides the
+    // "Pay online" card too — this is the server-side truth, so a stale page or a direct POST can't
+    // still spin up a PayFast redirect against an unverified merchant.
+    try {
+        const pfd = await dbGet("SELECT setting_value FROM settings WHERE setting_key = 'payfast_online_disabled'");
+        if (pfd && (pfd.setting_value === '1' || pfd.setting_value === 'true')) {
+            return res.status(503).json({ success: false, message: 'Online card payment is temporarily unavailable. Please use Bank Transfer (EFT) instead.' });
+        }
+    } catch (pfErr) { /* a read failure must not block paying */ }
 
     db.get("SELECT * FROM bookings WHERE id = ?", [req.params.id], (err, row) => {
         if (err || !row) return res.status(404).json({ success: false, message: 'Booking not found.' });
