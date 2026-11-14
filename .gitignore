@@ -78,3 +78,8 @@ Thabiso Mhlongo Official Website.code-workspace
 *.tmp
 *.bak
 .cache/
+
+# OneDrive two-PC sync conflict artefacts — when the same file is edited on both
+# PCs and OneDrive resolves by keeping both, the second copy gets suffixed
+# "-DESKTOP-<machine-id>" before the extension. These are never source.
+*-DESKTOP-*.*
