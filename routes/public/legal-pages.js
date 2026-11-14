@@ -1,4 +1,4 @@
-// Public, standalone Privacy Policy and Terms & Conditions pages: /privacy and /terms (text from the homepage pop-ups - see lib/legal-pages.js).
+// Public, standalone Privacy Policy, Terms & Conditions and Refund & Cancellation Policy pages: /privacy, /terms and /refund-policy (text from the homepage pop-ups - see lib/legal-pages.js).
 // Mounted from routes/public/site-content.js. No login, no cookies, nothing personal: safe to cache and to index.
 const express = require('express');
 const legal = require('../../lib/legal-pages');
@@ -15,10 +15,12 @@ for (const key of Object.keys(legal.DOCS)) {
     });
 }
 
-// Names people (and some services) guess for the same two pages.
+// Names people (and some services) guess for the same pages.
 const ALIASES = {
     '/privacy-policy': '/privacy', '/privacy.html': '/privacy',
-    '/terms-and-conditions': '/terms', '/terms-conditions': '/terms', '/terms-of-use': '/terms', '/terms-of-service': '/terms', '/terms.html': '/terms'
+    '/terms-and-conditions': '/terms', '/terms-conditions': '/terms', '/terms-of-use': '/terms', '/terms-of-service': '/terms', '/terms.html': '/terms',
+    '/refund': '/refund-policy', '/refunds': '/refund-policy', '/refund-policy.html': '/refund-policy', '/refund-and-cancellation-policy': '/refund-policy',
+    '/cancellation-policy': '/refund-policy', '/returns-policy': '/refund-policy'
 };
 for (const [from, to] of Object.entries(ALIASES)) router.get(from, (req, res) => res.redirect(301, to));
 

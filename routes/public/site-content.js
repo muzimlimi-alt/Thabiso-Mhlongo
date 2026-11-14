@@ -363,7 +363,7 @@ router.get('/api/public/site-content', (req, res) => {
     homepageContent.getSiteContent().then((data) => res.json(data), (err) => res.status(500).json({ success: false, error: err.message }));
 });
 
-// Standalone /privacy and /terms pages (text comes from the homepage pop-ups).
+// Standalone /privacy, /terms and /refund-policy pages (text comes from the homepage pop-ups).
 router.use(require('./legal-pages'));
 
 module.exports = router;

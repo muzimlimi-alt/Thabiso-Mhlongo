@@ -34,7 +34,8 @@ const conditionalGet = (p, etag) => new Promise((resolve, reject) => {
 module.exports = async function ({ check }) {
     const DOCS = [
         { path: '/privacy', modal: 'privacyModal', title: 'Privacy Policy', other: '/terms', sections: 8 },
-        { path: '/terms', modal: 'termsModal', title: 'Terms &amp; Conditions', other: '/privacy', sections: 9 }
+        { path: '/terms', modal: 'termsModal', title: 'Terms &amp; Conditions', other: '/privacy', sections: 9 },
+        { path: '/refund-policy', modal: 'refundModal', title: 'Refund &amp; Cancellation Policy', other: '/terms', sections: 10 }
     ];
 
     for (const d of DOCS) {
@@ -63,17 +64,19 @@ module.exports = async function ({ check }) {
     }
 
     // names people guess
-    for (const [from, to] of [['/privacy-policy', '/privacy'], ['/privacy.html', '/privacy'], ['/terms-and-conditions', '/terms'], ['/terms-of-use', '/terms'], ['/terms-of-service', '/terms'], ['/terms.html', '/terms']]) {
+    for (const [from, to] of [['/privacy-policy', '/privacy'], ['/privacy.html', '/privacy'], ['/terms-and-conditions', '/terms'], ['/terms-of-use', '/terms'], ['/terms-of-service', '/terms'], ['/terms.html', '/terms'],
+        ['/refund', '/refund-policy'], ['/refunds', '/refund-policy'], ['/cancellation-policy', '/refund-policy'], ['/refund-and-cancellation-policy', '/refund-policy'], ['/refund-policy.html', '/refund-policy']]) {
         const r = await get(from);
         check(`${from} -> permanent redirect to ${to}`, r.status === 301 && (r.headers.get('location') || '').endsWith(to), r.status + ' ' + r.headers.get('location'));
     }
 
     // search engines may read them; the homepage keeps its pop-ups AND gains real links
     const robots = await get('/robots.txt');
-    check('robots.txt does not block /privacy or /terms', robots.status === 200 && !/Disallow:\s*\/(privacy|terms)/i.test(robots.text) && !/Disallow:\s*\/\s*$/m.test(robots.text), robots.text);
+    check('robots.txt does not block /privacy, /terms or /refund-policy', robots.status === 200 && !/Disallow:\s*\/(privacy|terms|refund)/i.test(robots.text) && !/Disallow:\s*\/\s*$/m.test(robots.text), robots.text);
     check('the homepage footer links are real links (/privacy, /terms) and still open the pop-ups',
-        /<a href="\/privacy" data-toggle="modal" data-target="#privacyModal">Privacy Policy<\/a>/.test(INDEX) && /<a href="\/terms" data-toggle="modal" data-target="#termsModal">Terms of Use<\/a>/.test(INDEX), '');
-    check('the pop-ups are still on the homepage (booking checkboxes link to them)', INDEX.includes('id="privacyModal"') && INDEX.includes('id="termsModal"'), '');
+        /<a href="\/privacy" data-toggle="modal" data-target="#privacyModal">Privacy Policy<\/a>/.test(INDEX) && /<a href="\/terms" data-toggle="modal" data-target="#termsModal">Terms of Use<\/a>/.test(INDEX)
+        && /<a href="\/refund-policy" data-toggle="modal" data-target="#refundModal">Refund &amp; Cancellation Policy<\/a>/.test(INDEX), '');
+    check('the pop-ups are still on the homepage (booking checkboxes link to them)', INDEX.includes('id="privacyModal"') && INDEX.includes('id="termsModal"') && INDEX.includes('id="refundModal"'), '');
     const nf = await get('/privacy-policies-of-nothing');
     check('an unknown address still gets the normal 404 (the new routes do not swallow everything)', nf.status === 404, String(nf.status));
 };
