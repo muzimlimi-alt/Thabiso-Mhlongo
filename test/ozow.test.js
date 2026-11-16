@@ -159,19 +159,19 @@ describe('buildOzowPaymentRequest', () => {
         assert.equal(result.requestBody.isTest, true);
         assert.equal(typeof result.requestBody.hashCheck, 'string');
         assert.equal(result.requestBody.hashCheck.length, 128);
-        assert.ok(result.apiUrl.includes('stagingapi.ozow.com'));
+        assert.equal(result.apiUrl, 'https://api.ozow.com/postpaymentrequest');
         assert.equal(result.apiKey, 'testapikey123');
     });
 
-    it('uses live API URL when test mode is off', () => {
+    it('always uses live API URL (isTest flag in body handles test mode)', () => {
         const env = { ...TEST_ENV, OZOW_TEST_MODE: 'false' };
         const result = buildOzowPaymentRequest({
             transactionReference: 'X', amount: '10.00',
             cancelUrl: 'https://x.com/c', errorUrl: 'https://x.com/e',
             successUrl: 'https://x.com/s', notifyUrl: 'https://x.com/n'
         }, env);
-        assert.ok(result.apiUrl.includes('api.ozow.com'));
-        assert.ok(!result.apiUrl.includes('staging'));
+        assert.equal(result.apiUrl, 'https://api.ozow.com/postpaymentrequest');
+        assert.equal(result.requestBody.isTest, false);
     });
 
     it('truncates bankReference to 20 chars', () => {
