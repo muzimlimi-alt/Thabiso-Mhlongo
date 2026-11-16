@@ -916,23 +916,24 @@ function buildAndSendOzowData(row, amt, milestoneDesc, mPaymentId, req, res) {
         const baseUrl = ozowBaseUrl(req);
         const isPortal = req.body.return_path === 'portal';
 
+        const ozowRef = `${mPaymentId}_${Date.now()}`;
         const { requestBody, apiUrl, apiKey } = buildOzowPaymentRequest({
             amount: amount,
-            transactionReference: mPaymentId,
+            transactionReference: ozowRef,
             bankReference: `Booking ${row.id}`,
-            cancelUrl:  isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel`  : `${baseUrl}/?track=${row.id}&payment=cancel`,
-            errorUrl:   isPortal ? `${baseUrl}/booking?id=${row.id}&payment=error`   : `${baseUrl}/?track=${row.id}&payment=error`,
-            successUrl: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success`  : `${baseUrl}/?track=${row.id}&payment=success`,
+            cancelUrl:  isPortal ? `${baseUrl}/booking?id=${row.id}&payment=cancel&gateway=ozow`  : `${baseUrl}/?track=${row.id}&payment=cancel&gateway=ozow`,
+            errorUrl:   isPortal ? `${baseUrl}/booking?id=${row.id}&payment=error&gateway=ozow`   : `${baseUrl}/?track=${row.id}&payment=error&gateway=ozow`,
+            successUrl: isPortal ? `${baseUrl}/booking?id=${row.id}&payment=success&gateway=ozow`  : `${baseUrl}/?track=${row.id}&payment=success&gateway=ozow`,
             notifyUrl:  `${baseUrl}/api/payment/webhook/ozow`,
             customer:   plain(row.email),
             bookingId:  row.id,
             optional1:  `Booking ${row.id} - ${plain(row.event_name) || plain(row.event_type) || 'Event'} - ${milestoneDesc}`
         });
 
-        insertPaymentIntent(row.id, mPaymentId, amount, mPaymentId.split('_')[1] === 'FULL' ? 'FULL' : (mPaymentId.split('_')[1] || 'FULL').startsWith('SCHED') ? 'SCHED' : mPaymentId.split('_')[1] || 'FULL', null)
+        insertPaymentIntent(row.id, ozowRef, amount, mPaymentId.split('_')[1] === 'FULL' ? 'FULL' : (mPaymentId.split('_')[1] || 'FULL').startsWith('SCHED') ? 'SCHED' : mPaymentId.split('_')[1] || 'FULL', null)
             .catch(e => console.error(`[Ozow] Failed to record payment intent for booking #${row.id}:`, e.message));
 
-        console.log(`[Ozow] Payment initiated: Booking #${row.id}, ref: ${mPaymentId}, Amount: R${amount.toFixed(2)}`);
+        console.log(`[Ozow] Payment initiated: Booking #${row.id}, ref: ${ozowRef}, Amount: R${amount.toFixed(2)}`);
 
         // Server-side POST to Ozow
         fetch(apiUrl, {

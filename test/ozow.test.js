@@ -36,6 +36,16 @@ describe('ozowCreds', () => {
         assert.equal(c.isTest, false);
     });
 
+    it('treats "1" as test mode (admin checkbox value)', () => {
+        const c = ozowCreds({ ...TEST_ENV, OZOW_TEST_MODE: '1' });
+        assert.equal(c.isTest, true);
+    });
+
+    it('treats "0" as live mode', () => {
+        const c = ozowCreds({ ...TEST_ENV, OZOW_TEST_MODE: '0' });
+        assert.equal(c.isTest, false);
+    });
+
     it('returns empty strings when nothing is set', () => {
         const c = ozowCreds({});
         assert.equal(c.siteCode, '');
