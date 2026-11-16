@@ -600,7 +600,7 @@ router.post('/api/payment/webhook/ozow', async (req, res) => {
             const outcome = await withDbTransaction(async () => {
                 try { await dbRun("BEGIN IMMEDIATE"); } catch (beginErr) { return { retry: true }; }
                 try {
-                    await insertOzowTransaction(bookingId, ozowAmount, 'bank_transfer', idempotencyRef, data.Status, data.Hash || '');
+                    await insertOzowTransaction(bookingId, ozowAmount, 'ozow', idempotencyRef, data.Status, data.Hash || '');
 
                     const credit = await applyPayfastPaymentToBooking(
                         ozowAmount, currentTotal, paymentType,

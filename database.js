@@ -3180,6 +3180,67 @@ function initializeDatabase() {
         // Official 2026 rate card — run-once data migration (version 106), after all schema/seed work above.
         require('./lib/rate-card-2026').applyOnce(db);
 
+        // Migration 122: add 'ozow' to transactions.payment_method CHECK constraint.
+        // SQLite can't ALTER a CHECK, so this is a table rebuild (same pattern as the banners Birthday migration).
+        // Guarded by inspecting the table's stored SQL — only runs when 'ozow' is not already allowed.
+        db.get("SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'", (sqlErr, row) => {
+            if (sqlErr || !row) return;
+            if (row.sql.includes("'ozow'")) return;
+            if (!row.sql.includes("payment_method") || !row.sql.includes("CHECK")) return;
+            console.log("[migration 122] Adding 'ozow' to transactions.payment_method CHECK constraint...");
+            db.run("PRAGMA foreign_keys=OFF", () => {
+                db.run("BEGIN TRANSACTION", (beginErr) => {
+                    if (beginErr) { console.error('[migration 122] BEGIN failed:', beginErr.message); return; }
+                    db.run(`CREATE TABLE transactions_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        booking_id INTEGER NOT NULL,
+                        invoice_id INTEGER,
+                        amount DECIMAL(10,2) NOT NULL,
+                        transaction_date DATE NOT NULL,
+                        payment_method TEXT CHECK(payment_method IN ('cash','check','bank_transfer','credit_card','payfast','ozow','other')),
+                        reference_number TEXT,
+                        transaction_type TEXT CHECK(transaction_type IN ('deposit','payment','refund','adjustment')),
+                        status TEXT DEFAULT 'pending',
+                        notes TEXT,
+                        pf_payment_id TEXT UNIQUE,
+                        pf_signature TEXT,
+                        pf_status TEXT,
+                        ip_address TEXT,
+                        is_verified INTEGER DEFAULT 0,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        reference TEXT,
+                        source TEXT DEFAULT 'manual',
+                        is_duplicate INTEGER DEFAULT 0,
+                        reconcile_note TEXT,
+                        proof_of_payment_path TEXT,
+                        FOREIGN KEY (booking_id) REFERENCES bookings(id),
+                        FOREIGN KEY (invoice_id) REFERENCES invoices(id)
+                    )`, (createErr) => {
+                        if (createErr) { console.error('[migration 122] create transactions_new failed:', createErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                        db.run("INSERT INTO transactions_new SELECT * FROM transactions", (copyErr) => {
+                            if (copyErr) { console.error('[migration 122] copy transactions failed:', copyErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                            db.run("DROP TABLE transactions", (dropErr) => {
+                                if (dropErr) { console.error('[migration 122] drop transactions failed:', dropErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                                db.run("ALTER TABLE transactions_new RENAME TO transactions", (renameErr) => {
+                                    if (renameErr) { console.error('[migration 122] rename failed:', renameErr.message); return db.run("ROLLBACK", () => db.run("PRAGMA foreign_keys=ON")); }
+                                    db.run("CREATE INDEX IF NOT EXISTS idx_transactions_booking ON transactions(booking_id)");
+                                    db.run("CREATE INDEX IF NOT EXISTS idx_transactions_reference ON transactions(reference)");
+                                    db.run("CREATE INDEX IF NOT EXISTS idx_transactions_source ON transactions(source)");
+                                    db.run("CREATE INDEX IF NOT EXISTS idx_transactions_booking_source ON transactions(booking_id, source)");
+                                    db.run("COMMIT", (commitErr) => {
+                                        db.run("PRAGMA foreign_keys=ON");
+                                        if (commitErr) { console.error('[migration 122] commit failed:', commitErr.message); return; }
+                                        db.run("INSERT OR IGNORE INTO schema_migrations (version, name) VALUES (122, 'transactions_add_ozow_payment_method')");
+                                        console.log("[migration 122] 'ozow' payment method added successfully.");
+                                    });
+                                });
+                            });
+                        });
+                    });
+                });
+            });
+        });
+
         console.log('Database tables initialized successfully.');
     });
 }

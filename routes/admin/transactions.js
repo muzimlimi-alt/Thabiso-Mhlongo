@@ -57,7 +57,7 @@ router.post('/api/admin/transactions/manual', requireAdmin, requireRole(['admini
     // ('cash','check','bank_transfer','credit_card','payfast','other'). The UI sends 'eft'/'card',
     // which the CHECK rejects — the INSERT then 500'd and the manual payment went unrecorded.
     const PM_MAP = { eft: 'bank_transfer', bank_transfer: 'bank_transfer', card: 'credit_card',
-        credit_card: 'credit_card', cash: 'cash', check: 'check', cheque: 'check', payfast: 'payfast' };
+        credit_card: 'credit_card', cash: 'cash', check: 'check', cheque: 'check', payfast: 'payfast', ozow: 'ozow' };
     const normalizedMethod = (transaction_type === 'adjustment' || !payment_method)
         ? null
         : (PM_MAP[String(payment_method).toLowerCase().trim()] || 'other');
