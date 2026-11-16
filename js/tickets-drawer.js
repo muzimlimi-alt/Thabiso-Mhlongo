@@ -492,20 +492,23 @@
         return renderDetails();
     }
 
-    // Waiting for PayFast's notification: poll every 3 s for up to 2 minutes, and ask the safety net to look at 0 / 35 / 90 s.
+    // Waiting for the gateway's notification: poll every 3 s for up to 2 minutes. For PayFast, also ask the safety net at 0 / 35 / 90 s.
     function confirming(o, ref) {
+        var gw = (state.gateway === 'ozow') ? 'Ozow' : 'PayFast';
         title('Confirming payment');
-        body(eventHead(o.event) + '<div class="tk-loading" role="status"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Confirming your payment with PayFast…</div>' +
+        body(eventHead(o.event) + '<div class="tk-loading" role="status"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Confirming your payment with ' + gw + '…</div>' +
             '<p class="tk-fine">This usually takes a few seconds. Please keep this page open.</p>');
         var elapsed = Date.now() - state.returnedAt;
-        var checkAt = [0, 35000, 90000];
-        if (state.checks < checkAt.length && elapsed >= checkAt[state.checks]) {
-            state.checks++;
-            call('POST', '/api/public/ticket-orders/' + encodeURIComponent(ref) + '/payment-check').catch(function () {});
+        if (state.gateway !== 'ozow') {
+            var checkAt = [0, 35000, 90000];
+            if (state.checks < checkAt.length && elapsed >= checkAt[state.checks]) {
+                state.checks++;
+                call('POST', '/api/public/ticket-orders/' + encodeURIComponent(ref) + '/payment-check').catch(function () {});
+            }
         }
         if (elapsed > 120000) {
             title('Payment being confirmed');
-            body(eventHead(o.event) + messageBox('warn', 'PayFast has not confirmed your payment yet. If you paid, your tickets will be emailed' + (o.email_hint ? ' to ' + esc(o.email_hint) : '') + ' as soon as it does - you can close this page.') +
+            body(eventHead(o.event) + messageBox('warn', gw + ' has not confirmed your payment yet. If you paid, your tickets will be emailed' + (o.email_hint ? ' to ' + esc(o.email_hint) : '') + ' as soon as it does - you can close this page.') +
                 '<div class="tk-actions"><button type="button" class="btn-bk-nav btn-bk-next tk-recheck">Check again</button></div>');
             state.recheck = function () { state.returnedAt = Date.now(); state.checks = 0; fetchOrder(ref, 'success'); };
             return;
@@ -565,10 +568,11 @@
         var ref = params.get('tickets');
         if (!ref) return;
         var payment = params.get('payment');
+        state.gateway = params.get('gateway') || 'payfast';
         // tidy the address bar (the reference stays in the buyer's e-mail and this tab's session only)
-        try { params.delete('tickets'); params.delete('payment'); history.replaceState(null, '', window.location.pathname + (params.toString() ? '?' + params : '') + window.location.hash); } catch (err) {}
+        try { params.delete('tickets'); params.delete('payment'); params.delete('gateway'); history.replaceState(null, '', window.location.pathname + (params.toString() ? '?' + params : '') + window.location.hash); } catch (err) {}
         stopTimers();
-        state = { eventId: null, data: null, qty: {}, order: null, skew: 0, timer: null, poll: null, notice: '', namesOpen: false };
+        state = { eventId: null, data: null, qty: {}, order: null, skew: 0, timer: null, poll: null, notice: '', namesOpen: false, gateway: state.gateway };
         title(payment === 'success' ? 'Confirming payment' : 'Your tickets');
         // the drawer system is loaded after this file; open on the next tick
         setTimeout(function () { open(); loadOrder(ref, payment === 'success' || payment === 'cancel' ? payment : null); }, 0);

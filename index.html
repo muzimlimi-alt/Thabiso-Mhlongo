@@ -2530,7 +2530,7 @@
 	<script src="js/admin/components/drawer.js?v=3"></script>
 	<script src="js/notificationService.js?v=2.0.3"></script>
 	<!-- Event ticketing: the Get Tickets drawer + the event cards' ticket buttons (called by js/myscript.js). -->
-	<script src="js/tickets-drawer.js?v=10"></script>
+	<script src="js/tickets-drawer.js?v=11"></script>
 	<!-- Share a show with friends: Share buttons on cards / pop-up / drawer, and opening /?event=<id> from a shared link. -->
 	<script src="js/event-share.js?v=2"></script>
 	<!-- Client payment plans (Track Booking drawer): the shared rules module — the very file the server
@@ -3338,25 +3338,54 @@ $(document).ready(function() {
         $('#trackCodeError').hide().text('');
     });
 
-    // Returning from PayFast with ?payment=success: state 'checking' (asking PayFast whether the payment has been received), 'recorded' (the booking
-    // now shows it) or 'waiting' (PayFast has not reported it yet; the notification may still arrive on its own).
-    var pfReturn = { id: null, state: null, timer: null };
+    // Returning from a payment gateway with ?payment=success: state 'checking' (asking the gateway whether the payment has been received),
+    // 'recorded' (the booking now shows it) or 'waiting' (the gateway has not reported it yet; the notification may still arrive on its own).
+    // &gateway=ozow distinguishes Ozow returns from PayFast; without it, PayFast is assumed (backwards-compatible with old URLs).
+    var pfReturn = { id: null, state: null, timer: null, gateway: 'payfast' };
     function showPfReturnAlert() {
         $('.trk-return-alert').remove();
         var recorded = pfReturn.state === 'recorded', checking = pfReturn.state === 'checking';
+        var gw = pfReturn.gateway === 'ozow' ? 'Ozow' : 'PayFast';
         var text = recorded ? 'Payment received. Thank you! Your booking has been updated.'
-            : checking ? 'Payment submitted. We are confirming it with PayFast now, this usually takes a few seconds.'
+            : checking ? 'Payment submitted. We are confirming it with ' + gw + ' now, this usually takes a few seconds.'
             : 'Payment submitted! It may take a moment for verification to complete. Refresh to see the latest status.';
         $('#trackingDetails').prepend('<div class="trk-return-alert success"><i class="fa-solid ' + (checking ? 'fa-spinner fa-spin' : 'fa-circle-check') + '" style="margin-right:8px;"></i>' + text + '</div>');
     }
-    function pfConfirmPayment(id) {
-        var delays = [0, 35000, 55000];                       // right away, then about 35 s and 90 s after the buyer arrived
+    function pfConfirmPayment(id, gateway) {
+        gateway = gateway || 'payfast';
+        pfReturn = { id: id, state: 'checking', timer: null, gateway: gateway };
+        // Ozow: the webhook processes the payment server-side; there is no PayFast-style safety net to call.
+        // Just poll the booking status until it reflects the payment.
+        if (gateway === 'ozow') {
+            var ozDelays = [3000, 8000, 20000, 45000];
+            var oi = 0;
+            function ozPoll() {
+                if (pfReturn.id !== id) return;
+                fetch('/api/public/bookings/' + encodeURIComponent(id) + '/track', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ access_token: currentAccessToken })
+                }).then(function(r) { return r.json(); }).then(function(d) {
+                    if (pfReturn.id !== id) return;
+                    var ps = d && d.booking && (d.booking.payment_status || '').toUpperCase();
+                    if (ps === 'PAID' || ps === 'DEPOSIT_PAID') { pfReturn.state = 'recorded'; loadTrackingDetails(); return; }
+                    if (++oi >= ozDelays.length) { pfReturn.state = 'waiting'; showPfReturnAlert(); return; }
+                    pfReturn.timer = setTimeout(ozPoll, ozDelays[oi]);
+                }).catch(function() {
+                    if (++oi >= ozDelays.length) { pfReturn.state = 'waiting'; showPfReturnAlert(); return; }
+                    pfReturn.timer = setTimeout(ozPoll, ozDelays[oi]);
+                });
+            }
+            pfReturn.timer = setTimeout(ozPoll, ozDelays[0]);
+            return;
+        }
+        // PayFast: use the safety-net payment-check endpoint
+        var delays = [0, 35000, 55000];
         var i = 0;
-        pfReturn = { id: id, state: 'checking', timer: null };
         function done(state) {
             if (pfReturn.id !== id) return;
             pfReturn.state = state;
-            loadTrackingDetails();                            // shows the payment on the booking and the final message
+            loadTrackingDetails();
         }
         function next() {
             if (pfReturn.id !== id) return;
@@ -3371,7 +3400,6 @@ $(document).ready(function() {
                 body: JSON.stringify({ access_token: currentAccessToken })
             }).then(function(r) { return r.json(); }).then(function(d) {
                 if (d && d.status === 'recorded') return done('recorded');
-                // 'nothing' after the first look: the notification arrived by itself in the meantime, so show what it recorded
                 if (d && d.status === 'nothing' && i > 0) return done('recorded');
                 next();
             }).catch(next);
@@ -3411,22 +3439,25 @@ $(document).ready(function() {
                 planState.contract = data.contract || null;
                 planState.view = { status: bStatus, payStatus: bPay, isQuotedOrActive: false, amountPaid: 0, totalScope: 0 };
 
-                // Show payment return alert if returning from PayFast (once: a reload after a plan
+                // Show payment return alert if returning from a gateway (once: a reload after a plan
                 // change or an acceptance must not stack a second banner on top of the first).
                 $('#trackingDetails > .trk-return-alert').remove();
                 var payParam = urlParams.get('payment');
+                var gatewayParam = urlParams.get('gateway') || 'payfast';
                 $('.trk-return-alert').remove();
                 if (payParam === 'success' && urlParams.get('track') === id) {
-                    // PayFast tells the site about a payment by a separate server-to-server notification. If that notification is lost, the
-                    // buyer's own return is the moment to ask PayFast directly (the server only ever records a payment PayFast itself reports).
-                    pfConfirmPayment(id);
+                    // The gateway tells the site about a payment by a separate server-to-server notification. If that notification is lost,
+                    // the buyer's own return is the moment to check (PayFast: safety net; Ozow: poll the booking status).
+                    pfConfirmPayment(id, gatewayParam);
                     showPfReturnAlert();
                     urlParams.delete('payment');                  // handled: a later search in this page view must not start it again
+                    urlParams.delete('gateway');
                 } else if (pfReturn.id === id && pfReturn.state) {
-                    showPfReturnAlert();                          // this booking is reloaded while (or after) PayFast is being asked
+                    showPfReturnAlert();                          // this booking is reloaded while (or after) the gateway is being checked
                 } else if (payParam === 'cancel' && urlParams.get('track') === id) {
                     $('#trackingDetails').prepend('<div class="trk-return-alert cancel"><i class="fa-solid fa-triangle-exclamation" style="margin-right:8px;"></i>Payment was cancelled. No charges were made. You can try again below.</div>');
                     urlParams.delete('payment');
+                    urlParams.delete('gateway');
                 }
 
                 // Clear the payParam from URL so it doesn't show again on subsequent manual searches
