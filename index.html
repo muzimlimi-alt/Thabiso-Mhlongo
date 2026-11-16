@@ -3354,29 +3354,33 @@ $(document).ready(function() {
     function pfConfirmPayment(id, gateway) {
         gateway = gateway || 'payfast';
         pfReturn = { id: id, state: 'checking', timer: null, gateway: gateway };
-        // Ozow: the webhook processes the payment server-side; there is no PayFast-style safety net to call.
-        // Just poll the booking status until it reflects the payment.
+        // Ozow: call the Ozow safety net which checks Ozow's own API for the payment status
         if (gateway === 'ozow') {
-            var ozDelays = [3000, 8000, 20000, 45000];
+            var ozDelays = [3000, 10000, 25000, 50000];
             var oi = 0;
-            function ozPoll() {
+            function ozDone(state) {
                 if (pfReturn.id !== id) return;
-                fetch('/api/public/bookings/' + encodeURIComponent(id) + '/track', {
+                pfReturn.state = state;
+                loadTrackingDetails();
+            }
+            function ozNext() {
+                if (pfReturn.id !== id) return;
+                if (++oi >= ozDelays.length) { pfReturn.state = 'waiting'; showPfReturnAlert(); return; }
+                pfReturn.timer = setTimeout(ozAttempt, ozDelays[oi]);
+            }
+            function ozAttempt() {
+                if (pfReturn.id !== id || !currentAccessToken) return;
+                fetch('/api/public/bookings/' + encodeURIComponent(id) + '/ozow-check', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ access_token: currentAccessToken })
                 }).then(function(r) { return r.json(); }).then(function(d) {
-                    if (pfReturn.id !== id) return;
-                    var ps = d && d.booking && (d.booking.payment_status || '').toUpperCase();
-                    if (ps === 'PAID' || ps === 'DEPOSIT_PAID') { pfReturn.state = 'recorded'; loadTrackingDetails(); return; }
-                    if (++oi >= ozDelays.length) { pfReturn.state = 'waiting'; showPfReturnAlert(); return; }
-                    pfReturn.timer = setTimeout(ozPoll, ozDelays[oi]);
-                }).catch(function() {
-                    if (++oi >= ozDelays.length) { pfReturn.state = 'waiting'; showPfReturnAlert(); return; }
-                    pfReturn.timer = setTimeout(ozPoll, ozDelays[oi]);
-                });
+                    if (d && d.status === 'recorded') return ozDone('recorded');
+                    if (d && d.status === 'nothing' && oi > 0) return ozDone('recorded');
+                    ozNext();
+                }).catch(ozNext);
             }
-            pfReturn.timer = setTimeout(ozPoll, ozDelays[0]);
+            pfReturn.timer = setTimeout(ozAttempt, ozDelays[0]);
             return;
         }
         // PayFast: use the safety-net payment-check endpoint

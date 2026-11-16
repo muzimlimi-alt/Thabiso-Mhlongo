@@ -499,10 +499,10 @@
         body(eventHead(o.event) + '<div class="tk-loading" role="status"><i class="fa-solid fa-circle-notch fa-spin" aria-hidden="true"></i> Confirming your payment with ' + gw + '…</div>' +
             '<p class="tk-fine">This usually takes a few seconds. Please keep this page open.</p>');
         var elapsed = Date.now() - state.returnedAt;
-        if (state.gateway !== 'ozow') {
-            var checkAt = [0, 35000, 90000];
-            if (state.checks < checkAt.length && elapsed >= checkAt[state.checks]) {
-                state.checks++;
+        var checkAt = [0, 35000, 90000];
+        if (state.checks < checkAt.length && elapsed >= checkAt[state.checks]) {
+            state.checks++;
+            if (state.gateway !== 'ozow') {
                 call('POST', '/api/public/ticket-orders/' + encodeURIComponent(ref) + '/payment-check').catch(function () {});
             }
         }

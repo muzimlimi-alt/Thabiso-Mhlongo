@@ -567,6 +567,7 @@ app.use(require('./routes/admin/ticketing'));        // Event ticketing: tiers, 
 app.use(require('./routes/public/bookings'));
 app.use(require('./routes/public/eft'));             // Manual EFT: a client uploads / reads back their proof of payment
 app.use(require('./routes/public/payfast-check'));   // a buyer back from PayFast asks to have their own payment confirmed now
+app.use(require('./routes/public/ozow-check'));     // a buyer back from Ozow asks to have their own payment confirmed now
 app.use(require('./routes/public/ticketing'));       // Event ticketing: tiers on sale, reserve, checkout, order status, /t/<token> ticket page
 app.use(require('./routes/public/site-content'));
 app.use(require('./routes/public/availability'));
